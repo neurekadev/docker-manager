@@ -133,23 +133,46 @@ step_wait_images() {
 		record wait-images PASSED "local images carry revision ${SMOKE_REVISION}"
 		return
 	fi
-	local deadline=$((SECONDS + SMOKE_WAIT_SECONDS)) img rev ok
+	local deadline=$((SECONDS + SMOKE_WAIT_SECONDS)) img rev ok newer revs
 	while :; do
 		ok=1
+		newer=""
+		revs=()
 		for img in "$SMOKE_MANAGER_IMAGE" "$SMOKE_AGENT_IMAGE"; do
 			rev="$(image_revision "$img" || true)"
+			revs+=("$rev")
 			if [ "$rev" != "$SMOKE_REVISION" ]; then
 				ok=0
 				log "${img}: revision ${rev:-unknown}, waiting for ${SMOKE_REVISION}"
 			fi
 		done
 		[ "$ok" = 1 ] && break
+		# A later push to main may already have replaced :edge. If both
+		# images carry the same newer commit that contains ours, test that
+		# (it includes this change) instead of waiting for a tag that will
+		# never come back.
+		if [ -n "${revs[0]}" ] && [ "${revs[0]}" = "${revs[1]}" ] && commit_contains "${revs[0]}" "$SMOKE_REVISION"; then
+			newer="${revs[0]}"
+			log "edge moved on to ${newer}, which contains ${SMOKE_REVISION}; testing it"
+			record wait-images PASSED "edge images carry ${newer}, a newer main commit containing ${SMOKE_REVISION}"
+			SMOKE_REVISION="$newer"
+			return
+		fi
 		if [ "$SECONDS" -ge "$deadline" ]; then
 			fail wait-images "edge images did not reach revision ${SMOKE_REVISION} within ${SMOKE_WAIT_SECONDS}s (did the ci images job publish?)"
 		fi
 		sleep "$SMOKE_POLL_SECONDS"
 	done
 	record wait-images PASSED "edge images carry revision ${SMOKE_REVISION}"
+}
+
+# commit_contains HEAD BASE: HEAD is a descendant of BASE (GitHub compare API;
+# needs GH_TOKEN and GITHUB_REPOSITORY, i.e. only in Actions).
+commit_contains() {
+	[ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GH_TOKEN:-}" ] || return 1
+	local status
+	status="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${2}...${1}" --jq .status 2>/dev/null)" || return 1
+	[ "$status" = ahead ]
 }
 
 container_health() {

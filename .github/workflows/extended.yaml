@@ -36,6 +36,10 @@ on:
         type: choice
         options: [auto, edge, local]
         default: auto
+      smoke-revision:
+        description: "smoke: expected revision of the edge images (default: the commit of this run)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -463,7 +467,9 @@ jobs:
       - name: Deploy smoke test
         env:
           SMOKE_IMAGES: ${{ steps.mode.outputs.mode }}
-          SMOKE_REVISION: ${{ github.sha }}
+          SMOKE_REVISION: ${{ inputs.smoke-revision || github.sha }}
+          # Read-only: compares commits when :edge has moved on to a newer main.
+          GH_TOKEN: ${{ github.token }}
           SMOKE_ARTIFACTS: ${{ runner.temp }}/smoke
         run: bash scripts/smoke/deploy-smoke.sh
       - name: Upload smoke logs

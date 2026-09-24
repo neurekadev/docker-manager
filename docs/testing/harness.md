@@ -50,6 +50,7 @@ gh workflow run extended.yaml --ref <branch> -f suites=fuzz,e2e       # a subset
 gh workflow run extended.yaml --ref <branch> -f suites=fuzz -f fuzztime=5m
 gh workflow run extended.yaml --ref <branch> -f suites=engine-matrix -f arm64=false
 gh workflow run extended.yaml --ref <branch> -f suites=smoke -f smoke-images=local
+gh workflow run extended.yaml --ref <branch> -f suites=smoke -f smoke-images=edge -f smoke-revision=<main sha>
 ```
 
 On a machine with Docker:
@@ -182,7 +183,10 @@ The CI job uploads the HTML report as the `playwright-report` artifact.
 the images under test: on `main` it waits (up to 30 min) until
 `ghcr.io/neurekadev/dockyard-{manager,agent}:edge` carry
 `org.opencontainers.image.revision == github.sha`; on branches it builds
-the images locally (`smoke-images` input). Steps: fresh start (healthy,
+the images locally (`smoke-images` input; `smoke-revision` tests the
+current edge against a given commit). If `:edge` has already moved on to a
+newer `main` commit that contains the run's commit, that newer image is
+tested instead of waiting (GitHub compare API). Steps: fresh start (healthy,
 UID 0, Docker socket only on the agent) → readiness, UI shell and OpenAPI
 through the Caddy TLS proxy with a verified CA → owner setup (pending #16)
 → agent enrollment (pending #3) → deploy `test/smoke/sample-stack` (pending
