@@ -80,35 +80,66 @@ func (s *Swapper) Swapped() bool {
 // Flips returns how many swaps and restores happened.
 func (s *Swapper) Flips() int64 { return s.flips.Load() }
 
-// Run flips until ctx is done, then restores the directory.
-func (s *Swapper) Run(ctx context.Context) error {
+// Run flips until ctx is done, then restores the directory. hold is how
+// long each state (directory / symlink) is kept before flipping again; a
+// small non-zero hold lets a concurrent consumer observe both states.
+func (s *Swapper) Run(ctx context.Context, hold time.Duration) error {
+	pause := func() {
+		if hold > 0 {
+			select {
+			case <-ctx.Done():
+			case <-time.After(hold):
+			}
+		}
+	}
 	for ctx.Err() == nil {
 		if err := s.Swap(); err != nil {
 			return errors.Join(err, s.Restore())
 		}
+		pause()
 		if err := s.Restore(); err != nil {
 			return err
 		}
+		pause()
 	}
 	return s.Restore()
 }
 
+// RaceOptions bounds RaceWhile.
+type RaceOptions struct {
+	// The race continues until op ran MinAttempts times, succeeded
+	// MinSuccesses times and the swapper flipped MinFlips times, so it is
+	// never vacuous (a consumer that always fails is not "safe").
+	MinAttempts  int
+	MinSuccesses int
+	MinFlips     int64
+	// Timeout fails the race if the minimums are not reached (default 1m).
+	Timeout time.Duration
+	// Hold is how long each state is kept (default 200 microseconds).
+	Hold time.Duration
+}
+
 // RaceResult summarizes RaceWhile.
 type RaceResult struct {
-	// Attempts is how often op ran; Flips how often the swapper flipped.
-	Attempts int
-	Flips    int64
+	Attempts  int
+	Successes int
 	// Errors counts op failures (expected: a safe consumer refuses paths
 	// that became symlinks).
 	Errors int
+	Flips  int64
 }
 
 // RaceWhile runs op repeatedly while a Swapper flips dir to a symlink to
-// target, until op ran at least minAttempts times and the swapper flipped
-// at least minFlips times (so the race is never vacuous), or timeout. It
-// returns the first error op wraps with ErrEscaped, or the swapper's own
+// target, until the minimums in opts are reached. It returns the first
+// error op wraps with ErrEscaped, a timeout error, or the swapper's own
 // error. The directory is restored before returning.
-func RaceWhile(dir, target string, minAttempts int, minFlips int64, timeout time.Duration, op func() error) (RaceResult, error) {
+func RaceWhile(dir, target string, opts RaceOptions, op func() error) (RaceResult, error) {
+	if opts.Timeout == 0 {
+		opts.Timeout = time.Minute
+	}
+	if opts.Hold == 0 {
+		opts.Hold = 200 * time.Microsecond
+	}
 	s, err := NewSwapper(dir, target)
 	if err != nil {
 		return RaceResult{}, err
@@ -116,16 +147,17 @@ func RaceWhile(dir, target string, minAttempts int, minFlips int64, timeout time
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- s.Run(ctx) }()
+	go func() { done <- s.Run(ctx, opts.Hold) }()
 
 	var res RaceResult
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(opts.Timeout)
 	var escaped error
-	for res.Attempts < minAttempts || s.Flips() < minFlips {
+	for res.Attempts < opts.MinAttempts || res.Successes < opts.MinSuccesses || s.Flips() < opts.MinFlips {
 		if time.Now().After(deadline) {
 			cancel()
 			<-done
-			return res, fmt.Errorf("fscorpus: race did not reach %d attempts / %d flips within %s (got %d / %d)", minAttempts, minFlips, timeout, res.Attempts, s.Flips())
+			res.Flips = s.Flips()
+			return res, fmt.Errorf("fscorpus: race did not reach its minimums within %s: %+v", opts.Timeout, res)
 		}
 		res.Attempts++
 		if err := op(); err != nil {
@@ -134,6 +166,8 @@ func RaceWhile(dir, target string, minAttempts int, minFlips int64, timeout time
 				break
 			}
 			res.Errors++
+		} else {
+			res.Successes++
 		}
 	}
 	cancel()

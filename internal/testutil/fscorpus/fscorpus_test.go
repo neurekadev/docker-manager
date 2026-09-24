@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/neurekadev/dockyard/internal/testharness"
 )
@@ -400,7 +399,8 @@ func TestRaceWhileContainedConsumer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer root.Close()
-	res, err := RaceWhile(filepath.Join(et.Root, "dir"), et.Outside, 200, 50, time.Minute, func() error {
+	opts := RaceOptions{MinAttempts: 200, MinSuccesses: 20, MinFlips: 50}
+	res, err := RaceWhile(filepath.Join(et.Root, "dir"), et.Outside, opts, func() error {
 		b, err := readRoot(root, "dir/nested.txt")
 		if err != nil {
 			return err
@@ -413,8 +413,10 @@ func TestRaceWhileContainedConsumer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Attempts < 200 || res.Flips < 50 {
-		t.Errorf("race too small: %+v", res)
+	// Both outcomes were observed: reads while the directory was real, and
+	// refusals while it was a symlink (or mid-swap).
+	if res.Attempts < 200 || res.Successes < 20 || res.Errors == 0 || res.Flips < 50 {
+		t.Errorf("race too small or one-sided: %+v", res)
 	}
 	// The directory is restored afterwards.
 	if fi, err := os.Lstat(filepath.Join(et.Root, "dir")); err != nil || !fi.IsDir() {

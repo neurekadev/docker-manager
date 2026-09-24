@@ -48,7 +48,9 @@ func StartMinIO(t testing.TB, opts MinIOOptions) *MinIO {
 			"MINIO_ROOT_PASSWORD": secret,
 			"MINIO_REGION":        "us-east-1",
 		}),
-		testcontainers.WithCmd("server", "/data"),
+		// The image runs as the unprivileged "minio" user, which cannot
+		// write the root-owned /data volume; serve from its home instead.
+		testcontainers.WithCmd("server", "/home/minio/data"),
 		testcontainers.WithExposedPorts("9000/tcp"),
 		opts.Network.option("minio"),
 		testcontainers.WithWaitStrategy(wait.ForHTTP("/minio/health/ready").WithPort("9000/tcp").WithStartupTimeout(2*time.Minute)),

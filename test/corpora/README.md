@@ -43,7 +43,8 @@ et := fscorpus.MustEscapeTree(t)                // symlink/hardlink escape tree
 for _, c := range et.Escaping() { ... }         // every c.Path must be refused
 // et.Secret is the content of the outside file: seeing it means an escape.
 
-res, err := fscorpus.RaceWhile(dir, et.Outside, 200, 50, time.Minute, func() error {
+opts := fscorpus.RaceOptions{MinAttempts: 200, MinSuccesses: 20, MinFlips: 50}
+res, err := fscorpus.RaceWhile(dir, et.Outside, opts, func() error {
     b, err := svc.Read(ctx, "dir/nested.txt")   // TOCTOU: dir flips to a symlink
     if err == nil && string(b) == et.Secret {
         return fmt.Errorf("read outside: %w", fscorpus.ErrEscaped)
