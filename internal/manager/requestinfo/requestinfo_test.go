@@ -82,6 +82,8 @@ func TestResolveTrustedProxy(t *testing.T) {
 		{"proto: rightmost wins", "10.0.0.2:1", []string{HeaderForwardedProto, "https, http"}, "10.0.0.2", "http", "docker.example.com"},
 		{"proto: junk ignored", "10.0.0.2:1", []string{HeaderForwardedProto, "gopher"}, "10.0.0.2", "http", "docker.example.com"},
 		{"proto: case-insensitive", "10.0.0.2:1", []string{HeaderForwardedProto, "HTTPS"}, "10.0.0.2", "https", "docker.example.com"},
+		{"proto: wss (Traefik WebSocket)", "10.0.0.2:1", []string{HeaderForwardedProto, "wss"}, "10.0.0.2", "https", "docker.example.com"},
+		{"proto: ws", "10.0.0.2:1", []string{HeaderForwardedProto, "ws"}, "10.0.0.2", "http", "docker.example.com"},
 		{"host with port", "10.0.0.2:1", []string{HeaderForwardedHost, "docker.example.com:8443"}, "10.0.0.2", "http", "docker.example.com:8443"},
 		{"host: invalid ignored", "10.0.0.2:1", []string{HeaderForwardedHost, "evil.example/path"}, "10.0.0.2", "http", "docker.example.com"},
 		{"host: IPv6 literal", "10.0.0.2:1", []string{HeaderForwardedHost, "[2001:db8::1]:443"}, "10.0.0.2", "http", "[2001:db8::1]:443"},

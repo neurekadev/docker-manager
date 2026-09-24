@@ -108,8 +108,9 @@ func (r *Resolver) Trusts(addr netip.Addr) bool {
 //     first address that is not a trusted proxy is the client. Entries a
 //     client prepended itself are therefore never reached. An unparsable
 //     entry stops the walk at the last valid address.
-//   - X-Forwarded-Proto: the rightmost value (set by the nearest proxy),
-//     only "http" or "https"; otherwise the direct scheme.
+//   - X-Forwarded-Proto: the rightmost value (set by the nearest proxy):
+//     "https" or "wss" mean https, "http" or "ws" mean http (Traefik sends
+//     ws/wss for WebSocket upgrades); anything else keeps the direct scheme.
 //   - X-Forwarded-Host: the rightmost value when it is a syntactically valid
 //     host[:port]; otherwise the Host header.
 func (r *Resolver) Resolve(req *http.Request) Info {
@@ -128,8 +129,11 @@ func (r *Resolver) Resolve(req *http.Request) Info {
 	}
 	info.TrustedPeer = true
 	info.ClientIP = r.clientFromXFF(req.Header.Values(HeaderForwardedFor), peer)
-	if p := strings.ToLower(lastValue(req.Header.Values(HeaderForwardedProto))); p == "http" || p == "https" {
-		info.Scheme = p
+	switch strings.ToLower(lastValue(req.Header.Values(HeaderForwardedProto))) {
+	case "https", "wss": // Traefik reports WebSocket upgrades as ws/wss
+		info.Scheme = "https"
+	case "http", "ws":
+		info.Scheme = "http"
 	}
 	if h := strings.ToLower(lastValue(req.Header.Values(HeaderForwardedHost))); validHost(h) {
 		info.Host = h
