@@ -109,7 +109,7 @@ type Event struct {
 type RunOptions struct {
 	// Auth holds the registry credentials of this operation (#19).
 	Auth []engine.RegistryAuth
-	// Events receives progress (may be nil).
+	// Events receives progress (may be nil); calls are serialized.
 	Events func(Event)
 	// Output receives the SDK's textual output (may be nil).
 	Output io.Writer
@@ -376,12 +376,15 @@ func composeError(op string, err error) error {
 
 // eventSink forwards SDK progress events.
 type eventSink struct {
+	mu sync.Mutex // the SDK reports from concurrent goroutines
 	fn func(Event)
 }
 
 func (e *eventSink) Start(context.Context, string) {}
 func (e *eventSink) Done(string, bool)             {}
 func (e *eventSink) On(events ...api.Resource) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	if e.fn == nil {
 		return
 	}
