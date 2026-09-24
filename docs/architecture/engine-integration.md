@@ -42,7 +42,7 @@ matrix.
 - `engine.Connect(ctx, Options{Host})` creates the SDK client, forces API
   version negotiation with a ping (the SDK otherwise negotiates lazily and
   silently falls back to its maximum version when negotiation fails),
-  refuses Engines below `MinSupportedAPIVersion` (1.43, Docker Engine 24.0)
+  refuses Engines below `MinSupportedAPIVersion` (1.44, Docker Engine 25.0)
   and non-Linux Engines, and loads the `Identity`: Engine ID, name, version,
   API/min API, negotiated API, OS/arch, `DockerRootDir`, storage driver,
   cgroup version, security options, rootless and Docker Desktop detection
@@ -75,7 +75,7 @@ part of the agent contract (job results, capability frames):
 | `unauthorized` / `forbidden` | registry 401 (`no basic auth credentials`, `authentication required`, `pull access denied`) / 403 |
 | `rate_limited` | registry 429 / `toomanyrequests` |
 | `registry_unavailable` | registry 502/503/504 |
-| `unsupported_api_version` | Engine API below 1.43 (or below the client's 1.40) |
+| `unsupported_api_version` | Engine API below 1.44 (or below the client's 1.40) |
 | `unsupported` | not implemented by this Engine, non-Linux Engine |
 | `engine_unavailable` | socket unreachable, daemon down |
 | `timeout` / `canceled` | request deadline / context canceled |

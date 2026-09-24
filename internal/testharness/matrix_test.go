@@ -22,7 +22,7 @@ func TestLoadMatrixIsValid(t *testing.T) {
 		t.Fatalf("latest lookup = %+v, %v", latest, err)
 	}
 	minimum, err := m.Lookup("minimum")
-	if err != nil || minimum.Version != m.Engines[0].Version {
+	if err != nil || minimum.Version != m.Engines[0].Version || !minimum.HasRole(RoleMinimum) {
 		t.Fatalf("minimum lookup = %+v, %v", minimum, err)
 	}
 	if CompareVersions(minimum.APIVersion, "1.40") < 0 {
@@ -70,9 +70,9 @@ func TestSelectEngineFromEnv(t *testing.T) {
 func TestMatrixValidateRejects(t *testing.T) {
 	const digest = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 	good := func() Matrix {
-		return Matrix{Default: "25.0.5", Engines: []EngineVersion{
-			{Version: "24.0.9", Image: "docker:24.0.9-dind@" + digest, APIVersion: "1.43", Roles: []string{RoleMinimumCandidate}},
-			{Version: "25.0.5", Image: "docker:25.0.5-dind@" + digest, APIVersion: "1.44", Roles: []string{RoleLatest}},
+		return Matrix{Default: "28.5.2", Engines: []EngineVersion{
+			{Version: "25.0.5", Image: "docker:25.0.5-dind@" + digest, APIVersion: "1.44", Roles: []string{RoleMinimum}},
+			{Version: "28.5.2", Image: "docker:28.5.2-dind@" + digest, APIVersion: "1.51", Roles: []string{RoleLatest}},
 		}}
 	}
 	if err := good().Validate(); err != nil {
@@ -82,16 +82,19 @@ func TestMatrixValidateRejects(t *testing.T) {
 		mutate func(*Matrix)
 		want   string
 	}{
-		"unpinned image":    {func(m *Matrix) { m.Engines[0].Image = "docker:24.0.9-dind" }, "must be docker:<version>-dind@sha256"},
-		"tag mismatch":      {func(m *Matrix) { m.Engines[0].Image = "docker:24.0.8-dind@" + digest }, "does not match"},
-		"bad api":           {func(m *Matrix) { m.Engines[0].APIVersion = "v1.43" }, "apiVersion"},
-		"descending":        {func(m *Matrix) { m.Engines[0], m.Engines[1] = m.Engines[1], m.Engines[0] }, "ascending"},
-		"duplicate":         {func(m *Matrix) { m.Engines[1] = m.Engines[0]; m.Engines[1].Roles = []string{RoleLatest} }, "duplicate"},
-		"missing default":   {func(m *Matrix) { m.Default = "26.0.0" }, "default"},
-		"no latest":         {func(m *Matrix) { m.Engines[1].Roles = nil }, "exactly one"},
-		"no minimum":        {func(m *Matrix) { m.Engines[0].Roles = nil }, "at least one"},
-		"api goes down":     {func(m *Matrix) { m.Engines[1].APIVersion = "1.42" }, "lower than the previous"},
-		"version malform":   {func(m *Matrix) { m.Engines[0].Version = "24.0" }, "MAJOR.MINOR.PATCH"},
+		"unpinned image":  {func(m *Matrix) { m.Engines[0].Image = "docker:25.0.5-dind" }, "must be docker:<version>-dind@sha256"},
+		"tag mismatch":    {func(m *Matrix) { m.Engines[0].Image = "docker:25.0.4-dind@" + digest }, "does not match"},
+		"bad api":         {func(m *Matrix) { m.Engines[0].APIVersion = "v1.44" }, "apiVersion"},
+		"descending":      {func(m *Matrix) { m.Engines[0], m.Engines[1] = m.Engines[1], m.Engines[0] }, "ascending"},
+		"duplicate":       {func(m *Matrix) { m.Engines[1] = m.Engines[0]; m.Engines[1].Roles = []string{RoleLatest} }, "duplicate"},
+		"missing default": {func(m *Matrix) { m.Default = "26.0.0" }, "default"},
+		"no latest":       {func(m *Matrix) { m.Engines[1].Roles = nil }, "exactly one"},
+		"no minimum":      {func(m *Matrix) { m.Engines[0].Roles = nil }, "exactly one \"minimum\""},
+		"minimum not lowest": {func(m *Matrix) {
+			m.Engines[0].Roles, m.Engines[1].Roles = nil, []string{RoleMinimum, RoleLatest}
+		}, "lowest entry"},
+		"api goes down":     {func(m *Matrix) { m.Engines[1].APIVersion = "1.43" }, "lower than the previous"},
+		"version malform":   {func(m *Matrix) { m.Engines[0].Version = "25.0" }, "MAJOR.MINOR.PATCH"},
 		"no engines at all": {func(m *Matrix) { m.Engines = nil }, "no engines"},
 	}
 	for name, tc := range cases {

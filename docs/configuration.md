@@ -85,7 +85,7 @@ opens no listening socket. Its container health check verifies that
 At startup the agent connects to `DOCKER_HOST` through the official Moby Go
 SDK, negotiates the API version and logs the Engine identity (ID, version,
 negotiated API version, OS/arch, `DockerRootDir`, rootless / Docker Desktop
-detection). Engines older than API 1.43 (Docker Engine 24.0) are refused
+detection). Engines older than API 1.44 (Docker Engine 25.0) are refused
 with `unsupported_api_version`; see `docs/support-matrix.md` for the tested
 and recommended versions. An unreachable or unsupported Engine does not stop
 the agent: it records the error code in `health.json` (`engine` field) and in

@@ -20,8 +20,10 @@ const EnvEngine = "DOCKYARD_TEST_ENGINE"
 
 // Engine roles used in the matrix file.
 const (
-	RoleMinimumCandidate = "minimum-candidate"
-	RoleLatest           = "latest"
+	// RoleMinimum marks DockYard's minimum supported Engine (#21, #25 Q2);
+	// it must be the lowest entry and match engine.MinSupportedAPIVersion.
+	RoleMinimum = "minimum"
+	RoleLatest  = "latest"
 )
 
 // EngineVersion is one entry of the Engine matrix.
@@ -53,8 +55,8 @@ var (
 
 // Validate checks the invariants the workflow and helpers rely on: unique,
 // ascending versions; dind images pinned by digest and matching the version;
-// well-formed, non-decreasing API versions; a default that exists; at least
-// one minimum candidate and exactly one latest entry.
+// well-formed, non-decreasing API versions; a default that exists; exactly
+// one minimum entry (the lowest) and exactly one latest entry.
 func (m Matrix) Validate() error {
 	if len(m.Engines) == 0 {
 		return errors.New("matrix: no engines")
@@ -91,15 +93,18 @@ func (m Matrix) Validate() error {
 		if e.HasRole(RoleLatest) {
 			latest++
 		}
-		if e.HasRole(RoleMinimumCandidate) {
+		if e.HasRole(RoleMinimum) {
 			minimum++
+			if i != 0 {
+				errs = append(errs, fmt.Errorf("%s: the %q engine must be the lowest entry", where, RoleMinimum))
+			}
 		}
 	}
 	if latest != 1 {
 		errs = append(errs, fmt.Errorf("matrix: want exactly one %q engine, got %d", RoleLatest, latest))
 	}
-	if minimum == 0 {
-		errs = append(errs, fmt.Errorf("matrix: want at least one %q engine", RoleMinimumCandidate))
+	if minimum != 1 {
+		errs = append(errs, fmt.Errorf("matrix: want exactly one %q engine, got %d", RoleMinimum, minimum))
 	}
 	if !seen[m.Default] {
 		errs = append(errs, fmt.Errorf("matrix: default %q is not in engines", m.Default))

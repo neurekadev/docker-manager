@@ -32,11 +32,16 @@ import (
 	"github.com/neurekadev/dockyard/internal/buildinfo"
 )
 
-// MinSupportedAPIVersion is DockYard's minimum Engine API version (Docker
-// Engine 24.0, API 1.43), chosen from the Engine matrix evidence recorded in
-// docs/support-matrix.md (#21, #25 Q2). The Moby client itself accepts API
-// 1.40 and newer.
-const MinSupportedAPIVersion = "1.43"
+// MinSupportedAPIVersion is DockYard's minimum Engine API version: Docker
+// Engine 25.0 (API 1.44) is the lowest Engine of the matrix that passes every
+// planned v1 operation (docs/support-matrix.md, #21, #25 Q2); Docker 24.0's
+// BuildKit cannot pull base images from insecure registries. The Moby client
+// itself accepts API 1.40 and newer. Keep test/matrix/engines.json's
+// "minimum" entry on this API version (TestMatrixMinimumMatchesAdapter).
+const MinSupportedAPIVersion = "1.44"
+
+// minEngineName is the Engine release of MinSupportedAPIVersion.
+const minEngineName = "Docker Engine 25.0"
 
 // DefaultRequestTimeout bounds non-streaming Engine requests.
 const DefaultRequestTimeout = 60 * time.Second
@@ -103,8 +108,8 @@ func (c *Client) negotiate(ctx context.Context) error {
 	if err != nil {
 		if ping.APIVersion != "" && versions.LessThan(ping.APIVersion, client.MinAPIVersion) {
 			return newError(op, CodeUnsupportedAPIVersion,
-				"Docker Engine API %s is not supported: DockYard requires API %s or newer (Docker Engine 24.0+)",
-				ping.APIVersion, MinSupportedAPIVersion)
+				"Docker Engine API %s is not supported: DockYard requires API %s or newer (%s or later)",
+				ping.APIVersion, MinSupportedAPIVersion, minEngineName)
 		}
 		return wrap(op, err)
 	}
@@ -113,8 +118,8 @@ func (c *Client) negotiate(ctx context.Context) error {
 	}
 	if versions.LessThan(ping.APIVersion, MinSupportedAPIVersion) {
 		return newError(op, CodeUnsupportedAPIVersion,
-			"Docker Engine API %s is not supported: DockYard requires API %s or newer (Docker Engine 24.0+)",
-			ping.APIVersion, MinSupportedAPIVersion)
+			"Docker Engine API %s is not supported: DockYard requires API %s or newer (%s or later)",
+			ping.APIVersion, MinSupportedAPIVersion, minEngineName)
 	}
 	if ping.OSType != "" && ping.OSType != "linux" {
 		return newError(op, CodeUnsupported, "%s Engines are not supported; DockYard manages Linux Engines", ping.OSType)

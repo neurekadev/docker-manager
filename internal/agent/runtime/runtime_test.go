@@ -220,7 +220,7 @@ func TestUnsupportedEngineKeepsAgentRunning(t *testing.T) {
 	go func() { done <- a.Run(ctx) }()
 	c := <-caps
 	if c.Engine != nil || c.EngineError == nil || c.EngineError.Code != engine.CodeUnsupportedAPIVersion ||
-		!strings.Contains(c.EngineError.Message, "1.43") {
+		!strings.Contains(c.EngineError.Message, "1.44") {
 		t.Fatalf("capabilities %+v", c)
 	}
 	cancel()

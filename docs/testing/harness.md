@@ -59,7 +59,7 @@ On a machine with Docker:
 | --- | --- |
 | race | `CGO_ENABLED=1 go test -race -count=1 ./...` |
 | fuzz | `FUZZTIME=30s bash scripts/ci/fuzz-all.sh` (discovers every `FuzzXxx`) |
-| engine-matrix | `DOCKYARD_TEST_ENGINE=24.0.9 go test -tags integration -run '^TestEngine' ./...` |
+| engine-matrix | `DOCKYARD_TEST_ENGINE=25.0.5 go test -tags integration -run '^TestEngine' ./...` |
 | compose-fixtures | `go test -tags integration -run '^Test(Registry\|Git\|Compose)' ./...` |
 | storage | `go test -tags integration -run '^Test(MinIO\|Restic\|Storage\|Backup\|Restore)' ./...` |
 | fs-security | `go test -race ./internal/testutil/fscorpus/...` |
@@ -96,10 +96,19 @@ the Engine's API version, which `TestEngineServesMatrixVersion` verifies.
 `TestLoadMatrixIsValid` / `TestWorkflowReadsMatrixFile` keep the file valid
 and the workflow free of hard-coded versions.
 
-Current entries: 24.0.9 (API 1.43, the mockup's Docker 24) and 25.0.5
-(API 1.44) as minimum candidates, 28.5.2 and 29.8.1 as the latest two
-majors. The supported minimum is decided by #21 and recorded in #25 (Q2);
-drop the losing candidate from the matrix then.
+Current entries: 25.0.5 (API 1.44, role `minimum`: DockYard's minimum
+supported Engine, #21 / #25 Q2), 28.5.2 and 29.8.1 as the latest two
+majors. The `minimum` entry must be the lowest and speak exactly
+`engine.MinSupportedAPIVersion` (`TestMatrixMinimumMatchesAdapter`). 24.0.9
+(the mockup's Docker 24) was dropped after failing a v1 operation; its
+results are in [../support-matrix.md](../support-matrix.md).
+
+`engine-matrix` runs every `TestEngine*` test per Engine: the adapter
+(`TestEngineAdapterNegotiatesAndIdentifies`, `TestEngineOperations` with one
+subtest per v1 operation), Compose (`TestEngineComposeLifecycle`), the agent
+image inside DinD (`TestEngineAgentImage`, which needs the job's
+`dockyard-agent:test` build) and the fixtures' self-tests. The job summary
+lists the result of every test and subtest per Engine and architecture.
 
 Runners: `ubuntu-24.04` and `ubuntu-24.04-arm` (available to this private
 repository, verified 2026-09-24). Pushes to `main` run amd64 only; the

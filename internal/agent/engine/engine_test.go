@@ -26,8 +26,7 @@ func TestConnectNegotiatesAPIVersion(t *testing.T) {
 	for _, tc := range []struct {
 		engineAPI, want string
 	}{
-		{"1.43", "1.43"}, // Docker 24: the client downgrades
-		{"1.44", "1.44"},
+		{"1.44", "1.44"}, // Docker 25: the client downgrades
 		{"1.51", "1.51"},
 		{"1.56", "1.56"},
 		{"1.60", "1.56"}, // newer Engine: the client's maximum
@@ -59,14 +58,14 @@ func TestConnectNegotiatesAPIVersion(t *testing.T) {
 }
 
 func TestConnectRefusesOldEngines(t *testing.T) {
-	for _, api := range []string{"1.41", "1.42", "1.38"} {
+	for _, api := range []string{"1.43", "1.41", "1.38"} { // Docker 24, 20.10, 18.09
 		t.Run(api, func(t *testing.T) {
 			fake := enginetest.Start(t, enginetest.Options{APIVersion: api})
 			_, err := Connect(testutil.Context(t), Options{Host: fake.Host})
 			if !errors.Is(err, ErrUnsupportedAPIVersion) {
 				t.Fatalf("Connect to API %s = %v, want unsupported_api_version", api, err)
 			}
-			if !strings.Contains(err.Error(), "requires API "+MinSupportedAPIVersion) {
+			if !strings.Contains(err.Error(), "requires API "+MinSupportedAPIVersion+" or newer (Docker Engine 25.0 or later)") {
 				t.Errorf("error lacks the minimum: %v", err)
 			}
 		})
