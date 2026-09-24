@@ -57,6 +57,10 @@ linters:
         - shadow # too noisy for err shadowing idioms
     misspell:
       locale: US
+      # Job states and routes use "cancelled"/"cancelling" (#4, #26 API values).
+      ignore-rules:
+        - cancelled
+        - cancelling
     revive:
       rules:
         - name: blank-imports

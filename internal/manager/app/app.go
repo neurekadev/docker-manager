@@ -1,7 +1,8 @@
 // Package app wires the manager together and owns its startup order:
 //
 //	config → data dir → open DB → (snapshot) → migrate → secret key /
-//	instance → HTTP handler → listener → serve
+//	instance → job engine recovery → HTTP handler → listener → serve
+//	(+ job engine loop)
 //
 // Migrations always finish before any listener or background worker starts;
 // a migration failure aborts startup with the database unchanged.
@@ -25,8 +26,11 @@ import (
 	"github.com/neurekadev/dockyard/internal/clock"
 	"github.com/neurekadev/dockyard/internal/db/migrations"
 	"github.com/neurekadev/dockyard/internal/domain"
+	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/manager/api"
+	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/config"
+	"github.com/neurekadev/dockyard/internal/manager/jobs"
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
 	"github.com/neurekadev/dockyard/internal/manager/server"
 	"github.com/neurekadev/dockyard/internal/manager/store"
@@ -57,6 +61,7 @@ type Manager struct {
 	db       *bun.DB
 	instance domain.Instance
 	keyring  *secrets.Keyring
+	jobs     *jobs.Engine
 	handler  http.Handler
 }
 
@@ -103,17 +108,42 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return nil, err
 	}
 
+	// Authorization fails closed until #16/#17 provide principals and
+	// grants; agents are unreachable until the #3 transport exists.
+	authorizer := authz.DenyAll{}
+	m.jobs, err = jobs.New(jobs.Options{
+		DB: db, Clock: opts.Clock, Logger: log.With("component", "jobs"),
+		Dispatcher: jobs.NoAgents{}, Authorizer: authorizer,
+		Limits: jobs.Limits{
+			ConcurrencyCaps: map[string]int{jobspec.ClassPull: cfg.Jobs.MaxConcurrentPulls, jobspec.ClassBuild: cfg.Jobs.MaxConcurrentBuilds},
+			HistoryMaxAge:   cfg.Jobs.HistoryRetention,
+			HistoryMaxJobs:  cfg.Jobs.HistoryMax,
+			MaxEventsPerJob: cfg.Jobs.EventsMax,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := m.jobs.Recover(ctx); err != nil {
+		m.jobs.Close()
+		return nil, fmt.Errorf("recover jobs: %w", err)
+	}
+
 	srv, err := server.New(server.Options{
 		Logger: log,
 		Clock:  opts.Clock,
 		UI:     opts.UI,
 		API: api.Deps{
-			Build:     buildinfo.Get(),
-			Readiness: m.readiness,
+			Build:      buildinfo.Get(),
+			Readiness:  m.readiness,
+			Jobs:       m.jobs,
+			Authorizer: authorizer,
+			Clock:      opts.Clock,
 		},
 		TrustedProxies: cfg.TrustedProxies,
 	})
 	if err != nil {
+		m.jobs.Close()
 		return nil, err
 	}
 	m.handler = srv.Handler
@@ -179,8 +209,22 @@ func (m *Manager) Keyring() *secrets.Keyring { return m.keyring }
 // DB returns the database handle.
 func (m *Manager) DB() *bun.DB { return m.db }
 
-// Serve serves HTTP on ln until ctx is canceled, then shuts down gracefully.
+// Jobs returns the job engine.
+func (m *Manager) Jobs() *jobs.Engine { return m.jobs }
+
+// Serve serves HTTP on ln and runs the job engine until ctx is canceled,
+// then shuts down gracefully.
 func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
+	engineCtx, stopEngine := context.WithCancel(ctx)
+	engineDone := make(chan struct{})
+	go func() {
+		defer close(engineDone)
+		_ = m.jobs.Run(engineCtx)
+	}()
+	defer func() {
+		stopEngine()
+		<-engineDone
+	}()
 	srv := server.HTTPServer(m.handler, m.opts.Logger)
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve(ln) }()
@@ -199,8 +243,14 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 	}
 }
 
-// Close releases the database.
-func (m *Manager) Close() error { return m.db.Close() }
+// Close stops manager-local jobs (recovered on the next start) and releases
+// the database.
+func (m *Manager) Close() error {
+	if m.jobs != nil {
+		m.jobs.Close()
+	}
+	return m.db.Close()
+}
 
 // Run starts the manager, binds the listener and serves until ctx ends.
 func Run(ctx context.Context, opts Options) error {

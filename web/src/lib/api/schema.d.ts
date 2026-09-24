@@ -64,6 +64,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List jobs
+         * @description Jobs visible to the caller, newest first. Visibility is decided per job by job.read on the job's targets (never by who created it), so pages may hold fewer than limit items; follow nextCursor until it is absent.
+         */
+        get: operations["list-jobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a job */
+        get: operations["get-job"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{jobId}/cancellations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a job
+         * @description Queued and blocked jobs are cancelled immediately. Running jobs move to cancelling and stop at the next cancellation safe point of their kind; compensating steps (such as restarting containers stopped for a backup) always run. A job that finishes before reaching a safe point keeps its outcome. Repeating the request is harmless. 409 job_finished when the job already finished.
+         */
+        post: operations["create-job-cancellation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{jobId}/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream job events (SSE)
+         * @description Server-sent events. The first message is `event: job` with the current Job (no id). Then every retained event after Last-Event-ID in order, as `id: <seq>`, `event: <type>` (state, progress, item, log, warning), `data: <JobEvent>`. Comments `: heartbeat` keep the connection alive. The stream closes after the job's terminal events. The event log per job is bounded; replay covers only retained events.
+         */
+        get: operations["stream-job-events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -124,6 +201,143 @@ export interface components {
              * @example 0.0.0-edge
              */
             version: string;
+        };
+        Job: {
+            /**
+             * Format: int64
+             * @description Dispatch attempt; increases when an interrupted job resumes or a lost command is re-sent.
+             */
+            attempt: number;
+            /** @description Present while the job is blocked. */
+            blockedBy?: components["schemas"]["JobBlockedBy"];
+            cancelRequested: boolean;
+            /** @description False once the job reached a terminal state. */
+            cancellable: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            dispatchedAt?: string;
+            environmentId?: string;
+            /** @description Present for failed, partial, cancelled and interrupted jobs. */
+            error?: components["schemas"]["JobError"];
+            /** @enum {string} */
+            executor: "agent" | "manager";
+            /** Format: date-time */
+            finishedAt?: string;
+            /** @example 0190a6e0-0000-7000-8000-000000000001 */
+            id: string;
+            /** @description API token used to request the job (audit metadata only). */
+            initiatorTokenId?: string;
+            /** @description User who requested the job (audit metadata only). */
+            initiatorUserId?: string;
+            items: components["schemas"]["JobItem"][];
+            /**
+             * @description Job kind from the catalog in docs/architecture/job-engine.md.
+             * @example stack.deploy
+             */
+            kind: string;
+            /** @description The job's lock scopes (held while dispatched, running or cancelling). */
+            locks: components["schemas"]["JobLock"][];
+            locksHeld: boolean;
+            /**
+             * @description Why the job exists. Audit metadata, not an access-control owner.
+             * @enum {string}
+             */
+            origin: "manual" | "scheduled" | "api_token";
+            /** @description Policy that scheduled the job. */
+            policyId?: string;
+            progress: components["schemas"]["JobProgress"];
+            /**
+             * Format: date-time
+             * @description When the current attempt was acknowledged by its executor.
+             */
+            startedAt?: string;
+            /** @enum {string} */
+            state: "queued" | "blocked" | "dispatched" | "running" | "cancelling" | "succeeded" | "failed" | "partial" | "cancelled" | "interrupted";
+            targets: components["schemas"]["JobTarget"][];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        JobBlockedBy: {
+            /** @description The job holding (or queued first for) the conflicting lock or concurrency slot. */
+            jobId?: string;
+            /** @enum {string} */
+            reason: "lock" | "agent_offline" | "concurrency_limit";
+        };
+        JobError: {
+            /**
+             * @description Stable error class, e.g. agent_offline, authorization_revoked, step_failed, unknown_outcome, journal_lost, cancelled.
+             * @example agent_offline
+             */
+            class: string;
+            message: string;
+            /** @description What the operator should do next. */
+            recovery: string;
+        };
+        JobEvent: {
+            /** Format: date-time */
+            at: string;
+            item?: components["schemas"]["JobItem"];
+            message?: string;
+            /** Format: int64 */
+            percent?: number;
+            /**
+             * Format: int64
+             * @description Monotonic per job; also the SSE event id.
+             */
+            seq: number;
+            state?: string;
+            step?: string;
+            /** @enum {string} */
+            type: "state" | "progress" | "item" | "log" | "warning";
+        };
+        JobItem: {
+            message?: string;
+            name: string;
+            /** @enum {string} */
+            status: "succeeded" | "failed" | "skipped";
+        };
+        JobLock: {
+            /** @description Absent for instance-wide scopes (repository). */
+            environmentId?: string;
+            /** @enum {string} */
+            mode: "shared" | "exclusive";
+            /** @description Resource name; * locks every resource of the scope in the environment; absent for host. */
+            name?: string;
+            /** @enum {string} */
+            scope: "host" | "stack" | "container" | "volume" | "image" | "network" | "file_path" | "repository";
+        };
+        JobProgress: {
+            message?: string;
+            /**
+             * Format: int64
+             * @description Completion percentage; absent when unknown.
+             */
+            percent?: number;
+            /** @description Current step of the kind's plan. */
+            step?: string;
+        };
+        JobTarget: {
+            /** @description Environment of the target when it differs from the job's (migrations). */
+            environmentId?: string;
+            /** @description Resource identifier within its environment (stack ID, container, volume or network name, image reference, repository ID, absolute path). */
+            id: string;
+            /**
+             * @description Target resource type.
+             * @enum {string}
+             */
+            type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path";
+        };
+        PageJob: {
+            /** @description Items on this page (possibly empty). */
+            items: components["schemas"]["Job"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items visible to the caller across all pages, when cheap to compute.
+             */
+            total?: number;
         };
         ReadinessBody: {
             checks: components["schemas"]["ReadinessCheck"][];
@@ -232,6 +446,264 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-jobs": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Only jobs in these states. */
+                state?: ("queued" | "blocked" | "dispatched" | "running" | "cancelling" | "succeeded" | "failed" | "partial" | "cancelled" | "interrupted")[];
+                /** @description Only jobs of this kind. */
+                kind?: string;
+                /** @description Only jobs in (or targeting) this environment. */
+                environmentId?: string;
+                /** @description Only jobs with this target, as type:id (e.g. stack:0190a6e0-...). */
+                target?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageJob"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job ID. */
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-job-cancellation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job ID. */
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "stream-job-events": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Resume after this event sequence number (sent automatically by EventSource on reconnect). */
+                "Last-Event-ID"?: string;
+            };
+            path: {
+                /** @description Job ID. */
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["JobEvent"] | components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

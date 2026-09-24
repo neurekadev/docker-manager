@@ -3,9 +3,10 @@
 // that the agent dials out to /agent/v1/session.
 //
 // This package is intentionally small. Enrollment, the handshake and
-// capability schema arrive with #3; command/job semantics (attempt, fencing
-// tokens, deadlines) with #26. Keep it free of manager/agent internals so
-// both binaries share it. The protocol is versioned independently of /api/v1.
+// capability schema arrive with #3; job command semantics (attempt, fencing
+// tokens, acknowledgements, results and the reconnect job_report) are
+// defined in jobs.go (#26). Keep it free of manager/agent internals so both
+// binaries share it. The protocol is versioned independently of /api/v1.
 package protocol
 
 import (
@@ -45,20 +46,23 @@ const (
 	TypeStreamClose    Type = "stream_close"
 	TypeCancel         Type = "cancel"
 	TypeError          Type = "error"
+	// TypeJobReport is sent by the agent after every (re)connect: its
+	// fencing high-water mark and the outcome of every journaled job (#26).
+	TypeJobReport Type = "job_report"
 )
 
 var knownTypes = map[Type]bool{
 	TypeHello: true, TypeHeartbeat: true, TypeCapabilities: true, TypeCommand: true,
 	TypeAck: true, TypeProgress: true, TypeResult: true, TypeEvent: true,
 	TypeFSInvalidation: true, TypeRescan: true, TypeStreamOpen: true, TypeStreamData: true,
-	TypeStreamClose: true, TypeCancel: true, TypeError: true,
+	TypeStreamClose: true, TypeCancel: true, TypeError: true, TypeJobReport: true,
 }
 
 // Types returns every known frame type.
 func Types() []Type {
 	return []Type{TypeHello, TypeHeartbeat, TypeCapabilities, TypeCommand, TypeAck, TypeProgress,
 		TypeResult, TypeEvent, TypeFSInvalidation, TypeRescan, TypeStreamOpen, TypeStreamData,
-		TypeStreamClose, TypeCancel, TypeError}
+		TypeStreamClose, TypeCancel, TypeError, TypeJobReport}
 }
 
 // Frame is the envelope of every message.
@@ -74,8 +78,9 @@ type Frame struct {
 	JobID string `json:"jobId,omitempty"`
 	// Attempt is the job attempt number, starting at 1.
 	Attempt uint32 `json:"attempt,omitempty"`
-	// FencingToken orders command authority: agents reject commands whose
-	// token is lower than one already seen for the same job/lock (#26).
+	// FencingToken orders command authority: a per-environment, persisted,
+	// monotonically increasing counter. Agents reject commands whose token
+	// is not above the highest token they accepted (#26, see jobs.go).
 	FencingToken uint64 `json:"fencingToken,omitempty"`
 	// Deadline after which the receiver must not start (or must abort) work.
 	Deadline *time.Time `json:"deadline,omitempty"`

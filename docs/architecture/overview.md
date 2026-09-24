@@ -40,9 +40,15 @@ in GitHub issues #1 (roadmap) and #25 (decision register).
 | `internal/manager/app` | Manager startup order and lifecycle | manager packages |
 | `internal/manager/config` | Manager env configuration | `envconfig`, `logging` |
 | `internal/manager/server` | HTTP mux, middleware, SPA serving | `api` |
-| `internal/manager/api` | Huma operations, transport DTOs, error shape, pagination | `domain`, `protocol` |
+| `internal/manager/api` | Huma operations, transport DTOs, error shape, pagination | `domain`, `protocol`, `authz` |
 | `internal/manager/store` | SQLite/Bun: open, migrate, snapshots, DB models | `domain`, `db/migrations` |
 | `internal/manager/secrets` | AEAD sealing of settings at rest, key file | — |
+| `internal/manager/jobs` | Job engine: queue, lock matrix, dispatch, fencing, reconciliation, recovery (#26) | `store`, `authz`, `jobspec`, `jobexec`, `protocol` |
+| `internal/manager/authz` | `Authorizer` hook (deny-all until #17), request principals | `domain` |
+| `internal/jobspec` | Job kind catalog and lock definitions (shared by manager and agent) | `domain` |
+| `internal/jobexec` | Journaled step runner (shared by manager and agent) | `jobspec`, `protocol`, `faultinject` |
+| `internal/agent/jobs` | Agent job runner: fencing, fsync'd journal, reconnect report | `jobexec`, `protocol` |
+| `internal/faultinject` | Named fault points, no-op unless built with `-tags faultinject` | stdlib |
 | `internal/db/migrations` | Versioned Bun migrations (one file each) | `bun` |
 | `internal/agent/config`, `internal/agent/runtime` | Agent configuration and main loop | `protocol`, shared |
 | `internal/protocol` | Manager↔agent frame envelope (`dockyard.agent/v1`) | stdlib, websocket |
@@ -70,6 +76,10 @@ domain types (`domain`) are separate and converted explicitly.
   (`internal/protocol`): hello, heartbeat, capabilities, command/ack/
   progress/result, events, file invalidations, stream relay, cancel, error.
   Commands carry job ID, attempt, fencing token and deadline (#26).
+- **Jobs (#26):** every long or mutating operation is a durable job in the
+  manager's engine (`internal/manager/jobs`), with one lock matrix, fencing
+  tokens and reconnect reconciliation; see
+  [job-engine.md](job-engine.md).
 - **Secrets at rest:** sensitive settings are sealed with
   `secrets.Keyring.Seal(value, context)` into `dy1.<keyID>.<ciphertext>`
   envelopes bound to their field context.

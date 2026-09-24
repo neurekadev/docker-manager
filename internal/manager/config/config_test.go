@@ -123,3 +123,28 @@ func TestTrustedProxies(t *testing.T) {
 		t.Errorf("secret key file = %q", cfg.SecretKeyFile)
 	}
 }
+
+func TestJobLimits(t *testing.T) {
+	cfg, err := load(t, map[string]string{EnvPublicURL: "https://d.example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := JobsConfig{HistoryRetention: DefaultJobHistoryRetention, HistoryMax: DefaultJobHistoryMax, EventsMax: DefaultJobEventsMax,
+		MaxConcurrentPulls: DefaultJobMaxConcurrentPulls, MaxConcurrentBuilds: DefaultJobMaxConcurrentBuild}
+	if cfg.Jobs != want {
+		t.Fatalf("defaults %+v", cfg.Jobs)
+	}
+	cfg, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvJobHistoryRetention: "168h",
+		EnvJobHistoryMax: "500", EnvJobEventsMax: "50", EnvJobMaxConcurrentPulls: "4", EnvJobMaxConcurrentBuild: "2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Jobs.HistoryRetention.Hours() != 168 || cfg.Jobs.HistoryMax != 500 || cfg.Jobs.EventsMax != 50 ||
+		cfg.Jobs.MaxConcurrentPulls != 4 || cfg.Jobs.MaxConcurrentBuilds != 2 {
+		t.Fatalf("custom %+v", cfg.Jobs)
+	}
+	_, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvJobHistoryRetention: "1m", EnvJobEventsMax: "x"})
+	if err == nil || !strings.Contains(err.Error(), EnvJobHistoryRetention) || !strings.Contains(err.Error(), EnvJobEventsMax) {
+		t.Fatalf("invalid limits: %v", err)
+	}
+}
