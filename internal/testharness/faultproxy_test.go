@@ -147,3 +147,76 @@ func TestNewFaultProxyValidatesUpstream(t *testing.T) {
 		}
 	}
 }
+
+// TestFaultProxyRecordsHitBeforeResponding pins the hit-log ordering: a hit
+// is recorded before the first response byte reaches the client, so a
+// caller that has read a response always finds its hit. The upstream holds
+// the response open after sending headers, so the proxy's ServeHTTP cannot
+// have returned when the client checks the log — deterministically, with
+// no sleeps.
+func TestFaultProxyRecordsHitBeforeResponding(t *testing.T) {
+	release := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = io.WriteString(w, "partial")
+		http.NewResponseController(w).Flush()
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	t.Cleanup(upstream.Close)
+	p, err := NewFaultProxy(upstream.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(p)
+	t.Cleanup(srv.Close)
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(unblock) // runs first: never leave the upstream handler blocked
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/v2/held", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	// The upstream is still blocked: only the headers have been proxied.
+	if h := p.Hits(); len(h) != 1 || h[0].Path != "/v2/held" || h[0].Status != http.StatusAccepted || h[0].Injected {
+		t.Errorf("hits while response in flight = %+v", h)
+	}
+	unblock()
+	if b, err := io.ReadAll(resp.Body); err != nil || string(b) != "partial" {
+		t.Errorf("body = %q (%v)", b, err)
+	}
+
+	// Injected faults are recorded before they are written, too.
+	p.Inject(FaultRule{Path: RegistryBasePath, Status: http.StatusTooManyRequests})
+	if r, _ := get(t, srv.URL+"/v2/"); r.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("injected = %d", r.StatusCode)
+	}
+	if h := p.Hits(); len(h) != 2 || !h[1].Injected || h[1].Status != http.StatusTooManyRequests {
+		t.Errorf("hits = %+v", h)
+	}
+}
+
+func TestFaultProxyRecordsUpstreamErrors(t *testing.T) {
+	upstream := httptest.NewServer(http.NotFoundHandler())
+	p, err := NewFaultProxy(upstream.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	upstream.Close() // connection refused from now on
+	srv := httptest.NewServer(p)
+	t.Cleanup(srv.Close)
+	if r, _ := get(t, srv.URL+"/v2/"); r.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", r.StatusCode)
+	}
+	if h := p.Hits(); len(h) != 1 || h[0].Status != http.StatusBadGateway || h[0].Injected || h[0].Path != "/v2/" {
+		t.Errorf("hits = %+v", h)
+	}
+}
