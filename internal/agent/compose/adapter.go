@@ -22,6 +22,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/neurekadev/dockyard/internal/agent/engine"
 	"github.com/neurekadev/dockyard/internal/buildinfo"
+	"github.com/neurekadev/dockyard/internal/clock"
 )
 
 // Options configures an Adapter.
@@ -45,13 +47,16 @@ type Options struct {
 	Logger *slog.Logger
 	// MaxConcurrency limits parallel Engine calls per operation (0 = SDK default).
 	MaxConcurrency int
+	// Clock paces polling (default clock.Real()).
+	Clock clock.Clock
 }
 
 // Adapter runs Compose operations.
 type Adapter struct {
-	opts Options
-	api  *client.Client
-	log  *slog.Logger
+	opts  Options
+	api   *client.Client
+	log   *slog.Logger
+	clock clock.Clock
 }
 
 var logrusOnce sync.Once
@@ -80,7 +85,10 @@ func New(ctx context.Context, opts Options) (*Adapter, error) {
 		_ = api.Close()
 		return nil, engine.Wrap(op, err)
 	}
-	return &Adapter{opts: opts, api: api, log: opts.Logger}, nil
+	if opts.Clock == nil {
+		opts.Clock = clock.Real()
+	}
+	return &Adapter{opts: opts, api: api, log: opts.Logger, clock: opts.Clock}, nil
 }
 
 // Close releases the SDK client's connections.
@@ -226,7 +234,51 @@ func (a *Adapter) Stop(ctx context.Context, p *Project, services []string, timeo
 	if err != nil {
 		return engine.WrapCode("compose.stop", engine.CodeInvalidArgument, err)
 	}
-	return composeError("compose.stop", svc.Stop(ctx, p.Name, api.StopOptions{Project: model, Services: services, Timeout: timeout}))
+	if err := svc.Stop(ctx, p.Name, api.StopOptions{Project: model, Services: services, Timeout: timeout}); err != nil {
+		return composeError("compose.stop", err)
+	}
+	return a.awaitStopped(ctx, p.Name, services)
+}
+
+// Container-list settling after a stop (see awaitStopped).
+const (
+	listSettleTimeout = 30 * time.Second
+	listSettlePoll    = 100 * time.Millisecond
+)
+
+// awaitStopped returns once the Engine's container list no longer reports
+// the stopped services as running. Engines before 26 can return from a
+// container stop while their container list still shows the container as
+// running; the SDK's next start would then skip it and fail waiting for its
+// dependencies (docs/support-matrix.md). Waiting here keeps stop followed by
+// start (e.g. backup shutdown and resume, #10) correct on every Engine.
+func (a *Adapter) awaitStopped(ctx context.Context, project string, services []string) error {
+	const op = "compose.stop"
+	deadline := a.clock.NewTimer(listSettleTimeout)
+	defer deadline.Stop()
+	for {
+		list, err := a.opts.Engine.ListContainers(ctx, engine.ContainerFilter{All: true, Labels: []string{api.ProjectLabel + "=" + project}})
+		if err != nil {
+			return err
+		}
+		running := false
+		for _, c := range list {
+			if c.State == "running" && c.Labels[api.OneoffLabel] != "True" &&
+				(len(services) == 0 || slices.Contains(services, c.Labels[api.ServiceLabel])) {
+				running = true
+			}
+		}
+		if !running {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return engine.Wrap(op, ctx.Err())
+		case <-deadline.C():
+			return engine.Errorf(op, engine.CodeTimeout, "containers of %s still listed as running %s after stop", project, listSettleTimeout)
+		case <-a.clock.After(listSettlePoll):
+		}
+	}
 }
 
 // Restart restarts services (all when empty); dependents declared with
