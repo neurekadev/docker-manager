@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/neurekadev/dockyard/internal/domain"
@@ -374,4 +375,83 @@ func TestJournalCorruptionAndVersion(t *testing.T) {
 	if _, err := New(context.Background(), Options{StateDir: t.TempDir(), Sender: &captureSender{}, Executors: []jobexec.Executor{e, e}}); err == nil {
 		t.Fatal("duplicate executor accepted")
 	}
+}
+
+// gatedReportSender holds every job_report frame until release is closed,
+// closing entered once the report (and so its snapshot) is being sent.
+type gatedReportSender struct {
+	captureSender
+	entered, release chan struct{}
+}
+
+func (g *gatedReportSender) Send(ctx context.Context, f *protocol.Frame) error {
+	if f.Type == protocol.TypeJobReport {
+		close(g.entered)
+		<-g.release
+	}
+	return g.captureSender.Send(ctx, f)
+}
+
+// TestReportedRunningAttemptSendsResultAfterReport is the regression test for
+// the TestKillAtEveryStage/prune/manager/engine.progress.committed hang: a
+// job_report snapshotted an attempt as running, the attempt finished and sent
+// its result before the report went out (the manager was not reading the new
+// session yet, so the result was lost), and the manager waited forever for
+// the result of an attempt it had just been told was running. The attempt
+// must hold its result until the report is out.
+func TestReportedRunningAttemptSendsResultAfterReport(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		fx := &effects{}
+		block := make(chan struct{})
+		s := &gatedReportSender{entered: make(chan struct{}), release: make(chan struct{})}
+		r, err := New(ctx, Options{StateDir: t.TempDir(), Clock: testutil.FakeClock(), Logger: testutil.Logger(t), Sender: s,
+			Executors: []jobexec.Executor{simExecutor(jobspec.PruneRun, fx, "delete_candidates", block)}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := r.HandleFrame(ctx, command(t, "j", 1, 1, jobspec.PruneRun)); err != nil {
+			t.Fatal(err)
+		}
+		reportErr := make(chan error, 1)
+		go func() { reportErr <- r.SendReport(ctx) }() // the agent reconnects mid-attempt
+		<-s.entered                                    // the report says running
+		close(block)                                   // the attempt finishes meanwhile
+		synctest.Wait()                                // ... as far as it can get
+		// t.Error, not t.Fatal: the report goroutine must still be released.
+		if got := fx.list(); !slices.Equal(got, []string{"collect_candidates", "delete_candidates"}) {
+			t.Errorf("effects %v", got)
+		}
+		if res := s.of(protocol.TypeResult); len(res) != 0 {
+			t.Error("result sent while the report listing the attempt as running was still pending")
+		}
+		close(s.release)
+		if err := <-reportErr; err != nil {
+			t.Fatal(err)
+		}
+		r.Wait()
+
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		var order []protocol.Type
+		var rep protocol.JobReportPayload
+		for _, f := range s.frames {
+			switch f.Type {
+			case protocol.TypeJobReport:
+				if rep, err = protocol.DecodePayload[protocol.JobReportPayload](f); err != nil {
+					t.Fatal(err)
+				}
+			case protocol.TypeResult:
+			default:
+				continue
+			}
+			order = append(order, f.Type)
+		}
+		if !slices.Equal(order, []protocol.Type{protocol.TypeJobReport, protocol.TypeResult}) {
+			t.Fatalf("frame order %v", order)
+		}
+		if len(rep.Jobs) != 1 || rep.Jobs[0].Status != protocol.ReportRunning {
+			t.Fatalf("report %+v", rep)
+		}
+	})
 }

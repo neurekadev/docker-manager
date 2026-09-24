@@ -186,7 +186,7 @@ table) before it ships.
   | finished `succeeded`/`failed`/`partial`/`cancelled` | apply the outcome, tell the agent to forget it |
   | finished `interrupted`, resumable (the in-flight step, if any, is idempotent and no compensation ran) | new attempt with a new fencing token, skipping completed steps (bounded by `MaxResumes`, default 3); cancelled instead if cancellation was requested |
   | finished `interrupted`, not resumable (non-idempotent step with unknown outcome) | `interrupted` with the step's recovery guidance — **never retried automatically** |
-  | running | keep running (re-send a pending cancellation) |
+  | running | keep running (re-send a pending cancellation); the agent serializes the report with its "attempt finished" transition, so the attempt's `result` is always sent **after** this report (never before it and lost with the old session) |
   | job missing, never acknowledged | the command never arrived: new attempt with a new token (or `cancelled` if cancellation was requested) |
   | job missing, acknowledged | `interrupted` / `journal_lost` with recovery guidance |
   | entry for an unknown, finished or superseded job | forget it (a differing late outcome is recorded as a warning event) |

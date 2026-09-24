@@ -69,6 +69,17 @@ type Runner struct {
 	mu      sync.Mutex
 	running map[string]*attempt
 	wg      sync.WaitGroup
+
+	// reportSeq serializes a job_report (snapshot and send) with the
+	// "attempt finished, send result" transition of execute. Without it a
+	// report could snapshot an attempt as running, the attempt could finish
+	// and send its result before the report goes out (on a session the
+	// manager is not reading yet, so it is lost), and the manager would then
+	// wait for a result that never comes. With it an attempt is either
+	// reported finished (the report carries the outcome) or its result is
+	// sent after the report. A one-slot channel rather than a mutex so tests
+	// can observe the wait with testing/synctest.
+	reportSeq chan struct{}
 }
 
 type attempt struct {
@@ -89,7 +100,8 @@ func New(ctx context.Context, opts Options) (*Runner, error) {
 	if opts.Sender == nil {
 		return nil, errors.New("agent jobs: sender is required")
 	}
-	r := &Runner{opts: opts, ctx: ctx, execs: map[domain.JobKind]jobexec.Executor{}, running: map[string]*attempt{}}
+	r := &Runner{opts: opts, ctx: ctx, execs: map[domain.JobKind]jobexec.Executor{}, running: map[string]*attempt{},
+		reportSeq: make(chan struct{}, 1)}
 	for _, e := range opts.Executors {
 		if err := e.Validate(domain.ExecutorAgent); err != nil {
 			return nil, err
@@ -151,7 +163,10 @@ func (r *Runner) Report() protocol.JobReportPayload {
 }
 
 // SendReport sends the job_report frame. Call it on every (re)connect.
+// Every attempt it reports as running sends its result after the report.
 func (r *Runner) SendReport(ctx context.Context) error {
+	r.reportSeq <- struct{}{}
+	defer func() { <-r.reportSeq }()
 	f, err := protocol.NewFrame(protocol.TypeJobReport, ids.New(), "", protocol.JobRef{}, r.Report())
 	if err != nil {
 		return err
@@ -277,6 +292,10 @@ func (r *Runner) execute(exec jobexec.Executor, st jobexec.State, a *attempt) {
 	ref := protocol.JobRef{JobID: st.JobID, Attempt: st.Attempt, FencingToken: st.FencingToken}
 	_, err := jobexec.Run(r.ctx, exec, &st, jobexec.Options{Journal: r.journal, Reporter: reporter{r, ref},
 		CancelRequested: a.cancel.Load, FaultPrefix: "agent"})
+	// Leaving the running set and sending the result happen as one step
+	// relative to SendReport (see reportSeq).
+	r.reportSeq <- struct{}{}
+	defer func() { <-r.reportSeq }()
 	r.mu.Lock()
 	if cur, ok := r.running[st.JobID]; ok && cur == a {
 		delete(r.running, st.JobID)
