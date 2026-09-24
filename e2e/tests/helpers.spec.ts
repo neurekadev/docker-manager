@@ -105,12 +105,10 @@ test.describe('PWA', () => {
 		expect(await cachedUrls(page)).toEqual([]);
 	});
 
-	test('web app manifest and service worker (#23)', async ({ page, request }) => {
+	test('web app manifest and service worker (#11)', async ({ page, request }) => {
 		await page.goto('/');
 		const m = await checkManifest(page, request);
-		// Pending until #23 ships the manifest: reported as skipped, never
-		// as passed.
-		test.skip(m.href === null, 'pending #23: the UI does not link a web app manifest yet');
+		expect(m.href).toBe('/manifest.webmanifest');
 		expect(m.problems).toEqual([]);
 		const sw = await checkServiceWorker(page);
 		expect(sw.registered).toBe(true);

@@ -174,8 +174,13 @@ NODE_EXTRA_CA_CERTS=.caddy-root.crt npx playwright test
 Helpers (`e2e/helpers`): `addVirtualAuthenticator` (Chromium CDP
 `WebAuthn.enable` / `addVirtualAuthenticator`), `totp` (RFC 6238, verified
 against the RFC vectors), `collectSse` / `wsRoundTrip` (in-page, through
-the proxy), `checkManifest` / `checkServiceWorker` / `cachedUrls` (PWA).
-The CI job uploads the HTML report as the `playwright-report` artifact.
+the proxy), `checkManifest` / `checkServiceWorker` / `cachedUrls` /
+`cacheContents` / `waitForServiceWorkerControl` (PWA). `tests/pwa.spec.ts`
+covers the PWA shell (#11): manifest, service-worker scope under the proxy,
+deep-link reloads, API responses absent from Cache Storage, the offline
+shell (`context.setOffline`, which Playwright also applies to service
+workers) and lazily loaded libraries. The CI job uploads the HTML report as
+the `playwright-report` artifact.
 
 ## Deploy smoke test
 

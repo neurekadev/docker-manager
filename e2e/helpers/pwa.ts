@@ -78,3 +78,25 @@ export async function cachedUrls(page: Page, prefixes = ['/api/', '/agent/']): P
 		return hits;
 	}, prefixes);
 }
+
+/**
+ * Waits until a service worker controls the page (DockYard's worker claims
+ * open pages on first install, after its precache is complete).
+ */
+export async function waitForServiceWorkerControl(page: Page, timeoutMs = 15_000): Promise<void> {
+	await page.waitForFunction(() => !!navigator.serviceWorker?.controller, undefined, {
+		timeout: timeoutMs
+	});
+}
+
+/** Lists every URL in Cache Storage, by cache name. */
+export async function cacheContents(page: Page): Promise<Record<string, string[]>> {
+	return page.evaluate(async () => {
+		const out: Record<string, string[]> = {};
+		for (const name of await caches.keys()) {
+			const cache = await caches.open(name);
+			out[name] = (await cache.keys()).map((r) => new URL(r.url).pathname);
+		}
+		return out;
+	});
+}

@@ -4,6 +4,12 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="referrer" content="no-referrer" />
+		<!-- PWA (#11). theme-color is a provisional placeholder until #22; keep it
+		     equal to PLACEHOLDER_THEME_COLOR in src/lib/pwa/manifest.ts. -->
+		<meta name="theme-color" content="#404040" />
+		<link rel="manifest" href="/manifest.webmanifest" />
+		<link rel="icon" href="/favicon.ico" sizes="48x48" />
+		<link rel="apple-touch-icon" href="/icons/apple-touch-icon-180x180.png" />
 		<title>DockYard</title>
 		%sveltekit.head%
 	</head>
