@@ -38,12 +38,42 @@ linters:
               desc: use github.com/moby/moby/client through the agent Engine adapter (#21)
             - pkg: github.com/mattn/go-sqlite3
               desc: DockYard is CGO-free; use bun/driver/sqliteshim (modernc.org/sqlite)
+        # Only the two agent adapters (and the CI test harness) may use the
+        # Engine, Compose, BuildKit and docker/cli SDKs (#21). Everything else
+        # goes through internal/agent/engine's domain-neutral interface.
+        sdk-boundary:
+          files:
+            - $all
+            - "!**/internal/agent/engine/**"
+            - "!**/internal/agent/compose/**"
+            - "!**/internal/testharness/**"
+            - "!**/test/**"
+          deny:
+            - pkg: github.com/moby/moby/client
+              desc: only internal/agent/engine talks to the Engine (#21)
+            - pkg: github.com/moby/moby/api
+              desc: SDK types stay inside internal/agent/engine (#21)
+            - pkg: github.com/docker/compose
+              desc: only internal/agent/compose uses the Compose SDK (#21)
+            - pkg: github.com/docker/cli
+              desc: only internal/agent/compose uses docker/cli, in memory (#19, #21)
+            - pkg: github.com/moby/buildkit
+              desc: builds go through internal/agent/engine (#21, #33)
+            - pkg: github.com/compose-spec/compose-go
+              desc: Compose models stay inside internal/agent/compose (#21)
     forbidigo:
       forbid:
         - pattern: ^fmt\.Print(f|ln)?$
           msg: use log/slog (or write to an injected io.Writer in cmd/)
         - pattern: ^print(ln)?$
           msg: use log/slog
+        # No Docker/Compose/buildx CLI or credential helpers (#21): process
+        # execution is limited to the paths excluded below (see
+        # docs/architecture/engine-integration.md); add restic's runner there
+        # when it lands (#10).
+        - pattern: ^exec\.(Command|CommandContext|LookPath)$
+          pkg: ^os/exec$
+          msg: the agent never executes Docker, Compose, buildx or credential-helper binaries; use the Engine/Compose SDK adapters (#21)
       analyze-types: true
     gosec:
       excludes:
@@ -95,6 +125,12 @@ linters:
           - revive
       # Command entry points write user-facing output directly.
       - path: ^cmd/
+        linters:
+          - forbidigo
+      # Process execution is allowed only in tests (subprocess crash tests,
+      # git/restic in fixtures) and in the CI test harness (git fixtures).
+      - path: (_test\.go$|^internal/testharness/)
+        text: exec\.(Command|CommandContext|LookPath)
         linters:
           - forbidigo
     paths:

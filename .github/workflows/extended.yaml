@@ -174,19 +174,37 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # TestEngineAgentImage runs the real agent image inside the DinD Engine (#2, #21).
+      - name: Build the agent image under test
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/docker/agent.Dockerfile
+          load: true
+          tags: dockyard-agent:test
+          build-args: |
+            VERSION=0.0.0-test
+            REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=agent
       - name: Engine tests (TestEngine*)
         env:
           DOCKYARD_TEST_ENGINE: ${{ matrix.engine }}
+          DOCKYARD_TEST_AGENT_IMAGE: dockyard-agent:test
         run: go test -tags integration -count=1 -timeout 25m -run '^TestEngine' -v ./... 2>&1 | tee engine-tests.log
-      - name: Pending checks
+      - name: Results per operation
         if: always()
         run: |
-          msg="Moby adapter and agent tests against this Engine (#21), negotiated API downgrade on the adapter (#21), two agents on two Engines (#3, #34)"
+          # Per-Engine evidence for docs/support-matrix.md (#21, #25 Q2):
+          # every TestEngine* test and subtest (one per v1 operation).
+          msg="two agents on two Engines (#3, #34)"
           echo "::notice title=engine-matrix pending checks::${msg}"
           {
             echo "### engine-matrix ${{ matrix.engine }} on ${{ matrix.runner }}"
             echo
-            grep -E '^(=== RUN|--- (PASS|FAIL|SKIP)|\s+fixtures_integration_test.go:[0-9]+: Engine )' engine-tests.log | grep -v '=== RUN' || true
+            echo '```'
+            grep -E '^\s*--- (PASS|FAIL|SKIP)|^\s+fixtures_integration_test.go:[0-9]+: Engine |^(ok|FAIL)\s' engine-tests.log || true
+            echo '```'
             echo
             echo "Pending: ${msg}"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -205,13 +223,18 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Registry, Git server and Compose tests
-        run: go test -tags integration -count=1 -timeout 25m -run '^Test(Registry|Git|Compose)' -v ./...
+        run: go test -tags integration -count=1 -timeout 25m -run '^Test(Registry|Git|Compose)' -v ./... 2>&1 | tee compose-tests.log
       - name: Pending checks
         if: always()
         run: |
-          msg="Compose projects with depends_on conditions, relative bind mounts, env_file and build contexts (#28); Git builds from the Git fixture (#33); private-registry and Docker Hub pulls on two agents, 401/429 handling and credential rotation (#19)"
+          msg="relative bind mounts, env_file and build contexts from the stacks volume through the agent (#28); manual Git builds with private repositories as jobs (#33); Docker Hub pulls on two agents and credential rotation (#19)"
           echo "::notice title=compose-fixtures pending checks::${msg}"
-          echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo '```'
+            grep -E '^\s*--- (PASS|FAIL|SKIP)|^(ok|FAIL)\s' compose-tests.log || true
+            echo '```'
+            echo "Pending: ${msg}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   storage:
     name: storage
