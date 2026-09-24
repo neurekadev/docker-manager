@@ -187,29 +187,12 @@ func managerMain() int {
 		log.Error("recover", "error", err)
 		return 3
 	}
-	job, _, err := eng.Enqueue(ctx, jobs.Request{Kind: sc.kind, Principal: authz.Service(), EnvironmentID: environmentID,
-		Targets: sc.targets, IdempotencyKey: idemKey})
-	if err != nil {
-		log.Error("enqueue", "error", err)
-		return 3
-	}
-	changed, _ := eng.Subscribe(job.ID)
-	done := make(chan struct{})
-	go func() {
-		for {
-			if j, err := eng.Get(ctx, job.ID); err == nil && j.State.Terminal() {
-				_ = out.write(envelope{Ctl: "done"})
-				close(done)
-				return
-			}
-			select {
-			case <-changed:
-			case <-time.After(100 * time.Millisecond):
-			}
-		}
-	}()
 	go func() { _ = eng.Run(ctx) }()
+	stdinClosed := make(chan struct{})
+	connected := make(chan struct{})
+	var connectOnce sync.Once
 	go func() {
+		defer close(stdinClosed)
 		readLines(func(e envelope) {
 			if e.Ctl == "disconnected" {
 				disp.set(false, false)
@@ -235,10 +218,47 @@ func managerMain() int {
 				disp.set(true, true)
 				eng.Wake()
 			}
+			if f.Type == protocol.TypeJobReport {
+				connectOnce.Do(func() { close(connected) })
+			}
 		})
-		os.Exit(4) // stdin closed before the job finished
 	}()
-	<-done
+	// Enqueue once the agent session is established, so every run passes
+	// the same stages in the same order (connect, reconcile, enqueue, ...).
+	select {
+	case <-connected:
+	case <-stdinClosed:
+		return 4
+	}
+	job, _, err := eng.Enqueue(ctx, jobs.Request{Kind: sc.kind, Principal: authz.Service(), EnvironmentID: environmentID,
+		Targets: sc.targets, IdempotencyKey: idemKey})
+	if err != nil {
+		log.Error("enqueue", "error", err)
+		return 3
+	}
+	changed, _ := eng.Subscribe(job.ID)
+	done := make(chan struct{})
+	go func() {
+		for {
+			if j, err := eng.Get(ctx, job.ID); err == nil && j.State.Terminal() {
+				_ = out.write(envelope{Ctl: "done"})
+				close(done)
+				return
+			}
+			select {
+			case <-changed:
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	}()
+	select {
+	case <-done:
+	case <-stdinClosed:
+		return 4 // the parent hung up before the job finished
+	}
+	// Keep handling frames until the parent hangs up, so stage boundaries
+	// after the terminal commit (e.g. engine.result.committed) are reached.
+	<-stdinClosed
 	return 0
 }
 
@@ -461,7 +481,7 @@ loop:
 			switch {
 			case ev.role == roleManager && e.Ctl == "done":
 				done = true
-				if p := h.procs[roleAgent]; p != nil {
+				for _, p := range h.procs {
 					_ = p.stdin.Close()
 				}
 			case ev.role == roleManager && e.Frame != nil && linked:
