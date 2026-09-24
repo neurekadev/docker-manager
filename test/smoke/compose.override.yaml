@@ -1,4 +1,4 @@
-# Overrides deploy/compose/compose.yaml for the deploy smoke test with the
+# Overrides deploy/caddy/compose.yaml for the deploy smoke test with the
 # images under test (edge from GHCR, or locally built). Used by
 # scripts/smoke/deploy-smoke.sh only.
 services:

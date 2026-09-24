@@ -186,8 +186,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Validate the Compose example
-        run: docker compose -f deploy/compose/compose.yaml config --quiet
+      - name: Validate the Compose examples
+        run: |
+          for f in deploy/*/compose.yaml e2e/compose.yaml; do
+            echo "== $f"
+            docker compose -f "$f" config --quiet
+          done
       - name: Build metadata
         id: meta
         run: |

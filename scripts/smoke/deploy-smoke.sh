@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy smoke test (#29): runs deploy/compose with the images under test
+# Deploy smoke test (#29): runs deploy/caddy with the images under test
 # and walks the first-run path an operator takes:
 #
 #   wait-images    edge images carry org.opencontainers.image.revision == SMOKE_REVISION
@@ -52,12 +52,12 @@ esac
 export SMOKE_MANAGER_IMAGE SMOKE_AGENT_IMAGE
 mkdir -p "$SMOKE_ARTIFACTS"
 
-# deploy/compose with the smoke override; a dedicated project name keeps it
+# deploy/caddy with the smoke override; a dedicated project name keeps it
 # apart from anything else on the host.
 export COMPOSE_PROJECT_NAME=dockyard-smoke
 export DOCKYARD_HOST=localhost DOCKYARD_TLS=internal
 export DOCKYARD_HTTP_PORT=18080 DOCKYARD_HTTPS_PORT="$SMOKE_HTTPS_PORT"
-compose=(docker compose -f deploy/compose/compose.yaml -f test/smoke/compose.override.yaml)
+compose=(docker compose -f deploy/caddy/compose.yaml -f test/smoke/compose.override.yaml)
 BASE_URL="https://localhost:${SMOKE_HTTPS_PORT}"
 CA="${SMOKE_ARTIFACTS}/caddy-root.crt"
 

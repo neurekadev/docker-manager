@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/neurekadev/dockyard/internal/agent/config"
+	"github.com/neurekadev/dockyard/internal/agent/transport"
 	"github.com/neurekadev/dockyard/internal/buildinfo"
 	"github.com/neurekadev/dockyard/internal/clock"
 )
@@ -77,12 +78,23 @@ func Run(ctx context.Context, opts Options) error {
 		return fmt.Errorf("create state directory: %w", err)
 	}
 
+	// The transport validates the TLS trust (system roots plus the optional
+	// DOCKYARD_MANAGER_CA_FILE) before anything is sent to the manager.
+	tr, err := transport.New(cfg)
+	if err != nil {
+		return err
+	}
+	ti := tr.Info()
+
 	info := buildinfo.Get()
 	log.Info("starting dockyard-agent",
 		"version", info.Version, "commit", info.Commit,
 		"manager_url", cfg.ManagerURL.String(), "docker_host", cfg.DockerHost,
-		"environment_name", cfg.EnvironmentName, "state_dir", cfg.StateDir)
-	if cfg.PlainHTTP {
+		"environment_name", cfg.EnvironmentName, "state_dir", cfg.StateDir,
+		"manager_plain_http", ti.PlainHTTP, "manager_custom_ca", ti.CustomCA)
+	if ti.Flagged() {
+		// Reported to the manager in the capabilities (protocol.TransportInfo,
+		// #3) so the host page flags this environment.
 		log.Warn("manager URL uses plain HTTP (DOCKYARD_MANAGER_ALLOW_HTTP=true); only acceptable on the manager's internal Docker network")
 	}
 	// TODO(#3): enroll with the one-use token (if not yet enrolled), persist

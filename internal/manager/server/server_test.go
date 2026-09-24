@@ -178,7 +178,8 @@ func TestAPIFallbackErrorShape(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &e); err != nil {
 		t.Fatal(err)
 	}
-	if e.Code != api.CodeNotFound || e.RequestID != "client-req-1" || rec.Header().Get(RequestIDHeader) != "client-req-1" {
+	// The client is not a trusted proxy, so its X-Request-ID is replaced.
+	if id := rec.Header().Get(RequestIDHeader); e.Code != api.CodeNotFound || e.RequestID != id || id == "client-req-1" || len(id) != 32 {
 		t.Fatalf("error = %+v, header %q", e, rec.Header().Get(RequestIDHeader))
 	}
 

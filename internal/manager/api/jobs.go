@@ -14,6 +14,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"github.com/neurekadev/dockyard/internal/manager/server/sse"
 )
 
 const tagJobs = "Jobs"
@@ -34,8 +35,9 @@ type JobService interface {
 	Subscribe(jobID string) (<-chan struct{}, func())
 }
 
-// DefaultSSEHeartbeat is the keep-alive interval of event streams.
-const DefaultSSEHeartbeat = 15 * time.Second
+// DefaultSSEHeartbeat is the keep-alive interval of event streams
+// (DOCKYARD_STREAM_HEARTBEAT overrides it via Deps.SSEHeartbeat).
+const DefaultSSEHeartbeat = sse.DefaultHeartbeat
 
 // JobTarget is a resource a job acts on.
 type JobTarget struct {
@@ -377,29 +379,27 @@ func (h *jobsAPI) stream(ctx context.Context, in *streamJobEventsInput) (*huma.S
 // events were sent.
 func (h *jobsAPI) runStream(hctx huma.Context, p authz.Principal, j domain.Job, after int64) {
 	ctx := hctx.Context()
-	sse := StartSSE(hctx)
+	stream := StartSSE(hctx)
 	changed, unsubscribe := h.svc.Subscribe(j.ID)
 	defer unsubscribe()
 	clk := h.deps.clock()
 	hb := clk.NewTicker(h.heartbeat)
 	defer hb.Stop()
 
-	if sse.Event("job", "", NewJob(j)) != nil {
+	if stream.Event("job", "", NewJob(j)) != nil {
 		return
 	}
-	sse.Flush()
 	for {
 		events, err := h.svc.Events(ctx, j.ID, after, sseBatch)
 		if err != nil {
 			return
 		}
 		for _, e := range events {
-			if sse.Event(e.Type, strconv.FormatInt(e.Seq, 10), newJobEvent(e)) != nil {
+			if stream.Event(e.Type, strconv.FormatInt(e.Seq, 10), newJobEvent(e)) != nil {
 				return
 			}
 			after = e.Seq
 		}
-		sse.Flush()
 		if len(events) == sseBatch {
 			continue
 		}
@@ -415,10 +415,9 @@ func (h *jobsAPI) runStream(hctx huma.Context, p authz.Principal, j domain.Job, 
 			return
 		case <-changed:
 		case <-hb.C():
-			if sse.Heartbeat() != nil {
+			if stream.Heartbeat() != nil {
 				return
 			}
-			sse.Flush()
 		}
 	}
 }

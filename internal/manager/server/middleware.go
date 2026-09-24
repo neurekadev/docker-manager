@@ -15,6 +15,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/clock"
 	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/manager/api"
+	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
 )
 
 // RequestIDHeader carries the request ID in requests and responses.
@@ -29,15 +30,32 @@ func newRequestID() string {
 	return hex.EncodeToString(b[:])
 }
 
-// withRequestID assigns every request an ID (the inbound X-Request-ID when it
-// is well-formed, otherwise a new one), echoes it in the response and stores
-// it plus a request-scoped logger in the context.
-//
-// TODO(#27): honor inbound X-Request-ID only from DOCKYARD_TRUSTED_PROXIES.
+// withRequestInfo resolves the request's client IP, scheme and host
+// (honoring X-Forwarded-* only from DOCKYARD_TRUSTED_PROXIES), stores them
+// in the context (requestinfo.From / requestinfo.ClientIP) and strips the
+// forwarding headers so no handler can read client-supplied values. It is
+// the outermost middleware.
+func withRequestInfo(res *requestinfo.Resolver, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		info := res.Resolve(r)
+		for _, h := range []string{requestinfo.HeaderForwardedFor, requestinfo.HeaderForwardedProto,
+			requestinfo.HeaderForwardedHost, requestinfo.HeaderForwarded} {
+			r.Header.Del(h)
+		}
+		next.ServeHTTP(w, r.WithContext(requestinfo.With(r.Context(), info)))
+	})
+}
+
+// withRequestID assigns every request an ID, echoes it in the response and
+// stores it plus a request-scoped logger in the context. An inbound
+// X-Request-ID is kept only when it is well-formed and the direct peer is a
+// trusted proxy (so the proxy's ID correlates both logs); anyone else gets a
+// fresh ID.
 func withRequestID(base *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		info, _ := requestinfo.From(r.Context())
 		id := r.Header.Get(RequestIDHeader)
-		if !requestIDRE.MatchString(id) {
+		if !info.TrustedPeer || !requestIDRE.MatchString(id) {
 			id = newRequestID()
 		}
 		w.Header().Set(RequestIDHeader, id)
@@ -48,7 +66,8 @@ func withRequestID(base *slog.Logger, next http.Handler) http.Handler {
 }
 
 // accessLog logs one line per request. It logs the path only, never the
-// query string (it may carry cursors or future tokens) or headers.
+// query string (it may carry cursors or future tokens) or headers. remote is
+// the direct peer (the proxy); client_ip the resolved client.
 func accessLog(clk clock.Clock, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := clk.Now()
@@ -68,6 +87,7 @@ func accessLog(clk clock.Clock, next http.Handler) http.Handler {
 			slog.Int64("bytes", rec.bytes),
 			slog.Duration("duration", clk.Since(start)),
 			slog.String("remote", r.RemoteAddr),
+			slog.String("client_ip", addrString(requestinfo.ClientIP(r.Context()))),
 		)
 	})
 }

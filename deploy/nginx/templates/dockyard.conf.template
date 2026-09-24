@@ -1,0 +1,70 @@
+# DockYard behind nginx (#27). The nginx image renders this template with
+# envsubst at start; only variables set in the container environment are
+# replaced (nginx's own $variables stay as they are).
+
+map $http_upgrade $connection_upgrade {
+	default upgrade;
+	''      close;
+}
+
+server {
+	listen 80;
+	server_name ${DOCKYARD_HOST};
+	return 301 https://$host$request_uri;
+}
+
+server {
+	listen 443 ssl;
+	# HTTP/2 to browsers: several SSE/WebSocket streams across tabs share
+	# one connection instead of exhausting HTTP/1.1's per-origin limit.
+	http2 on;
+	server_name ${DOCKYARD_HOST};
+
+	ssl_certificate     ${DOCKYARD_TLS_CERT_FILE};
+	ssl_certificate_key ${DOCKYARD_TLS_KEY_FILE};
+	ssl_protocols       TLSv1.2 TLSv1.3;
+
+	# Largest request body (uploads, archives, restores). Keep it at least
+	# the manager's maximum upload/archive size (#15).
+	client_max_body_size ${DOCKYARD_MAX_BODY_SIZE};
+
+	# Optional: allow the agent endpoint only from known networks (remote
+	# agents must then connect from one of them). Add a location with the
+	# same proxy settings as "location /" below plus:
+	#   location /agent/v1/ { allow 192.0.2.0/24; deny all; proxy_pass $dockyard_manager; ... }
+
+	# Resolve the manager through Docker's DNS at request time, so a
+	# recreated manager container (new IP) is found without reloading nginx.
+	resolver 127.0.0.11 valid=10s ipv6=off;
+	set $dockyard_manager http://dockyard-manager:8080;
+
+	location / {
+		proxy_pass $dockyard_manager;
+		proxy_http_version 1.1;
+
+		# The manager checks Host/Origin against DOCKYARD_PUBLIC_URL; keep
+		# the port. Client-supplied X-Forwarded-* values are overwritten
+		# (X-Forwarded-For is appended to; the manager reads it right to
+		# left and trusts only this proxy's hop).
+		proxy_set_header Host              $http_host;
+		proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_set_header X-Forwarded-Host  $http_host;
+		proxy_set_header X-Request-ID      $request_id;
+
+		# WebSocket (agent sessions, container exec).
+		proxy_set_header Upgrade    $http_upgrade;
+		proxy_set_header Connection $connection_upgrade;
+
+		# Idle limit between reads from the manager (and for WebSockets in
+		# both directions). SSE heartbeats and WebSocket pings
+		# (DOCKYARD_STREAM_HEARTBEAT, 15 s) keep quiet streams inside it.
+		proxy_read_timeout ${DOCKYARD_PROXY_READ_TIMEOUT};
+		proxy_send_timeout ${DOCKYARD_PROXY_READ_TIMEOUT};
+
+		# Stream uploads to the manager instead of spooling them to disk.
+		# Response buffering stays on for ordinary responses; the manager
+		# turns it off per stream with X-Accel-Buffering: no.
+		proxy_request_buffering off;
+	}
+}

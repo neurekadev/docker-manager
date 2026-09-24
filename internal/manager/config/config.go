@@ -15,17 +15,19 @@ import (
 
 	"github.com/neurekadev/dockyard/internal/envconfig"
 	"github.com/neurekadev/dockyard/internal/logging"
+	"github.com/neurekadev/dockyard/internal/manager/server/sse"
 )
 
 // Environment variable names.
 const (
-	EnvPublicURL      = "DOCKYARD_PUBLIC_URL"
-	EnvListenAddr     = "DOCKYARD_LISTEN_ADDR"
-	EnvDataDir        = "DOCKYARD_DATA_DIR"
-	EnvSecretKeyFile  = "DOCKYARD_SECRET_KEY_FILE"
-	EnvLogLevel       = "DOCKYARD_LOG_LEVEL"
-	EnvLogFormat      = "DOCKYARD_LOG_FORMAT"
-	EnvTrustedProxies = "DOCKYARD_TRUSTED_PROXIES"
+	EnvPublicURL       = "DOCKYARD_PUBLIC_URL"
+	EnvListenAddr      = "DOCKYARD_LISTEN_ADDR"
+	EnvDataDir         = "DOCKYARD_DATA_DIR"
+	EnvSecretKeyFile   = "DOCKYARD_SECRET_KEY_FILE"
+	EnvLogLevel        = "DOCKYARD_LOG_LEVEL"
+	EnvLogFormat       = "DOCKYARD_LOG_FORMAT"
+	EnvTrustedProxies  = "DOCKYARD_TRUSTED_PROXIES"
+	EnvStreamHeartbeat = "DOCKYARD_STREAM_HEARTBEAT"
 
 	EnvJobHistoryRetention   = "DOCKYARD_JOB_HISTORY_RETENTION"
 	EnvJobHistoryMax         = "DOCKYARD_JOB_HISTORY_MAX"
@@ -77,7 +79,10 @@ type Config struct {
 	LogFormat        string
 	// TrustedProxies are the peers whose X-Forwarded-* headers are honored (#27).
 	TrustedProxies []netip.Prefix
-	Jobs           JobsConfig
+	// StreamHeartbeat is the SSE heartbeat and WebSocket ping interval; it
+	// must stay below the reverse proxy's idle/read timeout (#27).
+	StreamHeartbeat time.Duration
+	Jobs            JobsConfig
 }
 
 // DatabasePath is the SQLite database file inside the data directory.
@@ -128,6 +133,10 @@ func Load(src envconfig.Source) (Config, error) {
 
 	if cfg.TrustedProxies, err = ParseTrustedProxies(src.String(EnvTrustedProxies, "")); err != nil {
 		errs = append(errs, fmt.Errorf("%s: %w", EnvTrustedProxies, err))
+	}
+
+	if cfg.StreamHeartbeat, err = src.Duration(EnvStreamHeartbeat, sse.DefaultHeartbeat, sse.MinHeartbeat, sse.MaxHeartbeat); err != nil {
+		errs = append(errs, err)
 	}
 
 	cfg.Jobs, err = loadJobs(src)

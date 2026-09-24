@@ -342,8 +342,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      E2E_HTTPS_PORT: "8443"
-      E2E_BASE_URL: https://localhost:8443
       E2E_REVISION: ${{ github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -358,23 +356,30 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: e2e/package-lock.json
-      - name: TLS proxy fixture (Go)
-        run: go test -tags integration -count=1 -timeout 15m -run '^TestTLSProxy' -v ./internal/testharness/
+      - name: TLS proxy tests (Go)
+        # The harness fixture plus the agent transport through a real TLS
+        # proxy (test/proxy, #27).
+        run: go test -tags integration -count=1 -timeout 15m -run '^TestTLSProxy' -v ./...
+      - name: E2E test routes (Go, -tags e2e)
+        run: go test -tags e2e -count=1 -run '^TestE2E' -v ./internal/manager/server/
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - name: Start manager (built from source) behind Caddy
+      - name: Start managers (built from source) behind Caddy, Traefik and nginx
         run: docker compose -f e2e/compose.yaml up -d --build --wait --wait-timeout 300
-      - name: Trust Caddy's root CA (browser and Node)
+      - name: Trust the E2E CA (browser and Node)
         run: |
-          docker compose -f e2e/compose.yaml cp caddy:/data/caddy/pki/authorities/local/root.crt e2e/.caddy-root.crt
+          docker compose -f e2e/compose.yaml cp certs:/certs/ca.crt e2e/.e2e-ca.crt
           sudo apt-get update -qq && sudo apt-get install -y -qq libnss3-tools
           mkdir -p "$HOME/.pki/nssdb"
           [ -f "$HOME/.pki/nssdb/cert9.db" ] || certutil -d "sql:$HOME/.pki/nssdb" -N --empty-password
-          certutil -d "sql:$HOME/.pki/nssdb" -A -t "C,," -n dockyard-e2e -i e2e/.caddy-root.crt
-          for i in $(seq 1 60); do
-            curl -sS --fail --cacert e2e/.caddy-root.crt "${E2E_BASE_URL}/api/v1/health/ready" && break
-            sleep 2
+          certutil -d "sql:$HOME/.pki/nssdb" -A -t "C,," -n dockyard-e2e -i e2e/.e2e-ca.crt
+          for port in 8443 8444 8445; do
+            for i in $(seq 1 60); do
+              curl -sS --fail --cacert e2e/.e2e-ca.crt "https://localhost:${port}/api/v1/health/ready" && break
+              sleep 2
+            done
+            curl -sS --fail --cacert e2e/.e2e-ca.crt "https://localhost:${port}/api/v1/health/ready"
+            echo
           done
-          curl -sS --fail --cacert e2e/.caddy-root.crt "${E2E_BASE_URL}/api/v1/health/ready"
       - name: Install Playwright
         working-directory: e2e
         run: |
@@ -385,7 +390,7 @@ jobs:
         working-directory: e2e
         env:
           CI: "1"
-          NODE_EXTRA_CA_CERTS: ${{ github.workspace }}/e2e/.caddy-root.crt
+          NODE_EXTRA_CA_CERTS: ${{ github.workspace }}/e2e/.e2e-ca.crt
         run: npx playwright test
       - name: Upload Playwright report
         if: always()
@@ -403,7 +408,7 @@ jobs:
       - name: Pending checks
         if: always()
         run: |
-          msg="passkey/TOTP login and recovery flows (#16), live updates across views (#23), agents through the proxy (#27), responsive layouts (#22)"
+          msg="passkey/TOTP login and recovery flows (#16), live updates across views (#23), enrolled agent sessions and reconnects through each proxy (#3, #27), exec WebSocket through each proxy (#6, #27), responsive layouts (#22)"
           echo "::notice title=e2e pending checks::${msg}"
           echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
 

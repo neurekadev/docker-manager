@@ -23,7 +23,7 @@ extended workflow.
 | --- | --- | --- |
 | none | unit tests, corpus generators, harness helpers that need no Docker | PR suite, `race` |
 | `integration` | testcontainers-go fixtures and Engine/Compose/storage tests | `engine-matrix`, `compose-fixtures`, `storage`, `e2e` (TLS proxy) |
-| `e2e` | reserved for Go-driven browser/proxy tests | `e2e` |
+| `e2e` | test-only manager routes for the proxy E2E stack (`internal/manager/server/e2e_routes.go`, `TestE2ERoutes`) | `e2e` |
 | `faultinject` | fault-injection hooks and tests (`internal/faultinject`, #26) | `fault-injection` |
 
 Integration tests are selected by name, so name new ones accordingly:
@@ -33,7 +33,7 @@ Integration tests are selected by name, so name new ones accordingly:
 | `engine-matrix` | `^TestEngine` (runs once per Engine × architecture) |
 | `compose-fixtures` | `^Test(Registry\|Git\|Compose)` |
 | `storage` | `^Test(MinIO\|Restic\|Storage\|Backup\|Restore)` |
-| `e2e` | `^TestTLSProxy` plus Playwright |
+| `e2e` | `^TestTLSProxy` (all packages), `^TestE2E` with `-tags e2e`, plus Playwright |
 | `fault-injection` | all tests with `-tags faultinject`; subprocess kill suites `^Test(Kill\|Crash)` in `test/fault` |
 | `fs-security` | `internal/testutil/fscorpus` plus every package importing it |
 | `secret-canary` | `internal/testutil/canary` plus every package importing it |
@@ -80,9 +80,9 @@ reported as passed.
 | `DOCKYARD_TEST_ENGINE` | `testharness.SelectEngine` | Engine version from `test/matrix/engines.json`, or `default` / `minimum` / `latest` (default: the matrix default) |
 | `DOCKYARD_TEST_CACHE` | `testharness.FetchRestic` | download cache (default: user cache dir `dockyard-test`) |
 | `FUZZTIME` | `scripts/ci/fuzz-all.sh` | `-fuzztime` per target (default `60s`) |
-| `E2E_BASE_URL` | Playwright | origin under test (default `https://localhost:8443`) |
-| `E2E_HTTPS_PORT`, `E2E_REVISION` | `e2e/compose.yaml` | published port, build revision |
-| `E2E_IGNORE_HTTPS_ERRORS=1` | Playwright | local runs without trusting Caddy's root (WebAuthn then fails) |
+| `E2E_BASE_URL` | Playwright | test one origin (project `custom`) instead of the three proxy origins |
+| `E2E_REVISION` | `e2e/compose.yaml` | build revision |
+| `E2E_IGNORE_HTTPS_ERRORS=1` | Playwright | local runs without trusting the E2E CA (WebAuthn then fails) |
 | `SMOKE_*` | `scripts/smoke/deploy-smoke.sh` | see the script header |
 | `DOCKYARD_ARM64_RUNNERS` (repository variable) | `extended.yaml` | `false` = arm64 runners unavailable; the Engine matrix falls back to amd64 with a notice |
 
@@ -159,22 +159,49 @@ escape trees and the TOCTOU `Swapper` / `RaceWhile`.
 ## Browser E2E
 
 `e2e/` is a separate npm package (pinned `@playwright/test`, own lockfile).
-`e2e/compose.yaml` builds the manager from source and serves it behind
-Caddy (`tls internal`) at `https://localhost:8443`, plus a stream fixture
-(`test/e2e/echo`) at `/__e2e/echo/` for the SSE/WebSocket helper tests.
+`e2e/compose.yaml` builds the manager from source with the `e2e` build tag
+(`GO_TAGS=e2e`, adding the test-only routes of
+`internal/manager/server/e2e_routes.go`: `/api/v1/__e2e/request-info`,
+`/api/v1/__e2e/sse`, `/agent/v1/__e2e/request-info`,
+`/agent/v1/__e2e/echo`) and runs one manager behind each example proxy from
+`deploy/`, using the proxies' configuration files unchanged:
+
+| project | origin | proxy | direct (untrusted) manager port |
+| --- | --- | --- | --- |
+| `caddy` | `https://localhost:8443` | `deploy/caddy/Caddyfile` | `http://127.0.0.1:18080` |
+| `traefik` | `https://localhost:8444` | `deploy/traefik/dynamic` + the example's arguments | `http://127.0.0.1:18081` |
+| `nginx` | `https://localhost:8445` | `deploy/nginx/templates` | `http://127.0.0.1:18082` |
+
+All three serve a `localhost` certificate from one throw-away CA
+(`test/e2e/certgen`, service `certs`); every Playwright spec runs once per
+project. `TestE2EComposeMatchesDeploy` (`test/deploy`) keeps the proxy
+images, arguments and mounts identical to `deploy/`.
 
 ```bash
 docker compose -f e2e/compose.yaml up -d --build --wait
-docker compose -f e2e/compose.yaml cp caddy:/data/caddy/pki/authorities/local/root.crt e2e/.caddy-root.crt
-# trust it for Chromium (Linux): certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n dockyard-e2e -i e2e/.caddy-root.crt
+docker compose -f e2e/compose.yaml cp certs:/certs/ca.crt e2e/.e2e-ca.crt
+# trust it for Chromium (Linux): certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n dockyard-e2e -i e2e/.e2e-ca.crt
 cd e2e && npm ci && npx playwright install chromium
-NODE_EXTRA_CA_CERTS=.caddy-root.crt npx playwright test
+NODE_EXTRA_CA_CERTS=.e2e-ca.crt npx playwright test               # all proxies
+NODE_EXTRA_CA_CERTS=.e2e-ca.crt npx playwright test --project nginx
 ```
+
+The proxy topology specs (`e2e/tests/proxy.spec.ts`, #27) check per proxy:
+PWA shell and API over HTTP/2 on one origin; spoofed `X-Forwarded-*`
+ignored (through the proxy and directly from an untrusted peer); agent
+credentials refused on `/api/v1` and cookies stripped on `/agent/v1`; an
+SSE stream and a WebSocket under `/agent/v1` kept open through 70 s of
+idleness (longer than the 60 s proxy read timeouts) by heartbeats and
+pings, with arrival times proving the proxy does not buffer.
+`TestTLSProxyAgentTransport` (`test/proxy`, Go, `integration`) connects the
+agent transport through a real TLS proxy with a private CA.
 
 Helpers (`e2e/helpers`): `addVirtualAuthenticator` (Chromium CDP
 `WebAuthn.enable` / `addVirtualAuthenticator`), `totp` (RFC 6238, verified
 against the RFC vectors), `collectSse` / `wsRoundTrip` (in-page, through
-the proxy), `checkManifest` / `checkServiceWorker` / `cachedUrls` /
+the proxy), `sseTimeline` (raw SSE lines with arrival times, including
+heartbeat comments), `wsIdleRoundTrip` (WebSocket round trip across an
+idle period), `checkManifest` / `checkServiceWorker` / `cachedUrls` /
 `cacheContents` / `waitForServiceWorkerControl` (PWA). `tests/pwa.spec.ts`
 covers the PWA shell (#11): manifest, service-worker scope under the proxy,
 deep-link reloads, API responses absent from Cache Storage, the offline
@@ -184,7 +211,7 @@ the `playwright-report` artifact.
 
 ## Deploy smoke test
 
-`scripts/smoke/deploy-smoke.sh` (job `smoke`) runs `deploy/compose` with
+`scripts/smoke/deploy-smoke.sh` (job `smoke`) runs `deploy/caddy` with
 the images under test: on `main` it waits (up to 30 min) until
 `ghcr.io/neurekadev/dockyard-{manager,agent}:edge` carry
 `org.opencontainers.image.revision == github.sha`; on branches it builds

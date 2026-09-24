@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/neurekadev/dockyard/internal/envconfig"
 )
@@ -146,5 +147,22 @@ func TestJobLimits(t *testing.T) {
 	_, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvJobHistoryRetention: "1m", EnvJobEventsMax: "x"})
 	if err == nil || !strings.Contains(err.Error(), EnvJobHistoryRetention) || !strings.Contains(err.Error(), EnvJobEventsMax) {
 		t.Fatalf("invalid limits: %v", err)
+	}
+}
+
+func TestStreamHeartbeat(t *testing.T) {
+	cfg, err := load(t, map[string]string{EnvPublicURL: "https://docker.example.com"})
+	if err != nil || cfg.StreamHeartbeat != 15*time.Second {
+		t.Fatalf("default heartbeat %v %v", cfg.StreamHeartbeat, err)
+	}
+	cfg, err = load(t, map[string]string{EnvPublicURL: "https://docker.example.com", EnvStreamHeartbeat: "5s"})
+	if err != nil || cfg.StreamHeartbeat != 5*time.Second {
+		t.Fatalf("5s: %v %v", cfg.StreamHeartbeat, err)
+	}
+	// Heartbeats at or above the common 60 s proxy timeouts are refused.
+	for _, v := range []string{"60s", "500ms", "soon"} {
+		if _, err := load(t, map[string]string{EnvPublicURL: "https://docker.example.com", EnvStreamHeartbeat: v}); err == nil || !strings.Contains(err.Error(), EnvStreamHeartbeat) {
+			t.Errorf("%s accepted: %v", v, err)
+		}
 	}
 }

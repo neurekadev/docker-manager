@@ -1,12 +1,14 @@
 // Package server assembles the manager's single HTTP handler:
 //
 //	/api/v1/*    public Huma API (internal/manager/api)
-//	/agent/v1/*  private agent enrollment/session (reserved, #3)
+//	/agent/v1/*  private agent enrollment/session (Options.Agent, #3)
 //	/*           embedded SvelteKit PWA with deep-link fallback
 //
-// wrapped in request-ID, access-log, panic-recovery, security-header and
-// no-store middleware. The manager serves plain HTTP; TLS terminates at the
-// operator's reverse proxy (#27).
+// wrapped in request-info (trusted proxies), request-ID, access-log,
+// panic-recovery, security-header, no-store and route-boundary middleware
+// (the /agent/v1 guard and the cookie/agent-credential separation). The
+// manager serves plain HTTP; TLS terminates at the operator's reverse proxy
+// (#27, docs/deployment.md).
 package server
 
 import (
@@ -15,12 +17,15 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/neurekadev/dockyard/internal/clock"
 	"github.com/neurekadev/dockyard/internal/manager/api"
+	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
+	"github.com/neurekadev/dockyard/internal/manager/server/sse"
 )
 
 // AgentBasePath prefixes the private agent routes.
@@ -34,9 +39,22 @@ type Options struct {
 	API api.Deps
 	// UI is the embedded SvelteKit build (web.Assets()).
 	UI fs.FS
-	// TrustedProxies will gate X-Forwarded-* handling (#27). Parsed and
-	// carried now; not yet used.
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For/Proto/Host
+	// headers are honored (DOCKYARD_TRUSTED_PROXIES, #27).
 	TrustedProxies []netip.Prefix
+	// PublicURL and LocalDevelopment describe DOCKYARD_PUBLIC_URL (for the
+	// secure-origin check, requestinfo.CheckSecureOrigin).
+	PublicURL        *url.URL
+	LocalDevelopment bool
+	// StreamHeartbeat is the SSE heartbeat and WebSocket ping interval
+	// (DOCKYARD_STREAM_HEARTBEAT; default sse.DefaultHeartbeat).
+	StreamHeartbeat time.Duration
+	// Agent serves /agent/v1/* (enrollment and session, #3). Nil answers
+	// every agent route with 404. It always runs behind the agent guard
+	// (AgentLimits) and the credential separation.
+	Agent http.Handler
+	// AgentLimits hardens /agent/v1 (zero: DefaultAgentLimits).
+	AgentLimits AgentLimits
 }
 
 // Server is the assembled handler plus the Huma API (for tests/tools).
@@ -56,6 +74,9 @@ func New(opts Options) (*Server, error) {
 	if opts.Clock == nil {
 		opts.Clock = clock.Real()
 	}
+	if opts.StreamHeartbeat <= 0 {
+		opts.StreamHeartbeat = sse.DefaultHeartbeat
+	}
 	ui, err := newSPA(opts.UI)
 	if err != nil {
 		return nil, err
@@ -66,15 +87,24 @@ func New(opts Options) (*Server, error) {
 
 	mux := http.NewServeMux()
 	mux.Handle(api.BasePath+"/", apiRouter(apiMux))
-	mux.Handle(AgentBasePath+"/", agentPlaceholder())
+	agent := opts.Agent
+	if agent == nil {
+		agent = agentPlaceholder()
+	}
+	mux.Handle(AgentBasePath+"/", agent)
+	if testRoutes != nil {
+		testRoutes(mux, opts) // e2e builds only (e2e_routes.go)
+	}
 	mux.Handle("/", ui)
 
 	var h http.Handler = mux
+	h = routeBoundaries(newAgentGuard(opts.AgentLimits, opts.Clock), h)
 	h = noStore(h)
 	h = securityHeaders(contentSecurityPolicy(ui.scriptHashes), h)
 	h = recoverPanics(h)
 	h = accessLog(opts.Clock, h)
 	h = withRequestID(opts.Logger, h)
+	h = withRequestInfo(requestinfo.NewResolver(opts.TrustedProxies), h)
 	return &Server{Handler: h, API: humaAPI}, nil
 }
 
@@ -123,12 +153,17 @@ func apiRouter(apiMux *http.ServeMux) http.Handler {
 	})
 }
 
+// testRoutes registers test-only routes; set by e2e_routes.go in builds
+// with the e2e tag, nil otherwise.
+var testRoutes func(mux *http.ServeMux, opts Options)
+
 // agentPlaceholder reserves /agent/v1 until enrollment and the session
 // endpoint land.
 //
-// TODO(#3): POST /agent/v1/enroll and GET /agent/v1/session (WebSocket,
-// subprotocol protocol.Version) with rate limits, generic failures, pre-auth
-// timeouts and bounded frames (#27).
+// TODO(#3): POST /agent/v1/enroll and GET /agent/v1/session (WebSocket via
+// server/ws with subprotocol protocol.Version and KeepAlive), passed as
+// Options.Agent. The guard (rate limits, body bound, pre-auth deadline) and
+// the credential separation already apply; reject with AgentFailure.
 func agentPlaceholder() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		api.WriteError(w, r, api.NotFound("agent protocol endpoint not available"))

@@ -24,7 +24,7 @@ Legend for "where": PR = `ci.yaml` PR suite; X:`job` = `extended.yaml` job.
 | V05 | Separate manager/agent executables and images | #2 | `images` job (both images, both platforms), `static-build` | PR (push) | implemented |
 | V06 | Pinned official Moby client/API and Compose SDK versions | #21 | go.mod pin check + `policy-check.sh` legacy-client rule; adapter integration evidence per Engine | PR, X:`engine-matrix` | partial (policy rule implemented; pins land with #21) |
 | V07 | Pinned restic compatibility | #2, #10 | `TestResticPinMatchesDockerfiles` (test pin = image pin), `TestResticPinnedBinary` (0.19.1: local + S3 round trip, `check`) | PR, X:`storage` | implemented |
-| V08 | Deployment topology (single origin, reverse proxy) | #27 | `TestTLSProxyFixture` (HTTPS, SSE, WebSocket through Caddy), Playwright `smoke.spec.ts`, smoke `health-ready` through Caddy with verified CA | X:`e2e`, X:`smoke` | partial (agent connectivity via the origin planned, V73) |
+| V08 | Deployment topology (single origin, reverse proxy) | #27 | Playwright `proxy.spec.ts` + `smoke.spec.ts` through Caddy, Traefik and nginx (`deploy/` configs: HTTP/2 shell + API, spoofed `X-Forwarded-*` ignored, credential separation, SSE and `/agent/v1` WebSocket idle > 60 s unbuffered); `TestTLSProxyAgentTransport`; `test/deploy` example checks; smoke `health-ready` through Caddy | X:`e2e`, X:`smoke`, PR | partial (passkeys/PWA install #16/#23, enrolled agent sessions #3, exec #6) |
 | V09 | Browser support | #22, #23 | Playwright Chromium project today; Firefox/WebKit projects added with #22/#23 | X:`e2e` | partial |
 | V09m | Mobile PWA install (iOS Safari, Android Chrome) | #23 | **Manual**: install from the share/menu sheet on one iOS and one Android device, launch standalone, go offline, reconnect. Reason: CI has no real mobile browsers or install UI | release checklist | planned |
 | V10 | Manager/agent protocol compatibility | #3, #4, #34 | `FuzzDecodeFrame` + frame round-trip tests; version negotiation/compatibility tests with old/new agent builds | PR, X:`fuzz` | partial |
@@ -38,7 +38,7 @@ Legend for "where": PR = `ci.yaml` PR suite; X:`job` = `extended.yaml` job.
 | V13 | Session revocation | #16, #18 | API tests: revoked session rejected on next request and on open streams; canary sweep | PR, X:`e2e` | planned |
 | V14 | Factor recovery (TOTP/passkey) | #16 | Playwright with `totp()` and `addVirtualAuthenticator()` (helpers implemented, `helpers.spec.ts`) | X:`e2e` | planned |
 | V15 | CSRF | #3, #16 | API tests: state-changing requests without the CSRF token/origin check fail | PR | planned |
-| V16 | Throttling / rate limiting | #3, #16, #27 | Login, enrollment and API rate-limit tests with the fake clock | PR | planned |
+| V16 | Throttling / rate limiting | #3, #16, #27 | `/agent/v1` per-client-IP limiter: `TestAgentRateLimitPerClientIP` (fake clock, spoofed XFF, IPv6 /64, fail-closed table); login, enrollment and API rate-limit tests follow with #16/#3 | PR | partial |
 | V17 | Owner bootstrap, concurrent first-owner setup | #16 | Race test: N concurrent setup requests → exactly one owner; smoke `owner-setup` step (pending) | PR, X:`race`, X:`smoke` | planned |
 | V18 | Invite redemption (one-use) and revocation | #16 | API tests incl. concurrent redemption | PR, X:`race` | planned |
 | V19 | Restricted default group; no-access new user | #17 | Permission decision corpus | PR | planned |
@@ -115,7 +115,7 @@ Legend for "where": PR = `ci.yaml` PR suite; X:`job` = `extended.yaml` job.
 | V69 | Every prune category; disabled-by-default automation; durable background runs; maintenance preview | #14 | Engine tests per category + preview equals effect | X:`engine-matrix` | planned |
 | V70 | Scoped file browser/editor: selection, drag-drop, archives, permissions, conflicts, root containment | #15 | `fscorpus` consumers + Playwright | X:`fs-security`, X:`e2e` | planned |
 | V71 | Fresh-manager import with Recovery Key | #24 | See V40/V41 | X:`storage` | planned |
-| V72 | Single-origin reverse-proxy deployment and agent connectivity | #27 | TLS proxy fixture + smoke (implemented for UI/API); remote agent through the origin | X:`e2e`, X:`smoke` | partial |
+| V72 | Single-origin reverse-proxy deployment and agent connectivity | #27 | Playwright `proxy.spec.ts` per proxy; `TestTLSProxyAgentTransport` (remote agent via the TLS origin with a private CA, co-located agent on the internal URL with opt-in); `internal/agent/transport` tests; enrolled sessions through each proxy with #3 | X:`e2e`, PR | partial |
 | V73 | Identical-path storage layout | #28 | Agent startup check tests on DinD Engines; smoke stack with relative bind | X:`engine-matrix`, X:`smoke` | planned |
 | V74 | Stack and volume migration between environments | #35 | Two Engines (`StartEngines`) | X:`engine-matrix` | planned |
 | V75 | Version compatibility and environment removal | #34 | Old/new agent builds against the manager; removal leaves Engine resources intact | X:`engine-matrix` | planned |

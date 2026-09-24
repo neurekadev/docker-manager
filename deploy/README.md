@@ -8,6 +8,23 @@ DockYard ships two images, published from `main` as the rolling `edge` tag:
 Both run as root (UID 0); running them as a non-root user is not supported.
 There are no semver releases yet.
 
+DockYard runs behind your TLS-terminating reverse proxy on one public origin
+(#27). Pick an example; each runs the manager, a co-located agent on the
+internal URL and the proxy. Agents on other hosts use `remote-agent/`.
+
+| Directory | Proxy | TLS |
+| --- | --- | --- |
+| [`caddy/`](caddy/) | Caddy 2.11 | Caddy's local CA (default), ACME, or your files |
+| [`traefik/`](traefik/) | Traefik 3.7 (file provider, no Docker socket) | Let's Encrypt or your files |
+| [`nginx/`](nginx/) | nginx 1.30 | your files (e.g. from certbot) |
+| [`remote-agent/`](remote-agent/) | — | agent on another host, dials the public HTTPS origin |
+
+Proxy requirements, timeouts, body sizes, trusted proxies, the optional IP
+allowlist for `/agent/v1`, first-run HTTPS and a complete two-environment
+walkthrough: [`docs/deployment.md`](../docs/deployment.md). Every variable:
+[`docs/configuration.md`](../docs/configuration.md). The Playwright suite
+runs these proxy configurations unchanged (`e2e/compose.yaml`).
+
 ## Quick start: manager + local agent behind Caddy
 
 Requirements: a Linux host with Docker Engine and the Compose plugin, using
@@ -19,7 +36,7 @@ access token that has `read:packages`:
 ```bash
 echo "$GITHUB_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
 
-cd deploy/compose
+cd deploy/caddy
 cp .env.example .env        # set DOCKYARD_HOST to your DNS name (default: localhost)
 docker compose pull
 docker compose up -d
@@ -32,19 +49,22 @@ Caddy issues a certificate from its local CA; trust it on your clients
 set `DOCKYARD_TLS` to an email address to use a public ACME certificate for a
 publicly reachable host.
 
-What the example sets up (`compose.yaml`):
+What the example sets up (`caddy/compose.yaml`):
 
 - **dockyard-manager** with the named volume `dockyard_data` at
-  `/var/lib/dockyard` (database, snapshots, secret key) and
-  `DOCKYARD_PUBLIC_URL=https://${DOCKYARD_HOST}`. It publishes no ports; only
-  Caddy reaches it.
+  `/var/lib/dockyard` (database, snapshots, secret key),
+  `DOCKYARD_PUBLIC_URL=https://${DOCKYARD_HOST}` and
+  `DOCKYARD_TRUSTED_PROXIES` set to the proxy's fixed address. It publishes
+  no ports; only the proxy reaches it.
 - **dockyard-agent** on the same network, using the internal URL
   `http://dockyard-manager:8080` with the explicit
   `DOCKYARD_MANAGER_ALLOW_HTTP=true` opt-in, the Docker socket, Docker's volume
   directory at the identical path (`/var/lib/docker/volumes`), the named
   volume `dockyard_agent_state`, and the stacks volume `dockyard_stacks`.
-- **caddy** terminating TLS for one origin with one route to the manager and
-  `flush_interval -1` for streaming responses.
+- **caddy** terminating TLS for one origin with one route to the manager,
+  streaming responses unbuffered, on the fixed address `DOCKYARD_PROXY_IP`
+  of the `dockyard` network (`DOCKYARD_SUBNET`; change both if the subnet
+  overlaps one of your networks).
 
 Enrollment (#3) is not implemented yet: the agent logs that it is not
 enrolled and stays healthy. When enrollment lands, create a token in the UI,
@@ -67,9 +87,3 @@ docker compose pull && docker compose up -d
 
 Migrations run automatically at manager start; a failing migration stops the
 manager with the database unchanged.
-
-## More
-
-Traefik and nginx examples, remote agents on the public origin and a
-two-environment setup follow in #27. Configuration reference:
-`docs/configuration.md`.

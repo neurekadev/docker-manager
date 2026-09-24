@@ -80,10 +80,10 @@ test.describe('WebAuthn virtual authenticator', () => {
 	});
 });
 
-test.describe('streams through the TLS proxy', () => {
+test.describe('streams through the TLS proxy (manager e2e routes)', () => {
 	test('SSE events arrive incrementally', async ({ page }) => {
 		await page.goto('/');
-		const events = await collectSse(page, '/__e2e/echo/sse?n=3&interval_ms=50', {
+		const events = await collectSse(page, '/api/v1/__e2e/sse?n=3&interval_ms=50', {
 			eventTypes: ['ready', 'tick', 'done'],
 			untilType: 'done'
 		});
@@ -93,7 +93,7 @@ test.describe('streams through the TLS proxy', () => {
 
 	test('WebSocket round trip', async ({ page }) => {
 		await page.goto('/');
-		const { replies } = await wsRoundTrip(page, '/__e2e/echo/ws', ['hello', 'dockyard']);
+		const { replies } = await wsRoundTrip(page, '/agent/v1/__e2e/echo', ['hello', 'dockyard']);
 		expect(replies).toEqual(['echo:hello', 'echo:dockyard']);
 	});
 });

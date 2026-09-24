@@ -29,15 +29,15 @@ func TestFixtureImagesPinned(t *testing.T) {
 		}
 		return string(b)
 	}
-	for _, f := range []string{"deploy/compose/compose.yaml", "e2e/compose.yaml"} {
+	for _, f := range []string{"deploy/caddy/compose.yaml", "e2e/compose.yaml"} {
 		if !strings.Contains(read(f), "image: "+CaddyImage+"\n") {
 			t.Errorf("%s does not use CaddyImage %s", f, CaddyImage)
 		}
 	}
 	goImage := regexp.MustCompile(`(?m)^ARG GO_IMAGE=(\S+)$`)
 	want := goImage.FindStringSubmatch(read("deploy/docker/manager.Dockerfile"))
-	got := goImage.FindStringSubmatch(read("e2e/echo.Dockerfile"))
+	got := goImage.FindStringSubmatch(read("e2e/certgen.Dockerfile"))
 	if want == nil || got == nil || want[1] != got[1] {
-		t.Errorf("e2e/echo.Dockerfile GO_IMAGE %v differs from manager.Dockerfile %v", got, want)
+		t.Errorf("e2e/certgen.Dockerfile GO_IMAGE %v differs from manager.Dockerfile %v", got, want)
 	}
 }

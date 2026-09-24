@@ -3,10 +3,13 @@
 package config
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -19,6 +22,7 @@ import (
 const (
 	EnvManagerURL       = "DOCKYARD_MANAGER_URL"
 	EnvManagerAllowHTTP = "DOCKYARD_MANAGER_ALLOW_HTTP"
+	EnvManagerCAFile    = "DOCKYARD_MANAGER_CA_FILE"
 	EnvEnrollmentToken  = "DOCKYARD_ENROLLMENT_TOKEN" //nolint:gosec // variable name, not a credential; also _FILE
 	EnvStateDir         = "DOCKYARD_AGENT_STATE_DIR"
 	EnvDockerHost       = "DOCKER_HOST"
@@ -41,6 +45,11 @@ type Config struct {
 	ManagerURL *url.URL
 	// PlainHTTP is true when ManagerURL is http:// (explicitly allowed).
 	PlainHTTP bool
+	// ManagerCAFile is an optional PEM bundle of extra CA certificates
+	// trusted for the manager's HTTPS origin (private PKI), in addition to
+	// the system roots. ManagerCAPEM holds its validated content.
+	ManagerCAFile string
+	ManagerCAPEM  []byte
 	// EnrollmentToken is the one-use enrollment secret; never log it.
 	EnrollmentToken logging.Secret
 	StateDir        string
@@ -63,6 +72,12 @@ func Load(src envconfig.Source) (Config, error) {
 	cfg.ManagerURL, cfg.PlainHTTP, err = ParseManagerURL(src.String(EnvManagerURL, ""), allowHTTP)
 	if err != nil {
 		errs = append(errs, err)
+	}
+
+	if cfg.ManagerCAFile = src.String(EnvManagerCAFile, ""); cfg.ManagerCAFile != "" {
+		if cfg.ManagerCAPEM, err = LoadCABundle(cfg.ManagerCAFile); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", EnvManagerCAFile, err))
+		}
 	}
 
 	token, err := src.Secret(EnvEnrollmentToken)
@@ -125,6 +140,34 @@ func ParseManagerURL(raw string, allowHTTP bool) (*url.URL, bool, error) {
 		return nil, false, fmt.Errorf("%s: scheme must be https (got %q)", EnvManagerURL, u.Scheme)
 	}
 	return &url.URL{Scheme: u.Scheme, Host: strings.ToLower(u.Host)}, u.Scheme == "http", nil
+}
+
+// LoadCABundle reads a PEM file and checks that it holds at least one
+// parsable certificate and nothing but certificates.
+func LoadCABundle(path string) ([]byte, error) {
+	b, err := os.ReadFile(path) //nolint:gosec // operator-configured path
+	if err != nil {
+		return nil, err
+	}
+	rest, n := b, 0
+	for {
+		var blk *pem.Block
+		blk, rest = pem.Decode(rest)
+		if blk == nil {
+			break
+		}
+		if blk.Type != "CERTIFICATE" {
+			return nil, fmt.Errorf("%s: unexpected PEM block %q (want CERTIFICATE only)", path, blk.Type)
+		}
+		if _, err := x509.ParseCertificate(blk.Bytes); err != nil {
+			return nil, fmt.Errorf("%s: invalid certificate: %w", path, err)
+		}
+		n++
+	}
+	if n == 0 {
+		return nil, fmt.Errorf("%s: no PEM certificates found", path)
+	}
+	return b, nil
 }
 
 func validateName(name string) error {

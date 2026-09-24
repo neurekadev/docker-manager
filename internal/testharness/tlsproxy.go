@@ -30,7 +30,7 @@ type TLSProxyOptions struct {
 
 // TLSProxy is Caddy terminating TLS with its internal CA for "localhost"
 // and reverse-proxying everything (including SSE and WebSocket, unbuffered)
-// to Upstream — the same shape as deploy/compose (#27).
+// to Upstream — the same shape as deploy/caddy (#27).
 type TLSProxy struct {
 	// URL is https://localhost:<port> from the test process.
 	URL string
