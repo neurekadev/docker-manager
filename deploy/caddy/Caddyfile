@@ -1,0 +1,39 @@
+# DockYard behind Caddy (#27): one origin, one route to the manager.
+#
+# DOCKYARD_TLS: "internal" (Caddy's local CA; trust its root on your
+# clients), an email address (public ACME certificate for a publicly
+# reachable DOCKYARD_HOST), or "<cert file> <key file>" (your own PEM files,
+# mounted into the container).
+#
+# Caddy serves HTTP/2 (and HTTP/3) to browsers by default, sets
+# X-Forwarded-For/Proto/Host itself and ignores client-supplied values, and
+# passes the Host header through. See docs/deployment.md.
+{$DOCKYARD_HOST} {
+	tls {$DOCKYARD_TLS}
+
+	# Largest request body (uploads, archives, restores). Keep it at least
+	# the manager's maximum upload/archive size (#15).
+	request_body {
+		max_size {$DOCKYARD_MAX_BODY_SIZE:1GB}
+	}
+
+	# Optional: allow the agent endpoint only from known networks. Remote
+	# agents must then connect from one of these ranges.
+	# @agent_blocked {
+	# 	path /agent/v1/*
+	# 	not remote_ip 192.0.2.0/24 2001:db8::/32
+	# }
+	# respond @agent_blocked 403
+
+	reverse_proxy dockyard-manager:8080 {
+		# Stream SSE and WebSocket traffic (live updates, logs, exec, agent
+		# sessions) without buffering.
+		flush_interval -1
+		transport http {
+			# Idle limit between reads from the manager. SSE heartbeats and
+			# WebSocket pings (DOCKYARD_STREAM_HEARTBEAT, 15 s) keep quiet
+			# streams well inside it.
+			read_timeout {$DOCKYARD_PROXY_READ_TIMEOUT:60s}
+		}
+	}
+}

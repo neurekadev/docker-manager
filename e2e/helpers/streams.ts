@@ -99,3 +99,112 @@ export async function wsRoundTrip(
 		{ path, messages, protocols: opts.protocols ?? [], timeoutMs: opts.timeoutMs ?? 10_000 }
 	);
 }
+
+export interface TimedLine {
+	/** Milliseconds since the request started. */
+	t: number;
+	line: string;
+}
+
+/**
+ * Reads an SSE response with fetch inside the page and records every
+ * non-empty line (including ": heartbeat" comments, which EventSource
+ * hides) with its arrival time, until the line `event: <until>` arrives.
+ * Arrival times show whether a proxy streams or buffers (#27).
+ */
+export async function sseTimeline(
+	page: Page,
+	url: string,
+	opts: { until: string; timeoutMs?: number }
+): Promise<{ status: number; contentType: string; cacheControl: string; lines: TimedLine[] }> {
+	return page.evaluate(
+		async ({ url, until, timeoutMs }) => {
+			const ctrl = new AbortController();
+			const timer = setTimeout(() => ctrl.abort(new Error('timeout')), timeoutMs);
+			const start = performance.now();
+			const lines: { t: number; line: string }[] = [];
+			const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'text/event-stream' } });
+			const out = {
+				status: res.status,
+				contentType: res.headers.get('content-type') ?? '',
+				cacheControl: res.headers.get('cache-control') ?? '',
+				lines
+			};
+			const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+			let buf = '';
+			try {
+				for (;;) {
+					const { value, done } = await reader.read();
+					if (done) throw new Error(`stream ended before "event: ${until}"`);
+					buf += value;
+					for (let i = buf.indexOf('\n'); i >= 0; i = buf.indexOf('\n')) {
+						const line = buf.slice(0, i).replace(/\r$/, '');
+						buf = buf.slice(i + 1);
+						if (line === '') continue;
+						lines.push({ t: performance.now() - start, line });
+						if (line === `event: ${until}`) return out;
+					}
+				}
+			} catch (e) {
+				throw new Error(`${(e as Error).message}; received ${JSON.stringify(lines)}`);
+			} finally {
+				clearTimeout(timer);
+				ctrl.abort();
+			}
+		},
+		{ url, until: opts.until, timeoutMs: opts.timeoutMs ?? 30_000 }
+	);
+}
+
+/**
+ * Opens a WebSocket at path (wss on https pages), records the first
+ * message (a hello), sends "before-idle", waits idleMs without any
+ * application traffic, sends "after-idle" and resolves with every message
+ * received. Rejects if the connection closes early or on timeout. Only
+ * WebSocket pings (answered by the browser) cross the connection while it
+ * is idle.
+ */
+export async function wsIdleRoundTrip(
+	page: Page,
+	path: string,
+	opts: { idleMs: number; protocols?: string[]; timeoutMs?: number }
+): Promise<{ protocol: string; messages: string[] }> {
+	return page.evaluate(
+		({ path, idleMs, protocols, timeoutMs }) =>
+			new Promise<{ protocol: string; messages: string[] }>((resolve, reject) => {
+				const url = new URL(path, location.href);
+				url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+				const ws = new WebSocket(url, protocols);
+				const messages: string[] = [];
+				let done = false;
+				const timer = setTimeout(() => {
+					done = true;
+					ws.close();
+					reject(new Error(`WebSocket timeout after ${JSON.stringify(messages)}`));
+				}, timeoutMs);
+				ws.onmessage = (e) => {
+					const data = String(e.data);
+					messages.push(data);
+					if (messages.length === 1) {
+						ws.send('before-idle');
+					} else if (data === 'echo:before-idle') {
+						setTimeout(() => ws.send('after-idle'), idleMs);
+					} else if (data === 'echo:after-idle') {
+						done = true;
+						clearTimeout(timer);
+						const protocol = ws.protocol;
+						ws.close(1000);
+						resolve({ protocol, messages });
+					}
+				};
+				ws.onclose = (e) => {
+					if (!done) {
+						done = true;
+						clearTimeout(timer);
+						reject(new Error(`WebSocket closed early: ${e.code} ${e.reason} after ${JSON.stringify(messages)}`));
+					}
+				};
+			}),
+		{ path, idleMs: opts.idleMs, protocols: opts.protocols ?? [], timeoutMs: opts.timeoutMs ?? opts.idleMs + 30_000 }
+	);
+}

@@ -1,61 +1,199 @@
-# E2E stack (#29): the manager built from source behind Caddy with its
-# internal CA, plus the stream fixture for the SSE/WebSocket helpers.
+# E2E stack (#27, #29): the manager built from source (with the e2e-only
+# test routes, GO_TAGS=e2e) behind each example reverse proxy from deploy/,
+# using the proxies' configuration files from deploy/ unchanged:
+#
+#   https://localhost:8443  Caddy   (deploy/caddy/Caddyfile)
+#   https://localhost:8444  Traefik (deploy/traefik/dynamic, same arguments)
+#   https://localhost:8445  nginx   (deploy/nginx/templates)
+#   http://127.0.0.1:18080..18082  each origin's manager directly (an
+#                           untrusted peer, for the X-Forwarded-* spoofing tests)
+#
+# Each proxy has its own manager on its own network (alias dockyard-manager,
+# as in deploy/), so each origin is a complete, independent DockYard whose
+# DOCKYARD_PUBLIC_URL matches it. All proxies serve a certificate for
+# localhost from one throw-away CA (test/e2e/certgen); trust ca.crt:
 #
 #   docker compose -f e2e/compose.yaml up -d --build --wait
-#   E2E_BASE_URL=https://localhost:8443 npm --prefix e2e test
+#   docker compose -f e2e/compose.yaml cp certs:/certs/ca.crt e2e/.e2e-ca.crt
+#   NODE_EXTRA_CA_CERTS=e2e/.e2e-ca.crt npm --prefix e2e test
 #
-# One origin: https://localhost:${E2E_HTTPS_PORT} (see e2e/Caddyfile).
+# TestE2EComposeMatchesDeploy keeps images and mounts in sync with deploy/.
 name: dockyard-e2e
 
-services:
-  dockyard-manager:
-    build:
-      context: ..
-      dockerfile: deploy/docker/manager.Dockerfile
-      args:
-        VERSION: 0.0.0-e2e
-        REVISION: ${E2E_REVISION:-local}
-    image: dockyard-manager:e2e
-    environment:
-      DOCKYARD_PUBLIC_URL: https://localhost:${E2E_HTTPS_PORT:-8443}
-      DOCKYARD_LOG_LEVEL: debug
-    volumes:
-      - manager_data:/var/lib/dockyard
-    networks:
-      - e2e
+x-manager: &manager
+  build:
+    context: ..
+    dockerfile: deploy/docker/manager.Dockerfile
+    args:
+      VERSION: 0.0.0-e2e
+      REVISION: ${E2E_REVISION:-local}
+      GO_TAGS: e2e
+  image: dockyard-manager:e2e
+  environment: &manager-env
+    DOCKYARD_LOG_LEVEL: debug
 
-  echo:
+services:
+  certs:
     build:
       context: ..
-      dockerfile: e2e/echo.Dockerfile
-    image: dockyard-e2e-echo:local
+      dockerfile: e2e/certgen.Dockerfile
+    image: dockyard-e2e-certgen:local
+    volumes:
+      - e2e_certs:/certs
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/certgen", "-dir", "/certs", "-check"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    network_mode: none
+
+  # ------------------------------------------------------------- Caddy
+  manager-caddy:
+    <<: *manager
+    environment:
+      <<: *manager-env
+      DOCKYARD_PUBLIC_URL: https://localhost:8443
+      DOCKYARD_TRUSTED_PROXIES: 10.227.31.10
+    ports:
+      - "127.0.0.1:18080:8080"
+    volumes:
+      - data_caddy:/var/lib/dockyard
     networks:
-      - e2e
+      e2e-caddy:
+        ipv4_address: 10.227.31.2
+        aliases: [dockyard-manager]
 
   caddy:
     image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
     depends_on:
-      dockyard-manager:
+      certs:
         condition: service_healthy
-      echo:
-        condition: service_started
+      manager-caddy:
+        condition: service_healthy
     ports:
-      - "127.0.0.1:${E2E_HTTPS_PORT:-8443}:443"
+      - "127.0.0.1:8443:443"
+    environment:
+      DOCKYARD_HOST: localhost
+      DOCKYARD_TLS: /certs/localhost.crt /certs/localhost.key
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - e2e_certs:/certs:ro
       - caddy_data:/data
     healthcheck:
-      # Caddy admin API (localhost only): the config is loaded.
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
       interval: 2s
       timeout: 5s
       retries: 30
     networks:
-      - e2e
+      e2e-caddy:
+        ipv4_address: 10.227.31.10
+
+  # ------------------------------------------------------------- Traefik
+  manager-traefik:
+    <<: *manager
+    environment:
+      <<: *manager-env
+      DOCKYARD_PUBLIC_URL: https://localhost:8444
+      DOCKYARD_TRUSTED_PROXIES: 10.227.32.10
+    ports:
+      - "127.0.0.1:18081:8080"
+    volumes:
+      - data_traefik:/var/lib/dockyard
+    networks:
+      e2e-traefik:
+        ipv4_address: 10.227.32.2
+        aliases: [dockyard-manager]
+
+  traefik:
+    image: traefik:v3.7.13@sha256:24841fe2de7304c149343d877d2923b4c8800a38ba015dea9174c23b20e344a0
+    depends_on:
+      certs:
+        condition: service_healthy
+      manager-traefik:
+        condition: service_healthy
+    # Same static configuration as deploy/traefik/compose.yaml.
+    command:
+      - --entryPoints.web.address=:80
+      - --entryPoints.web.http.redirections.entryPoint.to=websecure
+      - --entryPoints.web.http.redirections.entryPoint.scheme=https
+      - --entryPoints.websecure.address=:443
+      - --entryPoints.websecure.transport.respondingTimeouts.readTimeout=0s
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=false
+      - --certificatesResolvers.letsencrypt.acme.email=
+      - --certificatesResolvers.letsencrypt.acme.storage=/acme/acme.json
+      - --certificatesResolvers.letsencrypt.acme.tlsChallenge=true
+      - --log.level=INFO
+    ports:
+      - "127.0.0.1:8444:443"
+    environment:
+      DOCKYARD_HOST: localhost
+      DOCKYARD_TLS_CERT_FILE: /certs/localhost.crt
+      DOCKYARD_TLS_KEY_FILE: /certs/localhost.key
+    volumes:
+      - ../deploy/traefik/dynamic:/etc/traefik/dynamic:ro
+      - e2e_certs:/certs:ro
+      - traefik_acme:/acme
+    networks:
+      e2e-traefik:
+        ipv4_address: 10.227.32.10
+
+  # ------------------------------------------------------------- nginx
+  manager-nginx:
+    <<: *manager
+    environment:
+      <<: *manager-env
+      DOCKYARD_PUBLIC_URL: https://localhost:8445
+      DOCKYARD_TRUSTED_PROXIES: 10.227.33.10
+    ports:
+      - "127.0.0.1:18082:8080"
+    volumes:
+      - data_nginx:/var/lib/dockyard
+    networks:
+      e2e-nginx:
+        ipv4_address: 10.227.33.2
+        aliases: [dockyard-manager]
+
+  nginx:
+    image: nginx:1.30.5-alpine@sha256:bf3201ab56f23e5954646379c775d511fc466e9f11376d9725361064ad07ed35
+    depends_on:
+      certs:
+        condition: service_healthy
+      manager-nginx:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8445:443"
+    environment:
+      DOCKYARD_HOST: localhost
+      DOCKYARD_TLS_CERT_FILE: /certs/localhost.crt
+      DOCKYARD_TLS_KEY_FILE: /certs/localhost.key
+      DOCKYARD_MAX_BODY_SIZE: 1024m
+      DOCKYARD_PROXY_READ_TIMEOUT: 60s
+    volumes:
+      - ../deploy/nginx/templates:/etc/nginx/templates:ro
+      - e2e_certs:/certs:ro
+    networks:
+      e2e-nginx:
+        ipv4_address: 10.227.33.10
 
 volumes:
-  manager_data:
+  e2e_certs:
   caddy_data:
+  traefik_acme:
+  data_caddy:
+  data_traefik:
+  data_nginx:
 
 networks:
-  e2e:
+  e2e-caddy:
+    ipam:
+      config:
+        - subnet: 10.227.31.0/24
+  e2e-traefik:
+    ipam:
+      config:
+        - subnet: 10.227.32.0/24
+  e2e-nginx:
+    ipam:
+      config:
+        - subnet: 10.227.33.0/24

@@ -1,0 +1,44 @@
+# A DockYard agent on another Docker host (#27). It dials out to the
+# manager's single public HTTPS origin, the same one browsers use, through
+# whichever reverse proxy fronts the manager (deploy/caddy, deploy/traefik or
+# deploy/nginx). It opens no port.
+#
+#   cp .env.example .env      # DOCKYARD_MANAGER_URL and the enrollment token
+#   docker compose up -d
+#
+# Only named volumes plus the identical-path mount of Docker's volume
+# directory are used (#28). See docs/deployment.md.
+name: dockyard-agent
+
+services:
+  dockyard-agent:
+    image: ghcr.io/neurekadev/dockyard-agent:edge
+    restart: unless-stopped
+    environment:
+      # The public origin, always https (certificate validated against the
+      # system roots plus DOCKYARD_MANAGER_CA_FILE if set). Never set
+      # DOCKYARD_MANAGER_ALLOW_HTTP here.
+      DOCKYARD_MANAGER_URL: ${DOCKYARD_MANAGER_URL:-https://docker.example.com}
+      DOCKYARD_MANAGER_CA_FILE: ${DOCKYARD_MANAGER_CA_FILE:-}
+      DOCKYARD_ENROLLMENT_TOKEN: ${DOCKYARD_ENROLLMENT_TOKEN:-}
+      DOCKYARD_ENVIRONMENT_NAME: ${DOCKYARD_ENVIRONMENT_NAME:-}
+      DOCKYARD_LOG_LEVEL: ${DOCKYARD_LOG_LEVEL:-info}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Identical-path mount: stack and volume paths resolve the same inside
+      # the agent and on the Engine (#28). Do not change either side.
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+      - dockyard_stacks:/var/lib/docker/volumes/dockyard_stacks/_data
+      - dockyard_agent_state:/var/lib/dockyard-agent
+      # Private PKI: a named volume holding the CA bundle, e.g.
+      #   docker run --rm -v dockyard_agent_ca:/ca -v "$PWD":/src alpine cp /src/ca.pem /ca/
+      # then set DOCKYARD_MANAGER_CA_FILE=/etc/dockyard/ca/ca.pem.
+      - dockyard_agent_ca:/etc/dockyard/ca:ro
+    labels:
+      dev.neureka.dockyard.role: agent
+
+volumes:
+  dockyard_agent_state:
+  dockyard_agent_ca:
+  dockyard_stacks:
+    name: dockyard_stacks

@@ -2,4 +2,4 @@ node_modules/
 test-results/
 playwright-report/
 blob-report/
-.caddy-root.crt
+.e2e-ca.crt

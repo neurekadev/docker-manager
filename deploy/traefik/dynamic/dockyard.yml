@@ -1,0 +1,55 @@
+# DockYard route for Traefik's file provider (#27). Traefik renders this
+# file as a Go template: env reads the Traefik container's environment.
+#
+# TLS: with DOCKYARD_TLS_CERT_FILE/DOCKYARD_TLS_KEY_FILE set, Traefik serves
+# that certificate (mount it below /certs); otherwise it obtains one from
+# Let's Encrypt (resolver "letsencrypt", DOCKYARD_ACME_EMAIL, the host must be
+# publicly reachable on port 443).
+#
+# Traefik serves HTTP/2 to browsers on TLS entry points by default, streams
+# SSE and WebSocket traffic, passes the Host header through and replaces
+# client-supplied X-Forwarded-* headers with its own (no forwardedHeaders
+# trust is configured). Request bodies are not limited by default; the
+# manager enforces its own upload limits (#15).
+http:
+  routers:
+    dockyard:
+      entryPoints: [websecure]
+      rule: 'Host(`{{ env "DOCKYARD_HOST" }}`)'
+      service: dockyard
+{{- if env "DOCKYARD_TLS_CERT_FILE" }}
+      tls: {}
+{{- else }}
+      tls:
+        certResolver: letsencrypt
+{{- end }}
+
+    # Optional: allow the agent endpoint only from known networks. Copy the
+    # tls block of the router above; the longer rule takes precedence.
+    # dockyard-agent-endpoint:
+    #   entryPoints: [websecure]
+    #   rule: 'Host(`docker.example.com`) && PathPrefix(`/agent/v1`)'
+    #   middlewares: [agent-allowlist]
+    #   service: dockyard
+    #   tls: {}
+
+  # middlewares:
+  #   agent-allowlist:
+  #     ipAllowList:
+  #       sourceRange: ["192.0.2.0/24", "2001:db8::/32"]
+
+  services:
+    dockyard:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: http://dockyard-manager:8080
+{{- if env "DOCKYARD_TLS_CERT_FILE" }}
+
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: '{{ env "DOCKYARD_TLS_CERT_FILE" }}'
+        keyFile: '{{ env "DOCKYARD_TLS_KEY_FILE" }}'
+{{- end }}

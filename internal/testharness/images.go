@@ -1,7 +1,7 @@
 package testharness
 
 // Fixture images, pinned by multi-arch index digest. Keep CaddyImage equal
-// to deploy/compose/compose.yaml (TestFixtureImagesPinned checks it).
+// to deploy/caddy/compose.yaml (TestFixtureImagesPinned checks it).
 const (
 	// RegistryImage is the CNCF distribution registry.
 	RegistryImage = "registry:3.1.1@sha256:325b4b29b041e82803abeb703e201655e4e23ab83264ec1a7c9ddb0a5b14a6e0"

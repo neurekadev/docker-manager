@@ -21,7 +21,8 @@ Sources: `internal/manager/config`, `internal/agent/config`,
 | `DOCKYARD_SECRET_KEY_FILE` | `<data dir>/secret.key` | Application secret-protection key (32 random bytes, base64). See below. |
 | `DOCKYARD_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. |
 | `DOCKYARD_LOG_FORMAT` | `json` | `json` (structured, one object per line) or `text`. |
-| `DOCKYARD_TRUSTED_PROXIES` | empty | Comma/space-separated CIDRs or IPs of reverse proxies whose `X-Forwarded-For/Proto/Host` headers are honored for client IP and scheme. Parsed and validated now; enforcement arrives with #27. Headers from any other peer are ignored. |
+| `DOCKYARD_TRUSTED_PROXIES` | empty | Comma/space-separated CIDRs or IPs of the reverse proxies in front of the manager. Only from these peers are `X-Forwarded-For` (client IP for rate limits and audit, read right to left), `X-Forwarded-Proto` (https detection, e.g. for first-run setup), `X-Forwarded-Host` and an inbound `X-Request-ID` honored; from anyone else they are ignored, and the server strips them before any handler runs. Set it to your proxy's address (the `deploy/` examples give the proxy a fixed IP). See `docs/deployment.md`. |
+| `DOCKYARD_STREAM_HEARTBEAT` | `15s` | Interval of SSE heartbeat comments and WebSocket pings (1s..55s). Must stay below your reverse proxy's idle/read timeout (nginx `proxy_read_timeout` defaults to 60 s). |
 | `DOCKYARD_JOB_HISTORY_RETENTION` | `720h` | Finished jobs and their event logs older than this are deleted (Go duration, `1h`..`87600h`). Independent of audit retention (#30). See `docs/architecture/job-engine.md`. |
 | `DOCKYARD_JOB_HISTORY_MAX` | `10000` | Keep at most this many finished jobs (100..10000000); the oldest are deleted first. Unfinished jobs are never deleted. |
 | `DOCKYARD_JOB_EVENTS_MAX` | `500` | Progress/event log entries kept per job (10..100000); older entries are trimmed. |
@@ -66,7 +67,8 @@ Sampled metrics will live in a separate database file (#5).
 | Variable | Default | Description |
 | --- | --- | --- |
 | `DOCKYARD_MANAGER_URL` | — (required) | Manager origin the agent dials, e.g. `https://docker.example.com`. Remote agents use the public HTTPS origin; an agent on the manager's Docker network may use `http://dockyard-manager:8080` with the opt-in below. |
-| `DOCKYARD_MANAGER_ALLOW_HTTP` | `false` | Must be `true` to accept an `http://` manager URL. Only for an internal network; tokens and credentials otherwise require HTTPS (#27). |
+| `DOCKYARD_MANAGER_ALLOW_HTTP` | `false` | Must be `true` to accept an `http://` manager URL. Only for an internal network; tokens and credentials otherwise require HTTPS (#27). A plain-HTTP agent is reported as flagged in its capabilities and shown as a warning on its host page. |
+| `DOCKYARD_MANAGER_CA_FILE` | empty | Optional PEM bundle of extra CA certificates trusted for the manager's HTTPS origin (private PKI), in addition to the system roots. Validated at startup (certificates only). Certificate verification is never disabled; redirects from the manager are never followed. |
 | `DOCKYARD_ENROLLMENT_TOKEN` / `_FILE` | empty | One-use enrollment token created in the UI (#3). Never logged. Remove it after enrollment. |
 | `DOCKYARD_AGENT_STATE_DIR` | `/var/lib/dockyard-agent` | Agent state (credentials after #3, health file, job journal `jobs/journal.json` with the fencing high-water mark, #26). Mount a named volume; losing it makes in-flight jobs end as `journal_lost`. |
 | `DOCKER_HOST` | `unix:///var/run/docker.sock` | Docker Engine endpoint (`unix://` or `tcp://`). |

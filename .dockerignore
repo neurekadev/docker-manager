@@ -18,4 +18,7 @@ e2e/test-results
 web/.svelte-kit
 web/build/app
 docs
-deploy/compose
+deploy/caddy
+deploy/traefik
+deploy/nginx
+deploy/remote-agent

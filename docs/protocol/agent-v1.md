@@ -277,9 +277,16 @@ supported; the UI shows an upgrade notice).
   "streams": ["container.logs", "container.exec"],
   "features": ["fs.inotify"],
   "roots": [ { "kind": "stacks", "path": "/var/lib/docker/volumes/dockyard_stacks/_data", "watch": "inotify" },
-             { "kind": "volumes", "path": "/var/lib/docker/volumes", "watch": "inotify" } ]
+             { "kind": "volumes", "path": "/var/lib/docker/volumes", "watch": "inotify" } ],
+  "transport": { "managerUrl": "https://docker.example.com", "plainHttp": false, "customCa": false }
 }
 ```
+
+- `transport` (required, #27) is how the agent reaches the manager:
+  `plainHttp` is true exactly for an `http://` manager URL
+  (`DOCKYARD_MANAGER_ALLOW_HTTP=true`, co-located agents only) and the host
+  page flags such environments; `customCa` reports a
+  `DOCKYARD_MANAGER_CA_FILE` bundle. Built by `internal/agent/transport`.
 
 - `engine.apiVersion` is the version the Moby client negotiated (#21). The
   manager maps Engine and API versions to supported features; a job kind or

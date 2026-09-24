@@ -57,9 +57,12 @@ ARG TARGETARCH
 ARG VERSION=0.0.0-edge
 ARG REVISION=unknown
 ARG CREATED=unknown
+# Build tags. Release images use none; the proxy E2E suite builds with
+# GO_TAGS=e2e to add its test-only routes (internal/manager/server/e2e_routes.go).
+ARG GO_TAGS=""
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    GOOS=linux GOARCH="${TARGETARCH}" go build -trimpath \
+    GOOS=linux GOARCH="${TARGETARCH}" go build -trimpath -tags "${GO_TAGS}" \
       -ldflags "-s -w -X github.com/neurekadev/dockyard/internal/buildinfo.Version=${VERSION} -X github.com/neurekadev/dockyard/internal/buildinfo.Commit=${REVISION} -X github.com/neurekadev/dockyard/internal/buildinfo.Date=${CREATED}" \
       -o /out/dockyard-manager ./cmd/dockyard-manager
 

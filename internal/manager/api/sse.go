@@ -1,77 +1,60 @@
 package api
 
 import (
-	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
-	"strconv"
-	"strings"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/neurekadev/dockyard/internal/manager/server/sse"
 )
 
 // Server-sent event streams (#4, #23). The wire contract is in
 // docs/api/streams.md; every SSE route writes through SSEWriter so framing,
-// headers and heartbeats are identical across streams.
+// headers and heartbeats are identical across streams. SSEWriter is the
+// Huma-facing adapter of the manager's one SSE implementation,
+// internal/manager/server/sse (#27: X-Accel-Buffering: no, no-store, a
+// flush after every event, heartbeats below proxy idle timeouts).
 
 // SSEContentType is the media type of event streams.
-const SSEContentType = "text/event-stream"
+const SSEContentType = sse.ContentType
 
 // SSEWriter writes one server-sent event stream.
 type SSEWriter struct {
 	w io.Writer
+	s *sse.Writer
 }
 
 // StartSSE sets the stream headers (no-store, no proxy buffering), the 200
 // status and returns a writer. Call it from a huma.StreamResponse body.
 func StartSSE(hctx huma.Context) *SSEWriter {
-	hctx.SetHeader("Content-Type", SSEContentType)
-	hctx.SetHeader("Cache-Control", "no-store")
-	hctx.SetHeader("X-Accel-Buffering", "no")
+	sse.SetHeaders(hctx.SetHeader)
 	hctx.SetStatus(http.StatusOK)
 	return &SSEWriter{w: hctx.BodyWriter()}
 }
 
-// errSSEField rejects ids and event names that would break framing.
-var errSSEField = errors.New("api: SSE id/event must not contain line breaks")
+func (s *SSEWriter) stream() *sse.Writer {
+	if s.s == nil {
+		s.s = sse.NewWriter(s.w)
+	}
+	return s.s
+}
 
 // Event writes one event: optional id (the resume cursor clients send back
-// as Last-Event-ID), event name and a single-line JSON data payload.
+// as Last-Event-ID), event name and a single-line JSON data payload, and
+// flushes it. Line breaks in event or id are rejected.
 func (s *SSEWriter) Event(event, id string, v any) error {
-	if strings.ContainsAny(event+id, "\r\n") {
-		return errSSEField
-	}
-	b, err := json.Marshal(v) // compact JSON never contains raw newlines
-	if err != nil {
-		return err
-	}
-	var sb strings.Builder
-	if id != "" {
-		sb.WriteString("id: " + id + "\n")
-	}
-	sb.WriteString("event: " + event + "\ndata: ")
-	sb.Write(b)
-	sb.WriteString("\n\n")
-	_, err = io.WriteString(s.w, sb.String())
-	return err
+	return s.stream().JSON(event, id, v)
 }
 
-// Heartbeat writes the keep-alive comment.
-func (s *SSEWriter) Heartbeat() error {
-	_, err := io.WriteString(s.w, ": heartbeat\n\n")
-	return err
-}
+// Heartbeat writes the keep-alive comment and flushes.
+func (s *SSEWriter) Heartbeat() error { return s.stream().Heartbeat() }
 
 // Retry tells EventSource clients how long to wait before reconnecting.
 func (s *SSEWriter) Retry(ms int) error {
-	_, err := io.WriteString(s.w, "retry: "+strconv.Itoa(ms)+"\n\n")
-	return err
+	return s.stream().Retry(time.Duration(ms) * time.Millisecond)
 }
 
 // Flush pushes buffered bytes to the client.
-func (s *SSEWriter) Flush() {
-	if f, ok := s.w.(http.Flusher); ok {
-		f.Flush()
-	}
-}
+func (s *SSEWriter) Flush() { _ = s.stream().Flush() }

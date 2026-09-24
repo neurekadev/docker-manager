@@ -1,13 +1,14 @@
-# DockYard: manager + co-located agent behind a Caddy TLS reverse proxy.
+# DockYard behind Caddy: manager + co-located agent + TLS reverse proxy.
 #
-#   cp .env.example .env      # adjust DOCKYARD_HOST etc.
+#   cp .env.example .env      # set DOCKYARD_HOST etc.
 #   docker compose up -d
 #
 # One public origin (https://${DOCKYARD_HOST}) serves the UI, /api/v1 and
-# /agent/v1 (#27). The co-located agent talks to the manager over the internal
-# network with an explicit plain-HTTP opt-in; remote agents use the public
-# HTTPS origin. Only named volumes plus the agent's identical-path mount of
-# Docker's volume directory are used (#28). See deploy/README.md.
+# /agent/v1 (#27). The co-located agent talks to the manager over the
+# internal network with an explicit plain-HTTP opt-in; agents on other hosts
+# use deploy/remote-agent with the public HTTPS origin. Only named volumes
+# plus the agent's identical-path mount of Docker's volume directory are used
+# (#28). See docs/deployment.md.
 name: dockyard
 
 services:
@@ -16,6 +17,9 @@ services:
     restart: unless-stopped
     environment:
       DOCKYARD_PUBLIC_URL: https://${DOCKYARD_HOST:-localhost}
+      # Only the proxy's X-Forwarded-For/Proto/Host headers are honored
+      # (client IP for rate limits and audit, https for first-run setup).
+      DOCKYARD_TRUSTED_PROXIES: ${DOCKYARD_PROXY_IP:-10.227.27.10}
       DOCKYARD_LOG_LEVEL: ${DOCKYARD_LOG_LEVEL:-info}
     volumes:
       - dockyard_data:/var/lib/dockyard
@@ -30,8 +34,9 @@ services:
     depends_on:
       - dockyard-manager
     environment:
+      # Internal URL on this Docker network: no proxy hop, plain HTTP with
+      # the explicit opt-in (flagged on the host page, #27).
       DOCKYARD_MANAGER_URL: http://dockyard-manager:8080
-      # Plain HTTP is acceptable only on this internal network (#27).
       DOCKYARD_MANAGER_ALLOW_HTTP: "true"
       DOCKYARD_ENROLLMENT_TOKEN: ${DOCKYARD_ENROLLMENT_TOKEN:-}
       DOCKYARD_ENVIRONMENT_NAME: ${DOCKYARD_ENVIRONMENT_NAME:-}
@@ -62,12 +67,16 @@ services:
     environment:
       DOCKYARD_HOST: ${DOCKYARD_HOST:-localhost}
       DOCKYARD_TLS: ${DOCKYARD_TLS:-internal}
+      DOCKYARD_MAX_BODY_SIZE: ${DOCKYARD_MAX_BODY_SIZE:-1GB}
+      DOCKYARD_PROXY_READ_TIMEOUT: ${DOCKYARD_PROXY_READ_TIMEOUT:-60s}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
-      - dockyard
+      dockyard:
+        # Fixed address so the manager can trust exactly this proxy.
+        ipv4_address: ${DOCKYARD_PROXY_IP:-10.227.27.10}
 
 volumes:
   dockyard_data:
@@ -81,3 +90,7 @@ volumes:
 
 networks:
   dockyard:
+    ipam:
+      config:
+        # Change (with DOCKYARD_PROXY_IP) if it overlaps a network on your host.
+        - subnet: ${DOCKYARD_SUBNET:-10.227.27.0/24}

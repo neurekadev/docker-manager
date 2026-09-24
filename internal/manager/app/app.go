@@ -142,14 +142,18 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		Clock:  opts.Clock,
 		UI:     opts.UI,
 		API: api.Deps{
-			Build:       buildinfo.Get(),
-			Readiness:   m.readiness,
-			Jobs:        m.jobs,
-			Authorizer:  authorizer,
-			Clock:       opts.Clock,
-			Idempotency: m.idem,
+			Build:        buildinfo.Get(),
+			Readiness:    m.readiness,
+			Jobs:         m.jobs,
+			Authorizer:   authorizer,
+			Clock:        opts.Clock,
+			Idempotency:  m.idem,
+			SSEHeartbeat: cfg.StreamHeartbeat,
 		},
-		TrustedProxies: cfg.TrustedProxies,
+		TrustedProxies:   cfg.TrustedProxies,
+		PublicURL:        cfg.PublicURL,
+		LocalDevelopment: cfg.LocalDevelopment,
+		StreamHeartbeat:  cfg.StreamHeartbeat,
 	})
 	if err != nil {
 		m.jobs.Close()

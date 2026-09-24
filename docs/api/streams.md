@@ -42,8 +42,10 @@ Paths are relative to `/api/v1`.
   no` on SSE (proxies must not buffer), `Content-Type: text/event-stream`.
   The service worker never caches streams (#23).
 - **Heartbeats:** SSE sends a `: heartbeat` comment every 15 s; exec
-  WebSockets are pinged every 15 s. Both are shorter than common proxy idle
-  timeouts (#27).
+  WebSockets are pinged every 15 s (`DOCKYARD_STREAM_HEARTBEAT`, one
+  implementation each: `internal/manager/server/sse`, `internal/manager/server/ws`).
+  Both are shorter than common proxy idle timeouts (#27,
+  [deployment.md](../deployment.md#timeouts-and-heartbeats)).
 - **Max age:** the server ends SSE streams after 1 h (`event: close`,
   reason `max_age`) so long-lived connections re-authenticate; clients
   reconnect immediately with `Last-Event-ID`.

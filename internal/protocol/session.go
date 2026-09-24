@@ -256,6 +256,9 @@ type CapabilitiesPayload struct {
 	Streams  []string `json:"streams"`
 	Features []string `json:"features,omitempty"`
 	Roots    []Root   `json:"roots,omitempty"`
+	// Transport says how the agent reaches the manager; the host page flags
+	// plain-HTTP connections (#27).
+	Transport TransportInfo `json:"transport"`
 }
 
 // HeartbeatPayload is optional on heartbeat frames.
@@ -445,6 +448,9 @@ func (p CapabilitiesPayload) Validate() error {
 	}
 	if p.Engine.ID == "" || p.Engine.APIVersion == "" {
 		return invalid("capabilities need engine.id and engine.apiVersion")
+	}
+	if err := p.Transport.Validate(); err != nil {
+		return err
 	}
 	for _, c := range p.Commands {
 		if !nameRE.MatchString(c) {
