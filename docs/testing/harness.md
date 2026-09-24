@@ -79,6 +79,7 @@ reported as passed.
 | --- | --- | --- |
 | `DOCKYARD_TEST_ENGINE` | `testharness.SelectEngine` | Engine version from `test/matrix/engines.json`, or `default` / `minimum` / `latest` (default: the matrix default) |
 | `DOCKYARD_TEST_CACHE` | `testharness.FetchRestic` | download cache (default: user cache dir `dockyard-test`) |
+| `DOCKYARD_TEST_AGENT_IMAGE` | `testharness.AgentImage` | locally built agent image (`deploy/docker/agent.Dockerfile`) that `TestEngineAgentImage` runs inside DinD; the engine-matrix job builds `dockyard-agent:test`. Unset: skipped locally, fails under `CI` |
 | `FUZZTIME` | `scripts/ci/fuzz-all.sh` | `-fuzztime` per target (default `60s`) |
 | `E2E_BASE_URL` | Playwright | test one origin (project `custom`) instead of the three proxy origins |
 | `E2E_REVISION` | `e2e/compose.yaml` | build revision |
@@ -127,6 +128,11 @@ each has a self-test in `fixtures_integration_test.go`):
 | `StartMinIO(t, opts)` | `MinIO{Endpoint, InternalEndpoint, AccessKey, SecretKey, S3}` | random root credentials, buckets created; `ResticRepository`, `ResticEnv` |
 | `FetchRestic(ctx)` | path | restic 0.19.1, SHA-256 from `deploy/docker/*.Dockerfile` (checked by `TestResticPinMatchesDockerfiles`) |
 | `StartTLSProxy(t, opts)` | `TLSProxy{URL, RootCAPEM, Client}` | Caddy `tls internal` for `localhost`, unbuffered SSE/WebSocket; `Client` verifies against Caddy's root |
+| `e.LoadWorkload(t)` | — | loads `WorkloadImage` (`dockyard-test/workload:1`): `test/fixtures/workload` built statically for the runner's architecture, packed by `WorkloadArchive` as a `docker save` archive. Every container of the Engine/Compose tests runs it (serve, health checks, one-shots, exec, TTY, logs, listeners), so no test pulls from Docker Hub inside DinD |
+| `e.LoadHostImage(t, ref)` | — | copies an image from the runner's Docker into the DinD Engine (the agent image under test) |
+| `e.StartAgent(t, AgentOptions{})` | container ID | runs the agent image inside DinD with the deploy mounts (socket + `/var/lib/docker/volumes` at the identical path); `WaitLog`, `WaitHealthy`, `Logs` |
+| `e.Listeners(t, id)` | listening sockets | runs the workload in the container's network namespace and reads `/proc/net/{tcp,tcp6,udp,udp6,unix}` |
+| `e.StartWorkload(t, args)` / `e.RunWorkload(t, args, hc)` | ID / output | long-running / one-shot workload containers |
 
 Test-process servers (the fault proxy, httptest upstreams) are exposed to
 containers as `host.testcontainers.internal:<port>` via `HostAccessPorts`.

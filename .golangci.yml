@@ -127,6 +127,12 @@ linters:
       - path: ^cmd/
         linters:
           - forbidigo
+      # Test fixture programs (run inside test containers) print to stdout and
+      # take paths from their arguments by design.
+      - path: ^test/fixtures/
+        linters:
+          - forbidigo
+          - gosec
       # Process execution is allowed only in tests (subprocess crash tests,
       # git/restic in fixtures) and in the CI test harness (git fixtures).
       - path: (_test\.go$|^internal/testharness/)

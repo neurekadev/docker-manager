@@ -38,6 +38,7 @@ ignore=(--ignore github.com/neurekadev/dockyard)
 for entry in "${reviewed_notices[@]}"; do
 	mod="${entry%%|*}"
 	phrase="${entry#*|}"
+	go mod download "$mod" >/dev/null 2>&1 || true
 	dir="$(go list -m -f '{{.Dir}}' "$mod" 2>/dev/null || true)"
 	if [ -z "$dir" ] || ! grep -qF "$phrase" "$dir/LICENSE"; then
 		echo "license-check: reviewed notice for ${mod} no longer matches (${dir:-module missing}/LICENSE); review again" >&2

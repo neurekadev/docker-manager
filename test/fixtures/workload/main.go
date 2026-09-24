@@ -22,6 +22,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -100,7 +101,7 @@ func main() {
 		listeners()
 	case "listen":
 		need(args, 1)
-		ln, err := net.Listen("tcp", ":"+args[0])
+		ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", ":"+args[0])
 		if err != nil {
 			fatal(err.Error())
 		}
