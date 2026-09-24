@@ -4,6 +4,8 @@ package testharness
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,11 +70,28 @@ func StartMinIO(t testing.TB, opts MinIOOptions) *MinIO {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	for _, b := range opts.Buckets {
-		if err := m.S3.CreateBucket(ctx, b); err != nil {
+		if err := createBucketWhenReady(ctx, m.S3, b); err != nil {
 			t.Fatal(err)
 		}
 	}
 	return m
+}
+
+// createBucketWhenReady retries while MinIO answers XMinioServerNotInitialized:
+// /minio/health/ready can succeed before the object layer accepts requests.
+// This is fixture setup polling with a deadline, not an assertion.
+func createBucketWhenReady(ctx context.Context, c *S3Client, bucket string) error {
+	for {
+		err := c.CreateBucket(ctx, bucket)
+		if err == nil || !strings.Contains(err.Error(), "XMinioServerNotInitialized") {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("%w (last: %v)", ctx.Err(), err)
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
 }
 
 // ResticRepository returns the restic repository URL for bucket/path as
