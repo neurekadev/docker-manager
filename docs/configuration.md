@@ -71,7 +71,7 @@ Sampled metrics will live in a separate database file (#5).
 | `DOCKYARD_MANAGER_CA_FILE` | empty | Optional PEM bundle of extra CA certificates trusted for the manager's HTTPS origin (private PKI), in addition to the system roots. Validated at startup (certificates only). Certificate verification is never disabled; redirects from the manager are never followed. |
 | `DOCKYARD_ENROLLMENT_TOKEN` / `_FILE` | empty | One-use enrollment token created in the UI (#3). Never logged. Remove it after enrollment. |
 | `DOCKYARD_AGENT_STATE_DIR` | `/var/lib/dockyard-agent` | Agent state (credentials after #3, health file, job journal `jobs/journal.json` with the fencing high-water mark, #26). Mount a named volume; losing it makes in-flight jobs end as `journal_lost`. |
-| `DOCKER_HOST` | `unix:///var/run/docker.sock` | Docker Engine endpoint (`unix://` or `tcp://`). |
+| `DOCKER_HOST` | `unix:///var/run/docker.sock` | Docker Engine endpoint (`unix://`, or plain `tcp://`; TLS to a remote Engine is not supported because one agent runs next to each Engine). See "Docker Engine" below. |
 | `DOCKYARD_ENVIRONMENT_NAME` | empty | Optional initial display name of this Environment (≤ 63 characters). |
 | `DOCKYARD_LOG_LEVEL` | `info` | As for the manager. |
 | `DOCKYARD_LOG_FORMAT` | `json` | As for the manager. |
@@ -79,6 +79,20 @@ Sampled metrics will live in a separate database file (#5).
 The agent must run as root (UID 0) and refuses to start otherwise (#28). It
 opens no listening socket. Its container health check verifies that
 `<state dir>/health.json` was updated within the last 60 seconds.
+
+### Docker Engine
+
+At startup the agent connects to `DOCKER_HOST` through the official Moby Go
+SDK, negotiates the API version and logs the Engine identity (ID, version,
+negotiated API version, OS/arch, `DockerRootDir`, rootless / Docker Desktop
+detection). Engines older than API 1.44 (Docker Engine 25.0) are refused
+with `unsupported_api_version`; see `docs/support-matrix.md` for the tested
+and recommended versions. An unreachable or unsupported Engine does not stop
+the agent: it records the error code in `health.json` (`engine` field) and in
+its capabilities, and retries with backoff (2 s up to 60 s).
+`DOCKER_AUTH_CONFIG` and any Docker config directory are ignored: registry
+credentials come from the manager for each operation and stay in memory
+(#19). Details: `docs/architecture/engine-integration.md`.
 
 The agent needs Docker's volume directory mounted at the identical path
 (`/var/lib/docker/volumes:/var/lib/docker/volumes`) so stack and volume paths

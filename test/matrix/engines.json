@@ -1,20 +1,13 @@
 {
-  "$comment": "Docker Engine test matrix (#29). Single source for internal/testharness (LoadMatrix) and the extended workflow's engine-matrix job. Images are the official docker:<version>-dind images pinned by multi-arch index digest; update version, image and apiVersion together. The supported minimum is still open in #25 Q2 (decided by #21); 24.0 and 25.0 are candidates.",
+  "$comment": "Docker Engine test matrix (#29). Single source for internal/testharness (LoadMatrix) and the extended workflow's engine-matrix job. Images are the official docker:<version>-dind images pinned by multi-arch index digest; update version, image and apiVersion together. The 'minimum' entry is DockYard's minimum supported Engine (#21, #25 Q2) and must match engine.MinSupportedAPIVersion; 24.0.9 was dropped after failing a v1 operation (docs/support-matrix.md).",
   "default": "29.8.1",
   "engines": [
-    {
-      "version": "24.0.9",
-      "image": "docker:24.0.9-dind@sha256:9b17a9f25adf17b88d0a013b4f00160754adf4b07ccbe9986664a49886c2c98e",
-      "apiVersion": "1.43",
-      "roles": ["minimum-candidate"],
-      "note": "Docker 24 / API 1.43 as shown in the UI mockup (#22)."
-    },
     {
       "version": "25.0.5",
       "image": "docker:25.0.5-dind@sha256:b41d0183012e2334aacd4e0b8e339b89246c4fdb7eada6cc86b0355f41328549",
       "apiVersion": "1.44",
-      "roles": ["minimum-candidate"],
-      "note": "API 1.44 is the lowest API version Docker Engine 29 still accepts from clients."
+      "roles": ["minimum"],
+      "note": "Lowest Engine passing every planned v1 operation (#21). API 1.44 is also the lowest API version Docker Engine 29 still accepts from clients."
     },
     {
       "version": "28.5.2",

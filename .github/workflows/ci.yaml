@@ -172,7 +172,7 @@ jobs:
   images:
     name: images
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: read
       packages: write
@@ -265,6 +265,37 @@ jobs:
           sbom: true
           cache-from: type=gha,scope=agent
           cache-to: type=gha,scope=agent,mode=max
+
+      # Contents check (#2): load the amd64 variants (from the build cache
+      # just written) and inspect what each image ships.
+      - name: Load manager image (amd64) for inspection
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/docker/manager.Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: dockyard-manager:ci
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ github.sha }}
+            CREATED=${{ steps.meta.outputs.created }}
+          cache-from: type=gha,scope=manager
+      - name: Load agent image (amd64) for inspection
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/docker/agent.Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: dockyard-agent:ci
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ github.sha }}
+            CREATED=${{ steps.meta.outputs.created }}
+          cache-from: type=gha,scope=agent
+      - name: Image contents (binaries, restic, UI only in the manager, no Docker CLI)
+        run: bash scripts/ci/image-contents.sh dockyard-manager:ci dockyard-agent:ci
 
       # GitHub artifact attestations require GitHub Enterprise Cloud for
       # private repositories; the BuildKit provenance (mode=max) and SBOM

@@ -59,7 +59,7 @@ On a machine with Docker:
 | --- | --- |
 | race | `CGO_ENABLED=1 go test -race -count=1 ./...` |
 | fuzz | `FUZZTIME=30s bash scripts/ci/fuzz-all.sh` (discovers every `FuzzXxx`) |
-| engine-matrix | `DOCKYARD_TEST_ENGINE=24.0.9 go test -tags integration -run '^TestEngine' ./...` |
+| engine-matrix | `DOCKYARD_TEST_ENGINE=25.0.5 go test -tags integration -run '^TestEngine' ./...` |
 | compose-fixtures | `go test -tags integration -run '^Test(Registry\|Git\|Compose)' ./...` |
 | storage | `go test -tags integration -run '^Test(MinIO\|Restic\|Storage\|Backup\|Restore)' ./...` |
 | fs-security | `go test -race ./internal/testutil/fscorpus/...` |
@@ -79,6 +79,7 @@ reported as passed.
 | --- | --- | --- |
 | `DOCKYARD_TEST_ENGINE` | `testharness.SelectEngine` | Engine version from `test/matrix/engines.json`, or `default` / `minimum` / `latest` (default: the matrix default) |
 | `DOCKYARD_TEST_CACHE` | `testharness.FetchRestic` | download cache (default: user cache dir `dockyard-test`) |
+| `DOCKYARD_TEST_AGENT_IMAGE` | `testharness.AgentImage` | locally built agent image (`deploy/docker/agent.Dockerfile`) that `TestEngineAgentImage` runs inside DinD; the engine-matrix job builds `dockyard-agent:test`. Unset: skipped locally, fails under `CI` |
 | `FUZZTIME` | `scripts/ci/fuzz-all.sh` | `-fuzztime` per target (default `60s`) |
 | `E2E_BASE_URL` | Playwright | test one origin (project `custom`) instead of the three proxy origins |
 | `E2E_REVISION` | `e2e/compose.yaml` | build revision |
@@ -95,10 +96,19 @@ the Engine's API version, which `TestEngineServesMatrixVersion` verifies.
 `TestLoadMatrixIsValid` / `TestWorkflowReadsMatrixFile` keep the file valid
 and the workflow free of hard-coded versions.
 
-Current entries: 24.0.9 (API 1.43, the mockup's Docker 24) and 25.0.5
-(API 1.44) as minimum candidates, 28.5.2 and 29.8.1 as the latest two
-majors. The supported minimum is decided by #21 and recorded in #25 (Q2);
-drop the losing candidate from the matrix then.
+Current entries: 25.0.5 (API 1.44, role `minimum`: DockYard's minimum
+supported Engine, #21 / #25 Q2), 28.5.2 and 29.8.1 as the latest two
+majors. The `minimum` entry must be the lowest and speak exactly
+`engine.MinSupportedAPIVersion` (`TestMatrixMinimumMatchesAdapter`). 24.0.9
+(the mockup's Docker 24) was dropped after failing a v1 operation; its
+results are in [../support-matrix.md](../support-matrix.md).
+
+`engine-matrix` runs every `TestEngine*` test per Engine: the adapter
+(`TestEngineAdapterNegotiatesAndIdentifies`, `TestEngineOperations` with one
+subtest per v1 operation), Compose (`TestEngineComposeLifecycle`), the agent
+image inside DinD (`TestEngineAgentImage`, which needs the job's
+`dockyard-agent:test` build) and the fixtures' self-tests. The job summary
+lists the result of every test and subtest per Engine and architecture.
 
 Runners: `ubuntu-24.04` and `ubuntu-24.04-arm` (available to this private
 repository, verified 2026-09-24). Pushes to `main` run amd64 only; the
@@ -127,6 +137,11 @@ each has a self-test in `fixtures_integration_test.go`):
 | `StartMinIO(t, opts)` | `MinIO{Endpoint, InternalEndpoint, AccessKey, SecretKey, S3}` | random root credentials, buckets created; `ResticRepository`, `ResticEnv` |
 | `FetchRestic(ctx)` | path | restic 0.19.1, SHA-256 from `deploy/docker/*.Dockerfile` (checked by `TestResticPinMatchesDockerfiles`) |
 | `StartTLSProxy(t, opts)` | `TLSProxy{URL, RootCAPEM, Client}` | Caddy `tls internal` for `localhost`, unbuffered SSE/WebSocket; `Client` verifies against Caddy's root |
+| `e.LoadWorkload(t)` | — | loads `WorkloadImage` (`dockyard-test/workload:1`): `test/fixtures/workload` built statically for the runner's architecture, packed by `WorkloadArchive` as a `docker save` archive. Every container of the Engine/Compose tests runs it (serve, health checks, one-shots, exec, TTY, logs, listeners), so no test pulls from Docker Hub inside DinD |
+| `e.LoadHostImage(t, ref)` | — | copies an image from the runner's Docker into the DinD Engine (the agent image under test) |
+| `e.StartAgent(t, AgentOptions{})` | container ID | runs the agent image inside DinD with the deploy mounts (socket + `/var/lib/docker/volumes` at the identical path); `WaitLog`, `WaitHealthy`, `Logs` |
+| `e.Listeners(t, id)` | listening sockets | runs the workload in the container's network namespace and reads `/proc/net/{tcp,tcp6,udp,udp6,unix}` |
+| `e.StartWorkload(t, args)` / `e.RunWorkload(t, args, hc)` | ID / output | long-running / one-shot workload containers |
 
 Test-process servers (the fault proxy, httptest upstreams) are exposed to
 containers as `host.testcontainers.internal:<port>` via `HostAccessPorts`.

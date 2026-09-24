@@ -21,6 +21,31 @@ else
 	echo "UI: web/build/app missing; the manager embeds the placeholder page"
 fi
 
+# The SDK graph pinned in go.mod (#21): the agent must link exactly these
+# versions (Moby Engine client + API, Compose SDK with its docker/cli and
+# BuildKit dependencies); the manager must link none of them.
+sdk_modules=(github.com/moby/moby/client github.com/moby/moby/api github.com/docker/compose/v5 github.com/docker/cli github.com/moby/buildkit)
+pinned() { # module -> version required in go.mod
+	awk -v m="$1" '$1 == m { print $2; exit }' go.mod
+}
+check_sdk_graph() { # bin out meta
+	local mod want have
+	for mod in "${sdk_modules[@]}"; do
+		have="$(awk -F'\t' -v m="$mod" '$2 == "dep" && $3 == m { print $4 }' <<<"$3")"
+		if [ "$1" = dockyard-agent ]; then
+			want="$(pinned "$mod")"
+			if [ -z "$want" ] || [ "$have" != "$want" ]; then
+				echo "$2: links ${mod} ${have:-(missing)}, go.mod pins ${want:-(nothing)}" >&2
+				exit 1
+			fi
+			echo "    ${mod} ${have}"
+		elif [ -n "$have" ]; then
+			echo "$2: the manager must not link ${mod} (it never talks to Docker Engine)" >&2
+			exit 1
+		fi
+	done
+}
+
 rm -rf dist
 mkdir -p dist
 for arch in amd64 arm64; do
@@ -42,6 +67,11 @@ for arch in amd64 arm64; do
 			echo "$out: links the cgo SQLite driver" >&2
 			exit 1
 		fi
+		if grep -qE $'\tdep\tgithub\\.com/docker/docker\t' <<<"$meta"; then
+			echo "$out: links the deprecated github.com/docker/docker module" >&2
+			exit 1
+		fi
+		check_sdk_graph "$bin" "$out" "$meta"
 		if command -v file >/dev/null 2>&1; then
 			desc="$(file -b "$out")"
 			case "$desc" in
