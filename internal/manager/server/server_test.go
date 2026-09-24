@@ -27,6 +27,10 @@ var testUI = fstest.MapFS{
 	"_app/version.json":                    {Data: []byte(`{"version":"1"}`)},
 	"_app/immutable/entry/start.abc123.js": {Data: []byte("export const start = () => {};")},
 	"_app/immutable/assets/app.def456.css": {Data: []byte("body{}")},
+	"service-worker.js":                    {Data: []byte("self.addEventListener('fetch', () => {});")},
+	"manifest.webmanifest":                 {Data: []byte(`{"name":"DockYard","start_url":"/","scope":"/","display":"standalone"}`)},
+	"icons/pwa-192x192.png":                {Data: []byte("PNG placeholder")},
+	"favicon.ico":                          {Data: []byte{0, 0, 1, 0}},
 }
 
 func newTestServer(t *testing.T) (*Server, *testutil.LogBuffer) {
@@ -230,5 +234,73 @@ func TestNewRequiresIndex(t *testing.T) {
 	logger, _ := testutil.CaptureLogger()
 	if _, err := New(Options{Logger: logger, UI: fstest.MapFS{"a.js": {Data: []byte("x")}}}); err == nil {
 		t.Fatal("expected error without index.html")
+	}
+}
+
+func TestPWAAssets(t *testing.T) {
+	s, _ := newTestServer(t)
+	for _, tc := range []struct{ path, contentType string }{
+		{"/service-worker.js", "text/javascript; charset=utf-8"},
+		{"/manifest.webmanifest", "application/manifest+json"},
+		{"/icons/pwa-192x192.png", "image/png"},
+		{"/favicon.ico", "image/x-icon"},
+	} {
+		rec := request(t, s.Handler, http.MethodGet, tc.path, nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status %d", tc.path, rec.Code)
+		}
+		h := rec.Header()
+		if ct := h.Get("Content-Type"); ct != tc.contentType {
+			t.Errorf("%s: content type %q, want %q", tc.path, ct, tc.contentType)
+		}
+		// Unhashed: always revalidated, so a new build is found on the next check.
+		if cc := h.Get("Cache-Control"); cc != CacheRevalidate {
+			t.Errorf("%s: cache-control %q, want %q", tc.path, cc, CacheRevalidate)
+		}
+		if h.Get("ETag") == "" {
+			t.Errorf("%s: no ETag", tc.path)
+		}
+		if h.Get("X-Content-Type-Options") != "nosniff" {
+			t.Errorf("%s: no nosniff", tc.path)
+		}
+	}
+
+	// Scope: the worker is served from the root, so its maximum scope is the
+	// whole origin; the server never widens it with Service-Worker-Allowed.
+	rec := request(t, s.Handler, http.MethodGet, "/service-worker.js", map[string]string{"Service-Worker": "script"})
+	if v := rec.Header().Values("Service-Worker-Allowed"); len(v) != 0 {
+		t.Errorf("Service-Worker-Allowed = %q, want none", v)
+	}
+	csp := rec.Header().Get("Content-Security-Policy")
+	for _, want := range []string{"worker-src 'self'", "manifest-src 'self'"} {
+		if !strings.Contains(csp, want) {
+			t.Errorf("CSP %q lacks %q", csp, want)
+		}
+	}
+}
+
+func TestPWABuildOnlyPathsNeverFallBackToHTML(t *testing.T) {
+	logger, _ := testutil.CaptureLogger()
+	// A build without PWA files (e.g. the placeholder page).
+	s, err := New(Options{Logger: logger, Clock: testutil.FakeClock(), UI: fstest.MapFS{
+		"index.html": {Data: []byte("<!doctype html><title>DockYard</title>")},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"/service-worker.js", "/manifest.webmanifest", "/favicon.ico", "/icons/pwa-512x512.png", "/icons"} {
+		rec := request(t, s.Handler, http.MethodGet, p, nil)
+		if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "<title>") {
+			t.Errorf("%s: %d %q, want a plain 404", p, rec.Code, rec.Body.String())
+		}
+		if cc := rec.Header().Get("Cache-Control"); cc != CacheRevalidate {
+			t.Errorf("%s: cache-control %q", p, cc)
+		}
+	}
+	// Look-alike client routes still reach the SPA.
+	for _, p := range []string{"/iconsets", "/stacks/service-worker.js", "/environments/e1"} {
+		if rec := request(t, s.Handler, http.MethodGet, p, nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "<title>") {
+			t.Errorf("%s: %d, want the app shell", p, rec.Code)
+		}
 	}
 }

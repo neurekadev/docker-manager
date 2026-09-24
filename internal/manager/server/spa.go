@@ -19,8 +19,9 @@ import (
 const (
 	// CacheImmutable is used for content-hashed files under /_app/immutable/.
 	CacheImmutable = "public, max-age=31536000, immutable"
-	// CacheRevalidate is used for index.html, the service worker and every
-	// other unhashed file: browsers must revalidate (ETag) before reuse.
+	// CacheRevalidate is used for index.html, the service worker, the web
+	// app manifest and every other unhashed file: browsers must revalidate
+	// (ETag) before reuse.
 	CacheRevalidate = "no-cache"
 )
 
@@ -32,7 +33,13 @@ type asset struct {
 
 // spa serves the embedded SvelteKit build: real files where they exist,
 // index.html for client-side routes (deep links), and a hard 404 for
-// missing /_app/* assets so a stale page never receives HTML as JavaScript.
+// missing build-only paths (/_app/*, the service worker, the manifest and
+// icons) so a stale page never receives HTML as JavaScript.
+//
+// PWA (#11): /service-worker.js and /manifest.webmanifest are unhashed and
+// served with CacheRevalidate, so browsers pick up a new build on the next
+// update check. The worker lives at the root, so its default scope is the
+// whole origin and no Service-Worker-Allowed header is needed or sent.
 type spa struct {
 	assets        map[string]asset // key: clean path without leading slash
 	scriptHashes  []string         // CSP hashes of inline scripts in index.html
@@ -88,13 +95,25 @@ func (s *spa) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serve(w, r, a, cache)
 		return
 	}
-	if clean == "_app" || strings.HasPrefix(clean, "_app/") {
+	if buildOnlyPath(clean) {
 		w.Header().Set("Cache-Control", CacheRevalidate)
 		http.NotFound(w, r)
 		return
 	}
 	// Client-side route: serve the app shell.
 	s.serve(w, r, s.indexFallback, CacheRevalidate)
+}
+
+// buildOnlyPath reports paths that only ever name build files. A missing one
+// is a hard 404, never the HTML shell: HTML served as a script, service
+// worker or web app manifest would be misread by the browser (a stale page
+// importing an old chunk, a failed service-worker update check).
+func buildOnlyPath(clean string) bool {
+	switch clean {
+	case "_app", "service-worker.js", "manifest.webmanifest", "favicon.ico", "icons":
+		return true
+	}
+	return strings.HasPrefix(clean, "_app/") || strings.HasPrefix(clean, "icons/")
 }
 
 func (s *spa) serve(w http.ResponseWriter, r *http.Request, a asset, cache string) {

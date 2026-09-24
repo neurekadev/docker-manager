@@ -16,8 +16,15 @@ func TestAssetsHaveIndex(t *testing.T) {
 		t.Fatalf("index.html does not mention DockYard")
 	}
 	if built {
-		if _, err := fs.Stat(ui, "_app"); err != nil {
-			t.Fatalf("real build lacks _app: %v", err)
+		// The real build is the installable PWA (#11): service worker, web app
+		// manifest and its icons at the root, next to the app shell.
+		for _, p := range []string{"_app", "service-worker.js", "manifest.webmanifest", "icons/pwa-192x192.png", "icons/pwa-512x512.png"} {
+			if _, err := fs.Stat(ui, p); err != nil {
+				t.Fatalf("real build lacks %s: %v", p, err)
+			}
+		}
+		if !strings.Contains(string(b), `<link rel="manifest" href="/manifest.webmanifest"`) {
+			t.Fatal("index.html does not link the web app manifest")
 		}
 	}
 }

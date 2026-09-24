@@ -60,8 +60,8 @@ Legend for "where": PR = `ci.yaml` PR suite; X:`job` = `extended.yaml` job.
 
 | # | #12 item | owner | test / suite | where | status |
 | --- | --- | --- | --- | --- | --- |
-| V33 | Responsive installable PWA | #22, #23 | `helpers.spec.ts` "web app manifest and service worker" (skipped as pending until the manifest exists); viewport projects | X:`e2e` | partial |
-| V34 | Safe service-worker caching | #23 | `helpers.spec.ts` "service worker never caches API data" (`cachedUrls`), `TestAPIResponsesAreNoStore` | PR, X:`e2e` | partial |
+| V33 | Responsive installable PWA | #11, #22, #23 | `pwa.spec.ts` "manifest is valid…", "service worker registers at the root scope under the TLS proxy", "deep links reload into the app shell, online and offline", "offline shell shows when the network is cut"; `helpers.spec.ts` "web app manifest and service worker"; `verify-build.mjs` (manifest, icon sizes); `TestPWAAssets`; update prompt: `register.spec.ts`. Responsive layouts and viewport projects: #22 | X:`e2e`, PR | partial |
+| V34 | Safe service-worker caching | #11, #23 | `sw-core.spec.ts` (API/agent/non-GET never handled or stored, precache only), `verify-build.mjs` (precache list), `pwa.spec.ts` "API responses are never served from or stored in Cache Storage", `helpers.spec.ts` "service worker never caches API data", `TestAPIResponsesAreNoStore`, `TestPWABuildOnlyPathsNeverFallBackToHTML`. Stream endpoints (#23) inherit the `/api` rule | PR, X:`e2e` | partial |
 | V35 | Live authorized updates across all open views | #23 | Playwright multi-page test with `collectSse`/`wsRoundTrip` (helpers implemented through the proxy) | X:`e2e` | planned |
 | V36 | Reconnect and gap recovery | #23 | Playwright + fault injection (drop stream, resume from last event ID) | X:`e2e`, X:`fault-injection` | planned |
 | V37 | File changes made outside the UI | #15, #23 | Simulated fsnotify events incl. missed events → rescan | X:`fs-security` | planned |

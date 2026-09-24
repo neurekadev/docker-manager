@@ -66,6 +66,9 @@ writes `build/app`, so `go build ./...` and `go test ./...` always work on a
 clean checkout without Node, and the manager image (which runs the npm build
 first) always embeds the real UI.
 
+Web UI structure, the generated-client workflow and PWA behaviour:
+[web.md](web.md).
+
 ## Tests
 
 - Unit tests live next to the code (`foo_test.go`) and must be Docker-free,

@@ -403,7 +403,7 @@ jobs:
       - name: Pending checks
         if: always()
         run: |
-          msg="passkey/TOTP login and recovery flows (#16), PWA manifest/service worker/offline and live updates across views (#23), agents through the proxy (#27), responsive layouts (#22)"
+          msg="passkey/TOTP login and recovery flows (#16), live updates across views (#23), agents through the proxy (#27), responsive layouts (#22)"
           echo "::notice title=e2e pending checks::${msg}"
           echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
 

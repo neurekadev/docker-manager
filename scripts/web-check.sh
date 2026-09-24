@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Web gate: npm ci (when needed), lint (prettier + eslint), svelte-check,
-# vitest, production build into web/build/app.
+# vitest, production build into web/build/app, then the build checks
+# (lazy-loaded chunks, service-worker precache list, manifest/icons, sizes).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../web"
 
@@ -21,3 +22,5 @@ test -f build/app/index.html || {
 	echo "web build did not produce build/app/index.html" >&2
 	exit 1
 }
+echo "==> verify build"
+node scripts/verify-build.mjs
