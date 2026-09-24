@@ -7,6 +7,8 @@
 //	                          that talks to Docker Engine directly
 //	internal/agent/compose    Compose SDK adapter (#21): in-memory docker/cli,
 //	                          builds through the Engine adapter's BuildKit
+//	internal/agent/storage    host storage layout check (#28): identical-path
+//	                          mounts, stack roots, volume access
 //	internal/agent/jobs       job commands, fencing and journal (#26)
 //
 // Later workstreams add the manager session (#3), files and backups.

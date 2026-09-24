@@ -278,9 +278,20 @@ supported; the UI shows an upgrade notice).
   "features": ["fs.inotify"],
   "roots": [ { "kind": "stacks", "path": "/var/lib/docker/volumes/dockyard_stacks/_data", "watch": "inotify" },
              { "kind": "volumes", "path": "/var/lib/docker/volumes", "watch": "inotify" } ],
-  "transport": { "managerUrl": "https://docker.example.com", "plainHttp": false, "customCa": false }
+  "transport": { "managerUrl": "https://docker.example.com", "plainHttp": false, "customCa": false },
+  "diagnostics": [ { "area": "storage", "code": "storage_root_mismatch", "path": "/opt/stacks",
+                     "message": "stack root /opt/stacks is mounted from /srv/stacks; mount it at its identical path" } ]
 }
 ```
+
+- `diagnostics` (optional) explain what the agent cannot do and why, with a
+  stable `code` per `area` (`engine`: the #21 Engine codes such as
+  `unsupported_api_version` or `engine_unavailable`; `storage`: the #28
+  layout checks such as `storage_path_mismatch`, `storage_mount_missing`,
+  `storage_rootless_engine`). Only verified directories appear in `roots`;
+  stack operations are offered only when the `stacks` feature is present
+  (the stacks volume passed the identical-path check). The host page shows
+  the diagnostics.
 
 - `transport` (required, #27) is how the agent reaches the manager:
   `plainHttp` is true exactly for an `http://` manager URL

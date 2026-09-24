@@ -80,6 +80,9 @@ type Dependency struct {
 // with CodeUnsupportedFeature before anything touches the Engine.
 func (a *Adapter) Load(ctx context.Context, spec ProjectSpec) (*Project, error) {
 	const op = "compose.load"
+	if err := a.guardDir(op, spec.Dir); err != nil {
+		return nil, err
+	}
 	if !filepath.IsAbs(spec.Dir) {
 		return nil, engine.Errorf(op, engine.CodeInvalidProject, "project directory must be an absolute path")
 	}

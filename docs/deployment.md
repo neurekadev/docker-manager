@@ -116,6 +116,68 @@ one-use enrollment token) authenticate only `/agent/v1`; the manager refuses
 them on `/api/v1`. Browser cookies never authenticate `/agent/v1`: the
 manager removes the `Cookie` header from every agent request.
 
+## Host storage layout (#28)
+
+Docker Engine resolves a stack's relative bind mounts (`./data`),
+`env_file` entries and build contexts on the **host**. The agent runs in a
+container, so it must see those files at the same paths:
+
+- Stacks live in the named volume `dockyard_stacks` (one directory per
+  stack; `DOCKYARD_STACKS_VOLUME` selects another local volume).
+- The agent mounts Docker's volume directory at its identical path:
+  `/var/lib/docker/volumes:/var/lib/docker/volumes`, plus the stacks volume
+  at its own mountpoint (every example in `deploy/` does this). No other
+  host paths are needed; DockYard's own state lives in named volumes.
+- Extra host directories with stacks (e.g. `/opt/stacks`) can be registered
+  with `DOCKYARD_STACK_ROOTS=/opt/stacks` and must be bind-mounted at the
+  identical path (`/opt/stacks:/opt/stacks`).
+
+At startup (and whenever the Engine comes back) the agent **verifies**
+this: it reads the Engine's `DockerRootDir`, inspects the stacks volume's
+`Mountpoint`, finds its own container (from `/proc/self/mountinfo`,
+`/proc/self/cgroup` or its default hostname) and checks that each path is
+mounted from the same host path, visible and writable. It logs
+`storage layout verified` or one error per problem, records the result in
+`health.json` (`storage`) and reports it in its capabilities. On a
+mismatch, **stack operations are refused** with a diagnostic; everything
+else (containers, images, logs, …) keeps working.
+
+| code | cause | fix |
+| --- | --- | --- |
+| `storage_mount_missing` | the stacks volume's directory is not mounted into the agent (e.g. a custom data root with the default mount) | mount `<DockerRootDir>/volumes:<DockerRootDir>/volumes` |
+| `storage_path_mismatch` | mounted, but from a different host path | use the identical path on both sides |
+| `storage_read_only` / `storage_not_writable` | read-only mount, or the agent is not root | read-write mount; the agent runs as UID 0 |
+| `storage_path_not_visible` | the directory does not exist inside the agent | check the mount |
+| `storage_stacks_volume_missing` / `storage_stacks_volume_not_local` | the stacks volume does not exist / is not a local volume | declare it (`name: dockyard_stacks`) with the local driver |
+| `storage_root_mismatch` | a `DOCKYARD_STACK_ROOTS` entry is not mounted at its identical path (only that root is refused) | bind-mount it at the same path |
+| `storage_self_unknown` | the agent cannot identify its own container | do not override the agent's `hostname` |
+| `storage_rootless_engine` / `storage_docker_desktop` | unsupported Engines ([support matrix](support-matrix.md)) | use a rootful Linux Engine |
+
+**Custom data root.** If `docker info -f '{{.DockerRootDir}}'` is not
+`/var/lib/docker`, replace `/var/lib/docker` in the agent's volume lines
+(both sides of the directory mount and the stacks volume's mount path) with
+your data root.
+
+**SELinux.** The agent needs the Docker socket and every volume's files,
+which the default container policy denies. On enforcing hosts run the agent
+with `security_opt: ["label=disable"]` instead of relabeling: do **not** add
+`:z`/`:Z` to `/var/lib/docker/volumes` (it would relabel every volume on the
+host) or to the socket. Stack roots from `DOCKYARD_STACK_ROOTS` that stack
+containers also bind-mount can use the shared label (`/opt/stacks:/opt/stacks:z`)
+so both the agent and the stack containers may read them; never use the
+private `:Z` label there.
+
+**AppArmor.** The agent works with Docker's default `docker-default` profile
+and the default capability set; it needs neither `--privileged` nor
+`apparmor=unconfined`. A custom host profile must allow the socket and the
+mounts above.
+
+**Non-local volumes.** Volumes of other drivers (plugins) and local
+volumes backed by NFS/CIFS mount options are not under Docker's volume
+directory (or only while mounted); v1 lists them read-only with the reason
+and excludes them from file browsing, watching and backup
+([support matrix](support-matrix.md)).
+
 ## First-run setup over HTTPS
 
 Creating the owner account (#16) needs a secure context. The manager refuses

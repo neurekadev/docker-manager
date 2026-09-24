@@ -26,6 +26,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/compose"
 	"github.com/neurekadev/dockyard/internal/agent/config"
 	"github.com/neurekadev/dockyard/internal/agent/engine"
+	"github.com/neurekadev/dockyard/internal/agent/storage"
 	"github.com/neurekadev/dockyard/internal/agent/transport"
 	"github.com/neurekadev/dockyard/internal/buildinfo"
 	"github.com/neurekadev/dockyard/internal/clock"
@@ -72,8 +73,12 @@ type Options struct {
 	// Config.DockerHost. Tests inject fakes.
 	ConnectEngine func(ctx context.Context) (engine.Engine, error)
 	// ConnectCompose opens the Compose SDK adapter once the Engine is
-	// connected; default compose.New on Config.DockerHost.
-	ConnectCompose func(ctx context.Context, eng engine.Engine) (*compose.Adapter, error)
+	// connected; default compose.New on Config.DockerHost. guard is the
+	// storage check every project directory must pass (#28).
+	ConnectCompose func(ctx context.Context, eng engine.Engine, guard func(dir string) error) (*compose.Adapter, error)
+	// VerifyStorage checks the identical-path layout (#28); default
+	// storage.Verify with Config.StacksVolume and Config.StackRoots.
+	VerifyStorage func(ctx context.Context, eng engine.Engine) storage.Result
 	// OnCapabilities is called whenever Capabilities change (Engine
 	// connected, lost or recovered); the session transport (#3) uses it to
 	// send an updated capabilities frame. It must not block.
@@ -91,6 +96,9 @@ type HealthState struct {
 	// Engine is "connected" or the error code of the last connection
 	// attempt (e.g. "engine_unavailable", "unsupported_api_version").
 	Engine string `json:"engine"`
+	// Storage is "verified", "pending" or the first storage diagnostic code
+	// (#28), e.g. "storage_path_mismatch".
+	Storage string `json:"storage"`
 }
 
 // Capabilities is what the agent reports to the manager in its
@@ -101,6 +109,9 @@ type Capabilities struct {
 	AgentCommit  string
 	Engine       *engine.Identity
 	EngineError  *EngineError
+	// Storage is the result of the #28 layout check (nil until the Engine
+	// was reached). Stack operations are allowed only when Storage.StacksOK().
+	Storage *storage.Result
 }
 
 // EngineError is a stable code plus a human-readable message.
@@ -118,6 +129,7 @@ type Agent struct {
 	transport protocol.TransportInfo
 	eng       engine.Engine
 	compose   *compose.Adapter
+	storage   *storage.Result
 	engErr    *EngineError
 	healthy   bool // the Engine answered the last ping
 }
@@ -153,8 +165,17 @@ func New(opts Options) (*Agent, error) {
 	}
 	if opts.ConnectCompose == nil {
 		host, logger := opts.Config.DockerHost, opts.Logger
-		opts.ConnectCompose = func(ctx context.Context, eng engine.Engine) (*compose.Adapter, error) {
-			return compose.New(ctx, compose.Options{Host: host, Engine: eng, Logger: logger})
+		opts.ConnectCompose = func(ctx context.Context, eng engine.Engine, guard func(string) error) (*compose.Adapter, error) {
+			return compose.New(ctx, compose.Options{Host: host, Engine: eng, Logger: logger, Guard: guard})
+		}
+	}
+	if opts.VerifyStorage == nil {
+		volume, roots := opts.Config.StacksVolume, opts.Config.StackRoots
+		if volume == "" {
+			volume = config.DefaultStacksVolume
+		}
+		opts.VerifyStorage = func(ctx context.Context, eng engine.Engine) storage.Result {
+			return storage.Verify(ctx, storage.Options{Engine: eng, StacksVolume: volume, StackRoots: roots})
 		}
 	}
 	return &Agent{opts: opts, log: opts.Logger}, nil
@@ -174,7 +195,23 @@ func (a *Agent) Capabilities() Capabilities {
 		e := *a.engErr
 		c.EngineError = &e
 	}
+	if a.storage != nil {
+		r := *a.storage
+		c.Storage = &r
+	}
 	return c
+}
+
+// StackGuard is the compose adapter's guard: a project directory must be in
+// a verified stack root (#28). Before the check ran it refuses.
+func (a *Agent) StackGuard(dir string) error {
+	a.mu.RLock()
+	r := a.storage
+	a.mu.RUnlock()
+	if r == nil {
+		return storage.Diagnostic{Code: storage.CodeUnverified, Message: "the storage layout has not been verified yet"}
+	}
+	return r.Allows(dir)
 }
 
 // CapabilitiesPayload maps Capabilities to the protocol's capabilities
@@ -196,12 +233,33 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 		Streams:      []string{},
 		Transport:    ti,
 	}
+	if c.EngineError != nil {
+		p.Diagnostics = append(p.Diagnostics, protocol.Diagnostic{
+			Area: protocol.DiagnosticEngine, Code: string(c.EngineError.Code), Message: bound(c.EngineError.Message),
+		})
+	}
+	if r := c.Storage; r != nil {
+		for _, root := range r.Roots {
+			if root.OK {
+				p.Roots = append(p.Roots, protocol.Root{Kind: root.Kind, Path: root.Path, Watch: "inotify"})
+			}
+		}
+		if r.StacksOK() {
+			p.Features = append(p.Features, "stacks")
+		}
+		for _, d := range r.Diagnostics {
+			p.Diagnostics = append(p.Diagnostics, protocol.Diagnostic{
+				Area: protocol.DiagnosticStorage, Code: d.Code, Message: bound(d.Message), Path: d.Path,
+			})
+		}
+	}
 	if c.Engine == nil || c.EngineError != nil {
 		return p, false
 	}
 	id := c.Engine
+	// engine.apiVersion is the negotiated version (docs/protocol/agent-v1.md).
 	p.Engine = protocol.EngineInfo{
-		ID: id.EngineID, Version: id.Version, APIVersion: id.APIVersion, MinAPIVersion: id.MinAPIVersion,
+		ID: id.EngineID, Version: id.Version, APIVersion: id.NegotiatedAPIVersion, MinAPIVersion: id.MinAPIVersion,
 		OS: id.OS, Arch: id.Arch, Rootless: id.Rootless,
 	}
 	for _, capa := range id.Capabilities {
@@ -210,6 +268,14 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 		}
 	}
 	return p, true
+}
+
+// bound truncates a diagnostic message to the protocol limit.
+func bound(s string) string {
+	if len(s) > protocol.MaxDiagnosticMessage {
+		return s[:protocol.MaxDiagnosticMessage]
+	}
+	return s
 }
 
 // Engine returns the connected Engine adapter, or nil.
@@ -259,7 +325,6 @@ func (a *Agent) Run(ctx context.Context) error {
 	// TODO(#3): enroll with the one-use token (if not yet enrolled), persist
 	// the agent credential in the state dir, dial /agent/v1/session, send
 	// Capabilities() in the hello frame and run the protocol.
-	// TODO(#28): verify the identical-path volume mount.
 	if cfg.EnrollmentToken != "" {
 		log.Warn("agent is not enrolled: an enrollment token is configured, but enrollment arrives with #3")
 	} else {
@@ -313,7 +378,7 @@ func (a *Agent) connect(ctx context.Context) bool {
 	eng, err := a.opts.ConnectEngine(cctx)
 	var comp *compose.Adapter
 	if err == nil {
-		if comp, err = a.opts.ConnectCompose(cctx, eng); err != nil {
+		if comp, err = a.opts.ConnectCompose(cctx, eng, a.StackGuard); err != nil {
 			_ = eng.Close()
 		}
 	}
@@ -339,8 +404,36 @@ func (a *Agent) connect(ctx context.Context) bool {
 		"os", id.OS, "arch", id.Arch, "operating_system", id.OperatingSystem,
 		"docker_root_dir", id.DockerRootDir, "storage_driver", id.StorageDriver,
 		"rootless", id.Rootless, "docker_desktop", id.DockerDesktop)
+	a.verifyStorage(ctx, eng)
 	a.notify()
 	return true
+}
+
+// verifyStorage runs the #28 layout check and logs its outcome. Stack
+// operations stay refused (StackGuard) until it passes; everything else
+// keeps working.
+func (a *Agent) verifyStorage(ctx context.Context, eng engine.Engine) {
+	r := a.opts.VerifyStorage(ctx, eng)
+	a.mu.Lock()
+	a.storage = &r
+	a.mu.Unlock()
+	var roots []string
+	for _, root := range r.Roots {
+		if root.OK {
+			roots = append(roots, root.Kind+"="+root.Path)
+		}
+	}
+	if r.StacksOK() {
+		a.log.Info("storage layout verified", "stacks_dir", r.StacksDir, "docker_root_dir", r.DockerRootDir,
+			"verified_roots", roots, "containerized", r.Containerized, "self_container_id", r.SelfContainerID)
+	}
+	for _, d := range r.Diagnostics {
+		msg := "storage layout check failed"
+		if !r.StacksOK() {
+			msg = "stack operations disabled: storage layout check failed"
+		}
+		a.log.Error(msg, "code", d.Code, "path", d.Path, "detail", d.Message)
+	}
 }
 
 // checkEngine pings a connected Engine and refreshes its identity after an
@@ -376,6 +469,7 @@ func (a *Agent) checkEngine(ctx context.Context) {
 		a.mu.Unlock()
 		if rerr == nil {
 			a.log.Info("Docker Engine is back", "engine_version", id.Version, "negotiated_api_version", id.NegotiatedAPIVersion)
+			a.verifyStorage(ctx, eng)
 		}
 		a.notify()
 	}
@@ -412,9 +506,22 @@ func (a *Agent) engineStatus() string {
 	return "connecting"
 }
 
+func (a *Agent) storageStatus() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	switch {
+	case a.storage == nil:
+		return "pending"
+	case len(a.storage.Diagnostics) > 0:
+		return a.storage.Diagnostics[0].Code
+	}
+	return "verified"
+}
+
 func (a *Agent) writeHealth(now time.Time) error {
 	if err := writeHealth(a.opts.Config.StateDir, HealthState{
-		Status: StatusNotEnrolled, UpdatedAt: now.UTC(), Version: buildinfo.Get().Version, PID: os.Getpid(), Engine: a.engineStatus(),
+		Status: StatusNotEnrolled, UpdatedAt: now.UTC(), Version: buildinfo.Get().Version, PID: os.Getpid(),
+		Engine: a.engineStatus(), Storage: a.storageStatus(),
 	}); err != nil {
 		return err
 	}

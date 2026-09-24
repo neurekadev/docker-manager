@@ -19,6 +19,7 @@ package compose
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -49,6 +50,10 @@ type Options struct {
 	MaxConcurrency int
 	// Clock paces polling (default clock.Real()).
 	Clock clock.Clock
+	// Guard, when set, must accept a project directory before it is loaded
+	// or deployed: the agent passes the #28 storage check, so no deploy runs
+	// from a directory the Engine would see at a different path.
+	Guard func(dir string) error
 }
 
 // Adapter runs Compose operations.
@@ -164,6 +169,9 @@ type UpOptions struct {
 // propagation when a dependency is recreated.
 func (a *Adapter) Up(ctx context.Context, p *Project, o UpOptions) error {
 	const op = "compose.up"
+	if err := a.guard(op, p); err != nil {
+		return err
+	}
 	model, err := selected(p, o.Services)
 	if err != nil {
 		return engine.WrapCode(op, engine.CodeInvalidArgument, err)
@@ -217,6 +225,9 @@ func (a *Adapter) Down(ctx context.Context, name string, p *Project, o DownOptio
 
 // Start starts the project's existing containers in dependency order.
 func (a *Adapter) Start(ctx context.Context, p *Project, o RunOptions) error {
+	if err := a.guard("compose.start", p); err != nil {
+		return err
+	}
 	svc, err := a.service(o)
 	if err != nil {
 		return engine.Wrap("compose.start", err)
@@ -284,6 +295,9 @@ func (a *Adapter) awaitStopped(ctx context.Context, project string, services []s
 // Restart restarts services (all when empty); dependents declared with
 // restart: true are restarted too.
 func (a *Adapter) Restart(ctx context.Context, p *Project, services []string, timeout *time.Duration, o RunOptions) error {
+	if err := a.guard("compose.restart", p); err != nil {
+		return err
+	}
 	svc, err := a.service(o)
 	if err != nil {
 		return engine.Wrap("compose.restart", err)
@@ -337,6 +351,33 @@ func modelOf(p *Project) *types.Project {
 		return nil
 	}
 	return p.model
+}
+
+// CodeStorageUnverified is used when Guard refuses without a specific code.
+const CodeStorageUnverified engine.Code = "storage_unverified"
+
+// guard applies Options.Guard to a loaded project.
+func (a *Adapter) guard(op string, p *Project) error {
+	if p == nil {
+		return engine.WrapCode(op, engine.CodeInvalidArgument, errNotLoaded)
+	}
+	return a.guardDir(op, p.Dir)
+}
+
+func (a *Adapter) guardDir(op, dir string) error {
+	if a.opts.Guard == nil {
+		return nil
+	}
+	err := a.opts.Guard(dir)
+	if err == nil {
+		return nil
+	}
+	code := CodeStorageUnverified
+	var c interface{ DiagnosticCode() string }
+	if errors.As(err, &c) {
+		code = engine.Code(c.DiagnosticCode())
+	}
+	return engine.WrapCode(op, code, err)
 }
 
 // selected narrows the project to services and their dependencies.

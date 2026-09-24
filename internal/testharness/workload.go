@@ -10,7 +10,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"slices"
+	"sort"
 	"sync"
 	"time"
 )
@@ -30,9 +33,16 @@ var (
 // BuildWorkload compiles test/fixtures/workload statically for linux/goarch
 // and returns the executable (cached per process).
 func BuildWorkload(ctx context.Context, goarch string) ([]byte, error) {
+	return BuildFixture(ctx, "workload", goarch)
+}
+
+// BuildFixture compiles the program test/fixtures/<name> statically for
+// linux/goarch and returns the executable (cached per process).
+func BuildFixture(ctx context.Context, name, goarch string) ([]byte, error) {
 	workloadMu.Lock()
 	defer workloadMu.Unlock()
-	if b, ok := workloadCache[goarch]; ok {
+	key := name + "/" + goarch
+	if b, ok := workloadCache[key]; ok {
 		return b, nil
 	}
 	root, err := RepoRoot()
@@ -44,18 +54,18 @@ func BuildWorkload(ctx context.Context, goarch string) ([]byte, error) {
 		return nil, err
 	}
 	defer os.RemoveAll(dir)
-	out := filepath.Join(dir, "workload")
-	cmd := exec.CommandContext(ctx, "go", "build", "-trimpath", "-ldflags=-s -w", "-o", out, "./test/fixtures/workload") //nolint:gosec // G204: fixed arguments
+	out := filepath.Join(dir, name)
+	cmd := exec.CommandContext(ctx, "go", "build", "-trimpath", "-ldflags=-s -w", "-o", out, "./test/fixtures/"+name) //nolint:gosec // G204: fixture name from the test
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH="+goarch)
 	if b, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("build workload: %v\n%s", err, b)
+		return nil, fmt.Errorf("build %s: %v\n%s", name, err, b)
 	}
 	b, err := os.ReadFile(out) //nolint:gosec // temp file written above
 	if err != nil {
 		return nil, err
 	}
-	workloadCache[goarch] = b
+	workloadCache[key] = b
 	return b, nil
 }
 
@@ -127,4 +137,50 @@ func WorkloadArchive(binary []byte, goarch, ref string) ([]byte, error) {
 		return nil, err
 	}
 	return out.Bytes(), nil
+}
+
+// TarFiles returns a tar archive with the given files (path -> content);
+// paths named in exec are executable (0755), parent directories are
+// created as needed.
+func TarFiles(files map[string][]byte, exec ...string) ([]byte, error) {
+	epoch := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	names := make([]string, 0, len(files))
+	for n := range files {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	dirs := map[string]bool{}
+	for _, n := range names {
+		for d := path.Dir(n); d != "." && d != "/" && !dirs[d]; d = path.Dir(d) {
+			dirs[d] = true
+		}
+	}
+	dirList := make([]string, 0, len(dirs))
+	for d := range dirs {
+		dirList = append(dirList, d)
+	}
+	sort.Strings(dirList)
+	for _, d := range dirList {
+		if err := tw.WriteHeader(&tar.Header{Name: d + "/", Mode: 0o755, Typeflag: tar.TypeDir, ModTime: epoch}); err != nil {
+			return nil, err
+		}
+	}
+	for _, n := range names {
+		mode := int64(0o644)
+		if slices.Contains(exec, n) {
+			mode = 0o755
+		}
+		if err := tw.WriteHeader(&tar.Header{Name: n, Mode: mode, Size: int64(len(files[n])), Typeflag: tar.TypeReg, ModTime: epoch}); err != nil {
+			return nil, err
+		}
+		if _, err := tw.Write(files[n]); err != nil {
+			return nil, err
+		}
+	}
+	if err := tw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

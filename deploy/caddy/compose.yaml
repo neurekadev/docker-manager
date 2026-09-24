@@ -44,7 +44,11 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # Identical-path mount: stack and volume paths resolve the same inside
-      # the agent and on the Engine (#28). Do not change either side.
+      # the agent and on the Engine (#28). Do not change either side. The
+      # agent verifies this at startup and disables stack operations with a
+      # diagnostic otherwise. Custom Docker data root (`docker info -f
+      # '{{.DockerRootDir}}'`): replace /var/lib/docker on both sides here and
+      # below. SELinux hosts: see docs/deployment.md.
       - /var/lib/docker/volumes:/var/lib/docker/volumes
       # Ensures the stacks volume exists; it is the same directory the
       # identical-path mount above already exposes.

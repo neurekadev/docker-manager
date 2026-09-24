@@ -48,6 +48,8 @@ linters:
             - "!**/internal/agent/compose/**"
             - "!**/internal/testharness/**"
             - "!**/test/**"
+            # Integration tests drive the harness fixtures, whose options use SDK types.
+            - "!**/*integration_test.go"
           deny:
             - pkg: github.com/moby/moby/client
               desc: only internal/agent/engine talks to the Engine (#21)

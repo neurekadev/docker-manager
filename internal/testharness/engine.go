@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/mount"
 	"github.com/moby/moby/client"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -33,6 +34,9 @@ type EngineOptions struct {
 	// HostAccessPorts exposes ports of the test process to the Engine as
 	// host.testcontainers.internal:<port> (e.g. the registry fault proxy).
 	HostAccessPorts []int
+	// DataRoot starts dockerd with --data-root (default /var/lib/docker),
+	// e.g. to test the #28 layout on a custom data-root Engine.
+	DataRoot string
 }
 
 // Engine is a running Docker-in-Docker Engine.
@@ -69,6 +73,9 @@ func StartEngine(t testing.TB, opts EngineOptions) *Engine {
 	// Arguments starting with "-" are appended to the entrypoint's default
 	// dockerd flags (unix socket plus tcp://0.0.0.0:2375 without TLS).
 	args := []string{"--tls=false"}
+	if opts.DataRoot != "" {
+		args = append(args, "--data-root="+opts.DataRoot)
+	}
 	for _, r := range append(append([]string{}, DefaultInsecureRegistries...), opts.InsecureRegistries...) {
 		args = append(args, "--insecure-registry="+r)
 	}
@@ -76,7 +83,14 @@ func StartEngine(t testing.TB, opts EngineOptions) *Engine {
 		testcontainers.WithEnv(map[string]string{"DOCKER_TLS_CERTDIR": ""}),
 		testcontainers.WithCmd(args...),
 		testcontainers.WithExposedPorts("2375/tcp"),
-		testcontainers.WithHostConfigModifier(func(hc *container.HostConfig) { hc.Privileged = true }),
+		testcontainers.WithHostConfigModifier(func(hc *container.HostConfig) {
+			hc.Privileged = true
+			if opts.DataRoot != "" {
+				// A volume (not the container's overlay rootfs) keeps the
+				// custom data root on a filesystem overlay2 supports.
+				hc.Mounts = append(hc.Mounts, mount.Mount{Type: mount.TypeVolume, Target: opts.DataRoot})
+			}
+		}),
 		testcontainers.WithLabels(map[string]string{"dev.neureka.dockyard.test": "engine"}),
 		opts.Network.option(opts.Alias),
 		testcontainers.WithWaitStrategy(wait.ForHTTP("/_ping").WithPort("2375/tcp").WithStartupTimeout(3 * time.Minute)),

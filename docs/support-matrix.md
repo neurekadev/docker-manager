@@ -139,6 +139,27 @@ the SDK runs (`TestComposeBuildLocalContext`, `image.build.*`).
 - Engine-version quirks handled by the adapter: duplicate network names on
   Docker 24 (¹), container list lag after stop before Engine 26 (³).
 
-## Volumes and file access
+## Storage layout and volumes (#28)
 
-Non-local volume drivers and the identical-path layout: see #28.
+The agent verifies the identical-path layout at startup
+(`internal/agent/storage`, operator guide in
+[deployment.md](deployment.md#host-storage-layout-28)); stack operations are
+refused with a diagnostic when it does not hold.
+
+| layout | status | evidence |
+| --- | --- | --- |
+| default data root, `/var/lib/docker/volumes` identical mount, stacks in `dockyard_stacks` | supported | `TestComposeStacksVolumeDefaultDataRoot`: a stack with `./data`, `env_file` and a local build context deploys from the stacks volume inside the agent image; the Engine mounts the real host path |
+| custom data root with the matching identical mount | supported | `TestComposeStacksVolumeCustomDataRoot` (`--data-root /srv/docker-data`), `TestComposeAgentVerifiesStorageAtStartup` |
+| default mount on a custom data root / volume directory mounted from another path | refused (`storage_mount_missing` / `storage_path_mismatch`) | `TestComposeMisconfiguredMountRefused`: diagnostic at startup, no deploy, the agent stays healthy |
+| extra stack roots (`DOCKYARD_STACK_ROOTS`) at identical paths | supported; a mismatched root is refused on its own (`storage_root_mismatch`) | `TestComposeStackRoots` |
+| rootless Engine, Docker Desktop | refused (`storage_rootless_engine`, `storage_docker_desktop`) | unit tests (`internal/agent/storage`) |
+
+**Volume drivers (decision for #25 Q2/Q5):** only **local-driver volumes
+stored under Docker's volume directory** are supported for file browsing
+(#15), watching (#23) and backup (#10) in v1. Volumes of other drivers
+(plugins such as `rexray`, `rclone`, cloud block storage) and local volumes
+backed by remote storage (`type=nfs|nfs4|cifs|smb|…` or `o=addr=…`) are
+listed read-only with the reason (`storage.Result.AccessFor`): their data is
+not under the volume directory, or only while a container mounts it. A
+short-lived helper container per operation was the alternative; it is
+deferred past v1.
