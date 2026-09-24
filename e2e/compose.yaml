@@ -1,0 +1,61 @@
+# E2E stack (#29): the manager built from source behind Caddy with its
+# internal CA, plus the stream fixture for the SSE/WebSocket helpers.
+#
+#   docker compose -f e2e/compose.yaml up -d --build --wait
+#   E2E_BASE_URL=https://localhost:8443 npm --prefix e2e test
+#
+# One origin: https://localhost:${E2E_HTTPS_PORT} (see e2e/Caddyfile).
+name: dockyard-e2e
+
+services:
+  dockyard-manager:
+    build:
+      context: ..
+      dockerfile: deploy/docker/manager.Dockerfile
+      args:
+        VERSION: 0.0.0-e2e
+        REVISION: ${E2E_REVISION:-local}
+    image: dockyard-manager:e2e
+    environment:
+      DOCKYARD_PUBLIC_URL: https://localhost:${E2E_HTTPS_PORT:-8443}
+      DOCKYARD_LOG_LEVEL: debug
+    volumes:
+      - manager_data:/var/lib/dockyard
+    networks:
+      - e2e
+
+  echo:
+    build:
+      context: ..
+      dockerfile: e2e/echo.Dockerfile
+    image: dockyard-e2e-echo:local
+    networks:
+      - e2e
+
+  caddy:
+    image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+    depends_on:
+      dockyard-manager:
+        condition: service_healthy
+      echo:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${E2E_HTTPS_PORT:-8443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    healthcheck:
+      # Caddy admin API (localhost only): the config is loaded.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    networks:
+      - e2e
+
+volumes:
+  manager_data:
+  caddy_data:
+
+networks:
+  e2e:

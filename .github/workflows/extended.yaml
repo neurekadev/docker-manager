@@ -1,11 +1,14 @@
-# Extended suites: slower or Docker-backed tests (#29). Runs on every push to
-# main, nightly, and on demand:
+# Extended suites (#29): slower or Docker-backed tests. Runs on every push to
+# main, nightly (full matrix: every Engine in test/matrix/engines.json on
+# amd64 and arm64), and on demand:
 #
-#   gh workflow run extended.yaml --ref <branch> -f suites=race
+#   gh workflow run extended.yaml --ref <branch> -f suites=fuzz,e2e
 #
 # Each suite is its own job gated on the `suites` input ("all" or a
-# comma-separated list of job names). Add suites as new jobs using the same
-# `if:` pattern (e.g. fuzz, engine, compose, e2e).
+# comma-separated list of job names). Suites whose product features do not
+# exist yet run their fixture self-tests plus whatever real tests exist and
+# print a ::notice:: listing the pending checks; they never fake a pass.
+# How to run each suite locally: docs/testing/harness.md.
 name: extended
 
 on:
@@ -16,9 +19,27 @@ on:
   workflow_dispatch:
     inputs:
       suites:
-        description: 'Suites to run: "all" or a comma-separated list (race)'
+        description: 'Suites: "all" or a comma-separated list without spaces of race,fuzz,engine-matrix,compose-fixtures,storage,fs-security,fault-injection,secret-canary,e2e,smoke'
         type: string
         default: all
+      fuzztime:
+        description: "fuzz: -fuzztime per target"
+        type: string
+        default: 60s
+      arm64:
+        description: "engine-matrix: also run on ubuntu-24.04-arm (auto = yes unless the DOCKYARD_ARM64_RUNNERS variable is false)"
+        type: choice
+        options: [auto, "true", "false"]
+        default: auto
+      smoke-images:
+        description: "smoke: auto (edge on main, locally built elsewhere), edge, or local"
+        type: choice
+        options: [auto, edge, local]
+        default: auto
+      smoke-revision:
+        description: "smoke: expected revision of the edge images (default: the commit of this run)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -30,7 +51,63 @@ concurrency:
 env:
   GOTOOLCHAIN: local
 
+defaults:
+  run:
+    # bash -eo pipefail (the implicit default shell lacks pipefail).
+    shell: bash
+
 jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      engines: ${{ steps.plan.outputs.engines }}
+      runners: ${{ steps.plan.outputs.runners }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Engine matrix and runners
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          SUITES: ${{ github.event_name == 'workflow_dispatch' && inputs.suites || 'all' }}
+          ARM64_INPUT: ${{ inputs.arm64 }}
+          ARM64_VAR: ${{ vars.DOCKYARD_ARM64_RUNNERS }}
+        run: |
+          engines="$(jq -c '[.engines[].version]' test/matrix/engines.json)"
+          echo "engines=${engines}" >> "$GITHUB_OUTPUT"
+          # arm64: GitHub-hosted ubuntu-24.04-arm runners were verified for
+          # this private repository on 2026-09-24. A job for an unavailable
+          # label would queue instead of failing, so availability is a
+          # repository switch: DOCKYARD_ARM64_RUNNERS=false falls back to
+          # amd64 only. Pushes to main run amd64 only to save minutes; the
+          # nightly schedule and manual runs cover both architectures.
+          arm=true
+          reason=""
+          if [ "${ARM64_VAR}" = "false" ]; then
+            arm=false; reason="repository variable DOCKYARD_ARM64_RUNNERS=false (arm64 runners marked unavailable)"
+          elif [ "${ARM64_INPUT}" = "false" ]; then
+            arm=false; reason="disabled by the arm64 input"
+          elif [ "${EVENT}" = "push" ]; then
+            arm=false; reason="pushes to main run amd64 only; the nightly schedule covers arm64"
+          fi
+          if [ "$arm" = true ]; then
+            runners='["ubuntu-24.04","ubuntu-24.04-arm"]'
+          else
+            runners='["ubuntu-24.04"]'
+            echo "::notice title=engine-matrix amd64 only::${reason}"
+          fi
+          echo "runners=${runners}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Plan"
+            echo
+            echo "- suites: \`${SUITES}\`"
+            echo "- Engines (test/matrix/engines.json): \`${engines}\`"
+            echo "- runners: \`${runners}\`${reason:+ — **amd64 only:** ${reason}}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   race:
     name: race
     if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',race,')
@@ -49,3 +126,357 @@ jobs:
         env:
           CGO_ENABLED: "1"
         run: go test -race -count=1 ./...
+
+  fuzz:
+    name: fuzz
+    if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',fuzz,')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      FUZZTIME: ${{ inputs.fuzztime || '60s' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Fuzz every FuzzXxx target
+        run: bash scripts/ci/fuzz-all.sh
+      - name: Upload new corpus entries
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-corpus
+          path: |
+            **/testdata/fuzz/**
+            ${{ runner.temp }}/fuzz-cache/**
+          if-no-files-found: ignore
+          retention-days: 30
+
+  engine-matrix:
+    name: engine-matrix (${{ matrix.engine }}, ${{ matrix.runner }})
+    needs: plan
+    if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',engine-matrix,')
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: ${{ fromJSON(needs.plan.outputs.engines) }}
+        runner: ${{ fromJSON(needs.plan.outputs.runners) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Engine tests (TestEngine*)
+        env:
+          DOCKYARD_TEST_ENGINE: ${{ matrix.engine }}
+        run: go test -tags integration -count=1 -timeout 25m -run '^TestEngine' -v ./... 2>&1 | tee engine-tests.log
+      - name: Pending checks
+        if: always()
+        run: |
+          msg="Moby adapter and agent tests against this Engine (#21), negotiated API downgrade on the adapter (#21), two agents on two Engines (#3, #34)"
+          echo "::notice title=engine-matrix pending checks::${msg}"
+          {
+            echo "### engine-matrix ${{ matrix.engine }} on ${{ matrix.runner }}"
+            echo
+            grep -E '^(=== RUN|--- (PASS|FAIL|SKIP)|\s+fixtures_integration_test.go:[0-9]+: Engine )' engine-tests.log | grep -v '=== RUN' || true
+            echo
+            echo "Pending: ${msg}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  compose-fixtures:
+    name: compose-fixtures
+    if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',compose-fixtures,')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Registry, Git server and Compose tests
+        run: go test -tags integration -count=1 -timeout 25m -run '^Test(Registry|Git|Compose)' -v ./...
+      - name: Pending checks
+        if: always()
+        run: |
+          msg="Compose projects with depends_on conditions, relative bind mounts, env_file and build contexts (#28); Git builds from the Git fixture (#33); private-registry and Docker Hub pulls on two agents, 401/429 handling and credential rotation (#19)"
+          echo "::notice title=compose-fixtures pending checks::${msg}"
+          echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+
+  storage:
+    name: storage
+    if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',storage,')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: MinIO and restic tests
+        env:
+          DOCKYARD_TEST_CACHE: ${{ runner.temp }}/dockyard-test-cache
+        run: go test -tags integration -count=1 -timeout 25m -run '^Test(MinIO|Restic|Storage|Backup|Restore)' -v ./...
+      - name: Pending checks
+        if: always()
+        run: |
+          msg="local and S3 backup/restore through the agent (#10), corrupt/truncated repository and manifest fixtures, clean-manager import with Recovery Key (#24), retention (#10)"
+          echo "::notice title=storage pending checks::${msg}"
+          echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+
+  fs-security:
+    name: fs-security
+    if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',fs-security,')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Corpus generator, reference containment and TOCTOU race
+        run: go test -count=1 -race -v ./internal/testutil/fscorpus/...
+        env:
+          CGO_ENABLED: "1"
+      - name: Consumers of the corpus
+        run: |
+          mapfile -t consumers < <(grep -rl --include='*_test.go' 'internal/testutil/fscorpus' . | grep -v '^./internal/testutil/fscorpus/' || true)
+          if [ "${#consumers[@]}" -eq 0 ]; then
+            echo "no consumers yet"
+          else
+            printf '%s\n' "${consumers[@]}" | xargs -n1 dirname | sort -u | sed 's|^\./|./|' | xargs go test -count=1 -v
+          fi
+          echo "consumers=${#consumers[@]}" >> "$GITHUB_OUTPUT"
+        id: consumers
+      - name: Pending checks
+        if: always()
+        run: |
+          msg="file manager and archive/restore extraction against test/corpora/fs (#15, #24), simulated missed fsnotify events (#15)"
+          echo "::notice title=fs-security pending checks::${msg} — corpus consumers found: ${{ steps.consumers.outputs.consumers || 0 }}"
+          echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+
+  fault-injection:
+    name: fault-injection
+    if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',fault-injection,')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Tests built with -tags faultinject
+        id: tagged
+        run: |
+          mapfile -t files < <(grep -rlE --include='*.go' '^//go:build .*faultinject' . || true)
+          echo "files=${#files[@]}" >> "$GITHUB_OUTPUT"
+          printf 'faultinject-tagged file: %s\n' "${files[@]}"
+          go test -tags faultinject -count=1 -timeout 25m ./...
+      - name: Subprocess kill suites
+        id: kill
+        run: |
+          # Suites that start the real binaries and kill them mid-job live in
+          # test/fault (tag integration or faultinject) and are named TestKill*/TestCrash*.
+          if [ -d test/fault ]; then
+            go test -tags integration,faultinject -count=1 -timeout 25m -run '^Test(Kill|Crash)' -v ./test/fault/...
+            echo "ran=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no subprocess kill suites (test/fault) yet"
+            echo "ran=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Pending checks
+        if: always()
+        run: |
+          msg="kill the manager or agent mid-job with in-flight recovery (#26), drop agent connections and reconnect with gap recovery (#3, #23), clock skew between manager and agent (#3, #13)"
+          echo "::notice title=fault-injection pending checks::${msg} — faultinject-tagged files: ${{ steps.tagged.outputs.files || 0 }}, kill suites ran: ${{ steps.kill.outputs.ran || false }}"
+          echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+
+  secret-canary:
+    name: secret-canary
+    if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',secret-canary,')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Canary helpers and every test that uses them
+        id: canary
+        run: |
+          mapfile -t pkgs < <(grep -rl --include='*_test.go' 'internal/testutil/canary' . | xargs -r -n1 dirname | sort -u)
+          echo "consumers=$(( ${#pkgs[@]} ))" >> "$GITHUB_OUTPUT"
+          go test -count=1 -v ./internal/testutil/canary/... "${pkgs[@]}"
+      - name: Pending checks
+        if: always()
+        run: |
+          msg="canary sweeps over logs, audit rows, job output and API responses for passwords/TOTP (#16), API tokens (#31), registry credentials (#19), S3 keys (#10), .env values (#7), audit (#30)"
+          echo "::notice title=secret-canary pending checks::${msg} — packages using internal/testutil/canary: ${{ steps.canary.outputs.consumers || 0 }}"
+          echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+
+  e2e:
+    name: e2e
+    if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',e2e,')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      E2E_HTTPS_PORT: "8443"
+      E2E_BASE_URL: https://localhost:8443
+      E2E_REVISION: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: TLS proxy fixture (Go)
+        run: go test -tags integration -count=1 -timeout 15m -run '^TestTLSProxy' -v ./internal/testharness/
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Start manager (built from source) behind Caddy
+        run: docker compose -f e2e/compose.yaml up -d --build --wait --wait-timeout 300
+      - name: Trust Caddy's root CA (browser and Node)
+        run: |
+          docker compose -f e2e/compose.yaml cp caddy:/data/caddy/pki/authorities/local/root.crt e2e/.caddy-root.crt
+          sudo apt-get update -qq && sudo apt-get install -y -qq libnss3-tools
+          mkdir -p "$HOME/.pki/nssdb"
+          [ -f "$HOME/.pki/nssdb/cert9.db" ] || certutil -d "sql:$HOME/.pki/nssdb" -N --empty-password
+          certutil -d "sql:$HOME/.pki/nssdb" -A -t "C,," -n dockyard-e2e -i e2e/.caddy-root.crt
+          for i in $(seq 1 60); do
+            curl -sS --fail --cacert e2e/.caddy-root.crt "${E2E_BASE_URL}/api/v1/health/ready" && break
+            sleep 2
+          done
+          curl -sS --fail --cacert e2e/.caddy-root.crt "${E2E_BASE_URL}/api/v1/health/ready"
+      - name: Install Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run typecheck
+      - name: Playwright
+        working-directory: e2e
+        env:
+          CI: "1"
+          NODE_EXTRA_CA_CERTS: ${{ github.workspace }}/e2e/.caddy-root.crt
+        run: npx playwright test
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Compose logs
+        if: failure()
+        run: docker compose -f e2e/compose.yaml logs --no-color --timestamps
+      - name: Pending checks
+        if: always()
+        run: |
+          msg="passkey/TOTP login and recovery flows (#16), PWA manifest/service worker/offline and live updates across views (#23), agents through the proxy (#27), responsive layouts (#22)"
+          echo "::notice title=e2e pending checks::${msg}"
+          echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+
+  smoke:
+    name: smoke
+    if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',smoke,')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Choose images
+        id: mode
+        env:
+          INPUT: ${{ inputs.smoke-images }}
+        run: |
+          mode="${INPUT:-auto}"
+          if [ "$mode" = auto ]; then
+            if [ "${GITHUB_REF}" = refs/heads/main ]; then mode=edge; else mode=local; fi
+          fi
+          echo "mode=${mode}" >> "$GITHUB_OUTPUT"
+          echo "Smoke images: ${mode}" >> "$GITHUB_STEP_SUMMARY"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Log in to GHCR
+        if: steps.mode.outputs.mode == 'edge'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build manager image (local)
+        if: steps.mode.outputs.mode == 'local'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/docker/manager.Dockerfile
+          load: true
+          tags: dockyard-manager:smoke
+          build-args: |
+            VERSION=0.0.0-smoke
+            REVISION=${{ github.sha }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=manager
+      - name: Build agent image (local)
+        if: steps.mode.outputs.mode == 'local'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/docker/agent.Dockerfile
+          load: true
+          tags: dockyard-agent:smoke
+          build-args: |
+            VERSION=0.0.0-smoke
+            REVISION=${{ github.sha }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=agent
+      - name: Deploy smoke test
+        env:
+          SMOKE_IMAGES: ${{ steps.mode.outputs.mode }}
+          SMOKE_REVISION: ${{ inputs.smoke-revision || github.sha }}
+          # Read-only: compares commits when :edge has moved on to a newer main.
+          GH_TOKEN: ${{ github.token }}
+          SMOKE_ARTIFACTS: ${{ runner.temp }}/smoke
+        run: bash scripts/smoke/deploy-smoke.sh
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: smoke-logs
+          path: ${{ runner.temp }}/smoke/
+          if-no-files-found: ignore
+          retention-days: 14

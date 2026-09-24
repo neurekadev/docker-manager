@@ -77,8 +77,16 @@ first) always embeds the real UI.
   code with `//go:build integration`.
 - Fuzz targets (`FuzzXxx`) run their seed corpus in `go test`; the extended
   workflow runs real fuzzing.
-- `extended.yaml` runs slower suites (currently `go test -race`) on `main`,
-  nightly and on demand: `gh workflow run extended.yaml --ref <branch> -f suites=race`.
+- `extended.yaml` runs the slower suites (race, fuzz, Engine matrix,
+  Compose fixtures, storage, filesystem security, fault injection, secret
+  canaries, Playwright E2E, deploy smoke) on `main`, nightly and on demand:
+  `gh workflow run extended.yaml --ref <branch> -f suites=race,fuzz`.
+- Shared test infrastructure: `internal/testharness` (DinD Engines from
+  `test/matrix/engines.json`, registry with fault proxy, Git server, MinIO,
+  restic, TLS proxy), `internal/testutil/canary` (secret canaries),
+  `internal/testutil/fscorpus` (traversal/archive/TOCTOU corpora), `e2e/`
+  (Playwright). See [docs/testing/harness.md](testing/harness.md) and the
+  release map [docs/testing/verification-matrix.md](testing/verification-matrix.md).
 
 ## Line endings
 
