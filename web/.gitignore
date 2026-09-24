@@ -1,0 +1,18 @@
+node_modules
+
+# SvelteKit build output (embedded by web/embed.go). build/fallback is committed.
+/.svelte-kit
+/build/app
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*

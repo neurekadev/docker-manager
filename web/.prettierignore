@@ -1,0 +1,10 @@
+# Package managers
+package-lock.json
+
+# Build output and generated code
+/build/
+/.svelte-kit/
+src/lib/api/schema.d.ts
+
+# Go files living next to the app
+*.go

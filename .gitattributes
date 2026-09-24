@@ -1,0 +1,28 @@
+# LF everywhere, regardless of core.autocrlf (scripts/policy-check.sh enforces it).
+* text=auto eol=lf
+
+# Binary files: never normalize, never diff as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.avif binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.wasm binary
+*.db binary
+*.sqlite binary
+*.gz binary
+*.bz2 binary
+*.zip binary
+*.tar binary
+
+# Generated artifacts: collapse in diffs; regenerate with scripts/generate.sh.
+api/openapi.json linguist-generated=true
+web/src/lib/api/schema.d.ts linguist-generated=true
+web/package-lock.json linguist-generated=true -diff
+go.sum linguist-generated=true

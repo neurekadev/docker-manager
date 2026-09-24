@@ -1,0 +1,3 @@
+# DockYard is a private administration UI.
+User-agent: *
+Disallow: /

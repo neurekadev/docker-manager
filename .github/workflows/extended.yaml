@@ -1,0 +1,51 @@
+# Extended suites: slower or Docker-backed tests (#29). Runs on every push to
+# main, nightly, and on demand:
+#
+#   gh workflow run extended.yaml --ref <branch> -f suites=race
+#
+# Each suite is its own job gated on the `suites` input ("all" or a
+# comma-separated list of job names). Add suites as new jobs using the same
+# `if:` pattern (e.g. fuzz, engine, compose, e2e).
+name: extended
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      suites:
+        description: 'Suites to run: "all" or a comma-separated list (race)'
+        type: string
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extended-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  race:
+    name: race
+    if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',race,')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: go test -race
+        # The race detector needs cgo; the SQLite driver stays pure Go (modernc).
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race -count=1 ./...

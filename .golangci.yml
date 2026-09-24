@@ -1,0 +1,101 @@
+# golangci-lint v2 configuration. Pinned tool version: v2.13.2
+# (CI: golangci/golangci-lint-action with version v2.13.2; locally the same).
+version: "2"
+
+run:
+  go: "1.27"
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - depguard
+    - errcheck
+    - forbidigo
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - noctx
+    - revive
+    - staticcheck
+    - unused
+  settings:
+    depguard:
+      rules:
+        legacy-docker:
+          files:
+            - $all
+          deny:
+            - pkg: github.com/docker/docker
+              desc: use github.com/moby/moby/client and /api through the agent Engine adapter (#21)
+            - pkg: github.com/fsouza/go-dockerclient
+              desc: use github.com/moby/moby/client through the agent Engine adapter (#21)
+            - pkg: github.com/mattn/go-sqlite3
+              desc: DockYard is CGO-free; use bun/driver/sqliteshim (modernc.org/sqlite)
+    forbidigo:
+      forbid:
+        - pattern: ^fmt\.Print(f|ln)?$
+          msg: use log/slog (or write to an injected io.Writer in cmd/)
+        - pattern: ^print(ln)?$
+          msg: use log/slog
+      analyze-types: true
+    gosec:
+      excludes:
+        - G104 # unhandled errors: errcheck covers this with better exclusions
+        - G304 # file inclusion via variable: paths come from operator config; containment is enforced by the file manager (#15)
+        - G306 # WriteFile perms: reviewed per call
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # readability over struct packing
+        - shadow # too noisy for err shadowing idioms
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: errorf
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: var-declaration
+  exclusions:
+    generated: strict
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - noctx
+          - revive
+      # Command entry points write user-facing output directly.
+      - path: ^cmd/
+        linters:
+          - forbidigo
+    paths:
+      - web/node_modules
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    paths:
+      - web/node_modules
