@@ -1,0 +1,315 @@
+# Fast PR suite (target: under ~15 minutes). Docker-free checks run the same
+# scripts as `bash scripts/check.sh` locally. On pushes to main the images job
+# publishes the rolling `edge` tags to GHCR.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # PRs: a new push cancels the superseded run. main: every commit runs.
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GOLANGCI_LINT_VERSION: v2.13.2
+  GOVULNCHECK_VERSION: v1.8.0
+  GOTOOLCHAIN: local
+
+jobs:
+  go:
+    name: go
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+      - name: gofmt, vet, test
+        env:
+          GO_CHECK_SKIP_LINT: "1"
+          GO_TEST_FLAGS: -coverprofile=coverage.out -covermode=atomic
+        run: bash scripts/go-check.sh
+      - name: Coverage summary
+        run: |
+          {
+            echo "### Go coverage"
+            echo
+            echo '```'
+            go tool cover -func=coverage.out | tail -n 1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  policy:
+    name: policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Repository policy
+        run: bash scripts/policy-check.sh
+      - name: Generated artifacts are up to date
+        run: bash scripts/generate.sh --check
+
+  web:
+    name: web
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Lint, check, test, build
+        run: bash scripts/web-check.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: web-build
+          path: web/build/app
+          if-no-files-found: error
+          retention-days: 7
+
+  static-build:
+    name: static-build
+    needs: web
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: web-build
+          path: web/build/app
+      - name: Build static binaries (linux amd64 + arm64)
+        run: bash scripts/build-static.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dockyard-binaries
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  vuln:
+    name: vuln
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: govulncheck
+        run: go run "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" ./...
+      - name: npm audit (production dependencies, high and above)
+        working-directory: web
+        run: npm audit --omit=dev --audit-level=high
+
+  licenses:
+    name: licenses
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: License allowlist (Go + npm production)
+        env:
+          LICENSE_REPORT: ${{ runner.temp }}/licenses.md
+        run: |
+          bash scripts/license-check.sh
+          cat "$LICENSE_REPORT" >> "$GITHUB_STEP_SUMMARY"
+
+  images:
+    name: images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      MANAGER_IMAGE: ghcr.io/neurekadev/dockyard-manager
+      AGENT_IMAGE: ghcr.io/neurekadev/dockyard-agent
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate the Compose example
+        run: docker compose -f deploy/compose/compose.yaml config --quiet
+      - name: Build metadata
+        id: meta
+        run: |
+          echo "created=$(git log -1 --format=%cI)" >> "$GITHUB_OUTPUT"
+          echo "version=0.0.0-edge" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Manager image
+        id: manager
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/docker/manager.Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ env.MANAGER_IMAGE }}:edge
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ github.sha }}
+            CREATED=${{ steps.meta.outputs.created }}
+          labels: |
+            org.opencontainers.image.title=dockyard-manager
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+          annotations: |
+            index:org.opencontainers.image.title=dockyard-manager
+            index:org.opencontainers.image.description=DockYard manager
+            index:org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            index:org.opencontainers.image.revision=${{ github.sha }}
+            index:org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=manager
+          cache-to: type=gha,scope=manager,mode=max
+
+      - name: Agent image
+        id: agent
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/docker/agent.Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ env.AGENT_IMAGE }}:edge
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ github.sha }}
+            CREATED=${{ steps.meta.outputs.created }}
+          labels: |
+            org.opencontainers.image.title=dockyard-agent
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+          annotations: |
+            index:org.opencontainers.image.title=dockyard-agent
+            index:org.opencontainers.image.description=DockYard agent
+            index:org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            index:org.opencontainers.image.revision=${{ github.sha }}
+            index:org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=agent
+          cache-to: type=gha,scope=agent,mode=max
+
+      # GitHub artifact attestations require GitHub Enterprise Cloud for
+      # private repositories; the BuildKit provenance (mode=max) and SBOM
+      # attestations above are attached to the images regardless.
+      - name: Attest manager provenance
+        id: attest-manager
+        if: env.PUBLISH == 'true'
+        continue-on-error: true
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.MANAGER_IMAGE }}
+          subject-digest: ${{ steps.manager.outputs.digest }}
+          push-to-registry: true
+      - name: Attest agent provenance
+        id: attest-agent
+        if: env.PUBLISH == 'true'
+        continue-on-error: true
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.AGENT_IMAGE }}
+          subject-digest: ${{ steps.agent.outputs.digest }}
+          push-to-registry: true
+
+      - name: Summary
+        if: always()
+        env:
+          MANAGER_DIGEST: ${{ steps.manager.outputs.digest }}
+          AGENT_DIGEST: ${{ steps.agent.outputs.digest }}
+          ATTEST_MANAGER: ${{ steps.attest-manager.outcome }}
+          ATTEST_AGENT: ${{ steps.attest-agent.outcome }}
+        run: |
+          {
+            echo "### Images (${{ env.PUBLISH == 'true' && 'published :edge' || 'built, not pushed' }})"
+            echo
+            echo "| image | digest |"
+            echo "| --- | --- |"
+            echo "| ${MANAGER_IMAGE}:edge | \`${MANAGER_DIGEST:-n/a}\` |"
+            echo "| ${AGENT_IMAGE}:edge | \`${AGENT_DIGEST:-n/a}\` |"
+            if [ "$PUBLISH" = "true" ]; then
+              echo
+              echo "GitHub artifact attestation: manager=${ATTEST_MANAGER:-skipped}, agent=${ATTEST_AGENT:-skipped}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Inspect published manifests
+        if: env.PUBLISH == 'true'
+        run: |
+          for img in "${MANAGER_IMAGE}:edge" "${AGENT_IMAGE}:edge"; do
+            echo "== ${img}"
+            docker buildx imagetools inspect "${img}"
+            docker buildx imagetools inspect "${img}" --format '{{json .Manifest}}' \
+              | jq -e '[.manifests[].platform | select(. != null) | "\(.os)/\(.architecture)"] | (index("linux/amd64") != null and index("linux/arm64") != null)'
+          done

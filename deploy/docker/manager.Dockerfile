@@ -1,0 +1,87 @@
+# DockYard manager image: static Go binary with the embedded SvelteKit UI,
+# plus a pinned, checksum-verified restic.
+#
+# Every builder stage runs on $BUILDPLATFORM and cross-compiles, and the
+# final stage has no RUN instructions, so multi-arch builds need no QEMU.
+#
+#   docker buildx build -f deploy/docker/manager.Dockerfile \
+#     --platform linux/amd64,linux/arm64 .
+#
+# Base images are pinned by digest; update tag and digest together.
+
+ARG GO_IMAGE=golang:1.27.1-alpine3.24@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414
+ARG NODE_IMAGE=node:26.9.0-alpine3.24@sha256:dbaa92e5758cbbcf85d65d5403fdb530fe3442cbe8c6dbfb7ef23365450d5070
+ARG FETCH_IMAGE=alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+# Root variant of distroless static (CA certificates, tzdata, /etc/passwd; no shell).
+ARG RUNTIME_IMAGE=gcr.io/distroless/static-debian12:latest@sha256:d75cdd72874d4790092fcb1b058493ecf6bb5bf2b2b897045b00ff01d91843f2
+
+# ---------------------------------------------------------------- web UI
+FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS web
+WORKDIR /src/web
+COPY web/package.json web/package-lock.json web/.npmrc ./
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+COPY web/ ./
+RUN npm run build
+
+# ---------------------------------------------------------------- restic
+FROM --platform=$BUILDPLATFORM ${FETCH_IMAGE} AS restic
+ARG TARGETARCH
+# restic release and SHA-256 of the linux .bz2 assets (from the release's
+# signed SHA256SUMS). Bump all three together.
+ARG RESTIC_VERSION=0.19.1
+ARG RESTIC_SHA256_AMD64=f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c
+ARG RESTIC_SHA256_ARM64=a5f64aaab53d51e311fa3829124c5b703f2d14cf187d8640b6be3b2b49376465
+RUN set -eu; \
+    case "${TARGETARCH}" in \
+        amd64) sum="${RESTIC_SHA256_AMD64}" ;; \
+        arm64) sum="${RESTIC_SHA256_ARM64}" ;; \
+        *) echo "unsupported TARGETARCH ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    wget -q -O /tmp/restic.bz2 "https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_${TARGETARCH}.bz2"; \
+    echo "${sum}  /tmp/restic.bz2" | sha256sum -c -; \
+    bunzip2 -c /tmp/restic.bz2 > /restic; \
+    chmod 0755 /restic
+
+# ---------------------------------------------------------------- Go
+FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS build
+WORKDIR /src
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS=-mod=readonly
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY cmd/ cmd/
+COPY internal/ internal/
+COPY web/embed.go web/
+COPY web/build/fallback/ web/build/fallback/
+COPY --from=web /src/web/build/app/ web/build/app/
+ARG TARGETARCH
+ARG VERSION=0.0.0-edge
+ARG REVISION=unknown
+ARG CREATED=unknown
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=linux GOARCH="${TARGETARCH}" go build -trimpath \
+      -ldflags "-s -w -X github.com/neurekadev/dockyard/internal/buildinfo.Version=${VERSION} -X github.com/neurekadev/dockyard/internal/buildinfo.Commit=${REVISION} -X github.com/neurekadev/dockyard/internal/buildinfo.Date=${CREATED}" \
+      -o /out/dockyard-manager ./cmd/dockyard-manager
+
+# ---------------------------------------------------------------- runtime
+FROM ${RUNTIME_IMAGE}
+ARG VERSION=0.0.0-edge
+ARG REVISION=unknown
+ARG CREATED=unknown
+LABEL org.opencontainers.image.title="dockyard-manager" \
+      org.opencontainers.image.description="DockYard manager: web UI, API and agent endpoint" \
+      org.opencontainers.image.source="https://github.com/neurekadev/dockyard" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.created="${CREATED}"
+COPY --from=build /out/dockyard-manager /usr/local/bin/dockyard-manager
+COPY --from=restic /restic /usr/local/bin/restic
+ENV DOCKYARD_LISTEN_ADDR=:8080 \
+    DOCKYARD_DATA_DIR=/var/lib/dockyard
+# DockYard containers run as root (UID 0); non-root is unsupported (#28).
+USER 0:0
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["/usr/local/bin/dockyard-manager", "healthcheck"]
+ENTRYPOINT ["/usr/local/bin/dockyard-manager"]
+CMD ["serve"]

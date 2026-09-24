@@ -1,0 +1,18 @@
+# Keep the build context small and free of local state/secrets.
+.git
+.github
+.claude
+dist
+coverage.out
+**/*.exe
+**/*.test
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/secret.key
+**/.env
+web/node_modules
+web/.svelte-kit
+web/build/app
+docs
+deploy/compose

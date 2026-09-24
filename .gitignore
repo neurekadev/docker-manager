@@ -1,0 +1,31 @@
+# Build output
+/dist/
+/coverage.out
+*.test
+*.exe
+*.prof
+
+# Local runtime data (never commit databases or keys)
+/data/
+*.db
+*.db-wal
+*.db-shm
+secret.key
+
+# Local environment files
+.env
+!.env.example
+!deploy/compose/.env.example
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Agent tooling
+/.claude/
+
+# Go fuzz cache output written next to tests (commit only curated seeds)
+**/testdata/fuzz/**/*.tmp
