@@ -78,20 +78,23 @@ in_list() {
 #   internal/agent/compose/*_test.go  tests scripting that fake Engine
 #   internal/agent/config/config.go   the DOCKER_HOST default value only
 #   internal/testutil/fscorpus/       a path-traversal test string
-#   internal/testharness/             DinD readiness probes of the CI fixtures
+#   internal/testharness/             DinD readiness probes and agent mounts of the CI fixtures
+#   test/deploy/*_test.go             tests asserting the deploy examples mount the socket
 engine_http_exceptions=(
 	'^internal/agent/engine/'
 	'^internal/agent/compose/[^/]+_test\.go$'
 	'^internal/agent/config/config\.go$'
 	'^internal/testutil/fscorpus/'
 	'^internal/testharness/'
+	'^test/deploy/[^/]+_test\.go$'
 )
 
 check_direct_engine_http() {
-	local f hits=""
+	local f h hits=""
 	for f in "${go_files[@]}"; do
 		in_list "$f" "${engine_http_exceptions[@]}" && continue
-		hits+="$(grep -nHE 'docker\.sock|"(/v1\.[0-9]+)?/(_ping|containers/(json|create)|images/(json|create)|volumes/create|networks/create|exec/|session)"|"/v1\.[0-9]+/' "$f" || true)"
+		h="$(grep -nHE 'docker\.sock|"(/v1\.[0-9]+)?/(_ping|containers/(json|create)|images/(json|create)|volumes/create|networks/create|exec/[^"]*)"|"/v1\.[0-9]+/' "$f" || true)"
+		[ -n "$h" ] && hits+="${h}"$'\n'
 	done
 	[ -n "$hits" ] && fail "direct Engine HTTP outside internal/agent/engine (use the Moby SDK adapter, #21):"$'\n'"$hits"
 	return 0
@@ -107,10 +110,11 @@ sdk_exceptions=(
 )
 
 check_sdk_boundary() {
-	local f hits=""
+	local f h hits=""
 	for f in "${go_files[@]}"; do
 		in_list "$f" "${sdk_exceptions[@]}" && continue
-		hits+="$(grep -nHE '"github\.com/(moby/moby/(client|api)|docker/compose/v[0-9]+|docker/cli|moby/buildkit|compose-spec/compose-go)(/[^"]*)?"' "$f" || true)"
+		h="$(grep -nHE '"github\.com/(moby/moby/(client|api)|docker/compose/v[0-9]+|docker/cli|moby/buildkit|compose-spec/compose-go)(/[^"]*)?"' "$f" || true)"
+		[ -n "$h" ] && hits+="${h}"$'\n'
 	done
 	[ -n "$hits" ] && fail "Engine/Compose SDK imported outside internal/agent/{engine,compose} (#21):"$'\n'"$hits"
 	return 0

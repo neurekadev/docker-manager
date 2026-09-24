@@ -191,8 +191,10 @@ Documented exceptions to "direct Engine HTTP": `internal/agent/engine/`
 (the adapter and its fake Engine `enginetest` for unit tests),
 `internal/agent/compose/*_test.go` (tests scripting that fake Engine),
 `internal/agent/config/config.go` (the `DOCKER_HOST` default value only),
-`internal/testutil/fscorpus/` (a path-traversal test string) and
-`internal/testharness/` (DinD readiness probes of the CI fixtures).
+`internal/testutil/fscorpus/` (a path-traversal test string),
+`internal/testharness/` (DinD readiness probes and the agent container's
+mounts in the CI fixtures) and `test/deploy/*_test.go` (tests asserting that
+the deploy examples mount the socket).
 
 ## Tests
 
