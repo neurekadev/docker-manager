@@ -11,6 +11,7 @@
 //	workload fail                 exit 1 (a health check that never passes)
 //	workload exit CODE [MSG]      print MSG, exit with CODE
 //	workload echo ARG...          print the arguments
+//	workload env NAME             print an environment variable
 //	workload cat FILE             print a file
 //	workload write FILE TEXT      write TEXT to FILE and block
 //	workload stdin                copy stdin to stdout
@@ -75,6 +76,9 @@ func main() {
 			fmt.Println(strings.Join(args[1:], " "))
 		}
 		os.Exit(code)
+	case "env":
+		need(args, 1)
+		fmt.Println(os.Getenv(args[0]))
 	case "echo":
 		fmt.Println(strings.Join(args, " "))
 	case "cat":

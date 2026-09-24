@@ -183,6 +183,13 @@ when the Engine cannot be used. The health file records the Engine status
 (`connected` or the error code); an unreachable Engine does not make the
 agent container unhealthy (it keeps reporting to the manager).
 
+After connecting, the agent runs the host storage check (`internal/agent/storage`,
+#28) and passes `Agent.StackGuard` to the Compose adapter (`compose.Options.Guard`):
+no project is loaded or deployed from a directory outside a verified stack
+root. The result feeds the capabilities (`roots`, the `stacks` feature,
+`diagnostics`) and `health.json` (`storage`). Operator guide:
+`docs/deployment.md` ("Host storage layout").
+
 ## Repository checks
 
 | check | where | rule |
@@ -190,7 +197,7 @@ agent container unhealthy (it keeps reporting to the manager).
 | legacy module | `scripts/policy-check.sh`, depguard | no `github.com/docker/docker` import, in `go.mod`, or anywhere in `go list -deps ./cmd/...` |
 | CLI execution | `scripts/policy-check.sh`, forbidigo | no `exec.Command`/`LookPath` of docker, docker-compose, buildx or docker-credential-*; forbidigo forbids `os/exec` outright except in tests and `internal/testharness` (add restic's runner when #10 lands) |
 | direct Engine HTTP | `scripts/policy-check.sh` | no Docker socket literal or raw Engine API path (`/_ping`, `/containers/json`, `/v1.NN/...`, ...) outside the exceptions below |
-| SDK boundary | `scripts/policy-check.sh`, depguard `sdk-boundary` | Moby client/API, Compose SDK, docker/cli, BuildKit and compose-go only in `internal/agent/engine`, `internal/agent/compose`, `internal/testharness`, `test/` |
+| SDK boundary | `scripts/policy-check.sh`, depguard `sdk-boundary` | Moby client/API, Compose SDK, docker/cli, BuildKit and compose-go only in `internal/agent/engine`, `internal/agent/compose`, `internal/testharness`, `test/` and `*integration_test.go` files (which drive the harness fixtures) |
 | graph | `scripts/build-static.sh` | agent links the pinned SDK versions, manager links none |
 
 Documented exceptions to "direct Engine HTTP": `internal/agent/engine/`

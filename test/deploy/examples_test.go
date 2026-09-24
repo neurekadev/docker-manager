@@ -100,6 +100,7 @@ func TestProxyExamplesTopology(t *testing.T) {
 				t.Errorf("co-located agent env %v", a.Environment)
 			}
 			checkStorage(t, c, m, a)
+			checkStacksVolume(t, c, a)
 		})
 	}
 }
@@ -167,6 +168,22 @@ func TestRemoteAgentExample(t *testing.T) {
 		t.Error("identical-path mount missing")
 	}
 	checkStorage(t, c, a)
+	checkStacksVolume(t, c, a)
+}
+
+// checkStacksVolume enforces the #28 stacks volume: a fixed volume name
+// (the agent's DOCKYARD_STACKS_VOLUME default) mounted into the agent at its
+// own mountpoint, i.e. the identical path under Docker's volume directory.
+func checkStacksVolume(t *testing.T, c composeFile, agent service) {
+	t.Helper()
+	const mnt = "dockyard_stacks:/var/lib/docker/volumes/dockyard_stacks/_data"
+	if !slices.Contains(agent.Volumes, mnt) {
+		t.Errorf("agent lacks %q", mnt)
+	}
+	v, ok := c.Volumes["dockyard_stacks"].(map[string]any)
+	if !ok || v["name"] != "dockyard_stacks" {
+		t.Errorf("volume dockyard_stacks must be declared with name: dockyard_stacks (got %v)", c.Volumes["dockyard_stacks"])
+	}
 }
 
 // TestProxySettings pins the proxy settings the manager relies on.

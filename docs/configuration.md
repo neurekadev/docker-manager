@@ -73,6 +73,8 @@ Sampled metrics will live in a separate database file (#5).
 | `DOCKYARD_AGENT_STATE_DIR` | `/var/lib/dockyard-agent` | Agent state (credentials after #3, health file, job journal `jobs/journal.json` with the fencing high-water mark, #26). Mount a named volume; losing it makes in-flight jobs end as `journal_lost`. |
 | `DOCKER_HOST` | `unix:///var/run/docker.sock` | Docker Engine endpoint (`unix://`, or plain `tcp://`; TLS to a remote Engine is not supported because one agent runs next to each Engine). See "Docker Engine" below. |
 | `DOCKYARD_ENVIRONMENT_NAME` | empty | Optional initial display name of this Environment (≤ 63 characters). |
+| `DOCKYARD_STACKS_VOLUME` | `dockyard_stacks` | Local named volume holding one directory per stack (#28). Must be mounted into the agent at its identical path (see "Host storage layout" in `docs/deployment.md`). |
+| `DOCKYARD_STACK_ROOTS` | empty | Comma-separated extra host directories with stacks (absolute, non-overlapping, at most 16), each bind-mounted into the agent at the identical path. Verified at startup like the stacks volume; a root that fails is refused on its own. |
 | `DOCKYARD_LOG_LEVEL` | `info` | As for the manager. |
 | `DOCKYARD_LOG_FORMAT` | `json` | As for the manager. |
 
@@ -95,5 +97,8 @@ credentials come from the manager for each operation and stay in memory
 (#19). Details: `docs/architecture/engine-integration.md`.
 
 The agent needs Docker's volume directory mounted at the identical path
-(`/var/lib/docker/volumes:/var/lib/docker/volumes`) so stack and volume paths
-resolve the same inside the agent and on the Engine (#28).
+(`/var/lib/docker/volumes:/var/lib/docker/volumes`, or your custom data
+root's) so stack and volume paths resolve the same inside the agent and on
+the Engine (#28). It verifies the layout at startup and refuses stack
+operations with a diagnostic when it does not hold (`health.json` field
+`storage`); see "Host storage layout" in `docs/deployment.md`.

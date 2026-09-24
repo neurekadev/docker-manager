@@ -259,7 +259,32 @@ type CapabilitiesPayload struct {
 	// Transport says how the agent reaches the manager; the host page flags
 	// plain-HTTP connections (#27).
 	Transport TransportInfo `json:"transport"`
+	// Diagnostics explain why parts of the agent are unavailable, e.g. stack
+	// operations refused because the storage layout check failed (#28). The
+	// host page shows them.
+	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
 }
+
+// Diagnostic areas.
+const (
+	DiagnosticEngine  = "engine"
+	DiagnosticStorage = "storage"
+)
+
+// Diagnostic is a stable code plus a human-readable message.
+type Diagnostic struct {
+	// Area is engine or storage.
+	Area string `json:"area"`
+	// Code is stable snake_case, e.g. storage_path_mismatch (#28) or
+	// unsupported_api_version (#21).
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	// Path is the affected root, if any.
+	Path string `json:"path,omitempty"`
+}
+
+// MaxDiagnosticMessage bounds Diagnostic.Message (bytes).
+const MaxDiagnosticMessage = 2048
 
 // HeartbeatPayload is optional on heartbeat frames.
 type HeartbeatPayload struct {
@@ -473,8 +498,16 @@ func (p CapabilitiesPayload) Validate() error {
 			return invalid("root %+v is malformed", r)
 		}
 	}
+	for _, d := range p.Diagnostics {
+		if (d.Area != DiagnosticEngine && d.Area != DiagnosticStorage) || !diagCodeRE.MatchString(d.Code) ||
+			d.Message == "" || len(d.Message) > MaxDiagnosticMessage || (d.Path != "" && !path.IsAbs(d.Path)) {
+			return invalid("diagnostic %q is malformed", d.Code)
+		}
+	}
 	return nil
 }
+
+var diagCodeRE = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
 // Validate checks an event payload.
 func (p EventPayload) Validate() error {

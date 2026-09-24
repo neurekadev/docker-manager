@@ -80,7 +80,8 @@ func validCaps() CapabilitiesPayload {
 		Transport: TransportInfo{ManagerURL: "https://docker.example.com"},
 		Engine:    EngineInfo{ID: "ABCD", Version: "28.5.2", APIVersion: "1.51", OS: "linux", Arch: "amd64"},
 		Commands:  []string{"stack.deploy"}, Requests: []string{ReqEngineInfo}, Streams: []string{StreamContainerLogs},
-		Roots: []Root{{Kind: "stacks", Path: "/var/lib/docker/volumes/dockyard_stacks/_data", Watch: "inotify"}}}
+		Roots:       []Root{{Kind: "stacks", Path: "/var/lib/docker/volumes/dockyard_stacks/_data", Watch: "inotify"}},
+		Diagnostics: []Diagnostic{{Area: DiagnosticStorage, Code: "storage_root_mismatch", Message: "stack root /opt/stacks is not mounted at its identical path", Path: "/opt/stacks"}}}
 }
 
 func TestValidPayloads(t *testing.T) {
@@ -151,8 +152,17 @@ func TestInvalidPayloads(t *testing.T) {
 		"caps hides plain http": {TypeCapabilities, cmut(func(c *CapabilitiesPayload) {
 			c.Transport = TransportInfo{ManagerURL: "http://dockyard-manager:8080"}
 		})},
-		"caps relative root":     {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Roots[0].Path = "stacks" })},
-		"caps no engine":         {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Engine = EngineInfo{} })},
+		"caps relative root": {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Roots[0].Path = "stacks" })},
+		"caps no engine":     {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Engine = EngineInfo{} })},
+		"caps diagnostic area": {TypeCapabilities, cmut(func(c *CapabilitiesPayload) {
+			c.Diagnostics = []Diagnostic{{Area: "disk", Code: "storage_path_mismatch", Message: "m"}}
+		})},
+		"caps diagnostic code": {TypeCapabilities, cmut(func(c *CapabilitiesPayload) {
+			c.Diagnostics = []Diagnostic{{Area: DiagnosticStorage, Code: "Path Mismatch", Message: "m"}}
+		})},
+		"caps diagnostic no message": {TypeCapabilities, cmut(func(c *CapabilitiesPayload) {
+			c.Diagnostics = []Diagnostic{{Area: DiagnosticStorage, Code: "storage_path_mismatch"}}
+		})},
 		"event unknown source":   {TypeEvent, EventPayload{Source: "docker", Type: "container", Action: "die", At: now}},
 		"event no time":          {TypeEvent, EventPayload{Source: "engine", Type: "container", Action: "die"}},
 		"fs escape":              {TypeFSInvalidation, FSInvalidationPayload{Scope: ScopeRef{Kind: "stack", ID: "s"}, Paths: []string{"../etc/passwd"}, At: now}},

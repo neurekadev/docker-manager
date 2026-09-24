@@ -10,7 +10,9 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"unicode"
 
@@ -29,6 +31,8 @@ const (
 	EnvEnvironmentName  = "DOCKYARD_ENVIRONMENT_NAME"
 	EnvLogLevel         = "DOCKYARD_LOG_LEVEL"
 	EnvLogFormat        = "DOCKYARD_LOG_FORMAT"
+	EnvStacksVolume     = "DOCKYARD_STACKS_VOLUME"
+	EnvStackRoots       = "DOCKYARD_STACK_ROOTS"
 )
 
 // Defaults.
@@ -37,6 +41,10 @@ const (
 	DefaultDockerHost = "unix:///var/run/docker.sock"
 	// MaxEnvironmentNameLen bounds DOCKYARD_ENVIRONMENT_NAME.
 	MaxEnvironmentNameLen = 63
+	// DefaultStacksVolume is the named volume holding stack projects (#28).
+	DefaultStacksVolume = "dockyard_stacks"
+	// MaxStackRoots bounds DOCKYARD_STACK_ROOTS.
+	MaxStackRoots = 16
 )
 
 // Config is the validated agent configuration.
@@ -58,6 +66,11 @@ type Config struct {
 	EnvironmentName string
 	LogLevel        slog.Level
 	LogFormat       string
+	// StacksVolume is the named volume holding one directory per stack (#28).
+	StacksVolume string
+	// StackRoots are extra host directories holding stacks, bind-mounted
+	// into the agent at their identical paths (absolute, cleaned, unique).
+	StackRoots []string
 }
 
 // Load reads and validates the configuration, reporting all problems at once.
@@ -98,6 +111,14 @@ func Load(src envconfig.Source) (Config, error) {
 	cfg.EnvironmentName = src.String(EnvEnvironmentName, "")
 	if err := validateName(cfg.EnvironmentName); err != nil {
 		errs = append(errs, fmt.Errorf("%s: %w", EnvEnvironmentName, err))
+	}
+
+	cfg.StacksVolume = src.String(EnvStacksVolume, DefaultStacksVolume)
+	if !volumeNameRE.MatchString(cfg.StacksVolume) {
+		errs = append(errs, fmt.Errorf("%s: %q is not a valid volume name", EnvStacksVolume, cfg.StacksVolume))
+	}
+	if cfg.StackRoots, err = ParseStackRoots(src.String(EnvStackRoots, "")); err != nil {
+		errs = append(errs, fmt.Errorf("%s: %w", EnvStackRoots, err))
 	}
 
 	if cfg.LogLevel, err = logging.ParseLevel(src.String(EnvLogLevel, "info")); err != nil {
@@ -168,6 +189,43 @@ func LoadCABundle(path string) ([]byte, error) {
 		return nil, fmt.Errorf("%s: no PEM certificates found", path)
 	}
 	return b, nil
+}
+
+// volumeNameRE is Docker's volume name rule.
+var volumeNameRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{1,254}$`)
+
+// ParseStackRoots parses DOCKYARD_STACK_ROOTS: comma-separated absolute
+// Linux paths (not "/", no "..", no duplicates or nested roots).
+func ParseStackRoots(raw string) ([]string, error) {
+	var out []string
+	for _, f := range strings.Split(raw, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		if !path.IsAbs(f) || strings.Contains(f, "\\") {
+			return nil, fmt.Errorf("%q must be an absolute path", f)
+		}
+		for _, seg := range strings.Split(f, "/") {
+			if seg == ".." {
+				return nil, fmt.Errorf("%q must not contain \"..\"", f)
+			}
+		}
+		c := path.Clean(f)
+		if c == "/" {
+			return nil, fmt.Errorf("%q: the filesystem root cannot be a stack root", f)
+		}
+		for _, o := range out {
+			if o == c || strings.HasPrefix(c, o+"/") || strings.HasPrefix(o, c+"/") {
+				return nil, fmt.Errorf("%q overlaps %q", c, o)
+			}
+		}
+		out = append(out, c)
+	}
+	if len(out) > MaxStackRoots {
+		return nil, fmt.Errorf("at most %d stack roots", MaxStackRoots)
+	}
+	return out, nil
 }
 
 func validateName(name string) error {

@@ -101,12 +101,14 @@ check_direct_engine_http() {
 }
 
 # SDK boundary (#21): Engine, Compose, BuildKit and docker/cli packages are
-# imported only by the two agent adapters and the CI test harness.
+# imported only by the two agent adapters, the CI test harness and
+# integration tests (which drive the harness fixtures with SDK types).
 sdk_exceptions=(
 	'^internal/agent/engine/'
 	'^internal/agent/compose/'
 	'^internal/testharness/'
 	'^test/'
+	'(^|/)([a-z0-9_]+_)?integration_test\.go$'
 )
 
 check_sdk_boundary() {

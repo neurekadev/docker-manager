@@ -26,6 +26,9 @@ type BuildOptions struct {
 // Build builds the images of services with a build section through the
 // Engine's BuildKit (an explicit stack build, #33).
 func (a *Adapter) Build(ctx context.Context, p *Project, o BuildOptions) error {
+	if err := a.guard("compose.build", p); err != nil {
+		return err
+	}
 	model, err := selected(p, o.Services)
 	if err != nil {
 		return engine.WrapCode("compose.build", engine.CodeInvalidArgument, err)
