@@ -72,9 +72,22 @@ func TestManagerRestartRecovery(t *testing.T) {
 	if bj.ErrorClass != domain.ErrorUnknownOutcome || !strings.Contains(bj.Recovery, "manager backup") {
 		t.Fatalf("manager.backup %+v", bj)
 	}
-	want := []string{ret.ID + ":forget", bk.ID + ":snapshot_database", ret.ID + ":prune_repository"}
-	if got := fx.List(); !slices.Equal(got, want) {
-		t.Fatalf("effects %v, want %v (no step re-run except the idempotent in-flight one)", got, want)
+	// Per job (the two jobs ran concurrently): no step re-run except the
+	// idempotent in-flight one, which had not recorded its effect yet.
+	of := func(id string) []string {
+		var out []string
+		for _, e := range fx.List() {
+			if rest, ok := strings.CutPrefix(e, id+":"); ok {
+				out = append(out, rest)
+			}
+		}
+		return out
+	}
+	if got := of(ret.ID); !slices.Equal(got, []string{"forget", "prune_repository"}) {
+		t.Fatalf("retention effects %v", got)
+	}
+	if got := of(bk.ID); !slices.Equal(got, []string{"snapshot_database"}) {
+		t.Fatalf("manager.backup effects %v", got)
 	}
 	// The agent job keeps state and locks until its agent reports.
 	h.wantState(ag.ID, domain.JobRunning)
