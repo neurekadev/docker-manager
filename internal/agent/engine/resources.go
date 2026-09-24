@@ -108,15 +108,28 @@ func (c *Client) InspectNetwork(ctx context.Context, idOrName string) (Network, 
 	return n, nil
 }
 
-// CreateNetwork creates a network and returns its ID.
+// CreateNetwork creates a network and returns its ID. An existing network
+// with the same name is a conflict on every Engine: API 1.44+ Engines refuse
+// duplicates themselves, older ones (Docker 24) would create a second
+// network with the same name, so the adapter checks first.
 func (c *Client) CreateNetwork(ctx context.Context, spec NetworkSpec) (string, error) {
+	const op = "network.create"
 	ctx, cancel := c.bound(ctx)
 	defer cancel()
+	existing, err := c.api.NetworkList(ctx, client.NetworkListOptions{Filters: client.Filters{}.Add("name", spec.Name)})
+	if err != nil {
+		return "", wrap(op, err)
+	}
+	for _, n := range existing.Items {
+		if n.Name == spec.Name {
+			return "", newError(op, CodeConflict, "network with name %s already exists", spec.Name)
+		}
+	}
 	res, err := c.api.NetworkCreate(ctx, spec.Name, client.NetworkCreateOptions{
 		Driver: spec.Driver, Internal: spec.Internal, Attachable: spec.Attachable, Labels: spec.Labels, Options: spec.Options,
 	})
 	if err != nil {
-		return "", wrap("network.create", err)
+		return "", wrap(op, err)
 	}
 	return res.ID, nil
 }

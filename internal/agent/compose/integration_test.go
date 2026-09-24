@@ -438,6 +438,10 @@ services:
 		t.Fatal(err)
 	}
 	if err := v.a.Start(ctx, p, compose.RunOptions{}); err != nil {
+		for _, name := range []string{"lifecycle-db-1", "lifecycle-app-1"} {
+			d, ierr := v.eng.InspectContainer(ctx, name)
+			t.Logf("%s after failed start: %+v (%v)\nlogs:\n%s", name, d.State, ierr, v.e.Logs(ctx, t, d.ID))
+		}
 		t.Fatal(err)
 	}
 	if err := v.a.Down(ctx, p.Name, p, compose.DownOptions{Volumes: true}); err != nil {

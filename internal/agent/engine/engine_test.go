@@ -174,7 +174,7 @@ func TestClassifyRegistryMessages(t *testing.T) {
 	}
 }
 
-func TestRegistryHost(t *testing.T) {
+func TestNormalizeRegistryHost(t *testing.T) {
 	for in, want := range map[string]string{
 		"https://index.docker.io/v1/":        "registry-1.docker.io",
 		"docker.io":                          "registry-1.docker.io",

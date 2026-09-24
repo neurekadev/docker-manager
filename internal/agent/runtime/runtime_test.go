@@ -140,7 +140,7 @@ func TestLoopUpdatesHealthFile(t *testing.T) {
 	}
 }
 
-func TestEngineRetryWithBackoff(t *testing.T) {
+func TestRetriesEngineConnectionWithBackoff(t *testing.T) {
 	stateDir := t.TempDir()
 	clk := testutil.FakeClock()
 	cfg := fakeEngineConfig(t, stateDir, enginetest.Options{})

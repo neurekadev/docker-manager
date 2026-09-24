@@ -355,7 +355,7 @@ services:
 	}
 }
 
-func TestComposeErrorMapping(t *testing.T) {
+func TestMapsComposeErrors(t *testing.T) {
 	for msg, want := range map[string]engine.Code{
 		"dependency failed to start: container shop-db-1 is unhealthy":      engine.CodeDependencyFailed,
 		`service "migrate" didn't complete successfully: exit 1`:            engine.CodeDependencyFailed,
