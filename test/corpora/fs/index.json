@@ -1,0 +1,55 @@
+[
+  {
+    "file": "traversal.json",
+    "format": "json",
+    "hazard": "hostile path strings; each must be rejected or resolve inside the root",
+    "sha256": "cf8ad58931e0b9381c8911911d816703caefd090541340f8522ced719ad6edda",
+    "size": 17076
+  },
+  {
+    "file": "zip-slip.zip",
+    "format": "zip",
+    "hazard": "entries with ../, absolute, backslash and drive-letter names escape the target",
+    "sha256": "64d0509abf17db8ca38ebe51106da82f799788baa4657dc5bbae9eaf9fddf25a",
+    "size": 1585
+  },
+  {
+    "file": "tar-slip.tar",
+    "format": "tar",
+    "hazard": "../ and absolute names; symlink to / then a file through it; symlink ../.. then a file through it; hardlinks to absolute and ../ targets; device node; setuid file",
+    "sha256": "fb7f54d75412f10d177b44540677ac86b4eb3e9b1cdd2e0206c2be28b4cb8883",
+    "size": 10752
+  },
+  {
+    "file": "bomb-ratio.zip",
+    "format": "zip",
+    "hazard": "one entry inflating 32 MiB from ~32 KiB (ratio limit)",
+    "sha256": "7f9d7a00b13f7943851175e96e4e1bc3a88e83fd2f95f682eff335414174d74d",
+    "size": 33335,
+    "uncompressedSize": 33554432
+  },
+  {
+    "file": "bomb-lying-size.zip",
+    "format": "zip",
+    "hazard": "central directory claims 16 bytes but the entry inflates to 32 MiB (trust the stream, not the header)",
+    "sha256": "9729e231f8465931122c3884a7bbeca865ce0f618109696c2af0fead0f1382d9",
+    "size": 32659,
+    "uncompressedSize": 33554432
+  },
+  {
+    "file": "bomb.tar.gz",
+    "format": "tar.gz",
+    "hazard": "gzip stream inflating to a 32 MiB tar",
+    "sha256": "f36338d5a7e07eb594d680cf29786819655b4a57189d1f97069a48f582a49c2b",
+    "size": 32630,
+    "uncompressedSize": 33554432
+  },
+  {
+    "file": "bomb-nested.zip",
+    "format": "zip",
+    "hazard": "zip containing 4 zip bombs of 8 MiB each (recursive extraction multiplies size)",
+    "sha256": "aa636ca0f5e7e25d28ba580c73efecfc297b5c730bd6af07d7f0b6c0a97be6e3",
+    "size": 34442,
+    "uncompressedSize": 33554432
+  }
+]

@@ -23,6 +23,9 @@ fi
 
 echo "==> go vet"
 go vet ./...
+# Tagged test code (Docker-backed harness, fault injection) must keep
+# compiling even though only the extended workflow runs it.
+go vet -tags integration,e2e,faultinject ./...
 
 if [ "${GO_CHECK_SKIP_LINT:-0}" != "1" ]; then
 	echo "==> golangci-lint"

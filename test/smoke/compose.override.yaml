@@ -1,0 +1,10 @@
+# Overrides deploy/compose/compose.yaml for the deploy smoke test with the
+# images under test (edge from GHCR, or locally built). Used by
+# scripts/smoke/deploy-smoke.sh only.
+services:
+  dockyard-manager:
+    image: ${SMOKE_MANAGER_IMAGE:?SMOKE_MANAGER_IMAGE is required}
+    pull_policy: ${SMOKE_PULL_POLICY:-missing}
+  dockyard-agent:
+    image: ${SMOKE_AGENT_IMAGE:?SMOKE_AGENT_IMAGE is required}
+    pull_policy: ${SMOKE_PULL_POLICY:-missing}

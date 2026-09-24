@@ -6,6 +6,9 @@ run:
   go: "1.27"
   timeout: 5m
   tests: true
+  # Lint the Docker-backed test harness too (it only builds with the tag).
+  build-tags:
+    - integration
 
 linters:
   default: none
