@@ -1,6 +1,7 @@
 package testharness
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,8 +77,33 @@ func NewFaultProxy(upstream string) (*FaultProxy, error) {
 		},
 		// Stream blob uploads/downloads and chunked responses unbuffered.
 		FlushInterval: -1,
+		// Record the hit before the upstream response is copied to the
+		// client: a caller that has seen the response must find its hit.
+		// (Recording after ServeHTTP returned raced with fast clients.)
+		ModifyResponse: func(resp *http.Response) error {
+			p.recordProxied(resp.Request, resp.StatusCode)
+			return nil
+		},
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			p.recordProxied(r, http.StatusBadGateway)
+			w.WriteHeader(http.StatusBadGateway)
+		},
 	}
 	return p, nil
+}
+
+// inboundKey carries the client's method and path to the proxy callbacks,
+// which only see the rewritten outbound request.
+type inboundKey struct{}
+
+type inbound struct{ method, path string }
+
+func (p *FaultProxy) recordProxied(out *http.Request, status int) {
+	in, ok := out.Context().Value(inboundKey{}).(inbound)
+	if !ok {
+		in = inbound{out.Method, out.URL.Path}
+	}
+	p.record(FaultHit{Method: in.method, Path: in.path, Status: status})
 }
 
 // Inject adds a rule and returns a function that removes it. Rules are
@@ -110,7 +136,9 @@ func (p *FaultProxy) Reset() {
 	p.hits = nil
 }
 
-// Hits returns a copy of the requests seen so far.
+// Hits returns a copy of the requests seen so far. A request is recorded
+// before any byte of its response is written, so once a client has
+// received a response, its hit is visible here.
 func (p *FaultProxy) Hits() []FaultHit {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -171,14 +199,13 @@ func (p *FaultProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 		}
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		p.record(FaultHit{Method: r.Method, Path: r.URL.Path, Status: rule.Status, Injected: true})
 		w.WriteHeader(rule.Status)
 		_, _ = w.Write([]byte(body))
-		p.record(FaultHit{Method: r.Method, Path: r.URL.Path, Status: rule.Status, Injected: true})
 		return
 	}
-	sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
-	p.proxy.ServeHTTP(sw, r)
-	p.record(FaultHit{Method: r.Method, Path: r.URL.Path, Status: sw.status})
+	ctx := context.WithValue(r.Context(), inboundKey{}, inbound{r.Method, r.URL.Path})
+	p.proxy.ServeHTTP(w, r.WithContext(ctx))
 }
 
 // registryErrorBody renders the distribution error envelope for status.
@@ -212,24 +239,4 @@ var (
 // RepositoryPath matches every registry API path of one repository.
 func RepositoryPath(name string) *regexp.Regexp {
 	return regexp.MustCompile(`^/v2/` + regexp.QuoteMeta(name) + `/`)
-}
-
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *statusWriter) WriteHeader(code int) {
-	w.status = code
-	w.ResponseWriter.WriteHeader(code)
-}
-
-// Unwrap lets http.ResponseController reach Flush on the underlying writer.
-func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
-
-// Flush forwards to the underlying writer (streamed blob downloads).
-func (w *statusWriter) Flush() {
-	if f, ok := w.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
-	}
 }
