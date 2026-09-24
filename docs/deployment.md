@@ -201,8 +201,9 @@ log that they are not enrolled, and stay healthy.
   `authsep.NewAgentCredential`/`NewEnrollmentToken`). Reject with
   `server.AgentFailure`; call `server.EndPreAuth` after authenticating a
   request that keeps streaming a body.
-- Streams: `internal/manager/server/sse` (headers, flushing, heartbeats) for
-  every SSE endpoint; `internal/manager/server/ws` (`Accept`, bounded read
+- Streams: `internal/manager/server/sse` (headers, flushing, heartbeats) is
+  the one SSE implementation; Huma operations use its adapter
+  `api.StartSSE`; `internal/manager/server/ws` (`Accept`, bounded read
   limit, `KeepAlive` pings) for every WebSocket. Both use
   `DOCKYARD_STREAM_HEARTBEAT`.
 - Agent side: `internal/agent/transport` builds the HTTP/WebSocket client

@@ -102,8 +102,9 @@ No Docker locally: Engine-dependent tests run in CI only.
   in the service worker.
 - Secrets at rest: `secrets.Keyring.Seal(value, "<table>/<id>/<field>")`.
 - Client IP / scheme / host: `requestinfo.From(ctx)` (trusted proxies are
-  resolved once; never read `X-Forwarded-*` or `RemoteAddr`). SSE endpoints
-  use `server/sse`, WebSockets `server/ws`; `/agent/v1` handlers go in
+  resolved once; never read `X-Forwarded-*` or `RemoteAddr`). SSE goes
+  through `api.StartSSE` (Huma) or `server/sse` (plain handlers; the one
+  implementation), WebSockets through `server/ws`; `/agent/v1` handlers go in
   `server.Options.Agent` and reject with `server.AgentFailure`
   (`docs/deployment.md`, "For contributors").
 - New dependencies must pass `scripts/license-check.sh` and govulncheck; pin
