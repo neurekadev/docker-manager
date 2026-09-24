@@ -341,7 +341,8 @@ Defined in `internal/protocol/jobs.go` and
   `cancelled`, `interrupted`.
 - The manager acks a result with `forget: [jobId]`; after every reconnect the
   agent sends `job_report {highWater, jobs}` and the manager reconciles
-  instead of re-running.
+  instead of re-running. A job the report lists as `running` sends its
+  `result` after the report, never before it.
 - `cancel` carries the job reference; it is honoured at the kind's next
   cancellation safe point and compensations always run.
 
