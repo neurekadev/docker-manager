@@ -1,90 +1,174 @@
 # Public API conventions (`/api/v1`)
 
-The contract is code-first: Huma operations in `internal/manager/api` generate
-OpenAPI 3.1, served at `/api/v1/openapi.json` and `/api/v1/openapi.yaml` and
-committed as `api/openapi.json`. The web client types are generated from that
-file. The endpoint catalog lives in issue #4.
+How every operation behaves, for client authors and for the workstreams that
+add operations. Overview and authentication: [README.md](README.md).
+Errors: [errors.md](errors.md). Streams: [streams.md](streams.md).
+Compatibility: [versioning.md](versioning.md).
+
+The contract is code-first: Huma operations in `internal/manager/api`
+generate OpenAPI 3.1, served at `/api/v1/openapi.json` and
+`/api/v1/openapi.yaml` and committed as `api/openapi.json`. The web client
+types are generated from that file. Every route of the #4 catalog, built or
+not, is listed in `api/route-inventory.yaml`.
 
 ## Paths and operation metadata
 
 - Every route is under `/api/v1`. Environment-scoped Docker resources nest
-  under `/api/v1/environments/{environmentId}/…`.
+  under `/api/v1/environments/{environmentId}/…`; stacks, jobs, policies,
+  backups and other manager resources are top level. Path segments are
+  lower-kebab plural nouns; parameters are `{camelCase}` IDs.
+- Resources are addressed by stable DockYard IDs (UUIDv7 strings; treat them
+  as opaque). Docker objects keep their Engine IDs/names below their
+  environment. Responses never expose raw host filesystem paths or
+  credential values.
+- Actions that are not CRUD are modelled as creating a sub-resource
+  (`POST /jobs/{jobId}/cancellations`, `POST /stacks/{stackId}/deployments`);
+  container verbs keep the Docker names (`POST …/containers/{id}/restart`).
 - Operations are registered with `api.Register` only. Each declares:
   - `OperationID` — kebab-case, unique, stable (`get-stack`, `list-stacks`,
     `create-stack-deployment`). Renaming one is a breaking change.
-  - `Capability` — `public`, `authenticated`, or a dotted capability key from
-    the #17 catalog (`container.restart`). Emitted as `x-dockyard-capability`.
-  - `Scope` — `none` (only with public/authenticated), `instance`,
-    `environment` or `resource`. Emitted as `x-dockyard-scope`.
-  - `Summary` (and ideally `Description` and `Tags`).
-- `TestOpenAPICompleteness` fails the build if any operation lacks these or
-  duplicates an operation ID.
+  - `Capability` — `public`, `authenticated`, `owner`, a dotted capability
+    key from the #17 catalog (`container.restart`), or a selector like
+    `stack.{action}` with `CapabilityValues` when the body picks the
+    capability. Emitted as `x-dockyard-capability` (and
+    `x-dockyard-capability-values`).
+  - `Scope` — `none` (public/authenticated), `instance` (owner and
+    manager-wide), `environment` or `resource`. Emitted as `x-dockyard-scope`.
+  - `Idempotency` — `stored` or `job` when the input takes an
+    `Idempotency-Key` (below). Emitted as `x-dockyard-idempotency`.
+  - `Summary` (and ideally `Description`, `Tags`, `Errors`).
+- `Register` adds the security requirements (cookie or bearer) and a `401`
+  to every non-public operation, and panics at startup on missing or
+  inconsistent metadata. `TestOpenAPICompleteness` checks the generated spec;
+  `TestRouteInventory` reconciles it with the inventory.
 
-## Errors
+## JSON
 
-Every error — Huma validation, handler errors, unknown routes (404/405), panics
-and the `/agent/v1` placeholder — uses one shape:
-
-```json
-{
-  "code": "validation_failed",
-  "message": "validation failed",
-  "details": [{ "field": "body.name", "message": "expected length >= 1" }],
-  "requestId": "4f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60",
-  "retryable": false
-}
-```
-
-- `code` is stable snake_case; clients switch on it. `message` is for humans.
-- `details` is always an array (possibly empty). `field` is the input
-  location: `body.<json path>`, `query.<name>`, `path.<name>`, `header.<Name>`,
-  or `check.<name>` for readiness checks.
-- `requestId` equals the `X-Request-ID` response header and the `request_id`
-  in manager logs.
-- `retryable` is true for 429, 503, 502, 504 and 408 by default.
-- 5xx responses never include internal error text; causes are logged.
-
-**Content type:** `application/problem+json`. The body is a valid RFC 9457
-problem document that uses only extension members (`type` is implicitly
-`about:blank`), so generic problem-details tooling accepts it while DockYard
-clients parse the five members above. We did not adopt RFC 9457's
-`title/status/detail/errors` members to keep one small, stable shape.
-
-Default codes by status: 400 `bad_request`, 401 `unauthenticated`,
-403 `forbidden`, 404 `not_found`, 405 `method_not_allowed`, 409 `conflict`
-(prefer a specific code such as `stack_name_taken`), 412
-`precondition_failed`, 413 `payload_too_large`, 422 `validation_failed`,
-428 `precondition_required`, 429 `rate_limited`, 500 `internal`,
-503 `unavailable` / `not_ready`. Helpers: `api.NotFound`, `api.Invalid` +
-`api.Field`, `api.Conflict`, `api.PreconditionFailed`, `api.RateLimited`,
-`api.Unavailable`, `api.Internal`, `api.NewError`.
+- `application/json`, UTF-8, camelCase member names. Unknown request members
+  are rejected (`422`).
+- Optional members that do not apply are **omitted**, not `null`. Lists are
+  always present (`[]`, never `null`).
+- Timestamps are RFC 3339 in UTC (`2026-09-24T12:00:00Z`); durations are
+  integers with a unit suffix in the name (`timeoutSeconds`) unless
+  documented as Go duration strings; sizes are bytes (`int64`).
+- Enumerations are lowercase snake_case strings. Clients must tolerate new
+  enum values in responses (show them as "unknown").
 
 ## Lists and pagination
 
-List responses are `api.Page[T]`: `{"items": [...], "nextCursor": "…", "total": 12}`.
-Inputs embed `api.PageParams` (`?cursor=&limit=`, default 50, max 200).
-Cursors are opaque (`api.EncodeCursor`/`api.DecodeCursor`), encode the sort
-key of the last item (never an offset) and are absent on the last page.
-`total` is optional and counts only items the caller may see. Filter/sort
-conventions: TODO(#4).
+List responses are `api.Page[T]`:
 
-## Edits, retries and long operations (to be completed by #4)
+```json
+{ "items": [ … ], "nextCursor": "eyJxIjoi…", "total": 12 }
+```
 
-- Revisioned resources return an `ETag`; edits embed `api.IfMatchParam` and
-  get 412 `precondition_failed` on mismatch.
-- Dangerous retries embed `api.IdempotencyKeyParam` (`Idempotency-Key`).
-- Long operations return `202 Accepted` with the `Job` and its URL in
-  `Location` (`api.Accepted(job)`, #26). Their `Idempotency-Key` is handled
-  by the job engine: the same key and request return the existing job; the
-  same key with a different request is **409 `idempotency_key_reused`**
-  (`api.JobErrorFor`). See `docs/architecture/job-engine.md`.
+- **Cursor pagination:** `?cursor=&limit=` (`api.PageParams`; default 50,
+  max 200). `nextCursor` is absent on the last page; follow it until then.
+  Cursors are opaque, encode the sort key of the last item (never an
+  offset), stay valid while items are inserted or deleted, and are bound to
+  the filters and sort they were issued for — changing filters with an old
+  cursor is `422` on `query.cursor` (`api.CursorFor`/`api.DecodeCursorFor`).
+- **Pages may be short:** items are filtered per item by the caller's
+  permissions (#17), so a page can hold fewer than `limit` items (even zero)
+  while `nextCursor` is present. The server bounds the work per request
+  (`api.ScanPage`).
+- **Filters** are query parameters named after the item field
+  (`?state=running&state=failed&environmentId=…`). Repeating a parameter ORs
+  its values; different parameters AND. Free-text search is `?q=`. Each route
+  documents its filters in OpenAPI; unknown values are `422`.
+- **Sort:** `?sort=-createdAt,name` (`api.SortParam`, `api.ParseSort`); a
+  leading `-` sorts descending. Each route documents its sortable fields and
+  default order, and breaks ties by ID so the order is total.
+- **`total`** is present only on routes that document it. It counts the
+  items matching the filters **that the caller may see** — never a raw count,
+  so aggregates do not leak (#17). Routes whose permission filtering makes
+  counting expensive omit it (jobs, audit).
+
+## Edits and revisions (ETag / If-Match)
+
+Revisioned resources (stacks, policies, settings, files, groups, …) carry a
+`revision` in the body and a strong `ETag` header (`api.ETagHeader`,
+`api.RevisionETag`).
+
+- Edits (`PATCH`, `PUT`, `DELETE` of revisioned resources) require
+  `If-Match: <ETag>` (`api.IfMatchParam`, `in.CheckIfMatch(current)`):
+  - missing → `428 precondition_required`;
+  - stale → `412 precondition_failed`, with the **current `ETag`** in the
+    response header; the client refetches, merges and retries;
+  - `*` matches any existing version; weak tags never match.
+- A successful edit returns the new representation and its new `ETag`.
+- Handlers compare and write in one transaction (or compare-and-swap on the
+  revision) so concurrent edits cannot both pass.
+- File saves use the file's content ETag the same way; an external change
+  made outside DockYard also changes it (#15, #23).
+
+## Retries and idempotency keys
+
+Safe methods (`GET`) and `PUT`/`DELETE` are idempotent by definition. Other
+dangerous operations accept `Idempotency-Key: <1–128 chars of [A-Za-z0-9._:-]>`
+(`api.IdempotencyKeyParam`); clients generate a fresh random key (a UUID)
+per logical request and reuse it for every retry of that request. Keys are
+scoped to the caller (user or API token) and the operation, and remembered
+for 24 hours.
+
+- **Operations that start jobs** (`x-dockyard-idempotency: job`): the job
+  engine stores the key with the job (#26). A retry with the same key and
+  the same request returns the **existing job** (`202`, same job ID), also
+  after it finished. The same key with a different request is
+  **`409 idempotency_key_reused`**.
+- **Other dangerous operations** (`x-dockyard-idempotency: stored`, for
+  example creating an enrollment token, invitation or API token, or
+  rotating a credential): the manager reserves the key before running the
+  request, stores the first `2xx` response (status, `Content-Type`,
+  `Location`, `ETag`, body — sealed at rest because it may contain a one-time
+  secret) and **replays** it for retries with the header
+  `Idempotent-Replayed: true`. While the first request is still running a
+  retry gets `409 idempotency_key_in_flight` (retryable, `Retry-After`).
+  A non-`2xx` answer is not stored, so a retry runs again. A different
+  request under the same key is `409 idempotency_key_reused`. Stored
+  responses of a principal are dropped when its sessions, token or
+  permissions change.
+- The request fingerprint is method, path, sorted query, `Content-Type` and
+  the exact body bytes: send byte-identical retries.
+
+## Long operations: 202 + job
+
+Operations that start work in the job engine (#26) answer **`202
+Accepted`** with the `Job` as body and its URL in `Location`
+(`/api/v1/jobs/{jobId}`); `api.Register` enforces that `202` is used exactly
+by operations returning `api.JobAccepted` (`api.Accepted(job)`).
+
+- Follow progress with `GET /api/v1/jobs/{jobId}` or the SSE stream
+  `GET /api/v1/jobs/{jobId}/events/stream`; the live stream (#23) announces
+  job state changes.
+- A job exposes `state`, `progress`, `items`, `error {class, message,
+  recovery}`, `blockedBy`, `locks`, `attempt`, `origin`, timestamps and
+  `cancellable`. Cancel with `POST /api/v1/jobs/{jobId}/cancellations`
+  (`202`; honoured at the kind's next safe point; compensations always run).
+- A conflicting job is queued as `blocked` (with `blockedBy`), not rejected.
+- Job-starting operations accept `Idempotency-Key` (see above).
+
+## Authorization shaping
+
+- Every operation, list item, aggregate, stream event and job has a named
+  capability (#17). Lists and counts contain only what the caller may see;
+  single resources the caller may not know about are `404`.
+- A grant for one action on a resource exposes only the minimal identity and
+  status fields needed to find it and run that action (for example
+  restart-only shows name/state and the restart action, not config or logs).
+- Scheduled jobs run as the manager service identity; the initiating user of
+  a manual job is audit metadata, never an access-control owner.
 
 ## Caching and headers
 
-All `/api/v1` and `/agent/v1` responses carry `Cache-Control: no-store`.
-Every response carries `X-Request-ID`, `X-Content-Type-Options: nosniff`,
-`Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` and a CSP with
-`frame-ancestors 'none'`.
+- All `/api/v1` and `/agent/v1` responses carry `Cache-Control: no-store`
+  (JSON, errors, SSE, downloads). The PWA service worker caches only
+  versioned static assets and the offline shell (#23).
+- Every response carries `X-Request-ID` (an inbound well-formed one is
+  echoed, #27), `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+  no-referrer`, `X-Frame-Options: DENY` and a CSP with
+  `frame-ancestors 'none'`.
+- Rate-limited answers are `429 rate_limited` with `Retry-After`.
 
 ## System endpoints
 

@@ -75,14 +75,37 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
-	for _, typ := range []Type{TypeAck, TypeProgress, TypeResult, TypeCancel, TypeStreamData, TypeStreamClose} {
-		f := &Frame{Type: typ, ID: "x"}
+	for _, typ := range []Type{TypeAck, TypeProgress, TypeResult, TypeCancel, TypeStreamData, TypeStreamClose,
+		TypeWelcome, TypeResponse, TypeStreamCredit} {
+		f := &Frame{Type: typ, ID: "x", Payload: json.RawMessage(`{}`)}
 		if err := f.Validate(); err == nil {
 			t.Errorf("%s without correlationId accepted", typ)
 		}
 		f.CorrelationID = "c"
 		if err := f.Validate(); err != nil {
 			t.Errorf("%s: %v", typ, err)
+		}
+	}
+	for typ := range needsPayload {
+		f := &Frame{Type: typ, ID: "x", CorrelationID: "c", Deadline: &deadline}
+		if err := f.Validate(); !errors.Is(err, ErrInvalidFrame) {
+			t.Errorf("%s without payload accepted", typ)
+		}
+	}
+	req := &Frame{Type: TypeRequest, ID: "q1", Deadline: &deadline, Payload: json.RawMessage(`{"name":"engine.info"}`)}
+	if err := req.Validate(); err != nil {
+		t.Errorf("request: %v", err)
+	}
+	for name, mutate := range map[string]func(*Frame){
+		"request without deadline": func(f *Frame) { f.Deadline = nil },
+		"request without payload":  func(f *Frame) { f.Payload = nil },
+		"request with job id":      func(f *Frame) { f.JobID = "j" },
+		"request with fencing":     func(f *Frame) { f.FencingToken = 3 },
+	} {
+		f := *req
+		mutate(&f)
+		if err := f.Validate(); !errors.Is(err, ErrInvalidFrame) {
+			t.Errorf("%s accepted", name)
 		}
 	}
 	for _, typ := range Types() {

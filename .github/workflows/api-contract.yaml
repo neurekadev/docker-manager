@@ -1,0 +1,56 @@
+# Public API contract checks for pull requests (#4, docs/api/versioning.md):
+# breaking OpenAPI changes against the merge base with the target branch fail
+# unless the PR carries the api-breaking-change label. Runs again when labels
+# change so adding or removing the label re-evaluates the check.
+name: api-contract
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-contract-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  breaking-changes:
+    name: breaking-changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Self-test (a removed operation must be reported as breaking)
+        run: |
+          python3 -c 'import json, sys; d = json.load(open("api/openapi.json")); d["paths"].pop(sorted(d["paths"])[0]); json.dump(d, open(sys.argv[1], "w"))' "$RUNNER_TEMP/broken.json"
+          if API_BASE_SPEC=api/openapi.json API_SPEC="$RUNNER_TEMP/broken.json" bash scripts/api-breaking.sh > "$RUNNER_TEMP/self-test.log" 2>&1; then
+            cat "$RUNNER_TEMP/self-test.log"
+            echo "::error::the breaking-change check did not detect a removed operation"
+            exit 1
+          fi
+          API_BREAKING_ALLOWED=true API_BASE_SPEC=api/openapi.json API_SPEC="$RUNNER_TEMP/broken.json" bash scripts/api-breaking.sh > /dev/null
+          echo "self-test ok"
+      - name: Breaking changes against the merge base
+        env:
+          API_BREAKING_ALLOWED: ${{ contains(github.event.pull_request.labels.*.name, 'api-breaking-change') }}
+          BASE_REF: origin/${{ github.base_ref }}
+        run: bash scripts/api-breaking.sh "$BASE_REF"
+      - name: Route inventory summary
+        run: |
+          {
+            echo "### Route inventory"
+            echo
+            go run ./tools/routeinventory
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -33,7 +33,13 @@ const (
 	title       = "DockYard API"
 	description = "Public control API of the DockYard manager. All routes live under /api/v1 on the single public origin. " +
 		"Errors use the Error schema with media type application/problem+json. " +
-		"Every operation declares the capability it requires (x-dockyard-capability) and the scope at which it is checked (x-dockyard-scope)."
+		"Every operation declares the capability it requires (x-dockyard-capability) and the scope at which it is checked (x-dockyard-scope). " +
+		"Browsers authenticate with the session cookie, other clients with a bearer API token. " +
+		"Conventions, errors, streams and versioning: docs/api/README.md in the DockYard repository."
+
+	// SessionCookieName is the browser session cookie (#16). The __Host-
+	// prefix pins it to the single public origin: Secure, Path=/, no Domain.
+	SessionCookieName = "__Host-dockyard_session"
 )
 
 // Deps are the collaborators operations need. Zero values are valid for spec
@@ -52,6 +58,9 @@ type Deps struct {
 	Clock clock.Clock
 	// SSEHeartbeat overrides DefaultSSEHeartbeat.
 	SSEHeartbeat time.Duration
+	// Idempotency stores responses of IdempotencyStored operations; nil
+	// answers keyed requests to those operations with 503.
+	Idempotency IdempotencyStore
 }
 
 func (d Deps) clock() clock.Clock {
@@ -77,12 +86,25 @@ func Config() huma.Config {
 	cfg.SchemasPath = "" // no $schema links in responses.
 	cfg.CreateHooks = nil
 	cfg.Transformers = []huma.Transformer{errorTransformer}
+	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
+		SecurityCookie: {
+			Type: "apiKey", In: "cookie", Name: SessionCookieName,
+			Description: "Browser session (#16). Set by POST /api/v1/auth/session as an HttpOnly, Secure, SameSite=Strict cookie. " +
+				"Unsafe methods authenticated by this cookie must come from the manager's own origin (Origin/Sec-Fetch-Site checks).",
+		},
+		SecurityBearer: { //nolint:gosec // G101: a security scheme description, not a credential
+			Type: "http", Scheme: "bearer", BearerFormat: "DockYard API token",
+			Description: "Scoped, expiring API token (#31) sent as Authorization: Bearer <token>. " +
+				"A token carries a subset of its owner's capabilities; each request is evaluated as token scope intersected with the owner's current effective permissions.",
+		},
+	}
 	return cfg
 }
 
 // New creates the Huma API on mux and registers every operation.
 func New(mux *http.ServeMux, deps Deps) huma.API {
 	a := humago.New(mux, Config())
+	a.UseMiddleware(withDeps(deps))
 	registerSystem(a, deps)
 	registerJobs(a, deps)
 	return a

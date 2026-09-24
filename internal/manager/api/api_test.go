@@ -255,8 +255,11 @@ type reporter interface {
 func checkCompleteness(t reporter, spec []byte) {
 	t.Helper()
 	var doc struct {
-		OpenAPI string                                `json:"openapi"`
-		Paths   map[string]map[string]json.RawMessage `json:"paths"`
+		OpenAPI    string                                `json:"openapi"`
+		Paths      map[string]map[string]json.RawMessage `json:"paths"`
+		Components struct {
+			SecuritySchemes map[string]json.RawMessage `json:"securitySchemes"`
+		} `json:"components"`
 	}
 	if err := json.Unmarshal(spec, &doc); err != nil {
 		t.Fatal(err)
@@ -266,6 +269,11 @@ func checkCompleteness(t reporter, spec []byte) {
 	}
 	if len(doc.Paths) == 0 {
 		t.Fatal("spec has no paths")
+	}
+	for _, name := range []string{SecurityCookie, SecurityBearer} {
+		if _, ok := doc.Components.SecuritySchemes[name]; !ok {
+			t.Errorf("components.securitySchemes lacks %s", name)
+		}
 	}
 	seen := map[string]string{}
 	methods := map[string]bool{"get": true, "put": true, "post": true, "delete": true, "patch": true, "head": true, "options": true, "trace": true}

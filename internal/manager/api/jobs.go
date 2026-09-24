@@ -2,9 +2,7 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -164,15 +162,15 @@ func JobErrorFor(err error) error {
 	case errors.Is(err, domain.ErrJobNotFound):
 		return NotFound("job not found")
 	case errors.Is(err, domain.ErrJobFinished):
-		return Conflict("job_finished", "the job has already finished")
+		return Conflict(CodeJobFinished, "the job has already finished")
 	case errors.Is(err, domain.ErrJobIdempotencyConflict):
-		return Conflict("idempotency_key_reused", "the Idempotency-Key was already used for a different request")
+		return Conflict(CodeIdempotencyKeyReused, "the Idempotency-Key was already used for a different request")
 	case errors.Is(err, domain.ErrJobForbidden):
 		return Forbidden("not permitted to run this job")
 	case errors.Is(err, domain.ErrJobInvalid), errors.Is(err, domain.ErrJobUnknownKind):
 		return Invalid(err.Error())
 	case errors.Is(err, domain.ErrJobKindUnavailable):
-		return NewError(http.StatusNotImplemented, "job_kind_unavailable", "this manager cannot run this kind of job yet")
+		return NewError(http.StatusNotImplemented, CodeJobKindUnavailable, "this manager cannot run this kind of job yet")
 	}
 	return Internal(err)
 }
@@ -226,9 +224,6 @@ type streamJobEventsInput struct {
 	JobID       string `path:"jobId" maxLength:"64" doc:"Job ID."`
 	LastEventID string `header:"Last-Event-ID" maxLength:"20" doc:"Resume after this event sequence number (sent automatically by EventSource on reconnect)."`
 }
-
-// maxListScans bounds how many pages the permission filter reads per request.
-const maxListScans = 10
 
 type jobsAPI struct {
 	svc       JobService
@@ -299,48 +294,36 @@ func (h *jobsAPI) list(ctx context.Context, in *listJobsInput) (*listJobsOutput,
 			return nil, err
 		}
 	}
+	fingerprint := QueryFingerprint(strings.Join(in.State, ","), in.Kind, in.EnvironmentID, in.Target)
+	var after jobsCursor
 	if in.Cursor != "" {
-		var c jobsCursor
-		if err := DecodeCursor(in.Cursor, &c); err != nil {
+		if err := DecodeCursorFor(in.Cursor, fingerprint, &after); err != nil {
 			return nil, err
 		}
-		f.BeforeID = c.Before
 	}
-	limit := in.Limit
-	if limit <= 0 {
-		limit = DefaultPageLimit
+	jobs, next, err := ScanPage(ctx, Scan[domain.Job]{
+		Limit: in.PageLimit(), After: after.Before,
+		Fetch: func(ctx context.Context, before string, n int) ([]domain.Job, error) {
+			f.BeforeID, f.Limit = before, n // newest first: "after" in list order is an older ID
+			return h.svc.List(ctx, f)
+		},
+		Position: func(j domain.Job) string { return j.ID },
+		Visible:  func(j domain.Job) bool { return h.can(ctx, p, CapJobRead, j) }, // per-item filtering (#17)
+	})
+	if err != nil {
+		return nil, Internal(err)
 	}
-	var items []Job
-	scanned, exhausted := "", false
-	for scans := 0; scans < maxListScans && len(items) <= limit && !exhausted; scans++ {
-		f.Limit = limit + 1
-		if scanned != "" {
-			f.BeforeID = scanned
-		}
-		batch, err := h.svc.List(ctx, f)
-		if err != nil {
+	items := make([]Job, 0, len(jobs))
+	for _, j := range jobs {
+		items = append(items, NewJob(j))
+	}
+	cursor := ""
+	if next != "" {
+		if cursor, err = CursorFor(fingerprint, jobsCursor{Before: next}); err != nil {
 			return nil, Internal(err)
 		}
-		exhausted = len(batch) < f.Limit
-		for _, j := range batch {
-			if len(items) > limit {
-				break
-			}
-			scanned = j.ID
-			if h.can(ctx, p, CapJobRead, j) { // resource filtering hook (#17)
-				items = append(items, NewJob(j))
-			}
-		}
 	}
-	next := ""
-	switch {
-	case len(items) > limit:
-		items = items[:limit]
-		next, _ = EncodeCursor(jobsCursor{Before: items[limit-1].ID})
-	case !exhausted && scanned != "":
-		next, _ = EncodeCursor(jobsCursor{Before: scanned})
-	}
-	return &listJobsOutput{Body: NewPage(items, next, nil)}, nil
+	return &listJobsOutput{Body: NewPage(items, cursor, nil)}, nil
 }
 
 func (h *jobsAPI) get(ctx context.Context, in *jobIDInput) (*jobOutput, error) {
@@ -351,7 +334,7 @@ func (h *jobsAPI) get(ctx context.Context, in *jobIDInput) (*jobOutput, error) {
 	return &jobOutput{Body: NewJob(j)}, nil
 }
 
-func (h *jobsAPI) cancel(ctx context.Context, in *jobIDInput) (*jobOutput, error) {
+func (h *jobsAPI) cancel(ctx context.Context, in *jobIDInput) (*JobAccepted, error) {
 	p, j, err := h.visibleJob(ctx, in.JobID)
 	if err != nil {
 		return nil, err
@@ -364,7 +347,7 @@ func (h *jobsAPI) cancel(ctx context.Context, in *jobIDInput) (*jobOutput, error
 		return nil, JobErrorFor(err)
 	}
 	logging.FromContext(ctx).Info("job cancellation requested", "job_id", j.ID, "kind", j.Kind, "principal", p.Key())
-	return &jobOutput{Body: NewJob(j)}, nil
+	return Accepted(j), nil
 }
 
 // sseBatch bounds the events read per database query while streaming.
@@ -394,53 +377,29 @@ func (h *jobsAPI) stream(ctx context.Context, in *streamJobEventsInput) (*huma.S
 // events were sent.
 func (h *jobsAPI) runStream(hctx huma.Context, p authz.Principal, j domain.Job, after int64) {
 	ctx := hctx.Context()
-	hctx.SetHeader("Content-Type", "text/event-stream")
-	hctx.SetHeader("Cache-Control", "no-store")
-	hctx.SetHeader("X-Accel-Buffering", "no")
-	hctx.SetStatus(http.StatusOK)
-	w := hctx.BodyWriter()
-	flush := func() {
-		if f, ok := w.(http.Flusher); ok {
-			f.Flush()
-		}
-	}
-	write := func(event, id string, v any) bool {
-		b, err := json.Marshal(v)
-		if err != nil {
-			return false
-		}
-		var sb strings.Builder
-		if id != "" {
-			sb.WriteString("id: " + id + "\n")
-		}
-		sb.WriteString("event: " + event + "\ndata: ")
-		sb.Write(b)
-		sb.WriteString("\n\n")
-		_, err = w.Write([]byte(sb.String()))
-		return err == nil
-	}
+	sse := StartSSE(hctx)
 	changed, unsubscribe := h.svc.Subscribe(j.ID)
 	defer unsubscribe()
 	clk := h.deps.clock()
 	hb := clk.NewTicker(h.heartbeat)
 	defer hb.Stop()
 
-	if !write("job", "", NewJob(j)) {
+	if sse.Event("job", "", NewJob(j)) != nil {
 		return
 	}
-	flush()
+	sse.Flush()
 	for {
 		events, err := h.svc.Events(ctx, j.ID, after, sseBatch)
 		if err != nil {
 			return
 		}
 		for _, e := range events {
-			if !write(e.Type, strconv.FormatInt(e.Seq, 10), newJobEvent(e)) {
+			if sse.Event(e.Type, strconv.FormatInt(e.Seq, 10), newJobEvent(e)) != nil {
 				return
 			}
 			after = e.Seq
 		}
-		flush()
+		sse.Flush()
 		if len(events) == sseBatch {
 			continue
 		}
@@ -456,10 +415,10 @@ func (h *jobsAPI) runStream(hctx huma.Context, p authz.Principal, j domain.Job, 
 			return
 		case <-changed:
 		case <-hb.C():
-			if _, err := fmt.Fprint(w, ": heartbeat\n\n"); err != nil {
+			if sse.Heartbeat() != nil {
 				return
 			}
-			flush()
+			sse.Flush()
 		}
 	}
 }
@@ -497,8 +456,8 @@ func registerJobs(a huma.API, deps Deps) {
 			Description: "Queued and blocked jobs are cancelled immediately. Running jobs move to cancelling and stop at the next " +
 				"cancellation safe point of their kind; compensating steps (such as restarting containers stopped for a backup) always run. " +
 				"A job that finishes before reaching a safe point keeps its outcome. Repeating the request is harmless. " +
-				"409 job_finished when the job already finished.",
-			Tags: []string{tagJobs}, DefaultStatus: http.StatusAccepted,
+				"Answers 202 with the job and its URL in Location. 409 job_finished when the job already finished.",
+			Tags:   []string{tagJobs},
 			Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict},
 		},
 		Capability: CapJobCancel, Scope: ScopeResource,

@@ -1,0 +1,2036 @@
+# DockYard public API route inventory (#4).
+#
+# One entry per /api/v1 operation in the #4 endpoint catalog, including the
+# ones not implemented yet. internal/manager/api/inventory reconciles it with
+# the served OpenAPI document (TestRouteInventory):
+#   - every operation in the spec must be listed here as implemented, with
+#     the same operationId, capability (x-dockyard-capability), selector
+#     values (x-dockyard-capability-values), scope (x-dockyard-scope) and kind;
+#   - every implemented entry must be in the spec; planned entries must not;
+#   - capability keys are checked against the #17 permission catalog once it
+#     exists (hook in inventory_test.go).
+# Feature workstreams flip status to implemented in the PR that registers the
+# operation (and may refine capability/scope with #17). Fields:
+#   method, path, operationId  stable identity; operation IDs never change
+#   capability  public | authenticated | owner | <dotted key> | <prefix>.{selector}
+#   capabilityValues  concrete keys of a selector capability
+#   scope       none | instance | environment | resource
+#   owner       issue number of the workstream that implements the route
+#   kind        json | stream (SSE or bounded binary body) | websocket
+#   status      planned | implemented
+# The private agent routes are listed under agentRoutes; they are specified
+# in docs/protocol/agent-v1.md, not in the public OpenAPI document.
+version: 1
+routes:
+  - method: GET
+    path: /api/v1/health
+    operationId: get-health
+    capability: public
+    scope: none
+    owner: 2
+    kind: json
+    status: implemented
+  - method: GET
+    path: /api/v1/health/ready
+    operationId: get-health-ready
+    capability: public
+    scope: none
+    owner: 2
+    kind: json
+    status: implemented
+    notes: "Readiness; not in the #4 catalog text but part of the #2 health contract (#34)."
+  - method: GET
+    path: /api/v1/capabilities
+    operationId: get-capabilities
+    capability: public
+    scope: none
+    owner: 2
+    kind: json
+    status: implemented
+  - method: GET
+    path: /api/v1/search
+    operationId: search
+    capability: authenticated
+    scope: none
+    owner: 22
+    kind: json
+    status: planned
+    notes: "Global search for the command palette; every hit is filtered by the capability that makes it visible (#17)."
+  - method: GET
+    path: /api/v1/live/stream
+    operationId: stream-live-events
+    capability: authenticated
+    scope: none
+    owner: 23
+    kind: stream
+    status: planned
+    notes: Multiplexed SSE invalidation stream; topics and events are filtered per subscriber (docs/api/streams.md).
+  - method: GET
+    path: /api/v1/overview
+    operationId: get-overview
+    capability: authenticated
+    scope: none
+    owner: 5
+    kind: json
+    status: planned
+    notes: Aggregates count only resources the caller may see.
+  - method: GET
+    path: /api/v1/setup/status
+    operationId: get-setup-status
+    capability: public
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/setup/owner
+    operationId: create-setup-owner
+    capability: public
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: Single-use bootstrap; requires the protected first-run setup session and HTTPS; 409/410 once an owner exists.
+  - method: POST
+    path: /api/v1/auth/session
+    operationId: create-auth-session
+    capability: public
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: Sign-in; rate limited; sets the session cookie; may answer with a pending second-factor state.
+  - method: GET
+    path: /api/v1/auth/session
+    operationId: get-auth-session
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: Cookie sessions only.
+  - method: DELETE
+    path: /api/v1/auth/session
+    operationId: delete-auth-session
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: Sign-out; cookie sessions only.
+  - method: POST
+    path: /api/v1/auth/step-ups
+    operationId: create-auth-step-up
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: Re-authentication before sensitive changes; cookie sessions only.
+  - method: POST
+    path: /api/v1/auth/recovery-codes/redemptions
+    operationId: create-recovery-code-redemption
+    capability: public
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: Second factor during a pending sign-in.
+  - method: POST
+    path: /api/v1/auth/password-resets/redemptions
+    operationId: create-password-reset-redemption
+    capability: public
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: Owner-issued reset link; single use.
+  - method: POST
+    path: /api/v1/auth/totp/enrollments
+    operationId: create-totp-enrollment
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/auth/totp/enrollments/verifications
+    operationId: create-totp-enrollment-verification
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+  - method: DELETE
+    path: /api/v1/auth/totp
+    operationId: delete-totp
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: Requires step-up.
+  - method: POST
+    path: /api/v1/auth/passkeys/registration-options
+    operationId: create-passkey-registration-options
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/auth/passkeys/registration-verifications
+    operationId: create-passkey-registration-verification
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/auth/passkeys/authentication-options
+    operationId: create-passkey-authentication-options
+    capability: public
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/auth/passkeys/authentication-verifications
+    operationId: create-passkey-authentication-verification
+    capability: public
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+  - method: GET
+    path: /api/v1/me
+    operationId: get-me
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+  - method: PATCH
+    path: /api/v1/me/password
+    operationId: update-my-password
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: Requires step-up.
+  - method: GET
+    path: /api/v1/me/recovery-codes
+    operationId: get-my-recovery-codes
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: Status only (remaining count); codes are shown once at creation.
+  - method: POST
+    path: /api/v1/me/recovery-codes
+    operationId: create-my-recovery-codes
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: Rotates the set; requires step-up; stored-idempotent.
+  - method: GET
+    path: /api/v1/me/passkeys
+    operationId: list-my-passkeys
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+  - method: DELETE
+    path: "/api/v1/me/passkeys/{credentialId}"
+    operationId: delete-my-passkey
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: Requires step-up.
+  - method: GET
+    path: /api/v1/invitations
+    operationId: list-invitations
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/invitations
+    operationId: create-invitation
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+    notes: Returns the one-time link once; stored-idempotent.
+  - method: DELETE
+    path: "/api/v1/invitations/{invitationId}"
+    operationId: delete-invitation
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/invitations/redemptions
+    operationId: create-invitation-redemption
+    capability: public
+    scope: none
+    owner: 16
+    kind: json
+    status: planned
+    notes: The only way to create a non-owner account.
+  - method: GET
+    path: /api/v1/users
+    operationId: list-users
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/users/{userId}"
+    operationId: get-user
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/users/{userId}"
+    operationId: update-user
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+    notes: "Assigns exactly one group (#17); If-Match."
+  - method: DELETE
+    path: "/api/v1/users/{userId}"
+    operationId: delete-user
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/users/{userId}/session-revocations"
+    operationId: create-user-session-revocation
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/users/{userId}/factor-resets"
+    operationId: create-user-factor-reset
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/users/{userId}/password-resets"
+    operationId: create-user-password-reset
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+    notes: Returns a one-time reset link; stored-idempotent.
+  - method: GET
+    path: /api/v1/settings
+    operationId: get-settings
+    capability: settings.read
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+  - method: PATCH
+    path: /api/v1/settings
+    operationId: update-settings
+    capability: settings.manage
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+    notes: If-Match.
+  - method: GET
+    path: /api/v1/settings/security
+    operationId: get-security-settings
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+  - method: PATCH
+    path: /api/v1/settings/security
+    operationId: update-security-settings
+    capability: owner
+    scope: instance
+    owner: 16
+    kind: json
+    status: planned
+    notes: Requires step-up; If-Match.
+  - method: GET
+    path: /api/v1/permission-catalog
+    operationId: get-permission-catalog
+    capability: authenticated
+    scope: none
+    owner: 17
+    kind: json
+    status: planned
+  - method: GET
+    path: /api/v1/me/permissions
+    operationId: get-my-permissions
+    capability: authenticated
+    scope: none
+    owner: 17
+    kind: json
+    status: planned
+  - method: GET
+    path: /api/v1/groups
+    operationId: list-groups
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/groups
+    operationId: create-group
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/groups/{groupId}"
+    operationId: get-group
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/groups/{groupId}"
+    operationId: update-group
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: planned
+    notes: If-Match.
+  - method: DELETE
+    path: "/api/v1/groups/{groupId}"
+    operationId: delete-group
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: planned
+    notes: 409 while it is the default group.
+  - method: POST
+    path: "/api/v1/groups/{groupId}/default-selection"
+    operationId: create-group-default-selection
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/groups/{groupId}/permissions"
+    operationId: get-group-permissions
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: planned
+  - method: PUT
+    path: "/api/v1/groups/{groupId}/permissions"
+    operationId: replace-group-permissions
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: planned
+    notes: Requires step-up; If-Match; invalidates affected sessions and streams.
+  - method: GET
+    path: "/api/v1/users/{userId}/permissions"
+    operationId: get-user-permissions
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: planned
+  - method: PUT
+    path: "/api/v1/users/{userId}/permissions"
+    operationId: replace-user-permissions
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: planned
+    notes: Requires step-up; If-Match; invalidates affected sessions and streams.
+  - method: GET
+    path: "/api/v1/users/{userId}/effective-permissions"
+    operationId: get-user-effective-permissions
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/permission-previews
+    operationId: create-permission-preview
+    capability: owner
+    scope: instance
+    owner: 17
+    kind: json
+    status: planned
+    notes: "View-as evaluation, also of an API token scope (#31); no impersonated session."
+  - method: GET
+    path: /api/v1/audit
+    operationId: list-audit-events
+    capability: audit.read
+    scope: instance
+    owner: 30
+    kind: json
+    status: planned
+  - method: GET
+    path: /api/v1/audit/exports
+    operationId: export-audit-events
+    capability: audit.export
+    scope: instance
+    owner: 30
+    kind: stream
+    status: planned
+    notes: Streamed NDJSON or CSV.
+  - method: GET
+    path: /api/v1/me/api-tokens
+    operationId: list-my-api-tokens
+    capability: authenticated
+    scope: none
+    owner: 31
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/me/api-tokens
+    operationId: create-my-api-token
+    capability: api_tokens.create
+    scope: instance
+    owner: 31
+    kind: json
+    status: planned
+    notes: "Returns the token secret once; stored-idempotent; scope must be a subset of the caller's permissions."
+  - method: GET
+    path: "/api/v1/me/api-tokens/{tokenId}"
+    operationId: get-my-api-token
+    capability: authenticated
+    scope: none
+    owner: 31
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/me/api-tokens/{tokenId}"
+    operationId: update-my-api-token
+    capability: authenticated
+    scope: none
+    owner: 31
+    kind: json
+    status: planned
+    notes: Name only.
+  - method: DELETE
+    path: "/api/v1/me/api-tokens/{tokenId}"
+    operationId: delete-my-api-token
+    capability: authenticated
+    scope: none
+    owner: 31
+    kind: json
+    status: planned
+  - method: GET
+    path: /api/v1/api-tokens
+    operationId: list-api-tokens
+    capability: owner
+    scope: instance
+    owner: 31
+    kind: json
+    status: planned
+  - method: DELETE
+    path: "/api/v1/api-tokens/{tokenId}"
+    operationId: delete-api-token
+    capability: owner
+    scope: instance
+    owner: 31
+    kind: json
+    status: planned
+  - method: GET
+    path: /api/v1/agent-enrollments
+    operationId: list-agent-enrollments
+    capability: agent.enroll
+    scope: instance
+    owner: 3
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/agent-enrollments
+    operationId: create-agent-enrollment
+    capability: agent.enroll
+    scope: instance
+    owner: 3
+    kind: json
+    status: planned
+    notes: Returns the one-use enrollment token and install command once; stored-idempotent.
+  - method: DELETE
+    path: "/api/v1/agent-enrollments/{enrollmentId}"
+    operationId: delete-agent-enrollment
+    capability: agent.enroll
+    scope: instance
+    owner: 3
+    kind: json
+    status: planned
+  - method: GET
+    path: /api/v1/agents
+    operationId: list-agents
+    capability: agent.read
+    scope: resource
+    owner: 3
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/agents/{agentId}"
+    operationId: get-agent
+    capability: agent.read
+    scope: resource
+    owner: 3
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/agents/{agentId}"
+    operationId: update-agent
+    capability: agent.manage
+    scope: resource
+    owner: 3
+    kind: json
+    status: planned
+    notes: If-Match.
+  - method: DELETE
+    path: "/api/v1/agents/{agentId}"
+    operationId: delete-agent
+    capability: agent.remove
+    scope: resource
+    owner: 3
+    kind: json
+    status: planned
+    notes: Revokes the credential and closes the session; the environment stays offline and detached.
+  - method: POST
+    path: "/api/v1/agents/{agentId}/credential-rotations"
+    operationId: create-agent-credential-rotation
+    capability: agent.manage
+    scope: resource
+    owner: 3
+    kind: json
+    status: planned
+    notes: Stored-idempotent.
+  - method: GET
+    path: /api/v1/environments
+    operationId: list-environments
+    capability: environment.read
+    scope: resource
+    owner: 3
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}"
+    operationId: get-environment
+    capability: environment.read
+    scope: environment
+    owner: 3
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/environments/{environmentId}"
+    operationId: update-environment
+    capability: environment.manage
+    scope: environment
+    owner: 3
+    kind: json
+    status: planned
+    notes: Server/display name and service address; If-Match.
+  - method: DELETE
+    path: "/api/v1/environments/{environmentId}"
+    operationId: delete-environment
+    capability: environment.remove
+    scope: environment
+    owner: 34
+    kind: json
+    status: planned
+    notes: Archives the environment after a dependency preview; never touches containers.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/agents"
+    operationId: list-environment-agents
+    capability: agent.read
+    scope: environment
+    owner: 3
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/system"
+    operationId: get-environment-system
+    capability: environment.system.read
+    scope: environment
+    owner: 5
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/events/stream"
+    operationId: stream-environment-events
+    capability: environment.events.read
+    scope: environment
+    owner: 5
+    kind: stream
+    status: planned
+    notes: "Docker Engine events, filtered per resource capability."
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/metrics"
+    operationId: get-environment-metrics
+    capability: environment.metrics.read
+    scope: environment
+    owner: 5
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/capacity"
+    operationId: get-environment-capacity
+    capability: environment.metrics.read
+    scope: environment
+    owner: 5
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/containers"
+    operationId: list-containers
+    capability: container.details.read
+    scope: environment
+    owner: 6
+    kind: json
+    status: planned
+    notes: "Items also appear, with minimal identity/status fields, for any other container capability on them (#17)."
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/containers"
+    operationId: create-container
+    capability: container.create
+    scope: environment
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}"
+    operationId: get-container
+    capability: container.details.read
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}"
+    operationId: update-container
+    capability: container.update
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: DELETE
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}"
+    operationId: delete-container
+    capability: container.remove
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/start"
+    operationId: start-container
+    capability: container.start
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/stop"
+    operationId: stop-container
+    capability: container.stop
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/restart"
+    operationId: restart-container
+    capability: container.restart
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/pause"
+    operationId: pause-container
+    capability: container.pause
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/unpause"
+    operationId: unpause-container
+    capability: container.unpause
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/metrics"
+    operationId: get-container-metrics
+    capability: container.metrics.read
+    scope: resource
+    owner: 5
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/logs"
+    operationId: get-container-logs
+    capability: container.logs.read
+    scope: resource
+    owner: 8
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/logs/stream"
+    operationId: stream-container-logs
+    capability: container.logs.read
+    scope: resource
+    owner: 8
+    kind: stream
+    status: planned
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions"
+    operationId: create-container-exec-session
+    capability: container.exec
+    scope: resource
+    owner: 8
+    kind: json
+    status: planned
+    notes: Creates the session and a short-lived attach ticket for the WebSocket.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}/stream"
+    operationId: stream-container-exec-session
+    capability: container.exec
+    scope: resource
+    owner: 8
+    kind: websocket
+    status: planned
+  - method: DELETE
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}"
+    operationId: delete-container-exec-session
+    capability: container.exec
+    scope: resource
+    owner: 8
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/containers/{containerId}/image-status"
+    operationId: get-container-image-status
+    capability: container.details.read
+    scope: resource
+    owner: 20
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/images"
+    operationId: list-images
+    capability: image.read
+    scope: environment
+    owner: 6
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/images/{imageId}"
+    operationId: get-image
+    capability: image.read
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+  - method: DELETE
+    path: "/api/v1/environments/{environmentId}/images/{imageId}"
+    operationId: delete-image
+    capability: image.remove
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/images/pulls"
+    operationId: create-image-pull
+    capability: image.pull
+    scope: environment
+    owner: 6
+    kind: json
+    status: planned
+    notes: "202 + job; uses a matching registry connection (#19)."
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/images/{imageId}/tags"
+    operationId: create-image-tag
+    capability: image.tag
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/images/builds"
+    operationId: create-image-build
+    capability: image.build
+    scope: environment
+    owner: 33
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/image-builds"
+    operationId: list-image-builds
+    capability: image.read
+    scope: environment
+    owner: 33
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/image-builds/{buildId}"
+    operationId: get-image-build
+    capability: image.read
+    scope: resource
+    owner: 33
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/build-definitions"
+    operationId: list-build-definitions
+    capability: build_definition.read
+    scope: environment
+    owner: 33
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/build-definitions"
+    operationId: create-build-definition
+    capability: build_definition.manage
+    scope: environment
+    owner: 33
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/build-definitions/{definitionId}"
+    operationId: get-build-definition
+    capability: build_definition.read
+    scope: resource
+    owner: 33
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/environments/{environmentId}/build-definitions/{definitionId}"
+    operationId: update-build-definition
+    capability: build_definition.manage
+    scope: resource
+    owner: 33
+    kind: json
+    status: planned
+    notes: If-Match.
+  - method: DELETE
+    path: "/api/v1/environments/{environmentId}/build-definitions/{definitionId}"
+    operationId: delete-build-definition
+    capability: build_definition.manage
+    scope: resource
+    owner: 33
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/build-definitions/{definitionId}/runs"
+    operationId: create-build-definition-run
+    capability: image.build
+    scope: resource
+    owner: 33
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/volumes"
+    operationId: list-volumes
+    capability: volume.read
+    scope: environment
+    owner: 6
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/volumes"
+    operationId: create-volume
+    capability: volume.create
+    scope: environment
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}"
+    operationId: get-volume
+    capability: volume.read
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+  - method: DELETE
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}"
+    operationId: delete-volume
+    capability: volume.remove
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/migration-previews"
+    operationId: create-volume-migration-preview
+    capability: volume.migrate
+    scope: resource
+    owner: 35
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/migrations"
+    operationId: create-volume-migration
+    capability: volume.migrate
+    scope: resource
+    owner: 35
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/networks"
+    operationId: list-networks
+    capability: network.read
+    scope: environment
+    owner: 6
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/networks"
+    operationId: create-network
+    capability: network.create
+    scope: environment
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/networks/{networkId}"
+    operationId: get-network
+    capability: network.read
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+  - method: DELETE
+    path: "/api/v1/environments/{environmentId}/networks/{networkId}"
+    operationId: delete-network
+    capability: network.remove
+    scope: resource
+    owner: 6
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/stacks/discovered"
+    operationId: list-discovered-stacks
+    capability: stack.import
+    scope: environment
+    owner: 7
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/stacks/imports"
+    operationId: create-stack-import
+    capability: stack.import
+    scope: environment
+    owner: 7
+    kind: json
+    status: planned
+    notes: "Adopts in place under the stacks volume or a registered root (#28); otherwise needs an explicit Compose source."
+  - method: GET
+    path: /api/v1/stacks
+    operationId: list-stacks
+    capability: stack.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/stacks
+    operationId: create-stack
+    capability: stack.create
+    scope: environment
+    owner: 7
+    kind: json
+    status: planned
+    notes: Body names the environment.
+  - method: GET
+    path: "/api/v1/stacks/{stackId}"
+    operationId: get-stack
+    capability: stack.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/stacks/{stackId}"
+    operationId: update-stack
+    capability: stack.manage
+    scope: resource
+    owner: 7
+    kind: json
+    status: planned
+    notes: If-Match.
+  - method: DELETE
+    path: "/api/v1/stacks/{stackId}"
+    operationId: delete-stack
+    capability: stack.remove
+    scope: resource
+    owner: 7
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: POST
+    path: /api/v1/stacks/validations
+    operationId: create-stack-validation
+    capability: stack.create
+    scope: environment
+    owner: 7
+    kind: json
+    status: planned
+    notes: Body names the environment; no side effects.
+  - method: GET
+    path: "/api/v1/stacks/{stackId}/revisions"
+    operationId: list-stack-revisions
+    capability: stack.definition.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/stacks/{stackId}/revisions/{revisionId}"
+    operationId: get-stack-revision
+    capability: stack.definition.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/deployments"
+    operationId: create-stack-deployment
+    capability: stack.deploy
+    scope: resource
+    owner: 7
+    kind: json
+    status: planned
+    notes: 202 + job; Idempotency-Key.
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/operations"
+    operationId: create-stack-operation
+    capability: "stack.{action}"
+    capabilityValues: [stack.start, stack.stop, stack.restart, stack.down]
+    scope: resource
+    owner: 7
+    kind: json
+    status: planned
+    notes: "202 + job; the body's action selects the capability."
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/revision-restores"
+    operationId: create-stack-revision-restore
+    capability: stack.definition.write
+    scope: resource
+    owner: 7
+    kind: json
+    status: planned
+    notes: "Writes the revision's bytes to disk, then offers a deploy (#25)."
+  - method: GET
+    path: "/api/v1/stacks/{stackId}/services"
+    operationId: list-stack-services
+    capability: stack.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/stacks/{stackId}/image-status"
+    operationId: get-stack-image-status
+    capability: stack.read
+    scope: resource
+    owner: 20
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/stacks/{stackId}/events/stream"
+    operationId: stream-stack-events
+    capability: stack.read
+    scope: resource
+    owner: 7
+    kind: stream
+    status: planned
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/builds"
+    operationId: create-stack-build
+    capability: stack.build
+    scope: resource
+    owner: 33
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/migration-previews"
+    operationId: create-stack-migration-preview
+    capability: stack.migrate
+    scope: resource
+    owner: 35
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/migrations"
+    operationId: create-stack-migration
+    capability: stack.migrate
+    scope: resource
+    owner: 35
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/migrations/{migrationId}/source-removals"
+    operationId: create-stack-migration-source-removal
+    capability: stack.migrate
+    scope: resource
+    owner: 35
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: GET
+    path: "/api/v1/stacks/{stackId}/files"
+    operationId: list-stack-files
+    capability: stack.files.read
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: "Directory listing; ?path= is a root-relative path."
+  - method: GET
+    path: "/api/v1/stacks/{stackId}/files/content"
+    operationId: get-stack-file-content
+    capability: stack.files.read
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: Returns the ETag used by PUT.
+  - method: PUT
+    path: "/api/v1/stacks/{stackId}/files/content"
+    operationId: replace-stack-file-content
+    capability: stack.files.write
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: If-Match required; 412 on external change.
+  - method: GET
+    path: "/api/v1/stacks/{stackId}/files/downloads"
+    operationId: download-stack-files
+    capability: stack.files.download
+    scope: resource
+    owner: 15
+    kind: stream
+    status: planned
+    notes: Bounded binary download (file or streamed archive).
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/files/entries"
+    operationId: create-stack-file-entry
+    capability: stack.files.write
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/files/uploads"
+    operationId: upload-stack-files
+    capability: stack.files.write
+    scope: resource
+    owner: 15
+    kind: stream
+    status: planned
+    notes: Bounded binary upload.
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/files/conflict-previews"
+    operationId: create-stack-file-conflict-preview
+    capability: stack.files.read
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/files/copies"
+    operationId: create-stack-file-copy
+    capability: files.copy
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: 202 + job for recursive or large operations.
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/files/moves"
+    operationId: create-stack-file-move
+    capability: files.move
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: 202 + job for recursive or large operations.
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/files/deletions"
+    operationId: create-stack-file-deletion
+    capability: files.delete
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: 202 + job for recursive or large operations.
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/files/archives"
+    operationId: create-stack-file-archive
+    capability: files.archive
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: 202 + job for recursive or large operations.
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/files/extractions"
+    operationId: create-stack-file-extraction
+    capability: files.extract
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: 202 + job for recursive or large operations.
+  - method: PATCH
+    path: "/api/v1/stacks/{stackId}/files/metadata"
+    operationId: update-stack-file-metadata
+    capability: "files.{change}"
+    capabilityValues: [files.chmod, files.chown]
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: "chmod and/or chown, optional recursion (202 + job); each requested change needs its capability."
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files"
+    operationId: list-volume-files
+    capability: volume.files.read
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: "Directory listing; ?path= is a root-relative path."
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/content"
+    operationId: get-volume-file-content
+    capability: volume.files.read
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: Returns the ETag used by PUT.
+  - method: PUT
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/content"
+    operationId: replace-volume-file-content
+    capability: volume.files.write
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: If-Match required; 412 on external change.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/downloads"
+    operationId: download-volume-files
+    capability: volume.files.download
+    scope: resource
+    owner: 15
+    kind: stream
+    status: planned
+    notes: Bounded binary download (file or streamed archive).
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/entries"
+    operationId: create-volume-file-entry
+    capability: volume.files.write
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/uploads"
+    operationId: upload-volume-files
+    capability: volume.files.write
+    scope: resource
+    owner: 15
+    kind: stream
+    status: planned
+    notes: Bounded binary upload.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/conflict-previews"
+    operationId: create-volume-file-conflict-preview
+    capability: volume.files.read
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/copies"
+    operationId: create-volume-file-copy
+    capability: files.copy
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: 202 + job for recursive or large operations.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/moves"
+    operationId: create-volume-file-move
+    capability: files.move
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: 202 + job for recursive or large operations.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/deletions"
+    operationId: create-volume-file-deletion
+    capability: files.delete
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: 202 + job for recursive or large operations.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/archives"
+    operationId: create-volume-file-archive
+    capability: files.archive
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: 202 + job for recursive or large operations.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/extractions"
+    operationId: create-volume-file-extraction
+    capability: files.extract
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: 202 + job for recursive or large operations.
+  - method: PATCH
+    path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/metadata"
+    operationId: update-volume-file-metadata
+    capability: "files.{change}"
+    capabilityValues: [files.chmod, files.chown]
+    scope: resource
+    owner: 15
+    kind: json
+    status: planned
+    notes: "chmod and/or chown, optional recursion (202 + job); each requested change needs its capability."
+  - method: GET
+    path: /api/v1/schedule-defaults
+    operationId: get-schedule-defaults
+    capability: settings.read
+    scope: instance
+    owner: 13
+    kind: json
+    status: planned
+  - method: PATCH
+    path: /api/v1/schedule-defaults
+    operationId: update-schedule-defaults
+    capability: settings.manage
+    scope: instance
+    owner: 13
+    kind: json
+    status: planned
+    notes: If-Match.
+  - method: POST
+    path: /api/v1/schedules/previews
+    operationId: create-schedule-preview
+    capability: authenticated
+    scope: none
+    owner: 13
+    kind: json
+    status: planned
+    notes: Pure cron + time-zone evaluation.
+  - method: GET
+    path: /api/v1/schedules
+    operationId: list-schedules
+    capability: schedule.read
+    scope: resource
+    owner: 13
+    kind: json
+    status: planned
+    notes: "Cross-policy view; each entry filtered by its policy's read capability."
+  - method: GET
+    path: /api/v1/update-policies
+    operationId: list-update-policies
+    capability: update_policy.read
+    scope: resource
+    owner: 20
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/update-policies
+    operationId: create-update-policy
+    capability: update_policy.manage
+    scope: environment
+    owner: 20
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/update-policies/{policyId}"
+    operationId: get-update-policy
+    capability: update_policy.read
+    scope: resource
+    owner: 20
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/update-policies/{policyId}"
+    operationId: update-update-policy
+    capability: update_policy.manage
+    scope: resource
+    owner: 20
+    kind: json
+    status: planned
+    notes: If-Match.
+  - method: DELETE
+    path: "/api/v1/update-policies/{policyId}"
+    operationId: delete-update-policy
+    capability: update_policy.manage
+    scope: resource
+    owner: 20
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/update-policies/{policyId}/checks"
+    operationId: create-update-policy-check
+    capability: update.check
+    scope: resource
+    owner: 20
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: POST
+    path: "/api/v1/update-policies/{policyId}/previews"
+    operationId: create-update-policy-preview
+    capability: update.check
+    scope: resource
+    owner: 20
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/update-policies/{policyId}/runs"
+    operationId: create-update-policy-run
+    capability: update.run
+    scope: resource
+    owner: 20
+    kind: json
+    status: planned
+    notes: 202 + job; Idempotency-Key.
+  - method: GET
+    path: "/api/v1/update-policies/{policyId}/candidates"
+    operationId: list-update-policy-candidates
+    capability: update_policy.read
+    scope: resource
+    owner: 20
+    kind: json
+    status: planned
+  - method: GET
+    path: /api/v1/maintenance-policies
+    operationId: list-maintenance-policies
+    capability: maintenance_policy.read
+    scope: resource
+    owner: 14
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/maintenance-policies
+    operationId: create-maintenance-policy
+    capability: maintenance_policy.manage
+    scope: environment
+    owner: 14
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/maintenance-policies/{policyId}"
+    operationId: get-maintenance-policy
+    capability: maintenance_policy.read
+    scope: resource
+    owner: 14
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/maintenance-policies/{policyId}"
+    operationId: update-maintenance-policy
+    capability: maintenance_policy.manage
+    scope: resource
+    owner: 14
+    kind: json
+    status: planned
+    notes: If-Match.
+  - method: DELETE
+    path: "/api/v1/maintenance-policies/{policyId}"
+    operationId: delete-maintenance-policy
+    capability: maintenance_policy.manage
+    scope: resource
+    owner: 14
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/maintenance-policies/{policyId}/previews"
+    operationId: create-maintenance-policy-preview
+    capability: maintenance.preview
+    scope: resource
+    owner: 14
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/maintenance-policies/{policyId}/runs"
+    operationId: create-maintenance-policy-run
+    capability: maintenance.run
+    scope: resource
+    owner: 14
+    kind: json
+    status: planned
+    notes: 202 + job; Idempotency-Key; background preference.
+  - method: GET
+    path: /api/v1/backup-repositories
+    operationId: list-backup-repositories
+    capability: backup_repository.read
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/backup-repositories
+    operationId: create-backup-repository
+    capability: backup_repository.manage
+    scope: instance
+    owner: 10
+    kind: json
+    status: planned
+    notes: Recovery Key accepted only in this protected flow; never returned.
+  - method: GET
+    path: "/api/v1/backup-repositories/{repositoryId}"
+    operationId: get-backup-repository
+    capability: backup_repository.read
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/backup-repositories/{repositoryId}"
+    operationId: update-backup-repository
+    capability: backup_repository.manage
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+    notes: If-Match; credentials write-only.
+  - method: DELETE
+    path: "/api/v1/backup-repositories/{repositoryId}"
+    operationId: delete-backup-repository
+    capability: backup_repository.manage
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/backup-repositories/{repositoryId}/connection-tests"
+    operationId: create-backup-repository-connection-test
+    capability: backup_repository.manage
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/backup-repositories/{repositoryId}/recovery-confirmations"
+    operationId: create-backup-repository-recovery-confirmation
+    capability: backup_repository.manage
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/backup-repositories/{repositoryId}/key-rotations"
+    operationId: create-backup-repository-key-rotation
+    capability: backup_repository.manage
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+    notes: Requires step-up.
+  - method: GET
+    path: "/api/v1/backup-repositories/{repositoryId}/health"
+    operationId: get-backup-repository-health
+    capability: backup_repository.read
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: GET
+    path: /api/v1/backup-policies
+    operationId: list-backup-policies
+    capability: backup_policy.read
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/backup-policies
+    operationId: create-backup-policy
+    capability: backup_policy.manage
+    scope: instance
+    owner: 10
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/backup-policies/{policyId}"
+    operationId: get-backup-policy
+    capability: backup_policy.read
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/backup-policies/{policyId}"
+    operationId: update-backup-policy
+    capability: backup_policy.manage
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+    notes: If-Match.
+  - method: DELETE
+    path: "/api/v1/backup-policies/{policyId}"
+    operationId: delete-backup-policy
+    capability: backup_policy.manage
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/backup-policies/{policyId}/scope-previews"
+    operationId: create-backup-policy-scope-preview
+    capability: backup_policy.read
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/backup-policies/{policyId}/runs"
+    operationId: create-backup-policy-run
+    capability: backup.run
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+    notes: 202 + job; Idempotency-Key.
+  - method: POST
+    path: "/api/v1/backup-policies/{policyId}/retention-previews"
+    operationId: create-backup-policy-retention-preview
+    capability: backup_policy.read
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/backup-policies/{policyId}/retention-runs"
+    operationId: create-backup-policy-retention-run
+    capability: backup.retention
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+    notes: 202 + job; Idempotency-Key.
+  - method: GET
+    path: /api/v1/backups
+    operationId: list-backups
+    capability: backup.read
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/backups/{backupId}"
+    operationId: get-backup
+    capability: backup.read
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/backups/{backupId}/contents"
+    operationId: list-backup-contents
+    capability: backup.contents.read
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+    notes: Snapshot contents can hold secrets; never derived from backup.read.
+  - method: GET
+    path: "/api/v1/backups/{backupId}/contents/download"
+    operationId: download-backup-content
+    capability: backup.contents.download
+    scope: resource
+    owner: 10
+    kind: stream
+    status: planned
+    notes: "One file, bounded."
+  - method: POST
+    path: "/api/v1/backups/{backupId}/verifications"
+    operationId: create-backup-verification
+    capability: backup.verify
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+    notes: 202 + job.
+  - method: POST
+    path: "/api/v1/backups/{backupId}/restore-previews"
+    operationId: create-backup-restore-preview
+    capability: backup.restore
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/backups/{backupId}/restores"
+    operationId: create-backup-restore
+    capability: backup.restore
+    scope: resource
+    owner: 10
+    kind: json
+    status: planned
+    notes: 202 + job; Idempotency-Key.
+  - method: POST
+    path: /api/v1/setup/backup-imports/connection-tests
+    operationId: create-setup-backup-import-connection-test
+    capability: public
+    scope: none
+    owner: 10
+    kind: json
+    status: planned
+    notes: "Protected first-run setup session only (#16, #24); refused once an owner exists."
+  - method: POST
+    path: /api/v1/setup/backup-imports/previews
+    operationId: create-setup-backup-import-preview
+    capability: public
+    scope: none
+    owner: 10
+    kind: json
+    status: planned
+    notes: "Protected first-run setup session only (#16, #24); refused once an owner exists."
+  - method: POST
+    path: /api/v1/setup/backup-imports/restores
+    operationId: create-setup-backup-import-restore
+    capability: public
+    scope: none
+    owner: 10
+    kind: json
+    status: planned
+    notes: "Protected first-run setup session only (#16, #24); refused once an owner exists. 202 + job."
+  - method: GET
+    path: /api/v1/jobs
+    operationId: list-jobs
+    capability: job.read
+    scope: resource
+    owner: 26
+    kind: json
+    status: implemented
+  - method: GET
+    path: "/api/v1/jobs/{jobId}"
+    operationId: get-job
+    capability: job.read
+    scope: resource
+    owner: 26
+    kind: json
+    status: implemented
+  - method: POST
+    path: "/api/v1/jobs/{jobId}/cancellations"
+    operationId: create-job-cancellation
+    capability: job.cancel
+    scope: resource
+    owner: 26
+    kind: json
+    status: implemented
+  - method: GET
+    path: "/api/v1/jobs/{jobId}/events/stream"
+    operationId: stream-job-events
+    capability: job.read
+    scope: resource
+    owner: 26
+    kind: stream
+    status: implemented
+  - method: GET
+    path: /api/v1/registries
+    operationId: list-registries
+    capability: registry.read
+    scope: resource
+    owner: 19
+    kind: json
+    status: planned
+    notes: Metadata only; credential values are write-only.
+  - method: POST
+    path: /api/v1/registries
+    operationId: create-registry
+    capability: owner
+    scope: instance
+    owner: 19
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/registries/{registryId}"
+    operationId: get-registry
+    capability: registry.read
+    scope: resource
+    owner: 19
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/registries/{registryId}"
+    operationId: update-registry
+    capability: owner
+    scope: instance
+    owner: 19
+    kind: json
+    status: planned
+    notes: If-Match.
+  - method: DELETE
+    path: "/api/v1/registries/{registryId}"
+    operationId: delete-registry
+    capability: owner
+    scope: instance
+    owner: 19
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/registries/{registryId}/connection-tests"
+    operationId: create-registry-connection-test
+    capability: owner
+    scope: instance
+    owner: 19
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/registries/{registryId}/credential-rotations"
+    operationId: create-registry-credential-rotation
+    capability: owner
+    scope: instance
+    owner: 19
+    kind: json
+    status: planned
+  - method: POST
+    path: /api/v1/registries/matches
+    operationId: create-registry-match
+    capability: registry.read
+    scope: instance
+    owner: 19
+    kind: json
+    status: planned
+    notes: "Image reference -> selected connection; metadata only."
+  - method: GET
+    path: /api/v1/git-credentials
+    operationId: list-git-credentials
+    capability: git_credential.read
+    scope: resource
+    owner: 33
+    kind: json
+    status: planned
+    notes: Metadata only.
+  - method: POST
+    path: /api/v1/git-credentials
+    operationId: create-git-credential
+    capability: owner
+    scope: instance
+    owner: 33
+    kind: json
+    status: planned
+  - method: GET
+    path: "/api/v1/git-credentials/{credentialId}"
+    operationId: get-git-credential
+    capability: git_credential.read
+    scope: resource
+    owner: 33
+    kind: json
+    status: planned
+  - method: PATCH
+    path: "/api/v1/git-credentials/{credentialId}"
+    operationId: update-git-credential
+    capability: owner
+    scope: instance
+    owner: 33
+    kind: json
+    status: planned
+    notes: If-Match.
+  - method: DELETE
+    path: "/api/v1/git-credentials/{credentialId}"
+    operationId: delete-git-credential
+    capability: owner
+    scope: instance
+    owner: 33
+    kind: json
+    status: planned
+  - method: POST
+    path: "/api/v1/git-credentials/{credentialId}/connection-tests"
+    operationId: create-git-credential-connection-test
+    capability: owner
+    scope: instance
+    owner: 33
+    kind: json
+    status: planned
+agentRoutes:
+  - method: POST
+    path: /agent/v1/enroll
+    kind: json
+    auth: enrollment-token
+    owner: 3
+    status: planned
+  - method: GET
+    path: /agent/v1/session
+    kind: websocket
+    auth: agent-credential
+    owner: 3
+    status: planned

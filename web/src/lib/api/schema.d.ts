@@ -112,7 +112,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel a job
-         * @description Queued and blocked jobs are cancelled immediately. Running jobs move to cancelling and stop at the next cancellation safe point of their kind; compensating steps (such as restarting containers stopped for a backup) always run. A job that finishes before reaching a safe point keeps its outcome. Repeating the request is harmless. 409 job_finished when the job already finished.
+         * @description Queued and blocked jobs are cancelled immediately. Running jobs move to cancelling and stop at the next cancellation safe point of their kind; compensating steps (such as restarting containers stopped for a backup) always run. A job that finishes before reaching a safe point keeps its outcome. Repeating the request is harmless. Answers 202 with the job and its URL in Location. 409 job_finished when the job already finished.
          */
         post: operations["create-job-cancellation"];
         delete?: never;
@@ -329,13 +329,13 @@ export interface components {
             type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path";
         };
         PageJob: {
-            /** @description Items on this page (possibly empty). */
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Job"][];
             /** @description Opaque cursor for the next page; absent on the last page. */
             nextCursor?: string;
             /**
              * Format: int64
-             * @description Number of items visible to the caller across all pages, when cheap to compute.
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
              */
             total?: number;
         };
@@ -458,7 +458,7 @@ export interface operations {
     "list-jobs": {
         parameters: {
             query?: {
-                /** @description Opaque cursor from a previous page's nextCursor. */
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
                 cursor?: string;
                 /** @description Maximum number of items to return. */
                 limit?: number;
@@ -589,6 +589,7 @@ export interface operations {
             /** @description Accepted */
             202: {
                 headers: {
+                    Location?: string;
                     [name: string]: unknown;
                 };
                 content: {
