@@ -27,8 +27,9 @@ const ErrorContentType = "application/problem+json"
 // return them from Huma handlers. Unexpected errors returned by handlers
 // become 500 "internal" with the cause logged, never sent to the client.
 type Error struct {
-	status int
-	causes []error
+	status  int
+	causes  []error
+	headers http.Header
 
 	Code      string        `json:"code" doc:"Stable snake_case error code; switch on this, not on message." example:"not_found"`
 	Message   string        `json:"message" doc:"Human-readable summary. Not stable; do not parse." example:"stack not found"`
@@ -51,6 +52,21 @@ func (e *Error) GetStatus() int { return e.status }
 
 // Unwrap exposes internal causes to errors.Is/As (never serialized).
 func (e *Error) Unwrap() []error { return e.causes }
+
+// GetHeaders implements huma.HeadersError: response headers sent with the
+// error (ETag on 412, Retry-After on 409 in-flight/429/503, Allow on 405).
+func (e *Error) GetHeaders() http.Header {
+	if e.headers == nil {
+		e.headers = http.Header{}
+	}
+	return e.headers
+}
+
+// WithHeader sets a response header sent with the error.
+func (e *Error) WithHeader(name, value string) *Error {
+	e.GetHeaders().Set(name, value)
+	return e
+}
 
 // ContentType implements huma.ContentTypeFilter.
 func (e *Error) ContentType(ct string) string {
@@ -101,6 +117,14 @@ const (
 	CodeUnavailable          = "unavailable"
 	CodeNotReady             = "not_ready"
 	CodeTimeout              = "timeout"
+
+	// Idempotency (#4, #26).
+	CodeIdempotencyKeyReused   = "idempotency_key_reused"
+	CodeIdempotencyKeyInFlight = "idempotency_key_in_flight"
+
+	// Jobs (#26).
+	CodeJobFinished        = "job_finished"
+	CodeJobKindUnavailable = "job_kind_unavailable"
 )
 
 // CodeForStatus returns the default code for an HTTP status.
@@ -174,9 +198,15 @@ func NotFound(msg string) *Error { return NewError(http.StatusNotFound, CodeNotF
 // Conflict is a 409 with a specific code (e.g. "stack_name_taken").
 func Conflict(code, msg string) *Error { return NewError(http.StatusConflict, code, msg) }
 
-// PreconditionFailed is a 412 for stale If-Match/ETag revisions.
-func PreconditionFailed(msg string) *Error {
-	return NewError(http.StatusPreconditionFailed, CodePreconditionFailed, msg)
+// PreconditionFailed is a 412 for stale If-Match/ETag revisions. Prefer
+// CheckIfMatch, which also returns the current ETag.
+func PreconditionFailed(msg string, details ...ErrorDetail) *Error {
+	return NewError(http.StatusPreconditionFailed, CodePreconditionFailed, msg, details...)
+}
+
+// PreconditionRequired is a 428 for edits sent without If-Match.
+func PreconditionRequired(msg string, details ...ErrorDetail) *Error {
+	return NewError(http.StatusPreconditionRequired, CodePreconditionRequired, msg, details...)
 }
 
 // Invalid is a 422 with per-field details.
@@ -277,6 +307,11 @@ func finalize(ctx context.Context, e *Error) {
 // recovery, the /agent/v1 placeholder).
 func WriteError(w http.ResponseWriter, r *http.Request, e *Error) {
 	finalize(r.Context(), e)
+	for k, vs := range e.headers {
+		for _, v := range vs {
+			w.Header().Add(k, v)
+		}
+	}
 	w.Header().Set("Content-Type", ErrorContentType)
 	w.WriteHeader(e.status)
 	_ = json.NewEncoder(w).Encode(e)

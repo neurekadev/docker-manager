@@ -247,6 +247,15 @@ func TestListJobsPaginationFiltersAndVisibility(t *testing.T) {
 	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?target=nocolon", "alice"), http.StatusUnprocessableEntity, CodeValidationFailed)
 	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?target=planet:x", "alice"), http.StatusUnprocessableEntity, CodeValidationFailed)
 	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?cursor=!!", "alice"), http.StatusUnprocessableEntity, CodeValidationFailed)
+	// A cursor is bound to the filters it was issued for.
+	_, next := listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?limit=1&environmentId=e1", "alice"))
+	if next == "" {
+		t.Fatal("expected a next cursor")
+	}
+	if ids, _ := listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?limit=1&environmentId=e1&cursor="+next, "alice")); len(ids) != 1 {
+		t.Fatalf("second page %v", ids)
+	}
+	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?limit=1&environmentId=e2&cursor="+next, "alice"), http.StatusUnprocessableEntity, CodeValidationFailed)
 	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?state=done", "alice"), http.StatusUnprocessableEntity, CodeValidationFailed)
 }
 
@@ -276,8 +285,8 @@ func TestGetAndCancelJob(t *testing.T) {
 	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs/nope", "alice"), http.StatusNotFound, CodeNotFound)
 
 	rec = f.do(http.MethodPost, BasePath+"/jobs/"+blocked.ID+"/cancellations", "alice")
-	if rec.Code != http.StatusAccepted {
-		t.Fatalf("cancel %d %s", rec.Code, rec.Body)
+	if rec.Code != http.StatusAccepted || rec.Header().Get("Location") != BasePath+"/jobs/"+blocked.ID {
+		t.Fatalf("cancel %d %v %s", rec.Code, rec.Header(), rec.Body)
 	}
 	j = Job{}
 	_ = json.Unmarshal(rec.Body.Bytes(), &j)
@@ -323,7 +332,8 @@ func TestJobEventStreamReplayAndClose(t *testing.T) {
 	j := f.enqueue(jobspec.StackStart, "e1", stackT("web"))
 	f.finish("e1")
 	rec := f.do(http.MethodGet, BasePath+"/jobs/"+j.ID+"/events/stream", "alice")
-	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "text/event-stream" || rec.Header().Get("X-Accel-Buffering") != "no" {
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "text/event-stream" || rec.Header().Get("X-Accel-Buffering") != "no" ||
+		rec.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("status %d headers %v", rec.Code, rec.Header())
 	}
 	events, _ := parseSSE(t, rec.Body.String())

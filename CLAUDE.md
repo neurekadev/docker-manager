@@ -35,20 +35,34 @@ No Docker locally: Engine-dependent tests run in CI only.
            Path: api.BasePath + "/stacks/{stackId}", Summary: "Get a stack",
            Tags: []string{"Stacks"},
        },
-       Capability: "stack.read",      // or api.CapabilityPublic / api.CapabilityAuthenticated
+       Capability: "stack.read",      // or api.CapabilityPublic / Authenticated / Owner, or "stack.{action}" + CapabilityValues
        Scope:      api.ScopeResource, // none|instance|environment|resource
    }, handler)
    ```
-   Operation IDs are kebab-case and stable. Capability keys come from #17.
+   Operation IDs are kebab-case and stable; take them (and capability/scope)
+   from `api/route-inventory.yaml` and flip the entry to
+   `status: implemented` in the same PR (`TestRouteInventory`). Capability
+   keys come from #17.
 3. Errors: return `api.NotFound(...)`, `api.Invalid(msg, api.Field("body.name", "..."))`,
    `api.Conflict("stack_name_taken", ...)`, `api.PreconditionFailed`,
    `api.Unavailable`, `api.Internal(err)`. Plain errors become a 500 with the
-   cause logged, never returned. Codes are stable snake_case.
-4. Lists return `api.Page[T]` (`items`, `nextCursor`, `total`) and embed
-   `api.PageParams`; edits embed `api.IfMatchParam`; dangerous retries embed
-   `api.IdempotencyKeyParam`; long operations return 202 + job (#26).
+   cause logged, never returned. Codes are stable snake_case; add every new
+   code to `ErrorCodes()` (`errorcodes.go`) and `docs/api/errors.md`.
+4. Lists return `api.Page[T]` and embed `api.PageParams` (+ `api.SortParam`);
+   page with `api.ScanPage` + `api.CursorFor`. Revisioned GETs embed
+   `api.ETagHeader`; edits embed `api.IfMatchParam` and call
+   `in.CheckIfMatch(api.RevisionETag(rev))`. Dangerous retries embed
+   `api.IdempotencyKeyParam` and set `Idempotency: api.IdempotencyJob`
+   (key passed to the job engine) or `api.IdempotencyStored` (response
+   replay). Long operations return `api.Accepted(job)` (`*api.JobAccepted`,
+   202 + Location, #26). SSE streams write through `api.StartSSE`.
+   Conventions: `docs/api/conventions.md`; streams: `docs/api/streams.md`.
 5. Run `bash scripts/generate.sh` and commit `api/openapi.json` and
-   `web/src/lib/api/schema.d.ts`.
+   `web/src/lib/api/schema.d.ts`. Breaking spec changes fail the
+   `api-contract` workflow unless the PR has the `api-breaking-change`
+   label (`docs/api/versioning.md`).
+6. Agent protocol changes: keep `internal/protocol` and
+   `docs/protocol/agent-v1.md` in sync (their tests compare them).
 
 ## Adding a migration
 

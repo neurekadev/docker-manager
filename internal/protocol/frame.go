@@ -2,11 +2,14 @@
 // (dockyard.agent/v1): a JSON frame envelope exchanged over one WebSocket
 // that the agent dials out to /agent/v1/session.
 //
-// This package is intentionally small. Enrollment, the handshake and
-// capability schema arrive with #3; job command semantics (attempt, fencing
-// tokens, acknowledgements, results and the reconnect job_report) are
-// defined in jobs.go (#26). Keep it free of manager/agent internals so both
-// binaries share it. The protocol is versioned independently of /api/v1.
+// The normative specification is docs/protocol/agent-v1.md (#4): enrollment,
+// the session upgrade, every frame type, limits and close codes. This
+// package implements the envelope (frame.go), job command semantics
+// (attempt, fencing tokens, acknowledgements, results and the reconnect
+// job_report, jobs.go, #26) and the session payloads, allowed request and
+// stream names and version window (session.go). Keep it free of
+// manager/agent internals so both binaries share it. The protocol is
+// versioned independently of /api/v1.
 package protocol
 
 import (
@@ -49,6 +52,16 @@ const (
 	// TypeJobReport is sent by the agent after every (re)connect: its
 	// fencing high-water mark and the outcome of every journaled job (#26).
 	TypeJobReport Type = "job_report"
+	// TypeWelcome is the manager's answer to hello: the session is
+	// established (session.go).
+	TypeWelcome Type = "welcome"
+	// TypeRequest is a named, bounded, non-job operation (read or preview)
+	// the manager asks the agent to perform; answered by response or error.
+	TypeRequest Type = "request"
+	// TypeResponse answers a request (correlationId = request id).
+	TypeResponse Type = "response"
+	// TypeStreamCredit grants the sender of a stream more bytes (flow control).
+	TypeStreamCredit Type = "stream_credit"
 )
 
 var knownTypes = map[Type]bool{
@@ -56,13 +69,15 @@ var knownTypes = map[Type]bool{
 	TypeAck: true, TypeProgress: true, TypeResult: true, TypeEvent: true,
 	TypeFSInvalidation: true, TypeRescan: true, TypeStreamOpen: true, TypeStreamData: true,
 	TypeStreamClose: true, TypeCancel: true, TypeError: true, TypeJobReport: true,
+	TypeWelcome: true, TypeRequest: true, TypeResponse: true, TypeStreamCredit: true,
 }
 
 // Types returns every known frame type.
 func Types() []Type {
 	return []Type{TypeHello, TypeHeartbeat, TypeCapabilities, TypeCommand, TypeAck, TypeProgress,
 		TypeResult, TypeEvent, TypeFSInvalidation, TypeRescan, TypeStreamOpen, TypeStreamData,
-		TypeStreamClose, TypeCancel, TypeError, TypeJobReport}
+		TypeStreamClose, TypeCancel, TypeError, TypeJobReport, TypeWelcome, TypeRequest, TypeResponse,
+		TypeStreamCredit}
 }
 
 // Frame is the envelope of every message.
@@ -125,12 +140,36 @@ func (f *Frame) Validate() error {
 		if f.JobID == "" || f.Attempt == 0 || f.FencingToken == 0 || f.Deadline == nil {
 			return fmt.Errorf("%w: command requires jobId, attempt >= 1, fencingToken >= 1 and deadline", ErrInvalidFrame)
 		}
-	case TypeAck, TypeProgress, TypeResult, TypeCancel, TypeStreamData, TypeStreamClose:
-		if f.CorrelationID == "" {
-			return fmt.Errorf("%w: %s requires correlationId", ErrInvalidFrame, f.Type)
+	case TypeRequest:
+		if f.Deadline == nil || len(f.Payload) == 0 {
+			return fmt.Errorf("%w: request requires deadline and payload", ErrInvalidFrame)
+		}
+		if f.JobID != "" || f.Attempt != 0 || f.FencingToken != 0 {
+			return fmt.Errorf("%w: request is not a job command; jobId, attempt and fencingToken are not allowed", ErrInvalidFrame)
 		}
 	}
+	if needsCorrelation[f.Type] && f.CorrelationID == "" {
+		return fmt.Errorf("%w: %s requires correlationId", ErrInvalidFrame, f.Type)
+	}
+	if needsPayload[f.Type] && len(f.Payload) == 0 {
+		return fmt.Errorf("%w: %s requires a payload", ErrInvalidFrame, f.Type)
+	}
 	return nil
+}
+
+// needsCorrelation lists frame types that answer or belong to an earlier
+// frame (command, request, hello or stream_open).
+var needsCorrelation = map[Type]bool{
+	TypeAck: true, TypeProgress: true, TypeResult: true, TypeCancel: true,
+	TypeStreamData: true, TypeStreamClose: true, TypeWelcome: true,
+	TypeResponse: true, TypeStreamCredit: true,
+}
+
+// needsPayload lists frame types whose payload is mandatory.
+var needsPayload = map[Type]bool{
+	TypeHello: true, TypeWelcome: true, TypeCapabilities: true, TypeEvent: true,
+	TypeFSInvalidation: true, TypeRescan: true, TypeStreamOpen: true,
+	TypeStreamData: true, TypeStreamCredit: true, TypeError: true,
 }
 
 // Encode validates f and returns its JSON encoding.

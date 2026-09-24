@@ -30,6 +30,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/api"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/config"
+	"github.com/neurekadev/dockyard/internal/manager/idempotency"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
 	"github.com/neurekadev/dockyard/internal/manager/server"
@@ -62,6 +63,7 @@ type Manager struct {
 	instance domain.Instance
 	keyring  *secrets.Keyring
 	jobs     *jobs.Engine
+	idem     *idempotency.Store
 	handler  http.Handler
 }
 
@@ -129,16 +131,23 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return nil, fmt.Errorf("recover jobs: %w", err)
 	}
 
+	m.idem, err = idempotency.New(idempotency.Options{DB: db, Keyring: m.keyring, Clock: opts.Clock})
+	if err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
+
 	srv, err := server.New(server.Options{
 		Logger: log,
 		Clock:  opts.Clock,
 		UI:     opts.UI,
 		API: api.Deps{
-			Build:      buildinfo.Get(),
-			Readiness:  m.readiness,
-			Jobs:       m.jobs,
-			Authorizer: authorizer,
-			Clock:      opts.Clock,
+			Build:       buildinfo.Get(),
+			Readiness:   m.readiness,
+			Jobs:        m.jobs,
+			Authorizer:  authorizer,
+			Clock:       opts.Clock,
+			Idempotency: m.idem,
 		},
 		TrustedProxies: cfg.TrustedProxies,
 	})
@@ -211,6 +220,10 @@ func (m *Manager) DB() *bun.DB { return m.db }
 
 // Jobs returns the job engine.
 func (m *Manager) Jobs() *jobs.Engine { return m.jobs }
+
+// Idempotency returns the Idempotency-Key response store (its Forget is
+// called when a principal's sessions, token or permissions change).
+func (m *Manager) Idempotency() *idempotency.Store { return m.idem }
 
 // Serve serves HTTP on ln and runs the job engine until ctx is canceled,
 // then shuts down gracefully.
