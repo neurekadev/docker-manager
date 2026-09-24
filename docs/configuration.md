@@ -23,6 +23,8 @@ Sources: `internal/manager/config`, `internal/agent/config`,
 | `DOCKYARD_LOG_FORMAT` | `json` | `json` (structured, one object per line) or `text`. |
 | `DOCKYARD_TRUSTED_PROXIES` | empty | Comma/space-separated CIDRs or IPs of the reverse proxies in front of the manager. Only from these peers are `X-Forwarded-For` (client IP for rate limits and audit, read right to left), `X-Forwarded-Proto` (https detection, e.g. for first-run setup), `X-Forwarded-Host` and an inbound `X-Request-ID` honored; from anyone else they are ignored, and the server strips them before any handler runs. Set it to your proxy's address (the `deploy/` examples give the proxy a fixed IP). See `docs/deployment.md`. |
 | `DOCKYARD_STREAM_HEARTBEAT` | `15s` | Interval of SSE heartbeat comments and WebSocket pings (1s..55s). Must stay below your reverse proxy's idle/read timeout (nginx `proxy_read_timeout` defaults to 60 s). |
+| `DOCKYARD_SESSION_IDLE_TIMEOUT` | `1h` | A browser session ends after this much inactivity (Go duration, `5m`..`168h`; at most the lifetime). The default follows NIST SP 800-63B AAL2. |
+| `DOCKYARD_SESSION_LIFETIME` | `24h` | A browser session ends this long after sign-in, whatever the activity (`15m`..`720h`). |
 | `DOCKYARD_JOB_HISTORY_RETENTION` | `720h` | Finished jobs and their event logs older than this are deleted (Go duration, `1h`..`87600h`). Independent of audit retention (#30). See `docs/architecture/job-engine.md`. |
 | `DOCKYARD_JOB_HISTORY_MAX` | `10000` | Keep at most this many finished jobs (100..10000000); the oldest are deleted first. Unfinished jobs are never deleted. |
 | `DOCKYARD_JOB_EVENTS_MAX` | `500` | Progress/event log entries kept per job (10..100000); older entries are trimmed. |

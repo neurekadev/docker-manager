@@ -25,7 +25,7 @@ per the roadmap. There are no releases yet; `main` publishes
 - [Architecture overview](docs/architecture/overview.md)
 - [API conventions](docs/api/conventions.md) · OpenAPI: [`api/openapi.json`](api/openapi.json)
 - [Development guide](docs/development.md) · [Code conventions](CLAUDE.md)
-- [ADR 0001: foundation](docs/adr/0001-foundation.md)
+- [ADR 0001: foundation](docs/adr/0001-foundation.md) · [ADR 0002: frontend libraries](docs/adr/0002-frontend-libraries.md) · [ADR 0003: auth libraries](docs/adr/0003-auth-libraries.md)
 
 ## Repository layout
 

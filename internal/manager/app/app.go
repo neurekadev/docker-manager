@@ -1,8 +1,8 @@
 // Package app wires the manager together and owns its startup order:
 //
 //	config → data dir → open DB → (snapshot) → migrate → secret key /
-//	instance → job engine recovery → HTTP handler → listener → serve
-//	(+ job engine loop)
+//	instance → auth primitives → job engine recovery → HTTP handler →
+//	listener → serve (+ job engine loop, auth housekeeping)
 //
 // Migrations always finish before any listener or background worker starts;
 // a migration failure aborts startup with the database unchanged.
@@ -28,6 +28,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/manager/api"
+	"github.com/neurekadev/dockyard/internal/manager/auth"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/config"
 	"github.com/neurekadev/dockyard/internal/manager/idempotency"
@@ -62,6 +63,7 @@ type Manager struct {
 	db       *bun.DB
 	instance domain.Instance
 	keyring  *secrets.Keyring
+	auth     *auth.Kit
 	jobs     *jobs.Engine
 	idem     *idempotency.Store
 	handler  http.Handler
@@ -107,6 +109,18 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	}
 
 	if err := m.initInstance(ctx); err != nil {
+		return nil, err
+	}
+
+	// Auth primitives (#18): a public URL that cannot be a WebAuthn relying
+	// party fails startup here, before anything listens.
+	if m.auth, err = auth.NewKit(auth.KitOptions{
+		DB: db, Clock: opts.Clock, Logger: log.With("component", "auth"), PublicURL: cfg.PublicURL,
+		IdleTimeout: cfg.Sessions.IdleTimeout, Lifetime: cfg.Sessions.Lifetime,
+		SessionError: func(w http.ResponseWriter, r *http.Request, err error) {
+			api.WriteError(w, r, api.Internal(err))
+		},
+	}); err != nil {
 		return nil, err
 	}
 
@@ -225,11 +239,15 @@ func (m *Manager) DB() *bun.DB { return m.db }
 // Jobs returns the job engine.
 func (m *Manager) Jobs() *jobs.Engine { return m.jobs }
 
+// Auth returns the authentication primitives (#16, #18).
+func (m *Manager) Auth() *auth.Kit { return m.auth }
+
 // Idempotency returns the Idempotency-Key response store (its Forget is
 // called when a principal's sessions, token or permissions change).
 func (m *Manager) Idempotency() *idempotency.Store { return m.idem }
 
-// Serve serves HTTP on ln and runs the job engine until ctx is canceled,
+// Serve serves HTTP on ln and runs the job engine and auth housekeeping
+// (expired-session sweeping) until ctx is canceled,
 // then shuts down gracefully.
 func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 	engineCtx, stopEngine := context.WithCancel(ctx)
@@ -238,9 +256,15 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		defer close(engineDone)
 		_ = m.jobs.Run(engineCtx)
 	}()
+	authDone := make(chan struct{})
+	go func() {
+		defer close(authDone)
+		m.auth.RunHousekeeping(engineCtx)
+	}()
 	defer func() {
 		stopEngine()
 		<-engineDone
+		<-authDone
 	}()
 	srv := server.HTTPServer(m.handler, m.opts.Logger)
 	errCh := make(chan error, 1)
