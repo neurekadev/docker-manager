@@ -12,11 +12,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 
 	"github.com/neurekadev/dockyard/internal/buildinfo"
+	"github.com/neurekadev/dockyard/internal/clock"
+	"github.com/neurekadev/dockyard/internal/manager/authz"
 )
 
 // Contract constants.
@@ -41,6 +44,21 @@ type Deps struct {
 	Readiness func(ctx context.Context) []Check
 	// Features are stable feature-flag keys advertised by /capabilities.
 	Features []string
+	// Jobs is the job engine (#26); nil answers job routes with 503.
+	Jobs JobService
+	// Authorizer decides capability checks; nil denies everything (#17).
+	Authorizer authz.Authorizer
+	// Clock drives stream heartbeats; nil means the wall clock.
+	Clock clock.Clock
+	// SSEHeartbeat overrides DefaultSSEHeartbeat.
+	SSEHeartbeat time.Duration
+}
+
+func (d Deps) clock() clock.Clock {
+	if d.Clock == nil {
+		return clock.Real()
+	}
+	return d.Clock
 }
 
 // Check is one readiness check result.
@@ -66,6 +84,7 @@ func Config() huma.Config {
 func New(mux *http.ServeMux, deps Deps) huma.API {
 	a := humago.New(mux, Config())
 	registerSystem(a, deps)
+	registerJobs(a, deps)
 	return a
 }
 

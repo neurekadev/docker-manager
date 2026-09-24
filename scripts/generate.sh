@@ -2,6 +2,7 @@
 # Regenerates committed artifacts:
 #   api/openapi.json               from the registered Huma operations
 #   web/src/lib/api/schema.d.ts    TypeScript types via openapi-typescript
+#   docs/architecture/job-engine.md  lock-matrix table from internal/jobspec
 #
 #   bash scripts/generate.sh           regenerate in place
 #   bash scripts/generate.sh --check   fail if anything is stale (CI)
@@ -42,6 +43,10 @@ compare() { # generated committed
 if [ "$mode" = "check" ]; then
 	compare "$tmp/openapi.json" api/openapi.json
 	compare "$tmp/schema.d.ts" web/src/lib/api/schema.d.ts
+	echo "==> job lock matrix"
+	if ! go run ./tools/jobdoc -check; then
+		stale=1
+	fi
 	if [ "$stale" -ne 0 ]; then
 		echo "Generated artifacts are out of date. Run: bash scripts/generate.sh and commit the result." >&2
 		exit 1
@@ -51,5 +56,7 @@ else
 	mkdir -p api
 	cp "$tmp/openapi.json" api/openapi.json
 	cp "$tmp/schema.d.ts" web/src/lib/api/schema.d.ts
-	echo "generate: wrote api/openapi.json and web/src/lib/api/schema.d.ts"
+	echo "==> job lock matrix"
+	go run ./tools/jobdoc
+	echo "generate: wrote api/openapi.json, web/src/lib/api/schema.d.ts and the lock matrix in docs/architecture/job-engine.md"
 fi

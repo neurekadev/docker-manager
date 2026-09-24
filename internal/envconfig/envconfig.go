@@ -8,7 +8,9 @@ package envconfig
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Source provides environment lookups and file reads.
@@ -86,4 +88,36 @@ func (s Source) Bool(name string, def bool) (bool, error) {
 	default:
 		return def, fmt.Errorf("%s: invalid boolean %q", name, v)
 	}
+}
+
+// Int parses a base-10 integer variable within [lo, hi].
+func (s Source) Int(name string, def, lo, hi int) (int, error) {
+	v := s.String(name, "")
+	if v == "" {
+		return def, nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return def, fmt.Errorf("%s: invalid integer %q", name, v)
+	}
+	if n < lo || n > hi {
+		return def, fmt.Errorf("%s: %d is outside %d..%d", name, n, lo, hi)
+	}
+	return n, nil
+}
+
+// Duration parses a Go duration variable (e.g. 90s, 15m, 720h) within [lo, hi].
+func (s Source) Duration(name string, def, lo, hi time.Duration) (time.Duration, error) {
+	v := s.String(name, "")
+	if v == "" {
+		return def, nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return def, fmt.Errorf("%s: invalid duration %q (use e.g. 90s, 15m, 720h)", name, v)
+	}
+	if d < lo || d > hi {
+		return def, fmt.Errorf("%s: %s is outside %s..%s", name, d, lo, hi)
+	}
+	return d, nil
 }

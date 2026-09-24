@@ -1,6 +1,35 @@
 package envconfig
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func TestIntAndDuration(t *testing.T) {
+	s := Map(map[string]string{"N": " 7 ", "BAD": "x", "BIG": "99", "D": "15m", "BADD": "3 days", "LONGD": "9999h"}, nil)
+	if n, err := s.Int("N", 1, 0, 10); err != nil || n != 7 {
+		t.Fatalf("Int = %d %v", n, err)
+	}
+	if n, err := s.Int("UNSET", 3, 0, 10); err != nil || n != 3 {
+		t.Fatalf("default = %d %v", n, err)
+	}
+	for _, name := range []string{"BAD", "BIG"} {
+		if _, err := s.Int(name, 1, 0, 10); err == nil {
+			t.Errorf("Int(%s) accepted", name)
+		}
+	}
+	if d, err := s.Duration("D", time.Hour, time.Minute, 24*time.Hour); err != nil || d != 15*time.Minute {
+		t.Fatalf("Duration = %v %v", d, err)
+	}
+	if d, err := s.Duration("UNSET", time.Hour, 0, 24*time.Hour); err != nil || d != time.Hour {
+		t.Fatalf("default = %v %v", d, err)
+	}
+	for _, name := range []string{"BADD", "LONGD"} {
+		if _, err := s.Duration(name, time.Hour, time.Minute, 24*time.Hour); err == nil {
+			t.Errorf("Duration(%s) accepted", name)
+		}
+	}
+}
 
 func TestSecretVariants(t *testing.T) {
 	src := Map(map[string]string{

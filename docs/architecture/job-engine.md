@@ -1,0 +1,325 @@
+# Job engine (#26)
+
+Every long or mutating operation — pull, build, deploy, stack operations,
+update, prune, backup, restore, retention, repository verification, file
+archive/extract/recursive metadata changes, migrations — runs as a durable,
+manager-owned **job**. The scheduler (#13) only decides *when* to enqueue;
+features never run their own serialization or recovery.
+
+| Package | Role |
+| --- | --- |
+| `internal/jobspec` | Kind catalog: executor, capability, **lock definition**, offline deadline, steps (idempotency, cancellation safe points, recovery guidance), compensations, concurrency class, manager-restart policy. Shared by manager and agent. |
+| `internal/manager/jobs` | The engine: enqueue, idempotency, lock acquisition, dispatch, fencing, reconciliation, cancellation, manager-local execution, recovery, retention. |
+| `internal/jobexec` | Step runner used by both executors: journal-before-step, safe points, compensations, crash recovery. |
+| `internal/agent/jobs` | Agent side: fencing check, fsync'd journal in the agent state dir, execution, reconnect report. |
+| `internal/protocol` (`jobs.go`) | Command/ack/progress/result/cancel/`job_report` frames. |
+| `internal/manager/authz` | `Authorizer` hook (deny-all until #17), principals. |
+| `internal/manager/api` (`jobs.go`) | `/api/v1/jobs` routes, `Job` schema, SSE stream, `JobErrorFor`, `Accepted`. |
+| `internal/faultinject` | Named fault points (no-op unless built with `-tags faultinject`). |
+
+## Job model
+
+Stored in SQLite (`jobs`, `job_targets`, `job_locks`, `job_events`,
+`job_fencing`; migration `20260924120000_create_jobs`):
+
+- `kind`, `executor` (`agent`/`manager`), `origin` (`manual`, `scheduled`,
+  `api_token`), initiator user and API-token IDs (**audit metadata only**,
+  never an access-control owner), `policy_id`, `environment_id`, targets
+  (`stack`, `container`, `volume`, `image`, `network`, `repository`, `path`,
+  `destination_path`; a target may name another environment for migrations).
+- canonical JSON `input` and its `input_hash`, optional idempotency key.
+- `attempt`, `state`, progress (percent/step/message), item-level results,
+  error class, error message, **recovery guidance**, `blocked_by` and
+  `blocked_reason`, planned lock set, `fencing_token`, cancel flag, the
+  execution journal of manager-local jobs (current step, completed steps,
+  compensations) and timestamps (created, updated, dispatched, started,
+  finished).
+
+### State machine
+
+`domain.CanTransition` is the single table of legal moves; the engine's
+`transition()` is the only code that changes a job's state (it also stamps
+timestamps, writes a state event and releases locks on terminal states).
+
+| From | To |
+| --- | --- |
+| `queued` | `blocked`, `dispatched`, `cancelled`, `failed` |
+| `blocked` | `dispatched`, `cancelled`, `failed` |
+| `dispatched` | `running`, `cancelling`, any terminal state |
+| `running` | `dispatched` (resume as a new attempt), `cancelling`, any terminal state |
+| `cancelling` | any terminal state |
+
+Terminal states: `succeeded`, `failed`, `partial`, `cancelled`,
+`interrupted`. Every non-successful terminal state carries an error class
+and recovery guidance; no job silently disappears (only retention deletes
+old finished jobs).
+
+Stable error classes: `agent_offline`, `authorization_revoked`,
+`step_failed`, `unknown_outcome`, `journal_lost`, `resume_limit`,
+`rejected`, `compensation_failed`, `executor_restarted`, `cancelled`,
+`internal`.
+
+### Idempotency
+
+`Request.IdempotencyKey` is scoped to the initiating principal (user, API
+token, or the service identity for scheduled jobs). The same key with the
+same input hash (kind, environment, policy, sorted targets, canonical
+input) returns the existing job — also after it finished; the same key with a
+different input fails with `domain.ErrJobIdempotencyConflict`, which the API
+maps to **409 `idempotency_key_reused`**.
+
+## Resource locking
+
+Scopes: `host` (the environment), `stack`, `container`, `volume`, `image`,
+`network`, `file_path`, and `repository` (instance-wide restic repository —
+added so retention/verify/backup serialize correctly). Modes: `shared` and
+`exclusive`. Two locks of different jobs **conflict** when they overlap and
+at least one is exclusive. They overlap when scope and environment match
+and the names are equal, either name is `*` (all resources of the scope in
+the environment, used by prune), or — for `file_path` — one path equals or
+is an ancestor of the other (segment-wise prefix: `/a` covers `/a/b`, not
+`/ab`).
+
+- Each kind declares its lock rules (below); the lock set is computed from
+  the job's targets at enqueue, deduplicated (exclusive wins), **sorted** by
+  (scope, environment, name) and shown in the API while queued.
+- At dispatch the engine acquires the **full set in one SQLite transaction**
+  (all or nothing), persists it in `job_locks` and releases it only in the
+  transaction that moves the job to a terminal state.
+- Dispatch is FIFO per resource: a job that cannot start reserves its lock
+  set for the rest of the pass, so a later job cannot overtake it on the same
+  resources. A waiting job shows `blocked_by` (the job holding or queued
+  first for the conflicting lock) with reason `lock`, `agent_offline` or
+  `concurrency_limit`. Conflicts never fail a job; features that want reject
+  semantics use an idempotency key or check before enqueueing.
+- Per-environment concurrency caps apply to kinds with a concurrency class
+  (`pull`: `DOCKYARD_JOB_MAX_CONCURRENT_PULLS`, default 2; `build`:
+  `DOCKYARD_JOB_MAX_CONCURRENT_BUILDS`, default 1).
+- Prune takes shared `*` locks and must revalidate each candidate right
+  before deleting it; it therefore runs alongside deploys but waits for (and
+  blocks) exclusive volume/image/network/container work such as a volume
+  restore.
+
+### Lock matrix
+
+Generated from `internal/jobspec` by `scripts/generate.sh`
+(`TestMatrixDocUpToDate` fails when stale; `TestEveryJobKindHasLockDefinition`
+fails when a declared kind has no lock definition). Legend: **X** exclusive,
+S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
+(cancellation is honored immediately before them).
+
+<!-- BEGIN GENERATED: lock-matrix (scripts/generate.sh; do not edit) -->
+
+| Kind | Executor | Capability | Locks | Steps | Offline deadline | Cap class | Compensations | Manager restart |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `backup.import` | manager | `backup.import` | `repository` S (repository targets) | `scan` (i,c) → `import_index` (i,c) | — | — | — | resume |
+| `backup.retention` | manager | `backup.retention` | `repository` **X** (repository targets) | `forget` (i,c) → `prune_repository` (i,c) | — | — | — | resume |
+| `backup.run` | agent | `backup.run` | `host` S (each environment)<br>`stack` **X** (stack targets, optional)<br>`volume` S (volume targets, optional)<br>`file_path` S (path targets, optional)<br>`repository` S (repository targets) | `prepare` (i,c) → `stop_containers` (i,c) → `snapshot` (c) → `start_containers` (i) → `record` (i,c) | 1h | — | `start_containers` | — |
+| `backup.verify` | manager | `backup.verify` | `repository` S (repository targets) | `check` (i,c) | — | — | — | resume |
+| `container.create` | agent | `container.create` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `create` (c) | 10m | — | — | — |
+| `container.pause` | agent | `container.pause` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `pause` (i,c) | 10m | — | — | — |
+| `container.remove` | agent | `container.remove` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `remove` (i,c) | 10m | — | — | — |
+| `container.restart` | agent | `container.restart` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `restart` (i,c) | 10m | — | — | — |
+| `container.start` | agent | `container.start` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `start` (i,c) | 10m | — | — | — |
+| `container.stop` | agent | `container.stop` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `stop` (i,c) | 10m | — | — | — |
+| `container.unpause` | agent | `container.unpause` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `unpause` (i,c) | 10m | — | — | — |
+| `container.update` | agent | `container.update` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `update` (i,c) | 10m | — | — | — |
+| `files.archive` | agent | `files.archive` | `host` S (each environment)<br>`file_path` S (path targets)<br>`file_path` **X** (destination_path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `archive` (i,c) | 10m | — | — | — |
+| `files.copy` | agent | `files.copy` | `host` S (each environment)<br>`file_path` S (path targets)<br>`file_path` **X** (destination_path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `copy` (c) | 10m | — | — | — |
+| `files.delete` | agent | `files.delete` | `host` S (each environment)<br>`file_path` **X** (path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `delete` (i,c) | 10m | — | — | — |
+| `files.extract` | agent | `files.extract` | `host` S (each environment)<br>`file_path` S (path targets)<br>`file_path` **X** (destination_path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `extract` (c) | 10m | — | — | — |
+| `files.metadata` | agent | `files.metadata` | `host` S (each environment)<br>`file_path` **X** (path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `apply` (i,c) | 10m | — | — | — |
+| `files.move` | agent | `files.move` | `host` S (each environment)<br>`file_path` **X** (path targets)<br>`file_path` **X** (destination_path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `move` (c) | 10m | — | — | — |
+| `image.build` | agent | `image.build` | `host` S (each environment)<br>`image` **X** (image targets) | `fetch_context` (i,c) → `build` (i,c) | 30m | build | — | — |
+| `image.pull` | agent | `image.pull` | `host` S (each environment)<br>`image` **X** (image targets) | `pull` (i,c) | 30m | pull | — | — |
+| `image.remove` | agent | `image.remove` | `host` S (each environment)<br>`image` **X** (image targets) | `remove` (i,c) | 10m | — | — | — |
+| `manager.backup` | manager | `manager.backup` | `repository` **X** (repository targets) | `snapshot_database` (i,c) → `backup` (c) | — | — | — | interrupt |
+| `network.create` | agent | `network.create` | `host` S (each environment)<br>`network` **X** (network targets) | `create` (c) | 10m | — | — | — |
+| `network.remove` | agent | `network.remove` | `host` S (each environment)<br>`network` **X** (network targets) | `remove` (i,c) | 10m | — | — | — |
+| `prune.run` | agent | `maintenance.run` | `host` S (each environment)<br>`container` S (all (`*`))<br>`image` S (all (`*`))<br>`network` S (all (`*`))<br>`volume` S (all (`*`)) | `collect_candidates` (i,c) → `delete_candidates` (i,c) | 1h | — | — | — |
+| `restore.run` | agent | `backup.restore` | `host` S (each environment)<br>`stack` **X** (stack targets, optional)<br>`volume` **X** (volume targets, optional)<br>`file_path` **X** (destination_path targets, optional)<br>`repository` S (repository targets) | `prepare` (i,c) → `stop_containers` (i,c) → `restore_data` (c) → `start_containers` (i) | 1h | — | `start_containers` | — |
+| `stack.build` | agent | `stack.build` | `host` S (each environment)<br>`stack` **X** (stack targets) | `fetch_sources` (i,c) → `build_images` (i,c) | 30m | build | — | — |
+| `stack.deploy` | agent | `stack.deploy` | `host` S (each environment)<br>`stack` **X** (stack targets) | `resolve_sources` (i,c) → `pull_images` (i,c) → `build_images` (i,c) → `apply` (i,c) | 30m | — | — | — |
+| `stack.down` | agent | `stack.down` | `host` S (each environment)<br>`stack` **X** (stack targets) | `down` (i,c) | 10m | — | — | — |
+| `stack.migrate` | manager | `stack.migrate` | `host` S (each environment)<br>`stack` **X** (stack targets)<br>`volume` **X** (volume targets, optional) | `prepare` (i,c) → `stop_source` (i,c) → `transfer` (i,c) → `deploy_destination` (i,c) → `finalize` | — | — | `start_source` | interrupt |
+| `stack.restart` | agent | `stack.restart` | `host` S (each environment)<br>`stack` **X** (stack targets) | `restart` (i,c) | 10m | — | — | — |
+| `stack.start` | agent | `stack.start` | `host` S (each environment)<br>`stack` **X** (stack targets) | `start` (i,c) | 10m | — | — | — |
+| `stack.stop` | agent | `stack.stop` | `host` S (each environment)<br>`stack` **X** (stack targets) | `stop` (i,c) | 10m | — | — | — |
+| `stack.update` | agent | `stack.update` | `host` S (each environment)<br>`stack` **X** (stack targets) | `pull_images` (i,c) → `apply` (i,c) | 30m | pull | — | — |
+| `update.check` | manager | `update.check` | `stack` S (stack targets) | `check` (i,c) | — | — | — | resume |
+| `update.run` | agent | `update.run` | `host` S (each environment)<br>`stack` **X** (stack targets) | `pull_images` (i,c) → `recreate` (i,c) → `wait_healthy` (i) | 1h | pull | — | — |
+| `volume.create` | agent | `volume.create` | `host` S (each environment)<br>`volume` **X** (volume targets) | `create` (i,c) | 10m | — | — | — |
+| `volume.migrate` | manager | `volume.migrate` | `host` S (each environment)<br>`volume` **X** (volume targets) | `prepare` (i,c) → `transfer` (i,c) → `finalize` | — | — | — | interrupt |
+| `volume.remove` | agent | `volume.remove` | `host` S (each environment)<br>`volume` **X** (volume targets) | `remove` (i,c) | 10m | — | — | — |
+
+<!-- END GENERATED: lock-matrix -->
+
+Executor assignments of manager-side kinds (`update.check`,
+`backup.retention`, `backup.verify`, `backup.import`, `manager.backup`,
+`stack.migrate`, `volume.migrate`) are provisional; the owning feature may
+move a kind between executors by changing its spec (and regenerating this
+table) before it ships.
+
+## Dispatch, fencing and agent recovery
+
+- Dispatch allocates a token from the environment's persisted counter
+  (`job_fencing`) in the acquisition transaction and sends a `command` frame
+  with job ID, attempt, fencing token, deadline and `{kind, input,
+  completedSteps}` through `AgentDispatcher.Send`. Commands of one
+  environment leave in token order.
+- The agent persists the highest token it accepted (journal high-water mark)
+  and rejects any command whose token is not above it (`ack`
+  `stale_fencing_token`), except an exact duplicate of a journaled command
+  (acknowledged as `duplicate`, never re-run). A command replayed after a
+  reconnect or from a superseded dispatch is therefore rejected — also after
+  an agent restart. If the agent reports a high-water mark above the
+  manager's counter (manager database restored), the counter moves past it.
+- The agent journals (fsync, atomic rename) the command **before** acking,
+  each step as in-flight **before** running it and as completed after, and
+  every compensation before causing the effect it undoes. Results stay in
+  the journal until the manager acknowledges them (`ack.forget`).
+- **Reconnect** (`job_report` → `HandleAgentFrame`): the manager reconciles
+  instead of re-running:
+
+  | Agent report | Manager action |
+  | --- | --- |
+  | finished `succeeded`/`failed`/`partial`/`cancelled` | apply the outcome, tell the agent to forget it |
+  | finished `interrupted`, resumable (the in-flight step, if any, is idempotent and no compensation ran) | new attempt with a new fencing token, skipping completed steps (bounded by `MaxResumes`, default 3); cancelled instead if cancellation was requested |
+  | finished `interrupted`, not resumable (non-idempotent step with unknown outcome) | `interrupted` with the step's recovery guidance — **never retried automatically** |
+  | running | keep running (re-send a pending cancellation) |
+  | job missing, never acknowledged | the command never arrived: new attempt with a new token (or `cancelled` if cancellation was requested) |
+  | job missing, acknowledged | `interrupted` / `journal_lost` with recovery guidance |
+  | entry for an unknown, finished or superseded job | forget it (a differing late outcome is recorded as a warning event) |
+
+- **Offline agent:** a queued agent job waits (`blocked`/`agent_offline`) up
+  to its kind's offline deadline, then fails with `agent_offline`; nothing
+  was changed. A dispatched command never acknowledged before the agent went
+  offline also fails after the deadline. Running jobs wait for the agent's
+  report (the agent keeps executing and journaling while disconnected).
+- **Manager restart:** `Engine.Recover` runs at startup (after migrations,
+  before the listener). Agent jobs keep their state and locks and are
+  reconciled on reconnect. Manager-local jobs run their compensations and
+  then resume (kinds with `resume` policy whose in-flight step is idempotent)
+  or become `interrupted` (`interrupt` policy or non-idempotent step).
+- **Cancellation** (`POST /jobs/{id}/cancellations`): waiting jobs are
+  cancelled immediately; active jobs move to `cancelling` and stop only at
+  the kind's next safe point. Unreleased compensations (e.g. restart the
+  containers stopped for a backup) always run when a job does not succeed —
+  on failure, cancellation and crash recovery. A job that finishes before
+  reaching a safe point keeps its outcome.
+
+## Authorization
+
+`internal/manager/authz` provides `Authorizer.Can(ctx, principal,
+capability, resource)` and `DenyAll` (the default until #17), so every job
+route fails closed: 401 without a principal, 404 for jobs the caller may not
+read (existence does not leak), 403 when reading is allowed but cancelling is
+not. Manual and API-token jobs are authorized at enqueue against the kind's
+capability on **every** target and **rechecked at dispatch** while still
+queued (lost grant → `failed`/`authorization_revoked`). Scheduled jobs run as
+the manager service identity (`authz.Service()`, never derivable from a
+request). Running jobs finish or recover after the initiator loses access.
+Job visibility and cancellation are checked with `job.read` / `job.cancel`
+against `authz.JobResource(job)` (the job and its targets), per item in
+lists.
+
+## API
+
+- `GET /api/v1/jobs` — cursor pagination (`cursor`, `limit`), filters
+  `state` (repeatable), `kind`, `environmentId`, `target=type:id`;
+  permission-filtered per item (`total` omitted).
+- `GET /api/v1/jobs/{jobId}`.
+- `POST /api/v1/jobs/{jobId}/cancellations` — 202 with the job; 409
+  `job_finished`.
+- `GET /api/v1/jobs/{jobId}/events/stream` — SSE: `event: job` snapshot,
+  then events with `id: <seq>` after `Last-Event-ID`, `: heartbeat` every
+  15 s, `X-Accel-Buffering: no`, closes after the terminal events.
+
+The `Job` schema includes `origin`, `attempt`, `blockedBy`, `locks`,
+`locksHeld`, `progress`, `items` and `error {class, message, recovery}`.
+
+## Retention
+
+Finished jobs and their events are deleted after
+`DOCKYARD_JOB_HISTORY_RETENTION` (default `720h`) and beyond the newest
+`DOCKYARD_JOB_HISTORY_MAX` (default 10000) finished jobs; each job keeps its
+newest `DOCKYARD_JOB_EVENTS_MAX` (default 500) events. Unfinished jobs are
+never deleted. This is independent of audit retention (#30).
+
+## Fault injection
+
+Stage boundaries carry `faultinject.Point` calls: `engine.enqueue.committed`,
+`engine.dispatch.locked`, `engine.dispatch.committed`, `engine.dispatch.sent`,
+`engine.ack.before_commit`, `engine.progress.committed`,
+`engine.result.before_commit`, `engine.result.committed`,
+`engine.reconcile.before_commit`, `engine.reconcile.committed`,
+`engine.manager_job.started`, `engine.manager_job.committed`,
+`agent.command.received`, `agent.command.journaled`, `agent.command.acked`,
+`agent.result.before_send`, `agent.result.sent`, and per step
+`<agent|manager>.step.{before,started,ran,after}.<step>` and
+`<agent|manager>.compensation.before.<name>`. Built with
+`-tags faultinject`, `DOCKYARD_FAULTPOINT=<name>:crash|error|block` arms
+them; `DOCKYARD_FAULTPOINT_TRACE=<file>` records the points reached.
+`internal/manager/jobs/faulttest` runs the manager engine and an agent as
+subprocesses and kills each at every traced point of a simulated deploy, a
+backup with container shutdown and a prune (`go test -tags faultinject
+./internal/manager/jobs/faulttest/`).
+
+## For feature workstreams
+
+**Define a kind.** Add a `domain.JobKind` constant and a `Spec` in
+`internal/jobspec/catalog.go` (or adjust the provisional one): capability,
+executor, lock rules from targets, offline deadline, steps with
+`Idempotent`/`SafePoint`/`Recovery`, compensations. Run
+`bash scripts/generate.sh`.
+
+**Enqueue** from an API handler and answer 202:
+
+```go
+job, _, err := engine.Enqueue(ctx, jobs.Request{
+	Kind:           jobspec.StackDeploy,
+	Principal:      principal,          // authz.Service() for scheduled jobs
+	EnvironmentID:  envID,
+	Targets:        []domain.JobTarget{{Type: domain.TargetStack, ID: stackID}},
+	Input:          deployInput,        // JSON object
+	IdempotencyKey: in.IdempotencyKey,  // api.IdempotencyKeyParam
+})
+if err != nil {
+	return nil, api.JobErrorFor(err)
+}
+return api.Accepted(job), nil // register with DefaultStatus: http.StatusAccepted
+```
+
+**Implement an agent executor** (`internal/agent/...`, wired into
+`agentjobs.Options.Executors`):
+
+```go
+jobexec.Executor{
+	Kind: jobspec.BackupRun,
+	Steps: map[string]jobexec.StepFunc{
+		"stop_containers": func(ctx context.Context, sc *jobexec.StepContext) error {
+			// register BEFORE causing the effect
+			if err := sc.AddCompensation(ctx, jobspec.CompStartContainers, ids); err != nil {
+				return err
+			}
+			sc.Progress(ctx, 20, "stopping containers")
+			return engine.Stop(ctx, ids)
+		},
+		// ... one func per declared step; sc.Item(ctx, name, status, msg) for item results
+	},
+	Compensations: map[string]jobexec.CompensationFunc{
+		jobspec.CompStartContainers: startContainers, // must be idempotent
+	},
+}
+```
+
+Manager-local kinds register the same structure with
+`engine.RegisterManagerExecutor` before `Recover`. Steps must honor `ctx`;
+cancellation takes effect only at declared safe points.
+
+**Transport (#3)** implements `jobs.AgentDispatcher` (ordered `Send`,
+`Online`), feeds `job_report`/`ack`/`progress`/`result` frames to
+`Engine.HandleAgentFrame` and returns its replies on the session, calls
+`agentjobs.Runner.SendReport` on every agent (re)connect and
+`Runner.HandleFrame` for inbound command/cancel/ack frames. Report the
+environment online only after its `job_report` was reconciled.

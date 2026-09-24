@@ -73,7 +73,11 @@ conventions: TODO(#4).
 - Revisioned resources return an `ETag`; edits embed `api.IfMatchParam` and
   get 412 `precondition_failed` on mismatch.
 - Dangerous retries embed `api.IdempotencyKeyParam` (`Idempotency-Key`).
-- Long operations return `202 Accepted` with a job ID and URL (#26).
+- Long operations return `202 Accepted` with the `Job` and its URL in
+  `Location` (`api.Accepted(job)`, #26). Their `Idempotency-Key` is handled
+  by the job engine: the same key and request return the existing job; the
+  same key with a different request is **409 `idempotency_key_reused`**
+  (`api.JobErrorFor`). See `docs/architecture/job-engine.md`.
 
 ## Caching and headers
 

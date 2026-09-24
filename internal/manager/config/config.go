@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/neurekadev/dockyard/internal/envconfig"
 	"github.com/neurekadev/dockyard/internal/logging"
@@ -25,6 +26,12 @@ const (
 	EnvLogLevel       = "DOCKYARD_LOG_LEVEL"
 	EnvLogFormat      = "DOCKYARD_LOG_FORMAT"
 	EnvTrustedProxies = "DOCKYARD_TRUSTED_PROXIES"
+
+	EnvJobHistoryRetention   = "DOCKYARD_JOB_HISTORY_RETENTION"
+	EnvJobHistoryMax         = "DOCKYARD_JOB_HISTORY_MAX"
+	EnvJobEventsMax          = "DOCKYARD_JOB_EVENTS_MAX"
+	EnvJobMaxConcurrentPulls = "DOCKYARD_JOB_MAX_CONCURRENT_PULLS"
+	EnvJobMaxConcurrentBuild = "DOCKYARD_JOB_MAX_CONCURRENT_BUILDS"
 )
 
 // Defaults.
@@ -34,7 +41,27 @@ const (
 	SecretKeyFileName = "secret.key"
 	DatabaseFileName  = "dockyard.db"
 	SnapshotDirName   = "snapshots"
+
+	DefaultJobHistoryRetention   = 30 * 24 * time.Hour
+	DefaultJobHistoryMax         = 10000
+	DefaultJobEventsMax          = 500
+	DefaultJobMaxConcurrentPulls = 2
+	DefaultJobMaxConcurrentBuild = 1
 )
+
+// JobsConfig bounds the job engine (#26). Job history retention is
+// separate from audit retention (#30).
+type JobsConfig struct {
+	// HistoryRetention deletes finished jobs (and their events) older than this.
+	HistoryRetention time.Duration
+	// HistoryMax keeps at most this many finished jobs.
+	HistoryMax int
+	// EventsMax bounds each job's progress/event log.
+	EventsMax int
+	// MaxConcurrentPulls and MaxConcurrentBuilds cap pull/build jobs per environment.
+	MaxConcurrentPulls  int
+	MaxConcurrentBuilds int
+}
 
 // Config is the validated manager configuration.
 type Config struct {
@@ -50,6 +77,7 @@ type Config struct {
 	LogFormat        string
 	// TrustedProxies are the peers whose X-Forwarded-* headers are honored (#27).
 	TrustedProxies []netip.Prefix
+	Jobs           JobsConfig
 }
 
 // DatabasePath is the SQLite database file inside the data directory.
@@ -102,10 +130,26 @@ func Load(src envconfig.Source) (Config, error) {
 		errs = append(errs, fmt.Errorf("%s: %w", EnvTrustedProxies, err))
 	}
 
+	cfg.Jobs, err = loadJobs(src)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	if len(errs) > 0 {
 		return Config{}, errors.Join(errs...)
 	}
 	return cfg, nil
+}
+
+func loadJobs(src envconfig.Source) (JobsConfig, error) {
+	var c JobsConfig
+	var errs [5]error
+	c.HistoryRetention, errs[0] = src.Duration(EnvJobHistoryRetention, DefaultJobHistoryRetention, time.Hour, 10*365*24*time.Hour)
+	c.HistoryMax, errs[1] = src.Int(EnvJobHistoryMax, DefaultJobHistoryMax, 100, 10_000_000)
+	c.EventsMax, errs[2] = src.Int(EnvJobEventsMax, DefaultJobEventsMax, 10, 100_000)
+	c.MaxConcurrentPulls, errs[3] = src.Int(EnvJobMaxConcurrentPulls, DefaultJobMaxConcurrentPulls, 1, 64)
+	c.MaxConcurrentBuilds, errs[4] = src.Int(EnvJobMaxConcurrentBuild, DefaultJobMaxConcurrentBuild, 1, 64)
+	return c, errors.Join(errs[:]...)
 }
 
 // ParsePublicURL validates DOCKYARD_PUBLIC_URL. It must be an absolute origin

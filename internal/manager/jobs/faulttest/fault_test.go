@@ -1,0 +1,633 @@
+//go:build faultinject
+
+package faulttest
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
+	"github.com/neurekadev/dockyard/internal/db/migrations"
+	"github.com/neurekadev/dockyard/internal/domain"
+	"github.com/neurekadev/dockyard/internal/faultinject"
+	"github.com/neurekadev/dockyard/internal/jobexec"
+	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"github.com/neurekadev/dockyard/internal/manager/jobs"
+	"github.com/neurekadev/dockyard/internal/manager/jobs/jobstest"
+	"github.com/neurekadev/dockyard/internal/manager/store"
+	"github.com/neurekadev/dockyard/internal/protocol"
+)
+
+const (
+	envRole     = "FT_ROLE"
+	envDB       = "FT_DB"
+	envState    = "FT_STATE"
+	envEffects  = "FT_EFFECTS"
+	envScenario = "FT_SCENARIO"
+
+	roleManager = "manager"
+	roleAgent   = "agent"
+
+	environmentID = "env-1"
+	idemKey       = "fault-scenario"
+)
+
+type scenario struct {
+	name    string
+	kind    domain.JobKind
+	targets []domain.JobTarget
+}
+
+// The simulated step sequences mirror the real features: deploy (resolve,
+// pull, build, apply), backup with container shutdown (stop containers with
+// a restart compensation, non-idempotent snapshot) and prune.
+var scenarios = []scenario{
+	{"deploy", jobspec.StackDeploy, []domain.JobTarget{{Type: domain.TargetStack, ID: "web"}}},
+	{"backup_with_shutdown", jobspec.BackupRun, []domain.JobTarget{{Type: domain.TargetStack, ID: "web"},
+		{Type: domain.TargetVolume, ID: "data"}, {Type: domain.TargetRepository, ID: "repo-1"}}},
+	{"prune", jobspec.PruneRun, nil},
+	// Manager-local kinds: resume (retention) and interrupt (manager backup)
+	// restart policies.
+	{"retention", jobspec.BackupRetention, []domain.JobTarget{{Type: domain.TargetRepository, ID: "repo-1"}}},
+	{"manager_backup", jobspec.ManagerBackup, []domain.JobTarget{{Type: domain.TargetRepository, ID: "repo-1"}}},
+}
+
+func scenarioByName(name string) scenario {
+	for _, s := range scenarios {
+		if s.name == name {
+			return s
+		}
+	}
+	panic("unknown scenario " + name)
+}
+
+type envelope struct {
+	Ctl   string          `json:"ctl,omitempty"`
+	Frame json.RawMessage `json:"frame,omitempty"`
+}
+
+func TestMain(m *testing.M) {
+	switch os.Getenv(envRole) {
+	case roleManager:
+		os.Exit(managerMain())
+	case roleAgent:
+		os.Exit(agentMain())
+	}
+	os.Exit(m.Run())
+}
+
+// ---------------------------------------------------------------- children
+
+type lineWriter struct{ mu sync.Mutex }
+
+func (lw *lineWriter) write(e envelope) error {
+	b, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	lw.mu.Lock()
+	defer lw.mu.Unlock()
+	_, err = os.Stdout.Write(append(b, '\n'))
+	return err
+}
+
+func (lw *lineWriter) Send(_ context.Context, f *protocol.Frame) error {
+	b, err := protocol.Encode(f)
+	if err != nil {
+		return err
+	}
+	return lw.write(envelope{Frame: b})
+}
+
+type stdioDispatcher struct {
+	out *lineWriter
+
+	mu               sync.Mutex
+	attached, online bool
+}
+
+func (d *stdioDispatcher) set(attached, online bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.attached, d.online = attached, online
+}
+
+func (d *stdioDispatcher) Online(env string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return env == environmentID && d.online
+}
+
+func (d *stdioDispatcher) Send(ctx context.Context, env string, f *protocol.Frame) error {
+	d.mu.Lock()
+	ok := env == environmentID && d.attached
+	d.mu.Unlock()
+	if !ok {
+		return jobs.ErrAgentOffline
+	}
+	return d.out.Send(ctx, f)
+}
+
+func readLines(fn func(envelope)) {
+	sc := bufio.NewScanner(os.Stdin)
+	sc.Buffer(make([]byte, 0, 64<<10), 4<<20)
+	for sc.Scan() {
+		var e envelope
+		if err := json.Unmarshal(sc.Bytes(), &e); err == nil {
+			fn(e)
+		}
+	}
+}
+
+func managerMain() int {
+	ctx := context.Background()
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})).With("role", roleManager)
+	sc := scenarioByName(os.Getenv(envScenario))
+	dbPath := os.Getenv(envDB)
+	db, err := store.Open(ctx, dbPath)
+	if err != nil {
+		log.Error("open", "error", err)
+		return 3
+	}
+	if _, err := store.Migrate(ctx, db, store.MigrateOptions{Migrations: migrations.Migrations,
+		SnapshotDir: filepath.Join(filepath.Dir(dbPath), "snap"), Logger: log}); err != nil {
+		log.Error("migrate", "error", err)
+		return 3
+	}
+	out := &lineWriter{}
+	disp := &stdioDispatcher{out: out}
+	eng, err := jobs.New(jobs.Options{DB: db, Logger: log, Dispatcher: disp, PollInterval: 50 * time.Millisecond})
+	if err != nil {
+		log.Error("engine", "error", err)
+		return 3
+	}
+	if spec, _ := jobspec.Lookup(sc.kind); spec.Executor == domain.ExecutorManager {
+		fx := &jobstest.Effects{File: os.Getenv(envEffects)}
+		if err := eng.RegisterManagerExecutor(jobstest.SimExecutor(sc.kind, jobstest.SimOptions{Effects: fx})); err != nil {
+			log.Error("register", "error", err)
+			return 3
+		}
+	}
+	if err := eng.Recover(ctx); err != nil {
+		log.Error("recover", "error", err)
+		return 3
+	}
+	go func() { _ = eng.Run(ctx) }()
+	stdinClosed := make(chan struct{})
+	connected := make(chan struct{})
+	var connectOnce sync.Once
+	go func() {
+		defer close(stdinClosed)
+		readLines(func(e envelope) {
+			if e.Ctl == "disconnected" {
+				disp.set(false, false)
+				eng.AgentDisconnected(environmentID)
+				return
+			}
+			f, err := protocol.Decode(e.Frame)
+			if err != nil {
+				log.Error("bad frame", "error", err)
+				return
+			}
+			if f.Type == protocol.TypeJobReport {
+				disp.set(true, false)
+			}
+			replies, err := eng.HandleAgentFrame(ctx, environmentID, f)
+			if err != nil {
+				log.Error("handle frame", "type", f.Type, "error", err)
+			}
+			for _, r := range replies {
+				_ = out.Send(ctx, r)
+			}
+			if f.Type == protocol.TypeJobReport && err == nil {
+				disp.set(true, true)
+				eng.Wake()
+			}
+			if f.Type == protocol.TypeJobReport {
+				connectOnce.Do(func() { close(connected) })
+			}
+		})
+	}()
+	// Enqueue once the agent session is established, so every run passes
+	// the same stages in the same order (connect, reconcile, enqueue, ...).
+	select {
+	case <-connected:
+	case <-stdinClosed:
+		return 4
+	}
+	job, _, err := eng.Enqueue(ctx, jobs.Request{Kind: sc.kind, Principal: authz.Service(), EnvironmentID: environmentID,
+		Targets: sc.targets, IdempotencyKey: idemKey})
+	if err != nil {
+		log.Error("enqueue", "error", err)
+		return 3
+	}
+	changed, _ := eng.Subscribe(job.ID)
+	done := make(chan struct{})
+	go func() {
+		for {
+			if j, err := eng.Get(ctx, job.ID); err == nil && j.State.Terminal() {
+				_ = out.write(envelope{Ctl: "done"})
+				close(done)
+				return
+			}
+			select {
+			case <-changed:
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	}()
+	select {
+	case <-done:
+	case <-stdinClosed:
+		return 4 // the parent hung up before the job finished
+	}
+	// Keep handling frames until the parent hangs up, so stage boundaries
+	// after the terminal commit (e.g. engine.result.committed) are reached.
+	<-stdinClosed
+	return 0
+}
+
+func agentMain() int {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})).With("role", roleAgent)
+	sc := scenarioByName(os.Getenv(envScenario))
+	fx := &jobstest.Effects{File: os.Getenv(envEffects)}
+	out := &lineWriter{}
+	var execs []jobexec.Executor
+	if spec, _ := jobspec.Lookup(sc.kind); spec.Executor == domain.ExecutorAgent {
+		execs = append(execs, jobstest.SimExecutor(sc.kind, jobstest.SimOptions{Effects: fx}))
+	}
+	r, err := agentjobs.New(ctx, agentjobs.Options{StateDir: os.Getenv(envState), Logger: log, Sender: out, Executors: execs})
+	if err != nil {
+		log.Error("runner", "error", err)
+		return 3
+	}
+	if err := r.SendReport(ctx); err != nil {
+		return 3
+	}
+	readLines(func(e envelope) {
+		if e.Ctl == "reconnect" {
+			_ = r.SendReport(ctx)
+			return
+		}
+		f, err := protocol.Decode(e.Frame)
+		if err != nil {
+			log.Error("bad frame", "error", err)
+			return
+		}
+		if err := r.HandleFrame(ctx, f); err != nil {
+			log.Error("handle frame", "error", err)
+		}
+	})
+	cancel()
+	r.Wait()
+	return 0
+}
+
+// ------------------------------------------------------------------ parent
+
+type syncBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+type proc struct {
+	gen    int
+	stdin  io.WriteCloser
+	stderr *syncBuffer
+}
+
+type event struct {
+	role string
+	gen  int
+	line string
+	exit bool
+	code int
+}
+
+type harness struct {
+	t      *testing.T
+	sc     scenario
+	dir    string
+	events chan event
+	procs  map[string]*proc
+	gens   map[string]int
+	logs   []*syncBuffer
+}
+
+func (h *harness) baseEnv(role string) []string {
+	var env []string
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, faultinject.EnvVar+"=") && !strings.HasPrefix(kv, faultinject.TraceEnv+"=") && !strings.HasPrefix(kv, "FT_") {
+			env = append(env, kv)
+		}
+	}
+	return append(env, envRole+"="+role, envScenario+"="+h.sc.name,
+		envDB+"="+filepath.Join(h.dir, "dockyard.db"), envState+"="+filepath.Join(h.dir, "agent-state"),
+		envEffects+"="+filepath.Join(h.dir, "effects.log"))
+}
+
+func (h *harness) start(role string, extraEnv ...string) {
+	h.t.Helper()
+	h.gens[role]++
+	gen := h.gens[role]
+	cmd := exec.Command(os.Args[0], "-test.run=^$")
+	cmd.Env = append(h.baseEnv(role), extraEnv...)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	stderr := &syncBuffer{}
+	cmd.Stderr = stderr
+	h.logs = append(h.logs, stderr)
+	if err := cmd.Start(); err != nil {
+		h.t.Fatal(err)
+	}
+	h.procs[role] = &proc{gen: gen, stdin: stdin, stderr: stderr}
+	go func() {
+		sc := bufio.NewScanner(stdout)
+		sc.Buffer(make([]byte, 0, 64<<10), 4<<20)
+		for sc.Scan() {
+			h.events <- event{role: role, gen: gen, line: sc.Text()}
+		}
+		err := cmd.Wait()
+		code := 0
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			code = ee.ExitCode()
+		} else if err != nil {
+			code = -1
+		}
+		h.events <- event{role: role, gen: gen, exit: true, code: code}
+	}()
+}
+
+func (h *harness) send(role string, e envelope) {
+	p := h.procs[role]
+	if p == nil {
+		return
+	}
+	b, _ := json.Marshal(e)
+	_, _ = p.stdin.Write(append(b, '\n')) // a dead process drops the frame, like a lost connection
+}
+
+func (h *harness) dumpLogs() string {
+	var sb strings.Builder
+	for i, l := range h.logs {
+		fmt.Fprintf(&sb, "--- process %d stderr ---\n%s\n", i, l.String())
+	}
+	return sb.String()
+}
+
+type outcome struct {
+	crashed bool
+	job     domain.Job
+	locks   int
+	effects []string
+}
+
+// run executes the scenario. faultRole/point arm one crash in the first
+// process of that role; trace records every point reached.
+func run(t *testing.T, sc scenario, faultRole, point string, trace bool) outcome {
+	t.Helper()
+	h := &harness{t: t, sc: sc, dir: t.TempDir(), events: make(chan event, 10000), procs: map[string]*proc{}, gens: map[string]int{}}
+	firstEnv := func(role string) []string {
+		var env []string
+		if role == faultRole {
+			env = append(env, faultinject.EnvVar+"="+point+":crash")
+		}
+		if trace {
+			env = append(env, faultinject.TraceEnv+"="+filepath.Join(h.dir, "trace-"+role))
+		}
+		return env
+	}
+	h.start(roleManager, firstEnv(roleManager)...)
+	h.start(roleAgent, firstEnv(roleAgent)...)
+
+	var res outcome
+	alive := map[string]bool{roleManager: true, roleAgent: true}
+	linked, done := false, false
+	timeout := time.NewTimer(120 * time.Second)
+	defer timeout.Stop()
+loop:
+	for {
+		select {
+		case ev := <-h.events:
+			if ev.gen != h.gens[ev.role] {
+				continue // output of a process generation that was replaced
+			}
+			if ev.exit {
+				alive[ev.role] = false
+				if done {
+					if ev.code == faultinject.ExitCode && ev.role == faultRole {
+						res.crashed = true // killed right after its last contribution
+					}
+					if !alive[roleManager] && !alive[roleAgent] {
+						break loop
+					}
+					continue
+				}
+				if ev.code != faultinject.ExitCode || ev.role != faultRole || res.crashed {
+					t.Fatalf("%s exited with %d before the job finished\n%s", ev.role, ev.code, h.dumpLogs())
+				}
+				res.crashed = true
+				linked = false
+				if ev.role == roleAgent {
+					h.send(roleManager, envelope{Ctl: "disconnected"})
+					h.start(roleAgent)
+				} else {
+					h.start(roleManager)
+					h.send(roleAgent, envelope{Ctl: "reconnect"})
+				}
+				alive[ev.role] = true
+				continue
+			}
+			var e envelope
+			if err := json.Unmarshal([]byte(ev.line), &e); err != nil {
+				continue
+			}
+			switch {
+			case ev.role == roleManager && e.Ctl == "done":
+				done = true
+				for _, p := range h.procs {
+					_ = p.stdin.Close()
+				}
+			case ev.role == roleManager && e.Frame != nil && linked:
+				h.send(roleAgent, e)
+			case ev.role == roleAgent && e.Frame != nil:
+				f, err := protocol.Decode(e.Frame)
+				if err != nil {
+					t.Fatalf("agent sent an invalid frame: %v", err)
+				}
+				if f.Type == protocol.TypeJobReport {
+					linked = true // a (re)connect starts with the report
+				}
+				if linked && alive[roleManager] {
+					h.send(roleManager, e)
+				}
+			}
+		case <-timeout.C:
+			t.Fatalf("scenario did not finish (done=%v)\n%s", done, h.dumpLogs())
+		}
+	}
+
+	ctx := context.Background()
+	db, err := store.Open(ctx, filepath.Join(h.dir, "dockyard.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	all, err := store.ListJobs(ctx, db, domain.JobFilter{})
+	if err != nil || len(all) != 1 {
+		t.Fatalf("jobs %d err %v (duplicate enqueue?)", len(all), err)
+	}
+	res.job = all[0]
+	held, err := store.HeldLocks(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.locks = len(held)
+	if res.effects, err = jobstest.ReadEffects(filepath.Join(h.dir, "effects.log")); err != nil {
+		t.Fatal(err)
+	}
+	if trace {
+		for _, role := range []string{roleManager, roleAgent} {
+			b, _ := os.ReadFile(filepath.Join(h.dir, "trace-"+role))
+			for _, p := range strings.Fields(string(b)) {
+				if !slices.Contains(traced[role], p) {
+					traced[role] = append(traced[role], p)
+				}
+			}
+		}
+	}
+	if t.Failed() {
+		t.Log(h.dumpLogs())
+	}
+	return res
+}
+
+// traced collects fault points reached per role during the trace runs.
+var traced = map[string][]string{}
+
+// checkInvariants asserts the #26 crash guarantees.
+func checkInvariants(t *testing.T, sc scenario, res outcome) {
+	t.Helper()
+	j := res.job
+	if !j.State.Terminal() {
+		t.Fatalf("job ended in non-terminal state %s", j.State)
+	}
+	if j.State != domain.JobSucceeded && (j.ErrorClass == "" || j.Recovery == "") {
+		t.Fatalf("job %s without error class/recovery guidance: %+v", j.State, j)
+	}
+	if res.locks != 0 {
+		t.Fatalf("%d locks still held", res.locks)
+	}
+	spec, _ := jobspec.Lookup(sc.kind)
+	count := map[string]int{}
+	var order []string
+	for _, e := range res.effects {
+		jobID, what, ok := strings.Cut(e, ":")
+		if !ok || jobID != j.ID {
+			t.Fatalf("effect %q of an unknown job", e)
+		}
+		count[what]++
+		order = append(order, what)
+	}
+	for _, st := range spec.Steps {
+		n := count[st.Name]
+		if !st.Idempotent && n > 1 {
+			t.Fatalf("non-idempotent step %s executed %d times", st.Name, n)
+		}
+		if n > 2 {
+			t.Fatalf("step %s executed %d times", st.Name, n)
+		}
+		if j.State == domain.JobSucceeded && n == 0 {
+			t.Fatalf("job succeeded but step %s never ran", st.Name)
+		}
+	}
+	// Containers stopped for a backup are always started again.
+	lastStop, lastStart := -1, -1
+	for i, w := range order {
+		switch w {
+		case "stop_containers":
+			lastStop = i
+		case "start_containers", "compensate:start_containers":
+			lastStart = i
+		}
+	}
+	if lastStop >= 0 && lastStart < lastStop {
+		t.Fatalf("containers left stopped: effects %v, state %s", order, j.State)
+	}
+}
+
+// TestKillAtEveryStage is the #26 crash acceptance test.
+func TestKillAtEveryStage(t *testing.T) {
+	for _, sc := range scenarios {
+		t.Run(sc.name, func(t *testing.T) {
+			traced = map[string][]string{}
+			clean := run(t, sc, "", "", true)
+			checkInvariants(t, sc, clean)
+			if clean.job.State != domain.JobSucceeded || clean.crashed {
+				t.Fatalf("clean run: %+v", clean.job)
+			}
+			spec, _ := jobspec.Lookup(sc.kind)
+			if len(clean.effects) != len(spec.Steps) {
+				t.Fatalf("clean run effects %v", clean.effects)
+			}
+			points := map[string][]string{roleManager: traced[roleManager], roleAgent: traced[roleAgent]}
+			stepPoints := points[roleAgent]
+			if spec.Executor == domain.ExecutorManager {
+				stepPoints = points[roleManager]
+				points[roleAgent] = nil // the agent takes no part in manager-local jobs
+			}
+			if len(points[roleManager]) < 4 || len(stepPoints) < 4*len(spec.Steps) {
+				t.Fatalf("too few fault points traced: %v", points)
+			}
+			for _, role := range []string{roleManager, roleAgent} {
+				for _, p := range points[role] {
+					t.Run(role+"/"+p, func(t *testing.T) {
+						t.Parallel()
+						res := run(t, sc, role, p, false)
+						if !res.crashed {
+							t.Fatalf("fault point %s was not reached", p)
+						}
+						checkInvariants(t, sc, res)
+						t.Logf("%s killed at %s: job %s (%s) attempt %d", role, p, res.job.State, res.job.ErrorClass, res.job.Attempt)
+					})
+				}
+			}
+		})
+	}
+}
