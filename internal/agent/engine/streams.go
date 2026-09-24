@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -33,7 +34,8 @@ func (c *Client) Events(ctx context.Context, f EventFilter, fn func(Event) error
 	}
 	opts := client.EventsListOptions{Filters: filters}
 	if !f.Since.IsZero() {
-		opts.Since = strconv.FormatInt(f.Since.Unix(), 10) + "." + strconv.Itoa(f.Since.Nanosecond())
+		// The Engine reads the fraction as a decimal, so it must be 9 digits.
+		opts.Since = fmt.Sprintf("%d.%09d", f.Since.Unix(), f.Since.Nanosecond())
 	}
 	res := c.api.Events(ctx, opts)
 	for {

@@ -211,7 +211,7 @@ func TestEventsStream(t *testing.T) {
 	})
 	c := connect(t, fake)
 	var got []Event
-	err := c.Events(testutil.Context(t), EventFilter{Types: []string{"container", "volume"}, Labels: []string{"com.docker.compose.project=app"}}, func(e Event) error {
+	err := c.Events(testutil.Context(t), EventFilter{Types: []string{"container", "volume"}, Labels: []string{"com.docker.compose.project=app"}, Since: time.Unix(1790000000, 5)}, func(e Event) error {
 		got = append(got, e)
 		if len(got) == 2 {
 			return io.ErrShortWrite // stop early; returned as is
@@ -231,6 +231,10 @@ func TestEventsStream(t *testing.T) {
 	_ = json.Unmarshal([]byte(fake.Find(http.MethodGet, "/events")[0].Query.Get("filters")), &filters)
 	if !filters["type"]["container"] || !filters["label"]["com.docker.compose.project=app"] {
 		t.Errorf("filters %v", filters)
+	}
+	// The Engine reads the fraction as a decimal: nanoseconds are zero-padded.
+	if since := fake.Find(http.MethodGet, "/events")[0].Query.Get("since"); since != "1790000000.000000005" {
+		t.Errorf("since = %q", since)
 	}
 
 	// A stream the Engine ends cleanly returns nil.

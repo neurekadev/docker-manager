@@ -152,6 +152,19 @@ func TestLoadProject(t *testing.T) {
 		}
 	}
 
+	// Operations work on copies: adjusting a service for one operation
+	// never changes the loaded project.
+	sel, err := selected(p, []string{"web"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := sel.Services["web"]
+	w.PullPolicy = types.PullPolicyNever
+	sel.Services["web"] = w
+	if p.model.Services["web"].PullPolicy == types.PullPolicyNever {
+		t.Error("selected() returned the loaded model instead of a copy")
+	}
+
 	// Profiles enable services; explicit files and env files stay inside Dir.
 	p, err = a.Load(testutil.Context(t), ProjectSpec{Dir: dir, Name: "shop2", ConfigFiles: []string{"compose.yaml"}, Profiles: []string{"extras"}})
 	if err != nil || p.Name != "shop2" || p.model.Services["cache"].Name != "cache" {

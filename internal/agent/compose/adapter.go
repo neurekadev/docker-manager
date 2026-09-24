@@ -344,10 +344,17 @@ func selected(p *Project, services []string) (*types.Project, error) {
 	if p == nil || p.model == nil {
 		return nil, errNotLoaded
 	}
-	if len(services) == 0 {
-		return p.model, nil
+	// Operations adjust services (e.g. the pull policy of images built by
+	// the adapter); they work on a deep copy so the loaded project stays as
+	// the user wrote it.
+	model, err := p.model.WithServicesTransform(func(_ string, s types.ServiceConfig) (types.ServiceConfig, error) { return s, nil })
+	if err != nil {
+		return nil, err
 	}
-	return p.model.WithSelectedServices(services)
+	if len(services) == 0 {
+		return model, nil
+	}
+	return model.WithSelectedServices(services)
 }
 
 // composeError maps SDK errors: dependency failures (unhealthy dependency,

@@ -59,6 +59,8 @@ matrix.
   `canceled`.
 - Environment variables are not part of `ContainerDetails`: they often hold
   secrets (#7).
+- `CreateNetwork` refuses an existing name with `conflict` on every Engine
+  (Docker 24 would otherwise create a duplicate).
 - `Close` releases idle connections; running streams end with their
   contexts.
 
@@ -136,6 +138,10 @@ execute credential helpers or CLI plugins:
   contexts);
 - destructive SDK prompts (e.g. recreating a volume whose configuration
   changed) are answered "no": data is never removed implicitly;
+- `Stop` returns only once the Engine's container list no longer shows the
+  stopped services as running: Engines before 26 can lag, and the SDK's next
+  `Start` would skip a container it still believes running (seen on 24.0.9
+  and 25.0.5; polling uses the injectable clock, 30 s bound);
 - SDK output and logrus messages are routed to the agent logger at debug
   level; progress events are forwarded as `compose.Event`.
 

@@ -27,8 +27,10 @@ runs these proxy configurations unchanged (`e2e/compose.yaml`).
 
 ## Quick start: manager + local agent behind Caddy
 
-Requirements: a Linux host with Docker Engine and the Compose plugin, using
-the default data root (`/var/lib/docker`).
+Requirements: a Linux host (amd64 or arm64) with Docker Engine 25.0 or
+later and the Compose plugin, using the default data root
+(`/var/lib/docker`). Rootless Engines, Docker Desktop and NAS vendor Engines
+are not supported; see [../docs/support-matrix.md](../docs/support-matrix.md).
 
 The packages are private, so log in to GHCR first with a GitHub personal
 access token that has `read:packages`:

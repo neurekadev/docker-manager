@@ -49,6 +49,9 @@ type ExecIO struct {
 // AttachExec starts the exec instance and copies its streams until the
 // process exits or ctx ends (which closes the connection). When Stdin
 // reaches EOF the write side is closed so the process sees end of input.
+// The stdin copy runs until Stdin returns (EOF or error) or a write to the
+// closed connection fails, so callers should close their Stdin (e.g. the
+// write end of a pipe) when the session ends.
 func (c *Client) AttachExec(ctx context.Context, execID string, stdio ExecIO) error {
 	const op = "exec.attach"
 	resp, err := c.api.ExecAttach(ctx, execID, client.ExecAttachOptions{TTY: stdio.Tty})
@@ -63,9 +66,7 @@ func (c *Client) AttachExec(ctx context.Context, execID string, stdio ExecIO) er
 	if stdio.Stdin != nil {
 		go func() {
 			_, _ = io.Copy(conn.Conn, stdio.Stdin)
-			if cw, ok := conn.Conn.(interface{ CloseWrite() error }); ok {
-				_ = cw.CloseWrite()
-			}
+			_ = conn.CloseWrite()
 		}()
 	}
 	stdout, stderr := stdio.Stdout, stdio.Stderr

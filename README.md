@@ -21,6 +21,7 @@ per the roadmap. There are no releases yet; `main` publishes
 - Roadmap: issue #1 · Decision register: issue #25 · Project board: DockYard v1 Roadmap
 - [Deploying with Docker Compose](deploy/README.md)
 - [Configuration reference](docs/configuration.md)
+- [Support matrix](docs/support-matrix.md) (Docker Engine versions, hosts, Compose features) · [Engine integration](docs/architecture/engine-integration.md)
 - [Architecture overview](docs/architecture/overview.md)
 - [API conventions](docs/api/conventions.md) · OpenAPI: [`api/openapi.json`](api/openapi.json)
 - [Development guide](docs/development.md) · [Code conventions](CLAUDE.md)

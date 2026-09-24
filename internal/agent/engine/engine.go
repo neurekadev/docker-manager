@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/moby/moby/client"
@@ -59,6 +60,7 @@ type Options struct {
 type Client struct {
 	api      *client.Client
 	opts     Options
+	mu       sync.RWMutex // guards identity
 	identity Identity
 	log      *slog.Logger
 }
@@ -167,7 +169,11 @@ func (c *Client) loadIdentity(ctx context.Context) (Identity, error) {
 }
 
 // Identity returns the Engine identity loaded at Connect.
-func (c *Client) Identity() Identity { return c.identity }
+func (c *Client) Identity() Identity {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.identity
+}
 
 // Refresh reloads the identity (e.g. after an Engine restart).
 func (c *Client) Refresh(ctx context.Context) (Identity, error) {
@@ -178,7 +184,9 @@ func (c *Client) Refresh(ctx context.Context) (Identity, error) {
 	if err != nil {
 		return Identity{}, err
 	}
+	c.mu.Lock()
 	c.identity = id
+	c.mu.Unlock()
 	return id, nil
 }
 
