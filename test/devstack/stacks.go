@@ -366,7 +366,7 @@ func (s *stackSim) write(_ context.Context, raw json.RawMessage) (any, error) {
 			if !slices.Contains(definitionNames, r) {
 				return nil, &session.HandlerError{Code: protocol.CodeForbiddenPath, Message: r + " is not a definition file of the project"}
 			}
-			_ = os.Remove(filepath.Join(local, r))
+			_ = s.definitionRoot(func(root *os.Root) error { return root.Remove(path.Join(in.Stack.Dir, r)) })
 		}
 	default:
 		return nil, &session.HandlerError{Code: protocol.CodeInvalidFrame, Message: fmt.Sprintf("unknown write mode %q", in.Mode)}
@@ -375,12 +375,29 @@ func (s *stackSim) write(_ context.Context, raw json.RawMessage) (any, error) {
 		if !slices.Contains(definitionNames, f.Path) {
 			return nil, &session.HandlerError{Code: protocol.CodeForbiddenPath, Message: f.Path + " is not a definition file"}
 		}
-		if err := writeFile(filepath.Join(local, f.Path), string(f.Content)); err != nil {
+		err := s.definitionRoot(func(root *os.Root) error {
+			if err := root.MkdirAll(in.Stack.Dir, 0o750); err != nil {
+				return err
+			}
+			return root.WriteFile(path.Join(in.Stack.Dir, f.Path), f.Content, 0o644)
+		})
+		if err != nil {
 			return nil, &session.HandlerError{Code: protocol.CodeInternal, Message: err.Error()}
 		}
 	}
 	snap, _ := readProject(local)
 	return protocol.ComposeWriteOutput{Snapshot: snap}, nil
+}
+
+// definitionRoot runs fn on the host's stacks directory opened as an
+// os.Root: request paths can never leave it.
+func (s *stackSim) definitionRoot(fn func(*os.Root) error) error {
+	root, err := os.OpenRoot(filepath.FromSlash(s.host.stacksDir))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
+	return fn(root)
 }
 
 // --- Jobs --------------------------------------------------------------------
