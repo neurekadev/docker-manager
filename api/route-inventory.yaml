@@ -843,7 +843,7 @@ routes:
     scope: resource
     owner: 8
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/logs/stream"
     operationId: stream-container-logs
@@ -851,7 +851,7 @@ routes:
     scope: resource
     owner: 8
     kind: stream
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions"
     operationId: create-container-exec-session
@@ -859,7 +859,7 @@ routes:
     scope: resource
     owner: 8
     kind: json
-    status: planned
+    status: implemented
     notes: Creates the session and a short-lived attach ticket for the WebSocket.
   - method: GET
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}/stream"
@@ -868,7 +868,7 @@ routes:
     scope: resource
     owner: 8
     kind: websocket
-    status: planned
+    status: implemented
   - method: DELETE
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}"
     operationId: delete-container-exec-session
@@ -876,7 +876,7 @@ routes:
     scope: resource
     owner: 8
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/image-status"
     operationId: get-container-image-status

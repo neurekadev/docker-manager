@@ -219,8 +219,8 @@ func TestAPITokenRestartsOneContainer(t *testing.T) {
 	b.fail(http.StatusNotFound, "not_found", http.MethodPost, base+"/db/restart", nil)
 	b.fail(http.StatusNotFound, "not_found", http.MethodGet, base+"/db", nil)
 	// The token's container is visible minimally; other actions are
-	// refused although rita holds them. (Logs are #8: its route will
-	// answer 403 the same way; until then the stop action stands in.)
+	// refused although rita holds them (logs and terminals: see
+	// TestAPITokenTerminalNeedsContainerExec).
 	var web dockerContainer
 	b.must(http.StatusOK, http.MethodGet, base+"/web", nil).json(t, &web)
 	if web.View != "minimal" || !slices.Equal(web.Actions, []string{"container.restart"}) || web.Image != "" {

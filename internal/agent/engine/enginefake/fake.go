@@ -36,6 +36,15 @@ type Engine struct {
 	failures   map[string][]error
 	calls      []string
 	pullAuths  []*engine.RegistryAuth
+	execs      []ExecInstance
+}
+
+// ExecInstance is an exec instance created with CreateExec (the fake
+// records it; attaching is not supported).
+type ExecInstance struct {
+	ID          string
+	ContainerID string
+	Spec        engine.ExecSpec
 }
 
 // Container is a fake container.
@@ -952,9 +961,29 @@ func (e *Engine) Stats(context.Context, string, bool, func(engine.Stats) error) 
 	return Err("container.stats", engine.CodeUnsupported, "not supported by the fake")
 }
 
-// CreateExec implements engine.Engine.
-func (e *Engine) CreateExec(context.Context, string, engine.ExecSpec) (string, error) {
-	return "", Err("exec.create", engine.CodeUnsupported, "not supported by the fake")
+// CreateExec implements engine.Engine: it records the instance on a
+// running container (see Execs); attaching is not supported.
+func (e *Engine) CreateExec(_ context.Context, id string, spec engine.ExecSpec) (string, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	c, ok := e.findContainer(id)
+	if !ok {
+		return "", Err("exec.create", engine.CodeNotFound, "no such container: %s", id)
+	}
+	if !c.Details.State.Running {
+		return "", Err("exec.create", engine.CodeConflict, "container %s is not running", id)
+	}
+	x := ExecInstance{ID: e.newID("exec"), ContainerID: c.Details.ID, Spec: spec}
+	x.Spec.Cmd = append([]string(nil), spec.Cmd...)
+	e.execs = append(e.execs, x)
+	return x.ID, nil
+}
+
+// Execs returns the exec instances created so far.
+func (e *Engine) Execs() []ExecInstance {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]ExecInstance(nil), e.execs...)
 }
 
 // AttachExec implements engine.Engine.

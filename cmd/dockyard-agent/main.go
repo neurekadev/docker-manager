@@ -103,7 +103,7 @@ func runAgent(env envconfig.Source, stderr io.Writer, geteuid func() int) int {
 	logger := logging.New(stderr, cfg.LogLevel, cfg.LogFormat)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := runtime.Run(ctx, runtime.Options{Config: cfg, Logger: logger, Geteuid: geteuid, Observe: true, Files: true}); err != nil {
+	if err := runtime.Run(ctx, runtime.Options{Config: cfg, Logger: logger, Geteuid: geteuid, Observe: true, Files: true, ContainerIO: true}); err != nil {
 		logger.Error("dockyard-agent stopped with error", "error", err)
 		return exitFail
 	}

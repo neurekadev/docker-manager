@@ -39,6 +39,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
 	"github.com/neurekadev/dockyard/internal/manager/builds"
 	"github.com/neurekadev/dockyard/internal/manager/config"
+	"github.com/neurekadev/dockyard/internal/manager/containerio"
 	"github.com/neurekadev/dockyard/internal/manager/events"
 	"github.com/neurekadev/dockyard/internal/manager/files"
 	"github.com/neurekadev/dockyard/internal/manager/gitcreds"
@@ -120,6 +121,7 @@ type Manager struct {
 	resources *resources.Service
 	files     *files.Service
 	stacks    *stacks.Service
+	io        *containerio.Service
 	handler   http.Handler
 	git       *gitcreds.Service
 	builds    *builds.Service
@@ -352,6 +354,9 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		}
 		return permissions.Location{Found: true, EnvironmentID: d.EnvironmentID, Parents: []authz.ResourceRef{}}, nil
 	}))
+	// Container logs and exec terminals (#8).
+	m.io = containerio.New(containerio.Options{Agents: m.agents.Hub(), Clock: opts.Clock, Logger: log.With("component", "containerio"),
+		PublicURL: cfg.PublicURL, PingInterval: cfg.StreamHeartbeat})
 
 	// Observation (#5): metrics live in their own database file so sample
 	// writes never contend with jobs and auth; manager-state backups (#10)
@@ -455,6 +460,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Builds:         m.builds,
 			Stacks:         m.stacks,
 			Events:         m.events,
+			ContainerIO:    m.io,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -664,6 +670,8 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		// Hijacked agent WebSockets are not closed by srv.Shutdown: close
 		// them with 1001 (going away) so agents reconnect with backoff.
 		m.agents.Hub().Shutdown(shutdownCtx)
+		// Exec terminals (#8) are hijacked too: close them with 1001.
+		m.io.Close()
 		err := srv.Shutdown(shutdownCtx)
 		<-errCh
 		return err
@@ -683,6 +691,9 @@ func (m *Manager) Close() error {
 	}
 	if m.files != nil {
 		m.files.Close()
+	}
+	if m.io != nil {
+		m.io.Close()
 	}
 	if m.jobs != nil {
 		m.jobs.Close()

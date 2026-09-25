@@ -219,31 +219,67 @@ event is then filtered per subscriber with the #17 event rules
 - **Heartbeat and max age** as for every stream (`: heartbeat`, `close`
   `max_age` after 1 h).
 
-## Container logs (`stream-container-logs`)
+## Container logs (`get-container-logs`, `stream-container-logs`, #8)
 
-`GET …/logs/stream?tail=200&since=<RFC 3339>&stdout=true&stderr=true&timestamps=true`
+Both need `container.logs.read` on the container (users and API tokens
+alike; `container.metrics.read`, `container.restart` or
+`container.details.read` never open logs). Log lines can contain secrets:
+the manager never persists, logs or audits them, and responses are
+`no-store`. Stack service logs are the logs of the service's containers:
+list them with `GET /stacks/{stackId}/services` and read or follow each
+container (a grant on the stack or service covers its containers; there
+is no separate stack-level logs route).
+
+`GET …/containers/{containerId}/logs?tail=500&since=&until=&stdout=true&stderr=true`
+returns `{lines: [{at, stream, line, partial?}], truncated}`, oldest first:
+at most `tail` lines (default 500, max 5 000) and 600 KiB; `truncated`
+says older lines were left out. `since`/`until` are RFC 3339 (sub-second
+precision is applied by the agent, the Engine only filters whole seconds).
+
+`GET …/logs/stream?tail=200&since=<RFC 3339>&stdout=true&stderr=true`
 
 - `event: log`, `id: <RFC 3339 nano timestamp>`, `data: {at, stream:
   stdout|stderr, line, partial?}`. Lines longer than 16 KiB are split
-  (`partial: true` on all but the last piece). Reconnect with
-  `Last-Event-ID` resumes after that timestamp (Docker `since`), which may
-  repeat lines with identical timestamps; clients deduplicate by `(id, line)`.
-- `event: dropped {count}` when the client could not keep up.
-- `event: end {reason: container_removed | permissions_changed | agent_offline}`
-  ends the stream. A stopped container keeps the stream open (it may restart).
-- Log lines can contain secrets; they are never persisted by the manager or
-  cached by the browser. `GET …/logs` (JSON) returns a bounded tail (default
-  500, max 5 000 lines).
+  (`partial: true` on all but the last piece); invalid UTF-8 becomes U+FFFD.
+- Reconnect with `Last-Event-ID` resumes at that timestamp and skips the
+  lines already delivered with exactly that timestamp; clients should still
+  deduplicate by `(id, line)` after a reconnect.
+- `event: dropped {count}` when the client could not keep up (the manager
+  keeps at most 1 024 lines per subscriber and drops the rest; the agent
+  stream is never blocked by a slow browser).
+- `event: end {reason}` ends the stream: `container_removed`,
+  `permissions_changed` (re-checked at every heartbeat and on permission
+  changes) or `agent_offline`. A stopped container keeps the stream open;
+  it continues when the container starts again.
+- `event: close {reason: max_age}` after 1 h (reconnect with
+  `Last-Event-ID`); `session_expired` when the session or token ends.
 
-## Container exec (`stream-container-exec-session`)
+## Container exec (`create-container-exec-session`, `stream-container-exec-session`, #8)
 
-1. `POST …/containers/{containerId}/exec-sessions` with `{command: [argv…],
-   tty: true, cols, rows, workingDir?, user?}` → `201 {id, streamUrl,
-   expiresAt}`. The session must be attached within 60 s.
-2. `GET …/exec-sessions/{sessionId}/stream` upgrades to a WebSocket with
-   subprotocol `dockyard.exec.v1`. Cookie-authenticated upgrades must carry
-   an `Origin` equal to the manager's public origin (`403` otherwise).
-   Exactly one attachment per session (`4409` for a second).
+Terminals are authorized with `api.AuthorizeExec` only: `container.exec`
+on the container, which an API token must hold in its own grants (#31);
+no other capability (restart, metrics, logs, details) opens a terminal. The
+command runs inside the container through the Engine's exec API; DockYard
+never offers a shell on the host.
+
+1. `POST …/containers/{containerId}/exec-sessions` with `{command?: [argv…]
+   (default ["/bin/sh"]), tty?: true, cols?: 80, rows?: 24, workingDir?,
+   user?}` → `201 {id, streamUrl, subprotocol: "dockyard.exec.v1", ticket,
+   expiresAt}`. The container must be running and not paused (`409` otherwise). Limits: 4 open sessions per principal, 8 per container
+   (`429 rate_limited`). The session start is audited (`container.exec` with the session
+   ID and whether a TTY was requested; never the command's output).
+2. `GET {streamUrl}` upgrades to a WebSocket. The client offers two
+   subprotocols: `dockyard.exec.v1` and `dockyard.ticket.<ticket>` (browsers
+   cannot set headers on WebSockets; the ticket never goes into the URL).
+   The ticket is one-use, bound to the session and to the principal that
+   created it, and expires with `expiresAt` (60 s after creation; the
+   session is discarded if nobody attached). The server selects
+   `dockyard.exec.v1`. Cookie-authenticated upgrades must carry an `Origin`
+   equal to the manager's public origin (`403` otherwise). A wrong, reused
+   or expired ticket, or a session that is not the caller's, is refused
+   with `404` before the upgrade (browsers only see a failed handshake,
+   close `1006`); a second attachment while one is active is closed with
+   `4409`.
 
 Messages:
 
@@ -252,33 +288,44 @@ Messages:
 | client → server | binary, first byte `0` | stdin bytes |
 | server → client | binary, first byte `1` / `2` | stdout / stderr bytes (with a TTY everything is `1`) |
 | client → server | text `{"type":"resize","cols":120,"rows":40}` | terminal size |
-| server → client | text `{"type":"exit","code":0}` | the process exited; a normal close follows |
-| server → client | text `{"type":"error","code":"…","message":"…"}` | failure; a close follows |
+| server → client | text `{"type":"exit","code":0}` | the process exited; close `1000` follows |
+| server → client | text `{"type":"error","code":"…","message":"…"}` | failure (`command_not_found`, `environment_offline`, `internal`); a close follows |
 
-- Binary messages are at most 64 KiB (`1009` otherwise). The server buffers
-  at most 1 MiB per direction and otherwise slows the agent stream.
-- Idle timeout 30 min without input or output (`4408`); sessions end when the
-  user signs out or loses `container.exec`.
-- `DELETE …/exec-sessions/{sessionId}` detaches and closes stdin. Processes
-  that ignore end-of-input keep running inside the container until they exit
-  (Engine exec has no kill).
-- Terminal input and output are never logged or stored.
+- Messages from the client are at most 64 KiB (`1009` otherwise); binary
+  messages must start with `0`, text messages must be `resize` (`1008`
+  otherwise). Output is relayed through the agent stream's credit window,
+  so a slow client slows the process's output instead of growing buffers.
+- Idle timeout 30 min without input or output and a maximum session length
+  of 8 h (both `4408`). `container.exec` is re-checked every 15 s and on
+  permission changes (`4403`); signing out or revoking the token closes
+  with `4401`.
+- `DELETE …/exec-sessions/{sessionId}` (`204`) ends the session: it closes
+  stdin and the WebSocket (`1000`). Processes that ignore end-of-input keep
+  running inside the container until they exit (Engine exec has no kill).
+- When the WebSocket closes for any reason the manager closes the agent
+  stream, which closes the process's stdin; the session end is audited
+  (`container.exec.end` with session ID, reason, close code, duration and
+  exit code).
+- A command that does not exist in the image (for example `/bin/sh` in a
+  distroless image) is reported as `error` `command_not_found` and close
+  `4422` ("the image may have no shell"); pick another command.
+- Terminal input and output are never logged, audited or stored.
 
 Close codes:
 
 | code | meaning | client |
 | --- | --- | --- |
-| 1000 | process exited (after `exit`) | show exit code |
+| 1000 | process exited (after `exit`) or session deleted | show exit code |
 | 1001 | manager shutting down | offer reconnect (new session) |
-| 1008 | policy violation (bad Origin or subprotocol) | — |
+| 1008 | policy violation (bad Origin, subprotocol or message) | — |
 | 1009 | message too big | — |
 | 1011 | internal error | offer retry |
-| 4401 | session expired / unauthenticated | sign in |
+| 4401 | session expired / token revoked | sign in |
 | 4403 | `container.exec` revoked | — |
-| 4404 | exec session unknown, expired or ended | create a new session |
-| 4408 | idle timeout | create a new session |
+| 4404 | exec session ended or expired while the upgrade was in progress | create a new session |
+| 4408 | idle timeout or maximum duration (8 h) reached | create a new session |
 | 4409 | already attached | — |
-| 4429 | too many sessions | close another |
+| 4422 | command not found in the container | choose another command |
 | 4503 | environment offline (agent disconnected) | wait for the agent |
 
 ## File downloads and uploads (#15)

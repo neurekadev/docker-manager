@@ -1456,6 +1456,27 @@
         ],
         "type": "object"
       },
+      "ContainerLogs": {
+        "additionalProperties": false,
+        "properties": {
+          "lines": {
+            "description": "Oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/LogLineDTO"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "description": "Older lines were left out (at most 5000 lines / 600 KiB per request).",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "lines",
+          "truncated"
+        ],
+        "type": "object"
+      },
       "ContainerMetrics": {
         "additionalProperties": false,
         "properties": {
@@ -3360,6 +3381,82 @@
         ],
         "type": "object"
       },
+      "ExecSessionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "cols": {
+            "description": "Terminal columns (default 80).",
+            "format": "int64",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "command": {
+            "description": "argv run inside the container (default [\"/bin/sh\"]). Never a host shell.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "type": "array"
+          },
+          "rows": {
+            "description": "Terminal rows (default 24).",
+            "format": "int64",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "tty": {
+            "description": "Allocate a terminal (default true).",
+            "type": "boolean"
+          },
+          "user": {
+            "description": "User (and group) in the container, e.g. 0 or www-data.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "workingDir": {
+            "maxLength": 4096,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ExecSessionDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "expiresAt": {
+            "description": "Attach before this time (60 s).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "streamUrl": {
+            "description": "WebSocket URL path of the session (same origin).",
+            "type": "string"
+          },
+          "subprotocol": {
+            "examples": [
+              "dockyard.exec.v1"
+            ],
+            "type": "string"
+          },
+          "ticket": {
+            "description": "One-use attach ticket: offer it as the WebSocket subprotocol dockyard.ticket.<ticket> next to dockyard.exec.v1. Bound to this session and caller; expires with expiresAt.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "streamUrl",
+          "subprotocol",
+          "ticket",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
       "ExtractionStackInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -4740,6 +4837,36 @@
         "required": [
           "type",
           "id"
+        ],
+        "type": "object"
+      },
+      "LogLineDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "line": {
+            "description": "The line without its newline; invalid UTF-8 is replaced by U+FFFD.",
+            "type": "string"
+          },
+          "partial": {
+            "description": "The line continues in the next entry (lines over 16 KiB are split).",
+            "type": "boolean"
+          },
+          "stream": {
+            "enum": [
+              "stdout",
+              "stderr"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "stream",
+          "line"
         ],
         "type": "object"
       },
@@ -13759,6 +13886,852 @@
         "x-dockyard-audit": "container.update",
         "x-dockyard-capability": "container.update",
         "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions": {
+      "post": {
+        "description": "Creates an exec session running command inside the container (never on the host) and a one-use attach ticket; attach within 60 s with GET …/exec-sessions/{sessionId}/stream (WebSocket, subprotocols dockyard.exec.v1 and dockyard.ticket.<ticket>). Needs container.exec (API tokens only with container.exec in their own grants). 409 when the container is not running, 429 beyond 4 terminals per user or 8 per container.",
+        "operationId": "create-container-exec-session",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecSessionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecSessionDTO"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Open a terminal in a container",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-audit": "container.exec",
+        "x-dockyard-capability": "container.exec",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}": {
+      "delete": {
+        "description": "Detaches the session and closes the process's stdin. A process that ignores end of input keeps running in the container until it exits (the Engine cannot kill exec processes).",
+        "operationId": "delete-container-exec-session",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exec session ID.",
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "description": "Exec session ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Close a terminal",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-audit": "container.exec",
+        "x-dockyard-capability": "container.exec",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}/stream": {
+      "get": {
+        "description": "Upgrades to a WebSocket (subprotocol dockyard.exec.v1; the ticket from the create call as subprotocol dockyard.ticket.<ticket>). Binary frames: 0+stdin to the process, 1+stdout / 2+stderr from it; text frames: {\"type\":\"resize\",\"cols\",\"rows\"} from the client, {\"type\":\"exit\",\"code\"} and {\"type\":\"error\",...} from the server. Close codes and limits: docs/api/streams.md.",
+        "operationId": "stream-container-exec-session",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exec session ID.",
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "description": "Exec session ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "dockyard.exec.v1 and dockyard.ticket.<ticket>.",
+            "in": "header",
+            "name": "Sec-WebSocket-Protocol",
+            "schema": {
+              "description": "dockyard.exec.v1 and dockyard.ticket.<ticket>.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "Switching to the WebSocket protocol"
+          },
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Attach a terminal (WebSocket)",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-capability": "container.exec",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}/logs": {
+      "get": {
+        "description": "A bounded tail of the container's stdout/stderr (default 500 lines, at most 5000 lines or 600 KiB, oldest dropped first), read through the environment's agent. Needs container.logs.read: metrics, restart and other container grants do not open logs. Logs can contain secrets; the manager never stores them.",
+        "operationId": "get-container-logs",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Lines from the end (default 500).",
+            "explode": false,
+            "in": "query",
+            "name": "tail",
+            "schema": {
+              "description": "Lines from the end (default 500).",
+              "format": "int64",
+              "maximum": 5000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Only lines at or after this time (RFC 3339).",
+            "explode": false,
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "description": "Only lines at or after this time (RFC 3339).",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only lines at or before this time (RFC 3339).",
+            "explode": false,
+            "in": "query",
+            "name": "until",
+            "schema": {
+              "description": "Only lines at or before this time (RFC 3339).",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include stdout.",
+            "explode": false,
+            "in": "query",
+            "name": "stdout",
+            "schema": {
+              "default": true,
+              "description": "Include stdout.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Include stderr.",
+            "explode": false,
+            "in": "query",
+            "name": "stderr",
+            "schema": {
+              "default": true,
+              "description": "Include stderr.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContainerLogs"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get a container's logs",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-capability": "container.logs.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}/logs/stream": {
+      "get": {
+        "description": "Server-sent events: `log` (id = the line's RFC 3339 timestamp, data LogLine), `dropped {count}` when the client could not keep up, `end {reason}` (container_removed, permissions_changed, agent_offline) and `close` (max_age after 1 h, session_expired, permissions_changed). A stopped container keeps the stream open. Reconnect with Last-Event-ID to resume (lines with the same timestamp may repeat). Protocol: docs/api/streams.md.",
+        "operationId": "stream-container-logs",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Lines from the end before following (default 200); ignored when resuming.",
+            "explode": false,
+            "in": "query",
+            "name": "tail",
+            "schema": {
+              "description": "Lines from the end before following (default 200); ignored when resuming.",
+              "format": "int64",
+              "maximum": 5000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Start at this time (RFC 3339) instead of the tail.",
+            "explode": false,
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "description": "Start at this time (RFC 3339) instead of the tail.",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include stdout.",
+            "explode": false,
+            "in": "query",
+            "name": "stdout",
+            "schema": {
+              "default": true,
+              "description": "Include stdout.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Include stderr.",
+            "explode": false,
+            "in": "query",
+            "name": "stderr",
+            "schema": {
+              "default": true,
+              "description": "Include stderr.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Resume after this line timestamp (sent by EventSource on reconnect); lines with the same timestamp may repeat.",
+            "in": "header",
+            "name": "Last-Event-ID",
+            "schema": {
+              "description": "Resume after this line timestamp (sent by EventSource on reconnect); lines with the same timestamp may repeat.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogLineDTO"
+                }
+              }
+            },
+            "description": "Event stream"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Follow a container's logs (SSE)",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-capability": "container.logs.read",
         "x-dockyard-scope": "resource"
       }
     },

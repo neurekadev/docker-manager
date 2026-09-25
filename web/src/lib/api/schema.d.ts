@@ -650,6 +650,106 @@ export interface paths {
         patch: operations["update-container"];
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open a terminal in a container
+         * @description Creates an exec session running command inside the container (never on the host) and a one-use attach ticket; attach within 60 s with GET …/exec-sessions/{sessionId}/stream (WebSocket, subprotocols dockyard.exec.v1 and dockyard.ticket.<ticket>). Needs container.exec (API tokens only with container.exec in their own grants). 409 when the container is not running, 429 beyond 4 terminals per user or 8 per container.
+         */
+        post: operations["create-container-exec-session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Close a terminal
+         * @description Detaches the session and closes the process's stdin. A process that ignores end of input keeps running in the container until it exits (the Engine cannot kill exec processes).
+         */
+        delete: operations["delete-container-exec-session"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Attach a terminal (WebSocket)
+         * @description Upgrades to a WebSocket (subprotocol dockyard.exec.v1; the ticket from the create call as subprotocol dockyard.ticket.<ticket>). Binary frames: 0+stdin to the process, 1+stdout / 2+stderr from it; text frames: {"type":"resize","cols","rows"} from the client, {"type":"exit","code"} and {"type":"error",...} from the server. Close codes and limits: docs/api/streams.md.
+         */
+        get: operations["stream-container-exec-session"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/containers/{containerId}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a container's logs
+         * @description A bounded tail of the container's stdout/stderr (default 500 lines, at most 5000 lines or 600 KiB, oldest dropped first), read through the environment's agent. Needs container.logs.read: metrics, restart and other container grants do not open logs. Logs can contain secrets; the manager never stores them.
+         */
+        get: operations["get-container-logs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/containers/{containerId}/logs/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Follow a container's logs (SSE)
+         * @description Server-sent events: `log` (id = the line's RFC 3339 timestamp, data LogLine), `dropped {count}` when the client could not keep up, `end {reason}` (container_removed, permissions_changed, agent_offline) and `close` (max_age after 1 h, session_expired, permissions_changed). A stopped container keeps the stream open. Reconnect with Last-Event-ID to resume (lines with the same timestamp may repeat). Protocol: docs/api/streams.md.
+         */
+        get: operations["stream-container-logs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/containers/{containerId}/metrics": {
         parameters: {
             query?: never;
@@ -3289,6 +3389,12 @@ export interface components {
             /** Format: int64 */
             timeoutSeconds?: number;
         };
+        ContainerLogs: {
+            /** @description Oldest first. */
+            lines: components["schemas"]["LogLineDTO"][];
+            /** @description Older lines were left out (at most 5000 lines / 600 KiB per request). */
+            truncated: boolean;
+        };
         ContainerMetrics: {
             /** @description Container name (metrics follow the name across recreations). */
             container: string;
@@ -4005,6 +4111,39 @@ export interface components {
              */
             message: string;
         };
+        ExecSessionCreate: {
+            /**
+             * Format: int64
+             * @description Terminal columns (default 80).
+             */
+            cols?: number;
+            /** @description argv run inside the container (default ["/bin/sh"]). Never a host shell. */
+            command?: string[];
+            /**
+             * Format: int64
+             * @description Terminal rows (default 24).
+             */
+            rows?: number;
+            /** @description Allocate a terminal (default true). */
+            tty?: boolean;
+            /** @description User (and group) in the container, e.g. 0 or www-data. */
+            user?: string;
+            workingDir?: string;
+        };
+        ExecSessionDTO: {
+            /**
+             * Format: date-time
+             * @description Attach before this time (60 s).
+             */
+            expiresAt: string;
+            id: string;
+            /** @description WebSocket URL path of the session (same origin). */
+            streamUrl: string;
+            /** @example dockyard.exec.v1 */
+            subprotocol: string;
+            /** @description One-use attach ticket: offer it as the WebSocket subprotocol dockyard.ticket.<ticket> next to dockyard.exec.v1. Bound to this session and caller; expires with expiresAt. */
+            ticket: string;
+        };
         ExtractionStackInputBody: {
             /**
              * @description Per entry when the name exists (default fail: the entry is reported and skipped).
@@ -4498,6 +4637,16 @@ export interface components {
              * @enum {string}
              */
             type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path" | "build_definition";
+        };
+        LogLineDTO: {
+            /** Format: date-time */
+            at: string;
+            /** @description The line without its newline; invalid UTF-8 is replaced by U+FFFD. */
+            line: string;
+            /** @description The line continues in the next entry (lines over 16 KiB are split). */
+            partial?: boolean;
+            /** @enum {string} */
+            stream: "stdout" | "stderr";
         };
         MetadataStackInputBody: {
             /** @description Needs <root>.files.chmod. */
@@ -9123,6 +9272,546 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-container-exec-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecSessionCreate"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecSessionDTO"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-container-exec-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+                /** @description Exec session ID. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "stream-container-exec-session": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description dockyard.exec.v1 and dockyard.ticket.<ticket>. */
+                "Sec-WebSocket-Protocol"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+                /** @description Exec session ID. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Switching to the WebSocket protocol */
+            101: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-container-logs": {
+        parameters: {
+            query?: {
+                /** @description Lines from the end (default 500). */
+                tail?: number;
+                /** @description Only lines at or after this time (RFC 3339). */
+                since?: string;
+                /** @description Only lines at or before this time (RFC 3339). */
+                until?: string;
+                /** @description Include stdout. */
+                stdout?: boolean;
+                /** @description Include stderr. */
+                stderr?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContainerLogs"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "stream-container-logs": {
+        parameters: {
+            query?: {
+                /** @description Lines from the end before following (default 200); ignored when resuming. */
+                tail?: number;
+                /** @description Start at this time (RFC 3339) instead of the tail. */
+                since?: string;
+                /** @description Include stdout. */
+                stdout?: boolean;
+                /** @description Include stderr. */
+                stderr?: boolean;
+            };
+            header?: {
+                /** @description Resume after this line timestamp (sent by EventSource on reconnect); lines with the same timestamp may repeat. */
+                "Last-Event-ID"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["LogLineDTO"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
