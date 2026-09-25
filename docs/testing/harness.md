@@ -287,7 +287,8 @@ setup in the browser on a `-setup` devstack), `ui`, `b1-environments`,
 for external edits), `ui-logs`, `admin-access`, `admin-automation`,
 `admin-settings`, `auth-factors` (TOTP set-up and sign-in, one-use
 recovery code, passkey with Chromium's virtual authenticator; skipped
-elsewhere unless `E2E_FACTORS=1`), `live` (two browser sessions, an
+elsewhere unless `E2E_FACTORS=1`), `topology` (profile passkey, PWA
+installability, UI enrollment token on `http://localhost`), `live` (two browser sessions, an
 external edit, a refused stale save) and `import` (a `-setup` devstack
 imports the seeded run's backups with its printed Recovery Key). The
 proxy-only stack of the `e2e` job has no agents, so these specs skip their

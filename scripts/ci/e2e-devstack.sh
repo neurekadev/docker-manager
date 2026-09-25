@@ -9,7 +9,7 @@
 #
 #   ui-setup    ui.spec.ts on a -setup devstack (first-run setup in the browser)
 #   ui, b1-environments, stacks, resources, ui-files, ui-logs,
-#   admin-access, admin-automation, admin-settings, auth-factors, live
+#   admin-access, admin-automation, admin-settings, auth-factors, topology, live
 #               the spec of that name on a seeded devstack (owner admin)
 #   import      a -setup devstack that keeps the seeded run's backups:
 #               admin-automation.spec.ts "fresh-manager import (#24)"
@@ -47,7 +47,7 @@ owner_pw=dockyard-devstack-owner
 guest=guest
 guest_pw=dockyard-devstack-guest
 
-all_groups=(ui-setup ui b1-environments stacks resources ui-files ui-logs admin-access admin-automation admin-settings auth-factors live import)
+all_groups=(ui-setup ui b1-environments stacks resources ui-files ui-logs admin-access admin-automation admin-settings auth-factors topology live import)
 groups=("$@")
 [ "${#groups[@]}" -gt 0 ] || groups=("${all_groups[@]}")
 
