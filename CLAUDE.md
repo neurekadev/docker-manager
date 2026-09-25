@@ -48,7 +48,9 @@ No Docker locally: Engine-dependent tests run in CI only.
    Operation IDs are kebab-case and stable; take them (and capability/scope)
    from `api/route-inventory.yaml` and flip the entry to
    `status: implemented` in the same PR (`TestRouteInventory`). Capability
-   keys come from #17.
+   keys must exist in the #17 catalog (`internal/manager/authz/catalog`,
+   checked by `TestRouteInventory`); authorize and shape responses as in
+   "Authorization (#17)" below.
 3. Errors: return `api.NotFound(...)`, `api.Invalid(msg, api.Field("body.name", "..."))`,
    `api.Conflict("stack_name_taken", ...)`, `api.PreconditionFailed`,
    `api.Unavailable`, `api.Internal(err)`. Plain errors become a 500 with the
@@ -97,8 +99,56 @@ No Docker locally: Engine-dependent tests run in CI only.
   classes (stable codes), not messages.
 - The trail is append-only (DB triggers); there is no update/delete API.
   Diagnostics (#34) call `(*audit.Log).Verify(ctx)`.
-- `audit.Capabilities()` lists `audit.read`/`audit.export` for the #17
-  catalog (instance scope, owner-only by default, high-risk).
+- `audit.read`/`audit.export` are instance-scoped, high-risk catalog
+  capabilities (no group holds them until the owner grants them).
+
+## Authorization (#17)
+
+Guide: `docs/architecture/authorization.md`. Owner bypass, then the most
+specific user rule, then the most specific group rule, then deny.
+
+- **Declare a capability:** add a `catalog.Capability` to
+  `internal/manager/authz/catalog/entries.go` (key `<type>.<action>`, type,
+  plain-language label, description, compatible scopes via
+  `res(...)`/`instEnv`/`instRes(...)`, `high(...)` for risky actions,
+  `adv(...)` for rare ones). Never add generic read/write keys; never rename
+  a key. Every route, job kind (`jobspec.Spec.Capability`) and bus event
+  type needs one (`TestRouteInventory`,
+  `TestEveryJobKindHasCatalogCapabilities`,
+  `TestEveryEventTypeHasAVisibilityRule`). File keys are per root:
+  `stack.files.*`, `volume.files.*`.
+- **Check:** one checker per request: `c, p, err := api.CheckerFor(ctx,
+  deps.Authorizer)`; `c.Can("container.restart", res).Allowed`. Build
+  resources with `authz.Resource{Type: catalog.TypeContainer, ID: name,
+  EnvironmentID: env, Parents: []authz.ResourceRef{{Type: "service", ID:
+  authz.ServiceID(stackID, svc)}, {Type: "stack", ID: stackID}}}` (nil
+  Parents → the type's Locator), `authz.EnvironmentResource(id)`,
+  `authz.InEnvironment(type, env)` (creation), `authz.Instance()`.
+- **Resource graph:** register `perms.RegisterLocator(type,
+  permissions.LocatorFunc(...))` (`app.Manager.Permissions()`) returning
+  `permissions.Location{Found, EnvironmentID, Parents}`; call
+  `perms.ForgetResource(ctx, ref)` after deleting a resource through
+  DockYard.
+- **Shaping:** `v := authz.ViewOf(c, res)`: `Hidden` → drop from lists/
+  counts/streams, 404 on direct access; `Minimal` → only identity/status
+  fields (`catalog.ResourceType.Minimal`); `Full` → everything. DTOs carry
+  `view` and `actions` (`api.Actions(v)`); actions still check
+  `v.Has(key)` (403 when visible but not granted). Events:
+  `authz.EventVisible(c, e)`. Jobs: `c.Can("job.read",
+  authz.JobResource(j))` (targets or the kind's own capability).
+- **Jobs:** the engine authorizes `spec.Capabilities(targets, input)` on
+  every target at request and again at dispatch; never authorize job work
+  by initiator.
+- **Tests:** `internal/manager/authz/authztest`: `Only(user, rules...)` /
+  `New().Member().Group().User().Token().Locate()`, `Authenticate(h)`,
+  `Routes(t, params, prefixes...)`, `Split(calls, caps...)`,
+  `Discoverable(...)`, `AssertOnly(t, h, user, allowed, denied)`,
+  `AssertAbsent`. Rule shorthand `"allow container.restart
+  @container:<env>/web"` (`policy.ParseRule`). Extend
+  `authz/policy/testdata/corpus.yaml` for new precedence cases.
+- Permission/group changes are owner-only, need step-up, are revisioned,
+  audited with diffs and end the affected users' streams
+  (`auth.Service.AccessChanged`); session tokens are not rotated.
 
 ## Agent transport (#3)
 
@@ -188,7 +238,7 @@ handed-over tokens), `internal/agent/runtime` (control loop). Protocol:
 - Identity (#16, ADR 0003): `internal/manager/auth` authenticates every
   `/api/v1` request (SCS session, CSRF, principal via `authz.WithPrincipal`
   for full sessions only). Handlers read `authz.PrincipalFrom(ctx)`; the
-  evaluator allows the owner everything and denies everyone else until #17.
+  permission service (`internal/manager/permissions`, #17) decides.
   Identity events enrich the #30 audit record of the request (`auth.TrailAuditor`).
   Never add auth routes outside Huma, never log passwords, codes, seeds or
   tokens (canary tests in `internal/manager/app/identity*_test.go`).

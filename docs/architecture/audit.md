@@ -202,10 +202,9 @@ problems (`TestVerifyDetectsTampering`).
   prefixed with `'` (formula injection). The export is itself audited (with
   its format, filters and record count).
 - Both capabilities are instance-scoped, owner-only by default and
-  all-or-nothing (`audit.Capabilities()` carries the high-risk flag for the
-  #17 catalog): records reveal activity on resources the reader cannot
-  otherwise see, so they are never filtered per item. Until #17 wires its
-  evaluator the routes are denied to everyone (`authz.DenyAll`).
+  all-or-nothing (high-risk entries of the #17 catalog; no group holds them
+  until the owner grants them): records reveal activity on resources the
+  reader cannot otherwise see, so they are never filtered per item.
 - `DOCKYARD_AUDIT_LOG_MIRROR=true` also writes every stored (redacted) record
   as a structured log line (`msg="audit"`, `component=audit_mirror`, level
   info, so `DOCKYARD_LOG_LEVEL` must be `info` or `debug`) for external

@@ -94,6 +94,9 @@ same change.
 | `engine_mismatch` | 409 | no | Agent enrollment: a replace or reattach enrollment was used for a different Docker Engine than its target's. | #3 |
 | `enrollment_target_unavailable` | 409 | no | Agent enrollment: the agent to replace or the environment to re-attach is no longer in a state that allows it; create a new enrollment. | #3 |
 | `agent_revoked` | 409 | no | The agent was removed or replaced; its credential cannot be rotated. | #3 |
+| `group_name_taken` | 409 | no | Another permission group already uses this name. | #17 |
+| `default_group_protected` | 409 | no | The default group cannot be deleted; make another group the default first. | #17 |
+| `group_not_empty` | 409 | no | The group still has members; move them to another group first (users are never moved implicitly). | #17 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |
 | `payload_too_large` | 413 | no | The request body exceeds the route's documented limit. | #2 |

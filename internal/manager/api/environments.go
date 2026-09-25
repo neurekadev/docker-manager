@@ -18,25 +18,41 @@ import (
 
 // Environment is one enrolled agent plus the Docker Engine it controls
 // (#3). The UI and API say environment; "host" in prose means the same.
+//
+// Shaping (#17): with environment.read the environment is returned in
+// full (view "full"). Any other capability applying in it (host stats, a
+// container grant, ...) shows only id, name, status, online, view and
+// actions (view "minimal"; revision too when an edit action is granted).
 type Environment struct {
 	ID                     string     `json:"id" example:"0190a6e0-3333-7000-8000-000000000003"`
 	Name                   string     `json:"name" example:"NAS" doc:"Editable server/display name."`
 	ServiceAddress         string     `json:"serviceAddress,omitempty" example:"nas.lan" doc:"Host name or IP address users browse to, for links to published ports."`
 	Status                 string     `json:"status" enum:"active,archived" doc:"Archived environments are hidden from operations; their records are kept."`
 	Online                 bool       `json:"online" doc:"The agent's session is established and its jobs were reconciled."`
+	View                   string     `json:"view" enum:"minimal,full" doc:"full: environment.read; minimal: only identity, status and the granted actions (#17)."`
+	Actions                []string   `json:"actions" doc:"Granted environment capabilities (e.g. environment.metrics.read)."`
 	ConnectionChangedAt    *time.Time `json:"connectionChangedAt,omitempty" doc:"When the environment last went online or offline."`
 	LastSeenAt             *time.Time `json:"lastSeenAt,omitempty"`
 	AgentID                string     `json:"agentId,omitempty" doc:"The active agent; absent while the environment is detached (its agent was removed)."`
-	EngineID               string     `json:"engineId" doc:"Docker Engine ID."`
-	AllowDuplicateEngineID bool       `json:"allowDuplicateEngineId" doc:"The owner declared this a distinct host sharing another environment's Engine ID (cloned VM)."`
-	Revision               int64      `json:"revision" doc:"Edit revision (the ETag)."`
-	CreatedAt              time.Time  `json:"createdAt"`
-	UpdatedAt              time.Time  `json:"updatedAt"`
+	EngineID               string     `json:"engineId,omitempty" doc:"Docker Engine ID (full view)."`
+	AllowDuplicateEngineID bool       `json:"allowDuplicateEngineId,omitempty" doc:"The owner declared this a distinct host sharing another environment's Engine ID (cloned VM)."`
+	Revision               int64      `json:"revision,omitempty" doc:"Edit revision (the ETag); full view, or minimal view with an edit action."`
+	CreatedAt              time.Time  `json:"createdAt,omitzero" doc:"Full view."`
+	UpdatedAt              time.Time  `json:"updatedAt,omitzero" doc:"Full view."`
 	ArchivedAt             *time.Time `json:"archivedAt,omitempty"`
 }
 
-func newEnvironment(e domain.Environment) Environment {
+// newEnvironment shapes an environment for a caller's view (#17).
+func newEnvironment(e domain.Environment, v authz.View) Environment {
+	if !v.Full() {
+		out := Environment{ID: e.ID, Name: e.Name, Status: string(e.Status), Online: e.Online, View: v.Level.String(), Actions: Actions(v)}
+		if v.Has(string(CapEnvironmentManage)) || v.Has(string(CapEnvironmentRemove)) {
+			out.Revision = e.Revision
+		}
+		return out
+	}
 	return Environment{ID: e.ID, Name: e.Name, ServiceAddress: e.ServiceAddress, Status: string(e.Status), Online: e.Online,
+		View: v.Level.String(), Actions: Actions(v),
 		ConnectionChangedAt: e.ConnectionChangedAt, LastSeenAt: e.LastSeenAt, AgentID: e.AgentID, EngineID: e.EngineID,
 		AllowDuplicateEngineID: e.AllowDuplicateEngineID, Revision: e.Revision, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt,
 		ArchivedAt: e.ArchivedAt}
@@ -174,24 +190,25 @@ type environmentOutput struct {
 type listEnvironmentsOutput struct{ Body Page[Environment] }
 type environmentSystemOutput struct{ Body EnvironmentSystem }
 
-func environmentResource(e domain.Environment) authz.Resource {
-	return authz.Resource{Type: resourceTypeEnvironment, ID: e.ID, EnvironmentID: e.ID}
-}
+func environmentResource(e domain.Environment) authz.Resource { return authz.EnvironmentResource(e.ID) }
 
-// visibleEnvironment loads an environment the caller may read (404 otherwise).
-func (h *agentsAPI) visibleEnvironment(ctx context.Context, id string) (authz.Principal, domain.Environment, error) {
-	p, err := h.principal(ctx)
+// visibleEnvironment loads an environment the caller may see at least
+// minimally (404 otherwise, so existence does not leak), with the
+// caller's per-request checker and view.
+func (h *agentsAPI) visibleEnvironment(ctx context.Context, id string) (authz.Checker, domain.Environment, authz.View, error) {
+	c, err := h.checker(ctx)
 	if err != nil {
-		return p, domain.Environment{}, err
+		return nil, domain.Environment{}, authz.View{}, err
 	}
 	env, err := h.svc.GetEnvironment(ctx, id)
 	if err != nil {
-		return p, domain.Environment{}, agentErr(err)
+		return nil, domain.Environment{}, authz.View{}, agentErr(err)
 	}
-	if !h.can(ctx, p, CapEnvironmentRead, environmentResource(env)) {
-		return p, domain.Environment{}, NotFound("environment not found")
+	v := authz.ViewOf(c, environmentResource(env))
+	if !v.Visible() {
+		return nil, domain.Environment{}, authz.View{}, NotFound("environment not found")
 	}
-	return p, env, nil
+	return c, env, v, nil
 }
 
 // stale answers a lost compare-and-swap: 412 with the current ETag.
@@ -202,7 +219,7 @@ func stale(current int64) error {
 }
 
 func (h *agentsAPI) listEnvironments(ctx context.Context, in *listEnvironmentsInput) (*listEnvironmentsOutput, error) {
-	p, err := h.principal(ctx)
+	c, err := h.checker(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -227,14 +244,14 @@ func (h *agentsAPI) listEnvironments(ctx context.Context, in *listEnvironmentsIn
 			return h.svc.ListEnvironments(ctx, f)
 		},
 		Position: func(e domain.Environment) string { return e.ID },
-		Visible:  func(e domain.Environment) bool { return h.can(ctx, p, CapEnvironmentRead, environmentResource(e)) },
+		Visible:  func(e domain.Environment) bool { return authz.ViewOf(c, environmentResource(e)).Visible() },
 	})
 	if err != nil {
 		return nil, Internal(err)
 	}
 	out := make([]Environment, 0, len(items))
 	for _, e := range items {
-		out = append(out, newEnvironment(e))
+		out = append(out, newEnvironment(e, authz.ViewOf(c, environmentResource(e))))
 	}
 	cursor, err := nextCursor(fingerprint, next)
 	if err != nil {
@@ -243,20 +260,28 @@ func (h *agentsAPI) listEnvironments(ctx context.Context, in *listEnvironmentsIn
 	return &listEnvironmentsOutput{Body: NewPage(out, cursor, nil)}, nil
 }
 
+func environmentETag(e Environment) ETagHeader {
+	if e.Revision == 0 {
+		return ETagHeader{}
+	}
+	return ETagHeader{ETag: RevisionETag(e.Revision)}
+}
+
 func (h *agentsAPI) getEnvironment(ctx context.Context, in *environmentIDInput) (*environmentOutput, error) {
-	_, env, err := h.visibleEnvironment(ctx, in.EnvironmentID)
+	_, env, v, err := h.visibleEnvironment(ctx, in.EnvironmentID)
 	if err != nil {
 		return nil, err
 	}
-	return &environmentOutput{ETagHeader: ETagHeader{ETag: RevisionETag(env.Revision)}, Body: newEnvironment(env)}, nil
+	body := newEnvironment(env, v)
+	return &environmentOutput{ETagHeader: environmentETag(body), Body: body}, nil
 }
 
 func (h *agentsAPI) updateEnvironment(ctx context.Context, in *updateEnvironmentInput) (*environmentOutput, error) {
-	p, env, err := h.visibleEnvironment(ctx, in.EnvironmentID)
+	c, env, v, err := h.visibleEnvironment(ctx, in.EnvironmentID)
 	if err != nil {
 		return nil, err
 	}
-	if !h.can(ctx, p, CapEnvironmentManage, environmentResource(env)) {
+	if !v.Has(string(CapEnvironmentManage)) {
 		return nil, Forbidden("not permitted to manage this environment")
 	}
 	if err := in.CheckIfMatch(RevisionETag(env.Revision)); err != nil {
@@ -273,15 +298,16 @@ func (h *agentsAPI) updateEnvironment(ctx context.Context, in *updateEnvironment
 	if err != nil {
 		return nil, agentErr(err)
 	}
-	return &environmentOutput{ETagHeader: ETagHeader{ETag: RevisionETag(env.Revision)}, Body: newEnvironment(env)}, nil
+	body := newEnvironment(env, authz.ViewOf(c, environmentResource(env)))
+	return &environmentOutput{ETagHeader: environmentETag(body), Body: body}, nil
 }
 
 func (h *agentsAPI) deleteEnvironment(ctx context.Context, in *deleteEnvironmentInput) (*struct{}, error) {
-	p, env, err := h.visibleEnvironment(ctx, in.EnvironmentID)
+	_, env, v, err := h.visibleEnvironment(ctx, in.EnvironmentID)
 	if err != nil {
 		return nil, err
 	}
-	if !h.can(ctx, p, CapEnvironmentRemove, environmentResource(env)) {
+	if !v.Has(string(CapEnvironmentRemove)) {
 		return nil, Forbidden("not permitted to remove this environment")
 	}
 	if err := in.CheckIfMatch(RevisionETag(env.Revision)); err != nil {
@@ -297,24 +323,24 @@ func (h *agentsAPI) deleteEnvironment(ctx context.Context, in *deleteEnvironment
 		}
 		return nil, agentErr(err)
 	}
-	logging.FromContext(ctx).Info("environment archived", "environment_id", env.ID, "principal", p.Key())
+	logging.FromContext(ctx).Info("environment archived", "environment_id", env.ID)
 	return nil, nil
 }
 
 func (h *agentsAPI) listEnvironmentAgents(ctx context.Context, in *listEnvironmentAgentsInput) (*listAgentsOutput, error) {
-	p, env, err := h.visibleEnvironment(ctx, in.EnvironmentID)
+	c, env, _, err := h.visibleEnvironment(ctx, in.EnvironmentID)
 	if err != nil {
 		return nil, err
 	}
-	return h.agentPage(ctx, p, domain.AgentFilter{EnvironmentID: env.ID}, in.PageParams, QueryFingerprint("env-agents", env.ID))
+	return h.agentPage(ctx, c, domain.AgentFilter{EnvironmentID: env.ID}, in.PageParams, QueryFingerprint("env-agents", env.ID))
 }
 
 func (h *agentsAPI) environmentSystem(ctx context.Context, in *environmentIDInput) (*environmentSystemOutput, error) {
-	p, env, err := h.visibleEnvironment(ctx, in.EnvironmentID)
+	_, env, v, err := h.visibleEnvironment(ctx, in.EnvironmentID)
 	if err != nil {
 		return nil, err
 	}
-	if !h.can(ctx, p, CapEnvironmentSystemRead, environmentResource(env)) {
+	if !v.Has(string(CapEnvironmentSystemRead)) {
 		return nil, Forbidden("not permitted to read this environment's system information")
 	}
 	sys, err := h.svc.EnvironmentSystem(ctx, env.ID)
@@ -329,8 +355,9 @@ func registerEnvironments(a huma.API, deps Deps) {
 	Register(a, Operation{
 		Operation: huma.Operation{
 			OperationID: "list-environments", Method: http.MethodGet, Path: BasePath + "/environments",
-			Summary: "List environments", Description: "Environments in creation order, filtered per item by environment.read. " +
-				"Archived environments are listed only with ?status=archived.",
+			Summary: "List environments", Description: "Environments in creation order, filtered per item (#17): environment.read shows " +
+				"an environment in full; any other capability applying in it (host stats, a grant on one of its stacks or containers) " +
+				"shows only its identity, status and granted actions (view minimal). Archived environments are listed only with ?status=archived.",
 			Tags: []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized, http.StatusUnprocessableEntity},
 		},
 		Capability: CapEnvironmentRead, Scope: ScopeResource,
@@ -339,7 +366,9 @@ func registerEnvironments(a huma.API, deps Deps) {
 	Register(a, Operation{
 		Operation: huma.Operation{
 			OperationID: "get-environment", Method: http.MethodGet, Path: BasePath + "/environments/{environmentId}",
-			Summary: "Get an environment", Tags: []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized, http.StatusNotFound},
+			Summary: "Get an environment", Description: "Full with environment.read, minimal (identity, status, actions) with any other " +
+				"capability applying in it, 404 otherwise. The ETag is sent when the revision is visible.",
+			Tags: []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized, http.StatusNotFound},
 		},
 		Capability: CapEnvironmentRead, Scope: ScopeEnvironment,
 	}, h.getEnvironment)

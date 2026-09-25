@@ -44,8 +44,9 @@ in GitHub issues #1 (roadmap) and #25 (decision register).
 | `internal/manager/store` | SQLite/Bun: open, migrate, snapshots, DB models | `domain`, `db/migrations` |
 | `internal/manager/secrets` | AEAD sealing of settings at rest, key file | — |
 | `internal/manager/jobs` | Job engine: queue, lock matrix, dispatch, fencing, reconciliation, recovery (#26) | `store`, `authz`, `jobspec`, `jobexec`, `protocol` |
-| `internal/manager/authz` | `Authorizer` hook, request principals | `domain` |
-| `internal/manager/auth` | Identity (#16): sessions middleware, sign-in/factor/invitation/user flows, owner-only evaluator until #17; subpackages wrap the #18 libraries (`sessions`, `password`, `totp`, `passkey`, `csrf`, `throttle`), ADR 0003 | `api`, `store`, `authz`, `secrets`, `requestinfo` |
+| `internal/manager/authz` | Authorization contract (#17): principals, `Resource`, `Authorizer`, per-request `Checker`, shaping (`ViewOf`), job targets, event filtering; subpackages `catalog` (capability catalog), `policy` (evaluator, corpus), `authztest` (test kit) | `domain`, `jobspec`, `events` |
+| `internal/manager/permissions` | Permission service (#17): rule storage, the manager's Authorizer, Locators, owner-only group/rule management, effective permissions, previews | `store`, `authz`, `audit` |
+| `internal/manager/auth` | Identity (#16): sessions middleware, sign-in/factor/invitation/user flows, owner guard and stream invalidation for #17; subpackages wrap the #18 libraries (`sessions`, `password`, `totp`, `passkey`, `csrf`, `throttle`), ADR 0003 | `api`, `store`, `authz`, `secrets`, `requestinfo` |
 | `internal/jobspec` | Job kind catalog and lock definitions (shared by manager and agent) | `domain` |
 | `internal/jobexec` | Journaled step runner (shared by manager and agent) | `jobspec`, `protocol`, `faultinject` |
 | `internal/agent/jobs` | Agent job runner: fencing, fsync'd journal, reconnect report | `jobexec`, `protocol` |

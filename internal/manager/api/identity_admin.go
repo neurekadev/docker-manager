@@ -163,8 +163,9 @@ func registerAccountAdmin(a huma.API, h *identityAPI) {
 		Operation: huma.Operation{
 			OperationID: "update-user", Method: http.MethodPatch, Path: BasePath + "/users/{userId}",
 			Summary: "Update a user",
-			Description: "Edit profile fields, move the account to one group (#17), or disable/reactivate it. Disabling ends every session and open " +
-				"stream of the account immediately; the owner cannot be disabled (409 owner_protected). Requires If-Match. " + ownerOnly,
+			Description: "Edit profile fields, move the account to exactly one group (#17), or disable/reactivate it. A group move needs a recent " +
+				"step-up (403 step_up_required), changes the account's access at once and ends its open requests and streams. Disabling ends " +
+				"every session and open stream of the account immediately; the owner cannot be disabled (409 owner_protected). Requires If-Match. " + ownerOnly,
 			Tags: []string{tagUsers}, Security: cookieOnly,
 			Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusPreconditionFailed, http.StatusPreconditionRequired, http.StatusUnprocessableEntity},
 		},

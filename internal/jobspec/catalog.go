@@ -129,10 +129,12 @@ func stackKind(kind domain.JobKind, summary string, deadline time.Duration, step
 	}
 }
 
-// filesKind builds a file-manager job spec.
+// filesKind builds a file-manager job spec. File jobs act inside one stack
+// project directory or volume: their capability is per root type
+// (stack.files.copy, volume.files.copy; #17).
 func filesKind(kind domain.JobKind, summary string, locks []LockRule, steps ...Step) Spec {
 	return Spec{
-		Kind: kind, Summary: summary, Capability: string(kind), Executor: domain.ExecutorAgent,
+		Kind: kind, Summary: summary, Capability: string(kind), RootScoped: true, Executor: domain.ExecutorAgent,
 		Locks: append(append([]LockRule{hostShared()}, locks...),
 			optional(target(domain.LockVolume, shared, domain.TargetVolume)),
 			optional(target(domain.LockStack, shared, domain.TargetStack))),
@@ -345,9 +347,15 @@ func catalogSpecs() []Spec {
 			[]LockRule{target(domain.LockFilePath, shared, domain.TargetPath),
 				target(domain.LockFilePath, exclusive, domain.TargetDestinationPath)},
 			step("extract", false, true, "The destination may contain a partial extraction. Inspect it before extracting again.")),
-		filesKind(FilesMetadata, "Change ownership or permissions recursively",
-			[]LockRule{target(domain.LockFilePath, exclusive, domain.TargetPath)},
-			idem("apply")),
+		func() Spec {
+			s := filesKind(FilesMetadata, "Change ownership or permissions recursively",
+				[]LockRule{target(domain.LockFilePath, exclusive, domain.TargetPath)},
+				idem("apply"))
+			// The input's "chmod" and/or "chown" objects select the
+			// capabilities (each requested change needs its own, #17).
+			s.CapabilityByInput = map[string]string{"chmod": "files.chmod", "chown": "files.chown"}
+			return s
+		}(),
 		filesKind(FilesCopy, "Copy files",
 			[]LockRule{target(domain.LockFilePath, shared, domain.TargetPath),
 				target(domain.LockFilePath, exclusive, domain.TargetDestinationPath)},

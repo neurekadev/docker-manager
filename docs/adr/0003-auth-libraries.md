@@ -197,7 +197,10 @@ function over the user's rules, group rules and the resource's scope
 chain, returning the decision and the rule that produced it) with a
 table-driven decision corpus, and does not add Casbin. Until #17 lands,
 `authz` uses an owner-only evaluator: the instance owner is allowed
-everything, everyone else is denied (deny by default).
+everything, everyone else is denied (deny by default). #17 implemented it
+as `internal/manager/authz/policy` (evaluator and decision corpus) and
+`internal/manager/permissions` (rule storage and the manager's
+Authorizer); see `docs/architecture/authorization.md`.
 
 ### Threat model
 

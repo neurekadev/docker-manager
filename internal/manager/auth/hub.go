@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/neurekadev/dockyard/internal/logging"
+	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
 )
 
@@ -20,13 +21,13 @@ type hub struct {
 
 type hubEntry struct {
 	epoch  int64
-	cancel context.CancelFunc
+	cancel context.CancelCauseFunc
 }
 
 func newHub() *hub { return &hub{subs: map[string]map[uint64]hubEntry{}} }
 
 // register tracks cancel for userID's request made with session epoch.
-func (h *hub) register(userID string, epoch int64, cancel context.CancelFunc) func() {
+func (h *hub) register(userID string, epoch int64, cancel context.CancelCauseFunc) func() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.next++
@@ -46,10 +47,14 @@ func (h *hub) register(userID string, epoch int64, cancel context.CancelFunc) fu
 }
 
 // revoke cancels userID's requests whose epoch differs from keep (all of
-// them when keep is -1).
-func (h *hub) revoke(userID string, keep int64) {
+// them when keep is -1): their sessions ended (authz.ErrSessionEnded).
+func (h *hub) revoke(userID string, keep int64) { h.revokeCause(userID, keep, authz.ErrSessionEnded) }
+
+// revokeCause cancels like revoke with the given cause, which streams
+// report to the client (authz.CloseReason).
+func (h *hub) revokeCause(userID string, keep int64, cause error) {
 	h.mu.Lock()
-	var cancels []context.CancelFunc
+	var cancels []context.CancelCauseFunc
 	for id, e := range h.subs[userID] {
 		if keep < 0 || e.epoch != keep {
 			cancels = append(cancels, e.cancel)
@@ -61,7 +66,7 @@ func (h *hub) revoke(userID string, keep int64) {
 	}
 	h.mu.Unlock()
 	for _, c := range cancels {
-		c()
+		c(cause)
 	}
 }
 

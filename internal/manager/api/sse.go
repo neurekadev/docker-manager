@@ -1,12 +1,14 @@
 package api
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/server/sse"
 )
 
@@ -54,6 +56,21 @@ func (s *SSEWriter) Heartbeat() error { return s.stream().Heartbeat() }
 // Retry tells EventSource clients how long to wait before reconnecting.
 func (s *SSEWriter) Retry(ms int) error {
 	return s.stream().Retry(time.Duration(ms) * time.Millisecond)
+}
+
+// CloseEvent is the data of the final `close` event.
+type CloseEvent struct {
+	Reason string `json:"reason" enum:"permissions_changed,session_expired,max_age,shutdown"`
+}
+
+// CloseIfRevoked writes `event: close` with the reason when ctx (the
+// request context) was ended by a permission change or the end of the
+// session (authz.CloseReason), so the client drops cached data and
+// reconnects or re-authenticates. Call it when the stream loop exits.
+func (s *SSEWriter) CloseIfRevoked(ctx context.Context) {
+	if reason := authz.CloseReason(ctx); reason != "" {
+		_ = s.Event("close", "", CloseEvent{Reason: reason})
+	}
 }
 
 // Flush pushes buffered bytes to the client.

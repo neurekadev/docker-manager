@@ -66,9 +66,10 @@ public operations have none.
 
 Sessions are implemented (#16); API tokens arrive with #31 (until then a
 bearer request has no principal and non-public routes answer `401`).
-Until #17's permission rules land, the instance owner may use every route
-and every other account is denied (`403`/`404`, lists empty) — the API
-fails closed.
+Authorization (#17, [authorization](../architecture/authorization.md)):
+the instance owner may use every route; everyone else gets exactly what
+their group rules and user overrides grant (`403`/`404`, lists filtered),
+and a new account in the initial **Restricted** group sees nothing.
 
 ### Public routes
 

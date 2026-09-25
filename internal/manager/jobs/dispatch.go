@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/uptrace/bun"
 
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/faultinject"
 	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
@@ -117,9 +119,14 @@ func (e *Engine) DispatchPending(ctx context.Context) error {
 			}
 		}
 		if j.Origin != domain.OriginScheduled {
-			if d := e.authorize(ctx, principalOf(j), spec, j.EnvironmentID, j.Targets); !d.Allowed {
+			caps, err := spec.Capabilities(j.Targets, j.Input)
+			d := authz.Deny("the job's input no longer selects its capabilities")
+			if err == nil {
+				d = e.authorize(ctx, principalOf(j), caps, j.EnvironmentID, j.Targets)
+			}
+			if !d.Allowed {
 				errs = append(errs, e.failWaiting(ctx, j, domain.ErrorAuthorizationRevoked,
-					"the initiator no longer holds "+spec.Capability+" for this job's targets",
+					"the initiator no longer holds "+strings.Join(caps, ", ")+" for this job's targets",
 					"Ask an administrator to restore the grant, then run the job again."))
 				continue
 			}

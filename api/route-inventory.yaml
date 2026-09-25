@@ -7,8 +7,9 @@
 #     the same operationId, capability (x-dockyard-capability), selector
 #     values (x-dockyard-capability-values), scope (x-dockyard-scope) and kind;
 #   - every implemented entry must be in the spec; planned entries must not;
-#   - capability keys are checked against the #17 permission catalog once it
-#     exists (hook in inventory_test.go).
+#   - every capability key (and selector value) must exist in the #17
+#     permission catalog (internal/manager/authz/catalog); a route without a
+#     catalog capability fails TestRouteInventory.
 # Feature workstreams flip status to implemented in the PR that registers the
 # operation (and may refine capability/scope with #17). Fields:
 #   method, path, operationId  stable identity; operation IDs never change
@@ -312,7 +313,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
-    notes: "Assigns exactly one group (#17); If-Match."
+    notes: "Assigns exactly one group (#17; a group move needs step-up and ends the user's streams); If-Match."
   - method: DELETE
     path: "/api/v1/users/{userId}"
     operationId: delete-user
@@ -387,7 +388,7 @@ routes:
     scope: none
     owner: 17
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: /api/v1/me/permissions
     operationId: get-my-permissions
@@ -395,7 +396,7 @@ routes:
     scope: none
     owner: 17
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: /api/v1/groups
     operationId: list-groups
@@ -403,7 +404,7 @@ routes:
     scope: instance
     owner: 17
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/groups
     operationId: create-group
@@ -411,7 +412,7 @@ routes:
     scope: instance
     owner: 17
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/groups/{groupId}"
     operationId: get-group
@@ -419,7 +420,7 @@ routes:
     scope: instance
     owner: 17
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/groups/{groupId}"
     operationId: update-group
@@ -427,7 +428,7 @@ routes:
     scope: instance
     owner: 17
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match.
   - method: DELETE
     path: "/api/v1/groups/{groupId}"
@@ -436,7 +437,7 @@ routes:
     scope: instance
     owner: 17
     kind: json
-    status: planned
+    status: implemented
     notes: 409 while it is the default group.
   - method: POST
     path: "/api/v1/groups/{groupId}/default-selection"
@@ -445,7 +446,7 @@ routes:
     scope: instance
     owner: 17
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/groups/{groupId}/permissions"
     operationId: get-group-permissions
@@ -453,7 +454,7 @@ routes:
     scope: instance
     owner: 17
     kind: json
-    status: planned
+    status: implemented
   - method: PUT
     path: "/api/v1/groups/{groupId}/permissions"
     operationId: replace-group-permissions
@@ -461,7 +462,7 @@ routes:
     scope: instance
     owner: 17
     kind: json
-    status: planned
+    status: implemented
     notes: Requires step-up; If-Match; invalidates affected sessions and streams.
   - method: GET
     path: "/api/v1/users/{userId}/permissions"
@@ -470,7 +471,7 @@ routes:
     scope: instance
     owner: 17
     kind: json
-    status: planned
+    status: implemented
   - method: PUT
     path: "/api/v1/users/{userId}/permissions"
     operationId: replace-user-permissions
@@ -478,7 +479,7 @@ routes:
     scope: instance
     owner: 17
     kind: json
-    status: planned
+    status: implemented
     notes: Requires step-up; If-Match; invalidates affected sessions and streams.
   - method: GET
     path: "/api/v1/users/{userId}/effective-permissions"
@@ -487,7 +488,7 @@ routes:
     scope: instance
     owner: 17
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/permission-previews
     operationId: create-permission-preview
@@ -495,7 +496,7 @@ routes:
     scope: instance
     owner: 17
     kind: json
-    status: planned
+    status: implemented
     notes: "View-as evaluation, also of an API token scope (#31); no impersonated session."
   - method: GET
     path: /api/v1/audit
@@ -1299,7 +1300,7 @@ routes:
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/copies"
     operationId: create-stack-file-copy
-    capability: files.copy
+    capability: stack.files.copy
     scope: resource
     owner: 15
     kind: json
@@ -1308,7 +1309,7 @@ routes:
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/moves"
     operationId: create-stack-file-move
-    capability: files.move
+    capability: stack.files.move
     scope: resource
     owner: 15
     kind: json
@@ -1317,7 +1318,7 @@ routes:
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/deletions"
     operationId: create-stack-file-deletion
-    capability: files.delete
+    capability: stack.files.delete
     scope: resource
     owner: 15
     kind: json
@@ -1326,7 +1327,7 @@ routes:
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/archives"
     operationId: create-stack-file-archive
-    capability: files.archive
+    capability: stack.files.archive
     scope: resource
     owner: 15
     kind: json
@@ -1335,7 +1336,7 @@ routes:
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/extractions"
     operationId: create-stack-file-extraction
-    capability: files.extract
+    capability: stack.files.extract
     scope: resource
     owner: 15
     kind: json
@@ -1344,8 +1345,8 @@ routes:
   - method: PATCH
     path: "/api/v1/stacks/{stackId}/files/metadata"
     operationId: update-stack-file-metadata
-    capability: "files.{change}"
-    capabilityValues: [files.chmod, files.chown]
+    capability: "stack.files.{change}"
+    capabilityValues: [stack.files.chmod, stack.files.chown]
     scope: resource
     owner: 15
     kind: json
@@ -1415,7 +1416,7 @@ routes:
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/copies"
     operationId: create-volume-file-copy
-    capability: files.copy
+    capability: volume.files.copy
     scope: resource
     owner: 15
     kind: json
@@ -1424,7 +1425,7 @@ routes:
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/moves"
     operationId: create-volume-file-move
-    capability: files.move
+    capability: volume.files.move
     scope: resource
     owner: 15
     kind: json
@@ -1433,7 +1434,7 @@ routes:
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/deletions"
     operationId: create-volume-file-deletion
-    capability: files.delete
+    capability: volume.files.delete
     scope: resource
     owner: 15
     kind: json
@@ -1442,7 +1443,7 @@ routes:
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/archives"
     operationId: create-volume-file-archive
-    capability: files.archive
+    capability: volume.files.archive
     scope: resource
     owner: 15
     kind: json
@@ -1451,7 +1452,7 @@ routes:
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/extractions"
     operationId: create-volume-file-extraction
-    capability: files.extract
+    capability: volume.files.extract
     scope: resource
     owner: 15
     kind: json
@@ -1460,8 +1461,8 @@ routes:
   - method: PATCH
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/metadata"
     operationId: update-volume-file-metadata
-    capability: "files.{change}"
-    capabilityValues: [files.chmod, files.chown]
+    capability: "volume.files.{change}"
+    capabilityValues: [volume.files.chmod, volume.files.chown]
     scope: resource
     owner: 15
     kind: json

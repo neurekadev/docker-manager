@@ -103,9 +103,16 @@ type Spec struct {
 	Kind    domain.JobKind
 	Summary string
 	// Capability is the #17 capability key a manual/API-token request needs
-	// on every target. Scheduled jobs run as the manager service identity.
+	// on every target (see Capabilities for root-scoped and input-selected
+	// kinds). Scheduled jobs run as the manager service identity.
 	Capability string
-	Executor   domain.JobExecutor
+	// RootScoped: the kind acts inside one stack or volume (file jobs);
+	// the capability is "<root type>.<Capability>".
+	RootScoped bool
+	// CapabilityByInput selects the capabilities from top-level input keys
+	// (files.metadata: chmod and/or chown); it replaces Capability.
+	CapabilityByInput map[string]string
+	Executor          domain.JobExecutor
 	// Locks is the kind's lock definition (row of the lock matrix).
 	Locks []LockRule
 	// OfflineDeadline bounds how long a queued agent job waits for an
@@ -161,6 +168,11 @@ func (s Spec) Validate() error {
 	}
 	if !kindRE.MatchString(s.Capability) {
 		bad("%s: capability %q must be a dotted key", s.Kind, s.Capability)
+	}
+	for k, c := range s.CapabilityByInput {
+		if k == "" || !kindRE.MatchString(c) {
+			bad("%s: input capability %q -> %q must map an input key to a dotted key", s.Kind, k, c)
+		}
 	}
 	if s.Summary == "" {
 		bad("%s: summary is required", s.Kind)

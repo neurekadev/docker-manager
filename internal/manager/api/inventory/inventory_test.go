@@ -7,15 +7,15 @@ import (
 	"testing"
 
 	"github.com/neurekadev/dockyard/internal/manager/api"
+	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
 )
 
 var root = filepath.Join("..", "..", "..", "..")
 
-// permissionCatalog is the #17 permission catalog. It is nil until #17
-// lands; #17 sets it (for example to its catalog's key set) so every
-// grantable capability in the inventory must exist in the catalog.
-// TODO(#17): wire the permission catalog here.
-var permissionCatalog CapabilityCatalog
+// permissionCatalog is the #17 permission catalog: every capability key of
+// every route, stream and selector value in the inventory must exist in it
+// (#29 check). Job kinds are checked in internal/manager/authz/catalog.
+var permissionCatalog CapabilityCatalog = catalog.Default()
 
 func load(t *testing.T) *Inventory {
 	t.Helper()
@@ -44,7 +44,7 @@ func TestRouteInventory(t *testing.T) {
 	t.Logf("route inventory: %d routes, %d implemented, %d planned", len(inv.Routes), rep.Implemented, rep.Planned)
 	t.Logf("planned per owning issue: %v", rep.PlannedByOwner)
 	if !rep.CatalogChecked {
-		t.Log("pending: capability keys are checked against the #17 permission catalog once it exists (permissionCatalog)")
+		t.Fatal("capability keys were not checked against the #17 permission catalog")
 	}
 }
 

@@ -52,7 +52,8 @@ type Deps struct {
 	Features []string
 	// Jobs is the job engine (#26); nil answers job routes with 503.
 	Jobs JobService
-	// Authorizer decides capability checks; nil denies everything (#17).
+	// Authorizer decides capability checks (the #17 permission service);
+	// nil denies everything.
 	Authorizer authz.Authorizer
 	// Clock drives stream heartbeats; nil means the wall clock.
 	Clock clock.Clock
@@ -72,6 +73,10 @@ type Deps struct {
 	// Agents is the agent/environment service (#3); nil answers its
 	// routes with 503.
 	Agents AgentService
+	// Permissions serves the catalog, groups, rule documents, effective
+	// permissions and previews (#17); nil answers those routes with 503.
+	// The manager also sets Authorizer to it.
+	Permissions PermissionService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -122,6 +127,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerIdentity(a, deps)
 	registerAgents(a, deps)
 	registerEnvironments(a, deps)
+	registerPermissions(a, deps)
 	return a
 }
 

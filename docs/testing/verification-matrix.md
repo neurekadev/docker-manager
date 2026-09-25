@@ -41,9 +41,9 @@ Legend for "where": PR = `ci.yaml` PR suite; X:`job` = `extended.yaml` job.
 | V16 | Throttling / rate limiting | #3, #16, #27 | `/agent/v1` per-client-IP limiter: `TestAgentRateLimitPerClientIP` (fake clock, spoofed XFF, IPv6 /64, fail-closed table); login, enrollment and API rate-limit tests follow with #16/#3 | PR | partial |
 | V17 | Owner bootstrap, concurrent first-owner setup | #16 | `TestConcurrentFirstRunSetupCreatesOneOwner` (N concurrent setup requests → exactly one owner); smoke `owner-setup` step (owner over HTTPS through Caddy, second setup refused) | PR, X:`race`, X:`smoke` | implemented |
 | V18 | Invite redemption (one-use) and revocation | #16 | API tests incl. concurrent redemption | PR, X:`race` | planned |
-| V19 | Restricted default group; no-access new user | #17 | Permission decision corpus | PR | planned |
-| V20 | Scoped capabilities, group/user override precedence and boundaries | #17 | Decision corpus (table-driven, every capability × scope × override) | PR | planned |
-| V21 | Metrics-only and restart-only grants | #17 | Decision corpus + API tests | PR | planned |
+| V19 | Restricted default group; no-access new user | #17 | `TestRestrictedUserSeesNoResources` (app), `TestRestrictedSeesNoEnvironmentsOrAgents` (api), corpus `testdata/corpus.yaml` | PR | implemented |
+| V20 | Scoped capabilities, group/user override precedence and boundaries | #17 | `TestDecisionCorpus` (`authz/policy/testdata/corpus.yaml`), `TestEveryCapabilityScopeAndOverride` (every capability × scope × override), `TestUserOverridesInheritanceAndPreview` | PR | implemented |
+| V21 | Metrics-only and restart-only grants | #17, #6 | Corpus + `TestMetricsAndRestartOnlyThroughRealRoutes` (environments, agents, jobs); container routes (#6) use `authztest.AssertOnly` | PR | partial |
 | V22 | TOTP/passkey enforcement and recovery | #16 | Playwright (helpers implemented) | X:`e2e` | planned |
 | V23 | Secret storage | #2, #10, #19 | `TestSealOpenRoundTrip`, `TestMissingKeyForExistingInstallFailsClosed`; canary sweeps over DB dumps per secret kind | PR, X:`secret-canary` | partial |
 | V24 | Secrets never in logs, audit, job output, API responses | #16, #19, #10, #30, #31 | `internal/testutil/canary` (implemented, unit-tested); `TestJSONOutputAndSecretRedaction`, `TestAccessLogOmitsQuery`; audit: `TestSecretCanariesNeverReachTheAuditTrail`, `TestSecretCanariesNeverStored`, `FuzzCanonicalDetails`; per-feature canary tests | PR, X:`secret-canary` | partial |
@@ -76,7 +76,7 @@ Legend for "where": PR = `ci.yaml` PR suite; X:`job` = `extended.yaml` job.
 | V41 | Portable manifest and secret-key recovery (Recovery Key) | #24 | Recovery with the key; failure without it; corrupt/truncated manifest fixtures | X:`storage` | planned |
 | V42 | Shared backup/job ownership; authorized cross-user job visibility | #10, #26, #17 | API tests over the job engine | PR | planned |
 | V43 | Scheduled runs after creator removal | #13 | Fake-clock scheduler test | PR | planned |
-| V44 | Queued manual job rejected after grant revocation | #26, #17 | Job engine test | PR | planned |
+| V44 | Queued manual job rejected after grant revocation | #26, #17 | `TestRecheckAtDispatch` (engine), `TestQueuedJobRecheckedAtDispatch` (real permission service) | PR | implemented |
 | V45 | In-flight recovery after requester logout | #26 | Job engine test | PR | planned |
 | V46 | Local and S3 restic backup | #10 | `TestResticPinnedBinary` (fixture round trip, implemented); agent backup jobs against local + MinIO | X:`storage` | partial |
 | V47 | Selective file/stack/volume restore | #10 | Restore tests on a DinD Engine | X:`storage` | planned |

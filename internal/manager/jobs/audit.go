@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"strings"
 
 	"github.com/uptrace/bun"
 
@@ -40,7 +41,14 @@ func (e *Engine) recordJob(ctx context.Context, db bun.IDB, j *domain.Job, actio
 		"kind": string(j.Kind), "origin": string(j.Origin), "executor": string(j.Executor), "attempt": j.Attempt,
 	}
 	if spec, ok := jobspec.Lookup(j.Kind); ok {
-		details["capability"] = spec.Capability
+		// The capabilities the request was authorized with (#17): the
+		// kind's key, a per-root file key (stack.files.copy) or the
+		// input-selected keys (files.chmod,files.chown), comma-separated.
+		if caps, err := spec.Capabilities(j.Targets, j.Input); err == nil {
+			details["capability"] = strings.Join(caps, ",")
+		} else {
+			details["capability"] = spec.Capability
+		}
 	}
 	if j.PolicyID != "" {
 		details["policyId"] = j.PolicyID
