@@ -319,7 +319,7 @@ describe('ServicesTable', () => {
 		expect(screen.queryByRole('link', { name: 'Open web' })).not.toBeInTheDocument();
 		expect(screen.getByRole('link', { name: 'Open a terminal in web' })).toHaveAttribute(
 			'href',
-			'/stacks/st-1/terminal?service=web'
+			'/stacks/st-1/terminal?container=silo-web-1'
 		);
 		// No terminal into a stopped service.
 		expect(

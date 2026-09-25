@@ -105,7 +105,7 @@ test.describe.serial('Stacks', () => {
 		await expect(services.getByRole('link', { name: '8080:80' })).toHaveAttribute('href', 'http://192.168.1.10:8080');
 		await expect(services.getByRole('link', { name: 'Open a terminal in silo-web' })).toHaveAttribute(
 			'href',
-			`/stacks/${silo!.id}/terminal?service=silo-web`
+			`/stacks/${silo!.id}/terminal?container=silo-silo-web-1`
 		);
 		// silo-worker publishes no port: no open action.
 		await expect(services.getByRole('link', { name: 'Open silo-worker' })).toHaveCount(0);

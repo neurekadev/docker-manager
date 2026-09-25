@@ -41,9 +41,9 @@ export const routes = {
 		id: string,
 		tab?: 'files' | 'logs' | 'terminal' | 'revisions' | 'policies' | 'activity' | 'migrate'
 	) => `/stacks/${e(id)}${tab ? `/${tab}` : ''}`,
-	/** The stack's terminal with a service preselected (#8, track B3). */
-	stackTerminal: (id: string, service?: string) =>
-		`/stacks/${e(id)}/terminal${service ? `?service=${e(service)}` : ''}`,
+	/** The stack's terminal with a service container preselected (#8). */
+	stackTerminal: (id: string, container?: string) =>
+		`/stacks/${e(id)}/terminal${container ? `?container=${e(container)}` : ''}`,
 	newStack: (environmentId?: string | null) =>
 		`/stacks/new${environmentId ? `?environment=${e(environmentId)}` : ''}`,
 	discoveredStacks: (environmentId?: string | null) =>

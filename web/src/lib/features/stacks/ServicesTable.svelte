@@ -83,7 +83,7 @@
 			items.push({
 				label: 'View logs',
 				icon: FileText,
-				href: `${routes.stack(stack.id, 'logs')}?service=${encodeURIComponent(s.name)}`
+				href: routes.stack(stack.id, 'logs')
 			});
 		}
 		return items;
@@ -217,7 +217,10 @@
 				variant="secondary"
 				label="Open a terminal in {s.name}"
 				icon={SquareTerminal}
-				href={routes.stackTerminal(stack.id, s.name)}
+				href={routes.stackTerminal(
+					stack.id,
+					s.containers.find((c) => c.state === 'running')?.name
+				)}
 			/>
 		{/if}
 		{#if menu.length}
