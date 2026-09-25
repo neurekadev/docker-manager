@@ -186,7 +186,7 @@ func newAgent(a domain.Agent, v authz.View, managerVersion string) Agent {
 
 // CredentialRotation is the result of POST .../credential-rotations.
 type CredentialRotation struct {
-	AgentID     string     `json:"agentId"`
+	AgentID     string     `json:"agentId" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"`
 	State       string     `json:"state" enum:"completed,pending" doc:"completed: the agent persisted the new credential and the old one is revoked. pending: the agent is offline or did not confirm yet; the old credential stays valid and the new one is delivered when the agent reconnects."`
 	RequestedAt time.Time  `json:"requestedAt"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
@@ -229,7 +229,7 @@ type updateAgentInput struct {
 	AgentID string `path:"agentId" maxLength:"64" doc:"Agent ID."`
 	IfMatchParam
 	Body struct {
-		Label *string `json:"label,omitempty" maxLength:"200" doc:"Operator note; empty clears it."`
+		Label *string `json:"label,omitempty" example:"Rack 2, left" maxLength:"200" doc:"Operator note; empty clears it."`
 	}
 }
 

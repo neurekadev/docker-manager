@@ -45,7 +45,7 @@ type Backup struct {
 	Scope         string     `json:"scope,omitempty" doc:"manager or env:<environmentId>: which restic repository below the destination holds it."`
 	EnvironmentID string     `json:"environmentId,omitempty"`
 	StackID       string     `json:"stackId,omitempty"`
-	StackName     string     `json:"stackName,omitempty"`
+	StackName     string     `json:"stackName,omitempty" example:"web"`
 	Volume        string     `json:"volume,omitempty"`
 	SnapshotID    string     `json:"snapshotId,omitempty" doc:"restic snapshot ID."`
 	Paths         []string   `json:"paths,omitempty"`
@@ -187,8 +187,8 @@ func (h *backupsAPI) requireContents(c authz.Checker, sn domain.BackupSnapshot, 
 
 // BackupNode is an entry of a snapshot.
 type BackupNode struct {
-	Name  string    `json:"name"`
-	Path  string    `json:"path"`
+	Name  string    `json:"name" example:"nginx.conf"`
+	Path  string    `json:"path" example:"/stacks/web/config/nginx.conf"`
 	Type  string    `json:"type" enum:"file,dir,symlink,dev,chardev,fifo,socket,irregular"`
 	Size  int64     `json:"size"`
 	Mode  uint32    `json:"mode" doc:"Permission bits."`
@@ -297,8 +297,8 @@ func (h *backupsAPI) verifyBackup(ctx context.Context, in *verifyBackupInput) (*
 // --- restores ---
 
 type restoreBody struct {
-	Scope    string   `json:"scope" enum:"stack,volume,file" doc:"stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place."`
-	Volumes  []string `json:"volumes,omitempty" maxItems:"64" doc:"volume scope: which volumes of a stack backup (default: all of them)."`
+	Scope    string   `json:"scope" example:"volume" enum:"stack,volume,file" doc:"stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place."`
+	Volumes  []string `json:"volumes,omitempty" example:"web_data" maxItems:"64" doc:"volume scope: which volumes of a stack backup (default: all of them)."`
 	Path     string   `json:"path,omitempty" maxLength:"4096" doc:"file scope: the file's absolute path inside the backup."`
 	Shutdown *bool    `json:"shutdown,omitempty" doc:"Stop the containers using the data while it is restored and start the previously running ones afterwards (default true; with false a restore under running containers is refused)."`
 }
@@ -321,7 +321,7 @@ type RestorePreview struct {
 	Targets            []protocol.RestoreTarget     `json:"targets"`
 	AffectedContainers []protocol.AffectedContainer `json:"affectedContainers"`
 	Conflicts          []string                     `json:"conflicts,omitempty"`
-	Warnings           []string                     `json:"warnings,omitempty"`
+	Warnings           []string                     `json:"warnings,omitempty" example:"The restore overwrites 12 existing files"`
 	Blocked            []string                     `json:"blocked,omitempty" doc:"Why the restore cannot run as requested (running containers without shutdown, DockYard's own containers, insufficient space, paths that cannot be restored)."`
 	CanRestore         bool                         `json:"canRestore"`
 }
@@ -386,11 +386,11 @@ type restoreInput struct {
 	BackupID string `path:"backupId" maxLength:"64" doc:"Backup ID."`
 	IdempotencyKeyParam
 	Body struct {
-		Scope    string   `json:"scope" enum:"stack,volume,file" doc:"As in restore previews."`
+		Scope    string   `json:"scope" example:"volume" enum:"stack,volume,file" doc:"As in restore previews."`
 		Volumes  []string `json:"volumes,omitempty" maxItems:"64"`
 		Path     string   `json:"path,omitempty" maxLength:"4096"`
 		Shutdown *bool    `json:"shutdown,omitempty"`
-		Confirm  bool     `json:"confirm" doc:"Must be true: a restore overwrites the current data (preview it first)."`
+		Confirm  bool     `json:"confirm" example:"true" doc:"Must be true: a restore overwrites the current data (preview it first)."`
 	}
 }
 

@@ -102,7 +102,7 @@ type ExecAttach struct {
 type LogLineDTO struct {
 	At      time.Time `json:"at"`
 	Stream  string    `json:"stream" enum:"stdout,stderr"`
-	Line    string    `json:"line" doc:"The line without its newline; invalid UTF-8 is replaced by U+FFFD."`
+	Line    string    `json:"line" example:"GET /healthz HTTP/1.1 200" doc:"The line without its newline; invalid UTF-8 is replaced by U+FFFD."`
 	Partial bool      `json:"partial,omitempty" doc:"The line continues in the next entry (lines over 16 KiB are split)."`
 }
 
@@ -142,10 +142,10 @@ type containerLogsOutput struct{ Body ContainerLogs }
 
 // ExecSessionCreate is the body of POST …/exec-sessions.
 type ExecSessionCreate struct {
-	Command    []string `json:"command,omitempty" maxItems:"256" doc:"argv run inside the container (default [\"/bin/sh\"]). Never a host shell."`
+	Command    []string `json:"command,omitempty" example:"/bin/sh" maxItems:"256" doc:"argv run inside the container (default [\"/bin/sh\"]). Never a host shell."`
 	Tty        *bool    `json:"tty,omitempty" doc:"Allocate a terminal (default true)."`
-	Cols       uint     `json:"cols,omitempty" minimum:"1" maximum:"1000" doc:"Terminal columns (default 80)."`
-	Rows       uint     `json:"rows,omitempty" minimum:"1" maximum:"1000" doc:"Terminal rows (default 24)."`
+	Cols       uint     `json:"cols,omitempty" example:"120" minimum:"1" maximum:"1000" doc:"Terminal columns (default 80)."`
+	Rows       uint     `json:"rows,omitempty" example:"32" minimum:"1" maximum:"1000" doc:"Terminal rows (default 24)."`
 	WorkingDir string   `json:"workingDir,omitempty" maxLength:"4096"`
 	User       string   `json:"user,omitempty" maxLength:"256" doc:"User (and group) in the container, e.g. 0 or www-data."`
 }

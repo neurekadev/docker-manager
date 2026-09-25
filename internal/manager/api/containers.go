@@ -316,7 +316,7 @@ type createContainerInput struct {
 // ContainerUpdateBody changes in-place settings. The recreate fields are
 // accepted only to be refused with 422 recreate_required.
 type ContainerUpdateBody struct {
-	RestartPolicy string              `json:"restartPolicy,omitempty" enum:"no,always,on-failure,unless-stopped"`
+	RestartPolicy string              `json:"restartPolicy,omitempty" example:"unless-stopped" enum:"no,always,on-failure,unless-stopped"`
 	Resources     *ContainerResources `json:"resources,omitempty"`
 
 	Name        *string                `json:"name,omitempty" doc:"Needs recreation: refused with recreate_required."`
@@ -381,7 +381,7 @@ type containerStopInput struct {
 	ContainerPath
 	IdempotencyKeyParam
 	Body *struct {
-		TimeoutSeconds *int `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Seconds to wait before killing; default: the container's stop timeout."`
+		TimeoutSeconds *int `json:"timeoutSeconds,omitempty" example:"10" minimum:"0" maximum:"3600" doc:"Seconds to wait before killing; default: the container's stop timeout."`
 	}
 }
 
@@ -389,7 +389,7 @@ type containerRestartInput struct {
 	ContainerPath
 	IdempotencyKeyParam
 	Body *struct {
-		TimeoutSeconds *int `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Seconds to wait before killing; default: the container's stop timeout."`
+		TimeoutSeconds *int `json:"timeoutSeconds,omitempty" example:"10" minimum:"0" maximum:"3600" doc:"Seconds to wait before killing; default: the container's stop timeout."`
 		Confirm        bool `json:"confirm,omitempty" doc:"Confirms a restart that interrupts DockYard (its manager or proxy, #32); without it such a restart answers 409 confirmation_required."`
 	}
 }

@@ -104,7 +104,7 @@ type createAPITokenOutput struct {
 type renameAPITokenInput struct {
 	TokenID string `path:"tokenId" maxLength:"64" doc:"API token ID."`
 	Body    struct {
-		Name string `json:"name" minLength:"1" maxLength:"64"`
+		Name string `json:"name" example:"Backup script" minLength:"1" maxLength:"64"`
 	}
 }
 

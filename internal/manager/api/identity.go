@@ -154,7 +154,7 @@ func newSession(st domain.SessionState) Session {
 // Passkey is a registered passkey (no key material).
 type Passkey struct {
 	ID             string     `json:"id"`
-	Name           string     `json:"name"`
+	Name           string     `json:"name" example:"YubiKey 5C"`
 	BackupEligible bool       `json:"backupEligible" doc:"The passkey can be synced/backed up by its provider."`
 	BackedUp       bool       `json:"backedUp" doc:"The provider reported the passkey as backed up."`
 	AAGUID         string     `json:"aaguid,omitempty" doc:"Authenticator model identifier, when the provider reports one."`
@@ -174,7 +174,7 @@ func newPasskey(p domain.Passkey) Passkey {
 // Invitation is an issued invitation (never its code).
 type Invitation struct {
 	ID             string     `json:"id"`
-	Email          string     `json:"email,omitempty" doc:"Only this email address may redeem the invitation."`
+	Email          string     `json:"email,omitempty" example:"ada@example.com" doc:"Only this email address may redeem the invitation."`
 	Status         string     `json:"status" enum:"pending,redeemed,expired,revoked"`
 	CreatedBy      string     `json:"createdBy,omitempty"`
 	CreatedAt      time.Time  `json:"createdAt"`
@@ -192,15 +192,15 @@ func newInvitation(i domain.Invitation, now time.Time) Invitation {
 // IssuedCode is a one-time code, shown only in this response.
 type IssuedCode struct {
 	Code      string    `json:"code" doc:"The one-time code. Shown only here; DockYard stores a verifier, not the code."`
-	URL       string    `json:"url" doc:"Link on the public origin that redeems the code (the code is in the URL fragment)."`
+	URL       string    `json:"url" example:"https://docker.example.com/reset#code=R7QK-2M4P-X9WT" doc:"Link on the public origin that redeems the code (the code is in the URL fragment)."`
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
 // SecuritySettings is the instance sign-in policy.
 type SecuritySettings struct {
 	StrictPasswords       bool      `json:"strictPasswords" doc:"Enforce minPasswordLength (otherwise at least 8 characters). Common and breached passwords are always refused; there are no composition rules or forced rotation."`
-	MinPasswordLength     int       `json:"minPasswordLength" minimum:"8" maximum:"64"`
-	RequiredFactors       string    `json:"requiredFactors" enum:"none,totp,passkey,either,both" doc:"none: a password (plus TOTP if the user enabled it) or a passkey. totp: password + TOTP. passkey: a passkey with user verification. either: password + TOTP, or a passkey. both: password + TOTP + passkey."`
+	MinPasswordLength     int       `json:"minPasswordLength" example:"12" minimum:"8" maximum:"64"`
+	RequiredFactors       string    `json:"requiredFactors" example:"either" enum:"none,totp,passkey,either,both" doc:"none: a password (plus TOTP if the user enabled it) or a passkey. totp: password + TOTP. passkey: a passkey with user verification. either: password + TOTP, or a passkey. both: password + TOTP + passkey."`
 	EnrollmentGraceHours  int       `json:"enrollmentGraceHours" minimum:"1" maximum:"720" doc:"How long accounts may sign in to a limited enrollment session to add required factors."`
 	InvitationTTLHours    int       `json:"invitationTtlHours" minimum:"1" maximum:"720"`
 	PasswordResetTTLHours int       `json:"passwordResetTtlHours" minimum:"1" maximum:"168"`
@@ -299,7 +299,7 @@ type sessionOutput struct{ Body Session }
 
 type setupStatusOutput struct {
 	Body struct {
-		SetupComplete bool               `json:"setupComplete" doc:"The instance owner exists; setup routes are closed."`
+		SetupComplete bool               `json:"setupComplete" example:"false" doc:"The instance owner exists; setup routes are closed."`
 		SecureOrigin  bool               `json:"secureOrigin" doc:"This request reached DockYard over HTTPS on its public URL, so setup can complete."`
 		Explanation   string             `json:"explanation,omitempty" doc:"Why setup cannot complete over this request, and how to fix it."`
 		BackupImport  *SetupBackupImport `json:"backupImport,omitempty" doc:"The newest backup import (#24) while setup is open."`
@@ -317,7 +317,7 @@ type setupOwnerInput struct {
 
 type createSessionInput struct {
 	Body struct {
-		Username string `json:"username,omitempty" maxLength:"64" doc:"Start a sign-in with username and password."`
+		Username string `json:"username,omitempty" example:"olga" maxLength:"64" doc:"Start a sign-in with username and password."`
 		Password string `json:"password,omitempty" maxLength:"1024"`
 		TOTPCode string `json:"totpCode,omitempty" maxLength:"16" doc:"TOTP code: continues a pending sign-in, or completes one started in the same request."`
 	}
@@ -325,7 +325,7 @@ type createSessionInput struct {
 
 type stepUpInput struct {
 	Body struct {
-		Password   string          `json:"password,omitempty" maxLength:"1024"`
+		Password   string          `json:"password,omitempty" example:"correct-horse-battery-staple" maxLength:"1024"`
 		TOTPCode   string          `json:"totpCode,omitempty" maxLength:"16" doc:"Required with password when TOTP is enabled."`
 		Credential json.RawMessage `json:"credential,omitempty" doc:"A passkey assertion (PublicKeyCredential JSON) for options requested with purpose step_up."`
 	}
@@ -333,33 +333,33 @@ type stepUpInput struct {
 
 type codeInput struct {
 	Body struct {
-		Code string `json:"code" minLength:"1" maxLength:"128"`
+		Code string `json:"code" example:"123456" minLength:"1" maxLength:"128"`
 	}
 }
 
 type passwordResetRedemptionInput struct {
 	Body struct {
-		Code            string `json:"code" minLength:"1" maxLength:"128" doc:"Password-reset or owner-recovery code."`
-		NewPassword     string `json:"newPassword" minLength:"1" maxLength:"1024"`
+		Code            string `json:"code" example:"R7QK-2M4P-X9WT" minLength:"1" maxLength:"128" doc:"Password-reset or owner-recovery code."`
+		NewPassword     string `json:"newPassword" example:"correct-horse-battery-staple" minLength:"1" maxLength:"1024"`
 		RevokeAPITokens bool   `json:"revokeApiTokens,omitempty" doc:"Also revoke every API token of the account (#31)."`
 	}
 }
 
 type totpEnrollmentOutput struct {
 	Body struct {
-		Secret    string    `json:"secret" doc:"Base32 secret for manual entry. Shown only in this response."`
-		URI       string    `json:"uri" doc:"otpauth:// URI for a QR code. Shown only in this response."`
+		Secret    string    `json:"secret" example:"JBSWY3DPEHPK3PXP" doc:"Base32 secret for manual entry. Shown only in this response."`
+		URI       string    `json:"uri" example:"otpauth://totp/DockYard:olga?secret=JBSWY3DPEHPK3PXP&issuer=DockYard" doc:"otpauth:// URI for a QR code. Shown only in this response."`
 		ExpiresAt time.Time `json:"expiresAt" doc:"Confirm a code before this time."`
 	}
 }
 
 type passkeyOptionsOutput struct {
-	Body json.RawMessage `doc:"PublicKeyCredentialCreationOptions / RequestOptions JSON ({\"publicKey\": {...}}) for navigator.credentials.create()/get()."`
+	Body json.RawMessage `doc:"PublicKeyCredentialCreationOptions / RequestOptions JSON ({\"publicKey\": {...}}) for navigator.credentials.create()/get()." example:"{\"publicKey\":{\"challenge\":\"dGVzdC1jaGFsbGVuZ2U\",\"rpId\":\"docker.example.com\",\"timeout\":60000,\"userVerification\":\"required\"}}"`
 }
 
 type passkeyRegistrationInput struct {
 	Body struct {
-		Name       string          `json:"name,omitempty" maxLength:"64" doc:"Label shown in the passkey list."`
+		Name       string          `json:"name,omitempty" example:"YubiKey 5C" maxLength:"64" doc:"Label shown in the passkey list."`
 		Credential json.RawMessage `json:"credential" doc:"The PublicKeyCredential JSON returned by navigator.credentials.create()."`
 	}
 }
@@ -373,13 +373,13 @@ type passkeyRegistrationOutput struct {
 
 type passkeyAuthOptionsInput struct {
 	Body *struct {
-		Purpose string `json:"purpose,omitempty" enum:"sign_in,step_up" doc:"sign_in (default): a username-less sign-in, or the second factor of a pending password sign-in. step_up: re-authentication of the signed-in user."`
+		Purpose string `json:"purpose,omitempty" example:"sign_in" enum:"sign_in,step_up" doc:"sign_in (default): a username-less sign-in, or the second factor of a pending password sign-in. step_up: re-authentication of the signed-in user."`
 	}
 }
 
 type passkeyAssertionInput struct {
 	Body struct {
-		Credential json.RawMessage `json:"credential" doc:"The PublicKeyCredential JSON returned by navigator.credentials.get()."`
+		Credential json.RawMessage `json:"credential" example:"{\"id\":\"q2Xs1Q\",\"rawId\":\"q2Xs1Q\",\"type\":\"public-key\",\"response\":{\"clientDataJSON\":\"eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0\",\"authenticatorData\":\"SZYN5YgO\",\"signature\":\"MEUCIQ\",\"userHandle\":\"AAAB\"}}" doc:"The PublicKeyCredential JSON returned by navigator.credentials.get()."`
 	}
 }
 
@@ -392,7 +392,7 @@ type passkeyIDInput struct {
 type passkeyRenameInput struct {
 	CredentialID string `path:"credentialId" maxLength:"64" doc:"Passkey ID (from GET /api/v1/me/passkeys)."`
 	Body         struct {
-		Name string `json:"name" minLength:"1" maxLength:"64" doc:"Label shown in the passkey list."`
+		Name string `json:"name" example:"Laptop passkey" minLength:"1" maxLength:"64" doc:"Label shown in the passkey list."`
 	}
 }
 
@@ -408,14 +408,14 @@ type accountOutput struct {
 type changePasswordInput struct {
 	Body struct {
 		CurrentPassword string `json:"currentPassword,omitempty" maxLength:"1024" doc:"Required when the account has a password."`
-		NewPassword     string `json:"newPassword" minLength:"1" maxLength:"1024"`
+		NewPassword     string `json:"newPassword" example:"correct-horse-battery-staple" minLength:"1" maxLength:"1024"`
 		RevokeAPITokens bool   `json:"revokeApiTokens,omitempty" doc:"Also revoke every API token of the account (#31)."`
 	}
 }
 
 type recoveryStatusOutput struct {
 	Body struct {
-		Remaining   int        `json:"remaining"`
+		Remaining   int        `json:"remaining" example:"10"`
 		GeneratedAt *time.Time `json:"generatedAt,omitempty"`
 	}
 }
@@ -424,15 +424,15 @@ type recoveryCodesInput struct{ IdempotencyKeyParam }
 
 type recoveryCodesOutput struct {
 	Body struct {
-		Codes []string `json:"codes" doc:"Ten one-time recovery codes. Shown only in this response; earlier codes stop working."`
+		Codes []string `json:"codes" example:"7Q2M-KX4P,9WRT-3HJD" doc:"Ten one-time recovery codes. Shown only in this response; earlier codes stop working."`
 	}
 }
 
 type createInvitationInput struct {
 	IdempotencyKeyParam
 	Body *struct {
-		Email          string `json:"email,omitempty" maxLength:"254" doc:"Bind the invitation to this address (it must be entered when redeeming). No email is sent."`
-		ExpiresInHours int    `json:"expiresInHours,omitempty" minimum:"1" maximum:"720" doc:"Defaults to the security settings' invitationTtlHours."`
+		Email          string `json:"email,omitempty" example:"ada@example.com" maxLength:"254" doc:"Bind the invitation to this address (it must be entered when redeeming). No email is sent."`
+		ExpiresInHours int    `json:"expiresInHours,omitempty" example:"72" minimum:"1" maximum:"720" doc:"Defaults to the security settings' invitationTtlHours."`
 	}
 }
 
@@ -452,8 +452,8 @@ type invitationIDInput struct {
 type redeemInvitationInput struct {
 	Body struct {
 		Code        string `json:"code" minLength:"1" maxLength:"128"`
-		Username    string `json:"username" minLength:"1" maxLength:"64"`
-		DisplayName string `json:"displayName,omitempty" maxLength:"128"`
+		Username    string `json:"username" example:"ada" minLength:"1" maxLength:"64"`
+		DisplayName string `json:"displayName,omitempty" example:"Ada Lovelace" maxLength:"128"`
 		Email       string `json:"email,omitempty" maxLength:"254" doc:"Required when the invitation is bound to an address."`
 		Password    string `json:"password,omitempty" maxLength:"1024" doc:"Required unless the policy is passkey-only."`
 	}
@@ -469,7 +469,7 @@ type patchUserInput struct {
 	UserID string `path:"userId" maxLength:"64"`
 	IfMatchParam
 	Body struct {
-		DisplayName *string `json:"displayName,omitempty" maxLength:"128"`
+		DisplayName *string `json:"displayName,omitempty" example:"Ada Lovelace" maxLength:"128"`
 		Email       *string `json:"email,omitempty" maxLength:"254"`
 		GroupID     *string `json:"groupId,omitempty" maxLength:"64" doc:"Move the account to exactly one group (#17)."`
 		Status      *string `json:"status,omitempty" enum:"active,disabled" doc:"disabled ends every session and stream of the account at once."`
@@ -490,7 +490,7 @@ type userPasswordResetInput struct {
 // revokeTokensBody offers revoking the account's API tokens (#31) with a
 // credential reset.
 type revokeTokensBody struct {
-	RevokeAPITokens bool `json:"revokeApiTokens,omitempty" doc:"Also revoke every API token of the account (#31), for example when the account may be compromised."`
+	RevokeAPITokens bool `json:"revokeApiTokens,omitempty" example:"true" doc:"Also revoke every API token of the account (#31), for example when the account may be compromised."`
 }
 
 type userFactorResetInput struct {
@@ -511,8 +511,8 @@ type patchSecuritySettingsInput struct {
 	IfMatchParam
 	Body struct {
 		StrictPasswords       *bool   `json:"strictPasswords,omitempty"`
-		MinPasswordLength     *int    `json:"minPasswordLength,omitempty" minimum:"8" maximum:"64"`
-		RequiredFactors       *string `json:"requiredFactors,omitempty" enum:"none,totp,passkey,either,both"`
+		MinPasswordLength     *int    `json:"minPasswordLength,omitempty" example:"12" minimum:"8" maximum:"64"`
+		RequiredFactors       *string `json:"requiredFactors,omitempty" example:"either" enum:"none,totp,passkey,either,both"`
 		EnrollmentGraceHours  *int    `json:"enrollmentGraceHours,omitempty" minimum:"1" maximum:"720"`
 		InvitationTTLHours    *int    `json:"invitationTtlHours,omitempty" minimum:"1" maximum:"720"`
 		PasswordResetTTLHours *int    `json:"passwordResetTtlHours,omitempty" minimum:"1" maximum:"168"`

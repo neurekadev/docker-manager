@@ -159,9 +159,14 @@ func TestEveryCatalogedMutatingRouteIsAudited(t *testing.T) {
 	}
 	// Every planned mutating route must pass (failures are reported above);
 	// implemented routes are checked by api.TestEveryServedMutatingOperationIsAudited,
-	// so the planned set shrinks as features ship.
-	if planned == 0 || checked != planned {
+	// so the planned set shrinks as features ship (it is empty once the
+	// whole catalog is served).
+	if checked != planned {
 		t.Fatalf("%d of %d planned mutating routes checked", checked, planned)
+	}
+	if planned == 0 {
+		t.Log("every mutating catalog route is implemented (api.TestEveryServedMutatingOperationIsAudited checks them)")
+		return
 	}
 	t.Logf("%d mutating catalog routes emit audit records", checked)
 }

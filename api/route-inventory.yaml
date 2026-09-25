@@ -399,7 +399,8 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
+    notes: Display name plus a read-only deployment summary; sign-in policy, schedule and maintenance defaults are separate resources.
   - method: PATCH
     path: /api/v1/settings
     operationId: update-settings
@@ -407,7 +408,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match.
   - method: GET
     path: /api/v1/settings/security

@@ -44,7 +44,7 @@ type BackupVolumeSelection struct {
 type BackupRetention struct {
 	Last        int  `json:"last,omitempty" minimum:"0" maximum:"10000"`
 	Hourly      int  `json:"hourly,omitempty" minimum:"0" maximum:"10000"`
-	Daily       int  `json:"daily,omitempty" minimum:"0" maximum:"10000"`
+	Daily       int  `json:"daily,omitempty" example:"7" minimum:"0" maximum:"10000"`
 	Weekly      int  `json:"weekly,omitempty" minimum:"0" maximum:"10000"`
 	Monthly     int  `json:"monthly,omitempty" minimum:"0" maximum:"10000"`
 	Yearly      int  `json:"yearly,omitempty" minimum:"0" maximum:"10000"`
@@ -451,7 +451,7 @@ type ManagerScopePreview struct {
 // EnvironmentPreview is one environment's preview (from its agent).
 type EnvironmentPreview struct {
 	EnvironmentID   string                      `json:"environmentId"`
-	EnvironmentName string                      `json:"environmentName,omitempty"`
+	EnvironmentName string                      `json:"environmentName,omitempty" example:"nas"`
 	RepositoryID    string                      `json:"repositoryId"`
 	ErrorClass      string                      `json:"errorClass,omitempty" doc:"The agent could not preview (agent_offline, timeout, ...)."`
 	Items           []protocol.ScopePreviewItem `json:"items,omitempty"`
@@ -582,7 +582,7 @@ type runPolicyInput struct {
 	PolicyID string `path:"policyId" maxLength:"64" doc:"Backup policy ID."`
 	IdempotencyKeyParam
 	Body *struct {
-		RetrySetID string `json:"retrySetId,omitempty" maxLength:"64" doc:"Re-run only the members of this set that did not complete (the set keeps its ID)."`
+		RetrySetID string `json:"retrySetId,omitempty" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f" maxLength:"64" doc:"Re-run only the members of this set that did not complete (the set keeps its ID)."`
 	}
 }
 
@@ -667,7 +667,7 @@ type retentionRunInput struct {
 	PolicyID string `path:"policyId" maxLength:"64" doc:"Backup policy ID."`
 	IdempotencyKeyParam
 	Body *struct {
-		Confirm bool `json:"confirm" doc:"Must be true: retention permanently forgets snapshots (preview them first)."`
+		Confirm bool `json:"confirm" example:"true" doc:"Must be true: retention permanently forgets snapshots (preview them first)."`
 	}
 }
 

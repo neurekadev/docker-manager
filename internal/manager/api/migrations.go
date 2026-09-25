@@ -125,7 +125,7 @@ type MigrationPreview struct {
 	StackID             string                 `json:"stackId,omitempty"`
 	SourceEnvironmentID string                 `json:"sourceEnvironmentId"`
 	TargetEnvironmentID string                 `json:"targetEnvironmentId"`
-	ProjectName         string                 `json:"projectName,omitempty"`
+	ProjectName         string                 `json:"projectName,omitempty" example:"web"`
 	TargetDirectory     string                 `json:"targetDirectory,omitempty" doc:"The new project directory in the destination's stacks volume."`
 	Allowed             bool                   `json:"allowed" doc:"No blockers: the migration can start (warnings are accepted by starting it)."`
 	Blockers            []MigrationFinding     `json:"blockers"`
@@ -189,7 +189,7 @@ func newMigrationPreview(p migrations.Plan, definition bool) MigrationPreview {
 
 // StackMigrationBody selects what a stack migration moves.
 type StackMigrationBody struct {
-	TargetEnvironmentID string   `json:"targetEnvironmentId,omitempty" maxLength:"64" doc:"Required: the destination environment."`
+	TargetEnvironmentID string   `json:"targetEnvironmentId,omitempty" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f" maxLength:"64" doc:"Required: the destination environment."`
 	ExcludeVolumes      []string `json:"excludeVolumes,omitempty" maxItems:"64" doc:"Named volumes whose data is not copied (Compose recreates them empty on the destination). Default: every named local volume is copied."`
 	AnonymousVolumes    []string `json:"anonymousVolumes,omitempty" maxItems:"64" doc:"Anonymous volumes to copy (skipped by default)."`
 	TransferImages      []string `json:"transferImages,omitempty" maxItems:"64" doc:"Images to copy through the manager instead of pulling or rebuilding them on the destination (locally built images are copied anyway)."`
@@ -221,7 +221,7 @@ type sourceRemovalInput struct {
 // VolumeMigrationBody selects a volume migration's destination.
 type VolumeMigrationBody struct {
 	TargetEnvironmentID         string `json:"targetEnvironmentId,omitempty" maxLength:"64" doc:"Required: the destination environment."`
-	TargetName                  string `json:"targetName,omitempty" maxLength:"128" pattern:"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$" doc:"A new name on the destination (default: the same name)."`
+	TargetName                  string `json:"targetName,omitempty" example:"web_data" maxLength:"128" pattern:"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$" doc:"A new name on the destination (default: the same name)."`
 	AcknowledgeCrashConsistency bool   `json:"acknowledgeCrashConsistency,omitempty" doc:"Copy the volume although running containers use it (a crash-consistent copy). Otherwise such containers block the migration."`
 }
 

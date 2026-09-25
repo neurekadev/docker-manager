@@ -137,7 +137,7 @@ type OverviewEnvironment struct {
 
 // OverviewTotals aggregate the visible environments.
 type OverviewTotals struct {
-	Environments int `json:"environments"`
+	Environments int `json:"environments" example:"2"`
 	Online       int `json:"online"`
 	Offline      int `json:"offline"`
 	// Containers sum the Docker counts of the environments whose counts the

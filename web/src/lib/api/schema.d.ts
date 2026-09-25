@@ -2856,6 +2856,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the instance settings
+         * @description The display name of this DockYard and a read-only summary of its deployment configuration (public URL, trusted proxies, stream heartbeat, upload limit, metrics endpoint). The sign-in policy is GET /api/v1/settings/security (owner only), schedule defaults GET /api/v1/schedule-defaults and maintenance defaults GET /api/v1/maintenance-defaults.
+         */
+        get: operations["get-settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the instance settings
+         * @description Changes the display name. Requires If-Match. The deployment configuration is read-only here: it comes from the manager's environment variables.
+         */
+        patch: operations["update-settings"];
+        trace?: never;
+    };
     "/api/v1/settings/security": {
         parameters: {
             query?: never;
@@ -4052,25 +4076,43 @@ export interface components {
         ArchiveStackInputBody: {
             /** @enum {string} */
             conflict?: "fail" | "overwrite" | "keep_both";
-            /** @description Archive file to create (root-relative). */
+            /**
+             * @description Archive file to create (root-relative).
+             * @example exports/site.zip
+             */
             destination?: string;
             /**
              * @description Default zip.
              * @enum {string}
              */
             format?: "zip" | "tar.gz";
+            /**
+             * @example [
+             *       "html",
+             *       "config"
+             *     ]
+             */
             paths?: string[];
         };
         ArchiveVolumeInputBody: {
             /** @enum {string} */
             conflict?: "fail" | "overwrite" | "keep_both";
-            /** @description Archive file to create (root-relative). */
+            /**
+             * @description Archive file to create (root-relative).
+             * @example exports/site.zip
+             */
             destination?: string;
             /**
              * @description Default zip.
              * @enum {string}
              */
             format?: "zip" | "tar.gz";
+            /**
+             * @example [
+             *       "html",
+             *       "config"
+             *     ]
+             */
             paths?: string[];
         };
         AuditActor: {
@@ -4164,6 +4206,7 @@ export interface components {
             /** Format: date-time */
             snapshotTime: string;
             stackId?: string;
+            /** @example web */
             stackName?: string;
             /**
              * @description partial: some files could not be read.
@@ -4243,6 +4286,7 @@ export interface components {
             /** Format: date-time */
             snapshotTime: string;
             stackId?: string;
+            /** @example web */
             stackName?: string;
             /**
              * @description partial: some files could not be read.
@@ -4418,7 +4462,9 @@ export interface components {
             mode: number;
             /** Format: date-time */
             mtime?: string;
+            /** @example nginx.conf */
             name: string;
+            /** @example /stacks/web/config/nginx.conf */
             path: string;
             /** Format: int64 */
             size: number;
@@ -4519,7 +4565,10 @@ export interface components {
         BackupRetention: {
             /** @description Apply retention automatically after every successful backup of the policy. */
             afterBackup?: boolean;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @example 7
+             */
             daily?: number;
             /** Format: int64 */
             hourly?: number;
@@ -4714,7 +4763,12 @@ export interface components {
             pull?: boolean;
             /** @description Registry connections for base images; default: the environment's host-wide connection per registry. */
             registryIds?: string[];
-            /** @description Build only these services (each needs a build section); default: every service with a build section. */
+            /**
+             * @description Build only these services (each needs a build section); default: every service with a build section.
+             * @example [
+             *       "web"
+             *     ]
+             */
             services?: string[];
             /**
              * Format: int64
@@ -4803,6 +4857,7 @@ export interface components {
         ChangePasswordInputBody: {
             /** @description Required when the account has a password. */
             currentPassword?: string;
+            /** @example correct-horse-battery-staple */
             newPassword: string;
             /** @description Also revoke every API token of the account (#31). */
             revokeApiTokens?: boolean;
@@ -4830,6 +4885,7 @@ export interface components {
             reason: "permissions_changed" | "session_expired" | "max_age" | "shutdown";
         };
         CodeInputBody: {
+            /** @example 123456 */
             code: string;
         };
         Container: {
@@ -4946,12 +5002,16 @@ export interface components {
             candidateDigest?: string;
             /** Format: date-time */
             checkedAt?: string;
+            /** @example web */
             container: string;
             /** @description Repository digest of the running image. */
             digest?: string;
             /** @description The container could follow its tag's digest (#20). */
             eligible: boolean;
-            /** @description The saved reference of a DockYard-managed container, else the container's image. */
+            /**
+             * @description The saved reference of a DockYard-managed container, else the container's image.
+             * @example nginx:1.27
+             */
             image: string;
             imageId?: string;
             /** @description A DockYard-managed standalone container with a saved recreate specification. */
@@ -5096,6 +5156,7 @@ export interface components {
             /**
              * Format: int64
              * @description Seconds to wait before killing; default: the container's stop timeout.
+             * @example 10
              */
             timeoutSeconds?: number;
         };
@@ -5103,6 +5164,7 @@ export interface components {
             /**
              * Format: int64
              * @description Seconds to wait before killing; default: the container's stop timeout.
+             * @example 10
              */
             timeoutSeconds?: number;
         };
@@ -5130,7 +5192,10 @@ export interface components {
             /** @description Needs recreation: refused with recreate_required. */
             ports?: components["schemas"]["ContainerPortSpec"][];
             resources?: components["schemas"]["ContainerResources"];
-            /** @enum {string} */
+            /**
+             * @example unless-stopped
+             * @enum {string}
+             */
             restartPolicy?: "no" | "always" | "on-failure" | "unless-stopped";
             /** @description Needs recreation: refused with recreate_required. */
             user?: string;
@@ -5229,11 +5294,15 @@ export interface components {
             name: string;
         };
         CreateInvitationInputBody: {
-            /** @description Bind the invitation to this address (it must be entered when redeeming). No email is sent. */
+            /**
+             * @description Bind the invitation to this address (it must be entered when redeeming). No email is sent.
+             * @example ada@example.com
+             */
             email?: string;
             /**
              * Format: int64
              * @description Defaults to the security settings' invitationTtlHours.
+             * @example 72
              */
             expiresInHours?: number;
         };
@@ -5243,7 +5312,10 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
             invitation: components["schemas"]["Invitation"];
-            /** @description Link on the public origin that redeems the code (the code is in the URL fragment). */
+            /**
+             * @description Link on the public origin that redeems the code (the code is in the URL fragment).
+             * @example https://docker.example.com/reset#code=R7QK-2M4P-X9WT
+             */
             url: string;
         };
         CreateMaintenancePolicyInputBody: {
@@ -5300,14 +5372,20 @@ export interface components {
             password?: string;
             /** @description TOTP code: continues a pending sign-in, or completes one started in the same request. */
             totpCode?: string;
-            /** @description Start a sign-in with username and password. */
+            /**
+             * @description Start a sign-in with username and password.
+             * @example olga
+             */
             username?: string;
         };
         CreateStackEntryInputBody: {
             /** @description Initial content of a new file (UTF-8). */
             content?: string;
             contentBase64?: string;
-            /** @description Root-relative path of the new entry (its parent must exist). */
+            /**
+             * @description Root-relative path of the new entry (its parent must exist).
+             * @example config/nginx.conf
+             */
             path?: string;
             /** @enum {string} */
             type?: "file" | "dir";
@@ -5316,6 +5394,7 @@ export interface components {
             /** @description Required: compose.yaml content. */
             compose?: string;
             description?: string;
+            /** @example Website */
             displayName?: string;
             /** @description .env content (optional; may hold secrets: it is stored sealed and never logged). */
             env?: string;
@@ -5323,7 +5402,10 @@ export interface components {
             environmentId?: string;
             /** @description Lucide icon name. */
             icon?: string;
-            /** @description Required: Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume. */
+            /**
+             * @description Required: Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume.
+             * @example web
+             */
             name?: string;
             /** @description compose.override.yaml content (optional). */
             override?: string;
@@ -5348,7 +5430,12 @@ export interface components {
             window?: components["schemas"]["UpdateWindow"];
         };
         CreateUpdateRunInputBody: {
-            /** @description Candidate IDs or service names (default: every update available). */
+            /**
+             * @description Candidate IDs or service names (default: every update available).
+             * @example [
+             *       "web"
+             *     ]
+             */
             candidates?: string[];
             /** @description The preview's fingerprint: 409 update_preview_stale when anything changed since. */
             previewFingerprint?: string;
@@ -5357,7 +5444,10 @@ export interface components {
             /** @description Initial content of a new file (UTF-8). */
             content?: string;
             contentBase64?: string;
-            /** @description Root-relative path of the new entry (its parent must exist). */
+            /**
+             * @description Root-relative path of the new entry (its parent must exist).
+             * @example config/nginx.conf
+             */
             path?: string;
             /** @enum {string} */
             type?: "file" | "dir";
@@ -5397,6 +5487,7 @@ export interface components {
             repository: components["schemas"]["BackupRepository"];
         };
         CredentialRotation: {
+            /** @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f */
             agentId: string;
             /** Format: date-time */
             completedAt?: string;
@@ -5414,11 +5505,21 @@ export interface components {
             warning?: string;
         };
         DeletionStackInputBody: {
-            /** @description Entries to delete, recursively (symlinks are removed, never followed). Preview first with a conflict preview of operation delete. */
+            /**
+             * @description Entries to delete, recursively (symlinks are removed, never followed). Preview first with a conflict preview of operation delete.
+             * @example [
+             *       "logs/old.log"
+             *     ]
+             */
             paths?: string[];
         };
         DeletionVolumeInputBody: {
-            /** @description Entries to delete, recursively (symlinks are removed, never followed). Preview first with a conflict preview of operation delete. */
+            /**
+             * @description Entries to delete, recursively (symlinks are removed, never followed). Preview first with a conflict preview of operation delete.
+             * @example [
+             *       "logs/old.log"
+             *     ]
+             */
             paths?: string[];
         };
         DeployStackInputBody: {
@@ -5432,18 +5533,59 @@ export interface components {
             forceRecreate?: boolean;
             /**
              * @description missing (default): pull only images that are not on the host; always: pull every image first.
+             * @example missing
              * @enum {string}
              */
             pull?: "missing" | "always";
             /** @description Remove containers of services no longer in the definition. */
             removeOrphans?: boolean;
-            /** @description Deploy only these services (and their dependencies). */
+            /**
+             * @description Deploy only these services (and their dependencies).
+             * @example [
+             *       "web"
+             *     ]
+             */
             services?: string[];
             /**
              * Format: int64
              * @description Stop grace period for recreated containers.
              */
             timeoutSeconds?: number;
+        };
+        DeploymentSettings: {
+            /**
+             * Format: int64
+             * @description DOCKYARD_FILES_MAX_UPLOAD_MB: the largest file-manager upload; the reverse proxy's body limit must allow it.
+             * @example 2147483648
+             */
+            filesMaxUploadBytes: number;
+            /**
+             * @description True when the public URL is plain HTTP on localhost (development only).
+             * @example false
+             */
+            localDevelopment: boolean;
+            /**
+             * @description DOCKYARD_METRICS_ENABLED: GET /api/v1/system/metrics is served.
+             * @example false
+             */
+            metricsEndpoint: boolean;
+            /**
+             * @description DOCKYARD_PUBLIC_URL: the one public origin serving the web app, the API and agent sessions.
+             * @example https://docker.example.com
+             */
+            publicUrl: string;
+            /**
+             * Format: int64
+             * @description DOCKYARD_STREAM_HEARTBEAT: SSE heartbeat and WebSocket ping interval; keep it below the reverse proxy's idle timeout.
+             * @example 15
+             */
+            streamHeartbeatSeconds: number;
+            /**
+             * Format: int64
+             * @description Number of DOCKYARD_TRUSTED_PROXIES address ranges whose X-Forwarded-* headers are honored (the ranges themselves are in the owner's support bundle).
+             * @example 1
+             */
+            trustedProxyCount: number;
         };
         DiscoveredOutputBody: {
             projects: components["schemas"]["DiscoveredStack"][];
@@ -5453,14 +5595,20 @@ export interface components {
             adoptable: boolean;
             /** @description Where it lies under a verified stack root (adoptable in place). */
             location?: components["schemas"]["StackLocation"];
-            /** @description Compose project name. */
+            /**
+             * @description Compose project name.
+             * @example nextcloud
+             */
             name: string;
             /** @description Why it cannot be adopted in place (import it with an explicit Compose source). */
             reason?: string;
             services: components["schemas"]["DiscoveredStackService"][];
             /** @description The DockYard stack already managing it. */
             stackId?: string;
-            /** @description Project directory from the containers' labels (host path). */
+            /**
+             * @description Project directory from the containers' labels (host path).
+             * @example nextcloud
+             */
             workingDir?: string;
         };
         DiscoveredStackService: {
@@ -5684,6 +5832,7 @@ export interface components {
         EnvironmentPreview: {
             downtime?: string;
             environmentId: string;
+            /** @example nas */
             environmentName?: string;
             /** @description The agent could not preview (agent_offline, timeout, ...). */
             errorClass?: string;
@@ -5705,6 +5854,7 @@ export interface components {
             dependents: components["schemas"]["RemovalDependentKind"][];
             description: string;
             environmentId: string;
+            /** @example nas */
             environmentName: string;
             hostUntouched: boolean;
             migration: components["schemas"]["RemovalMigrationOffer"];
@@ -5812,13 +5962,20 @@ export interface components {
             /**
              * Format: int64
              * @description Terminal columns (default 80).
+             * @example 120
              */
             cols?: number;
-            /** @description argv run inside the container (default ["/bin/sh"]). Never a host shell. */
+            /**
+             * @description argv run inside the container (default ["/bin/sh"]). Never a host shell.
+             * @example [
+             *       "/bin/sh"
+             *     ]
+             */
             command?: string[];
             /**
              * Format: int64
              * @description Terminal rows (default 24).
+             * @example 32
              */
             rows?: number;
             /** @description Allocate a terminal (default true). */
@@ -5847,9 +6004,15 @@ export interface components {
              * @enum {string}
              */
             conflict?: "fail" | "overwrite" | "skip" | "keep_both";
-            /** @description Directory to extract into (created when missing). */
+            /**
+             * @description Directory to extract into (created when missing).
+             * @example html
+             */
             destination?: string;
-            /** @description The zip or tar.gz archive (root-relative). */
+            /**
+             * @description The zip or tar.gz archive (root-relative).
+             * @example uploads/site.zip
+             */
             path?: string;
         };
         ExtractionVolumeInputBody: {
@@ -5858,9 +6021,15 @@ export interface components {
              * @enum {string}
              */
             conflict?: "fail" | "overwrite" | "skip" | "keep_both";
-            /** @description Directory to extract into (created when missing). */
+            /**
+             * @description Directory to extract into (created when missing).
+             * @example html
+             */
             destination?: string;
-            /** @description The zip or tar.gz archive (root-relative). */
+            /**
+             * @description The zip or tar.gz archive (root-relative).
+             * @example uploads/site.zip
+             */
             path?: string;
         };
         FileConflictDTO: {
@@ -6124,6 +6293,7 @@ export interface components {
             /** Format: date-time */
             finishedAt?: string;
             gitCredentialId?: string;
+            /** @example https://github.com/example/app.git */
             gitUrl: string;
             /** @description Build ID (equal to its job ID). */
             id: string;
@@ -6142,6 +6312,11 @@ export interface components {
             startedAt?: string;
             /** @enum {string} */
             status: "queued" | "running" | "succeeded" | "failed" | "cancelled" | "interrupted";
+            /**
+             * @example [
+             *       "registry.example.com/app:edge"
+             *     ]
+             */
             tags: string[];
             target?: string;
         };
@@ -6166,7 +6341,10 @@ export interface components {
             description?: string;
             displayName?: string;
             icon?: string;
-            /** @description Required: the discovered Compose project to adopt. */
+            /**
+             * @description Required: the discovered Compose project to adopt.
+             * @example nextcloud
+             */
             projectName?: string;
             /** @description Explicit Compose source (written into a new directory of the stacks volume); omit to adopt the project in place. */
             source?: components["schemas"]["StackDefinitionBody"];
@@ -6179,6 +6357,30 @@ export interface components {
             /** @enum {string} */
             variant: "colocated" | "remote" | "remote_compose";
         };
+        InstanceSettings: {
+            /** @description Read-only deployment configuration. It comes from the manager's environment variables: change them in the deployment and restart the manager. */
+            deployment: components["schemas"]["DeploymentSettings"];
+            /**
+             * @description ID of this manager instance (read-only).
+             * @example 01921b4e-7c1a-7cc3-9b1e-4d6f0a2b3c4d
+             */
+            instanceId: string;
+            /**
+             * @description Display name of this DockYard (editable).
+             * @example Homelab
+             */
+            name: string;
+            /**
+             * Format: int64
+             * @example 3
+             */
+            revision: number;
+            /**
+             * Format: date-time
+             * @description When the editable settings last changed.
+             */
+            updatedAt: string;
+        };
         InventoryEvent: {
             /** Format: date-time */
             at: string;
@@ -6188,7 +6390,10 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             createdBy?: string;
-            /** @description Only this email address may redeem the invitation. */
+            /**
+             * @description Only this email address may redeem the invitation.
+             * @example ada@example.com
+             */
             email?: string;
             /** Format: date-time */
             expiresAt: string;
@@ -6206,7 +6411,10 @@ export interface components {
             code: string;
             /** Format: date-time */
             expiresAt: string;
-            /** @description Link on the public origin that redeems the code (the code is in the URL fragment). */
+            /**
+             * @description Link on the public origin that redeems the code (the code is in the URL fragment).
+             * @example https://docker.example.com/reset#code=R7QK-2M4P-X9WT
+             */
             url: string;
         };
         Job: {
@@ -6428,7 +6636,10 @@ export interface components {
         LogLineDTO: {
             /** Format: date-time */
             at: string;
-            /** @description The line without its newline; invalid UTF-8 is replaced by U+FFFD. */
+            /**
+             * @description The line without its newline; invalid UTF-8 is replaced by U+FFFD.
+             * @example GET /healthz HTTP/1.1 200
+             */
             line: string;
             /** @description The line continues in the next entry (lines over 16 KiB are split). */
             partial?: boolean;
@@ -6662,6 +6873,7 @@ export interface components {
             kind: "stack" | "volume";
             /** @description Earlier unsuccessful migrations whose partial data on the destination is removed first. */
             leftovers: string[];
+            /** @example web */
             projectName?: string;
             services: components["schemas"]["MigrationServicePlan"][];
             sourceEnvironmentId: string;
@@ -6757,10 +6969,16 @@ export interface components {
         OperateStackInputBody: {
             /**
              * @description Required; selects the capability: stack.start, stack.stop, stack.restart or stack.down.
+             * @example restart
              * @enum {string}
              */
             action?: "start" | "stop" | "restart" | "down";
-            /** @description Only these services (start/stop/restart); dependencies and restart: true dependents follow the lifecycle rules. */
+            /**
+             * @description Only these services (start/stop/restart); dependencies and restart: true dependents follow the lifecycle rules.
+             * @example [
+             *       "web"
+             *     ]
+             */
             services?: string[];
             /**
              * Format: int64
@@ -6794,7 +7012,10 @@ export interface components {
              * @description Environments whose Docker counts are included (environment.system.read and a known inventory).
              */
             countedEnvironments: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @example 2
+             */
             environments: number;
             /** Format: int64 */
             offline: number;
@@ -7116,15 +7337,30 @@ export interface components {
             id: string;
             /** Format: date-time */
             lastUsedAt?: string;
+            /** @example YubiKey 5C */
             name: string;
         };
         PasskeyAssertionInputBody: {
-            /** @description The PublicKeyCredential JSON returned by navigator.credentials.get(). */
+            /**
+             * @description The PublicKeyCredential JSON returned by navigator.credentials.get().
+             * @example {
+             *       "id": "q2Xs1Q",
+             *       "rawId": "q2Xs1Q",
+             *       "response": {
+             *         "authenticatorData": "SZYN5YgO",
+             *         "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0",
+             *         "signature": "MEUCIQ",
+             *         "userHandle": "AAAB"
+             *       },
+             *       "type": "public-key"
+             *     }
+             */
             credential: unknown;
         };
         PasskeyAuthOptionsInputBody: {
             /**
              * @description sign_in (default): a username-less sign-in, or the second factor of a pending password sign-in. step_up: re-authentication of the signed-in user.
+             * @example sign_in
              * @enum {string}
              */
             purpose?: "sign_in" | "step_up";
@@ -7132,7 +7368,10 @@ export interface components {
         PasskeyRegistrationInputBody: {
             /** @description The PublicKeyCredential JSON returned by navigator.credentials.create(). */
             credential: unknown;
-            /** @description Label shown in the passkey list. */
+            /**
+             * @description Label shown in the passkey list.
+             * @example YubiKey 5C
+             */
             name?: string;
         };
         PasskeyRegistrationOutputBody: {
@@ -7140,15 +7379,29 @@ export interface components {
             session: components["schemas"]["Session"];
         };
         PasskeyRenameInputBody: {
-            /** @description Label shown in the passkey list. */
+            /**
+             * @description Label shown in the passkey list.
+             * @example Laptop passkey
+             */
             name: string;
         };
         PasswordResetRedemptionInputBody: {
-            /** @description Password-reset or owner-recovery code. */
+            /**
+             * @description Password-reset or owner-recovery code.
+             * @example R7QK-2M4P-X9WT
+             */
             code: string;
+            /** @example correct-horse-battery-staple */
             newPassword: string;
             /** @description Also revoke every API token of the account (#31). */
             revokeApiTokens?: boolean;
+        };
+        PatchInstanceSettingsInputBody: {
+            /**
+             * @description New display name (1-64 characters, no control characters; surrounding white space is removed).
+             * @example Homelab
+             */
+            name?: string;
         };
         PatchScheduleDefaultsInputBody: {
             /** @description New default expressions by kind (e.g. {"backup": "0 1 * * *"}); send the suggested value to go back to it. */
@@ -7175,11 +7428,17 @@ export interface components {
             enrollmentGraceHours?: number;
             /** Format: int64 */
             invitationTtlHours?: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @example 12
+             */
             minPasswordLength?: number;
             /** Format: int64 */
             passwordResetTtlHours?: number;
-            /** @enum {string} */
+            /**
+             * @example either
+             * @enum {string}
+             */
             requiredFactors?: "none" | "totp" | "passkey" | "either" | "both";
             strictPasswords?: boolean;
         };
@@ -7198,6 +7457,7 @@ export interface components {
             window?: components["schemas"]["UpdateWindow"];
         };
         PatchUserInputBody: {
+            /** @example Ada Lovelace */
             displayName?: string;
             email?: string;
             /** @description Move the account to exactly one group (#17). */
@@ -7304,29 +7564,56 @@ export interface components {
             rules?: components["schemas"]["MaintenanceRule"][];
         };
         PreviewStackInputBody: {
-            /** @description Target directory (copy, move, upload, extract) or archive file (archive). */
+            /**
+             * @description Target directory (copy, move, upload, extract) or archive file (archive).
+             * @example backup
+             */
             destination?: string;
             /** @description File names to upload into destination. */
             names?: string[];
-            /** @enum {string} */
+            /**
+             * @example copy
+             * @enum {string}
+             */
             operation?: "copy" | "move" | "delete" | "upload" | "extract" | "archive" | "metadata";
-            /** @description Sources (copy, move, delete, metadata, archive) or the archive (extract). */
+            /**
+             * @description Sources (copy, move, delete, metadata, archive) or the archive (extract).
+             * @example [
+             *       "config/nginx.conf"
+             *     ]
+             */
             paths?: string[];
             /** @description metadata: count recursively. */
             recursive?: boolean;
         };
         PreviewUpdateInputBody: {
-            /** @description Candidate IDs or service names (default: every update available). */
+            /**
+             * @description Candidate IDs or service names (default: every update available).
+             * @example [
+             *       "web"
+             *     ]
+             */
             candidates?: string[];
         };
         PreviewVolumeInputBody: {
-            /** @description Target directory (copy, move, upload, extract) or archive file (archive). */
+            /**
+             * @description Target directory (copy, move, upload, extract) or archive file (archive).
+             * @example backup
+             */
             destination?: string;
             /** @description File names to upload into destination. */
             names?: string[];
-            /** @enum {string} */
+            /**
+             * @example copy
+             * @enum {string}
+             */
             operation?: "copy" | "move" | "delete" | "upload" | "extract" | "archive" | "metadata";
-            /** @description Sources (copy, move, delete, metadata, archive) or the archive (extract). */
+            /**
+             * @description Sources (copy, move, delete, metadata, archive) or the archive (extract).
+             * @example [
+             *       "config/nginx.conf"
+             *     ]
+             */
             paths?: string[];
             /** @description metadata: count recursively. */
             recursive?: boolean;
@@ -7347,7 +7634,10 @@ export interface components {
              * @description Approximate sum of the candidates' known sizes.
              */
             bytes: number;
-            /** @enum {string} */
+            /**
+             * @example dangling_images
+             * @enum {string}
+             */
             category: "stopped_containers" | "dangling_images" | "unused_images" | "unused_networks" | "anonymous_volumes" | "named_volumes" | "build_cache";
             /** Format: int64 */
             excluded: number;
@@ -7418,7 +7708,13 @@ export interface components {
             ok: boolean;
         };
         RecoveryCodesOutputBody: {
-            /** @description Ten one-time recovery codes. Shown only in this response; earlier codes stop working. */
+            /**
+             * @description Ten one-time recovery codes. Shown only in this response; earlier codes stop working.
+             * @example [
+             *       "7Q2M-KX4P",
+             *       "9WRT-3HJD"
+             *     ]
+             */
             codes: string[];
         };
         RecoveryConfirmation: {
@@ -7431,7 +7727,10 @@ export interface components {
         RecoveryConfirmationInputBody: {
             /** @description Must be true: you saved the key outside DockYard. */
             backedUp: boolean;
-            /** @description Type (or paste) the Recovery Key. Never logged, stored or audited. */
+            /**
+             * @description Type (or paste) the Recovery Key. Never logged, stored or audited.
+             * @example dyrk-4V7Q-2M9X-KP3T-8WRH-6JDN-CF5B-ZL2A
+             */
             recoveryKey: string;
         };
         RecoveryKeyReveal: {
@@ -7479,16 +7778,21 @@ export interface components {
         RecoveryStatusOutputBody: {
             /** Format: date-time */
             generatedAt?: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @example 10
+             */
             remaining: number;
         };
         RedeemInvitationInputBody: {
             code: string;
+            /** @example Ada Lovelace */
             displayName?: string;
             /** @description Required when the invitation is bound to an address. */
             email?: string;
             /** @description Required unless the policy is passkey-only. */
             password?: string;
+            /** @example ada */
             username: string;
         };
         RegistryCandidate: {
@@ -7694,6 +7998,7 @@ export interface components {
             stacks: number;
         };
         RenameAPITokenInputBody: {
+            /** @example Backup script */
             name: string;
         };
         ReplaceDocumentBody: {
@@ -7701,13 +8006,19 @@ export interface components {
             rules: components["schemas"]["PermissionRule"][];
         };
         ReplaceStackContentInputBody: {
-            /** @description New content as UTF-8 text (at most 512 KiB). */
+            /**
+             * @description New content as UTF-8 text (at most 512 KiB).
+             * @example server_tokens off;
+             */
             content?: string;
             /** @description New content as base64 (binary; at most 512 KiB decoded). */
             contentBase64?: string;
         };
         ReplaceVolumeContentInputBody: {
-            /** @description New content as UTF-8 text (at most 512 KiB). */
+            /**
+             * @description New content as UTF-8 text (at most 512 KiB).
+             * @example server_tokens off;
+             */
             content?: string;
             /** @description New content as base64 (binary; at most 512 KiB decoded). */
             contentBase64?: string;
@@ -7743,20 +8054,30 @@ export interface components {
             path?: string;
             /**
              * @description stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place.
+             * @example volume
              * @enum {string}
              */
             scope: "stack" | "volume" | "file";
             /** @description Stop the containers using the data while it is restored and start the previously running ones afterwards (default true; with false a restore under running containers is refused). */
             shutdown?: boolean;
-            /** @description volume scope: which volumes of a stack backup (default: all of them). */
+            /**
+             * @description volume scope: which volumes of a stack backup (default: all of them).
+             * @example [
+             *       "web_data"
+             *     ]
+             */
             volumes?: string[];
         };
         RestoreInputBody: {
-            /** @description Must be true: a restore overwrites the current data (preview it first). */
+            /**
+             * @description Must be true: a restore overwrites the current data (preview it first).
+             * @example true
+             */
             confirm: boolean;
             path?: string;
             /**
              * @description As in restore previews.
+             * @example volume
              * @enum {string}
              */
             scope: "stack" | "volume" | "file";
@@ -7770,10 +8091,18 @@ export interface components {
             canRestore: boolean;
             conflicts?: string[];
             targets: components["schemas"]["RestoreTarget"][];
+            /**
+             * @example [
+             *       "The restore overwrites 12 existing files"
+             *     ]
+             */
             warnings?: string[];
         };
         RestoreStackInputBody: {
-            /** @description Required: the revision to write back to disk. */
+            /**
+             * @description Required: the revision to write back to disk.
+             * @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f
+             */
             revisionId?: string;
         };
         RestoreTarget: {
@@ -7835,28 +8164,44 @@ export interface components {
             jobs: components["schemas"]["Job"][];
         };
         RetentionRunInputBody: {
-            /** @description Must be true: retention permanently forgets snapshots (preview them first). */
+            /**
+             * @description Must be true: retention permanently forgets snapshots (preview them first).
+             * @example true
+             */
             confirm: boolean;
         };
         RevokeTokensBody: {
-            /** @description Also revoke every API token of the account (#31), for example when the account may be compromised. */
+            /**
+             * @description Also revoke every API token of the account (#31), for example when the account may be compromised.
+             * @example true
+             */
             revokeApiTokens?: boolean;
         };
         RotateRegistryInputBody: {
-            /** @enum {string} */
+            /**
+             * @example token
+             * @enum {string}
+             */
             credentialType?: "password" | "token";
             /** @description The new password or access token (write-only). */
             secret: string;
+            /** @example ci-bot */
             username?: string;
         };
         RunMaintenancePolicyInputBody: {
             /** @description Presentation preference only: the run is the same durable job either way, and leaving the UI never cancels it. */
             background?: boolean;
-            /** @description Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise). */
+            /**
+             * @description Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise).
+             * @example true
+             */
             confirm?: boolean;
         };
         RunPolicyInputBody: {
-            /** @description Re-run only the members of this set that did not complete (the set keeps its ID). */
+            /**
+             * @description Re-run only the members of this set that did not complete (the set keeps its ID).
+             * @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f
+             */
             retrySetId?: string;
         };
         Schedule: {
@@ -8057,7 +8402,10 @@ export interface components {
             environmentName?: string;
             /** @description The identifier used in the resource's routes: environment ID, stack ID, <stackId>/<service>, container ID, image ID, volume name or network ID. */
             id: string;
-            /** @description Display name (environment or stack name, service, container, volume or network name, first image tag). */
+            /**
+             * @description Display name (environment or stack name, service, container, volume or network name, first image tag).
+             * @example nextcloud
+             */
             name: string;
             /** @description The stack of a service, or of a container, volume or network that belongs to a DockYard stack. */
             stackId?: string;
@@ -8090,12 +8438,16 @@ export interface components {
             enrollmentGraceHours: number;
             /** Format: int64 */
             invitationTtlHours: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @example 12
+             */
             minPasswordLength: number;
             /** Format: int64 */
             passwordResetTtlHours: number;
             /**
              * @description none: a password (plus TOTP if the user enabled it) or a passkey. totp: password + TOTP. passkey: a passkey with user verification. either: password + TOTP, or a passkey. both: password + TOTP + passkey.
+             * @example either
              * @enum {string}
              */
             requiredFactors: "none" | "totp" | "passkey" | "either" | "both";
@@ -8168,7 +8520,10 @@ export interface components {
             explanation?: string;
             /** @description This request reached DockYard over HTTPS on its public URL, so setup can complete. */
             secureOrigin: boolean;
-            /** @description The instance owner exists; setup routes are closed. */
+            /**
+             * @description The instance owner exists; setup routes are closed.
+             * @example false
+             */
             setupComplete: boolean;
         };
         Stack: {
@@ -8333,6 +8688,7 @@ export interface components {
             digest?: string;
             /** @description The service could follow its tag's digest (#20). */
             eligible: boolean;
+            /** @example nginx:1.27 */
             image: string;
             imageId?: string;
             /** @description Eligible, but the tag (latest, main, ...) can change meaning. */
@@ -8343,6 +8699,7 @@ export interface components {
             /** @enum {string} */
             reason?: "build_only" | "digest_pinned" | "untagged" | "pull_policy_conflict" | "invalid_reference";
             reasonMessage?: string;
+            /** @example web */
             service: string;
             /**
              * @description Update state of the service under the stack's update policy; no_policy when the stack has none.
@@ -8353,6 +8710,7 @@ export interface components {
         StackIssue: {
             /** @description invalid_project, unsupported_compose_feature, obsolete_version, bind_outside_project, ... */
             code: string;
+            /** @example services.web.ports: invalid port "80a" */
             message: string;
             service?: string;
         };
@@ -8385,7 +8743,10 @@ export interface components {
             anonymousVolumes?: string[];
             /** @description Named volumes whose data is not copied (Compose recreates them empty on the destination). Default: every named local volume is copied. */
             excludeVolumes?: string[];
-            /** @description Required: the destination environment. */
+            /**
+             * @description Required: the destination environment.
+             * @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f
+             */
             targetEnvironmentId?: string;
             /**
              * Format: int64
@@ -8473,8 +8834,12 @@ export interface components {
             description?: string;
             /** @description Lucide icon name override. */
             icon?: string;
-            /** @description Resolved image reference. */
+            /**
+             * @description Resolved image reference.
+             * @example nginx:1.27
+             */
             image: string;
+            /** @example web */
             name: string;
         };
         StackServiceMetaBody: {
@@ -8525,6 +8890,7 @@ export interface components {
         StepUpInputBody: {
             /** @description A passkey assertion (PublicKeyCredential JSON) for options requested with purpose step_up. */
             credential?: unknown;
+            /** @example correct-horse-battery-staple */
             password?: string;
             /** @description Required with password when TOTP is enabled. */
             totpCode?: string;
@@ -8628,9 +8994,15 @@ export interface components {
              * @description Confirm a code before this time.
              */
             expiresAt: string;
-            /** @description Base32 secret for manual entry. Shown only in this response. */
+            /**
+             * @description Base32 secret for manual entry. Shown only in this response.
+             * @example JBSWY3DPEHPK3PXP
+             */
             secret: string;
-            /** @description otpauth:// URI for a QR code. Shown only in this response. */
+            /**
+             * @description otpauth:// URI for a QR code. Shown only in this response.
+             * @example otpauth://totp/DockYard:olga?secret=JBSWY3DPEHPK3PXP&issuer=DockYard
+             */
             uri: string;
         };
         TransferStackInputBody: {
@@ -8639,11 +9011,19 @@ export interface components {
              * @enum {string}
              */
             conflict?: "fail" | "overwrite" | "skip" | "keep_both";
-            /** @description Target directory. */
+            /**
+             * @description Target directory.
+             * @example config-backup
+             */
             destination?: string;
             /** @description New name of a single source (rename: move into the source's own directory under this name). */
             name?: string;
-            /** @description Sources (root-relative). */
+            /**
+             * @description Sources (root-relative).
+             * @example [
+             *       "config/nginx.conf"
+             *     ]
+             */
             paths?: string[];
         };
         TransferVolumeInputBody: {
@@ -8652,15 +9032,26 @@ export interface components {
              * @enum {string}
              */
             conflict?: "fail" | "overwrite" | "skip" | "keep_both";
-            /** @description Target directory. */
+            /**
+             * @description Target directory.
+             * @example config-backup
+             */
             destination?: string;
             /** @description New name of a single source (rename: move into the source's own directory under this name). */
             name?: string;
-            /** @description Sources (root-relative). */
+            /**
+             * @description Sources (root-relative).
+             * @example [
+             *       "config/nginx.conf"
+             *     ]
+             */
             paths?: string[];
         };
         UpdateAgentInputBody: {
-            /** @description Operator note; empty clears it. */
+            /**
+             * @description Operator note; empty clears it.
+             * @example Rack 2, left
+             */
             label?: string;
         };
         UpdateBackupPolicyInputBody: {
@@ -8680,10 +9071,12 @@ export interface components {
         UpdateBackupRepositoryInputBody: {
             /** @description Replace the S3 credentials (both fields). */
             accessKeyId?: string;
+            /** @example Offsite S3 */
             name?: string;
             pathStyle?: boolean;
             region?: string;
             secretAccessKey?: string;
+            /** @example 0 5 * * 0 */
             verifyCron?: string;
             /** @description Enable scheduled verification (the key must be confirmed first). */
             verifyEnabled?: boolean;
@@ -8718,7 +9111,10 @@ export interface components {
             reason?: "build_only" | "digest_pinned" | "untagged" | "pull_policy_conflict" | "invalid_reference" | "not_deployed" | "no_applied_digest" | "excluded" | "protected" | "no_recreate_spec" | "stack_managed";
             /** @description Why it is ineligible, or the warning of a non-version tag. */
             reasonMessage?: string;
-            /** @description The resolved tagged reference (never rewritten). */
+            /**
+             * @description The resolved tagged reference (never rewritten).
+             * @example nginx:1.27
+             */
             reference: string;
             registry?: string;
             /** @description Connection used for the last check (metadata only). */
@@ -8726,7 +9122,10 @@ export interface components {
             repository?: string;
             /** Format: int64 */
             retryAfterSeconds?: number;
-            /** @description Compose service name, or the container name. */
+            /**
+             * @description Compose service name, or the container name.
+             * @example web
+             */
             service: string;
             sourceHashAfter?: string;
             /** @description The stack's definition hash read before the last check. */
@@ -8754,6 +9153,7 @@ export interface components {
             serviceAddress?: string;
         };
         UpdateGitCredentialInputBody: {
+            /** @example GitHub deploy token */
             name?: string;
             pathPrefix?: string;
             plainHttp?: boolean;
@@ -8767,6 +9167,7 @@ export interface components {
             username?: string;
         };
         UpdateGroupInputBody: {
+            /** @example Operators */
             name?: string;
         };
         UpdateHistoryEntry: {
@@ -8846,7 +9247,10 @@ export interface components {
         UpdatePreview: {
             /** @description The stack's dependency graph (as deployed). */
             dependencies: components["schemas"]["UpdateServiceDependency"][];
-            /** @description Send as previewFingerprint to refuse the run when anything changed since. */
+            /**
+             * @description Send as previewFingerprint to refuse the run when anything changed since.
+             * @example 3f9a0c1d2e4b5a6c
+             */
             fingerprint: string;
             /** @description Now is inside the policy's update window (scheduled runs only run inside it). */
             inWindow: boolean;
@@ -8882,11 +9286,15 @@ export interface components {
         UpdateRegistryInputBody: {
             /** @description Empty removes the binding. */
             environmentId?: string;
+            /** @example GitHub Container Registry */
             name?: string;
             plainHttp?: boolean;
             /** Format: int64 */
             priority?: number;
-            /** @description Empty matches every repository on the host. */
+            /**
+             * @description Empty matches every repository on the host.
+             * @example example/*
+             */
             repositoryPattern?: string;
             /** @description Empty removes the binding. */
             stackId?: string;
@@ -8932,8 +9340,12 @@ export interface components {
         };
         UpdateStackInputBody: {
             description?: string;
+            /** @example Website */
             displayName?: string;
-            /** @description Lucide icon name; empty clears the override. */
+            /**
+             * @description Lucide icon name; empty clears the override.
+             * @example globe
+             */
             icon?: string;
             /** @description Display metadata per service name (empty values clear it). */
             services?: {
@@ -8967,7 +9379,10 @@ export interface components {
             env?: string;
             /** @description Required: the environment whose agent validates. */
             environmentId?: string;
-            /** @description Required: project name the definition would be deployed as. */
+            /**
+             * @description Required: project name the definition would be deployed as.
+             * @example web
+             */
             name?: string;
             /** @description compose.override.yaml content (optional). */
             override?: string;
@@ -9022,7 +9437,10 @@ export interface components {
             acknowledgeCrashConsistency?: boolean;
             /** @description Required: the destination environment. */
             targetEnvironmentId?: string;
-            /** @description A new name on the destination (default: the same name). */
+            /**
+             * @description A new name on the destination (default: the same name).
+             * @example web_data
+             */
             targetName?: string;
         };
     };
@@ -9054,6 +9472,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "agentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "allowDuplicateEngineId": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "createdBy": "example",
+                     *           "environmentName": "nas",
+                     *           "expiresAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000011",
+                     *           "intent": "new",
+                     *           "lastRejection": {
+                     *             "at": "2026-09-25T12:00:00Z",
+                     *             "code": "engine_already_enrolled",
+                     *             "conflictAgentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "conflictEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "hostname": "web",
+                     *             "installId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "message": "example"
+                     *           },
+                     *           "revokedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "pending",
+                     *           "usedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageAgentEnrollment"];
                 };
             };
@@ -9107,6 +9556,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "environmentName": "NAS",
+                 *       "expiresInSeconds": 3600,
+                 *       "intent": "new"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateEnrollmentInputBody"];
             };
         };
@@ -9117,6 +9573,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "enrollment": {
+                     *         "agentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "allowDuplicateEngineId": false,
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "createdBy": "example",
+                     *         "environmentName": "nas",
+                     *         "expiresAt": "2026-09-25T12:00:00Z",
+                     *         "id": "0190a6e0-0000-7000-8000-000000000011",
+                     *         "intent": "new",
+                     *         "lastRejection": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "code": "engine_already_enrolled",
+                     *           "conflictAgentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "conflictEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "hostname": "web",
+                     *           "installId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "message": "example"
+                     *         },
+                     *         "revokedAt": "2026-09-25T12:00:00Z",
+                     *         "state": "pending",
+                     *         "usedAt": "2026-09-25T12:00:00Z"
+                     *       },
+                     *       "installCommands": [
+                     *         {
+                     *           "command": "example",
+                     *           "description": "example",
+                     *           "title": "example",
+                     *           "variant": "colocated"
+                     *         }
+                     *       ],
+                     *       "managerUrl": "https://docker.example.com",
+                     *       "token": "dye_0190a6e0-0000-7000-8000-000000000011_q2V1c..."
+                     *     }
+                     */
                     "application/json": components["schemas"]["CreatedAgentEnrollment"];
                 };
             };
@@ -9257,6 +9750,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "compatibility": "current",
+                     *           "connected": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "hostname": "web",
+                     *           "id": "0190a6e0-2222-7000-8000-000000000002",
+                     *           "installId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "label": "example",
+                     *           "lastConnectedAt": "2026-09-25T12:00:00Z",
+                     *           "lastSeenAt": "2026-09-25T12:00:00Z",
+                     *           "revision": 1,
+                     *           "revokedAt": "2026-09-25T12:00:00Z",
+                     *           "revokedReason": "removed",
+                     *           "rotationPending": false,
+                     *           "status": "active",
+                     *           "transport": {
+                     *             "customCa": false,
+                     *             "managerUrl": "example",
+                     *             "plainHttp": false
+                     *           },
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "upgradeInstructions": "example",
+                     *           "version": "0.0.0-edge",
+                     *           "versionStatus": "current",
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageAgent"];
                 };
             };
@@ -9308,6 +9840,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "compatibility": "current",
+                     *       "connected": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "hostname": "web",
+                     *       "id": "0190a6e0-2222-7000-8000-000000000002",
+                     *       "installId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "label": "example",
+                     *       "lastConnectedAt": "2026-09-25T12:00:00Z",
+                     *       "lastSeenAt": "2026-09-25T12:00:00Z",
+                     *       "revision": 1,
+                     *       "revokedAt": "2026-09-25T12:00:00Z",
+                     *       "revokedReason": "removed",
+                     *       "rotationPending": false,
+                     *       "status": "active",
+                     *       "transport": {
+                     *         "customCa": false,
+                     *         "managerUrl": "example",
+                     *         "plainHttp": false
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "upgradeInstructions": "example",
+                     *       "version": "0.0.0-edge",
+                     *       "versionStatus": "current",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Agent"];
                 };
             };
@@ -9451,6 +10016,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "label": "Rack 2, left"
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateAgentInputBody"];
             };
         };
@@ -9462,6 +10032,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "compatibility": "current",
+                     *       "connected": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "hostname": "web",
+                     *       "id": "0190a6e0-2222-7000-8000-000000000002",
+                     *       "installId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "label": "example",
+                     *       "lastConnectedAt": "2026-09-25T12:00:00Z",
+                     *       "lastSeenAt": "2026-09-25T12:00:00Z",
+                     *       "revision": 1,
+                     *       "revokedAt": "2026-09-25T12:00:00Z",
+                     *       "revokedReason": "removed",
+                     *       "rotationPending": false,
+                     *       "status": "active",
+                     *       "transport": {
+                     *         "customCa": false,
+                     *         "managerUrl": "example",
+                     *         "plainHttp": false
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "upgradeInstructions": "example",
+                     *       "version": "0.0.0-edge",
+                     *       "versionStatus": "current",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Agent"];
                 };
             };
@@ -9551,6 +10154,14 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "agentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "completedAt": "2026-09-25T12:00:00Z",
+                     *       "requestedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "completed"
+                     *     }
+                     */
                     "application/json": components["schemas"]["CredentialRotation"];
                 };
             };
@@ -9630,6 +10241,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "expiresAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *           "lastUsedIp": "example",
+                     *           "name": "web",
+                     *           "revokedAt": "2026-09-25T12:00:00Z",
+                     *           "revokedReason": "user",
+                     *           "scopes": [
+                     *             {
+                     *               "capability": "container.restart",
+                     *               "scope": {
+                     *                 "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "instance",
+                     *                 "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "resourceType": "container"
+                     *               }
+                     *             }
+                     *           ],
+                     *           "status": "active",
+                     *           "userId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "username": "web"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageAPIToken"];
                 };
             };
@@ -9777,6 +10420,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "action": "stack.deploy",
+                     *           "actor": {
+                     *             "agentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "user",
+                     *             "tokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "userId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *           },
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "category": "identity",
+                     *           "clientIp": "example",
+                     *           "details": {},
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "errorClass": "example",
+                     *           "hash": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "operationId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "outcome": "success",
+                     *           "prevHash": "example",
+                     *           "requestId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "seq": 1,
+                     *           "targets": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "type": "stack"
+                     *             }
+                     *           ],
+                     *           "userAgent": "example"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageAuditEvent"];
                 };
             };
@@ -9925,6 +10607,11 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "purpose": "sign_in"
+                 *     }
+                 */
                 "application/json": components["schemas"]["PasskeyAuthOptionsInputBody"];
             };
         };
@@ -9935,6 +10622,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "publicKey": {
+                     *         "challenge": "dGVzdC1jaGFsbGVuZ2U",
+                     *         "rpId": "docker.example.com",
+                     *         "timeout": 60000,
+                     *         "userVerification": "required"
+                     *       }
+                     *     }
+                     */
                     "application/json": unknown;
                 };
             };
@@ -9994,6 +10691,21 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "credential": {
+                 *         "id": "q2Xs1Q",
+                 *         "rawId": "q2Xs1Q",
+                 *         "response": {
+                 *           "authenticatorData": "SZYN5YgO",
+                 *           "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0",
+                 *           "signature": "MEUCIQ",
+                 *           "userHandle": "AAAB"
+                 *         },
+                 *         "type": "public-key"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["PasskeyAssertionInputBody"];
             };
         };
@@ -10004,6 +10716,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "authenticatedAt": "2026-09-25T12:00:00Z",
+                     *       "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "factors": [
+                     *         "password"
+                     *       ],
+                     *       "idleExpiresAt": "2026-09-25T12:00:00Z",
+                     *       "missingFactors": [
+                     *         "password"
+                     *       ],
+                     *       "recentAuthUntil": "2026-09-25T12:00:00Z",
+                     *       "requiredFactors": "none",
+                     *       "state": "second_factor_required",
+                     *       "user": {
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "disabledAt": "2026-09-25T12:00:00Z",
+                     *         "displayName": "web",
+                     *         "email": "example",
+                     *         "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *         "factors": {
+                     *           "passkeys": 1,
+                     *           "password": false,
+                     *           "recoveryCodesRemaining": 1,
+                     *           "totp": false
+                     *         },
+                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *         "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *         "owner": false,
+                     *         "revision": 1,
+                     *         "status": "active",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "username": "alice"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["Session"];
                 };
             };
@@ -10078,6 +10828,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "publicKey": {
+                     *         "challenge": "dGVzdC1jaGFsbGVuZ2U",
+                     *         "rpId": "docker.example.com",
+                     *         "timeout": 60000,
+                     *         "userVerification": "required"
+                     *       }
+                     *     }
+                     */
                     "application/json": unknown;
                 };
             };
@@ -10119,6 +10879,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "credential": {},
+                 *       "name": "YubiKey 5C"
+                 *     }
+                 */
                 "application/json": components["schemas"]["PasskeyRegistrationInputBody"];
             };
         };
@@ -10129,6 +10895,55 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "passkey": {
+                     *         "aaguid": "example",
+                     *         "backedUp": false,
+                     *         "backupEligible": false,
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *         "name": "YubiKey 5C"
+                     *       },
+                     *       "session": {
+                     *         "authenticatedAt": "2026-09-25T12:00:00Z",
+                     *         "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *         "expiresAt": "2026-09-25T12:00:00Z",
+                     *         "factors": [
+                     *           "password"
+                     *         ],
+                     *         "idleExpiresAt": "2026-09-25T12:00:00Z",
+                     *         "missingFactors": [
+                     *           "password"
+                     *         ],
+                     *         "recentAuthUntil": "2026-09-25T12:00:00Z",
+                     *         "requiredFactors": "none",
+                     *         "state": "second_factor_required",
+                     *         "user": {
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "disabledAt": "2026-09-25T12:00:00Z",
+                     *           "displayName": "web",
+                     *           "email": "example",
+                     *           "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *           "factors": {
+                     *             "passkeys": 1,
+                     *             "password": false,
+                     *             "recoveryCodesRemaining": 1,
+                     *             "totp": false
+                     *           },
+                     *           "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *           "owner": false,
+                     *           "revision": 1,
+                     *           "status": "active",
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "username": "alice"
+                     *         }
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["PasskeyRegistrationOutputBody"];
                 };
             };
@@ -10188,6 +11003,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "code": "R7QK-2M4P-X9WT",
+                 *       "newPassword": "correct-horse-battery-staple"
+                 *     }
+                 */
                 "application/json": components["schemas"]["PasswordResetRedemptionInputBody"];
             };
         };
@@ -10246,6 +11067,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "code": "123456"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CodeInputBody"];
             };
         };
@@ -10256,6 +11082,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "authenticatedAt": "2026-09-25T12:00:00Z",
+                     *       "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "factors": [
+                     *         "password"
+                     *       ],
+                     *       "idleExpiresAt": "2026-09-25T12:00:00Z",
+                     *       "missingFactors": [
+                     *         "password"
+                     *       ],
+                     *       "recentAuthUntil": "2026-09-25T12:00:00Z",
+                     *       "requiredFactors": "none",
+                     *       "state": "second_factor_required",
+                     *       "user": {
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "disabledAt": "2026-09-25T12:00:00Z",
+                     *         "displayName": "web",
+                     *         "email": "example",
+                     *         "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *         "factors": {
+                     *           "passkeys": 1,
+                     *           "password": false,
+                     *           "recoveryCodesRemaining": 1,
+                     *           "totp": false
+                     *         },
+                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *         "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *         "owner": false,
+                     *         "revision": 1,
+                     *         "status": "active",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "username": "alice"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["Session"];
                 };
             };
@@ -10330,6 +11194,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "authenticatedAt": "2026-09-25T12:00:00Z",
+                     *       "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "factors": [
+                     *         "password"
+                     *       ],
+                     *       "idleExpiresAt": "2026-09-25T12:00:00Z",
+                     *       "missingFactors": [
+                     *         "password"
+                     *       ],
+                     *       "recentAuthUntil": "2026-09-25T12:00:00Z",
+                     *       "requiredFactors": "none",
+                     *       "state": "second_factor_required",
+                     *       "user": {
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "disabledAt": "2026-09-25T12:00:00Z",
+                     *         "displayName": "web",
+                     *         "email": "example",
+                     *         "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *         "factors": {
+                     *           "passkeys": 1,
+                     *           "password": false,
+                     *           "recoveryCodesRemaining": 1,
+                     *           "totp": false
+                     *         },
+                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *         "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *         "owner": false,
+                     *         "revision": 1,
+                     *         "status": "active",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "username": "alice"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["Session"];
                 };
             };
@@ -10371,6 +11273,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "username": "olga"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateSessionInputBody"];
             };
         };
@@ -10381,6 +11288,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "authenticatedAt": "2026-09-25T12:00:00Z",
+                     *       "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "factors": [
+                     *         "password"
+                     *       ],
+                     *       "idleExpiresAt": "2026-09-25T12:00:00Z",
+                     *       "missingFactors": [
+                     *         "password"
+                     *       ],
+                     *       "recentAuthUntil": "2026-09-25T12:00:00Z",
+                     *       "requiredFactors": "none",
+                     *       "state": "second_factor_required",
+                     *       "user": {
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "disabledAt": "2026-09-25T12:00:00Z",
+                     *         "displayName": "web",
+                     *         "email": "example",
+                     *         "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *         "factors": {
+                     *           "passkeys": 1,
+                     *           "password": false,
+                     *           "recoveryCodesRemaining": 1,
+                     *           "totp": false
+                     *         },
+                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *         "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *         "owner": false,
+                     *         "revision": 1,
+                     *         "status": "active",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "username": "alice"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["Session"];
                 };
             };
@@ -10494,6 +11439,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "password": "correct-horse-battery-staple"
+                 *     }
+                 */
                 "application/json": components["schemas"]["StepUpInputBody"];
             };
         };
@@ -10504,6 +11454,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "authenticatedAt": "2026-09-25T12:00:00Z",
+                     *       "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "factors": [
+                     *         "password"
+                     *       ],
+                     *       "idleExpiresAt": "2026-09-25T12:00:00Z",
+                     *       "missingFactors": [
+                     *         "password"
+                     *       ],
+                     *       "recentAuthUntil": "2026-09-25T12:00:00Z",
+                     *       "requiredFactors": "none",
+                     *       "state": "second_factor_required",
+                     *       "user": {
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "disabledAt": "2026-09-25T12:00:00Z",
+                     *         "displayName": "web",
+                     *         "email": "example",
+                     *         "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *         "factors": {
+                     *           "passkeys": 1,
+                     *           "password": false,
+                     *           "recoveryCodesRemaining": 1,
+                     *           "totp": false
+                     *         },
+                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *         "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *         "owner": false,
+                     *         "revision": 1,
+                     *         "status": "active",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "username": "alice"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["Session"];
                 };
             };
@@ -10632,6 +11620,13 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "secret": "JBSWY3DPEHPK3PXP",
+                     *       "uri": "otpauth://totp/DockYard:olga?secret=JBSWY3DPEHPK3PXP&issuer=DockYard"
+                     *     }
+                     */
                     "application/json": components["schemas"]["TotpEnrollmentOutputBody"];
                 };
             };
@@ -10682,6 +11677,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "code": "123456"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CodeInputBody"];
             };
         };
@@ -10692,6 +11692,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "authenticatedAt": "2026-09-25T12:00:00Z",
+                     *       "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "factors": [
+                     *         "password"
+                     *       ],
+                     *       "idleExpiresAt": "2026-09-25T12:00:00Z",
+                     *       "missingFactors": [
+                     *         "password"
+                     *       ],
+                     *       "recentAuthUntil": "2026-09-25T12:00:00Z",
+                     *       "requiredFactors": "none",
+                     *       "state": "second_factor_required",
+                     *       "user": {
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "disabledAt": "2026-09-25T12:00:00Z",
+                     *         "displayName": "web",
+                     *         "email": "example",
+                     *         "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *         "factors": {
+                     *           "passkeys": 1,
+                     *           "password": false,
+                     *           "recoveryCodesRemaining": 1,
+                     *           "totp": false
+                     *         },
+                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *         "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *         "owner": false,
+                     *         "revision": 1,
+                     *         "status": "active",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "username": "alice"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["Session"];
                 };
             };
@@ -10771,6 +11809,99 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "enabled": false,
+                     *           "environmentRepositories": {},
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "includeManagerState": false,
+                     *           "includeMetrics": false,
+                     *           "name": "Nightly system backup",
+                     *           "recentSets": [
+                     *             {
+                     *               "finishedAt": "2026-09-25T12:00:00Z",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "members": [
+                     *                 {
+                     *                   "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                   "errorClass": "example",
+                     *                   "item": "stack/0190a6e0-...",
+                     *                   "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                   "kind": "manager_state",
+                     *                   "scope": "example",
+                     *                   "snapshotTime": "2026-09-25T12:00:00Z",
+                     *                   "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                   "stackName": "web",
+                     *                   "state": "pending",
+                     *                   "volume": "example"
+                     *                 }
+                     *               ],
+                     *               "origin": "manual",
+                     *               "startedAt": "2026-09-25T12:00:00Z",
+                     *               "state": "pending"
+                     *             }
+                     *           ],
+                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "retention": {
+                     *             "afterBackup": false,
+                     *             "daily": 7,
+                     *             "hourly": 1,
+                     *             "last": 1,
+                     *             "minKeep": 1,
+                     *             "monthly": 1,
+                     *             "weekly": 1,
+                     *             "withinDays": 1,
+                     *             "yearly": 1
+                     *           },
+                     *           "revision": 1,
+                     *           "schedule": {
+                     *             "cron": "0 2 * * *",
+                     *             "enabled": false,
+                     *             "nextRun": "2026-09-25T12:00:00Z",
+                     *             "timeZone": "Europe/Berlin"
+                     *           },
+                     *           "shutdown": false,
+                     *           "stacks": [
+                     *             {
+                     *               "anonymousVolumes": false,
+                     *               "externalPaths": [
+                     *                 "config/app.conf"
+                     *               ],
+                     *               "pathExcludes": [
+                     *                 "example"
+                     *               ],
+                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "volumeExclude": [
+                     *                 "example"
+                     *               ],
+                     *               "volumeInclude": [
+                     *                 "example"
+                     *               ]
+                     *             }
+                     *           ],
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "view": "minimal",
+                     *           "volumes": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "pathExcludes": [
+                     *                 "example"
+                     *               ],
+                     *               "volume": "example"
+                     *             }
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageBackupPolicy"];
                 };
             };
@@ -10812,6 +11943,20 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "web",
+                 *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "retention": {
+                 *         "daily": 7
+                 *       },
+                 *       "schedule": {
+                 *         "cron": "0 2 * * *",
+                 *         "enabled": false,
+                 *         "timeZone": "Europe/Berlin"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["PolicyInputBody"];
             };
         };
@@ -10823,6 +11968,93 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "enabled": false,
+                     *       "environmentRepositories": {},
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "includeManagerState": false,
+                     *       "includeMetrics": false,
+                     *       "name": "Nightly system backup",
+                     *       "recentSets": [
+                     *         {
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "members": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "errorClass": "example",
+                     *               "item": "stack/0190a6e0-...",
+                     *               "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "kind": "manager_state",
+                     *               "scope": "example",
+                     *               "snapshotTime": "2026-09-25T12:00:00Z",
+                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "stackName": "web",
+                     *               "state": "pending",
+                     *               "volume": "example"
+                     *             }
+                     *           ],
+                     *           "origin": "manual",
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "pending"
+                     *         }
+                     *       ],
+                     *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "retention": {
+                     *         "afterBackup": false,
+                     *         "daily": 7,
+                     *         "hourly": 1,
+                     *         "last": 1,
+                     *         "minKeep": 1,
+                     *         "monthly": 1,
+                     *         "weekly": 1,
+                     *         "withinDays": 1,
+                     *         "yearly": 1
+                     *       },
+                     *       "revision": 1,
+                     *       "schedule": {
+                     *         "cron": "0 2 * * *",
+                     *         "enabled": false,
+                     *         "nextRun": "2026-09-25T12:00:00Z",
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "shutdown": false,
+                     *       "stacks": [
+                     *         {
+                     *           "anonymousVolumes": false,
+                     *           "externalPaths": [
+                     *             "config/app.conf"
+                     *           ],
+                     *           "pathExcludes": [
+                     *             "example"
+                     *           ],
+                     *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "volumeExclude": [
+                     *             "example"
+                     *           ],
+                     *           "volumeInclude": [
+                     *             "example"
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal",
+                     *       "volumes": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "pathExcludes": [
+                     *             "example"
+                     *           ],
+                     *           "volume": "example"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["BackupPolicy"];
                 };
             };
@@ -10892,6 +12124,93 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "enabled": false,
+                     *       "environmentRepositories": {},
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "includeManagerState": false,
+                     *       "includeMetrics": false,
+                     *       "name": "Nightly system backup",
+                     *       "recentSets": [
+                     *         {
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "members": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "errorClass": "example",
+                     *               "item": "stack/0190a6e0-...",
+                     *               "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "kind": "manager_state",
+                     *               "scope": "example",
+                     *               "snapshotTime": "2026-09-25T12:00:00Z",
+                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "stackName": "web",
+                     *               "state": "pending",
+                     *               "volume": "example"
+                     *             }
+                     *           ],
+                     *           "origin": "manual",
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "pending"
+                     *         }
+                     *       ],
+                     *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "retention": {
+                     *         "afterBackup": false,
+                     *         "daily": 7,
+                     *         "hourly": 1,
+                     *         "last": 1,
+                     *         "minKeep": 1,
+                     *         "monthly": 1,
+                     *         "weekly": 1,
+                     *         "withinDays": 1,
+                     *         "yearly": 1
+                     *       },
+                     *       "revision": 1,
+                     *       "schedule": {
+                     *         "cron": "0 2 * * *",
+                     *         "enabled": false,
+                     *         "nextRun": "2026-09-25T12:00:00Z",
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "shutdown": false,
+                     *       "stacks": [
+                     *         {
+                     *           "anonymousVolumes": false,
+                     *           "externalPaths": [
+                     *             "config/app.conf"
+                     *           ],
+                     *           "pathExcludes": [
+                     *             "example"
+                     *           ],
+                     *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "volumeExclude": [
+                     *             "example"
+                     *           ],
+                     *           "volumeInclude": [
+                     *             "example"
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal",
+                     *       "volumes": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "pathExcludes": [
+                     *             "example"
+                     *           ],
+                     *           "volume": "example"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["BackupPolicy"];
                 };
             };
@@ -11044,6 +12363,18 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "retention": {
+                 *         "daily": 7
+                 *       },
+                 *       "schedule": {
+                 *         "cron": "0 2 * * *",
+                 *         "enabled": false,
+                 *         "timeZone": "Europe/Berlin"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateBackupPolicyInputBody"];
             };
         };
@@ -11055,6 +12386,93 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "enabled": false,
+                     *       "environmentRepositories": {},
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "includeManagerState": false,
+                     *       "includeMetrics": false,
+                     *       "name": "Nightly system backup",
+                     *       "recentSets": [
+                     *         {
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "members": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "errorClass": "example",
+                     *               "item": "stack/0190a6e0-...",
+                     *               "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "kind": "manager_state",
+                     *               "scope": "example",
+                     *               "snapshotTime": "2026-09-25T12:00:00Z",
+                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "stackName": "web",
+                     *               "state": "pending",
+                     *               "volume": "example"
+                     *             }
+                     *           ],
+                     *           "origin": "manual",
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "pending"
+                     *         }
+                     *       ],
+                     *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "retention": {
+                     *         "afterBackup": false,
+                     *         "daily": 7,
+                     *         "hourly": 1,
+                     *         "last": 1,
+                     *         "minKeep": 1,
+                     *         "monthly": 1,
+                     *         "weekly": 1,
+                     *         "withinDays": 1,
+                     *         "yearly": 1
+                     *       },
+                     *       "revision": 1,
+                     *       "schedule": {
+                     *         "cron": "0 2 * * *",
+                     *         "enabled": false,
+                     *         "nextRun": "2026-09-25T12:00:00Z",
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "shutdown": false,
+                     *       "stacks": [
+                     *         {
+                     *           "anonymousVolumes": false,
+                     *           "externalPaths": [
+                     *             "config/app.conf"
+                     *           ],
+                     *           "pathExcludes": [
+                     *             "example"
+                     *           ],
+                     *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "volumeExclude": [
+                     *             "example"
+                     *           ],
+                     *           "volumeInclude": [
+                     *             "example"
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal",
+                     *       "volumes": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "pathExcludes": [
+                     *             "example"
+                     *           ],
+                     *           "volume": "example"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["BackupPolicy"];
                 };
             };
@@ -11144,6 +12562,13 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "retention": {
+                 *         "daily": 7
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["RetentionPreviewInputBody"];
             };
         };
@@ -11154,6 +12579,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "locations": [
+                     *         {
+                     *           "decisions": [
+                     *             {
+                     *               "item": "example",
+                     *               "keep": false,
+                     *               "reasons": [
+                     *                 "example"
+                     *               ],
+                     *               "snapshotId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "time": "2026-09-25T12:00:00Z"
+                     *             }
+                     *           ],
+                     *           "forget": 1,
+                     *           "keep": 1,
+                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "scope": "example"
+                     *         }
+                     *       ],
+                     *       "retention": {
+                     *         "afterBackup": false,
+                     *         "daily": 7,
+                     *         "hourly": 1,
+                     *         "last": 1,
+                     *         "minKeep": 1,
+                     *         "monthly": 1,
+                     *         "weekly": 1,
+                     *         "withinDays": 1,
+                     *         "yearly": 1
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["RetentionPreview"];
                 };
             };
@@ -11219,6 +12678,11 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "confirm": true
+                 *     }
+                 */
                 "application/json": components["schemas"]["RetentionRunInputBody"];
             };
         };
@@ -11229,6 +12693,68 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "jobs": [
+                     *         {
+                     *           "attempt": 1,
+                     *           "blockedBy": {
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "reason": "lock"
+                     *           },
+                     *           "cancelRequested": false,
+                     *           "cancellable": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "error": {
+                     *             "class": "agent_offline",
+                     *             "message": "example",
+                     *             "recovery": "example"
+                     *           },
+                     *           "executor": "agent",
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "items": [
+                     *             {
+                     *               "message": "example",
+                     *               "name": "web",
+                     *               "status": "succeeded"
+                     *             }
+                     *           ],
+                     *           "kind": "stack.deploy",
+                     *           "locks": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "mode": "shared",
+                     *               "name": "web",
+                     *               "scope": "host"
+                     *             }
+                     *           ],
+                     *           "locksHeld": false,
+                     *           "origin": "manual",
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "progress": {
+                     *             "message": "example",
+                     *             "percent": 1,
+                     *             "step": "example"
+                     *           },
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "queued",
+                     *           "targets": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "type": "stack"
+                     *             }
+                     *           ],
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["RetentionRun"];
                 };
             };
@@ -11294,6 +12820,11 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "retrySetId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                 *     }
+                 */
                 "application/json": components["schemas"]["RunPolicyInputBody"];
             };
         };
@@ -11304,6 +12835,90 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "jobs": [
+                     *         {
+                     *           "attempt": 1,
+                     *           "blockedBy": {
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "reason": "lock"
+                     *           },
+                     *           "cancelRequested": false,
+                     *           "cancellable": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "error": {
+                     *             "class": "agent_offline",
+                     *             "message": "example",
+                     *             "recovery": "example"
+                     *           },
+                     *           "executor": "agent",
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "items": [
+                     *             {
+                     *               "message": "example",
+                     *               "name": "web",
+                     *               "status": "succeeded"
+                     *             }
+                     *           ],
+                     *           "kind": "stack.deploy",
+                     *           "locks": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "mode": "shared",
+                     *               "name": "web",
+                     *               "scope": "host"
+                     *             }
+                     *           ],
+                     *           "locksHeld": false,
+                     *           "origin": "manual",
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "progress": {
+                     *             "message": "example",
+                     *             "percent": 1,
+                     *             "step": "example"
+                     *           },
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "queued",
+                     *           "targets": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "type": "stack"
+                     *             }
+                     *           ],
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ],
+                     *       "set": {
+                     *         "finishedAt": "2026-09-25T12:00:00Z",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "members": [
+                     *           {
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "errorClass": "example",
+                     *             "item": "stack/0190a6e0-...",
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "manager_state",
+                     *             "scope": "example",
+                     *             "snapshotTime": "2026-09-25T12:00:00Z",
+                     *             "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "stackName": "web",
+                     *             "state": "pending",
+                     *             "volume": "example"
+                     *           }
+                     *         ],
+                     *         "origin": "manual",
+                     *         "startedAt": "2026-09-25T12:00:00Z",
+                     *         "state": "pending"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["BackupRun"];
                 };
             };
@@ -11375,6 +12990,22 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "draft": {
+                 *         "name": "web",
+                 *         "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *         "retention": {
+                 *           "daily": 7
+                 *         },
+                 *         "schedule": {
+                 *           "cron": "0 2 * * *",
+                 *           "enabled": false,
+                 *           "timeZone": "Europe/Berlin"
+                 *         }
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["ScopePreviewInputBody"];
             };
         };
@@ -11385,6 +13016,80 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "environments": [
+                     *         {
+                     *           "downtime": "example",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentName": "nas",
+                     *           "errorClass": "example",
+                     *           "items": [
+                     *             {
+                     *               "affectedContainers": [
+                     *                 {
+                     *                   "name": "web",
+                     *                   "project": "example",
+                     *                   "protected": "example",
+                     *                   "running": false,
+                     *                   "service": "example",
+                     *                   "stopOrder": 1
+                     *                 }
+                     *               ],
+                     *               "conflicts": [
+                     *                 "example"
+                     *               ],
+                     *               "error": "example",
+                     *               "errorClass": "example",
+                     *               "estimateComplete": false,
+                     *               "estimatedBytes": 1,
+                     *               "estimatedFiles": 1,
+                     *               "excludes": [
+                     *                 "example"
+                     *               ],
+                     *               "item": "example",
+                     *               "kind": "example",
+                     *               "paths": [
+                     *                 "config/app.conf"
+                     *               ],
+                     *               "sources": [
+                     *                 {
+                     *                   "kind": "example",
+                     *                   "name": "web",
+                     *                   "path": "config/app.conf",
+                     *                   "reason": "example",
+                     *                   "service": "example",
+                     *                   "state": "example"
+                     *                 }
+                     *               ],
+                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "volume": "example",
+                     *               "volumes": [
+                     *                 "example"
+                     *               ],
+                     *               "warnings": [
+                     *                 "example"
+                     *               ]
+                     *             }
+                     *           ],
+                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *         }
+                     *       ],
+                     *       "manager": {
+                     *         "databaseBytes": 1,
+                     *         "metricsBytes": 1,
+                     *         "metricsIncluded": false,
+                     *         "notes": [
+                     *           "example"
+                     *         ],
+                     *         "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *       },
+                     *       "shutdown": false,
+                     *       "warnings": [
+                     *         "example"
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["ScopePreview"];
                 };
             };
@@ -11455,6 +13160,73 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "bucket": "example",
+                     *           "confirmedAt": "2026-09-25T12:00:00Z",
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "credential": {
+                     *             "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *             "set": false
+                     *           },
+                     *           "endpoint": "example",
+                     *           "executor": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "kind": "local",
+                     *           "lastTest": {
+                     *             "at": "2026-09-25T12:00:00Z",
+                     *             "canDelete": false,
+                     *             "canRead": false,
+                     *             "canWrite": false,
+                     *             "message": "example",
+                     *             "objectLock": false,
+                     *             "ok": false,
+                     *             "result": "ok",
+                     *             "scopes": [
+                     *               {
+                     *                 "errorClass": "example",
+                     *                 "exists": false,
+                     *                 "keyAccepted": false,
+                     *                 "previousKey": false,
+                     *                 "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "scope": "manager"
+                     *               }
+                     *             ],
+                     *             "warnings": [
+                     *               "example"
+                     *             ]
+                     *           },
+                     *           "location": "https://s3.example.com/backups/dockyard",
+                     *           "name": "Offsite S3",
+                     *           "path": "config/app.conf",
+                     *           "pathStyle": false,
+                     *           "prefix": "example",
+                     *           "recoveryRequirements": [
+                     *             "example"
+                     *           ],
+                     *           "region": "example",
+                     *           "revision": 1,
+                     *           "state": "awaiting_confirmation",
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "verification": {
+                     *             "cron": "0 5 * * 0",
+                     *             "enabled": false,
+                     *             "lastVerifiedAt": "2026-09-25T12:00:00Z",
+                     *             "readDataSubset": "5%",
+                     *             "timeZone": "Europe/Berlin"
+                     *           },
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageBackupRepository"];
                 };
             };
@@ -11496,6 +13268,16 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "endpoint": "https://s3.eu-central-1.amazonaws.com",
+                 *       "kind": "local",
+                 *       "name": "Offsite S3",
+                 *       "path": "/backups/dockyard",
+                 *       "prefix": "dockyard",
+                 *       "verifyReadData": "5%"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateBackupRepositoryInputBody"];
             };
         };
@@ -11507,6 +13289,90 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "keyState": {
+                     *         "confirmedAt": "2026-09-25T12:00:00Z",
+                     *         "fingerprint": "rk_9f3a61c2d4e5b708",
+                     *         "generation": 1,
+                     *         "pendingCreatedAt": "2026-09-25T12:00:00Z",
+                     *         "pendingFingerprint": "example",
+                     *         "pendingLocations": [
+                     *           "0190a6e0-...:env:0190a6e1-..."
+                     *         ],
+                     *         "previousFingerprint": "example",
+                     *         "rotationInProgress": false,
+                     *         "scope": "instance"
+                     *       },
+                     *       "nextStep": "example",
+                     *       "recoveryKey": {
+                     *         "fingerprint": "rk_9f3a61c2d4e5b708",
+                     *         "key": "DYRK-ABCD-EFGH-...",
+                     *         "notice": [
+                     *           "example"
+                     *         ]
+                     *       },
+                     *       "repository": {
+                     *         "actions": [
+                     *           "example"
+                     *         ],
+                     *         "bucket": "example",
+                     *         "confirmedAt": "2026-09-25T12:00:00Z",
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "credential": {
+                     *           "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *           "set": false
+                     *         },
+                     *         "endpoint": "example",
+                     *         "executor": "example",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "kind": "local",
+                     *         "lastTest": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "canDelete": false,
+                     *           "canRead": false,
+                     *           "canWrite": false,
+                     *           "message": "example",
+                     *           "objectLock": false,
+                     *           "ok": false,
+                     *           "result": "ok",
+                     *           "scopes": [
+                     *             {
+                     *               "errorClass": "example",
+                     *               "exists": false,
+                     *               "keyAccepted": false,
+                     *               "previousKey": false,
+                     *               "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "scope": "manager"
+                     *             }
+                     *           ],
+                     *           "warnings": [
+                     *             "example"
+                     *           ]
+                     *         },
+                     *         "location": "https://s3.example.com/backups/dockyard",
+                     *         "name": "Offsite S3",
+                     *         "path": "config/app.conf",
+                     *         "pathStyle": false,
+                     *         "prefix": "example",
+                     *         "recoveryRequirements": [
+                     *           "example"
+                     *         ],
+                     *         "region": "example",
+                     *         "revision": 1,
+                     *         "state": "awaiting_confirmation",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "verification": {
+                     *           "cron": "0 5 * * 0",
+                     *           "enabled": false,
+                     *           "lastVerifiedAt": "2026-09-25T12:00:00Z",
+                     *           "readDataSubset": "5%",
+                     *           "timeZone": "Europe/Berlin"
+                     *         },
+                     *         "view": "minimal"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["CreatedBackupRepository"];
                 };
             };
@@ -11576,6 +13442,67 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "bucket": "example",
+                     *       "confirmedAt": "2026-09-25T12:00:00Z",
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "credential": {
+                     *         "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *         "set": false
+                     *       },
+                     *       "endpoint": "example",
+                     *       "executor": "example",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "kind": "local",
+                     *       "lastTest": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "canDelete": false,
+                     *         "canRead": false,
+                     *         "canWrite": false,
+                     *         "message": "example",
+                     *         "objectLock": false,
+                     *         "ok": false,
+                     *         "result": "ok",
+                     *         "scopes": [
+                     *           {
+                     *             "errorClass": "example",
+                     *             "exists": false,
+                     *             "keyAccepted": false,
+                     *             "previousKey": false,
+                     *             "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "scope": "manager"
+                     *           }
+                     *         ],
+                     *         "warnings": [
+                     *           "example"
+                     *         ]
+                     *       },
+                     *       "location": "https://s3.example.com/backups/dockyard",
+                     *       "name": "Offsite S3",
+                     *       "path": "config/app.conf",
+                     *       "pathStyle": false,
+                     *       "prefix": "example",
+                     *       "recoveryRequirements": [
+                     *         "example"
+                     *       ],
+                     *       "region": "example",
+                     *       "revision": 1,
+                     *       "state": "awaiting_confirmation",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "verification": {
+                     *         "cron": "0 5 * * 0",
+                     *         "enabled": false,
+                     *         "lastVerifiedAt": "2026-09-25T12:00:00Z",
+                     *         "readDataSubset": "5%",
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["BackupRepository"];
                 };
             };
@@ -11728,6 +13655,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "Offsite S3",
+                 *       "verifyCron": "0 5 * * 0"
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateBackupRepositoryInputBody"];
             };
         };
@@ -11739,6 +13672,67 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "bucket": "example",
+                     *       "confirmedAt": "2026-09-25T12:00:00Z",
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "credential": {
+                     *         "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *         "set": false
+                     *       },
+                     *       "endpoint": "example",
+                     *       "executor": "example",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "kind": "local",
+                     *       "lastTest": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "canDelete": false,
+                     *         "canRead": false,
+                     *         "canWrite": false,
+                     *         "message": "example",
+                     *         "objectLock": false,
+                     *         "ok": false,
+                     *         "result": "ok",
+                     *         "scopes": [
+                     *           {
+                     *             "errorClass": "example",
+                     *             "exists": false,
+                     *             "keyAccepted": false,
+                     *             "previousKey": false,
+                     *             "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "scope": "manager"
+                     *           }
+                     *         ],
+                     *         "warnings": [
+                     *           "example"
+                     *         ]
+                     *       },
+                     *       "location": "https://s3.example.com/backups/dockyard",
+                     *       "name": "Offsite S3",
+                     *       "path": "config/app.conf",
+                     *       "pathStyle": false,
+                     *       "prefix": "example",
+                     *       "recoveryRequirements": [
+                     *         "example"
+                     *       ],
+                     *       "region": "example",
+                     *       "revision": 1,
+                     *       "state": "awaiting_confirmation",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "verification": {
+                     *         "cron": "0 5 * * 0",
+                     *         "enabled": false,
+                     *         "lastVerifiedAt": "2026-09-25T12:00:00Z",
+                     *         "readDataSubset": "5%",
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["BackupRepository"];
                 };
             };
@@ -11834,6 +13828,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "at": "2026-09-25T12:00:00Z",
+                     *       "canDelete": false,
+                     *       "canRead": false,
+                     *       "canWrite": false,
+                     *       "message": "example",
+                     *       "objectLock": false,
+                     *       "ok": false,
+                     *       "result": "ok",
+                     *       "scopes": [
+                     *         {
+                     *           "errorClass": "example",
+                     *           "exists": false,
+                     *           "keyAccepted": false,
+                     *           "previousKey": false,
+                     *           "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "scope": "manager"
+                     *         }
+                     *       ],
+                     *       "warnings": [
+                     *         "example"
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["BackupConnectionTest"];
                 };
             };
@@ -11902,6 +13921,69 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "backupAge": "26h0m0s",
+                     *       "healthy": false,
+                     *       "keyState": {
+                     *         "confirmedAt": "2026-09-25T12:00:00Z",
+                     *         "fingerprint": "rk_9f3a61c2d4e5b708",
+                     *         "generation": 1,
+                     *         "pendingCreatedAt": "2026-09-25T12:00:00Z",
+                     *         "pendingFingerprint": "example",
+                     *         "pendingLocations": [
+                     *           "0190a6e0-...:env:0190a6e1-..."
+                     *         ],
+                     *         "previousFingerprint": "example",
+                     *         "rotationInProgress": false,
+                     *         "scope": "instance"
+                     *       },
+                     *       "lastBackupAt": "2026-09-25T12:00:00Z",
+                     *       "lastTest": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "canDelete": false,
+                     *         "canRead": false,
+                     *         "canWrite": false,
+                     *         "message": "example",
+                     *         "objectLock": false,
+                     *         "ok": false,
+                     *         "result": "ok",
+                     *         "scopes": [
+                     *           {
+                     *             "errorClass": "example",
+                     *             "exists": false,
+                     *             "keyAccepted": false,
+                     *             "previousKey": false,
+                     *             "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "scope": "manager"
+                     *           }
+                     *         ],
+                     *         "warnings": [
+                     *           "example"
+                     *         ]
+                     *       },
+                     *       "lastVerifiedAt": "2026-09-25T12:00:00Z",
+                     *       "locations": [
+                     *         {
+                     *           "keyGeneration": 1,
+                     *           "lastBackupAt": "2026-09-25T12:00:00Z",
+                     *           "lastVerifiedAt": "2026-09-25T12:00:00Z",
+                     *           "lastVerifyResult": "example",
+                     *           "repository": "example",
+                     *           "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "scope": "example",
+                     *           "sizeBytes": 1
+                     *         }
+                     *       ],
+                     *       "problems": [
+                     *         "example"
+                     *       ],
+                     *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "sizeBytes": 1,
+                     *       "snapshots": 1,
+                     *       "state": "example"
+                     *     }
+                     */
                     "application/json": components["schemas"]["BackupRepositoryHealth"];
                 };
             };
@@ -11970,6 +14052,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "keyState": {
+                     *         "confirmedAt": "2026-09-25T12:00:00Z",
+                     *         "fingerprint": "rk_9f3a61c2d4e5b708",
+                     *         "generation": 1,
+                     *         "pendingCreatedAt": "2026-09-25T12:00:00Z",
+                     *         "pendingFingerprint": "example",
+                     *         "pendingLocations": [
+                     *           "0190a6e0-...:env:0190a6e1-..."
+                     *         ],
+                     *         "previousFingerprint": "example",
+                     *         "rotationInProgress": false,
+                     *         "scope": "instance"
+                     *       },
+                     *       "nextStep": "example",
+                     *       "recoveryKey": {
+                     *         "fingerprint": "rk_9f3a61c2d4e5b708",
+                     *         "key": "DYRK-ABCD-EFGH-...",
+                     *         "notice": [
+                     *           "example"
+                     *         ]
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["KeyRotationStarted"];
                 };
             };
@@ -12041,6 +14148,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "backedUp": false,
+                 *       "recoveryKey": "dyrk-4V7Q-2M9X-KP3T-8WRH-6JDN-CF5B-ZL2A"
+                 *     }
+                 */
                 "application/json": components["schemas"]["RecoveryConfirmationInputBody"];
             };
         };
@@ -12051,6 +14164,141 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "activated": false,
+                     *       "jobs": [
+                     *         {
+                     *           "attempt": 1,
+                     *           "blockedBy": {
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "reason": "lock"
+                     *           },
+                     *           "cancelRequested": false,
+                     *           "cancellable": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "error": {
+                     *             "class": "agent_offline",
+                     *             "message": "example",
+                     *             "recovery": "example"
+                     *           },
+                     *           "executor": "agent",
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "items": [
+                     *             {
+                     *               "message": "example",
+                     *               "name": "web",
+                     *               "status": "succeeded"
+                     *             }
+                     *           ],
+                     *           "kind": "stack.deploy",
+                     *           "locks": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "mode": "shared",
+                     *               "name": "web",
+                     *               "scope": "host"
+                     *             }
+                     *           ],
+                     *           "locksHeld": false,
+                     *           "origin": "manual",
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "progress": {
+                     *             "message": "example",
+                     *             "percent": 1,
+                     *             "step": "example"
+                     *           },
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "queued",
+                     *           "targets": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "type": "stack"
+                     *             }
+                     *           ],
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ],
+                     *       "keyState": {
+                     *         "confirmedAt": "2026-09-25T12:00:00Z",
+                     *         "fingerprint": "rk_9f3a61c2d4e5b708",
+                     *         "generation": 1,
+                     *         "pendingCreatedAt": "2026-09-25T12:00:00Z",
+                     *         "pendingFingerprint": "example",
+                     *         "pendingLocations": [
+                     *           "0190a6e0-...:env:0190a6e1-..."
+                     *         ],
+                     *         "previousFingerprint": "example",
+                     *         "rotationInProgress": false,
+                     *         "scope": "instance"
+                     *       },
+                     *       "repository": {
+                     *         "actions": [
+                     *           "example"
+                     *         ],
+                     *         "bucket": "example",
+                     *         "confirmedAt": "2026-09-25T12:00:00Z",
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "credential": {
+                     *           "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *           "set": false
+                     *         },
+                     *         "endpoint": "example",
+                     *         "executor": "example",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "kind": "local",
+                     *         "lastTest": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "canDelete": false,
+                     *           "canRead": false,
+                     *           "canWrite": false,
+                     *           "message": "example",
+                     *           "objectLock": false,
+                     *           "ok": false,
+                     *           "result": "ok",
+                     *           "scopes": [
+                     *             {
+                     *               "errorClass": "example",
+                     *               "exists": false,
+                     *               "keyAccepted": false,
+                     *               "previousKey": false,
+                     *               "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "scope": "manager"
+                     *             }
+                     *           ],
+                     *           "warnings": [
+                     *             "example"
+                     *           ]
+                     *         },
+                     *         "location": "https://s3.example.com/backups/dockyard",
+                     *         "name": "Offsite S3",
+                     *         "path": "config/app.conf",
+                     *         "pathStyle": false,
+                     *         "prefix": "example",
+                     *         "recoveryRequirements": [
+                     *           "example"
+                     *         ],
+                     *         "region": "example",
+                     *         "revision": 1,
+                     *         "state": "awaiting_confirmation",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "verification": {
+                     *           "cron": "0 5 * * 0",
+                     *           "enabled": false,
+                     *           "lastVerifiedAt": "2026-09-25T12:00:00Z",
+                     *           "readDataSubset": "5%",
+                     *           "timeZone": "Europe/Berlin"
+                     *         },
+                     *         "view": "minimal"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["RecoveryConfirmation"];
                 };
             };
@@ -12137,6 +14385,46 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "bytes": 1,
+                     *           "consistency": "live",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "errorClass": "example",
+                     *           "forgottenAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "item": "example",
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "kind": "manager_state",
+                     *           "paths": [
+                     *             "config/app.conf"
+                     *           ],
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "scope": "example",
+                     *           "setId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "snapshotId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "snapshotTime": "2026-09-25T12:00:00Z",
+                     *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "stackName": "web",
+                     *           "state": "complete",
+                     *           "verifiedAt": "2026-09-25T12:00:00Z",
+                     *           "view": "minimal",
+                     *           "volume": "example",
+                     *           "volumes": [
+                     *             "example"
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageBackup"];
                 };
             };
@@ -12187,6 +14475,62 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "bytes": 1,
+                     *       "consistency": "live",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "errorClass": "example",
+                     *       "forgottenAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "item": "example",
+                     *       "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "kind": "manager_state",
+                     *       "paths": [
+                     *         "config/app.conf"
+                     *       ],
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "scope": "example",
+                     *       "set": {
+                     *         "finishedAt": "2026-09-25T12:00:00Z",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "members": [
+                     *           {
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "errorClass": "example",
+                     *             "item": "stack/0190a6e0-...",
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "manager_state",
+                     *             "scope": "example",
+                     *             "snapshotTime": "2026-09-25T12:00:00Z",
+                     *             "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "stackName": "web",
+                     *             "state": "pending",
+                     *             "volume": "example"
+                     *           }
+                     *         ],
+                     *         "origin": "manual",
+                     *         "startedAt": "2026-09-25T12:00:00Z",
+                     *         "state": "pending"
+                     *       },
+                     *       "setId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "snapshotId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "snapshotTime": "2026-09-25T12:00:00Z",
+                     *       "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "stackName": "web",
+                     *       "state": "complete",
+                     *       "verifiedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal",
+                     *       "volume": "example",
+                     *       "volumes": [
+                     *         "example"
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["BackupDetail"];
                 };
             };
@@ -12251,6 +14595,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "entries": [
+                     *         {
+                     *           "gid": 1,
+                     *           "mode": 1,
+                     *           "mtime": "2026-09-25T12:00:00Z",
+                     *           "name": "nginx.conf",
+                     *           "path": "/stacks/web/config/nginx.conf",
+                     *           "size": 1,
+                     *           "type": "file",
+                     *           "uid": 1
+                     *         }
+                     *       ],
+                     *       "path": "config/app.conf",
+                     *       "truncated": false
+                     *     }
+                     */
                     "application/json": components["schemas"]["BackupContents"];
                 };
             };
@@ -12429,6 +14791,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "scope": "volume",
+                 *       "volumes": [
+                 *         "web_data"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["RestoreBody"];
             };
         };
@@ -12439,6 +14809,51 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "affectedContainers": [
+                     *         {
+                     *           "name": "web",
+                     *           "project": "example",
+                     *           "protected": "example",
+                     *           "running": false,
+                     *           "service": "example",
+                     *           "stopOrder": 1
+                     *         }
+                     *       ],
+                     *       "blocked": [
+                     *         "example"
+                     *       ],
+                     *       "canRestore": false,
+                     *       "conflicts": [
+                     *         "example"
+                     *       ],
+                     *       "targets": [
+                     *         {
+                     *           "added": 1,
+                     *           "bytes": 1,
+                     *           "complete": false,
+                     *           "create": false,
+                     *           "exists": false,
+                     *           "files": 1,
+                     *           "filesRestored": 1,
+                     *           "freeBytes": 1,
+                     *           "kind": "example",
+                     *           "name": "web",
+                     *           "overwritten": 1,
+                     *           "owners": [
+                     *             "example"
+                     *           ],
+                     *           "path": "config/app.conf",
+                     *           "removed": 1,
+                     *           "source": "example"
+                     *         }
+                     *       ],
+                     *       "warnings": [
+                     *         "The restore overwrites 12 existing files"
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["RestorePreview"];
                 };
             };
@@ -12522,6 +14937,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "confirm": true,
+                 *       "scope": "volume"
+                 *     }
+                 */
                 "application/json": components["schemas"]["RestoreInputBody"];
             };
         };
@@ -12533,6 +14954,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -12607,6 +15086,11 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "readDataSubset": "10%"
+                 *     }
+                 */
                 "application/json": components["schemas"]["VerifyBackupInputBody"];
             };
         };
@@ -12618,6 +15102,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -12683,6 +15225,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "agentProtocolVersion": "dockyard.agent/v1",
+                     *       "apiVersion": "v1",
+                     *       "features": [
+                     *         "example"
+                     *       ],
+                     *       "managerVersion": "0.0.0-edge"
+                     *     }
+                     */
                     "application/json": components["schemas"]["CapabilitiesBody"];
                 };
             };
@@ -12719,6 +15271,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "agentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "agentVersion": "0.0.0-edge",
+                     *           "allowDuplicateEngineId": false,
+                     *           "archivedAt": "2026-09-25T12:00:00Z",
+                     *           "compatibility": "current",
+                     *           "connectionChangedAt": "2026-09-25T12:00:00Z",
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0190a6e0-3333-7000-8000-000000000003",
+                     *           "lastSeenAt": "2026-09-25T12:00:00Z",
+                     *           "name": "NAS",
+                     *           "online": false,
+                     *           "revision": 1,
+                     *           "serviceAddress": "nas.lan",
+                     *           "status": "active",
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "upgradeInstructions": "example",
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageEnvironment"];
                 };
             };
@@ -12770,6 +15353,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "agentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "agentVersion": "0.0.0-edge",
+                     *       "allowDuplicateEngineId": false,
+                     *       "archivedAt": "2026-09-25T12:00:00Z",
+                     *       "compatibility": "current",
+                     *       "connectionChangedAt": "2026-09-25T12:00:00Z",
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0190a6e0-3333-7000-8000-000000000003",
+                     *       "lastSeenAt": "2026-09-25T12:00:00Z",
+                     *       "name": "NAS",
+                     *       "online": false,
+                     *       "revision": 1,
+                     *       "serviceAddress": "nas.lan",
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "upgradeInstructions": "example",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Environment"];
                 };
             };
@@ -12913,6 +15521,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "NAS",
+                 *       "serviceAddress": "nas.lan"
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateEnvironmentInputBody"];
             };
         };
@@ -12924,6 +15538,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "agentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "agentVersion": "0.0.0-edge",
+                     *       "allowDuplicateEngineId": false,
+                     *       "archivedAt": "2026-09-25T12:00:00Z",
+                     *       "compatibility": "current",
+                     *       "connectionChangedAt": "2026-09-25T12:00:00Z",
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0190a6e0-3333-7000-8000-000000000003",
+                     *       "lastSeenAt": "2026-09-25T12:00:00Z",
+                     *       "name": "NAS",
+                     *       "online": false,
+                     *       "revision": 1,
+                     *       "serviceAddress": "nas.lan",
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "upgradeInstructions": "example",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Environment"];
                 };
             };
@@ -13024,6 +15663,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "compatibility": "current",
+                     *           "connected": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "hostname": "web",
+                     *           "id": "0190a6e0-2222-7000-8000-000000000002",
+                     *           "installId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "label": "example",
+                     *           "lastConnectedAt": "2026-09-25T12:00:00Z",
+                     *           "lastSeenAt": "2026-09-25T12:00:00Z",
+                     *           "revision": 1,
+                     *           "revokedAt": "2026-09-25T12:00:00Z",
+                     *           "revokedReason": "removed",
+                     *           "rotationPending": false,
+                     *           "status": "active",
+                     *           "transport": {
+                     *             "customCa": false,
+                     *             "managerUrl": "example",
+                     *             "plainHttp": false
+                     *           },
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "upgradeInstructions": "example",
+                     *           "version": "0.0.0-edge",
+                     *           "versionStatus": "current",
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageAgent"];
                 };
             };
@@ -13088,6 +15766,47 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "description": "example",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "lastBuildId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "web",
+                     *           "revision": 1,
+                     *           "source": {
+                     *             "buildArgs": {},
+                     *             "contextPath": "services/api",
+                     *             "dockerfile": "Dockerfile",
+                     *             "gitCredentialId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "gitUrl": "https://github.com/acme/app.git",
+                     *             "noCache": false,
+                     *             "platform": "linux/amd64",
+                     *             "pull": false,
+                     *             "ref": "main",
+                     *             "registryIds": [
+                     *               "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *             ],
+                     *             "tags": [
+                     *               "registry.example.com/acme/app:1.4.2"
+                     *             ],
+                     *             "target": "example",
+                     *             "timeoutSeconds": 1
+                     *           },
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageBuildDefinition"];
                 };
             };
@@ -13141,6 +15860,21 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "web",
+                 *       "source": {
+                 *         "contextPath": "services/api",
+                 *         "dockerfile": "Dockerfile",
+                 *         "gitUrl": "https://github.com/acme/app.git",
+                 *         "platform": "linux/amd64",
+                 *         "ref": "main",
+                 *         "tags": [
+                 *           "registry.example.com/acme/app:1.4.2"
+                 *         ]
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateDefinitionInputBody"];
             };
         };
@@ -13152,6 +15886,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastBuildId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "web",
+                     *       "revision": 1,
+                     *       "source": {
+                     *         "buildArgs": {},
+                     *         "contextPath": "services/api",
+                     *         "dockerfile": "Dockerfile",
+                     *         "gitCredentialId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "gitUrl": "https://github.com/acme/app.git",
+                     *         "noCache": false,
+                     *         "platform": "linux/amd64",
+                     *         "pull": false,
+                     *         "ref": "main",
+                     *         "registryIds": [
+                     *           "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *         ],
+                     *         "tags": [
+                     *           "registry.example.com/acme/app:1.4.2"
+                     *         ],
+                     *         "target": "example",
+                     *         "timeoutSeconds": 1
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["BuildDefinition"];
                 };
             };
@@ -13232,6 +16001,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastBuildId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "web",
+                     *       "revision": 1,
+                     *       "source": {
+                     *         "buildArgs": {},
+                     *         "contextPath": "services/api",
+                     *         "dockerfile": "Dockerfile",
+                     *         "gitCredentialId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "gitUrl": "https://github.com/acme/app.git",
+                     *         "noCache": false,
+                     *         "platform": "linux/amd64",
+                     *         "pull": false,
+                     *         "ref": "main",
+                     *         "registryIds": [
+                     *           "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *         ],
+                     *         "tags": [
+                     *           "registry.example.com/acme/app:1.4.2"
+                     *         ],
+                     *         "target": "example",
+                     *         "timeoutSeconds": 1
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["BuildDefinition"];
                 };
             };
@@ -13379,6 +16183,20 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "source": {
+                 *         "contextPath": "services/api",
+                 *         "dockerfile": "Dockerfile",
+                 *         "gitUrl": "https://github.com/acme/app.git",
+                 *         "platform": "linux/amd64",
+                 *         "ref": "main",
+                 *         "tags": [
+                 *           "registry.example.com/acme/app:1.4.2"
+                 *         ]
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateDefinitionInputBody"];
             };
         };
@@ -13390,6 +16208,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastBuildId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "web",
+                     *       "revision": 1,
+                     *       "source": {
+                     *         "buildArgs": {},
+                     *         "contextPath": "services/api",
+                     *         "dockerfile": "Dockerfile",
+                     *         "gitCredentialId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "gitUrl": "https://github.com/acme/app.git",
+                     *         "noCache": false,
+                     *         "platform": "linux/amd64",
+                     *         "pull": false,
+                     *         "ref": "main",
+                     *         "registryIds": [
+                     *           "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *         ],
+                     *         "tags": [
+                     *           "registry.example.com/acme/app:1.4.2"
+                     *         ],
+                     *         "target": "example",
+                     *         "timeoutSeconds": 1
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["BuildDefinition"];
                 };
             };
@@ -13491,6 +16344,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -13577,6 +16488,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "cpuPercent": 1,
+                     *       "cpus": 1,
+                     *       "disks": [
+                     *         {
+                     *           "freeBytes": 1,
+                     *           "mount": "docker",
+                     *           "totalBytes": 1,
+                     *           "usedBytes": 1
+                     *         }
+                     *       ],
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "load1": 1,
+                     *       "load15": 1,
+                     *       "load5": 1,
+                     *       "memoryTotalBytes": 1,
+                     *       "memoryUsedBytes": 1,
+                     *       "networkRxBytesPerSecond": 1,
+                     *       "networkScope": "host",
+                     *       "networkTxBytesPerSecond": 1,
+                     *       "online": false,
+                     *       "sampledAt": "2026-09-25T12:00:00Z",
+                     *       "uptimeSeconds": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["EnvironmentCapacity"];
                 };
             };
@@ -13660,6 +16597,135 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "command": "example",
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "details": {
+                     *             "cmd": [
+                     *               "example"
+                     *             ],
+                     *             "entrypoint": [
+                     *               "example"
+                     *             ],
+                     *             "error": "example",
+                     *             "exitCode": 1,
+                     *             "finishedAt": "2026-09-25T12:00:00Z",
+                     *             "healthcheck": {
+                     *               "intervalSeconds": 1,
+                     *               "retries": 1,
+                     *               "startPeriodSeconds": 1,
+                     *               "test": [
+                     *                 "example"
+                     *               ],
+                     *               "timeoutSeconds": 1
+                     *             },
+                     *             "hostname": "web",
+                     *             "networkMode": "example",
+                     *             "networks": [
+                     *               {
+                     *                 "aliases": [
+                     *                   "example"
+                     *                 ],
+                     *                 "ipAddress": "example",
+                     *                 "ipv6Address": "example",
+                     *                 "macAddress": "example",
+                     *                 "name": "web"
+                     *               }
+                     *             ],
+                     *             "oomKilled": false,
+                     *             "paused": false,
+                     *             "platform": "example",
+                     *             "recreate": {
+                     *               "envKeys": [
+                     *                 "example"
+                     *               ],
+                     *               "fields": [
+                     *                 "example"
+                     *               ]
+                     *             },
+                     *             "removal": {
+                     *               "allowed": false,
+                     *               "blockers": [
+                     *                 {
+                     *                   "code": "volume_in_use",
+                     *                   "message": "example"
+                     *                 }
+                     *               ],
+                     *               "consequences": [
+                     *                 "example"
+                     *               ]
+                     *             },
+                     *             "resources": {
+                     *               "cpuShares": 1,
+                     *               "cpus": 1,
+                     *               "memoryBytes": 1,
+                     *               "memorySwapBytes": 1,
+                     *               "pidsLimit": 1
+                     *             },
+                     *             "restartCount": 1,
+                     *             "restartPolicy": "example",
+                     *             "running": false,
+                     *             "startedAt": "2026-09-25T12:00:00Z",
+                     *             "tty": false,
+                     *             "user": "example",
+                     *             "workingDir": "example"
+                     *           },
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "health": "starting",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "image": "nginx:1.27",
+                     *           "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "labels": {},
+                     *           "managed": {
+                     *             "kind": "standalone",
+                     *             "specSaved": false,
+                     *             "thisInstance": false
+                     *           },
+                     *           "mounts": [
+                     *             {
+                     *               "destination": "example",
+                     *               "name": "web",
+                     *               "readOnly": false,
+                     *               "source": "example",
+                     *               "type": "volume"
+                     *             }
+                     *           ],
+                     *           "name": "web",
+                     *           "ports": [
+                     *             {
+                     *               "containerPort": 1,
+                     *               "hostIp": "example",
+                     *               "hostPort": 1,
+                     *               "protocol": "tcp"
+                     *             }
+                     *           ],
+                     *           "protection": {
+                     *             "reason": "example",
+                     *             "restartAllowed": false,
+                     *             "role": "agent",
+                     *             "self": false
+                     *           },
+                     *           "stack": {
+                     *             "managed": false,
+                     *             "project": "example",
+                     *             "service": "example",
+                     *             "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *           },
+                     *           "state": "running",
+                     *           "status": "example",
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageContainer"];
                 };
             };
@@ -13743,6 +16809,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "image": "nginx:1.27",
+                 *       "name": "web"
+                 *     }
+                 */
                 "application/json": components["schemas"]["ContainerCreateBody"];
             };
         };
@@ -13754,6 +16826,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -13860,6 +16990,129 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "command": "example",
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "details": {
+                     *         "cmd": [
+                     *           "example"
+                     *         ],
+                     *         "entrypoint": [
+                     *           "example"
+                     *         ],
+                     *         "error": "example",
+                     *         "exitCode": 1,
+                     *         "finishedAt": "2026-09-25T12:00:00Z",
+                     *         "healthcheck": {
+                     *           "intervalSeconds": 1,
+                     *           "retries": 1,
+                     *           "startPeriodSeconds": 1,
+                     *           "test": [
+                     *             "example"
+                     *           ],
+                     *           "timeoutSeconds": 1
+                     *         },
+                     *         "hostname": "web",
+                     *         "networkMode": "example",
+                     *         "networks": [
+                     *           {
+                     *             "aliases": [
+                     *               "example"
+                     *             ],
+                     *             "ipAddress": "example",
+                     *             "ipv6Address": "example",
+                     *             "macAddress": "example",
+                     *             "name": "web"
+                     *           }
+                     *         ],
+                     *         "oomKilled": false,
+                     *         "paused": false,
+                     *         "platform": "example",
+                     *         "recreate": {
+                     *           "envKeys": [
+                     *             "example"
+                     *           ],
+                     *           "fields": [
+                     *             "example"
+                     *           ]
+                     *         },
+                     *         "removal": {
+                     *           "allowed": false,
+                     *           "blockers": [
+                     *             {
+                     *               "code": "volume_in_use",
+                     *               "message": "example"
+                     *             }
+                     *           ],
+                     *           "consequences": [
+                     *             "example"
+                     *           ]
+                     *         },
+                     *         "resources": {
+                     *           "cpuShares": 1,
+                     *           "cpus": 1,
+                     *           "memoryBytes": 1,
+                     *           "memorySwapBytes": 1,
+                     *           "pidsLimit": 1
+                     *         },
+                     *         "restartCount": 1,
+                     *         "restartPolicy": "example",
+                     *         "running": false,
+                     *         "startedAt": "2026-09-25T12:00:00Z",
+                     *         "tty": false,
+                     *         "user": "example",
+                     *         "workingDir": "example"
+                     *       },
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "health": "starting",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "image": "nginx:1.27",
+                     *       "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "labels": {},
+                     *       "managed": {
+                     *         "kind": "standalone",
+                     *         "specSaved": false,
+                     *         "thisInstance": false
+                     *       },
+                     *       "mounts": [
+                     *         {
+                     *           "destination": "example",
+                     *           "name": "web",
+                     *           "readOnly": false,
+                     *           "source": "example",
+                     *           "type": "volume"
+                     *         }
+                     *       ],
+                     *       "name": "web",
+                     *       "ports": [
+                     *         {
+                     *           "containerPort": 1,
+                     *           "hostIp": "example",
+                     *           "hostPort": 1,
+                     *           "protocol": "tcp"
+                     *         }
+                     *       ],
+                     *       "protection": {
+                     *         "reason": "example",
+                     *         "restartAllowed": false,
+                     *         "role": "agent",
+                     *         "self": false
+                     *       },
+                     *       "stack": {
+                     *         "managed": false,
+                     *         "project": "example",
+                     *         "service": "example",
+                     *         "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *       },
+                     *       "state": "running",
+                     *       "status": "example",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Container"];
                 };
             };
@@ -13957,6 +17210,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -14060,6 +17371,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "restartPolicy": "unless-stopped"
+                 *     }
+                 */
                 "application/json": components["schemas"]["ContainerUpdateBody"];
             };
         };
@@ -14071,6 +17387,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -14171,6 +17545,15 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "cols": 120,
+                 *       "command": [
+                 *         "/bin/sh"
+                 *       ],
+                 *       "rows": 32
+                 *     }
+                 */
                 "application/json": components["schemas"]["ExecSessionCreate"];
             };
         };
@@ -14181,6 +17564,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "streamUrl": "example",
+                     *       "subprotocol": "dockyard.exec.v1",
+                     *       "ticket": "example"
+                     *     }
+                     */
                     "application/json": components["schemas"]["ExecSessionDTO"];
                 };
             };
@@ -14500,6 +17892,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "candidateDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *       "checkedAt": "2026-09-25T12:00:00Z",
+                     *       "container": "web",
+                     *       "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *       "eligible": false,
+                     *       "image": "nginx:1.27",
+                     *       "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "managed": false,
+                     *       "nonVersionTag": false,
+                     *       "platform": "example",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "reason": "build_only",
+                     *       "reasonMessage": "example",
+                     *       "update": "no_policy"
+                     *     }
+                     */
                     "application/json": components["schemas"]["ContainerImageStatus"];
                 };
             };
@@ -14581,6 +17991,19 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "lines": [
+                     *         {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "line": "GET /healthz HTTP/1.1 200",
+                     *           "partial": false,
+                     *           "stream": "stdout"
+                     *         }
+                     *       ],
+                     *       "truncated": false
+                     *     }
+                     */
                     "application/json": components["schemas"]["ContainerLogs"];
                 };
             };
@@ -14796,6 +18219,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "container": "example",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "from": "2026-09-25T12:00:00Z",
+                     *       "incomplete": false,
+                     *       "online": false,
+                     *       "resolution": "raw",
+                     *       "series": [
+                     *         {
+                     *           "key": "cpu.percent",
+                     *           "mount": "docker",
+                     *           "unit": "percent",
+                     *           "values": [
+                     *             1
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "skewCorrected": false,
+                     *       "stepSeconds": 1,
+                     *       "timestamps": [
+                     *         "2026-09-25T12:00:00Z"
+                     *       ],
+                     *       "to": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["ContainerMetrics"];
                 };
             };
@@ -14897,6 +18346,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -15000,6 +18507,11 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "timeoutSeconds": 10
+                 *     }
+                 */
                 "application/json": components["schemas"]["ContainerRestartInputBody"];
             };
         };
@@ -15011,6 +18523,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -15121,6 +18691,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -15224,6 +18852,11 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "timeoutSeconds": 10
+                 *     }
+                 */
                 "application/json": components["schemas"]["ContainerStopInputBody"];
             };
         };
@@ -15235,6 +18868,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -15345,6 +19036,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -15527,6 +19276,48 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "buildArgNames": [
+                     *             "web"
+                     *           ],
+                     *           "contextPath": "config/app.conf",
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "definitionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "dockerfile": "example",
+                     *           "durationMs": 1,
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "errorClass": "example",
+                     *           "errorMessage": "example",
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "gitCredentialId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "gitUrl": "https://github.com/example/app.git",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "noCache": false,
+                     *           "platform": "example",
+                     *           "pull": false,
+                     *           "ref": "example",
+                     *           "registryIds": [
+                     *             "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *           ],
+                     *           "resolvedCommit": "example",
+                     *           "resolvedRef": "example",
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "status": "queued",
+                     *           "tags": [
+                     *             "registry.example.com/app:edge"
+                     *           ],
+                     *           "target": "example"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageImageBuild"];
                 };
             };
@@ -15597,6 +19388,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "buildArgNames": [
+                     *         "web"
+                     *       ],
+                     *       "contextPath": "config/app.conf",
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "definitionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "dockerfile": "example",
+                     *       "durationMs": 1,
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "errorClass": "example",
+                     *       "errorMessage": "example",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "gitCredentialId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "gitUrl": "https://github.com/example/app.git",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "noCache": false,
+                     *       "platform": "example",
+                     *       "pull": false,
+                     *       "ref": "example",
+                     *       "registryIds": [
+                     *         "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *       ],
+                     *       "resolvedCommit": "example",
+                     *       "resolvedRef": "example",
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "status": "queued",
+                     *       "tags": [
+                     *         "registry.example.com/app:edge"
+                     *       ],
+                     *       "target": "example"
+                     *     }
+                     */
                     "application/json": components["schemas"]["ImageBuild"];
                 };
             };
@@ -15676,6 +19503,78 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "details": {
+                     *             "architecture": "example",
+                     *             "author": "example",
+                     *             "cmd": [
+                     *               "example"
+                     *             ],
+                     *             "entrypoint": [
+                     *               "example"
+                     *             ],
+                     *             "exposedPorts": [
+                     *               "example"
+                     *             ],
+                     *             "hasHealthTest": false,
+                     *             "os": "example",
+                     *             "removal": {
+                     *               "allowed": false,
+                     *               "blockers": [
+                     *                 {
+                     *                   "code": "volume_in_use",
+                     *                   "message": "example"
+                     *                 }
+                     *               ],
+                     *               "consequences": [
+                     *                 "example"
+                     *               ]
+                     *             },
+                     *             "user": "example",
+                     *             "variant": "example",
+                     *             "volumes": [
+                     *               "example"
+                     *             ],
+                     *             "workingDir": "example"
+                     *           },
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "sha256:4e1b5f1a6d8e...",
+                     *           "inUse": false,
+                     *           "labels": {},
+                     *           "protection": {
+                     *             "reason": "example",
+                     *             "restartAllowed": false,
+                     *             "role": "agent",
+                     *             "self": false
+                     *           },
+                     *           "repoDigests": [
+                     *             "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60"
+                     *           ],
+                     *           "repoTags": [
+                     *             "example"
+                     *           ],
+                     *           "size": 1,
+                     *           "usedBy": [
+                     *             {
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "name": "web",
+                     *               "state": "example"
+                     *             }
+                     *           ],
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageImage"];
                 };
             };
@@ -15759,6 +19658,18 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "contextPath": "services/api",
+                 *       "dockerfile": "Dockerfile",
+                 *       "gitUrl": "https://github.com/acme/app.git",
+                 *       "platform": "linux/amd64",
+                 *       "ref": "main",
+                 *       "tags": [
+                 *         "registry.example.com/acme/app:1.4.2"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["BuildSource"];
             };
         };
@@ -15770,6 +19681,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -15853,6 +19822,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "platform": "linux/arm64",
+                 *       "reference": "ghcr.io/org/app:1.2"
+                 *     }
+                 */
                 "application/json": components["schemas"]["PullImageInputBody"];
             };
         };
@@ -15864,6 +19839,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -15970,6 +20003,72 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "details": {
+                     *         "architecture": "example",
+                     *         "author": "example",
+                     *         "cmd": [
+                     *           "example"
+                     *         ],
+                     *         "entrypoint": [
+                     *           "example"
+                     *         ],
+                     *         "exposedPorts": [
+                     *           "example"
+                     *         ],
+                     *         "hasHealthTest": false,
+                     *         "os": "example",
+                     *         "removal": {
+                     *           "allowed": false,
+                     *           "blockers": [
+                     *             {
+                     *               "code": "volume_in_use",
+                     *               "message": "example"
+                     *             }
+                     *           ],
+                     *           "consequences": [
+                     *             "example"
+                     *           ]
+                     *         },
+                     *         "user": "example",
+                     *         "variant": "example",
+                     *         "volumes": [
+                     *           "example"
+                     *         ],
+                     *         "workingDir": "example"
+                     *       },
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "sha256:4e1b5f1a6d8e...",
+                     *       "inUse": false,
+                     *       "labels": {},
+                     *       "protection": {
+                     *         "reason": "example",
+                     *         "restartAllowed": false,
+                     *         "role": "agent",
+                     *         "self": false
+                     *       },
+                     *       "repoDigests": [
+                     *         "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60"
+                     *       ],
+                     *       "repoTags": [
+                     *         "example"
+                     *       ],
+                     *       "size": 1,
+                     *       "usedBy": [
+                     *         {
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "web",
+                     *           "state": "example"
+                     *         }
+                     *       ],
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Image"];
                 };
             };
@@ -16065,6 +20164,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -16165,6 +20322,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "repository": "registry.example.com/team/app"
+                 *     }
+                 */
                 "application/json": components["schemas"]["TagImageInputBody"];
             };
         };
@@ -16175,6 +20337,72 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "details": {
+                     *         "architecture": "example",
+                     *         "author": "example",
+                     *         "cmd": [
+                     *           "example"
+                     *         ],
+                     *         "entrypoint": [
+                     *           "example"
+                     *         ],
+                     *         "exposedPorts": [
+                     *           "example"
+                     *         ],
+                     *         "hasHealthTest": false,
+                     *         "os": "example",
+                     *         "removal": {
+                     *           "allowed": false,
+                     *           "blockers": [
+                     *             {
+                     *               "code": "volume_in_use",
+                     *               "message": "example"
+                     *             }
+                     *           ],
+                     *           "consequences": [
+                     *             "example"
+                     *           ]
+                     *         },
+                     *         "user": "example",
+                     *         "variant": "example",
+                     *         "volumes": [
+                     *           "example"
+                     *         ],
+                     *         "workingDir": "example"
+                     *       },
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "sha256:4e1b5f1a6d8e...",
+                     *       "inUse": false,
+                     *       "labels": {},
+                     *       "protection": {
+                     *         "reason": "example",
+                     *         "restartAllowed": false,
+                     *         "role": "agent",
+                     *         "self": false
+                     *       },
+                     *       "repoDigests": [
+                     *         "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60"
+                     *       ],
+                     *       "repoTags": [
+                     *         "example"
+                     *       ],
+                     *       "size": 1,
+                     *       "usedBy": [
+                     *         {
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "web",
+                     *           "state": "example"
+                     *         }
+                     *       ],
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Image"];
                 };
             };
@@ -16288,6 +20516,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "from": "2026-09-25T12:00:00Z",
+                     *       "incomplete": false,
+                     *       "online": false,
+                     *       "resolution": "raw",
+                     *       "series": [
+                     *         {
+                     *           "key": "cpu.percent",
+                     *           "mount": "docker",
+                     *           "unit": "percent",
+                     *           "values": [
+                     *             1
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "skewCorrected": false,
+                     *       "stepSeconds": 1,
+                     *       "timestamps": [
+                     *         "2026-09-25T12:00:00Z"
+                     *       ],
+                     *       "to": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["EnvironmentMetrics"];
                 };
             };
@@ -16367,6 +20620,68 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "attachable": false,
+                     *           "builtin": false,
+                     *           "containers": [
+                     *             {
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "name": "web",
+                     *               "state": "example"
+                     *             }
+                     *           ],
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "driver": "example",
+                     *           "enableIpv6": false,
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "gateways": [
+                     *             "example"
+                     *           ],
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "internal": false,
+                     *           "labels": {},
+                     *           "name": "shop_default",
+                     *           "protection": {
+                     *             "reason": "example",
+                     *             "restartAllowed": false,
+                     *             "role": "agent",
+                     *             "self": false
+                     *           },
+                     *           "removal": {
+                     *             "allowed": false,
+                     *             "blockers": [
+                     *               {
+                     *                 "code": "volume_in_use",
+                     *                 "message": "example"
+                     *               }
+                     *             ],
+                     *             "consequences": [
+                     *               "example"
+                     *             ]
+                     *           },
+                     *           "scope": "example",
+                     *           "stack": {
+                     *             "managed": false,
+                     *             "project": "example",
+                     *             "service": "example",
+                     *             "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *           },
+                     *           "subnets": [
+                     *             "example"
+                     *           ],
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageNetwork"];
                 };
             };
@@ -16450,6 +20765,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "backend"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateNetworkInputBody"];
             };
         };
@@ -16461,6 +20781,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -16567,6 +20945,62 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "attachable": false,
+                     *       "builtin": false,
+                     *       "containers": [
+                     *         {
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "web",
+                     *           "state": "example"
+                     *         }
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "driver": "example",
+                     *       "enableIpv6": false,
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "gateways": [
+                     *         "example"
+                     *       ],
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "internal": false,
+                     *       "labels": {},
+                     *       "name": "shop_default",
+                     *       "protection": {
+                     *         "reason": "example",
+                     *         "restartAllowed": false,
+                     *         "role": "agent",
+                     *         "self": false
+                     *       },
+                     *       "removal": {
+                     *         "allowed": false,
+                     *         "blockers": [
+                     *           {
+                     *             "code": "volume_in_use",
+                     *             "message": "example"
+                     *           }
+                     *         ],
+                     *         "consequences": [
+                     *           "example"
+                     *         ]
+                     *       },
+                     *       "scope": "example",
+                     *       "stack": {
+                     *         "managed": false,
+                     *         "project": "example",
+                     *         "service": "example",
+                     *         "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *       },
+                     *       "subnets": [
+                     *         "example"
+                     *       ],
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Network"];
                 };
             };
@@ -16659,6 +21093,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -16763,6 +21255,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "action": "archive",
+                     *       "backupSnapshots": 1,
+                     *       "dependents": [
+                     *         {
+                     *           "count": 1,
+                     *           "items": [
+                     *             {
+                     *               "detail": "example",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "name": "web"
+                     *             }
+                     *           ],
+                     *           "kind": "stack",
+                     *           "onArchive": "kept"
+                     *         }
+                     *       ],
+                     *       "description": "example",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "environmentName": "nas",
+                     *       "hostUntouched": false,
+                     *       "migration": {
+                     *         "description": "example",
+                     *         "stacks": 1
+                     *       },
+                     *       "reattach": "example",
+                     *       "revision": 1,
+                     *       "status": "active"
+                     *     }
+                     */
                     "application/json": components["schemas"]["EnvironmentRemovalPreview"];
                 };
             };
@@ -16840,6 +21363,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "projects": [
+                     *         {
+                     *           "adoptable": false,
+                     *           "location": {
+                     *             "dir": "example",
+                     *             "hostPath": "config/app.conf",
+                     *             "root": "stacks"
+                     *           },
+                     *           "name": "nextcloud",
+                     *           "reason": "example",
+                     *           "services": [
+                     *             {
+                     *               "containers": 1,
+                     *               "image": "nginx:1.27",
+                     *               "name": "web",
+                     *               "running": 1
+                     *             }
+                     *           ],
+                     *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "workingDir": "nextcloud"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["DiscoveredOutputBody"];
                 };
             };
@@ -16938,6 +21487,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "projectName": "nextcloud"
+                 *     }
+                 */
                 "application/json": components["schemas"]["ImportStackInputBody"];
             };
         };
@@ -16950,6 +21504,114 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "appliedRevision": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "hash": "example",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "seq": 1
+                     *       },
+                     *       "binds": [
+                     *         {
+                     *           "external": false,
+                     *           "readOnly": false,
+                     *           "relPath": "config/app.conf",
+                     *           "service": "example",
+                     *           "source": "example",
+                     *           "target": "example"
+                     *         }
+                     *       ],
+                     *       "configFiles": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "displayName": "web",
+                     *       "engine": {
+                     *         "observedAt": "2026-09-25T12:00:00Z",
+                     *         "services": [
+                     *           {
+                     *             "containers": 1,
+                     *             "running": 1,
+                     *             "service": "example"
+                     *           }
+                     *         ],
+                     *         "state": "unknown"
+                     *       },
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "environmentOnline": false,
+                     *       "failedRevision": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "hash": "example",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "seq": 1
+                     *       },
+                     *       "icon": "example",
+                     *       "id": "0190a6e0-7777-7000-8000-000000000007",
+                     *       "images": [
+                     *         {
+                     *           "build": false,
+                     *           "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "image": "nginx:1.27",
+                     *           "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "platform": "linux/amd64",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "lastJob": {
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "kind": "example"
+                     *       },
+                     *       "location": {
+                     *         "dir": "example",
+                     *         "hostPath": "config/app.conf",
+                     *         "root": "stacks"
+                     *       },
+                     *       "name": "shop",
+                     *       "origin": "created",
+                     *       "previousState": [
+                     *         {
+                     *           "containers": 1,
+                     *           "running": 1,
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "readOnly": false,
+                     *       "recovery": "example",
+                     *       "revision": 1,
+                     *       "services": [
+                     *         {
+                     *           "build": false,
+                     *           "dependsOn": [
+                     *             {
+                     *               "condition": "service_started",
+                     *               "required": false,
+                     *               "restart": false,
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "description": "example",
+                     *           "icon": "example",
+                     *           "image": "nginx:1.27",
+                     *           "name": "web"
+                     *         }
+                     *       ],
+                     *       "sourceRevision": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "hash": "example",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "seq": 1
+                     *       },
+                     *       "status": "undeployed",
+                     *       "undeployedChanges": false,
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Stack"];
                 };
             };
@@ -17054,6 +21716,90 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "agent": {
+                     *         "arch": "example",
+                     *         "compatibility": "current",
+                     *         "connected": false,
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "os": "example",
+                     *         "protocols": [
+                     *           "example"
+                     *         ],
+                     *         "upgradeInstructions": "example",
+                     *         "version": "example",
+                     *         "versionStatus": "current"
+                     *       },
+                     *       "clockSkewSeconds": 1,
+                     *       "commands": [
+                     *         "example"
+                     *       ],
+                     *       "diagnostics": [
+                     *         {
+                     *           "area": "engine",
+                     *           "code": "storage_path_mismatch",
+                     *           "message": "example"
+                     *         }
+                     *       ],
+                     *       "docker": {
+                     *         "containers": 1,
+                     *         "containersPaused": 1,
+                     *         "containersRunning": 1,
+                     *         "containersStopped": 1,
+                     *         "images": 1,
+                     *         "networks": 1,
+                     *         "volumes": 1
+                     *       },
+                     *       "engine": {
+                     *         "apiVersion": "1.51",
+                     *         "arch": "amd64",
+                     *         "cgroupVersion": "2",
+                     *         "dockerDesktop": false,
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "maxApiVersion": "1.51",
+                     *         "minApiVersion": "example",
+                     *         "os": "linux",
+                     *         "rootless": false,
+                     *         "storageDriver": "overlay2",
+                     *         "version": "28.5.2"
+                     *       },
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "features": [
+                     *         "example"
+                     *       ],
+                     *       "host": {
+                     *         "arch": "amd64",
+                     *         "cpus": 1,
+                     *         "hostname": "nas",
+                     *         "kernelVersion": "example",
+                     *         "memoryBytes": 1,
+                     *         "operatingSystem": "Debian GNU/Linux 12 (bookworm)",
+                     *         "os": "linux",
+                     *         "uptimeSeconds": 1
+                     *       },
+                     *       "inventoryAt": "2026-09-25T12:00:00Z",
+                     *       "online": false,
+                     *       "reportedAt": "2026-09-25T12:00:00Z",
+                     *       "requests": [
+                     *         "example"
+                     *       ],
+                     *       "roots": [
+                     *         {
+                     *           "kind": "stacks",
+                     *           "watch": "inotify"
+                     *         }
+                     *       ],
+                     *       "streams": [
+                     *         "example"
+                     *       ],
+                     *       "transport": {
+                     *         "customCa": false,
+                     *         "managerUrl": "example",
+                     *         "plainHttp": false
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["EnvironmentSystem"];
                 };
             };
@@ -17135,6 +21881,59 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "driver": "example",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "inUse": false,
+                     *           "labels": {},
+                     *           "name": "shop_data",
+                     *           "options": {},
+                     *           "protection": {
+                     *             "reason": "example",
+                     *             "restartAllowed": false,
+                     *             "role": "agent",
+                     *             "self": false
+                     *           },
+                     *           "removal": {
+                     *             "allowed": false,
+                     *             "blockers": [
+                     *               {
+                     *                 "code": "volume_in_use",
+                     *                 "message": "example"
+                     *               }
+                     *             ],
+                     *             "consequences": [
+                     *               "example"
+                     *             ]
+                     *           },
+                     *           "scope": "example",
+                     *           "stack": {
+                     *             "managed": false,
+                     *             "project": "example",
+                     *             "service": "example",
+                     *             "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *           },
+                     *           "usedBy": [
+                     *             {
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "name": "web",
+                     *               "state": "example"
+                     *             }
+                     *           ],
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageVolume"];
                 };
             };
@@ -17218,6 +22017,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "cache"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateVolumeInputBody"];
             };
         };
@@ -17229,6 +22033,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -17335,6 +22197,53 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "driver": "example",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "inUse": false,
+                     *       "labels": {},
+                     *       "name": "shop_data",
+                     *       "options": {},
+                     *       "protection": {
+                     *         "reason": "example",
+                     *         "restartAllowed": false,
+                     *         "role": "agent",
+                     *         "self": false
+                     *       },
+                     *       "removal": {
+                     *         "allowed": false,
+                     *         "blockers": [
+                     *           {
+                     *             "code": "volume_in_use",
+                     *             "message": "example"
+                     *           }
+                     *         ],
+                     *         "consequences": [
+                     *           "example"
+                     *         ]
+                     *       },
+                     *       "scope": "example",
+                     *       "stack": {
+                     *         "managed": false,
+                     *         "project": "example",
+                     *         "service": "example",
+                     *         "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *       },
+                     *       "usedBy": [
+                     *         {
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "web",
+                     *           "state": "example"
+                     *         }
+                     *       ],
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Volume"];
                 };
             };
@@ -17427,6 +22336,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -17546,6 +22513,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "dir": {
+                     *         "etag": "example",
+                     *         "gid": 1,
+                     *         "linkStatus": "inside",
+                     *         "linkTarget": "example",
+                     *         "links": 1,
+                     *         "mode": "0644",
+                     *         "modifiedAt": "2026-09-25T12:00:00Z",
+                     *         "name": "compose.yaml",
+                     *         "path": "config/app.env",
+                     *         "size": 1,
+                     *         "type": "file",
+                     *         "uid": 1
+                     *       },
+                     *       "items": [
+                     *         {
+                     *           "etag": "example",
+                     *           "gid": 1,
+                     *           "linkStatus": "inside",
+                     *           "linkTarget": "example",
+                     *           "links": 1,
+                     *           "mode": "0644",
+                     *           "modifiedAt": "2026-09-25T12:00:00Z",
+                     *           "name": "compose.yaml",
+                     *           "path": "config/app.env",
+                     *           "size": 1,
+                     *           "type": "file",
+                     *           "uid": 1
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1,
+                     *       "truncated": false
+                     *     }
+                     */
                     "application/json": components["schemas"]["FileListing"];
                 };
             };
@@ -17649,6 +22653,15 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "destination": "exports/site.zip",
+                 *       "paths": [
+                 *         "html",
+                 *         "config"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["ArchiveVolumeInputBody"];
             };
         };
@@ -17660,6 +22673,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -17760,6 +22831,15 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "destination": "backup",
+                 *       "operation": "copy",
+                 *       "paths": [
+                 *         "config/nginx.conf"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["PreviewVolumeInputBody"];
             };
         };
@@ -17770,6 +22850,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "conflicts": [
+                     *         {
+                     *           "destination": "example",
+                     *           "existing": {
+                     *             "etag": "example",
+                     *             "gid": 1,
+                     *             "linkStatus": "inside",
+                     *             "linkTarget": "example",
+                     *             "links": 1,
+                     *             "mode": "0644",
+                     *             "modifiedAt": "2026-09-25T12:00:00Z",
+                     *             "name": "compose.yaml",
+                     *             "path": "config/app.env",
+                     *             "size": 1,
+                     *             "type": "file",
+                     *             "uid": 1
+                     *           },
+                     *           "source": "example"
+                     *         }
+                     *       ],
+                     *       "conflictsTruncated": false,
+                     *       "impact": {
+                     *         "bytes": 1,
+                     *         "dirs": 1,
+                     *         "entries": 1,
+                     *         "files": 1,
+                     *         "other": 1,
+                     *         "symlinks": 1,
+                     *         "truncated": false
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["FilePreview"];
                 };
             };
@@ -17882,6 +22996,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "binary": false,
+                     *       "content": "example",
+                     *       "contentBase64": "example",
+                     *       "entry": {
+                     *         "etag": "example",
+                     *         "gid": 1,
+                     *         "linkStatus": "inside",
+                     *         "linkTarget": "example",
+                     *         "links": 1,
+                     *         "mode": "0644",
+                     *         "modifiedAt": "2026-09-25T12:00:00Z",
+                     *         "name": "compose.yaml",
+                     *         "path": "config/app.env",
+                     *         "size": 1,
+                     *         "type": "file",
+                     *         "uid": 1
+                     *       },
+                     *       "offset": 1,
+                     *       "truncated": false
+                     *     }
+                     */
                     "application/json": components["schemas"]["FileContent"];
                 };
             };
@@ -17990,6 +23127,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "content": "server_tokens off;"
+                 *     }
+                 */
                 "application/json": components["schemas"]["ReplaceVolumeContentInputBody"];
             };
         };
@@ -18001,6 +23143,22 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "etag": "example",
+                     *       "gid": 1,
+                     *       "linkStatus": "inside",
+                     *       "linkTarget": "example",
+                     *       "links": 1,
+                     *       "mode": "0644",
+                     *       "modifiedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "compose.yaml",
+                     *       "path": "config/app.env",
+                     *       "size": 1,
+                     *       "type": "file",
+                     *       "uid": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["FileEntry"];
                 };
             };
@@ -18131,6 +23289,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "destination": "config-backup",
+                 *       "paths": [
+                 *         "config/nginx.conf"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["TransferVolumeInputBody"];
             };
         };
@@ -18142,6 +23308,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -18245,6 +23469,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "paths": [
+                 *         "logs/old.log"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["DeletionVolumeInputBody"];
             };
         };
@@ -18256,6 +23487,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -18499,6 +23788,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "path": "config/nginx.conf"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateVolumeEntryInputBody"];
             };
         };
@@ -18510,6 +23804,22 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "etag": "example",
+                     *       "gid": 1,
+                     *       "linkStatus": "inside",
+                     *       "linkTarget": "example",
+                     *       "links": 1,
+                     *       "mode": "0644",
+                     *       "modifiedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "compose.yaml",
+                     *       "path": "config/app.env",
+                     *       "size": 1,
+                     *       "type": "file",
+                     *       "uid": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["FileEntry"];
                 };
             };
@@ -18622,6 +23932,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "destination": "html",
+                 *       "path": "uploads/site.zip"
+                 *     }
+                 */
                 "application/json": components["schemas"]["ExtractionVolumeInputBody"];
             };
         };
@@ -18633,6 +23949,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -18736,6 +24110,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "chmod": {
+                 *         "dirMode": "0755",
+                 *         "mode": "0644"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["MetadataVolumeInputBody"];
             };
         };
@@ -18747,6 +24129,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -18850,6 +24290,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "destination": "config-backup",
+                 *       "paths": [
+                 *         "config/nginx.conf"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["TransferVolumeInputBody"];
             };
         };
@@ -18861,6 +24309,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -18989,6 +24495,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "entry": {
+                     *         "etag": "example",
+                     *         "gid": 1,
+                     *         "linkStatus": "inside",
+                     *         "linkTarget": "example",
+                     *         "links": 1,
+                     *         "mode": "0644",
+                     *         "modifiedAt": "2026-09-25T12:00:00Z",
+                     *         "name": "compose.yaml",
+                     *         "path": "config/app.env",
+                     *         "size": 1,
+                     *         "type": "file",
+                     *         "uid": 1
+                     *       },
+                     *       "skipped": false
+                     *     }
+                     */
                     "application/json": components["schemas"]["FileUploadResult"];
                 };
             };
@@ -19134,6 +24659,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "targetName": "web_data"
+                 *     }
+                 */
                 "application/json": components["schemas"]["VolumeMigrationBody"];
             };
         };
@@ -19144,6 +24674,100 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "access": {
+                     *         "changes": [
+                     *           {
+                     *             "gained": [
+                     *               "example"
+                     *             ],
+                     *             "lost": [
+                     *               "example"
+                     *             ],
+                     *             "userId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "username": "web"
+                     *           }
+                     *         ],
+                     *         "complete": false,
+                     *         "othersAffected": 1,
+                     *         "unavailable": "example"
+                     *       },
+                     *       "allowed": false,
+                     *       "blockers": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "example",
+                     *           "resource": "example",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "data": {
+                     *         "destinationStacksFree": 1,
+                     *         "destinationVolumesFree": 1,
+                     *         "imageBytes": 1,
+                     *         "projectBytes": 1,
+                     *         "totalBytes": 1,
+                     *         "truncated": false,
+                     *         "volumeBytes": 1
+                     *       },
+                     *       "downtime": {
+                     *         "basis": "example",
+                     *         "estimatedSeconds": 1
+                     *       },
+                     *       "excluded": [
+                     *         {
+                     *           "name": "web",
+                     *           "reason": "example"
+                     *         }
+                     *       ],
+                     *       "kind": "stack",
+                     *       "leftovers": [
+                     *         "example"
+                     *       ],
+                     *       "projectName": "web",
+                     *       "services": [
+                     *         {
+                     *           "action": "pull",
+                     *           "image": "nginx:1.27",
+                     *           "name": "web",
+                     *           "platform": "example",
+                     *           "reason": "example",
+                     *           "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *         }
+                     *       ],
+                     *       "sourceEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "targetDirectory": "example",
+                     *       "targetEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "transport": {
+                     *         "bandwidthLimitBytesPerSecond": 1,
+                     *         "destinationPlainHttp": false,
+                     *         "sourcePlainHttp": false
+                     *       },
+                     *       "volumes": [
+                     *         {
+                     *           "action": "copy",
+                     *           "anonymous": false,
+                     *           "bytes": 1,
+                     *           "entries": 1,
+                     *           "key": "example",
+                     *           "reason": "example",
+                     *           "source": "example",
+                     *           "target": "example",
+                     *           "truncated": false
+                     *         }
+                     *       ],
+                     *       "warnings": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "example",
+                     *           "resource": "example",
+                     *           "service": "example"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["MigrationPreview"];
                 };
             };
@@ -19247,6 +24871,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "targetName": "web_data"
+                 *     }
+                 */
                 "application/json": components["schemas"]["VolumeMigrationBody"];
             };
         };
@@ -19258,6 +24887,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -19364,6 +25051,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "host": "github.com",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "lastCheck": {
+                     *             "at": "2026-09-25T12:00:00Z",
+                     *             "result": "ok"
+                     *           },
+                     *           "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *           "name": "GitHub (acme builds)",
+                     *           "pathPrefix": "acme",
+                     *           "plainHttp": false,
+                     *           "revision": 1,
+                     *           "revokedAt": "2026-09-25T12:00:00Z",
+                     *           "secret": {
+                     *             "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *             "set": false,
+                     *             "updatedAt": "2026-09-25T12:00:00Z",
+                     *             "version": 1
+                     *           },
+                     *           "status": "active",
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "username": "web",
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageGitCredential"];
                 };
             };
@@ -19405,6 +25128,15 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "host": "github.com",
+                 *       "name": "web",
+                 *       "pathPrefix": "acme",
+                 *       "secret": "example",
+                 *       "username": "web"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateGitCredentialInputBody"];
             };
         };
@@ -19416,6 +25148,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "host": "github.com",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastCheck": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "result": "ok"
+                     *       },
+                     *       "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "GitHub (acme builds)",
+                     *       "pathPrefix": "acme",
+                     *       "plainHttp": false,
+                     *       "revision": 1,
+                     *       "revokedAt": "2026-09-25T12:00:00Z",
+                     *       "secret": {
+                     *         "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *         "set": false,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "version": 1
+                     *       },
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "username": "web",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["GitCredential"];
                 };
             };
@@ -19485,6 +25247,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "host": "github.com",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastCheck": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "result": "ok"
+                     *       },
+                     *       "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "GitHub (acme builds)",
+                     *       "pathPrefix": "acme",
+                     *       "plainHttp": false,
+                     *       "revision": 1,
+                     *       "revokedAt": "2026-09-25T12:00:00Z",
+                     *       "secret": {
+                     *         "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *         "set": false,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "version": 1
+                     *       },
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "username": "web",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["GitCredential"];
                 };
             };
@@ -19628,6 +25420,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "GitHub deploy token"
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateGitCredentialInputBody"];
             };
         };
@@ -19639,6 +25436,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "host": "github.com",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastCheck": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "result": "ok"
+                     *       },
+                     *       "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "GitHub (acme builds)",
+                     *       "pathPrefix": "acme",
+                     *       "plainHttp": false,
+                     *       "revision": 1,
+                     *       "revokedAt": "2026-09-25T12:00:00Z",
+                     *       "secret": {
+                     *         "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *         "set": false,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "version": 1
+                     *       },
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "username": "web",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["GitCredential"];
                 };
             };
@@ -19728,6 +25555,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "repositoryUrl": "https://github.com/acme/app.git"
+                 *     }
+                 */
                 "application/json": components["schemas"]["GitCredentialTestInputBody"];
             };
         };
@@ -19738,6 +25570,19 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "checkedAt": "2026-09-25T12:00:00Z",
+                     *       "commit": "example",
+                     *       "errorClass": "unauthorized",
+                     *       "head": "refs/heads/main",
+                     *       "message": "example",
+                     *       "ok": false,
+                     *       "ref": "example",
+                     *       "refCount": 1,
+                     *       "repository": "example"
+                     *     }
+                     */
                     "application/json": components["schemas"]["GitCredentialTest"];
                 };
             };
@@ -19812,6 +25657,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "default": false,
+                     *           "grantsAccess": false,
+                     *           "id": "0190a6e0-0000-7000-8000-00000000000a",
+                     *           "memberCount": 1,
+                     *           "name": "Restricted",
+                     *           "permissionsRevision": 1,
+                     *           "revision": 1,
+                     *           "ruleCount": 1,
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["GroupsOutputBody"];
                 };
             };
@@ -19853,6 +25716,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "Operators"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateGroupInputBody"];
             };
         };
@@ -19864,6 +25732,20 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "default": false,
+                     *       "grantsAccess": false,
+                     *       "id": "0190a6e0-0000-7000-8000-00000000000a",
+                     *       "memberCount": 1,
+                     *       "name": "Restricted",
+                     *       "permissionsRevision": 1,
+                     *       "revision": 1,
+                     *       "ruleCount": 1,
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Group"];
                 };
             };
@@ -19933,6 +25815,20 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "default": false,
+                     *       "grantsAccess": false,
+                     *       "id": "0190a6e0-0000-7000-8000-00000000000a",
+                     *       "memberCount": 1,
+                     *       "name": "Restricted",
+                     *       "permissionsRevision": 1,
+                     *       "revision": 1,
+                     *       "ruleCount": 1,
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Group"];
                 };
             };
@@ -20094,6 +25990,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "Operators"
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateGroupInputBody"];
             };
         };
@@ -20105,6 +26006,20 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "default": false,
+                     *       "grantsAccess": false,
+                     *       "id": "0190a6e0-0000-7000-8000-00000000000a",
+                     *       "memberCount": 1,
+                     *       "name": "Restricted",
+                     *       "permissionsRevision": 1,
+                     *       "revision": 1,
+                     *       "ruleCount": 1,
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Group"];
                 };
             };
@@ -20200,6 +26115,23 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "group": {
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "default": false,
+                     *         "grantsAccess": false,
+                     *         "id": "0190a6e0-0000-7000-8000-00000000000a",
+                     *         "memberCount": 1,
+                     *         "name": "Restricted",
+                     *         "permissionsRevision": 1,
+                     *         "revision": 1,
+                     *         "ruleCount": 1,
+                     *         "updatedAt": "2026-09-25T12:00:00Z"
+                     *       },
+                     *       "warning": "example"
+                     *     }
+                     */
                     "application/json": components["schemas"]["DefaultSelectionOutputBody"];
                 };
             };
@@ -20269,6 +26201,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "catalogVersion": 1,
+                     *       "revision": 1,
+                     *       "rules": [
+                     *         {
+                     *           "capability": "container.restart",
+                     *           "effect": "allow",
+                     *           "scope": {
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "instance",
+                     *             "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "resourceType": "container"
+                     *           }
+                     *         }
+                     *       ],
+                     *       "subjectId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *     }
+                     */
                     "application/json": components["schemas"]["PermissionDocument"];
                 };
             };
@@ -20334,6 +26285,20 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "rules": [
+                 *         {
+                 *           "capability": "container.restart",
+                 *           "effect": "allow",
+                 *           "scope": {
+                 *             "kind": "instance",
+                 *             "resourceType": "container"
+                 *           }
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["ReplaceDocumentBody"];
             };
         };
@@ -20345,6 +26310,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "catalogVersion": 1,
+                     *       "revision": 1,
+                     *       "rules": [
+                     *         {
+                     *           "capability": "container.restart",
+                     *           "effect": "allow",
+                     *           "scope": {
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "instance",
+                     *             "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "resourceType": "container"
+                     *           }
+                     *         }
+                     *       ],
+                     *       "subjectId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *     }
+                     */
                     "application/json": components["schemas"]["PermissionDocument"];
                 };
             };
@@ -20437,6 +26421,13 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "commit": "example",
+                     *       "status": "ok",
+                     *       "version": "0.0.0-edge"
+                     *     }
+                     */
                     "application/json": components["schemas"]["HealthBody"];
                 };
             };
@@ -20466,6 +26457,18 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "checks": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "database",
+                     *           "ok": false
+                     *         }
+                     *       ],
+                     *       "status": "ready"
+                     *     }
+                     */
                     "application/json": components["schemas"]["ReadinessBody"];
                 };
             };
@@ -20509,6 +26512,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "createdBy": "example",
+                     *           "email": "ada@example.com",
+                     *           "expiresAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "redeemedAt": "2026-09-25T12:00:00Z",
+                     *           "redeemedUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "revokedAt": "2026-09-25T12:00:00Z",
+                     *           "status": "pending"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageInvitation"];
                 };
             };
@@ -20562,6 +26584,12 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "email": "ada@example.com",
+                 *       "expiresInHours": 72
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateInvitationInputBody"];
             };
         };
@@ -20572,6 +26600,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "code": "example",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "invitation": {
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "createdBy": "example",
+                     *         "email": "ada@example.com",
+                     *         "expiresAt": "2026-09-25T12:00:00Z",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "redeemedAt": "2026-09-25T12:00:00Z",
+                     *         "redeemedUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "revokedAt": "2026-09-25T12:00:00Z",
+                     *         "status": "pending"
+                     *       },
+                     *       "url": "https://docker.example.com/reset#code=R7QK-2M4P-X9WT"
+                     *     }
+                     */
                     "application/json": components["schemas"]["CreateInvitationOutputBody"];
                 };
             };
@@ -20631,6 +26677,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "code": "example",
+                 *       "displayName": "Ada Lovelace",
+                 *       "username": "ada"
+                 *     }
+                 */
                 "application/json": components["schemas"]["RedeemInvitationInputBody"];
             };
         };
@@ -20641,6 +26694,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "authenticatedAt": "2026-09-25T12:00:00Z",
+                     *       "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "factors": [
+                     *         "password"
+                     *       ],
+                     *       "idleExpiresAt": "2026-09-25T12:00:00Z",
+                     *       "missingFactors": [
+                     *         "password"
+                     *       ],
+                     *       "recentAuthUntil": "2026-09-25T12:00:00Z",
+                     *       "requiredFactors": "none",
+                     *       "state": "second_factor_required",
+                     *       "user": {
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "disabledAt": "2026-09-25T12:00:00Z",
+                     *         "displayName": "web",
+                     *         "email": "example",
+                     *         "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *         "factors": {
+                     *           "passkeys": 1,
+                     *           "password": false,
+                     *           "recoveryCodesRemaining": 1,
+                     *           "totp": false
+                     *         },
+                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *         "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *         "owner": false,
+                     *         "revision": 1,
+                     *         "status": "active",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "username": "alice"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["Session"];
                 };
             };
@@ -20795,6 +26886,70 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "attempt": 1,
+                     *           "blockedBy": {
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "reason": "lock"
+                     *           },
+                     *           "cancelRequested": false,
+                     *           "cancellable": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "error": {
+                     *             "class": "agent_offline",
+                     *             "message": "example",
+                     *             "recovery": "example"
+                     *           },
+                     *           "executor": "agent",
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "items": [
+                     *             {
+                     *               "message": "example",
+                     *               "name": "web",
+                     *               "status": "succeeded"
+                     *             }
+                     *           ],
+                     *           "kind": "stack.deploy",
+                     *           "locks": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "mode": "shared",
+                     *               "name": "web",
+                     *               "scope": "host"
+                     *             }
+                     *           ],
+                     *           "locksHeld": false,
+                     *           "origin": "manual",
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "progress": {
+                     *             "message": "example",
+                     *             "percent": 1,
+                     *             "step": "example"
+                     *           },
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "queued",
+                     *           "targets": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "type": "stack"
+                     *             }
+                     *           ],
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageJob"];
                 };
             };
@@ -20845,6 +27000,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -20905,6 +27118,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -21121,6 +27392,46 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "categories": [
+                     *         {
+                     *           "category": "example",
+                     *           "deletesData": false,
+                     *           "description": "example",
+                     *           "label": "example",
+                     *           "labels": false,
+                     *           "limitations": [
+                     *             "example"
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "revision": 1,
+                     *       "rules": [
+                     *         {
+                     *           "buildCacheAll": false,
+                     *           "category": "stopped_containers",
+                     *           "containerStates": [
+                     *             "example"
+                     *           ],
+                     *           "enabled": false,
+                     *           "exclude": [
+                     *             "example"
+                     *           ],
+                     *           "excludeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "includeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "keepStorageBytes": 1,
+                     *           "minAgeHours": 720,
+                     *           "volumeOptIn": false
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["MaintenanceDefaults"];
                 };
             };
@@ -21165,6 +27476,17 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "rules": [
+                 *         {
+                 *           "category": "stopped_containers",
+                 *           "enabled": false,
+                 *           "minAgeHours": 720
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateMaintenanceDefaultsInputBody"];
             };
         };
@@ -21176,6 +27498,46 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "categories": [
+                     *         {
+                     *           "category": "example",
+                     *           "deletesData": false,
+                     *           "description": "example",
+                     *           "label": "example",
+                     *           "labels": false,
+                     *           "limitations": [
+                     *             "example"
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "revision": 1,
+                     *       "rules": [
+                     *         {
+                     *           "buildCacheAll": false,
+                     *           "category": "stopped_containers",
+                     *           "containerStates": [
+                     *             "example"
+                     *           ],
+                     *           "enabled": false,
+                     *           "exclude": [
+                     *             "example"
+                     *           ],
+                     *           "excludeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "includeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "keepStorageBytes": 1,
+                     *           "minAgeHours": 720,
+                     *           "volumeOptIn": false
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["MaintenanceDefaults"];
                 };
             };
@@ -21257,6 +27619,96 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "description": "example",
+                     *           "enabled": false,
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "lastRun": {
+                     *             "bytesReclaimed": 1,
+                     *             "deferred": 1,
+                     *             "failed": 1,
+                     *             "finishedAt": "2026-09-25T12:00:00Z",
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "origin": "manual",
+                     *             "removed": 1,
+                     *             "skipped": 1,
+                     *             "state": "example"
+                     *           },
+                     *           "name": "web",
+                     *           "revision": 1,
+                     *           "rules": [
+                     *             {
+                     *               "buildCacheAll": false,
+                     *               "category": "stopped_containers",
+                     *               "containerStates": [
+                     *                 "example"
+                     *               ],
+                     *               "enabled": false,
+                     *               "exclude": [
+                     *                 "example"
+                     *               ],
+                     *               "excludeLabels": [
+                     *                 "example"
+                     *               ],
+                     *               "includeLabels": [
+                     *                 "example"
+                     *               ],
+                     *               "keepStorageBytes": 1,
+                     *               "minAgeHours": 720,
+                     *               "volumeOptIn": false
+                     *             }
+                     *           ],
+                     *           "schedule": {
+                     *             "catchUp": "skip",
+                     *             "cron": "0 3 * * 0",
+                     *             "enabled": false,
+                     *             "invalidReason": "example",
+                     *             "nextRun": {
+                     *               "at": "2026-09-25T12:00:00Z",
+                     *               "dst": "none",
+                     *               "dstNote": "example",
+                     *               "local": "2026-03-08T02:30",
+                     *               "utc": "2026-09-25T12:00:00Z"
+                     *             },
+                     *             "recentRuns": [
+                     *               {
+                     *                 "catchUp": false,
+                     *                 "errorClass": "example",
+                     *                 "jobs": [
+                     *                   {
+                     *                     "blockedReason": "example",
+                     *                     "errorClass": "example",
+                     *                     "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                     "kind": "example",
+                     *                     "state": "example"
+                     *                   }
+                     *                 ],
+                     *                 "missedCount": 1,
+                     *                 "missedFrom": "2026-09-25T12:00:00Z",
+                     *                 "outcome": "pending",
+                     *                 "reason": "example",
+                     *                 "result": "example",
+                     *                 "scheduledFor": "2026-09-25T12:00:00Z"
+                     *               }
+                     *             ],
+                     *             "timeZone": "Europe/Berlin"
+                     *           },
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageMaintenancePolicy"];
                 };
             };
@@ -21298,6 +27750,19 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "name": "Weekly cleanup",
+                 *       "rules": [
+                 *         {
+                 *           "category": "stopped_containers",
+                 *           "enabled": false,
+                 *           "minAgeHours": 720
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateMaintenancePolicyInputBody"];
             };
         };
@@ -21309,6 +27774,90 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "enabled": false,
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastRun": {
+                     *         "bytesReclaimed": 1,
+                     *         "deferred": 1,
+                     *         "failed": 1,
+                     *         "finishedAt": "2026-09-25T12:00:00Z",
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "origin": "manual",
+                     *         "removed": 1,
+                     *         "skipped": 1,
+                     *         "state": "example"
+                     *       },
+                     *       "name": "web",
+                     *       "revision": 1,
+                     *       "rules": [
+                     *         {
+                     *           "buildCacheAll": false,
+                     *           "category": "stopped_containers",
+                     *           "containerStates": [
+                     *             "example"
+                     *           ],
+                     *           "enabled": false,
+                     *           "exclude": [
+                     *             "example"
+                     *           ],
+                     *           "excludeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "includeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "keepStorageBytes": 1,
+                     *           "minAgeHours": 720,
+                     *           "volumeOptIn": false
+                     *         }
+                     *       ],
+                     *       "schedule": {
+                     *         "catchUp": "skip",
+                     *         "cron": "0 3 * * 0",
+                     *         "enabled": false,
+                     *         "invalidReason": "example",
+                     *         "nextRun": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "dst": "none",
+                     *           "dstNote": "example",
+                     *           "local": "2026-03-08T02:30",
+                     *           "utc": "2026-09-25T12:00:00Z"
+                     *         },
+                     *         "recentRuns": [
+                     *           {
+                     *             "catchUp": false,
+                     *             "errorClass": "example",
+                     *             "jobs": [
+                     *               {
+                     *                 "blockedReason": "example",
+                     *                 "errorClass": "example",
+                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "example",
+                     *                 "state": "example"
+                     *               }
+                     *             ],
+                     *             "missedCount": 1,
+                     *             "missedFrom": "2026-09-25T12:00:00Z",
+                     *             "outcome": "pending",
+                     *             "reason": "example",
+                     *             "result": "example",
+                     *             "scheduledFor": "2026-09-25T12:00:00Z"
+                     *           }
+                     *         ],
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["MaintenancePolicy"];
                 };
             };
@@ -21387,6 +27936,90 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "enabled": false,
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastRun": {
+                     *         "bytesReclaimed": 1,
+                     *         "deferred": 1,
+                     *         "failed": 1,
+                     *         "finishedAt": "2026-09-25T12:00:00Z",
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "origin": "manual",
+                     *         "removed": 1,
+                     *         "skipped": 1,
+                     *         "state": "example"
+                     *       },
+                     *       "name": "web",
+                     *       "revision": 1,
+                     *       "rules": [
+                     *         {
+                     *           "buildCacheAll": false,
+                     *           "category": "stopped_containers",
+                     *           "containerStates": [
+                     *             "example"
+                     *           ],
+                     *           "enabled": false,
+                     *           "exclude": [
+                     *             "example"
+                     *           ],
+                     *           "excludeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "includeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "keepStorageBytes": 1,
+                     *           "minAgeHours": 720,
+                     *           "volumeOptIn": false
+                     *         }
+                     *       ],
+                     *       "schedule": {
+                     *         "catchUp": "skip",
+                     *         "cron": "0 3 * * 0",
+                     *         "enabled": false,
+                     *         "invalidReason": "example",
+                     *         "nextRun": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "dst": "none",
+                     *           "dstNote": "example",
+                     *           "local": "2026-03-08T02:30",
+                     *           "utc": "2026-09-25T12:00:00Z"
+                     *         },
+                     *         "recentRuns": [
+                     *           {
+                     *             "catchUp": false,
+                     *             "errorClass": "example",
+                     *             "jobs": [
+                     *               {
+                     *                 "blockedReason": "example",
+                     *                 "errorClass": "example",
+                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "example",
+                     *                 "state": "example"
+                     *               }
+                     *             ],
+                     *             "missedCount": 1,
+                     *             "missedFrom": "2026-09-25T12:00:00Z",
+                     *             "outcome": "pending",
+                     *             "reason": "example",
+                     *             "result": "example",
+                     *             "scheduledFor": "2026-09-25T12:00:00Z"
+                     *           }
+                     *         ],
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["MaintenancePolicy"];
                 };
             };
@@ -21530,6 +28163,17 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "rules": [
+                 *         {
+                 *           "category": "stopped_containers",
+                 *           "enabled": false,
+                 *           "minAgeHours": 720
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateMaintenancePolicyInputBody"];
             };
         };
@@ -21541,6 +28185,90 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "enabled": false,
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastRun": {
+                     *         "bytesReclaimed": 1,
+                     *         "deferred": 1,
+                     *         "failed": 1,
+                     *         "finishedAt": "2026-09-25T12:00:00Z",
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "origin": "manual",
+                     *         "removed": 1,
+                     *         "skipped": 1,
+                     *         "state": "example"
+                     *       },
+                     *       "name": "web",
+                     *       "revision": 1,
+                     *       "rules": [
+                     *         {
+                     *           "buildCacheAll": false,
+                     *           "category": "stopped_containers",
+                     *           "containerStates": [
+                     *             "example"
+                     *           ],
+                     *           "enabled": false,
+                     *           "exclude": [
+                     *             "example"
+                     *           ],
+                     *           "excludeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "includeLabels": [
+                     *             "example"
+                     *           ],
+                     *           "keepStorageBytes": 1,
+                     *           "minAgeHours": 720,
+                     *           "volumeOptIn": false
+                     *         }
+                     *       ],
+                     *       "schedule": {
+                     *         "catchUp": "skip",
+                     *         "cron": "0 3 * * 0",
+                     *         "enabled": false,
+                     *         "invalidReason": "example",
+                     *         "nextRun": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "dst": "none",
+                     *           "dstNote": "example",
+                     *           "local": "2026-03-08T02:30",
+                     *           "utc": "2026-09-25T12:00:00Z"
+                     *         },
+                     *         "recentRuns": [
+                     *           {
+                     *             "catchUp": false,
+                     *             "errorClass": "example",
+                     *             "jobs": [
+                     *               {
+                     *                 "blockedReason": "example",
+                     *                 "errorClass": "example",
+                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "example",
+                     *                 "state": "example"
+                     *               }
+                     *             ],
+                     *             "missedCount": 1,
+                     *             "missedFrom": "2026-09-25T12:00:00Z",
+                     *             "outcome": "pending",
+                     *             "reason": "example",
+                     *             "result": "example",
+                     *             "scheduledFor": "2026-09-25T12:00:00Z"
+                     *           }
+                     *         ],
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["MaintenancePolicy"];
                 };
             };
@@ -21630,6 +28358,17 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "rules": [
+                 *         {
+                 *           "category": "stopped_containers",
+                 *           "enabled": false,
+                 *           "minAgeHours": 720
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["PreviewMaintenancePolicyInputBody"];
             };
         };
@@ -21640,6 +28379,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "at": "2026-09-25T12:00:00Z",
+                     *       "bytes": 1,
+                     *       "categories": [
+                     *         {
+                     *           "bytes": 1,
+                     *           "category": "dangling_images",
+                     *           "excluded": 1,
+                     *           "items": [
+                     *             {
+                     *               "bytes": 1,
+                     *               "decision": "remove",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "name": "web",
+                     *               "reason": "example",
+                     *               "since": "2026-09-25T12:00:00Z"
+                     *             }
+                     *           ],
+                     *           "protected": 1,
+                     *           "remove": 1,
+                     *           "retained": 1,
+                     *           "truncated": false,
+                     *           "unknownSizes": 1
+                     *         }
+                     *       ],
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "notes": [
+                     *         "example"
+                     *       ],
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "remove": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PrunePreview"];
                 };
             };
@@ -21723,6 +28496,11 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "confirm": true
+                 *     }
+                 */
                 "application/json": components["schemas"]["RunMaintenancePolicyInputBody"];
             };
         };
@@ -21734,6 +28512,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -21809,6 +28645,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "disabledAt": "2026-09-25T12:00:00Z",
+                     *       "displayName": "web",
+                     *       "email": "example",
+                     *       "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *       "factors": {
+                     *         "passkeys": 1,
+                     *         "password": false,
+                     *         "recoveryCodesRemaining": 1,
+                     *         "totp": false
+                     *       },
+                     *       "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *       "owner": false,
+                     *       "revision": 1,
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "username": "alice"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Account"];
                 };
             };
@@ -21852,6 +28711,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "expiresAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *           "lastUsedIp": "example",
+                     *           "name": "web",
+                     *           "revokedAt": "2026-09-25T12:00:00Z",
+                     *           "revokedReason": "user",
+                     *           "scopes": [
+                     *             {
+                     *               "capability": "container.restart",
+                     *               "scope": {
+                     *                 "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "instance",
+                     *                 "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "resourceType": "container"
+                     *               }
+                     *             }
+                     *           ],
+                     *           "status": "active",
+                     *           "userId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "username": "web"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageAPIToken"];
                 };
             };
@@ -21905,6 +28796,20 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "backup script",
+                 *       "scopes": [
+                 *         {
+                 *           "capability": "container.restart",
+                 *           "scope": {
+                 *             "kind": "instance",
+                 *             "resourceType": "container"
+                 *           }
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateAPITokenInputBody"];
             };
         };
@@ -21915,6 +28820,35 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "apiToken": {
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "expiresAt": "2026-09-25T12:00:00Z",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *         "lastUsedIp": "example",
+                     *         "name": "web",
+                     *         "revokedAt": "2026-09-25T12:00:00Z",
+                     *         "revokedReason": "user",
+                     *         "scopes": [
+                     *           {
+                     *             "capability": "container.restart",
+                     *             "scope": {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "kind": "instance",
+                     *               "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "resourceType": "container"
+                     *             }
+                     *           }
+                     *         ],
+                     *         "status": "active",
+                     *         "userId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "username": "web"
+                     *       },
+                     *       "token": "example"
+                     *     }
+                     */
                     "application/json": components["schemas"]["CreateAPITokenOutputBody"];
                 };
             };
@@ -21983,6 +28917,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *       "lastUsedIp": "example",
+                     *       "name": "web",
+                     *       "revokedAt": "2026-09-25T12:00:00Z",
+                     *       "revokedReason": "user",
+                     *       "scopes": [
+                     *         {
+                     *           "capability": "container.restart",
+                     *           "scope": {
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "instance",
+                     *             "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "resourceType": "container"
+                     *           }
+                     *         }
+                     *       ],
+                     *       "status": "active",
+                     *       "userId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "username": "web"
+                     *     }
+                     */
                     "application/json": components["schemas"]["APIToken"];
                 };
             };
@@ -22111,6 +29071,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "Backup script"
+                 *     }
+                 */
                 "application/json": components["schemas"]["RenameAPITokenInputBody"];
             };
         };
@@ -22121,6 +29086,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *       "lastUsedIp": "example",
+                     *       "name": "web",
+                     *       "revokedAt": "2026-09-25T12:00:00Z",
+                     *       "revokedReason": "user",
+                     *       "scopes": [
+                     *         {
+                     *           "capability": "container.restart",
+                     *           "scope": {
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "instance",
+                     *             "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "resourceType": "container"
+                     *           }
+                     *         }
+                     *       ],
+                     *       "status": "active",
+                     *       "userId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "username": "web"
+                     *     }
+                     */
                     "application/json": components["schemas"]["APIToken"];
                 };
             };
@@ -22186,6 +29177,23 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "aaguid": "example",
+                     *           "backedUp": false,
+                     *           "backupEligible": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *           "name": "YubiKey 5C"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PagePasskey"];
                 };
             };
@@ -22305,6 +29313,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "Laptop passkey"
+                 *     }
+                 */
                 "application/json": components["schemas"]["PasskeyRenameInputBody"];
             };
         };
@@ -22315,6 +29328,17 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "aaguid": "example",
+                     *       "backedUp": false,
+                     *       "backupEligible": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "YubiKey 5C"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Passkey"];
                 };
             };
@@ -22374,6 +29398,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "newPassword": "correct-horse-battery-staple"
+                 *     }
+                 */
                 "application/json": components["schemas"]["ChangePasswordInputBody"];
             };
         };
@@ -22447,6 +29476,48 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "catalogVersion": 1,
+                     *       "entries": [
+                     *         {
+                     *           "allowed": false,
+                     *           "capability": "example",
+                     *           "reason": "example",
+                     *           "rule": {
+                     *             "capability": "container.restart",
+                     *             "effect": "allow",
+                     *             "scope": {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "kind": "instance",
+                     *               "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "resourceType": "container"
+                     *             }
+                     *           },
+                     *           "scope": {
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "instance",
+                     *             "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "resourceType": "container"
+                     *           },
+                     *           "source": "owner"
+                     *         }
+                     *       ],
+                     *       "environments": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "web",
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "owner": false,
+                     *       "userId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *     }
+                     */
                     "application/json": components["schemas"]["MyPermissions"];
                 };
             };
@@ -22485,6 +29556,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "generatedAt": "2026-09-25T12:00:00Z",
+                     *       "remaining": 10
+                     *     }
+                     */
                     "application/json": components["schemas"]["RecoveryStatusOutputBody"];
                 };
             };
@@ -22535,6 +29612,14 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "codes": [
+                     *         "7Q2M-KX4P",
+                     *         "9WRT-3HJD"
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["RecoveryCodesOutputBody"];
                 };
             };
@@ -22600,6 +29685,46 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "environments": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "docker": {
+                     *             "containers": 1,
+                     *             "containersPaused": 1,
+                     *             "containersRunning": 1,
+                     *             "containersStopped": 1,
+                     *             "images": 1,
+                     *             "networks": 1,
+                     *             "volumes": 1
+                     *           },
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "web",
+                     *           "online": false,
+                     *           "usage": {
+                     *             "cpuPercent": 1,
+                     *             "diskTotalBytes": 1,
+                     *             "diskUsedBytes": 1,
+                     *             "memoryTotalBytes": 1,
+                     *             "memoryUsedBytes": 1,
+                     *             "sampledAt": "2026-09-25T12:00:00Z"
+                     *           },
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "totals": {
+                     *         "containers": 1,
+                     *         "containersRunning": 1,
+                     *         "countedEnvironments": 1,
+                     *         "environments": 2,
+                     *         "offline": 1,
+                     *         "online": 1
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["Overview"];
                 };
             };
@@ -22638,6 +29763,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "capabilities": [
+                     *         {
+                     *           "advanced": false,
+                     *           "description": "example",
+                     *           "key": "container.restart",
+                     *           "label": "Restart",
+                     *           "ownerOnly": false,
+                     *           "resourceType": "container",
+                     *           "risk": "normal",
+                     *           "scopes": {
+                     *             "environment": false,
+                     *             "instance": false,
+                     *             "resourceTypes": [
+                     *               "example"
+                     *             ]
+                     *           },
+                     *           "since": 1
+                     *         }
+                     *       ],
+                     *       "resourceTypes": [
+                     *         {
+                     *           "environmentBound": false,
+                     *           "key": "container",
+                     *           "label": "Containers",
+                     *           "minimalFields": "example",
+                     *           "namedPerEnvironment": false,
+                     *           "parents": [
+                     *             "example"
+                     *           ],
+                     *           "readCapability": "example",
+                     *           "scopable": false
+                     *         }
+                     *       ],
+                     *       "version": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PermissionCatalog"];
                 };
             };
@@ -22670,6 +29833,48 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "checks": [
+                 *         {
+                 *           "capability": "example",
+                 *           "resource": {
+                 *             "type": "container"
+                 *           }
+                 *         }
+                 *       ],
+                 *       "groupRules": [
+                 *         {
+                 *           "capability": "container.restart",
+                 *           "effect": "allow",
+                 *           "scope": {
+                 *             "kind": "instance",
+                 *             "resourceType": "container"
+                 *           }
+                 *         }
+                 *       ],
+                 *       "tokenScope": [
+                 *         {
+                 *           "capability": "container.restart",
+                 *           "effect": "allow",
+                 *           "scope": {
+                 *             "kind": "instance",
+                 *             "resourceType": "container"
+                 *           }
+                 *         }
+                 *       ],
+                 *       "userRules": [
+                 *         {
+                 *           "capability": "container.restart",
+                 *           "effect": "allow",
+                 *           "scope": {
+                 *             "kind": "instance",
+                 *             "resourceType": "container"
+                 *           }
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["PreviewInputBody"];
             };
         };
@@ -22680,6 +29885,70 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "checks": [
+                     *         {
+                     *           "allowed": false,
+                     *           "capability": "example",
+                     *           "reason": "example",
+                     *           "resource": {
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "parents": [
+                     *               {
+                     *                 "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "type": "example"
+                     *               }
+                     *             ],
+                     *             "type": "container"
+                     *           },
+                     *           "rule": {
+                     *             "capability": "container.restart",
+                     *             "effect": "allow",
+                     *             "scope": {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "kind": "instance",
+                     *               "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "resourceType": "container"
+                     *             }
+                     *           },
+                     *           "source": "example"
+                     *         }
+                     *       ],
+                     *       "effective": {
+                     *         "catalogVersion": 1,
+                     *         "entries": [
+                     *           {
+                     *             "allowed": false,
+                     *             "capability": "example",
+                     *             "reason": "example",
+                     *             "rule": {
+                     *               "capability": "container.restart",
+                     *               "effect": "allow",
+                     *               "scope": {
+                     *                 "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "instance",
+                     *                 "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "resourceType": "container"
+                     *               }
+                     *             },
+                     *             "scope": {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "kind": "instance",
+                     *               "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "resourceType": "container"
+                     *             },
+                     *             "source": "owner"
+                     *           }
+                     *         ],
+                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "owner": false,
+                     *         "userId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["PermissionPreview"];
                 };
             };
@@ -22750,6 +30019,46 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "credentialType": "password",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "host": "ghcr.io",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "lastCheck": {
+                     *             "at": "2026-09-25T12:00:00Z",
+                     *             "result": "ok"
+                     *           },
+                     *           "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *           "name": "GHCR (acme pull token)",
+                     *           "plainHttp": false,
+                     *           "priority": 1,
+                     *           "repositoryPattern": "acme/*",
+                     *           "revision": 1,
+                     *           "revokedAt": "2026-09-25T12:00:00Z",
+                     *           "secret": {
+                     *             "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *             "set": false,
+                     *             "updatedAt": "2026-09-25T12:00:00Z",
+                     *             "version": 1
+                     *           },
+                     *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "status": "active",
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "username": "web",
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageRegistryConnection"];
                 };
             };
@@ -22791,6 +30100,15 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "host": "ghcr.io",
+                 *       "name": "GHCR (acme pull token)",
+                 *       "repositoryPattern": "acme/*",
+                 *       "secret": "example",
+                 *       "username": "web"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateRegistryInputBody"];
             };
         };
@@ -22802,6 +30120,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "credentialType": "password",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "host": "ghcr.io",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastCheck": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "result": "ok"
+                     *       },
+                     *       "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "GHCR (acme pull token)",
+                     *       "plainHttp": false,
+                     *       "priority": 1,
+                     *       "repositoryPattern": "acme/*",
+                     *       "revision": 1,
+                     *       "revokedAt": "2026-09-25T12:00:00Z",
+                     *       "secret": {
+                     *         "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *         "set": false,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "version": 1
+                     *       },
+                     *       "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "username": "web",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["RegistryConnection"];
                 };
             };
@@ -22861,6 +30213,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "imageReference": "acme/app:1.4.2"
+                 *     }
+                 */
                 "application/json": components["schemas"]["RegistryMatchInputBody"];
             };
         };
@@ -22871,6 +30228,88 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "candidates": [
+                     *         {
+                     *           "binding": "stack",
+                     *           "connection": {
+                     *             "actions": [
+                     *               "example"
+                     *             ],
+                     *             "createdAt": "2026-09-25T12:00:00Z",
+                     *             "credentialType": "password",
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "host": "ghcr.io",
+                     *             "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "lastCheck": {
+                     *               "at": "2026-09-25T12:00:00Z",
+                     *               "result": "ok"
+                     *             },
+                     *             "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *             "name": "GHCR (acme pull token)",
+                     *             "plainHttp": false,
+                     *             "priority": 1,
+                     *             "repositoryPattern": "acme/*",
+                     *             "revision": 1,
+                     *             "revokedAt": "2026-09-25T12:00:00Z",
+                     *             "secret": {
+                     *               "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *               "set": false,
+                     *               "updatedAt": "2026-09-25T12:00:00Z",
+                     *               "version": 1
+                     *             },
+                     *             "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "status": "active",
+                     *             "updatedAt": "2026-09-25T12:00:00Z",
+                     *             "username": "web",
+                     *             "view": "minimal"
+                     *           },
+                     *           "repositorySpecificity": 1
+                     *         }
+                     *       ],
+                     *       "explicit": false,
+                     *       "host": "docker.io",
+                     *       "reference": "docker.io/acme/app:1.4.2",
+                     *       "repository": "acme/app",
+                     *       "selected": {
+                     *         "actions": [
+                     *           "example"
+                     *         ],
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "credentialType": "password",
+                     *         "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "host": "ghcr.io",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "lastCheck": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "result": "ok"
+                     *         },
+                     *         "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *         "name": "GHCR (acme pull token)",
+                     *         "plainHttp": false,
+                     *         "priority": 1,
+                     *         "repositoryPattern": "acme/*",
+                     *         "revision": 1,
+                     *         "revokedAt": "2026-09-25T12:00:00Z",
+                     *         "secret": {
+                     *           "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *           "set": false,
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "version": 1
+                     *         },
+                     *         "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "status": "active",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "username": "web",
+                     *         "view": "minimal"
+                     *       },
+                     *       "selection": "connection",
+                     *       "tied": [
+                     *         "example"
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["RegistryMatch"];
                 };
             };
@@ -22940,6 +30379,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "credentialType": "password",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "host": "ghcr.io",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastCheck": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "result": "ok"
+                     *       },
+                     *       "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "GHCR (acme pull token)",
+                     *       "plainHttp": false,
+                     *       "priority": 1,
+                     *       "repositoryPattern": "acme/*",
+                     *       "revision": 1,
+                     *       "revokedAt": "2026-09-25T12:00:00Z",
+                     *       "secret": {
+                     *         "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *         "set": false,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "version": 1
+                     *       },
+                     *       "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "username": "web",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["RegistryConnection"];
                 };
             };
@@ -23083,6 +30556,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "GitHub Container Registry",
+                 *       "repositoryPattern": "example/*"
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateRegistryInputBody"];
             };
         };
@@ -23094,6 +30573,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "credentialType": "password",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "host": "ghcr.io",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastCheck": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "result": "ok"
+                     *       },
+                     *       "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "GHCR (acme pull token)",
+                     *       "plainHttp": false,
+                     *       "priority": 1,
+                     *       "repositoryPattern": "acme/*",
+                     *       "revision": 1,
+                     *       "revokedAt": "2026-09-25T12:00:00Z",
+                     *       "secret": {
+                     *         "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *         "set": false,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "version": 1
+                     *       },
+                     *       "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "username": "web",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["RegistryConnection"];
                 };
             };
@@ -23183,6 +30696,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "imageReference": "ghcr.io/acme/app:1.4.2",
+                 *       "platform": "linux/amd64"
+                 *     }
+                 */
                 "application/json": components["schemas"]["RegistryTestInputBody"];
             };
         };
@@ -23193,6 +30712,19 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "checkedAt": "2026-09-25T12:00:00Z",
+                     *       "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *       "errorClass": "unauthorized",
+                     *       "mediaType": "example",
+                     *       "message": "example",
+                     *       "ok": false,
+                     *       "platformDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *       "reference": "ghcr.io/acme/app:1.4.2",
+                     *       "retryAfterSeconds": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["RegistryConnectionTest"];
                 };
             };
@@ -23267,6 +30799,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "credentialType": "token",
+                 *       "secret": "example",
+                 *       "username": "ci-bot"
+                 *     }
+                 */
                 "application/json": components["schemas"]["RotateRegistryInputBody"];
             };
         };
@@ -23278,6 +30817,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "credentialType": "password",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "host": "ghcr.io",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "lastCheck": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "result": "ok"
+                     *       },
+                     *       "lastUsedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "GHCR (acme pull token)",
+                     *       "plainHttp": false,
+                     *       "priority": 1,
+                     *       "repositoryPattern": "acme/*",
+                     *       "revision": 1,
+                     *       "revokedAt": "2026-09-25T12:00:00Z",
+                     *       "secret": {
+                     *         "fingerprint": "fp_3f2a9c0d1e4b5a67",
+                     *         "set": false,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "version": 1
+                     *       },
+                     *       "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "username": "web",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["RegistryConnection"];
                 };
             };
@@ -23371,6 +30944,22 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "kinds": [
+                     *         {
+                     *           "catchUp": "once",
+                     *           "cron": "0 2 * * *",
+                     *           "kind": "backup",
+                     *           "label": "Backups",
+                     *           "suggested": "0 2 * * *"
+                     *         }
+                     *       ],
+                     *       "revision": 1,
+                     *       "timeZone": "Europe/Berlin",
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["ScheduleDefaults"];
                 };
             };
@@ -23415,6 +31004,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "timeZone": "Europe/Berlin"
+                 *     }
+                 */
                 "application/json": components["schemas"]["PatchScheduleDefaultsInputBody"];
             };
         };
@@ -23426,6 +31020,22 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "kinds": [
+                     *         {
+                     *           "catchUp": "once",
+                     *           "cron": "0 2 * * *",
+                     *           "kind": "backup",
+                     *           "label": "Backups",
+                     *           "suggested": "0 2 * * *"
+                     *         }
+                     *       ],
+                     *       "revision": 1,
+                     *       "timeZone": "Europe/Berlin",
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["ScheduleDefaults"];
                 };
             };
@@ -23510,6 +31120,56 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "catchUp": "once",
+                     *           "cron": "0 3 * * 0",
+                     *           "enabled": false,
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "invalidReason": "example",
+                     *           "kind": "prune",
+                     *           "kindLabel": "Docker prune",
+                     *           "nextRun": {
+                     *             "at": "2026-09-25T12:00:00Z",
+                     *             "dst": "none",
+                     *             "dstNote": "example",
+                     *             "local": "2026-03-08T02:30",
+                     *             "utc": "2026-09-25T12:00:00Z"
+                     *           },
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "policyName": "web",
+                     *           "recentRuns": [
+                     *             {
+                     *               "catchUp": false,
+                     *               "errorClass": "example",
+                     *               "jobs": [
+                     *                 {
+                     *                   "blockedReason": "example",
+                     *                   "errorClass": "example",
+                     *                   "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                   "kind": "example",
+                     *                   "state": "example"
+                     *                 }
+                     *               ],
+                     *               "missedCount": 1,
+                     *               "missedFrom": "2026-09-25T12:00:00Z",
+                     *               "outcome": "pending",
+                     *               "reason": "example",
+                     *               "result": "example",
+                     *               "scheduledFor": "2026-09-25T12:00:00Z"
+                     *             }
+                     *           ],
+                     *           "timeZone": "Europe/Berlin",
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageSchedule"];
                 };
             };
@@ -23551,6 +31211,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "cron": "0 2 * * *",
+                 *       "kind": "prune",
+                 *       "timeZone": "Europe/Berlin"
+                 *     }
+                 */
                 "application/json": components["schemas"]["SchedulePreviewInputBody"];
             };
         };
@@ -23561,6 +31228,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "catchUp": "once",
+                     *       "cron": "example",
+                     *       "from": "2026-09-25T12:00:00Z",
+                     *       "kind": "example",
+                     *       "notes": [
+                     *         "example"
+                     *       ],
+                     *       "runs": [
+                     *         {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "dst": "none",
+                     *           "dstNote": "example",
+                     *           "local": "2026-03-08T02:30",
+                     *           "utc": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ],
+                     *       "timeZone": "example"
+                     *     }
+                     */
                     "application/json": components["schemas"]["SchedulePreview"];
                 };
             };
@@ -23616,6 +31304,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "gaps": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentName": "nas",
+                     *           "reason": "offline"
+                     *         }
+                     *       ],
+                     *       "items": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentName": "nas",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "nextcloud",
+                     *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "status": "example",
+                     *           "type": "environment"
+                     *         }
+                     *       ],
+                     *       "query": "example"
+                     *     }
+                     */
                     "application/json": components["schemas"]["SearchResults"];
                 };
             };
@@ -23630,6 +31341,173 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "deployment": {
+                     *         "filesMaxUploadBytes": 2147483648,
+                     *         "localDevelopment": false,
+                     *         "metricsEndpoint": false,
+                     *         "publicUrl": "https://docker.example.com",
+                     *         "streamHeartbeatSeconds": 15,
+                     *         "trustedProxyCount": 1
+                     *       },
+                     *       "instanceId": "01921b4e-7c1a-7cc3-9b1e-4d6f0a2b3c4d",
+                     *       "name": "Homelab",
+                     *       "revision": 3,
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["InstanceSettings"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-settings": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "Homelab"
+                 *     }
+                 */
+                "application/json": components["schemas"]["PatchInstanceSettingsInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "deployment": {
+                     *         "filesMaxUploadBytes": 2147483648,
+                     *         "localDevelopment": false,
+                     *         "metricsEndpoint": false,
+                     *         "publicUrl": "https://docker.example.com",
+                     *         "streamHeartbeatSeconds": 15,
+                     *         "trustedProxyCount": 1
+                     *       },
+                     *       "instanceId": "01921b4e-7c1a-7cc3-9b1e-4d6f0a2b3c4d",
+                     *       "name": "Homelab",
+                     *       "revision": 3,
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["InstanceSettings"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -23664,6 +31542,21 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "apiTokenMaxLifetimeDays": 1,
+                     *       "apiTokensEnabled": false,
+                     *       "apiTokensNonExpiring": false,
+                     *       "enrollmentGraceHours": 1,
+                     *       "invitationTtlHours": 1,
+                     *       "minPasswordLength": 12,
+                     *       "passwordResetTtlHours": 1,
+                     *       "requiredFactors": "either",
+                     *       "revision": 1,
+                     *       "strictPasswords": false,
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["SecuritySettings"];
                 };
             };
@@ -23708,6 +31601,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "minPasswordLength": 12,
+                 *       "requiredFactors": "either"
+                 *     }
+                 */
                 "application/json": components["schemas"]["PatchSecuritySettingsInputBody"];
             };
         };
@@ -23719,6 +31618,21 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "apiTokenMaxLifetimeDays": 1,
+                     *       "apiTokensEnabled": false,
+                     *       "apiTokensNonExpiring": false,
+                     *       "enrollmentGraceHours": 1,
+                     *       "invitationTtlHours": 1,
+                     *       "minPasswordLength": 12,
+                     *       "passwordResetTtlHours": 1,
+                     *       "requiredFactors": "either",
+                     *       "revision": 1,
+                     *       "strictPasswords": false,
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["SecuritySettings"];
                 };
             };
@@ -23787,6 +31701,15 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "endpoint": "https://s3.eu-central-1.amazonaws.com",
+                 *       "kind": "local",
+                 *       "path": "/backups/dockyard",
+                 *       "prefix": "dockyard",
+                 *       "recoveryKey": "example"
+                 *     }
+                 */
                 "application/json": components["schemas"]["BackupImportSource"];
             };
         };
@@ -23797,6 +31720,52 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "canDelete": false,
+                     *       "canRead": false,
+                     *       "canWrite": false,
+                     *       "keyFingerprint": "rk_3f2a9c1d0b7e4a55",
+                     *       "locations": [
+                     *         {
+                     *           "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentName": "nas",
+                     *           "errorClass": "repository_not_found",
+                     *           "found": false,
+                     *           "key": "current",
+                     *           "note": "example",
+                     *           "reachable": false,
+                     *           "repository": "example",
+                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "repositoryName": "web",
+                     *           "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "scope": "manager"
+                     *         }
+                     *       ],
+                     *       "manager": {
+                     *         "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "environmentName": "nas",
+                     *         "errorClass": "repository_not_found",
+                     *         "found": false,
+                     *         "key": "current",
+                     *         "note": "example",
+                     *         "reachable": false,
+                     *         "repository": "example",
+                     *         "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "repositoryName": "web",
+                     *         "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "scope": "manager"
+                     *       },
+                     *       "objectLock": false,
+                     *       "ok": false,
+                     *       "problems": [
+                     *         "example"
+                     *       ],
+                     *       "sets": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["BackupImportConnectionTest"];
                 };
             };
@@ -23856,6 +31825,15 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "endpoint": "https://s3.eu-central-1.amazonaws.com",
+                 *       "kind": "local",
+                 *       "path": "/backups/dockyard",
+                 *       "prefix": "dockyard",
+                 *       "recoveryKey": "example"
+                 *     }
+                 */
                 "application/json": components["schemas"]["BackupImportSource"];
             };
         };
@@ -23866,6 +31844,84 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "keyFingerprint": "example",
+                     *       "locations": [
+                     *         {
+                     *           "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentName": "nas",
+                     *           "errorClass": "repository_not_found",
+                     *           "found": false,
+                     *           "key": "current",
+                     *           "note": "example",
+                     *           "reachable": false,
+                     *           "repository": "example",
+                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "repositoryName": "web",
+                     *           "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "scope": "manager"
+                     *         }
+                     *       ],
+                     *       "manager": {
+                     *         "engineId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "environmentName": "nas",
+                     *         "errorClass": "repository_not_found",
+                     *         "found": false,
+                     *         "key": "current",
+                     *         "note": "example",
+                     *         "reachable": false,
+                     *         "repository": "example",
+                     *         "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "repositoryName": "web",
+                     *         "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "scope": "manager"
+                     *       },
+                     *       "problems": [
+                     *         "example"
+                     *       ],
+                     *       "sets": [
+                     *         {
+                     *           "appVersion": "example",
+                     *           "blockerCode": "example",
+                     *           "completeness": "complete",
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "hostOnly": false,
+                     *           "importable": false,
+                     *           "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "keyBundle": "ok",
+                     *           "managerSnapshotId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "managerSnapshotTime": "2026-09-25T12:00:00Z",
+                     *           "members": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "environmentName": "nas",
+                     *               "errorClass": "example",
+                     *               "item": "stack/0190a6e0-0000-7000-8000-000000000001",
+                     *               "kind": "manager_state",
+                     *               "located": "found",
+                     *               "scope": "example",
+                     *               "snapshotId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "snapshotTime": "2026-09-25T12:00:00Z",
+                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "stackName": "web",
+                     *               "state": "complete",
+                     *               "volume": "example"
+                     *             }
+                     *           ],
+                     *           "policyName": "web",
+                     *           "problems": [
+                     *             "example"
+                     *           ],
+                     *           "schemaCompatible": false,
+                     *           "schemaLatest": "example",
+                     *           "setId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["BackupImportPreview"];
                 };
             };
@@ -23925,6 +31981,15 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "endpoint": "https://s3.eu-central-1.amazonaws.com",
+                 *       "kind": "local",
+                 *       "path": "/backups/dockyard",
+                 *       "prefix": "dockyard",
+                 *       "recoveryKey": "example"
+                 *     }
+                 */
                 "application/json": components["schemas"]["BackupImportSource"];
             };
         };
@@ -23936,6 +32001,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -23995,6 +32118,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "password": "example",
+                 *       "username": "admin"
+                 *     }
+                 */
                 "application/json": components["schemas"]["SetupOwnerInputBody"];
             };
         };
@@ -24005,6 +32134,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "authenticatedAt": "2026-09-25T12:00:00Z",
+                     *       "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "factors": [
+                     *         "password"
+                     *       ],
+                     *       "idleExpiresAt": "2026-09-25T12:00:00Z",
+                     *       "missingFactors": [
+                     *         "password"
+                     *       ],
+                     *       "recentAuthUntil": "2026-09-25T12:00:00Z",
+                     *       "requiredFactors": "none",
+                     *       "state": "second_factor_required",
+                     *       "user": {
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "disabledAt": "2026-09-25T12:00:00Z",
+                     *         "displayName": "web",
+                     *         "email": "example",
+                     *         "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *         "factors": {
+                     *           "passkeys": 1,
+                     *           "password": false,
+                     *           "recoveryCodesRemaining": 1,
+                     *           "totp": false
+                     *         },
+                     *         "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *         "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *         "owner": false,
+                     *         "revision": 1,
+                     *         "status": "active",
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "username": "alice"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["Session"];
                 };
             };
@@ -24070,6 +32237,20 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "backupImport": {
+                     *         "errorCode": "example",
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "recovery": "example",
+                     *         "restartPending": false,
+                     *         "state": "queued"
+                     *       },
+                     *       "explanation": "example",
+                     *       "secureOrigin": false,
+                     *       "setupComplete": false
+                     *     }
+                     */
                     "application/json": components["schemas"]["SetupStatusOutputBody"];
                 };
             };
@@ -24115,6 +32296,120 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "appliedRevision": {
+                     *             "at": "2026-09-25T12:00:00Z",
+                     *             "hash": "example",
+                     *             "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "seq": 1
+                     *           },
+                     *           "binds": [
+                     *             {
+                     *               "external": false,
+                     *               "readOnly": false,
+                     *               "relPath": "config/app.conf",
+                     *               "service": "example",
+                     *               "source": "example",
+                     *               "target": "example"
+                     *             }
+                     *           ],
+                     *           "configFiles": [
+                     *             "example"
+                     *           ],
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "description": "example",
+                     *           "displayName": "web",
+                     *           "engine": {
+                     *             "observedAt": "2026-09-25T12:00:00Z",
+                     *             "services": [
+                     *               {
+                     *                 "containers": 1,
+                     *                 "running": 1,
+                     *                 "service": "example"
+                     *               }
+                     *             ],
+                     *             "state": "unknown"
+                     *           },
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentOnline": false,
+                     *           "failedRevision": {
+                     *             "at": "2026-09-25T12:00:00Z",
+                     *             "hash": "example",
+                     *             "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "seq": 1
+                     *           },
+                     *           "icon": "example",
+                     *           "id": "0190a6e0-7777-7000-8000-000000000007",
+                     *           "images": [
+                     *             {
+                     *               "build": false,
+                     *               "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *               "image": "nginx:1.27",
+                     *               "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "platform": "linux/amd64",
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "lastJob": {
+                     *             "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "example"
+                     *           },
+                     *           "location": {
+                     *             "dir": "example",
+                     *             "hostPath": "config/app.conf",
+                     *             "root": "stacks"
+                     *           },
+                     *           "name": "shop",
+                     *           "origin": "created",
+                     *           "previousState": [
+                     *             {
+                     *               "containers": 1,
+                     *               "running": 1,
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "readOnly": false,
+                     *           "recovery": "example",
+                     *           "revision": 1,
+                     *           "services": [
+                     *             {
+                     *               "build": false,
+                     *               "dependsOn": [
+                     *                 {
+                     *                   "condition": "service_started",
+                     *                   "required": false,
+                     *                   "restart": false,
+                     *                   "service": "example"
+                     *                 }
+                     *               ],
+                     *               "description": "example",
+                     *               "icon": "example",
+                     *               "image": "nginx:1.27",
+                     *               "name": "web"
+                     *             }
+                     *           ],
+                     *           "sourceRevision": {
+                     *             "at": "2026-09-25T12:00:00Z",
+                     *             "hash": "example",
+                     *             "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "seq": 1
+                     *           },
+                     *           "status": "undeployed",
+                     *           "undeployedChanges": false,
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "view": "minimal"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageStack"];
                 };
             };
@@ -24156,6 +32451,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "displayName": "Website",
+                 *       "name": "web"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateStackInputBody"];
             };
         };
@@ -24168,6 +32469,161 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "stack": {
+                     *         "actions": [
+                     *           "example"
+                     *         ],
+                     *         "appliedRevision": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "hash": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "seq": 1
+                     *         },
+                     *         "binds": [
+                     *           {
+                     *             "external": false,
+                     *             "readOnly": false,
+                     *             "relPath": "config/app.conf",
+                     *             "service": "example",
+                     *             "source": "example",
+                     *             "target": "example"
+                     *           }
+                     *         ],
+                     *         "configFiles": [
+                     *           "example"
+                     *         ],
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "description": "example",
+                     *         "displayName": "web",
+                     *         "engine": {
+                     *           "observedAt": "2026-09-25T12:00:00Z",
+                     *           "services": [
+                     *             {
+                     *               "containers": 1,
+                     *               "running": 1,
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "state": "unknown"
+                     *         },
+                     *         "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "environmentOnline": false,
+                     *         "failedRevision": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "hash": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "seq": 1
+                     *         },
+                     *         "icon": "example",
+                     *         "id": "0190a6e0-7777-7000-8000-000000000007",
+                     *         "images": [
+                     *           {
+                     *             "build": false,
+                     *             "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "image": "nginx:1.27",
+                     *             "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "platform": "linux/amd64",
+                     *             "service": "example"
+                     *           }
+                     *         ],
+                     *         "lastJob": {
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "kind": "example"
+                     *         },
+                     *         "location": {
+                     *           "dir": "example",
+                     *           "hostPath": "config/app.conf",
+                     *           "root": "stacks"
+                     *         },
+                     *         "name": "shop",
+                     *         "origin": "created",
+                     *         "previousState": [
+                     *           {
+                     *             "containers": 1,
+                     *             "running": 1,
+                     *             "service": "example"
+                     *           }
+                     *         ],
+                     *         "readOnly": false,
+                     *         "recovery": "example",
+                     *         "revision": 1,
+                     *         "services": [
+                     *           {
+                     *             "build": false,
+                     *             "dependsOn": [
+                     *               {
+                     *                 "condition": "service_started",
+                     *                 "required": false,
+                     *                 "restart": false,
+                     *                 "service": "example"
+                     *               }
+                     *             ],
+                     *             "description": "example",
+                     *             "icon": "example",
+                     *             "image": "nginx:1.27",
+                     *             "name": "web"
+                     *           }
+                     *         ],
+                     *         "sourceRevision": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "hash": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "seq": 1
+                     *         },
+                     *         "status": "undeployed",
+                     *         "undeployedChanges": false,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "view": "minimal"
+                     *       },
+                     *       "validation": {
+                     *         "binds": [
+                     *           {
+                     *             "external": false,
+                     *             "readOnly": false,
+                     *             "relPath": "config/app.conf",
+                     *             "service": "example",
+                     *             "source": "example",
+                     *             "target": "example"
+                     *           }
+                     *         ],
+                     *         "errors": [
+                     *           {
+                     *             "code": "example",
+                     *             "message": "services.web.ports: invalid port \"80a\"",
+                     *             "service": "example"
+                     *           }
+                     *         ],
+                     *         "projectName": "web",
+                     *         "services": [
+                     *           {
+                     *             "build": false,
+                     *             "dependsOn": [
+                     *               {
+                     *                 "condition": "service_started",
+                     *                 "required": false,
+                     *                 "restart": false,
+                     *                 "service": "example"
+                     *               }
+                     *             ],
+                     *             "description": "example",
+                     *             "icon": "example",
+                     *             "image": "nginx:1.27",
+                     *             "name": "web"
+                     *           }
+                     *         ],
+                     *         "valid": false,
+                     *         "warnings": [
+                     *           {
+                     *             "code": "example",
+                     *             "message": "services.web.ports: invalid port \"80a\"",
+                     *             "service": "example"
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["CreateStackOutputBody"];
                 };
             };
@@ -24263,6 +32719,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "web"
+                 *     }
+                 */
                 "application/json": components["schemas"]["ValidateStackInputBody"];
             };
         };
@@ -24273,6 +32734,53 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "binds": [
+                     *         {
+                     *           "external": false,
+                     *           "readOnly": false,
+                     *           "relPath": "config/app.conf",
+                     *           "service": "example",
+                     *           "source": "example",
+                     *           "target": "example"
+                     *         }
+                     *       ],
+                     *       "errors": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "services.web.ports: invalid port \"80a\"",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "projectName": "web",
+                     *       "services": [
+                     *         {
+                     *           "build": false,
+                     *           "dependsOn": [
+                     *             {
+                     *               "condition": "service_started",
+                     *               "required": false,
+                     *               "restart": false,
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "description": "example",
+                     *           "icon": "example",
+                     *           "image": "nginx:1.27",
+                     *           "name": "web"
+                     *         }
+                     *       ],
+                     *       "valid": false,
+                     *       "warnings": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "services.web.ports: invalid port \"80a\"",
+                     *           "service": "example"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["StackValidation"];
                 };
             };
@@ -24378,6 +32886,114 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "appliedRevision": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "hash": "example",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "seq": 1
+                     *       },
+                     *       "binds": [
+                     *         {
+                     *           "external": false,
+                     *           "readOnly": false,
+                     *           "relPath": "config/app.conf",
+                     *           "service": "example",
+                     *           "source": "example",
+                     *           "target": "example"
+                     *         }
+                     *       ],
+                     *       "configFiles": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "displayName": "web",
+                     *       "engine": {
+                     *         "observedAt": "2026-09-25T12:00:00Z",
+                     *         "services": [
+                     *           {
+                     *             "containers": 1,
+                     *             "running": 1,
+                     *             "service": "example"
+                     *           }
+                     *         ],
+                     *         "state": "unknown"
+                     *       },
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "environmentOnline": false,
+                     *       "failedRevision": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "hash": "example",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "seq": 1
+                     *       },
+                     *       "icon": "example",
+                     *       "id": "0190a6e0-7777-7000-8000-000000000007",
+                     *       "images": [
+                     *         {
+                     *           "build": false,
+                     *           "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "image": "nginx:1.27",
+                     *           "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "platform": "linux/amd64",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "lastJob": {
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "kind": "example"
+                     *       },
+                     *       "location": {
+                     *         "dir": "example",
+                     *         "hostPath": "config/app.conf",
+                     *         "root": "stacks"
+                     *       },
+                     *       "name": "shop",
+                     *       "origin": "created",
+                     *       "previousState": [
+                     *         {
+                     *           "containers": 1,
+                     *           "running": 1,
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "readOnly": false,
+                     *       "recovery": "example",
+                     *       "revision": 1,
+                     *       "services": [
+                     *         {
+                     *           "build": false,
+                     *           "dependsOn": [
+                     *             {
+                     *               "condition": "service_started",
+                     *               "required": false,
+                     *               "restart": false,
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "description": "example",
+                     *           "icon": "example",
+                     *           "image": "nginx:1.27",
+                     *           "name": "web"
+                     *         }
+                     *       ],
+                     *       "sourceRevision": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "hash": "example",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "seq": 1
+                     *       },
+                     *       "status": "undeployed",
+                     *       "undeployedChanges": false,
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Stack"];
                 };
             };
@@ -24441,6 +33057,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -24515,6 +33189,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "displayName": "Website",
+                 *       "icon": "globe"
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateStackInputBody"];
             };
         };
@@ -24526,6 +33206,114 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "appliedRevision": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "hash": "example",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "seq": 1
+                     *       },
+                     *       "binds": [
+                     *         {
+                     *           "external": false,
+                     *           "readOnly": false,
+                     *           "relPath": "config/app.conf",
+                     *           "service": "example",
+                     *           "source": "example",
+                     *           "target": "example"
+                     *         }
+                     *       ],
+                     *       "configFiles": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "displayName": "web",
+                     *       "engine": {
+                     *         "observedAt": "2026-09-25T12:00:00Z",
+                     *         "services": [
+                     *           {
+                     *             "containers": 1,
+                     *             "running": 1,
+                     *             "service": "example"
+                     *           }
+                     *         ],
+                     *         "state": "unknown"
+                     *       },
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "environmentOnline": false,
+                     *       "failedRevision": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "hash": "example",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "seq": 1
+                     *       },
+                     *       "icon": "example",
+                     *       "id": "0190a6e0-7777-7000-8000-000000000007",
+                     *       "images": [
+                     *         {
+                     *           "build": false,
+                     *           "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "image": "nginx:1.27",
+                     *           "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "platform": "linux/amd64",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "lastJob": {
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "kind": "example"
+                     *       },
+                     *       "location": {
+                     *         "dir": "example",
+                     *         "hostPath": "config/app.conf",
+                     *         "root": "stacks"
+                     *       },
+                     *       "name": "shop",
+                     *       "origin": "created",
+                     *       "previousState": [
+                     *         {
+                     *           "containers": 1,
+                     *           "running": 1,
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "readOnly": false,
+                     *       "recovery": "example",
+                     *       "revision": 1,
+                     *       "services": [
+                     *         {
+                     *           "build": false,
+                     *           "dependsOn": [
+                     *             {
+                     *               "condition": "service_started",
+                     *               "required": false,
+                     *               "restart": false,
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "description": "example",
+                     *           "icon": "example",
+                     *           "image": "nginx:1.27",
+                     *           "name": "web"
+                     *         }
+                     *       ],
+                     *       "sourceRevision": {
+                     *         "at": "2026-09-25T12:00:00Z",
+                     *         "hash": "example",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "seq": 1
+                     *       },
+                     *       "status": "undeployed",
+                     *       "undeployedChanges": false,
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Stack"];
                 };
             };
@@ -24609,6 +33397,13 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "services": [
+                 *         "web"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["BuildStackInputBody"];
             };
         };
@@ -24620,6 +33415,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -24694,6 +33547,14 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "pull": "missing",
+                 *       "services": [
+                 *         "web"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["DeployStackInputBody"];
             };
         };
@@ -24705,6 +33566,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -24863,6 +33782,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "dir": {
+                     *         "etag": "example",
+                     *         "gid": 1,
+                     *         "linkStatus": "inside",
+                     *         "linkTarget": "example",
+                     *         "links": 1,
+                     *         "mode": "0644",
+                     *         "modifiedAt": "2026-09-25T12:00:00Z",
+                     *         "name": "compose.yaml",
+                     *         "path": "config/app.env",
+                     *         "size": 1,
+                     *         "type": "file",
+                     *         "uid": 1
+                     *       },
+                     *       "items": [
+                     *         {
+                     *           "etag": "example",
+                     *           "gid": 1,
+                     *           "linkStatus": "inside",
+                     *           "linkTarget": "example",
+                     *           "links": 1,
+                     *           "mode": "0644",
+                     *           "modifiedAt": "2026-09-25T12:00:00Z",
+                     *           "name": "compose.yaml",
+                     *           "path": "config/app.env",
+                     *           "size": 1,
+                     *           "type": "file",
+                     *           "uid": 1
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1,
+                     *       "truncated": false
+                     *     }
+                     */
                     "application/json": components["schemas"]["FileListing"];
                 };
             };
@@ -24964,6 +33920,15 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "destination": "exports/site.zip",
+                 *       "paths": [
+                 *         "html",
+                 *         "config"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["ArchiveStackInputBody"];
             };
         };
@@ -24975,6 +33940,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -25073,6 +34096,15 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "destination": "backup",
+                 *       "operation": "copy",
+                 *       "paths": [
+                 *         "config/nginx.conf"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["PreviewStackInputBody"];
             };
         };
@@ -25083,6 +34115,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "conflicts": [
+                     *         {
+                     *           "destination": "example",
+                     *           "existing": {
+                     *             "etag": "example",
+                     *             "gid": 1,
+                     *             "linkStatus": "inside",
+                     *             "linkTarget": "example",
+                     *             "links": 1,
+                     *             "mode": "0644",
+                     *             "modifiedAt": "2026-09-25T12:00:00Z",
+                     *             "name": "compose.yaml",
+                     *             "path": "config/app.env",
+                     *             "size": 1,
+                     *             "type": "file",
+                     *             "uid": 1
+                     *           },
+                     *           "source": "example"
+                     *         }
+                     *       ],
+                     *       "conflictsTruncated": false,
+                     *       "impact": {
+                     *         "bytes": 1,
+                     *         "dirs": 1,
+                     *         "entries": 1,
+                     *         "files": 1,
+                     *         "other": 1,
+                     *         "symlinks": 1,
+                     *         "truncated": false
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["FilePreview"];
                 };
             };
@@ -25193,6 +34259,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "binary": false,
+                     *       "content": "example",
+                     *       "contentBase64": "example",
+                     *       "entry": {
+                     *         "etag": "example",
+                     *         "gid": 1,
+                     *         "linkStatus": "inside",
+                     *         "linkTarget": "example",
+                     *         "links": 1,
+                     *         "mode": "0644",
+                     *         "modifiedAt": "2026-09-25T12:00:00Z",
+                     *         "name": "compose.yaml",
+                     *         "path": "config/app.env",
+                     *         "size": 1,
+                     *         "type": "file",
+                     *         "uid": 1
+                     *       },
+                     *       "offset": 1,
+                     *       "truncated": false
+                     *     }
+                     */
                     "application/json": components["schemas"]["FileContent"];
                 };
             };
@@ -25299,6 +34388,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "content": "server_tokens off;"
+                 *     }
+                 */
                 "application/json": components["schemas"]["ReplaceStackContentInputBody"];
             };
         };
@@ -25310,6 +34404,22 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "etag": "example",
+                     *       "gid": 1,
+                     *       "linkStatus": "inside",
+                     *       "linkTarget": "example",
+                     *       "links": 1,
+                     *       "mode": "0644",
+                     *       "modifiedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "compose.yaml",
+                     *       "path": "config/app.env",
+                     *       "size": 1,
+                     *       "type": "file",
+                     *       "uid": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["FileEntry"];
                 };
             };
@@ -25438,6 +34548,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "destination": "config-backup",
+                 *       "paths": [
+                 *         "config/nginx.conf"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["TransferStackInputBody"];
             };
         };
@@ -25449,6 +34567,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -25550,6 +34726,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "paths": [
+                 *         "logs/old.log"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["DeletionStackInputBody"];
             };
         };
@@ -25561,6 +34744,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -25800,6 +35041,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "path": "config/nginx.conf"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateStackEntryInputBody"];
             };
         };
@@ -25811,6 +35057,22 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "etag": "example",
+                     *       "gid": 1,
+                     *       "linkStatus": "inside",
+                     *       "linkTarget": "example",
+                     *       "links": 1,
+                     *       "mode": "0644",
+                     *       "modifiedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "compose.yaml",
+                     *       "path": "config/app.env",
+                     *       "size": 1,
+                     *       "type": "file",
+                     *       "uid": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["FileEntry"];
                 };
             };
@@ -25921,6 +35183,12 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "destination": "html",
+                 *       "path": "uploads/site.zip"
+                 *     }
+                 */
                 "application/json": components["schemas"]["ExtractionStackInputBody"];
             };
         };
@@ -25932,6 +35200,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -26033,6 +35359,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "chmod": {
+                 *         "dirMode": "0755",
+                 *         "mode": "0644"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["MetadataStackInputBody"];
             };
         };
@@ -26044,6 +35378,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -26145,6 +35537,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "destination": "config-backup",
+                 *       "paths": [
+                 *         "config/nginx.conf"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["TransferStackInputBody"];
             };
         };
@@ -26156,6 +35556,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -26282,6 +35740,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "entry": {
+                     *         "etag": "example",
+                     *         "gid": 1,
+                     *         "linkStatus": "inside",
+                     *         "linkTarget": "example",
+                     *         "links": 1,
+                     *         "mode": "0644",
+                     *         "modifiedAt": "2026-09-25T12:00:00Z",
+                     *         "name": "compose.yaml",
+                     *         "path": "config/app.env",
+                     *         "size": 1,
+                     *         "type": "file",
+                     *         "uid": 1
+                     *       },
+                     *       "skipped": false
+                     *     }
+                     */
                     "application/json": components["schemas"]["FileUploadResult"];
                 };
             };
@@ -26431,6 +35908,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "images": [
+                     *         {
+                     *           "build": false,
+                     *           "candidateDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "checkedAt": "2026-09-25T12:00:00Z",
+                     *           "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "eligible": false,
+                     *           "image": "nginx:1.27",
+                     *           "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "nonVersionTag": false,
+                     *           "platform": "example",
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "reason": "build_only",
+                     *           "reasonMessage": "example",
+                     *           "service": "web",
+                     *           "update": "no_policy"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["ImageStatusOutputBody"];
                 };
             };
@@ -26493,6 +35992,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "targetEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                 *     }
+                 */
                 "application/json": components["schemas"]["StackMigrationBody"];
             };
         };
@@ -26503,6 +36007,100 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "access": {
+                     *         "changes": [
+                     *           {
+                     *             "gained": [
+                     *               "example"
+                     *             ],
+                     *             "lost": [
+                     *               "example"
+                     *             ],
+                     *             "userId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "username": "web"
+                     *           }
+                     *         ],
+                     *         "complete": false,
+                     *         "othersAffected": 1,
+                     *         "unavailable": "example"
+                     *       },
+                     *       "allowed": false,
+                     *       "blockers": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "example",
+                     *           "resource": "example",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "data": {
+                     *         "destinationStacksFree": 1,
+                     *         "destinationVolumesFree": 1,
+                     *         "imageBytes": 1,
+                     *         "projectBytes": 1,
+                     *         "totalBytes": 1,
+                     *         "truncated": false,
+                     *         "volumeBytes": 1
+                     *       },
+                     *       "downtime": {
+                     *         "basis": "example",
+                     *         "estimatedSeconds": 1
+                     *       },
+                     *       "excluded": [
+                     *         {
+                     *           "name": "web",
+                     *           "reason": "example"
+                     *         }
+                     *       ],
+                     *       "kind": "stack",
+                     *       "leftovers": [
+                     *         "example"
+                     *       ],
+                     *       "projectName": "web",
+                     *       "services": [
+                     *         {
+                     *           "action": "pull",
+                     *           "image": "nginx:1.27",
+                     *           "name": "web",
+                     *           "platform": "example",
+                     *           "reason": "example",
+                     *           "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *         }
+                     *       ],
+                     *       "sourceEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "targetDirectory": "example",
+                     *       "targetEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "transport": {
+                     *         "bandwidthLimitBytesPerSecond": 1,
+                     *         "destinationPlainHttp": false,
+                     *         "sourcePlainHttp": false
+                     *       },
+                     *       "volumes": [
+                     *         {
+                     *           "action": "copy",
+                     *           "anonymous": false,
+                     *           "bytes": 1,
+                     *           "entries": 1,
+                     *           "key": "example",
+                     *           "reason": "example",
+                     *           "source": "example",
+                     *           "target": "example",
+                     *           "truncated": false
+                     *         }
+                     *       ],
+                     *       "warnings": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "example",
+                     *           "resource": "example",
+                     *           "service": "example"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["MigrationPreview"];
                 };
             };
@@ -26604,6 +36202,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "targetEnvironmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                 *     }
+                 */
                 "application/json": components["schemas"]["StackMigrationBody"];
             };
         };
@@ -26615,6 +36218,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -26725,6 +36386,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -26826,6 +36545,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "action": "restart",
+                 *       "services": [
+                 *         "web"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["OperateStackInputBody"];
             };
         };
@@ -26837,6 +36564,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -26908,6 +36693,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "revisionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                 *     }
+                 */
                 "application/json": components["schemas"]["RestoreStackInputBody"];
             };
         };
@@ -26918,6 +36708,139 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "deployOffered": false,
+                     *       "revision": {
+                     *         "applied": false,
+                     *         "authorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "authorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "contentOmitted": false,
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "files": [
+                     *           {
+                     *             "content": "example",
+                     *             "encoding": "utf-8",
+                     *             "path": "compose.yaml",
+                     *             "sha256": "example",
+                     *             "size": 1
+                     *           }
+                     *         ],
+                     *         "hash": "example",
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "restoredFrom": "example",
+                     *         "seq": 1,
+                     *         "source": "deploy"
+                     *       },
+                     *       "stack": {
+                     *         "actions": [
+                     *           "example"
+                     *         ],
+                     *         "appliedRevision": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "hash": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "seq": 1
+                     *         },
+                     *         "binds": [
+                     *           {
+                     *             "external": false,
+                     *             "readOnly": false,
+                     *             "relPath": "config/app.conf",
+                     *             "service": "example",
+                     *             "source": "example",
+                     *             "target": "example"
+                     *           }
+                     *         ],
+                     *         "configFiles": [
+                     *           "example"
+                     *         ],
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "description": "example",
+                     *         "displayName": "web",
+                     *         "engine": {
+                     *           "observedAt": "2026-09-25T12:00:00Z",
+                     *           "services": [
+                     *             {
+                     *               "containers": 1,
+                     *               "running": 1,
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "state": "unknown"
+                     *         },
+                     *         "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "environmentOnline": false,
+                     *         "failedRevision": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "hash": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "seq": 1
+                     *         },
+                     *         "icon": "example",
+                     *         "id": "0190a6e0-7777-7000-8000-000000000007",
+                     *         "images": [
+                     *           {
+                     *             "build": false,
+                     *             "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "image": "nginx:1.27",
+                     *             "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "platform": "linux/amd64",
+                     *             "service": "example"
+                     *           }
+                     *         ],
+                     *         "lastJob": {
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "kind": "example"
+                     *         },
+                     *         "location": {
+                     *           "dir": "example",
+                     *           "hostPath": "config/app.conf",
+                     *           "root": "stacks"
+                     *         },
+                     *         "name": "shop",
+                     *         "origin": "created",
+                     *         "previousState": [
+                     *           {
+                     *             "containers": 1,
+                     *             "running": 1,
+                     *             "service": "example"
+                     *           }
+                     *         ],
+                     *         "readOnly": false,
+                     *         "recovery": "example",
+                     *         "revision": 1,
+                     *         "services": [
+                     *           {
+                     *             "build": false,
+                     *             "dependsOn": [
+                     *               {
+                     *                 "condition": "service_started",
+                     *                 "required": false,
+                     *                 "restart": false,
+                     *                 "service": "example"
+                     *               }
+                     *             ],
+                     *             "description": "example",
+                     *             "icon": "example",
+                     *             "image": "nginx:1.27",
+                     *             "name": "web"
+                     *           }
+                     *         ],
+                     *         "sourceRevision": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "hash": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "seq": 1
+                     *         },
+                     *         "status": "undeployed",
+                     *         "undeployedChanges": false,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "view": "minimal"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["StackRestoreResult"];
                 };
             };
@@ -27027,6 +36950,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "applied": false,
+                     *           "authorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "authorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "contentOmitted": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "files": [
+                     *             {
+                     *               "content": "example",
+                     *               "encoding": "utf-8",
+                     *               "path": "compose.yaml",
+                     *               "sha256": "example",
+                     *               "size": 1
+                     *             }
+                     *           ],
+                     *           "hash": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "restoredFrom": "example",
+                     *           "seq": 1,
+                     *           "source": "deploy"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageStackRevision"];
                 };
             };
@@ -27097,6 +37050,30 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "applied": false,
+                     *       "authorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "authorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "contentOmitted": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "files": [
+                     *         {
+                     *           "content": "example",
+                     *           "encoding": "utf-8",
+                     *           "path": "compose.yaml",
+                     *           "sha256": "example",
+                     *           "size": 1
+                     *         }
+                     *       ],
+                     *       "hash": "example",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "restoredFrom": "example",
+                     *       "seq": 1,
+                     *       "source": "deploy"
+                     *     }
+                     */
                     "application/json": components["schemas"]["StackRevision"];
                 };
             };
@@ -27165,6 +37142,68 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "drift": false,
+                     *       "live": false,
+                     *       "observedAt": "2026-09-25T12:00:00Z",
+                     *       "services": [
+                     *         {
+                     *           "applied": {
+                     *             "build": false,
+                     *             "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "image": "nginx:1.27",
+                     *             "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "platform": "linux/amd64",
+                     *             "service": "example"
+                     *           },
+                     *           "build": false,
+                     *           "containers": [
+                     *             {
+                     *               "cpuShares": 1,
+                     *               "exitCode": 1,
+                     *               "health": "example",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "image": "nginx:1.27",
+                     *               "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "memory": 1,
+                     *               "name": "web",
+                     *               "nanoCpus": 1,
+                     *               "pidsLimit": 1,
+                     *               "ports": [
+                     *                 {
+                     *                   "hostIp": "example",
+                     *                   "privatePort": 1,
+                     *                   "protocol": "example",
+                     *                   "publicPort": 1
+                     *                 }
+                     *               ],
+                     *               "restartPolicy": "example",
+                     *               "startedAt": "2026-09-25T12:00:00Z",
+                     *               "state": "created",
+                     *               "view": "minimal"
+                     *             }
+                     *           ],
+                     *           "dependsOn": [
+                     *             {
+                     *               "condition": "service_started",
+                     *               "required": false,
+                     *               "restart": false,
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "description": "example",
+                     *           "drift": [
+                     *             "example"
+                     *           ],
+                     *           "icon": "example",
+                     *           "image": "nginx:1.27",
+                     *           "name": "web",
+                     *           "status": "running"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["StackServices"];
                 };
             };
@@ -27376,6 +37415,145 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "checkSchedule": {
+                     *             "cron": "example",
+                     *             "enabled": false,
+                     *             "invalidReason": "example",
+                     *             "nextRun": {
+                     *               "at": "2026-09-25T12:00:00Z",
+                     *               "dst": "none",
+                     *               "dstNote": "example",
+                     *               "local": "2026-03-08T02:30",
+                     *               "utc": "2026-09-25T12:00:00Z"
+                     *             },
+                     *             "recentRuns": [
+                     *               {
+                     *                 "catchUp": false,
+                     *                 "errorClass": "example",
+                     *                 "jobs": [
+                     *                   {
+                     *                     "blockedReason": "example",
+                     *                     "errorClass": "example",
+                     *                     "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                     "kind": "example",
+                     *                     "state": "example"
+                     *                   }
+                     *                 ],
+                     *                 "missedCount": 1,
+                     *                 "missedFrom": "2026-09-25T12:00:00Z",
+                     *                 "outcome": "pending",
+                     *                 "reason": "example",
+                     *                 "result": "example",
+                     *                 "scheduledFor": "2026-09-25T12:00:00Z"
+                     *               }
+                     *             ],
+                     *             "timeZone": "example"
+                     *           },
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "excludeServices": [
+                     *             "example"
+                     *           ],
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "web",
+                     *           "quarantine": [
+                     *             {
+                     *               "createdAt": "2026-09-25T12:00:00Z",
+                     *               "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *               "errorClass": "example",
+                     *               "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "recentHistory": [
+                     *             {
+                     *               "at": "2026-09-25T12:00:00Z",
+                     *               "errorClass": "example",
+                     *               "fromDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *               "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "outcome": "updated",
+                     *               "reference": "nginx:1.27",
+                     *               "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "service": "example",
+                     *               "sourceHashAfter": "example",
+                     *               "sourceHashBefore": "example",
+                     *               "toDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60"
+                     *             }
+                     *           ],
+                     *           "revision": 1,
+                     *           "runSchedule": {
+                     *             "cron": "example",
+                     *             "enabled": false,
+                     *             "invalidReason": "example",
+                     *             "nextRun": {
+                     *               "at": "2026-09-25T12:00:00Z",
+                     *               "dst": "none",
+                     *               "dstNote": "example",
+                     *               "local": "2026-03-08T02:30",
+                     *               "utc": "2026-09-25T12:00:00Z"
+                     *             },
+                     *             "recentRuns": [
+                     *               {
+                     *                 "catchUp": false,
+                     *                 "errorClass": "example",
+                     *                 "jobs": [
+                     *                   {
+                     *                     "blockedReason": "example",
+                     *                     "errorClass": "example",
+                     *                     "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                     "kind": "example",
+                     *                     "state": "example"
+                     *                   }
+                     *                 ],
+                     *                 "missedCount": 1,
+                     *                 "missedFrom": "2026-09-25T12:00:00Z",
+                     *                 "outcome": "pending",
+                     *                 "reason": "example",
+                     *                 "result": "example",
+                     *                 "scheduledFor": "2026-09-25T12:00:00Z"
+                     *               }
+                     *             ],
+                     *             "timeZone": "example"
+                     *           },
+                     *           "services": [
+                     *             "example"
+                     *           ],
+                     *           "summary": {
+                     *             "available": 1,
+                     *             "failed": 1,
+                     *             "ineligible": 1,
+                     *             "lastCheckAt": "2026-09-25T12:00:00Z",
+                     *             "quarantined": 1,
+                     *             "unchecked": 1,
+                     *             "upToDate": 1
+                     *           },
+                     *           "target": {
+                     *             "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "type": "stack"
+                     *           },
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "view": "minimal",
+                     *           "waitTimeoutSeconds": 1,
+                     *           "window": {
+                     *             "days": [
+                     *               1
+                     *             ],
+                     *             "end": "05:00",
+                     *             "start": "02:00"
+                     *           }
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageUpdatePolicy"];
                 };
             };
@@ -27435,6 +37613,30 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "checkSchedule": {
+                 *         "cron": "0 3 * * *",
+                 *         "enabled": false,
+                 *         "timeZone": "Europe/Berlin"
+                 *       },
+                 *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "name": "web",
+                 *       "runSchedule": {
+                 *         "cron": "0 3 * * *",
+                 *         "enabled": false,
+                 *         "timeZone": "Europe/Berlin"
+                 *       },
+                 *       "target": {
+                 *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *         "type": "stack"
+                 *       },
+                 *       "window": {
+                 *         "end": "05:00",
+                 *         "start": "02:00"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateUpdatePolicyInputBody"];
             };
         };
@@ -27446,6 +37648,139 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "checkSchedule": {
+                     *         "cron": "example",
+                     *         "enabled": false,
+                     *         "invalidReason": "example",
+                     *         "nextRun": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "dst": "none",
+                     *           "dstNote": "example",
+                     *           "local": "2026-03-08T02:30",
+                     *           "utc": "2026-09-25T12:00:00Z"
+                     *         },
+                     *         "recentRuns": [
+                     *           {
+                     *             "catchUp": false,
+                     *             "errorClass": "example",
+                     *             "jobs": [
+                     *               {
+                     *                 "blockedReason": "example",
+                     *                 "errorClass": "example",
+                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "example",
+                     *                 "state": "example"
+                     *               }
+                     *             ],
+                     *             "missedCount": 1,
+                     *             "missedFrom": "2026-09-25T12:00:00Z",
+                     *             "outcome": "pending",
+                     *             "reason": "example",
+                     *             "result": "example",
+                     *             "scheduledFor": "2026-09-25T12:00:00Z"
+                     *           }
+                     *         ],
+                     *         "timeZone": "example"
+                     *       },
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "excludeServices": [
+                     *         "example"
+                     *       ],
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "web",
+                     *       "quarantine": [
+                     *         {
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "errorClass": "example",
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "recentHistory": [
+                     *         {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "errorClass": "example",
+                     *           "fromDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "outcome": "updated",
+                     *           "reference": "nginx:1.27",
+                     *           "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "service": "example",
+                     *           "sourceHashAfter": "example",
+                     *           "sourceHashBefore": "example",
+                     *           "toDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60"
+                     *         }
+                     *       ],
+                     *       "revision": 1,
+                     *       "runSchedule": {
+                     *         "cron": "example",
+                     *         "enabled": false,
+                     *         "invalidReason": "example",
+                     *         "nextRun": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "dst": "none",
+                     *           "dstNote": "example",
+                     *           "local": "2026-03-08T02:30",
+                     *           "utc": "2026-09-25T12:00:00Z"
+                     *         },
+                     *         "recentRuns": [
+                     *           {
+                     *             "catchUp": false,
+                     *             "errorClass": "example",
+                     *             "jobs": [
+                     *               {
+                     *                 "blockedReason": "example",
+                     *                 "errorClass": "example",
+                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "example",
+                     *                 "state": "example"
+                     *               }
+                     *             ],
+                     *             "missedCount": 1,
+                     *             "missedFrom": "2026-09-25T12:00:00Z",
+                     *             "outcome": "pending",
+                     *             "reason": "example",
+                     *             "result": "example",
+                     *             "scheduledFor": "2026-09-25T12:00:00Z"
+                     *           }
+                     *         ],
+                     *         "timeZone": "example"
+                     *       },
+                     *       "services": [
+                     *         "example"
+                     *       ],
+                     *       "summary": {
+                     *         "available": 1,
+                     *         "failed": 1,
+                     *         "ineligible": 1,
+                     *         "lastCheckAt": "2026-09-25T12:00:00Z",
+                     *         "quarantined": 1,
+                     *         "unchecked": 1,
+                     *         "upToDate": 1
+                     *       },
+                     *       "target": {
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "type": "stack"
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal",
+                     *       "waitTimeoutSeconds": 1,
+                     *       "window": {
+                     *         "days": [
+                     *           1
+                     *         ],
+                     *         "end": "05:00",
+                     *         "start": "02:00"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["UpdatePolicy"];
                 };
             };
@@ -27533,6 +37868,139 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "checkSchedule": {
+                     *         "cron": "example",
+                     *         "enabled": false,
+                     *         "invalidReason": "example",
+                     *         "nextRun": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "dst": "none",
+                     *           "dstNote": "example",
+                     *           "local": "2026-03-08T02:30",
+                     *           "utc": "2026-09-25T12:00:00Z"
+                     *         },
+                     *         "recentRuns": [
+                     *           {
+                     *             "catchUp": false,
+                     *             "errorClass": "example",
+                     *             "jobs": [
+                     *               {
+                     *                 "blockedReason": "example",
+                     *                 "errorClass": "example",
+                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "example",
+                     *                 "state": "example"
+                     *               }
+                     *             ],
+                     *             "missedCount": 1,
+                     *             "missedFrom": "2026-09-25T12:00:00Z",
+                     *             "outcome": "pending",
+                     *             "reason": "example",
+                     *             "result": "example",
+                     *             "scheduledFor": "2026-09-25T12:00:00Z"
+                     *           }
+                     *         ],
+                     *         "timeZone": "example"
+                     *       },
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "excludeServices": [
+                     *         "example"
+                     *       ],
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "web",
+                     *       "quarantine": [
+                     *         {
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "errorClass": "example",
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "recentHistory": [
+                     *         {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "errorClass": "example",
+                     *           "fromDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "outcome": "updated",
+                     *           "reference": "nginx:1.27",
+                     *           "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "service": "example",
+                     *           "sourceHashAfter": "example",
+                     *           "sourceHashBefore": "example",
+                     *           "toDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60"
+                     *         }
+                     *       ],
+                     *       "revision": 1,
+                     *       "runSchedule": {
+                     *         "cron": "example",
+                     *         "enabled": false,
+                     *         "invalidReason": "example",
+                     *         "nextRun": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "dst": "none",
+                     *           "dstNote": "example",
+                     *           "local": "2026-03-08T02:30",
+                     *           "utc": "2026-09-25T12:00:00Z"
+                     *         },
+                     *         "recentRuns": [
+                     *           {
+                     *             "catchUp": false,
+                     *             "errorClass": "example",
+                     *             "jobs": [
+                     *               {
+                     *                 "blockedReason": "example",
+                     *                 "errorClass": "example",
+                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "example",
+                     *                 "state": "example"
+                     *               }
+                     *             ],
+                     *             "missedCount": 1,
+                     *             "missedFrom": "2026-09-25T12:00:00Z",
+                     *             "outcome": "pending",
+                     *             "reason": "example",
+                     *             "result": "example",
+                     *             "scheduledFor": "2026-09-25T12:00:00Z"
+                     *           }
+                     *         ],
+                     *         "timeZone": "example"
+                     *       },
+                     *       "services": [
+                     *         "example"
+                     *       ],
+                     *       "summary": {
+                     *         "available": 1,
+                     *         "failed": 1,
+                     *         "ineligible": 1,
+                     *         "lastCheckAt": "2026-09-25T12:00:00Z",
+                     *         "quarantined": 1,
+                     *         "unchecked": 1,
+                     *         "upToDate": 1
+                     *       },
+                     *       "target": {
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "type": "stack"
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal",
+                     *       "waitTimeoutSeconds": 1,
+                     *       "window": {
+                     *         "days": [
+                     *           1
+                     *         ],
+                     *         "end": "05:00",
+                     *         "start": "02:00"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["UpdatePolicy"];
                 };
             };
@@ -27703,6 +38171,24 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "checkSchedule": {
+                 *         "cron": "0 3 * * *",
+                 *         "enabled": false,
+                 *         "timeZone": "Europe/Berlin"
+                 *       },
+                 *       "runSchedule": {
+                 *         "cron": "0 3 * * *",
+                 *         "enabled": false,
+                 *         "timeZone": "Europe/Berlin"
+                 *       },
+                 *       "window": {
+                 *         "end": "05:00",
+                 *         "start": "02:00"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["PatchUpdatePolicyInputBody"];
             };
         };
@@ -27714,6 +38200,139 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "checkSchedule": {
+                     *         "cron": "example",
+                     *         "enabled": false,
+                     *         "invalidReason": "example",
+                     *         "nextRun": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "dst": "none",
+                     *           "dstNote": "example",
+                     *           "local": "2026-03-08T02:30",
+                     *           "utc": "2026-09-25T12:00:00Z"
+                     *         },
+                     *         "recentRuns": [
+                     *           {
+                     *             "catchUp": false,
+                     *             "errorClass": "example",
+                     *             "jobs": [
+                     *               {
+                     *                 "blockedReason": "example",
+                     *                 "errorClass": "example",
+                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "example",
+                     *                 "state": "example"
+                     *               }
+                     *             ],
+                     *             "missedCount": 1,
+                     *             "missedFrom": "2026-09-25T12:00:00Z",
+                     *             "outcome": "pending",
+                     *             "reason": "example",
+                     *             "result": "example",
+                     *             "scheduledFor": "2026-09-25T12:00:00Z"
+                     *           }
+                     *         ],
+                     *         "timeZone": "example"
+                     *       },
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "excludeServices": [
+                     *         "example"
+                     *       ],
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "web",
+                     *       "quarantine": [
+                     *         {
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "errorClass": "example",
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "recentHistory": [
+                     *         {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "errorClass": "example",
+                     *           "fromDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "outcome": "updated",
+                     *           "reference": "nginx:1.27",
+                     *           "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "service": "example",
+                     *           "sourceHashAfter": "example",
+                     *           "sourceHashBefore": "example",
+                     *           "toDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60"
+                     *         }
+                     *       ],
+                     *       "revision": 1,
+                     *       "runSchedule": {
+                     *         "cron": "example",
+                     *         "enabled": false,
+                     *         "invalidReason": "example",
+                     *         "nextRun": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "dst": "none",
+                     *           "dstNote": "example",
+                     *           "local": "2026-03-08T02:30",
+                     *           "utc": "2026-09-25T12:00:00Z"
+                     *         },
+                     *         "recentRuns": [
+                     *           {
+                     *             "catchUp": false,
+                     *             "errorClass": "example",
+                     *             "jobs": [
+                     *               {
+                     *                 "blockedReason": "example",
+                     *                 "errorClass": "example",
+                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "kind": "example",
+                     *                 "state": "example"
+                     *               }
+                     *             ],
+                     *             "missedCount": 1,
+                     *             "missedFrom": "2026-09-25T12:00:00Z",
+                     *             "outcome": "pending",
+                     *             "reason": "example",
+                     *             "result": "example",
+                     *             "scheduledFor": "2026-09-25T12:00:00Z"
+                     *           }
+                     *         ],
+                     *         "timeZone": "example"
+                     *       },
+                     *       "services": [
+                     *         "example"
+                     *       ],
+                     *       "summary": {
+                     *         "available": 1,
+                     *         "failed": 1,
+                     *         "ineligible": 1,
+                     *         "lastCheckAt": "2026-09-25T12:00:00Z",
+                     *         "quarantined": 1,
+                     *         "unchecked": 1,
+                     *         "upToDate": 1
+                     *       },
+                     *       "target": {
+                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "type": "stack"
+                     *       },
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "view": "minimal",
+                     *       "waitTimeoutSeconds": 1,
+                     *       "window": {
+                     *         "days": [
+                     *           1
+                     *         ],
+                     *         "end": "05:00",
+                     *         "start": "02:00"
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["UpdatePolicy"];
                 };
             };
@@ -27818,6 +38437,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "candidateDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "candidateIndexDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "checkJobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "checkedAt": "2026-09-25T12:00:00Z",
+                     *           "currentDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "currentImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "eligible": false,
+                     *           "errorClass": "example",
+                     *           "errorMessage": "example",
+                     *           "guidance": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "nonVersionTag": false,
+                     *           "platform": "example",
+                     *           "previousDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "reason": "build_only",
+                     *           "reasonMessage": "example",
+                     *           "reference": "nginx:1.27",
+                     *           "registry": "example",
+                     *           "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "repository": "example",
+                     *           "retryAfterSeconds": 1,
+                     *           "service": "web",
+                     *           "sourceHashAfter": "example",
+                     *           "sourceHashBefore": "example",
+                     *           "status": "ineligible",
+                     *           "tag": "example"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageUpdateCandidate"];
                 };
             };
@@ -27890,6 +38545,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -27970,6 +38683,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "candidates": [
+                 *         "web"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["PreviewUpdateInputBody"];
             };
         };
@@ -27980,6 +38700,107 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "dependencies": [
+                     *         {
+                     *           "dependsOn": [
+                     *             {
+                     *               "condition": "service_started",
+                     *               "required": false,
+                     *               "restart": false,
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "fingerprint": "3f9a0c1d2e4b5a6c",
+                     *       "inWindow": false,
+                     *       "items": [
+                     *         {
+                     *           "candidate": {
+                     *             "candidateDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "candidateIndexDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "checkJobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "checkedAt": "2026-09-25T12:00:00Z",
+                     *             "currentDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "currentImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "eligible": false,
+                     *             "errorClass": "example",
+                     *             "errorMessage": "example",
+                     *             "guidance": "example",
+                     *             "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "nonVersionTag": false,
+                     *             "platform": "example",
+                     *             "previousDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "reason": "build_only",
+                     *             "reasonMessage": "example",
+                     *             "reference": "nginx:1.27",
+                     *             "registry": "example",
+                     *             "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "repository": "example",
+                     *             "retryAfterSeconds": 1,
+                     *             "service": "web",
+                     *             "sourceHashAfter": "example",
+                     *             "sourceHashBefore": "example",
+                     *             "status": "ineligible",
+                     *             "tag": "example"
+                     *           },
+                     *           "downtime": "example",
+                     *           "running": false
+                     *         }
+                     *       ],
+                     *       "notes": [
+                     *         "example"
+                     *       ],
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "restarted": [
+                     *         "example"
+                     *       ],
+                     *       "sharedTag": [
+                     *         {
+                     *           "container": "example",
+                     *           "reference": "nginx:1.27",
+                     *           "service": "example",
+                     *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "stackName": "web"
+                     *         }
+                     *       ],
+                     *       "skipped": [
+                     *         {
+                     *           "candidateDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "candidateIndexDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "checkJobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "checkedAt": "2026-09-25T12:00:00Z",
+                     *           "currentDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "currentImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "eligible": false,
+                     *           "errorClass": "example",
+                     *           "errorMessage": "example",
+                     *           "guidance": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "nonVersionTag": false,
+                     *           "platform": "example",
+                     *           "previousDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "reason": "build_only",
+                     *           "reasonMessage": "example",
+                     *           "reference": "nginx:1.27",
+                     *           "registry": "example",
+                     *           "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "repository": "example",
+                     *           "retryAfterSeconds": 1,
+                     *           "service": "web",
+                     *           "sourceHashAfter": "example",
+                     *           "sourceHashBefore": "example",
+                     *           "status": "ineligible",
+                     *           "tag": "example"
+                     *         }
+                     *       ],
+                     *       "sourceDrift": false,
+                     *       "sourceHash": "example"
+                     *     }
+                     */
                     "application/json": components["schemas"]["UpdatePreview"];
                 };
             };
@@ -28063,6 +38884,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "candidates": [
+                 *         "web"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateUpdateRunInputBody"];
             };
         };
@@ -28074,6 +38902,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Job"];
                 };
             };
@@ -28162,6 +39048,35 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "disabledAt": "2026-09-25T12:00:00Z",
+                     *           "displayName": "web",
+                     *           "email": "example",
+                     *           "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *           "factors": {
+                     *             "passkeys": 1,
+                     *             "password": false,
+                     *             "recoveryCodesRemaining": 1,
+                     *             "totp": false
+                     *           },
+                     *           "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *           "owner": false,
+                     *           "revision": 1,
+                     *           "status": "active",
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "username": "alice"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
                     "application/json": components["schemas"]["PageAccount"];
                 };
             };
@@ -28221,6 +39136,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "disabledAt": "2026-09-25T12:00:00Z",
+                     *       "displayName": "web",
+                     *       "email": "example",
+                     *       "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *       "factors": {
+                     *         "passkeys": 1,
+                     *         "password": false,
+                     *         "recoveryCodesRemaining": 1,
+                     *         "totp": false
+                     *       },
+                     *       "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *       "owner": false,
+                     *       "revision": 1,
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "username": "alice"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Account"];
                 };
             };
@@ -28371,6 +39309,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "displayName": "Ada Lovelace"
+                 *     }
+                 */
                 "application/json": components["schemas"]["PatchUserInputBody"];
             };
         };
@@ -28382,6 +39325,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "disabledAt": "2026-09-25T12:00:00Z",
+                     *       "displayName": "web",
+                     *       "email": "example",
+                     *       "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *       "factors": {
+                     *         "passkeys": 1,
+                     *         "password": false,
+                     *         "recoveryCodesRemaining": 1,
+                     *         "totp": false
+                     *       },
+                     *       "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *       "owner": false,
+                     *       "revision": 1,
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "username": "alice"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Account"];
                 };
             };
@@ -28477,6 +39443,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "catalogVersion": 1,
+                     *       "entries": [
+                     *         {
+                     *           "allowed": false,
+                     *           "capability": "example",
+                     *           "reason": "example",
+                     *           "rule": {
+                     *             "capability": "container.restart",
+                     *             "effect": "allow",
+                     *             "scope": {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "kind": "instance",
+                     *               "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "resourceType": "container"
+                     *             }
+                     *           },
+                     *           "scope": {
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "instance",
+                     *             "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "resourceType": "container"
+                     *           },
+                     *           "source": "owner"
+                     *         }
+                     *       ],
+                     *       "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "owner": false,
+                     *       "userId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *     }
+                     */
                     "application/json": components["schemas"]["EffectivePermissions"];
                 };
             };
@@ -28538,6 +39536,11 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "revokeApiTokens": true
+                 *     }
+                 */
                 "application/json": components["schemas"]["RevokeTokensBody"];
             };
         };
@@ -28549,6 +39552,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "disabledAt": "2026-09-25T12:00:00Z",
+                     *       "displayName": "web",
+                     *       "email": "example",
+                     *       "enrollmentDeadline": "2026-09-25T12:00:00Z",
+                     *       "factors": {
+                     *         "passkeys": 1,
+                     *         "password": false,
+                     *         "recoveryCodesRemaining": 1,
+                     *         "totp": false
+                     *       },
+                     *       "groupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "lastSignInAt": "2026-09-25T12:00:00Z",
+                     *       "owner": false,
+                     *       "revision": 1,
+                     *       "status": "active",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "username": "alice"
+                     *     }
+                     */
                     "application/json": components["schemas"]["Account"];
                 };
             };
@@ -28622,6 +39648,11 @@ export interface operations {
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "revokeApiTokens": true
+                 *     }
+                 */
                 "application/json": components["schemas"]["RevokeTokensBody"];
             };
         };
@@ -28632,6 +39663,13 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "code": "example",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "url": "https://docker.example.com/reset#code=R7QK-2M4P-X9WT"
+                     *     }
+                     */
                     "application/json": components["schemas"]["IssuedCode"];
                 };
             };
@@ -28710,6 +39748,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "catalogVersion": 1,
+                     *       "revision": 1,
+                     *       "rules": [
+                     *         {
+                     *           "capability": "container.restart",
+                     *           "effect": "allow",
+                     *           "scope": {
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "instance",
+                     *             "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "resourceType": "container"
+                     *           }
+                     *         }
+                     *       ],
+                     *       "subjectId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *     }
+                     */
                     "application/json": components["schemas"]["PermissionDocument"];
                 };
             };
@@ -28775,6 +39832,20 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "rules": [
+                 *         {
+                 *           "capability": "container.restart",
+                 *           "effect": "allow",
+                 *           "scope": {
+                 *             "kind": "instance",
+                 *             "resourceType": "container"
+                 *           }
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["ReplaceDocumentBody"];
             };
         };
@@ -28786,6 +39857,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "catalogVersion": 1,
+                     *       "revision": 1,
+                     *       "rules": [
+                     *         {
+                     *           "capability": "container.restart",
+                     *           "effect": "allow",
+                     *           "scope": {
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "kind": "instance",
+                     *             "resourceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "resourceType": "container"
+                     *           }
+                     *         }
+                     *       ],
+                     *       "subjectId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *     }
+                     */
                     "application/json": components["schemas"]["PermissionDocument"];
                 };
             };

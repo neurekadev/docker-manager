@@ -183,8 +183,8 @@ type updateRegistryInput struct {
 	RegistryID string `path:"registryId" maxLength:"64" doc:"Registry connection ID."`
 	IfMatchParam
 	Body struct {
-		Name              *string `json:"name,omitempty" minLength:"1" maxLength:"100"`
-		RepositoryPattern *string `json:"repositoryPattern,omitempty" maxLength:"255" doc:"Empty matches every repository on the host."`
+		Name              *string `json:"name,omitempty" example:"GitHub Container Registry" minLength:"1" maxLength:"100"`
+		RepositoryPattern *string `json:"repositoryPattern,omitempty" example:"example/*" maxLength:"255" doc:"Empty matches every repository on the host."`
 		EnvironmentID     *string `json:"environmentId,omitempty" maxLength:"64" doc:"Empty removes the binding."`
 		StackID           *string `json:"stackId,omitempty" maxLength:"64" doc:"Empty removes the binding."`
 		Priority          *int    `json:"priority,omitempty" minimum:"-1000" maximum:"1000"`
@@ -203,8 +203,8 @@ type rotateRegistryInput struct {
 	IfMatchParam
 	Body struct {
 		Secret         string  `json:"secret" minLength:"1" maxLength:"8192" writeOnly:"true" doc:"The new password or access token (write-only)."`
-		Username       *string `json:"username,omitempty" minLength:"1" maxLength:"255"`
-		CredentialType *string `json:"credentialType,omitempty" enum:"password,token"`
+		Username       *string `json:"username,omitempty" example:"ci-bot" minLength:"1" maxLength:"255"`
+		CredentialType *string `json:"credentialType,omitempty" example:"token" enum:"password,token"`
 	}
 }
 

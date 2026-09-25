@@ -48,6 +48,20 @@ func TestRouteInventory(t *testing.T) {
 	}
 }
 
+// TestV1CatalogIsServed is #4's first acceptance criterion: every route of
+// the v1 endpoint catalog is served (and so in api/openapi.json with its
+// schemas, examples, security, errors, capability, scope and operation ID,
+// checked by api.TestOpenAPICompleteness and api.TestEveryBodyHasAnExample).
+// Routes added to the catalog after v1 land together with their
+// implementation.
+func TestV1CatalogIsServed(t *testing.T) {
+	for _, r := range load(t).Routes {
+		if r.Status != StatusImplemented {
+			t.Errorf("%s (%s, owner #%d) is still %s", r.Key(), r.OperationID, r.Owner, r.Status)
+		}
+	}
+}
+
 // TestAgentRoutesDocumented: every private agent route is specified in the
 // protocol document.
 func TestAgentRoutesDocumented(t *testing.T) {

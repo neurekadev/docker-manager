@@ -155,8 +155,8 @@ type UpdatePolicy struct {
 // UpdateCandidate is the digest model of one service or of the container.
 type UpdateCandidate struct {
 	ID                   string     `json:"id"`
-	Service              string     `json:"service" doc:"Compose service name, or the container name."`
-	Reference            string     `json:"reference" doc:"The resolved tagged reference (never rewritten)."`
+	Service              string     `json:"service" example:"web" doc:"Compose service name, or the container name."`
+	Reference            string     `json:"reference" example:"nginx:1.27" doc:"The resolved tagged reference (never rewritten)."`
 	Registry             string     `json:"registry,omitempty"`
 	Repository           string     `json:"repository,omitempty"`
 	Tag                  string     `json:"tag,omitempty"`
@@ -418,7 +418,7 @@ type updateCandidatesOutput struct{ Body Page[UpdateCandidate] }
 type previewUpdateInput struct {
 	PolicyID string `path:"policyId" maxLength:"64" doc:"Update policy ID."`
 	Body     struct {
-		Candidates []string `json:"candidates,omitempty" maxItems:"64" doc:"Candidate IDs or service names (default: every update available)."`
+		Candidates []string `json:"candidates,omitempty" example:"web" maxItems:"64" doc:"Candidate IDs or service names (default: every update available)."`
 	}
 }
 
@@ -447,7 +447,7 @@ type UpdatePreviewItem struct {
 // UpdatePreview is what a run would do now (nothing changes).
 type UpdatePreview struct {
 	PolicyID     string                    `json:"policyId"`
-	Fingerprint  string                    `json:"fingerprint" doc:"Send as previewFingerprint to refuse the run when anything changed since."`
+	Fingerprint  string                    `json:"fingerprint" example:"3f9a0c1d2e4b5a6c" doc:"Send as previewFingerprint to refuse the run when anything changed since."`
 	Items        []UpdatePreviewItem       `json:"items"`
 	Skipped      []UpdateCandidate         `json:"skipped" doc:"Candidates left out, with their status and reason."`
 	Restarted    []string                  `json:"restarted" doc:"Running dependents restarted with an updated service (depends_on restart: true)."`
@@ -465,15 +465,15 @@ type createUpdateRunInput struct {
 	PolicyID string `path:"policyId" maxLength:"64" doc:"Update policy ID."`
 	IdempotencyKeyParam
 	Body struct {
-		Candidates         []string `json:"candidates,omitempty" maxItems:"64" doc:"Candidate IDs or service names (default: every update available)."`
+		Candidates         []string `json:"candidates,omitempty" example:"web" maxItems:"64" doc:"Candidate IDs or service names (default: every update available)."`
 		PreviewFingerprint string   `json:"previewFingerprint,omitempty" maxLength:"64" doc:"The preview's fingerprint: 409 update_preview_stale when anything changed since."`
 	}
 }
 
 // ContainerImageStatus is a container's image and update state.
 type ContainerImageStatus struct {
-	Container     string     `json:"container"`
-	Image         string     `json:"image" doc:"The saved reference of a DockYard-managed container, else the container's image."`
+	Container     string     `json:"container" example:"web"`
+	Image         string     `json:"image" example:"nginx:1.27" doc:"The saved reference of a DockYard-managed container, else the container's image."`
 	ImageID       string     `json:"imageId,omitempty"`
 	Digest        string     `json:"digest,omitempty" doc:"Repository digest of the running image."`
 	Platform      string     `json:"platform,omitempty"`
