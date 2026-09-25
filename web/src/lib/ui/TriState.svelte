@@ -16,6 +16,12 @@
 		inheritedFrom?: string;
 		/** High-risk capability: the Allow choice is marked. */
 		highRisk?: boolean;
+		/**
+		 * override (user rules): Inherit / Allow / Deny. rule (group rules):
+		 * No rule / Allow / Deny, where no rule means deny unless a broader
+		 * rule allows it.
+		 */
+		variant?: 'override' | 'rule';
 		disabled?: boolean;
 		onchange?: (value: TriValue) => void;
 	}
@@ -26,21 +32,28 @@
 		inherited = 'deny',
 		inheritedFrom,
 		highRisk = false,
+		variant = 'override',
 		disabled = false,
 		onchange
 	}: Props = $props();
 	const uid = $props.id();
 
-	const options: { value: TriValue; label: string }[] = [
-		{ value: 'inherit', label: 'Inherit' },
+	const options: { value: TriValue; label: string }[] = $derived([
+		{ value: 'inherit', label: variant === 'rule' ? 'No rule' : 'Inherit' },
 		{ value: 'allow', label: 'Allow' },
 		{ value: 'deny', label: 'Deny' }
-	];
+	]);
 	const effective = $derived(value === 'inherit' ? inherited : value);
 	const explanation = $derived(
-		value === 'inherit'
-			? `Inherits ${inherited === 'allow' ? 'Allow' : 'Deny'}${inheritedFrom ? ` from ${inheritedFrom}` : ''}`
-			: `${value === 'allow' ? 'Allowed' : 'Denied'} for this user, whatever the group grants`
+		variant === 'rule'
+			? value === 'inherit'
+				? ''
+				: value === 'allow'
+					? 'Allowed for members'
+					: 'Denied for members, even where a broader rule allows it'
+			: value === 'inherit'
+				? `Inherits ${inherited === 'allow' ? 'Allow' : 'Deny'}${inheritedFrom ? ` from ${inheritedFrom}` : ''}`
+				: `${value === 'allow' ? 'Allowed' : 'Denied'} for this user, whatever the group grants`
 	);
 </script>
 
@@ -48,7 +61,7 @@
 	class="tri"
 	role="radiogroup"
 	aria-label={label}
-	aria-describedby="tri-{uid}-why"
+	aria-describedby={explanation ? `tri-${uid}-why` : undefined}
 	data-effective={effective}
 >
 	<div class="segments">
@@ -67,7 +80,7 @@
 			</label>
 		{/each}
 	</div>
-	<span class="why" id="tri-{uid}-why">{explanation}</span>
+	{#if explanation}<span class="why" id="tri-{uid}-why">{explanation}</span>{/if}
 </div>
 
 <style>
