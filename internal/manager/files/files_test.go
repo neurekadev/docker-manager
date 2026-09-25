@@ -121,7 +121,7 @@ func (s *syncJobs) Enqueue(ctx context.Context, req jobs.Request) (domain.Job, b
 	if err != nil {
 		return domain.Job{}, false, err
 	}
-	now := time.Now().UTC()
+	now := testutil.Epoch
 	j := domain.Job{ID: st.JobID, Kind: req.Kind, State: domain.JobState(res.Outcome), EnvironmentID: req.EnvironmentID,
 		Targets: req.Targets, Input: in, Locks: locks, CreatedAt: now, UpdatedAt: now, StartedAt: &now, FinishedAt: &now,
 		ErrorMessage: res.Message}

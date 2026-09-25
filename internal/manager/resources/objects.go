@@ -143,7 +143,7 @@ func (s *Service) RemoveVolume(ctx context.Context, p authz.Principal, env strin
 		return domain.Job{}, refusal(err)
 	}
 	if s.StackManaged(ctx, env, v.Stack) {
-		return domain.Job{}, stackRefused("volume "+v.Name, v.Stack)
+		return domain.Job{}, s.managedRefusal(ctx, env, "volume "+v.Name, v.Stack)
 	}
 	if len(v.UsedBy) > 0 {
 		return domain.Job{}, dockerErr(domain.DockerVolumeInUse, "volume is used by %d container(s): %s; remove them first", len(v.UsedBy), names(v.UsedBy))
@@ -211,7 +211,7 @@ func (s *Service) RemoveNetwork(ctx context.Context, p authz.Principal, env stri
 		return domain.Job{}, dockerErr(domain.DockerNetworkBuiltin, "%s is a predefined network and cannot be removed", n.Name)
 	}
 	if s.StackManaged(ctx, env, n.Stack) {
-		return domain.Job{}, stackRefused("network "+n.Name, n.Stack)
+		return domain.Job{}, s.managedRefusal(ctx, env, "network "+n.Name, n.Stack)
 	}
 	if len(n.Containers) > 0 {
 		return domain.Job{}, dockerErr(domain.DockerNetworkInUse, "network has %d attached container(s): %s; disconnect or remove them first",

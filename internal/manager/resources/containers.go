@@ -51,8 +51,39 @@ func (s *Service) StackManaged(ctx context.Context, env string, st *protocol.Sta
 	if st.Managed {
 		return true
 	}
-	_, ok := s.StackIDs(ctx, env)[st.Project]
-	return ok
+	if _, ok := s.StackIDs(ctx, env)[st.Project]; ok {
+		return true
+	}
+	return s.retained(ctx, env, st.Project) != ""
+}
+
+// retained returns why DockYard keeps a Compose project no stack manages
+// ("" when it does not): the stopped source of a migrated stack (#35).
+// A failed lookup keeps the project (destructive routes refuse; retry).
+func (s *Service) retained(ctx context.Context, env, project string) string {
+	if s.opts.Retained == nil || project == "" {
+		return ""
+	}
+	m, err := s.opts.Retained(ctx, env)
+	if err != nil {
+		s.log.Warn("could not list the retained sources of migrated stacks", "environment_id", env, "error", err)
+		return "possibly part of the stopped source of a migrated stack (the check failed; try again)"
+	}
+	return m[project]
+}
+
+// managedRefusal refuses changing an object of a DockYard stack or of a
+// migrated stack's retained source directly (call when StackManaged).
+func (s *Service) managedRefusal(ctx context.Context, env, what string, st *protocol.StackRef) error {
+	if !st.Managed {
+		if _, ok := s.StackIDs(ctx, env)[st.Project]; !ok {
+			if reason := s.retained(ctx, env, st.Project); reason != "" {
+				return dockerErr(domain.DockerStackManaged,
+					"%s is %s; confirm the removal from the source on the stack's migration to delete it", what, reason)
+			}
+		}
+	}
+	return stackRefused(what, st)
 }
 
 // StackIDs maps the environment's Compose projects to DockYard stack IDs
@@ -202,7 +233,7 @@ func (s *Service) ContainerAction(ctx context.Context, p authz.Principal, env st
 	case jobspec.ContainerStart, jobspec.ContainerStop, jobspec.ContainerRestart, jobspec.ContainerPause, jobspec.ContainerUnpause:
 	case jobspec.ContainerRemove:
 		if s.StackManaged(ctx, env, d.Stack) {
-			return domain.Job{}, stackRefused("container "+d.Name, d.Stack)
+			return domain.Job{}, s.managedRefusal(ctx, env, "container "+d.Name, d.Stack)
 		}
 		if d.Running && !in.Force {
 			return domain.Job{}, dockerErr(domain.DockerContainerRunning, "container %s is running; stop it first or remove it with force=true", d.Name)
@@ -238,7 +269,7 @@ func (s *Service) UpdateContainer(ctx context.Context, p authz.Principal, env st
 		return domain.Job{}, err
 	}
 	if s.StackManaged(ctx, env, d.Stack) {
-		return domain.Job{}, stackRefused("container "+d.Name, d.Stack)
+		return domain.Job{}, s.managedRefusal(ctx, env, "container "+d.Name, d.Stack)
 	}
 	if !protocol.ValidRestartPolicy(in.RestartPolicy) {
 		return domain.Job{}, invalid("restartPolicy", "must be no, always, on-failure or unless-stopped")

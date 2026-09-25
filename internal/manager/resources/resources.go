@@ -79,6 +79,13 @@ type StackResolver interface {
 	StackIDs(ctx context.Context, environmentID string) (map[string]string, error)
 }
 
+// RetainedProjects maps the Compose projects of an environment DockYard
+// keeps although no stack manages them to the reason (the stopped sources
+// of migrated stacks until their removal is confirmed, #35,
+// migrations.Service.RetainedProjects). Their containers, volumes and
+// networks are refused like a stack's (stack_managed).
+type RetainedProjects func(ctx context.Context, environmentID string) (map[string]string, error)
+
 // Options configures the service.
 type Options struct {
 	DB          *bun.DB
@@ -98,6 +105,8 @@ type Options struct {
 	// workstreams provide them.
 	Registries RegistryResolver
 	Stacks     StackResolver
+	// Retained (#35) is optional (SetRetainedProjects).
+	Retained RetainedProjects
 	// RequestTimeout bounds agent requests (0: the hub's default).
 	RequestTimeout time.Duration
 }
@@ -135,6 +144,10 @@ func New(opts Options) (*Service, error) {
 
 // SetStackResolver installs the #7 stack resolver.
 func (s *Service) SetStackResolver(r StackResolver) { s.opts.Stacks = r }
+
+// SetRetainedProjects installs the #35 hold on migrated stacks' sources
+// (call while wiring, before the service is used).
+func (s *Service) SetRetainedProjects(fn RetainedProjects) { s.opts.Retained = fn }
 
 // SetRegistryResolver installs the #19 registry resolver.
 func (s *Service) SetRegistryResolver(r RegistryResolver) { s.opts.Registries = r }

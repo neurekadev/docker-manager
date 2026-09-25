@@ -238,10 +238,9 @@ func TestMaintenancePolicyLifecycle(t *testing.T) {
 	// Scheduled runs: the manager's service identity, never the policy
 	// creator, always a background job; they wait for an offline agent up
 	// to the offline deadline and fail without touching anything.
-	// The test clock starts at the wall clock: the hourly run is due two
-	// minutes ahead (not at the next full hour, up to an hour away, which
-	// outlived the owner's idle session when the test ran just after a
-	// full hour).
+	// The hourly run is due two minutes ahead (not at the next full hour,
+	// up to an hour away, which would outlive the owner's idle session
+	// depending on where the clock starts).
 	minute := (e.clk.Now().Minute() + 2) % 60
 	owner.must(http.StatusOK, http.MethodPatch, base, map[string]any{"schedule": map[string]any{"cron": itoa(minute) + " * * * *", "timeZone": "UTC",
 		"enabled": true}}, etag(pol.Revision)).json(t, &pol)
