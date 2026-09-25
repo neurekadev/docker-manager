@@ -119,12 +119,20 @@ func (s *Service) composer() (Composer, error) {
 // verified stack root. It refuses unverified roots, escapes and symlinks
 // leading out of the root.
 func (s *Service) resolve(ref protocol.ProjectRef) (string, error) {
-	if err := ref.Validate(); err != nil {
-		return "", &session.HandlerError{Code: protocol.CodeInvalidFrame, Message: err.Error()}
-	}
 	var res *storage.Result
 	if s.opts.Deps != nil {
 		res = s.opts.Deps.Storage()
+	}
+	return ResolveProjectDir(res, ref)
+}
+
+// ResolveProjectDir maps a stack reference to its absolute project
+// directory inside a verified stack root of res (nil: not verified yet).
+// It refuses unverified roots, escapes and symlinks leading out of the
+// root. Errors are *session.HandlerError (backups use it too, #10).
+func ResolveProjectDir(res *storage.Result, ref protocol.ProjectRef) (string, error) {
+	if err := ref.Validate(); err != nil {
+		return "", &session.HandlerError{Code: protocol.CodeInvalidFrame, Message: err.Error()}
 	}
 	if res == nil {
 		return "", &session.HandlerError{Code: protocol.CodeForbiddenPath, Message: "the storage layout has not been verified yet"}

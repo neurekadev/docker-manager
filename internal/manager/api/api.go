@@ -129,6 +129,9 @@ type Deps struct {
 	// runs (#20); nil answers those routes with 503 (after
 	// authentication).
 	Updates UpdateService
+	// Backups serves backup repositories, the Recovery Key, policies and
+	// backups (#10); nil answers those routes with 503.
+	Backups BackupService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -197,6 +200,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerSchedules(a, deps)
 	registerMaintenance(a, deps)
 	registerUpdates(a, deps)
+	registerBackups(a, deps)
 	return a
 }
 

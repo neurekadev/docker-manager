@@ -37,6 +37,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/auth/password"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
+	"github.com/neurekadev/dockyard/internal/manager/backups"
 	"github.com/neurekadev/dockyard/internal/manager/builds"
 	"github.com/neurekadev/dockyard/internal/manager/config"
 	"github.com/neurekadev/dockyard/internal/manager/containerio"
@@ -60,6 +61,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/store"
 	"github.com/neurekadev/dockyard/internal/manager/updates"
 	"github.com/neurekadev/dockyard/internal/protocol"
+	"github.com/neurekadev/dockyard/internal/restic"
 	"github.com/neurekadev/dockyard/internal/selfid"
 )
 
@@ -105,6 +107,11 @@ type Options struct {
 	// MigrationReconnectWait overrides how long a migration's transfer
 	// waits for a disconnected agent (#35; tests, 0 = the default).
 	MigrationReconnectWait time.Duration
+	// Restic overrides the manager's restic runner (#10; tests use
+	// restictest).
+	Restic restic.Opener
+	// BackupHTTPClient overrides the HTTP client of S3 connection tests.
+	BackupHTTPClient *http.Client
 }
 
 // Manager is a started (migrated, not yet serving) manager.
@@ -137,6 +144,7 @@ type Manager struct {
 	// migrations moves stacks and volumes between environments (#35).
 	migrations *envmigrations.Service
 	updates    *updates.Service
+	backups    *backups.Service
 }
 
 // ErrSecretKeyMissing means the database belongs to an existing installation
@@ -393,6 +401,13 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return nil, err
 	}
 	m.perms.RegisterLocator(catalog.TypeUpdatePolicy, m.updates.Locator())
+	// Backups (#10, #24): manager-side job kinds and finish hooks are
+	// registered before recovery; the backup and verification schedules
+	// are registered with the scheduler.
+	if err := m.startBackups(ctx); err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
 	if err := m.jobs.Recover(ctx); err != nil {
 		m.jobs.Close()
 		return nil, fmt.Errorf("recover jobs: %w", err)
@@ -539,6 +554,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Maintenance:    m.maint,
 			Migrations:     m.migrations,
 			Updates:        m.updates,
+			Backups:        m.backups,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -569,7 +585,11 @@ func (m *Manager) commandSecrets(ctx context.Context, j *domain.Job) (*protocol.
 	if err != nil {
 		return nil, err
 	}
-	s := &protocol.CommandSecrets{Registries: regs, Git: git}
+	repos, err := m.backups.CommandSecrets(ctx, j)
+	if err != nil {
+		return nil, err
+	}
+	s := &protocol.CommandSecrets{Registries: regs, Git: git, Repositories: repos}
 	if s.Empty() {
 		return nil, nil
 	}
@@ -704,6 +724,9 @@ func (m *Manager) Events() *events.Bus { return m.events }
 // Resources returns the Docker resource service (#6).
 func (m *Manager) Resources() *resources.Service { return m.resources }
 
+// Backups returns the backup service (#10, #24).
+func (m *Manager) Backups() *backups.Service { return m.backups }
+
 // Idempotency returns the Idempotency-Key response store (its Forget is
 // called when a principal's sessions, token or permissions change).
 func (m *Manager) Idempotency() *idempotency.Store { return m.idem }
@@ -751,6 +774,12 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		defer close(schedDone)
 		_ = m.sched.Run(engineCtx)
 	}()
+	// Backups (#10): retention after finished sets.
+	backupsDone := make(chan struct{})
+	go func() {
+		defer close(backupsDone)
+		m.backups.Run(engineCtx)
+	}()
 	defer func() {
 		stopEngine()
 		<-engineDone
@@ -760,6 +789,7 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		<-observeDone
 		<-metricsDone
 		<-schedDone
+		<-backupsDone
 	}()
 	srv := server.HTTPServer(m.handler, m.opts.Logger)
 	errCh := make(chan error, 1)

@@ -34,6 +34,10 @@ const (
 	EnvStacksVolume     = "DOCKYARD_STACKS_VOLUME"
 	EnvStackRoots       = "DOCKYARD_STACK_ROOTS"
 	EnvHostProc         = "DOCKYARD_HOST_PROC"
+	// Backups (#10).
+	EnvBackupLocalRoots        = "DOCKYARD_BACKUP_LOCAL_ROOTS"
+	EnvBackupExternalAllowlist = "DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST"
+	EnvResticBinary            = "DOCKYARD_RESTIC_BINARY"
 )
 
 // Defaults.
@@ -48,6 +52,10 @@ const (
 	DefaultStacksVolume = "dockyard_stacks"
 	// MaxStackRoots bounds DOCKYARD_STACK_ROOTS.
 	MaxStackRoots = 16
+	// DefaultResticBinary is where the image installs restic (#10).
+	DefaultResticBinary = "/usr/local/bin/restic"
+	// MaxPathList bounds the backup path lists.
+	MaxPathList = 32
 )
 
 // Config is the validated agent configuration.
@@ -76,6 +84,13 @@ type Config struct {
 	StackRoots []string
 	// HostProc is the procfs mount host telemetry is read from (#5).
 	HostProc string
+	// BackupLocalRoots are the directories local backup repositories on
+	// this agent may live in; BackupExternalAllowlist the host paths
+	// outside stack project directories that policies may opt into (#10).
+	BackupLocalRoots        []string
+	BackupExternalAllowlist []string
+	// ResticBinary is the pinned restic executable.
+	ResticBinary string
 }
 
 // Load reads and validates the configuration, reporting all problems at once.
@@ -129,6 +144,17 @@ func Load(src envconfig.Source) (Config, error) {
 	cfg.HostProc = path.Clean(src.String(EnvHostProc, DefaultHostProc))
 	if !path.IsAbs(cfg.HostProc) {
 		errs = append(errs, fmt.Errorf("%s: %q must be an absolute path", EnvHostProc, cfg.HostProc))
+	}
+
+	if cfg.BackupLocalRoots, err = ParsePathList(src.String(EnvBackupLocalRoots, "")); err != nil {
+		errs = append(errs, fmt.Errorf("%s: %w", EnvBackupLocalRoots, err))
+	}
+	if cfg.BackupExternalAllowlist, err = ParsePathList(src.String(EnvBackupExternalAllowlist, "")); err != nil {
+		errs = append(errs, fmt.Errorf("%s: %w", EnvBackupExternalAllowlist, err))
+	}
+	cfg.ResticBinary = src.String(EnvResticBinary, DefaultResticBinary)
+	if !path.IsAbs(cfg.ResticBinary) {
+		errs = append(errs, fmt.Errorf("%s: %q must be an absolute path", EnvResticBinary, cfg.ResticBinary))
 	}
 
 	if cfg.LogLevel, err = logging.ParseLevel(src.String(EnvLogLevel, "info")); err != nil {
@@ -234,6 +260,40 @@ func ParseStackRoots(raw string) ([]string, error) {
 	}
 	if len(out) > MaxStackRoots {
 		return nil, fmt.Errorf("at most %d stack roots", MaxStackRoots)
+	}
+	return out, nil
+}
+
+// ParsePathList parses a comma-separated list of absolute Linux paths (not
+// "/", no "..", no duplicates) for the backup settings.
+func ParsePathList(raw string) ([]string, error) {
+	var out []string
+	for _, f := range strings.Split(raw, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		if !path.IsAbs(f) || strings.Contains(f, "\\") {
+			return nil, fmt.Errorf("%q must be an absolute path", f)
+		}
+		for _, seg := range strings.Split(f, "/") {
+			if seg == ".." {
+				return nil, fmt.Errorf("%q must not contain \"..\"", f)
+			}
+		}
+		c := path.Clean(f)
+		if c == "/" {
+			return nil, fmt.Errorf("%q: the filesystem root is not allowed", f)
+		}
+		for _, o := range out {
+			if o == c {
+				return nil, fmt.Errorf("%q is listed twice", c)
+			}
+		}
+		out = append(out, c)
+	}
+	if len(out) > MaxPathList {
+		return nil, fmt.Errorf("at most %d paths", MaxPathList)
 	}
 	return out, nil
 }

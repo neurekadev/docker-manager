@@ -95,6 +95,8 @@ type CommandPayload struct {
 type CommandSecrets struct {
 	Registries []RegistryCredential `json:"registries,omitempty"`
 	Git        []GitCredential      `json:"git,omitempty"`
+	// Repositories open backup repositories (#10).
+	Repositories []RepositoryCredential `json:"repositories,omitempty"`
 }
 
 // RegistryCredential authenticates image pulls from one registry host.
@@ -125,7 +127,8 @@ func (s *CommandSecrets) String() string {
 	if s == nil {
 		return "<nil>"
 	}
-	return "CommandSecrets{" + strconv.Itoa(len(s.Registries)) + " registries, " + strconv.Itoa(len(s.Git)) + " git, redacted}"
+	return "CommandSecrets{" + strconv.Itoa(len(s.Registries)) + " registries, " + strconv.Itoa(len(s.Git)) + " git, " +
+		strconv.Itoa(len(s.Repositories)) + " repositories, redacted}"
 }
 
 // GoString hides the secret values (%#v).
@@ -135,7 +138,9 @@ func (s *CommandSecrets) GoString() string { return s.String() }
 func (s *CommandSecrets) LogValue() slog.Value { return slog.StringValue(s.String()) }
 
 // Empty reports whether s carries no credential.
-func (s *CommandSecrets) Empty() bool { return s == nil || len(s.Registries)+len(s.Git) == 0 }
+func (s *CommandSecrets) Empty() bool {
+	return s == nil || len(s.Registries)+len(s.Git)+len(s.Repositories) == 0
+}
 
 // AckPayload is the body of an ack frame.
 type AckPayload struct {

@@ -421,6 +421,367 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/backup-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List backup policies
+         * @description Filtered per item (#17); minimal view: id, name, enabled.
+         */
+        get: operations["list-backup-policies"];
+        put?: never;
+        /**
+         * Create a backup policy
+         * @description A system backup policy: the manager state (owner only) and any managed stacks and standalone volumes across environments, with per-stack volume/path rules (anonymous volumes and container shutdown default off; bind sources outside a project directory only by explicit opt-in plus the agent's allowlist), a schedule (#13, starts disabled) and retention with a minimum recovery floor. Policies belong to the instance: scheduled runs continue after their creator is disabled or removed.
+         */
+        post: operations["create-backup-policy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-policies/{policyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a backup policy
+         * @description With the next run and the most recent sets (per-host snapshot times, partial sets).
+         */
+        get: operations["get-backup-policy"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a backup policy
+         * @description Its sets and snapshots stay (backup history). Requires If-Match.
+         */
+        delete: operations["delete-backup-policy"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a backup policy
+         * @description Requires If-Match. Enabling needs every repository's Recovery Key confirmed.
+         */
+        patch: operations["update-backup-policy"];
+        trace?: never;
+    };
+    "/api/v1/backup-policies/{policyId}/retention-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a backup policy's retention
+         * @description Which of the policy's snapshots its retention (or the rules in the body) would forget, per location and stack/volume, with the rules that keep each one; the minimum recovery floor and the newest snapshot are always kept. Execution applies the same decision.
+         */
+        post: operations["create-backup-policy-retention-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-policies/{policyId}/retention-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a backup policy's retention now
+         * @description Queues retention (forget, then prune) on every location holding the policy's snapshots, serialized with backups and restores on the repository. Requires confirm: true. The jobs report reclaimed space and failures (for example Object Lock refusing deletions).
+         */
+        post: operations["create-backup-policy-retention-run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-policies/{policyId}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a backup policy now
+         * @description Starts one backup set: a backup.run job per environment and, with the manager state, a manager.backup job (owner only). Needs backup.run on the policy, its repositories, stacks and volumes. retrySetId re-runs only the members of that set that did not complete (409 nothing_to_retry). Idempotency-Key covers every job of the run.
+         */
+        post: operations["create-backup-policy-run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-policies/{policyId}/scope-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a backup policy's scope
+         * @description Asks each environment's agent for the effective sources (project directories, relative binds, volumes), the excluded and blocked paths with reasons, sources that need an opt-in, estimated size, and with shutdown on the containers that stop (stop order), the downtime warning and shared-volume conflicts. DockYard's own containers and volumes are excluded (#32). Nothing is stored.
+         */
+        post: operations["create-backup-policy-scope-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-repositories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List backup repositories
+         * @description Destinations in creation order, filtered per item (#17): backup_repository.read shows one in full, any other capability on it only id, name, kind and state. Credentials and the Recovery Key are never returned.
+         */
+        get: operations["list-backup-repositories"];
+        put?: never;
+        /**
+         * Add a backup repository
+         * @description Stores a destination: a local directory on the manager or on one environment's agent, or an S3 bucket/prefix (credentials sealed, write-only). Below it DockYard keeps one restic repository per scope (dockyard-manager, dockyard-env-<environmentId>). The first repository of an instance generates the Recovery Key (returned once in recoveryKey; owner only). Every repository starts awaiting_confirmation: nothing is initialized and no policy can use it until the owner re-enters the key. Recovery Key administration: instance owner only, in a signed-in browser session (never with an API token, 403 api_token_not_allowed).
+         */
+        post: operations["create-backup-repository"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-repositories/{repositoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a backup repository */
+        get: operations["get-backup-repository"];
+        put?: never;
+        post?: never;
+        /**
+         * Remove a backup repository
+         * @description Removes the repository from DockYard (409 backup_repository_in_use while a policy uses it). The restic repositories at the destination are left untouched. Requires If-Match.
+         */
+        delete: operations["delete-backup-repository"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a backup repository
+         * @description Edits the name, S3 region/addressing, the verification schedule, or replaces the S3 credentials (write-only). The destination itself cannot move. Requires If-Match.
+         */
+        patch: operations["update-backup-repository"];
+        trace?: never;
+    };
+    "/api/v1/backup-repositories/{repositoryId}/connection-tests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test a backup repository
+         * @description S3: writes, reads and deletes a probe object below the prefix and reads the bucket's Object Lock configuration (warns when pruning may be refused). Local: checks the path on its executor. With a confirmed key it also opens the restic repositories that already exist below the destination. A failing test is a 200 with ok false.
+         */
+        post: operations["create-backup-repository-connection-test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-repositories/{repositoryId}/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Backup repository health
+         * @description Last backup and verification per location, backup age, size, key rotation progress, the last connection test and the problems that need attention.
+         */
+        get: operations["get-backup-repository-health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-repositories/{repositoryId}/key-rotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate the Recovery Key
+         * @description Generates a new Recovery Key for the whole instance (every repository shares it), returned once. It becomes current when confirmed; then each repository location moves to it the next time it is used (verification jobs are queued at once) and the previous key is dropped when none is left on it. 409 key_rotation_in_progress while a previous rotation is unfinished. Requires a recent step-up (403 step_up_required). Recovery Key administration: instance owner only, in a signed-in browser session (never with an API token, 403 api_token_not_allowed).
+         */
+        post: operations["create-backup-repository-key-rotation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup-repositories/{repositoryId}/recovery-confirmations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm the Recovery Key
+         * @description The re-entry challenge: the owner types the Recovery Key and confirms it is saved (backedUp: true). A newly generated key (first key or rotation) becomes current; otherwise the input must be the current key. The repository becomes ready. 422 recovery_key_mismatch / recovery_key_malformed. The key is never stored from this input, logged or audited (only its fingerprint). Recovery Key administration: instance owner only, in a signed-in browser session (never with an API token, 403 api_token_not_allowed).
+         */
+        post: operations["create-backup-repository-recovery-confirmation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List backups
+         * @description The snapshot index (shared backup history of the instance, whoever configured the policy), filtered per item (#17): backup.read shows a backup in full, any other capability on it only id, time, repository and state.
+         */
+        get: operations["list-backups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backups/{backupId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a backup
+         * @description With its backup set (every member's state and per-host snapshot time).
+         */
+        get: operations["get-backup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backups/{backupId}/contents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Browse a backup
+         * @description Lists entries of the snapshot. Needs backup.contents.read and the capability that reads the same data live: stack.definition.read for stack backups (they hold compose.yaml and .env), volume.files.read for volume backups; manager-state backups are owner-only.
+         */
+        get: operations["list-backup-contents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backups/{backupId}/contents/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a file from a backup
+         * @description One regular file (at most 2 GiB; 409 backup_not_a_file, 413 backup_file_too_large). Same authorization as browsing, with backup.contents.download. Audited.
+         */
+        get: operations["download-backup-content"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backups/{backupId}/verifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify a backup's repository
+         * @description Queues a check of the repository location holding the backup (restic check, optionally reading a subset of the data). Damage fails the job with repository_damaged.
+         */
+        post: operations["create-backup-verification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/capabilities": {
         parameters: {
             query?: never;
@@ -3376,6 +3737,15 @@ export interface components {
             /** @description TOTP (authenticator app) is enabled. */
             totp: boolean;
         };
+        AffectedContainer: {
+            name: string;
+            project?: string;
+            protected?: string;
+            running: boolean;
+            service?: string;
+            /** Format: int64 */
+            stopOrder?: number;
+        };
         Agent: {
             /** @description Granted agent capabilities. */
             actions: string[];
@@ -3550,6 +3920,372 @@ export interface components {
              * @example stack
              */
             type: string;
+        };
+        Backup: {
+            actions: string[];
+            /** Format: int64 */
+            bytes?: number;
+            /**
+             * @description live: taken while containers ran (crash-consistent); shutdown: with the affected containers stopped; snapshot: consistent database snapshot.
+             * @enum {string}
+             */
+            consistency?: "live" | "shutdown" | "snapshot";
+            environmentId?: string;
+            errorClass?: string;
+            /**
+             * Format: date-time
+             * @description Removed by retention (listed only with includeForgotten).
+             */
+            forgottenAt?: string;
+            id: string;
+            item?: string;
+            jobId?: string;
+            /** @enum {string} */
+            kind?: "manager_state" | "stack" | "volume";
+            paths?: string[];
+            policyId?: string;
+            repositoryId: string;
+            /** @description manager or env:<environmentId>: which restic repository below the destination holds it. */
+            scope?: string;
+            setId?: string;
+            /** @description restic snapshot ID. */
+            snapshotId?: string;
+            /** Format: date-time */
+            snapshotTime: string;
+            stackId?: string;
+            stackName?: string;
+            /**
+             * @description partial: some files could not be read.
+             * @enum {string}
+             */
+            state: "complete" | "partial";
+            /** Format: date-time */
+            verifiedAt?: string;
+            /** @enum {string} */
+            view: "minimal" | "full";
+            volume?: string;
+            volumes?: string[];
+        };
+        BackupConnectionTest: {
+            /** Format: date-time */
+            at: string;
+            canDelete?: boolean;
+            canRead?: boolean;
+            canWrite?: boolean;
+            message?: string;
+            /** @description The bucket enforces Object Lock: pruning may be refused (see warnings). */
+            objectLock?: boolean;
+            ok: boolean;
+            /**
+             * @description ok, or an error class: access_denied, bucket_not_found, unreachable, path_not_allowed, path_not_writable, recovery_key_rejected, repository_locked, storage_access_denied, ...
+             * @example ok
+             */
+            result: string;
+            /** @description Restic repositories found below the destination. */
+            scopes?: components["schemas"]["BackupScopeProbe"][];
+            warnings?: string[];
+        };
+        BackupContents: {
+            entries: components["schemas"]["BackupNode"][];
+            path: string;
+            truncated: boolean;
+        };
+        BackupCredentialState: {
+            /**
+             * @description Keyed fingerprint of the access key pair; changes when it changes.
+             * @example fp_3f2a9c0d1e4b5a67
+             */
+            fingerprint?: string;
+            set: boolean;
+        };
+        BackupDetail: {
+            actions: string[];
+            /** Format: int64 */
+            bytes?: number;
+            /**
+             * @description live: taken while containers ran (crash-consistent); shutdown: with the affected containers stopped; snapshot: consistent database snapshot.
+             * @enum {string}
+             */
+            consistency?: "live" | "shutdown" | "snapshot";
+            environmentId?: string;
+            errorClass?: string;
+            /**
+             * Format: date-time
+             * @description Removed by retention (listed only with includeForgotten).
+             */
+            forgottenAt?: string;
+            id: string;
+            item?: string;
+            jobId?: string;
+            /** @enum {string} */
+            kind?: "manager_state" | "stack" | "volume";
+            paths?: string[];
+            policyId?: string;
+            repositoryId: string;
+            /** @description manager or env:<environmentId>: which restic repository below the destination holds it. */
+            scope?: string;
+            /** @description The backup set (run) it belongs to: every member with its own state and snapshot time. */
+            set?: components["schemas"]["BackupSetSummary"];
+            setId?: string;
+            /** @description restic snapshot ID. */
+            snapshotId?: string;
+            /** Format: date-time */
+            snapshotTime: string;
+            stackId?: string;
+            stackName?: string;
+            /**
+             * @description partial: some files could not be read.
+             * @enum {string}
+             */
+            state: "complete" | "partial";
+            /** Format: date-time */
+            verifiedAt?: string;
+            /** @enum {string} */
+            view: "minimal" | "full";
+            volume?: string;
+            volumes?: string[];
+        };
+        BackupLocationHealth: {
+            /** Format: int64 */
+            keyGeneration: number;
+            /** Format: date-time */
+            lastBackupAt?: string;
+            /** Format: date-time */
+            lastVerifiedAt?: string;
+            lastVerifyResult?: string;
+            /** @description restic repository location (no credentials). */
+            repository: string;
+            resticRepositoryId?: string;
+            scope: string;
+            /** Format: int64 */
+            sizeBytes?: number;
+        };
+        BackupNode: {
+            /** Format: int64 */
+            gid: number;
+            /**
+             * Format: int32
+             * @description Permission bits.
+             */
+            mode: number;
+            /** Format: date-time */
+            mtime?: string;
+            name: string;
+            path: string;
+            /** Format: int64 */
+            size: number;
+            /** @enum {string} */
+            type: "file" | "dir" | "symlink" | "dev" | "chardev" | "fifo" | "socket" | "irregular";
+            /** Format: int64 */
+            uid: number;
+        };
+        BackupPolicy: {
+            actions: string[];
+            /** Format: date-time */
+            createdAt?: string;
+            enabled: boolean;
+            /** @description Per-environment repository (local repositories live on each environment's agent). */
+            environmentRepositories?: {
+                [key: string]: string;
+            };
+            id: string;
+            includeManagerState: boolean;
+            /** @description Include the metrics database (excluded by default). */
+            includeMetrics: boolean;
+            /** @example Nightly system backup */
+            name: string;
+            recentSets?: components["schemas"]["BackupSetSummary"][];
+            repositoryId?: string;
+            retention?: components["schemas"]["BackupRetention"];
+            /** Format: int64 */
+            revision?: number;
+            schedule?: components["schemas"]["BackupSchedule"];
+            /** @description Stop the affected containers during backups (default off). */
+            shutdown: boolean;
+            stacks: components["schemas"]["BackupStackSelection"][];
+            /** Format: date-time */
+            updatedAt?: string;
+            /** @enum {string} */
+            view: "minimal" | "full";
+            volumes: components["schemas"]["BackupVolumeSelection"][];
+        };
+        BackupRepository: {
+            actions: string[];
+            bucket?: string;
+            /** Format: date-time */
+            confirmedAt?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            credential?: components["schemas"]["BackupCredentialState"];
+            endpoint?: string;
+            /** @description Local repositories: manager or the environment ID whose agent owns the path. */
+            executor?: string;
+            id: string;
+            /** @enum {string} */
+            kind: "local" | "s3";
+            lastTest?: components["schemas"]["BackupConnectionTest"];
+            /**
+             * @description Where the restic repositories live (no credentials). Below it: dockyard-manager and dockyard-env-<environmentId>.
+             * @example https://s3.example.com/backups/dockyard
+             */
+            location?: string;
+            /** @example Offsite S3 */
+            name: string;
+            path?: string;
+            pathStyle?: boolean;
+            prefix?: string;
+            recoveryRequirements?: string[];
+            region?: string;
+            /** Format: int64 */
+            revision?: number;
+            /**
+             * @description awaiting_confirmation until the owner re-enters the Recovery Key for it; nothing is initialized before.
+             * @enum {string}
+             */
+            state: "awaiting_confirmation" | "ready";
+            /** Format: date-time */
+            updatedAt?: string;
+            verification?: components["schemas"]["BackupVerification"];
+            /** @enum {string} */
+            view: "minimal" | "full";
+        };
+        BackupRepositoryHealth: {
+            /** @example 26h0m0s */
+            backupAge?: string;
+            healthy: boolean;
+            keyState: components["schemas"]["RecoveryKeyState"];
+            /** Format: date-time */
+            lastBackupAt?: string;
+            lastTest?: components["schemas"]["BackupConnectionTest"];
+            /** Format: date-time */
+            lastVerifiedAt?: string;
+            locations: components["schemas"]["BackupLocationHealth"][];
+            problems: string[];
+            repositoryId: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            /** Format: int64 */
+            snapshots: number;
+            state: string;
+        };
+        BackupRetention: {
+            /** @description Apply retention automatically after every successful backup of the policy. */
+            afterBackup?: boolean;
+            /** Format: int64 */
+            daily?: number;
+            /** Format: int64 */
+            hourly?: number;
+            /** Format: int64 */
+            last?: number;
+            /**
+             * Format: int64
+             * @description Minimum recovery floor: the newest N snapshots of each stack/volume are always kept (at least 1 when rules are set).
+             */
+            minKeep?: number;
+            /** Format: int64 */
+            monthly?: number;
+            /** Format: int64 */
+            weekly?: number;
+            /**
+             * Format: int64
+             * @description Keep every snapshot of the newest N days.
+             */
+            withinDays?: number;
+            /** Format: int64 */
+            yearly?: number;
+        };
+        BackupRun: {
+            jobs: components["schemas"]["Job"][];
+            set: components["schemas"]["BackupSetSummary"];
+        };
+        BackupSchedule: {
+            /** @example 0 2 * * * */
+            cron: string;
+            /** @description New policies start disabled; enabling needs every repository's Recovery Key confirmed. */
+            enabled: boolean;
+            /** Format: date-time */
+            nextRun?: string;
+            /** @example Europe/Berlin */
+            timeZone: string;
+        };
+        BackupScopeProbe: {
+            errorClass?: string;
+            exists: boolean;
+            keyAccepted: boolean;
+            resticRepositoryId?: string;
+            /**
+             * @description manager or env:<environmentId>.
+             * @example manager
+             */
+            scope: string;
+        };
+        BackupSetMember: {
+            environmentId?: string;
+            errorClass?: string;
+            /** @example stack/0190a6e0-... */
+            item: string;
+            jobId?: string;
+            /** @enum {string} */
+            kind: "manager_state" | "stack" | "volume";
+            scope: string;
+            /**
+             * Format: date-time
+             * @description Per-host snapshot time: multi-host sets are not atomic.
+             */
+            snapshotTime?: string;
+            stackId?: string;
+            stackName?: string;
+            /** @enum {string} */
+            state: "pending" | "complete" | "partial" | "failed" | "missing";
+            volume?: string;
+        };
+        BackupSetSummary: {
+            /** Format: date-time */
+            finishedAt?: string;
+            id: string;
+            members: components["schemas"]["BackupSetMember"][];
+            /** @enum {string} */
+            origin: "manual" | "scheduled" | "api_token";
+            /** Format: date-time */
+            startedAt: string;
+            /**
+             * @description A set with failed or missing members is partial, never complete.
+             * @enum {string}
+             */
+            state: "pending" | "complete" | "partial" | "failed";
+        };
+        BackupStackSelection: {
+            /** @description Also back up anonymous volumes (default off). */
+            anonymousVolumes?: boolean;
+            /** @description Absolute bind sources outside the project directory to include (e.g. ../data resolved, or /srv/data). Each also needs the agent's DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST; never included implicitly. */
+            externalPaths?: string[];
+            /** @description Paths relative to the project directory that are not backed up (relative bind sources inside the project directory are included by default). */
+            pathExcludes?: string[];
+            stackId: string;
+            /** @description Named volumes not backed up. */
+            volumeExclude?: string[];
+            /** @description Back up only these named volumes (Compose keys or Docker names); default: every named volume of the stack. */
+            volumeInclude?: string[];
+        };
+        BackupVerification: {
+            /** @example 0 5 * * 0 */
+            cron: string;
+            enabled: boolean;
+            /** Format: date-time */
+            lastVerifiedAt?: string;
+            /**
+             * @description Part of the data scheduled checks read (restic --read-data-subset); empty checks the structure only.
+             * @example 5%
+             */
+            readDataSubset?: string;
+            /** @example Europe/Berlin */
+            timeZone: string;
+        };
+        BackupVolumeSelection: {
+            environmentId: string;
+            /** @description Paths relative to the volume root that are not backed up. */
+            pathExcludes?: string[];
+            volume: string;
         };
         BuildDefinition: {
             actions: string[];
@@ -4069,6 +4805,35 @@ export interface components {
             /** @description The token value (dy_...). Shown only in this response; DockYard stores a verifier. Send it as Authorization: Bearer <token>. */
             token: string;
         };
+        CreateBackupRepositoryInputBody: {
+            accessKeyId?: string;
+            bucket?: string;
+            /** @example https://s3.eu-central-1.amazonaws.com */
+            endpoint?: string;
+            /** @description Local repositories: manager, or the environment ID whose agent owns the path. */
+            executor?: string;
+            /** @enum {string} */
+            kind: "local" | "s3";
+            /** @example Offsite S3 */
+            name: string;
+            /**
+             * @description Local repositories: an absolute directory below the executor's DOCKYARD_BACKUP_LOCAL_ROOTS, outside every backup source.
+             * @example /backups/dockyard
+             */
+            path?: string;
+            /** @description Path-style bucket addressing (MinIO and most self-hosted S3). */
+            pathStyle?: boolean;
+            /** @example dockyard */
+            prefix?: string;
+            region?: string;
+            /** @description Write-only: never returned, logged or audited. */
+            secretAccessKey?: string;
+            /** @description Verification schedule (default: the instance default of backup_verification). */
+            verifyCron?: string;
+            /** @example 5% */
+            verifyReadData?: string;
+            verifyTimeZone?: string;
+        };
         CreateDefinitionInputBody: {
             description?: string;
             name: string;
@@ -4273,6 +5038,13 @@ export interface components {
              * @example dye_0190a6e0-0000-7000-8000-000000000011_q2V1c...
              */
             token: string;
+        };
+        CreatedBackupRepository: {
+            keyState: components["schemas"]["RecoveryKeyState"];
+            nextStep: string;
+            /** @description Present only when this creation generated the instance Recovery Key: shown exactly once. */
+            recoveryKey?: components["schemas"]["RecoveryKeyReveal"];
+            repository: components["schemas"]["BackupRepository"];
         };
         CredentialRotation: {
             agentId: string;
@@ -4546,6 +5318,15 @@ export interface components {
             timestamps: string[];
             /** Format: date-time */
             to: string;
+        };
+        EnvironmentPreview: {
+            downtime?: string;
+            environmentId: string;
+            environmentName?: string;
+            /** @description The agent could not preview (agent_offline, timeout, ...). */
+            errorClass?: string;
+            items?: components["schemas"]["ScopePreviewItem"][];
+            repositoryId: string;
         };
         EnvironmentStatusEvent: {
             /** Format: date-time */
@@ -5164,6 +5945,11 @@ export interface components {
              */
             type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path" | "build_definition" | "maintenance_policy";
         };
+        KeyRotationStarted: {
+            keyState: components["schemas"]["RecoveryKeyState"];
+            nextStep: string;
+            recoveryKey: components["schemas"]["RecoveryKeyReveal"];
+        };
         LogLineDTO: {
             /** Format: date-time */
             at: string;
@@ -5282,6 +6068,15 @@ export interface components {
             enabled?: boolean;
             /** @description IANA time zone (default: the instance's default zone). */
             timeZone?: string;
+        };
+        ManagerScopePreview: {
+            /** Format: int64 */
+            databaseBytes: number;
+            /** Format: int64 */
+            metricsBytes: number;
+            metricsIncluded: boolean;
+            notes: string[];
+            repositoryId: string;
         };
         MetadataStackInputBody: {
             /** @description Needs <root>.files.chmod. */
@@ -5595,6 +6390,39 @@ export interface components {
         PageAuditEvent: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["AuditEvent"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageBackup: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["Backup"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageBackupPolicy: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["BackupPolicy"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageBackupRepository: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["BackupRepository"][];
             /** @description Opaque cursor for the next page; absent on the last page. */
             nextCursor?: string;
             /**
@@ -5947,6 +6775,22 @@ export interface components {
             /** @example container */
             resourceType?: string;
         };
+        PolicyInputBody: {
+            environmentRepositories?: {
+                [key: string]: string;
+            };
+            /** @description Back up the manager's state (owner only: manager backups are owner-only). */
+            includeManagerState?: boolean;
+            includeMetrics?: boolean;
+            name: string;
+            repositoryId: string;
+            retention?: components["schemas"]["BackupRetention"];
+            /** @description Default: the instance default of the backup kind, disabled. */
+            schedule?: components["schemas"]["BackupSchedule"];
+            shutdown?: boolean;
+            stacks?: components["schemas"]["BackupStackSelection"][];
+            volumes?: components["schemas"]["BackupVolumeSelection"][];
+        };
         PreviewCheck: {
             capability: string;
             resource: components["schemas"]["ResourceDTO"];
@@ -6097,6 +6941,61 @@ export interface components {
         RecoveryCodesOutputBody: {
             /** @description Ten one-time recovery codes. Shown only in this response; earlier codes stop working. */
             codes: string[];
+        };
+        RecoveryConfirmation: {
+            /** @description The confirmed key was newly generated (first key or rotation) and is now current. */
+            activated: boolean;
+            jobs?: components["schemas"]["Job"][];
+            keyState: components["schemas"]["RecoveryKeyState"];
+            repository: components["schemas"]["BackupRepository"];
+        };
+        RecoveryConfirmationInputBody: {
+            /** @description Must be true: you saved the key outside DockYard. */
+            backedUp: boolean;
+            /** @description Type (or paste) the Recovery Key. Never logged, stored or audited. */
+            recoveryKey: string;
+        };
+        RecoveryKeyReveal: {
+            /** @example rk_9f3a61c2d4e5b708 */
+            fingerprint: string;
+            /**
+             * @description The Recovery Key. Shown once: save it now (password manager, printed copy). It is never shown again.
+             * @example DYRK-ABCD-EFGH-...
+             */
+            key: string;
+            notice: string[];
+        };
+        RecoveryKeyState: {
+            /** Format: date-time */
+            confirmedAt?: string;
+            /**
+             * @description Fingerprint of the current key; compare it with your saved copy.
+             * @example rk_9f3a61c2d4e5b708
+             */
+            fingerprint?: string;
+            /**
+             * Format: int64
+             * @description Confirmed keys so far (0: none).
+             */
+            generation: number;
+            /** Format: date-time */
+            pendingCreatedAt?: string;
+            /** @description A generated key awaiting confirmation (re-entry). */
+            pendingFingerprint?: string;
+            /**
+             * @example [
+             *       "0190a6e0-...:env:0190a6e1-..."
+             *     ]
+             */
+            pendingLocations?: string[];
+            /** @description Set while a rotation still has repositories on the previous key: keep both keys until it is gone. */
+            previousFingerprint?: string;
+            rotationInProgress: boolean;
+            /**
+             * @description One Recovery Key opens every DockYard repository of this instance (manager and every environment, local and S3).
+             * @enum {string}
+             */
+            scope: "instance";
         };
         RecoveryStatusOutputBody: {
             /** Format: date-time */
@@ -6336,6 +7235,39 @@ export interface components {
             /** @description Required: the revision to write back to disk. */
             revisionId?: string;
         };
+        RetentionDecision: {
+            item: string;
+            keep: boolean;
+            /** @description Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, floor, newest. */
+            reasons?: string[];
+            snapshotId: string;
+            /** Format: date-time */
+            time: string;
+        };
+        RetentionLocationPreview: {
+            decisions: components["schemas"]["RetentionDecision"][];
+            /** Format: int64 */
+            forget: number;
+            /** Format: int64 */
+            keep: number;
+            repositoryId: string;
+            scope: string;
+        };
+        RetentionPreview: {
+            locations: components["schemas"]["RetentionLocationPreview"][];
+            retention: components["schemas"]["BackupRetention"];
+        };
+        RetentionPreviewInputBody: {
+            /** @description Preview these rules instead of the stored ones. */
+            retention?: components["schemas"]["BackupRetention"];
+        };
+        RetentionRun: {
+            jobs: components["schemas"]["Job"][];
+        };
+        RetentionRunInputBody: {
+            /** @description Must be true: retention permanently forgets snapshots (preview them first). */
+            confirm: boolean;
+        };
         RevokeTokensBody: {
             /** @description Also revoke every API token of the account (#31), for example when the account may be compromised. */
             revokeApiTokens?: boolean;
@@ -6352,6 +7284,10 @@ export interface components {
             background?: boolean;
             /** @description Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise). */
             confirm?: boolean;
+        };
+        RunPolicyInputBody: {
+            /** @description Re-run only the members of this set that did not complete (the set keeps its ID). */
+            retrySetId?: string;
         };
         Schedule: {
             /** @enum {string} */
@@ -6498,6 +7434,44 @@ export interface components {
             local: string;
             /** Format: date-time */
             utc: string;
+        };
+        ScopePreview: {
+            environments: components["schemas"]["EnvironmentPreview"][];
+            manager?: components["schemas"]["ManagerScopePreview"];
+            shutdown: boolean;
+            warnings?: string[];
+        };
+        ScopePreviewInputBody: {
+            /** @description Preview these unsaved settings instead of the stored policy. */
+            draft?: components["schemas"]["PolicyInputBody"];
+        };
+        ScopePreviewItem: {
+            affectedContainers?: components["schemas"]["AffectedContainer"][];
+            conflicts?: string[];
+            error?: string;
+            errorClass?: string;
+            estimateComplete: boolean;
+            /** Format: int64 */
+            estimatedBytes: number;
+            /** Format: int64 */
+            estimatedFiles: number;
+            excludes?: string[];
+            item: string;
+            kind: string;
+            paths?: string[];
+            sources: components["schemas"]["ScopeSource"][];
+            stackId?: string;
+            volume?: string;
+            volumes?: string[];
+            warnings?: string[];
+        };
+        ScopeSource: {
+            kind: string;
+            name?: string;
+            path: string;
+            reason?: string;
+            service?: string;
+            state: string;
         };
         SecuritySettings: {
             /**
@@ -7066,6 +8040,33 @@ export interface components {
             /** @description Operator note; empty clears it. */
             label?: string;
         };
+        UpdateBackupPolicyInputBody: {
+            environmentRepositories?: {
+                [key: string]: string;
+            };
+            includeManagerState?: boolean;
+            includeMetrics?: boolean;
+            name?: string;
+            repositoryId?: string;
+            retention?: components["schemas"]["BackupRetention"];
+            schedule?: components["schemas"]["BackupSchedule"];
+            shutdown?: boolean;
+            stacks?: components["schemas"]["BackupStackSelection"][];
+            volumes?: components["schemas"]["BackupVolumeSelection"][];
+        };
+        UpdateBackupRepositoryInputBody: {
+            /** @description Replace the S3 credentials (both fields). */
+            accessKeyId?: string;
+            name?: string;
+            pathStyle?: boolean;
+            region?: string;
+            secretAccessKey?: string;
+            verifyCron?: string;
+            /** @description Enable scheduled verification (the key must be confirmed first). */
+            verifyEnabled?: boolean;
+            verifyReadData?: string;
+            verifyTimeZone?: string;
+        };
         UpdateCandidate: {
             /** @description The registry's host-platform manifest digest. */
             candidateDigest?: string;
@@ -7347,6 +8348,13 @@ export interface components {
             name?: string;
             /** @description compose.override.yaml content (optional). */
             override?: string;
+        };
+        VerifyBackupInputBody: {
+            /**
+             * @description Also read part of the pack data (restic --read-data-subset).
+             * @example 10%
+             */
+            readDataSubset?: string;
         };
         VisibleEnvironment: {
             /** @description Granted environment capabilities. */
@@ -9102,6 +10110,1748 @@ export interface operations {
             };
             /** @description Too Many Requests */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-backup-policies": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageBackupPolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupPolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-backup-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Backup policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupPolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-backup-policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Backup policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-backup-policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Backup policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBackupPolicyInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupPolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-policy-retention-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Backup policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RetentionPreviewInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionPreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-policy-retention-run": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Backup policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RetentionRunInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionRun"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-policy-run": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Backup policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RunPolicyInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupRun"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-policy-scope-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Backup policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ScopePreviewInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScopePreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-backup-repositories": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageBackupRepository"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-repository": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBackupRepositoryInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedBackupRepository"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-backup-repository": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Backup repository ID. */
+                repositoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupRepository"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-backup-repository": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Backup repository ID. */
+                repositoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-backup-repository": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Backup repository ID. */
+                repositoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBackupRepositoryInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupRepository"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-repository-connection-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Backup repository ID. */
+                repositoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupConnectionTest"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-backup-repository-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Backup repository ID. */
+                repositoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupRepositoryHealth"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-repository-key-rotation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Backup repository ID. */
+                repositoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyRotationStarted"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-repository-recovery-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Backup repository ID. */
+                repositoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoveryConfirmationInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryConfirmation"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-backups": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                repositoryId?: string;
+                policyId?: string;
+                setId?: string;
+                environmentId?: string;
+                stackId?: string;
+                kind?: "manager_state" | "stack" | "volume";
+                includeForgotten?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageBackup"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Backup ID. */
+                backupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-backup-contents": {
+        parameters: {
+            query?: {
+                /** @description Absolute directory inside the snapshot; empty lists everything (bounded). */
+                path?: string;
+                recursive?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Backup ID. */
+                backupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupContents"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "download-backup-content": {
+        parameters: {
+            query: {
+                /** @description Absolute path of one regular file inside the snapshot. */
+                path: string;
+            };
+            header?: never;
+            path: {
+                /** @description Backup ID. */
+                backupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description File bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-verification": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Backup ID. */
+                backupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["VerifyBackupInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

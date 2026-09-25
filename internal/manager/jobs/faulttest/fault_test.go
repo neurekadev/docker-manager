@@ -70,7 +70,7 @@ var scenarios = []scenario{
 	{"prune", jobspec.PruneRun, nil},
 	// Manager-local kinds: resume (retention) and interrupt (manager backup)
 	// restart policies.
-	{"retention", jobspec.BackupRetention, []domain.JobTarget{{Type: domain.TargetRepository, ID: "repo-1"}}},
+	{"retention", jobspec.ManagerRetention, []domain.JobTarget{{Type: domain.TargetRepository, ID: "repo-1"}}},
 	{"manager_backup", jobspec.ManagerBackup, []domain.JobTarget{{Type: domain.TargetRepository, ID: "repo-1"}}},
 }
 

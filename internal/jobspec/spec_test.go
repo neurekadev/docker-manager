@@ -167,7 +167,7 @@ func TestCatalogCoversV1Kinds(t *testing.T) {
 		"stack.migrate", "stack.remove_source", "volume.migrate", "volume.create", "volume.remove", "network.create", "network.remove",
 		"update.check", "update.run", "prune.run", "backup.run", "restore.run", "backup.retention", "backup.verify",
 		"backup.import", "files.archive", "files.extract", "files.metadata", "files.copy", "files.move", "files.delete",
-		"manager.backup",
+		"manager.backup", "manager.retention", "manager.verify",
 	}
 	for _, k := range want {
 		if _, ok := Lookup(k); !ok {
@@ -347,7 +347,10 @@ func TestMatrixSemantics(t *testing.T) {
 		{"prune vs prune", mustLocks(t, PruneRun, "e1"), mustLocks(t, PruneRun, "e1"), false},
 		{"prune vs volume remove", mustLocks(t, PruneRun, "e1"), mustLocks(t, VolumeRemove, "e1", vol("data")), true},
 		{"backups share a repository", mustLocks(t, BackupRun, "e1", vol("a"), repo), mustLocks(t, BackupRun, "e2", vol("b"), repo), false},
-		{"retention excludes backup", mustLocks(t, BackupRetention, "", repo), mustLocks(t, BackupRun, "e1", vol("a"), repo), true},
+		{"retention excludes backup", mustLocks(t, BackupRetention, "e1", repo), mustLocks(t, BackupRun, "e1", vol("a"), repo), true},
+		{"manager retention excludes backup", mustLocks(t, ManagerRetention, "", repo), mustLocks(t, BackupRun, "e1", vol("a"), repo), true},
+		{"manager backup waits for host backups", mustLocks(t, ManagerBackup, "", repo), mustLocks(t, BackupRun, "e1", vol("a"), repo), true},
+		{"verification shares with backups", mustLocks(t, BackupVerify, "e1", repo), mustLocks(t, BackupRun, "e2", vol("a"), repo), false},
 		{"file copy into dir being deleted", mustLocks(t, FilesCopy, "e1", path("/srv/a"), dest("/srv/b/c")),
 			mustLocks(t, FilesDelete, "e1", path("/srv/b")), true},
 		{"file reads share", mustLocks(t, FilesArchive, "e1", path("/srv/a"), dest("/srv/x.tar")),
@@ -406,7 +409,7 @@ func TestComputeLocksSortedDedupedAndValidated(t *testing.T) {
 	if _, err := deploy.ComputeLocks("", []domain.JobTarget{{Type: domain.TargetRepository, ID: "r"}}); !errors.Is(err, domain.ErrJobInvalid) {
 		t.Errorf("agent kind without environment accepted: %v", err)
 	}
-	ret, _ := Lookup(BackupRetention)
+	ret, _ := Lookup(ManagerRetention)
 	if l, err := ret.ComputeLocks("", []domain.JobTarget{{Type: domain.TargetRepository, ID: "r"}}); err != nil || len(l) != 1 || l[0].EnvironmentID != "" {
 		t.Errorf("manager repository kind: %v %v", l, err)
 	}

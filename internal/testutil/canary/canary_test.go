@@ -44,6 +44,7 @@ func TestGenerateShapes(t *testing.T) {
 		S3SecretKey:        regexp.MustCompile(`^canary/S3\+[A-Za-z0-9+/]{30}$`),
 		EnvValue:           regexp.MustCompile(`^canary-env-[0-9a-f]{24}$`),
 		TOTPSeed:           regexp.MustCompile(`^CANARY[A-Z2-7]{26}$`),
+		RecoveryKey:        regexp.MustCompile(`^DYRK-CANARY(-[A-Z2-7]{4}){4}$`),
 	}
 	if len(shapes) != len(Kinds) {
 		t.Fatalf("shape table covers %d of %d kinds", len(shapes), len(Kinds))

@@ -1684,7 +1684,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/backup-repositories
     operationId: create-backup-repository
@@ -1692,7 +1692,7 @@ routes:
     scope: instance
     owner: 10
     kind: json
-    status: planned
+    status: implemented
     sessionOnly: true
     notes: Recovery Key accepted only in this protected flow; never returned.
   - method: GET
@@ -1702,7 +1702,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/backup-repositories/{repositoryId}"
     operationId: update-backup-repository
@@ -1710,7 +1710,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match; credentials write-only.
   - method: DELETE
     path: "/api/v1/backup-repositories/{repositoryId}"
@@ -1719,7 +1719,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/backup-repositories/{repositoryId}/connection-tests"
     operationId: create-backup-repository-connection-test
@@ -1727,7 +1727,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/backup-repositories/{repositoryId}/recovery-confirmations"
     operationId: create-backup-repository-recovery-confirmation
@@ -1735,7 +1735,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
     sessionOnly: true
   - method: POST
     path: "/api/v1/backup-repositories/{repositoryId}/key-rotations"
@@ -1744,7 +1744,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
     sessionOnly: true
     notes: Requires step-up.
   - method: GET
@@ -1754,7 +1754,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: /api/v1/backup-policies
     operationId: list-backup-policies
@@ -1762,7 +1762,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/backup-policies
     operationId: create-backup-policy
@@ -1770,7 +1770,7 @@ routes:
     scope: instance
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/backup-policies/{policyId}"
     operationId: get-backup-policy
@@ -1778,7 +1778,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/backup-policies/{policyId}"
     operationId: update-backup-policy
@@ -1786,7 +1786,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match.
   - method: DELETE
     path: "/api/v1/backup-policies/{policyId}"
@@ -1795,7 +1795,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/backup-policies/{policyId}/scope-previews"
     operationId: create-backup-policy-scope-preview
@@ -1803,7 +1803,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/backup-policies/{policyId}/runs"
     operationId: create-backup-policy-run
@@ -1811,8 +1811,8 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
-    notes: 202 + job; Idempotency-Key.
+    status: implemented
+    notes: "201 + backup set and its jobs (one per environment, plus manager.backup); Idempotency-Key."
   - method: POST
     path: "/api/v1/backup-policies/{policyId}/retention-previews"
     operationId: create-backup-policy-retention-preview
@@ -1820,7 +1820,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/backup-policies/{policyId}/retention-runs"
     operationId: create-backup-policy-retention-run
@@ -1828,8 +1828,8 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
-    notes: 202 + job; Idempotency-Key.
+    status: implemented
+    notes: "201 + the retention jobs (one per location); Idempotency-Key; confirm: true."
   - method: GET
     path: /api/v1/backups
     operationId: list-backups
@@ -1837,7 +1837,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/backups/{backupId}"
     operationId: get-backup
@@ -1845,7 +1845,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/backups/{backupId}/contents"
     operationId: list-backup-contents
@@ -1853,7 +1853,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
     notes: Snapshot contents can hold secrets; never derived from backup.read.
   - method: GET
     path: "/api/v1/backups/{backupId}/contents/download"
@@ -1862,7 +1862,7 @@ routes:
     scope: resource
     owner: 10
     kind: stream
-    status: planned
+    status: implemented
     notes: "One file, bounded."
   - method: POST
     path: "/api/v1/backups/{backupId}/verifications"
@@ -1871,7 +1871,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: POST
     path: "/api/v1/backups/{backupId}/restore-previews"

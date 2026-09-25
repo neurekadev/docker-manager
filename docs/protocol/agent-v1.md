@@ -736,7 +736,9 @@ enqueueing and again at dispatch for queued manual jobs.
 
 | kind | frame | capability |
 | --- | --- | --- |
+| `backup.retention` | command | `backup.retention` |
 | `backup.run` | command | `backup.run` |
+| `backup.verify` | command | `backup.verify` |
 | `container.create` | command | `container.create` |
 | `container.pause` | command | `container.pause` |
 | `container.remove` | command | `container.remove` |
@@ -773,7 +775,17 @@ enqueueing and again at dispatch for queued manual jobs.
 
 Backup and restore are explicit, capability-gated commands: the agent runs
 restic itself against the repository named in the command input, with
-bounded paths from the policy; there are no pre/post hooks (#25).
+bounded paths from the policy; there are no pre/post hooks (#25). The
+command input names the destination and the environment scope
+(`protocol.BackupRepositoryRef`); the repository credentials (the Recovery
+Key, during a key rotation also the previous key, and the S3 key pair)
+travel only in the command's `secrets.repositories` and are never
+journaled. The `backup.snapshots`, `backup.contents` requests and the
+`backup.file` stream carry the same credential in their input's
+`credential` field for that call only. The agent refuses local
+destinations outside `DOCKYARD_BACKUP_LOCAL_ROOTS` and any repository
+nested inside a backup source; external bind paths need both the policy's
+opt-in and `DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST`.
 Registry credentials needed by a pull, build, deploy or update travel only
 inside that command's input for that operation and are never persisted on
 the agent (#19).
@@ -900,6 +912,17 @@ Codes of `error` frames and of `stream_close {reason: error}`:
 | `unsupported_file` | the entry's content is not served: symlink, device, FIFO, socket, or a regular file with several hard links |
 | `unsupported_volume` | the volume cannot be served (non-local driver, remote-backed, DockYard's own or the stacks volume, storage not verified) |
 | `digest_mismatch` | an upload's bytes do not match its SHA-256 |
+| `repository_not_found` | no restic repository exists at the backup location (#10) |
+| `recovery_key_rejected` | the Recovery Key does not open the backup repository |
+| `repository_locked` | another restic process holds the repository lock |
+| `repository_damaged` | the repository check found damaged or missing data |
+| `storage_access_denied` | the storage refused the S3 credentials |
+| `storage_unreachable` | the storage could not be reached |
+| `snapshot_not_found` | the snapshot or the path in it does not exist |
+| `restic_unavailable` | the agent image has no restic executable |
+| `restic_failed` | restic failed for another reason |
+| `path_not_allowed` | a local backup location is outside `DOCKYARD_BACKUP_LOCAL_ROOTS` |
+| `repository_inside_source` | a local backup location lies inside a backup source |
 
 The manager maps them to public errors: `not_found` → 404,
 `conflict` → 409/412, `deadline_exceeded` → 504 `timeout`,

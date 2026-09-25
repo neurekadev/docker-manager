@@ -71,8 +71,8 @@ linters:
           msg: use log/slog
         # No Docker/Compose/buildx CLI or credential helpers (#21): process
         # execution is limited to the paths excluded below (see
-        # docs/architecture/engine-integration.md); add restic's runner there
-        # when it lands (#10).
+        # docs/architecture/engine-integration.md): tests, the CI harness and
+        # the pinned restic runner (internal/restic/runner.go, #10).
         - pattern: ^exec\.(Command|CommandContext|LookPath)$
           pkg: ^os/exec$
           msg: the agent never executes Docker, Compose, buildx or credential-helper binaries; use the Engine/Compose SDK adapters (#21)
@@ -139,6 +139,13 @@ linters:
       # git/restic in fixtures) and in the CI test harness (git fixtures).
       - path: (_test\.go$|^internal/testharness/)
         text: exec\.(Command|CommandContext|LookPath)
+        linters:
+          - forbidigo
+      # The restic runner (#10) is the only production process execution:
+      # the pinned, checksum-verified restic of both images, never a shell,
+      # secrets only through inherited pipes and the child environment.
+      - path: ^internal/restic/runner\.go$
+        text: exec\.CommandContext
         linters:
           - forbidigo
     paths:
