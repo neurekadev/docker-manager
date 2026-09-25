@@ -4,6 +4,115 @@
  */
 
 export interface paths {
+    "/api/v1/agent-enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List agent enrollments
+         * @description Enrollment tokens newest first, with their state and the last refused attempt. Token values are never returned again after creation.
+         */
+        get: operations["list-agent-enrollments"];
+        put?: never;
+        /**
+         * Create an agent enrollment token
+         * @description Creates a one-use, short-lived enrollment token with a fixed intent and returns it once, with install commands for a co-located agent and for another Docker host. The manager stores only a verifier. The agent exchanges the token on POST /agent/v1/enroll (docs/protocol/agent-v1.md). Stored-idempotent: a retry with the same Idempotency-Key replays the response.
+         */
+        post: operations["create-agent-enrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-enrollments/{enrollmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke an agent enrollment
+         * @description Revokes an unused token at once. Used, expired or already revoked enrollments are unchanged.
+         */
+        delete: operations["delete-agent-enrollment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List agents
+         * @description Agents newest first (active and revoked), filtered per item by agent.read.
+         */
+        get: operations["list-agents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/{agentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get an agent */
+        get: operations["get-agent"];
+        put?: never;
+        post?: never;
+        /**
+         * Remove an agent
+         * @description Revokes the agent's credential at once and closes its live session (close code 4403); the environment stays offline and detached until an agent is enrolled with intent reattach:<environmentId>. Nothing on the host is touched. Requires If-Match. Removing an already revoked agent changes nothing.
+         */
+        delete: operations["delete-agent"];
+        options?: never;
+        head?: never;
+        /**
+         * Update an agent
+         * @description Sets the operator label. Requires If-Match.
+         */
+        patch: operations["update-agent"];
+        trace?: never;
+    };
+    "/api/v1/agents/{agentId}/credential-rotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate an agent credential
+         * @description Issues a new credential and hands it to the agent over its live session; the agent persists it and confirms, then the old credential stops working (state completed). If the agent is offline or does not confirm within 30 s the rotation is pending: the old credential stays valid and the new one is delivered when the agent reconnects. If you suspect the credential was stolen, remove the agent and enroll it again instead. Stored-idempotent.
+         */
+        post: operations["create-agent-credential-rotation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit": {
         parameters: {
             query?: never;
@@ -284,6 +393,91 @@ export interface paths {
          * @description Versions and feature flags clients use to adapt to this manager.
          */
         get: operations["get-capabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List environments
+         * @description Environments in creation order, filtered per item by environment.read. Archived environments are listed only with ?status=archived.
+         */
+        get: operations["list-environments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get an environment */
+        get: operations["get-environment"];
+        put?: never;
+        post?: never;
+        /**
+         * Archive an environment
+         * @description Archives the environment: it is hidden from operations while its history and records are kept, its agent's credential is revoked (a live session closes with 4403) and nothing on the host is touched. Enrolling its Engine again with intent reattach:<environmentId> re-attaches it. Requires If-Match. The dependency preview before removal is #34.
+         */
+        delete: operations["delete-environment"];
+        options?: never;
+        head?: never;
+        /**
+         * Update an environment
+         * @description Edits the server/display name and the service address. Requires If-Match. 409 environment_archived for archived environments.
+         */
+        patch: operations["update-environment"];
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List an environment's agents
+         * @description The environment's current and former (revoked) agents, newest first.
+         */
+        get: operations["list-environment-agents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an environment's system information
+         * @description The agent's last capabilities report: Engine identity and negotiated API version, agent version and window status, transport (plain-HTTP flag), verified file roots and diagnostics (#21, #27, #28). Live host metrics are #5.
+         */
+        get: operations["get-environment-system"];
         put?: never;
         post?: never;
         delete?: never;
@@ -799,6 +993,85 @@ export interface components {
             /** @description TOTP (authenticator app) is enabled. */
             totp: boolean;
         };
+        Agent: {
+            /** @description A session is established. The environment is reported online once the session's jobs were reconciled. */
+            connected: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Docker Engine ID. */
+            engineId: string;
+            environmentId: string;
+            /** @description Engine host name reported at enrollment. */
+            hostname?: string;
+            /** @example 0190a6e0-2222-7000-8000-000000000002 */
+            id: string;
+            /** @description Generated by the agent once per state volume. */
+            installId: string;
+            /** @description Optional operator note. */
+            label: string;
+            /** Format: date-time */
+            lastConnectedAt?: string;
+            /** Format: date-time */
+            lastSeenAt?: string;
+            /**
+             * Format: int64
+             * @description Edit revision (the ETag).
+             */
+            revision: number;
+            /** Format: date-time */
+            revokedAt?: string;
+            /** @example removed */
+            revokedReason?: string;
+            /** @description A new credential waits for the agent's confirmation; the old one stays valid until then. */
+            rotationPending: boolean;
+            /** @enum {string} */
+            status: "active" | "revoked";
+            transport?: components["schemas"]["AgentTransport"];
+            /** Format: date-time */
+            updatedAt: string;
+            /** @example 0.0.0-edge */
+            version: string;
+            /**
+             * @description outdated: previous minor release, still supported; upgrade it.
+             * @enum {string}
+             */
+            versionStatus: "current" | "outdated";
+        };
+        AgentEnrollment: {
+            /** @description The agent created by the enrollment. */
+            agentId?: string;
+            /** @description The enrolling host may share an enrolled Engine's ID (a cloned machine). */
+            allowDuplicateEngineId: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description User who created it (audit metadata). */
+            createdBy?: string;
+            /** @description Display name preset for the environment. */
+            environmentName?: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** @example 0190a6e0-0000-7000-8000-000000000011 */
+            id: string;
+            /**
+             * @description new, replace:<agentId> or reattach:<environmentId>; fixed when the enrollment is created.
+             * @example new
+             */
+            intent: string;
+            /** @description The last refused attempt with this token (the token stays usable until it expires). */
+            lastRejection?: components["schemas"]["EnrollmentRejection"];
+            /** Format: date-time */
+            revokedAt?: string;
+            /** @enum {string} */
+            state: "pending" | "used" | "expired" | "revoked";
+            /** Format: date-time */
+            usedAt?: string;
+        };
+        AgentTransport: {
+            customCa: boolean;
+            managerUrl: string;
+            /** @description The agent uses a plain-HTTP internal URL (DOCKYARD_MANAGER_ALLOW_HTTP); flagged on the host page. */
+            plainHttp: boolean;
+        };
         AuditActor: {
             agentId?: string;
             /**
@@ -876,6 +1149,26 @@ export interface components {
         CodeInputBody: {
             code: string;
         };
+        CreateEnrollmentInputBody: {
+            /** @description Only with intent new: the enrolling host is a different machine that reports the same Docker Engine ID as an enrolled one (a cloned VM). Prefer regenerating the clone's Engine ID. */
+            allowDuplicateEngineId?: boolean;
+            /**
+             * @description Preset display name (otherwise the agent's DOCKYARD_ENVIRONMENT_NAME or the Engine host name).
+             * @example NAS
+             */
+            environmentName?: string;
+            /**
+             * Format: int64
+             * @description Token lifetime; default 3600 (1 h), at most 86400 (24 h).
+             * @example 3600
+             */
+            expiresInSeconds?: number;
+            /**
+             * @description new (default): a new environment. replace:<agentId>: the new agent replaces that agent for the same Engine and its credential is revoked when enrollment succeeds. reattach:<environmentId>: re-attach that archived or detached environment.
+             * @example new
+             */
+            intent?: string;
+        };
         CreateInvitationInputBody: {
             /** @description Bind the invitation to this address (it must be entered when redeeming). No email is sent. */
             email?: string;
@@ -900,6 +1193,117 @@ export interface components {
             totpCode?: string;
             /** @description Start a sign-in with username and password. */
             username?: string;
+        };
+        CreatedAgentEnrollment: {
+            enrollment: components["schemas"]["AgentEnrollment"];
+            installCommands: components["schemas"]["InstallCommand"][];
+            /**
+             * @description DOCKYARD_PUBLIC_URL, the origin remote agents dial.
+             * @example https://docker.example.com
+             */
+            managerUrl: string;
+            /**
+             * @description The one-use enrollment token. Returned only in this response (and in an Idempotency-Key replay); only its SHA-256 verifier is stored. Never put it in a URL.
+             * @example dye_0190a6e0-0000-7000-8000-000000000011_q2V1c...
+             */
+            token: string;
+        };
+        CredentialRotation: {
+            agentId: string;
+            /** Format: date-time */
+            completedAt?: string;
+            /** Format: date-time */
+            requestedAt: string;
+            /**
+             * @description completed: the agent persisted the new credential and the old one is revoked. pending: the agent is offline or did not confirm yet; the old credential stays valid and the new one is delivered when the agent reconnects.
+             * @enum {string}
+             */
+            state: "completed" | "pending";
+        };
+        EnrollmentRejection: {
+            /** Format: date-time */
+            at: string;
+            /**
+             * @description Stable error code the agent received (409).
+             * @enum {string}
+             */
+            code: "engine_already_enrolled" | "engine_identity_conflict" | "environment_archived" | "environment_detached" | "engine_mismatch" | "enrollment_target_unavailable";
+            /** @description The agent already controlling the Engine. */
+            conflictAgentId?: string;
+            conflictEnvironmentId?: string;
+            /** @description Docker Engine ID the agent reported. */
+            engineId?: string;
+            /** @description Engine host name the agent reported. */
+            hostname?: string;
+            /** @description The agent's install ID (generated per agent state volume). */
+            installId?: string;
+            message: string;
+        };
+        Environment: {
+            /** @description The active agent; absent while the environment is detached (its agent was removed). */
+            agentId?: string;
+            /** @description The owner declared this a distinct host sharing another environment's Engine ID (cloned VM). */
+            allowDuplicateEngineId: boolean;
+            /** Format: date-time */
+            archivedAt?: string;
+            /**
+             * Format: date-time
+             * @description When the environment last went online or offline.
+             */
+            connectionChangedAt?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Docker Engine ID. */
+            engineId: string;
+            /** @example 0190a6e0-3333-7000-8000-000000000003 */
+            id: string;
+            /** Format: date-time */
+            lastSeenAt?: string;
+            /**
+             * @description Editable server/display name.
+             * @example NAS
+             */
+            name: string;
+            /** @description The agent's session is established and its jobs were reconciled. */
+            online: boolean;
+            /**
+             * Format: int64
+             * @description Edit revision (the ETag).
+             */
+            revision: number;
+            /**
+             * @description Host name or IP address users browse to, for links to published ports.
+             * @example nas.lan
+             */
+            serviceAddress?: string;
+            /**
+             * @description Archived environments are hidden from operations; their records are kept.
+             * @enum {string}
+             */
+            status: "active" | "archived";
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        EnvironmentSystem: {
+            /** @description Absent while detached. */
+            agent?: components["schemas"]["SystemAgent"];
+            /** @description Job kinds this agent executes. */
+            commands: string[];
+            diagnostics: components["schemas"]["SystemDiagnostic"][];
+            /** @description Absent before the agent's first session. */
+            engine?: components["schemas"]["SystemEngine"];
+            environmentId: string;
+            features: string[];
+            online: boolean;
+            /**
+             * Format: date-time
+             * @description When the agent last reported its capabilities.
+             */
+            reportedAt?: string;
+            requests: string[];
+            roots: components["schemas"]["SystemRoot"][];
+            streams: string[];
+            transport?: components["schemas"]["AgentTransport"];
         };
         Error: {
             /**
@@ -947,6 +1351,14 @@ export interface components {
              * @example 0.0.0-edge
              */
             version: string;
+        };
+        InstallCommand: {
+            /** @description Shell text; contains the token (show once, never log). */
+            command: string;
+            description: string;
+            title: string;
+            /** @enum {string} */
+            variant: "colocated" | "remote" | "remote_compose";
         };
         Invitation: {
             /** Format: date-time */
@@ -1110,9 +1522,42 @@ export interface components {
              */
             total?: number;
         };
+        PageAgent: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["Agent"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageAgentEnrollment: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["AgentEnrollment"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageAuditEvent: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["AuditEvent"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageEnvironment: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["Environment"][];
             /** @description Opaque cursor for the next page; absent on the last page. */
             nextCursor?: string;
             /**
@@ -1332,6 +1777,45 @@ export interface components {
             /** @description Required with password when TOTP is enabled. */
             totpCode?: string;
         };
+        SystemAgent: {
+            arch: string;
+            connected: boolean;
+            id: string;
+            os: string;
+            protocols: string[];
+            version: string;
+            /** @enum {string} */
+            versionStatus: "current" | "outdated";
+        };
+        SystemDiagnostic: {
+            /** @enum {string} */
+            area: "engine" | "storage";
+            /** @example storage_path_mismatch */
+            code: string;
+            message: string;
+        };
+        SystemEngine: {
+            /**
+             * @description API version negotiated by the agent's Moby client.
+             * @example 1.51
+             */
+            apiVersion: string;
+            /** @example amd64 */
+            arch: string;
+            id: string;
+            minApiVersion?: string;
+            /** @example linux */
+            os: string;
+            rootless: boolean;
+            /** @example 28.5.2 */
+            version: string;
+        };
+        SystemRoot: {
+            /** @enum {string} */
+            kind: "stacks" | "volumes" | "bind";
+            /** @enum {string} */
+            watch: "inotify" | "poll" | "none";
+        };
         TotpEnrollmentOutputBody: {
             /**
              * Format: date-time
@@ -1343,6 +1827,22 @@ export interface components {
             /** @description otpauth:// URI for a QR code. Shown only in this response. */
             uri: string;
         };
+        UpdateAgentInputBody: {
+            /** @description Operator note; empty clears it. */
+            label?: string;
+        };
+        UpdateEnvironmentInputBody: {
+            /**
+             * @description Server/display name.
+             * @example NAS
+             */
+            name?: string;
+            /**
+             * @description Host name or IP address users browse to; empty clears it.
+             * @example nas.lan
+             */
+            serviceAddress?: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -1352,6 +1852,582 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "list-agent-enrollments": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageAgentEnrollment"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-agent-enrollment": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEnrollmentInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedAgentEnrollment"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-agent-enrollment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Enrollment ID. */
+                enrollmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-agents": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Only agents in these states. */
+                status?: ("active" | "revoked")[];
+                /** @description Only agents of this environment. */
+                environmentId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageAgent"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-agent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent ID. */
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Agent"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-agent": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Agent ID. */
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-agent": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Agent ID. */
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAgentInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Agent"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-agent-credential-rotation": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Agent ID. */
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialRotation"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-audit-events": {
         parameters: {
             query?: {
@@ -2368,6 +3444,442 @@ export interface operations {
             };
             /** @description Error */
             default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-environments": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Only environments in these states (default: active). */
+                status?: ("active" | "archived")[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageEnvironment"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-environment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Environment"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-environment": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-environment": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateEnvironmentInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Environment"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-environment-agents": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageAgent"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-environment-system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentSystem"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1,0 +1,89 @@
+package agents
+
+import (
+	"strings"
+
+	"github.com/neurekadev/dockyard/internal/domain"
+)
+
+// Install command variants.
+const (
+	InstallColocated     = "colocated"
+	InstallRemote        = "remote"
+	InstallRemoteCompose = "remote_compose"
+)
+
+// InstallCommands renders the install commands for an enrollment token.
+// managerURL is DOCKYARD_PUBLIC_URL; name is the optional preset display
+// name.
+//
+// The remote variants mount the Docker socket and Docker's volume
+// directory at its identical path (#28), as deploy/remote-agent does; the
+// socket path literal is the documented policy-check exception for this
+// file (docs/architecture/engine-integration.md).
+func InstallCommands(managerURL, image, token, name string) []domain.InstallCommand {
+	colocated := "printf '%s\\n' " + shellQuote(token) + " | docker compose exec -T dockyard-agent dockyard-agent enroll"
+
+	var run strings.Builder
+	run.WriteString("docker run -d --name dockyard-agent --restart unless-stopped \\\n")
+	run.WriteString("  -e DOCKYARD_MANAGER_URL=" + shellQuote(managerURL) + " \\\n")
+	if name != "" {
+		run.WriteString("  -e DOCKYARD_ENVIRONMENT_NAME=" + shellQuote(name) + " \\\n")
+	}
+	run.WriteString("  -v /var/run/docker.sock:/var/run/docker.sock \\\n")
+	run.WriteString("  -v /var/lib/docker/volumes:/var/lib/docker/volumes \\\n")
+	run.WriteString("  -v dockyard_stacks:/var/lib/docker/volumes/dockyard_stacks/_data \\\n")
+	run.WriteString("  -v dockyard_agent_state:/var/lib/dockyard-agent \\\n")
+	run.WriteString("  " + image + "\n")
+	run.WriteString("printf '%s\\n' " + shellQuote(token) + " | docker exec -i dockyard-agent dockyard-agent enroll")
+
+	var env strings.Builder
+	env.WriteString("# deploy/remote-agent/.env\n")
+	env.WriteString("DOCKYARD_MANAGER_URL=" + managerURL + "\n")
+	env.WriteString("DOCKYARD_ENROLLMENT_TOKEN=" + token + "\n")
+	if name != "" {
+		env.WriteString("DOCKYARD_ENVIRONMENT_NAME=" + envFileValue(name) + "\n")
+	}
+	env.WriteString("# then, next to deploy/remote-agent/compose.yaml:\n")
+	env.WriteString("docker compose up -d")
+
+	return []domain.InstallCommand{
+		{
+			Variant: InstallColocated, Title: "Agent next to the manager",
+			Description: "Run in the directory of the manager's compose.yaml (deploy/caddy, deploy/traefik or deploy/nginx). " +
+				"The co-located agent already runs on the internal URL; it enrolls within seconds and the command prints the result.",
+			Command: colocated,
+		},
+		{
+			Variant: InstallRemote, Title: "Agent on another Docker host",
+			Description: "Starts the agent with the manager's public HTTPS origin and hands it the token on stdin, " +
+				"so the token never appears in the container configuration. Only this host's Docker socket and its volume directory are mounted; " +
+				"Docker socket access confers host-level authority.",
+			Command: run.String(),
+		},
+		{
+			Variant: InstallRemoteCompose, Title: "Agent on another Docker host (Compose)",
+			Description: "The same agent with deploy/remote-agent: put these lines in its .env file. " +
+				"Remove DOCKYARD_ENROLLMENT_TOKEN after the agent enrolled; the used token cannot enroll again.",
+			Command: env.String(),
+		},
+	}
+}
+
+// shellQuote quotes s for POSIX shells.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// envFileValue quotes a value for a Compose .env file: single quotes keep
+// it literal (no interpolation); a value containing a single quote uses
+// double quotes with escapes.
+func envFileValue(s string) string {
+	switch {
+	case !strings.ContainsAny(s, " #'\"\\$`"):
+		return s
+	case !strings.Contains(s, "'"):
+		return "'" + s + "'"
+	}
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, `$`, `\$`).Replace(s) + `"`
+}

@@ -7,7 +7,9 @@
 #   health-ready   GET /api/v1/health/ready through the Caddy TLS proxy (verified CA)
 #   owner-setup    first-run owner over HTTPS through Caddy, session cookie,
 #                  sign-out/sign-in, second setup refused (#16)
-#   enroll-agent   pending (#3)
+#   enroll-agent   enrollment token from the manager CLI, handed to the co-located
+#                  agent on stdin; it enrolls through the internal URL and its
+#                  environment comes online (#3)
 #   deploy-stack   pending (#7): test/smoke/sample-stack/compose.yaml
 #
 # Pending steps print ::warning:: and are listed in the summary; they never
@@ -271,7 +273,39 @@ step_owner_setup() {
 }
 
 step_enroll_agent() {
-	pending enroll-agent "#3" "create an enrollment token, restart the agent with it, wait for the Environment to be online" 'agent-enrollment'
+	local out token
+	# Headless path (the UI and owner account arrive with #16/#22): create a
+	# one-use token inside the manager container. The token stays in shell
+	# variables only; it is never written to the artifacts.
+	out="$("${compose[@]}" exec -T dockyard-manager dockyard-manager enrollment create -name smoke -json 2>"${SMOKE_ARTIFACTS}/enrollment-create.err")" ||
+		fail enroll-agent "dockyard-manager enrollment create failed: $(tail -5 "${SMOKE_ARTIFACTS}/enrollment-create.err")"
+	token="$(jq -r '.token // empty' <<<"$out")"
+	case "$token" in dye_*) ;; *) fail enroll-agent "enrollment create printed no dye_ token" ;; esac
+	jq -e '.installCommands | map(.variant) | index("colocated") and index("remote")' <<<"$out" >/dev/null ||
+		fail enroll-agent "install commands missing"
+	# Hand the token to the running co-located agent (internal plain-HTTP URL)
+	# on stdin and wait until its environment is online.
+	if ! printf '%s\n' "$token" | "${compose[@]}" exec -T dockyard-agent dockyard-agent enroll -wait 120s \
+		>"${SMOKE_ARTIFACTS}/agent-enroll.out" 2>&1; then
+		fail enroll-agent "dockyard-agent enroll failed: $(tail -5 "${SMOKE_ARTIFACTS}/agent-enroll.out")"
+	fi
+	grep -q "environment is online" "${SMOKE_ARTIFACTS}/agent-enroll.out" ||
+		fail enroll-agent "agent did not report an online environment: $(cat "${SMOKE_ARTIFACTS}/agent-enroll.out")"
+	"${compose[@]}" exec -T dockyard-agent dockyard-agent healthcheck >/dev/null 2>&1 ||
+		fail enroll-agent "agent unhealthy after enrollment"
+	# The manager saw the session come online; neither log contains the token.
+	local logs
+	logs="$("${compose[@]}" logs --no-color dockyard-manager dockyard-agent 2>&1)"
+	grep -q '"msg":"environment online"' <<<"$logs" || fail enroll-agent "manager did not log the environment online"
+	grep -q "$token" <<<"$logs" && fail enroll-agent "the enrollment token appears in the container logs"
+	# The used token cannot enroll again, also through the public origin.
+	local code version body
+	version="$(curl -sS --fail --cacert "$CA" "${BASE_URL}/api/v1/health" | jq -r .version)"
+	body="$(jq -nc --arg v "$version" '{protocol:"dockyard.agent/v1",agentVersion:$v,installId:"0190a6e0-0000-7000-8000-00000000cafe",engine:{id:"SMOKE:REUSE",version:"28.5.2",apiVersion:"1.51"}}')"
+	code="$(curl -sS -o /dev/null -w '%{http_code}' --cacert "$CA" -X POST -H "Authorization: Bearer ${token}" \
+		-H 'Content-Type: application/json' --data "$body" "${BASE_URL}/agent/v1/enroll" || true)"
+	[ "$code" = 401 ] || fail enroll-agent "reused enrollment token answered HTTP ${code}, want 401"
+	record enroll-agent PASSED "co-located agent enrolled through the internal URL; environment online; reused token refused (401)"
 }
 
 step_deploy_stack() {

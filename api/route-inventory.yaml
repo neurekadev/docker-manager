@@ -579,7 +579,7 @@ routes:
     scope: instance
     owner: 3
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/agent-enrollments
     operationId: create-agent-enrollment
@@ -587,7 +587,7 @@ routes:
     scope: instance
     owner: 3
     kind: json
-    status: planned
+    status: implemented
     notes: Returns the one-use enrollment token and install command once; stored-idempotent.
   - method: DELETE
     path: "/api/v1/agent-enrollments/{enrollmentId}"
@@ -596,7 +596,7 @@ routes:
     scope: instance
     owner: 3
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: /api/v1/agents
     operationId: list-agents
@@ -604,7 +604,7 @@ routes:
     scope: resource
     owner: 3
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/agents/{agentId}"
     operationId: get-agent
@@ -612,7 +612,7 @@ routes:
     scope: resource
     owner: 3
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/agents/{agentId}"
     operationId: update-agent
@@ -620,7 +620,7 @@ routes:
     scope: resource
     owner: 3
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match.
   - method: DELETE
     path: "/api/v1/agents/{agentId}"
@@ -629,7 +629,7 @@ routes:
     scope: resource
     owner: 3
     kind: json
-    status: planned
+    status: implemented
     notes: Revokes the credential and closes the session; the environment stays offline and detached.
   - method: POST
     path: "/api/v1/agents/{agentId}/credential-rotations"
@@ -638,7 +638,7 @@ routes:
     scope: resource
     owner: 3
     kind: json
-    status: planned
+    status: implemented
     notes: Stored-idempotent.
   - method: GET
     path: /api/v1/environments
@@ -647,7 +647,7 @@ routes:
     scope: resource
     owner: 3
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}"
     operationId: get-environment
@@ -655,7 +655,7 @@ routes:
     scope: environment
     owner: 3
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/environments/{environmentId}"
     operationId: update-environment
@@ -663,7 +663,7 @@ routes:
     scope: environment
     owner: 3
     kind: json
-    status: planned
+    status: implemented
     notes: Server/display name and service address; If-Match.
   - method: DELETE
     path: "/api/v1/environments/{environmentId}"
@@ -672,7 +672,7 @@ routes:
     scope: environment
     owner: 34
     kind: json
-    status: planned
+    status: implemented
     notes: Archives the environment after a dependency preview; never touches containers.
   - method: GET
     path: "/api/v1/environments/{environmentId}/agents"
@@ -681,7 +681,7 @@ routes:
     scope: environment
     owner: 3
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/system"
     operationId: get-environment-system
@@ -689,7 +689,7 @@ routes:
     scope: environment
     owner: 5
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/events/stream"
     operationId: stream-environment-events
@@ -2027,10 +2027,10 @@ agentRoutes:
     kind: json
     auth: enrollment-token
     owner: 3
-    status: planned
+    status: implemented
   - method: GET
     path: /agent/v1/session
     kind: websocket
     auth: agent-credential
     owner: 3
-    status: planned
+    status: implemented

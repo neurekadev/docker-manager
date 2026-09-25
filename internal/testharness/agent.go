@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -91,7 +92,8 @@ func (e *Engine) loadArchive(ctx context.Context, t testing.TB, r io.Reader) {
 type AgentOptions struct {
 	Image string
 	Name  string
-	// Env is added to DOCKYARD_MANAGER_URL=https://manager.invalid.
+	// Env is added to DOCKYARD_MANAGER_URL=https://manager.invalid (unless
+	// Env sets DOCKYARD_MANAGER_URL itself) and DOCKYARD_LOG_FORMAT=json.
 	Env []string
 	// Mounts replace the default mounts (Docker socket and the
 	// identical-path volume directory, as in deploy/compose, #28).
@@ -126,11 +128,15 @@ func (e *Engine) StartAgent(t testing.TB, o AgentOptions) string {
 	if o.HostConfig != nil {
 		o.HostConfig(hc)
 	}
+	env := []string{"DOCKYARD_LOG_FORMAT=json"}
+	if !slices.ContainsFunc(o.Env, func(e string) bool { return strings.HasPrefix(e, "DOCKYARD_MANAGER_URL=") }) {
+		env = append(env, "DOCKYARD_MANAGER_URL=https://manager.invalid")
+	}
 	res, err := cli.ContainerCreate(ctx, client.ContainerCreateOptions{
 		Name: o.Name,
 		Config: &container.Config{
 			Image: o.Image,
-			Env:   append([]string{"DOCKYARD_MANAGER_URL=https://manager.invalid", "DOCKYARD_LOG_FORMAT=json"}, o.Env...),
+			Env:   append(env, o.Env...),
 		},
 		HostConfig: hc,
 	})

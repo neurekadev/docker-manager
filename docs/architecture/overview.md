@@ -72,11 +72,16 @@ domain types (`domain`) are separate and converted explicitly.
   generated from `api/openapi.json`. Responses are `no-store`; static assets
   under `/_app/immutable/` are cached for a year; every other path falls back
   to `index.html` for client-side routing.
-- **Agent → manager (#3):** the agent dials `/agent/v1/session` (WebSocket,
-  subprotocol `dockyard.agent/v1`) and exchanges JSON frames
+- **Agent → manager (#3):** the agent enrolls once (`POST /agent/v1/enroll`,
+  one-use `dye_` token → `dya_` credential), then dials `/agent/v1/session`
+  (WebSocket, subprotocol `dockyard.agent/v1`) and exchanges JSON frames
   (`internal/protocol`): hello, heartbeat, capabilities, command/ack/
   progress/result, events, file invalidations, stream relay, cancel, error.
-  Commands carry job ID, attempt, fencing token and deadline (#26).
+  Commands carry job ID, attempt, fencing token and deadline (#26). Manager
+  side: `internal/manager/agents` (enrollment, environments, session hub =
+  the job engine's dispatcher); agent side: `internal/agent/session`.
+  Environment and agent changes are published on the in-process event bus
+  `internal/manager/events` (consumed by the live stream, #23).
 - **Jobs (#26):** every long or mutating operation is a durable job in the
   manager's engine (`internal/manager/jobs`), with one lock matrix, fencing
   tokens and reconnect reconciliation; see

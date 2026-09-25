@@ -80,6 +80,7 @@ in_list() {
 #   internal/testutil/fscorpus/       a path-traversal test string
 #   internal/testharness/             DinD readiness probes and agent mounts of the CI fixtures
 #   test/deploy/*_test.go             tests asserting the deploy examples mount the socket
+#   internal/manager/agents/install.go  the agent install command's socket bind mount (text shown to operators)
 engine_http_exceptions=(
 	'^internal/agent/engine/'
 	'^internal/agent/compose/[^/]+_test\.go$'
@@ -87,6 +88,7 @@ engine_http_exceptions=(
 	'^internal/testutil/fscorpus/'
 	'^internal/testharness/'
 	'^test/deploy/[^/]+_test\.go$'
+	'^internal/manager/agents/install\.go$'
 )
 
 check_direct_engine_http() {

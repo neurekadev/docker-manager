@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -147,5 +148,53 @@ func TestHealthcheckCommand(t *testing.T) {
 	status.Store(http.StatusServiceUnavailable)
 	if code, _, _ := runCmd([]string{"healthcheck"}, vars); code != exitFail {
 		t.Fatalf("unhealthy exit %d", code)
+	}
+}
+
+func TestEnrollmentCreateCommand(t *testing.T) {
+	dataDir := t.TempDir()
+	vars := map[string]string{"DOCKYARD_PUBLIC_URL": "https://docker.example.com", "DOCKYARD_DATA_DIR": dataDir}
+	if code, _, stderr := runCmd([]string{"enrollment"}, vars); code != exitConfig || !strings.Contains(stderr, "usage") {
+		t.Fatalf("no subcommand: %d %q", code, stderr)
+	}
+	if code, _, stderr := runCmd([]string{"enrollment", "create", "-intent", "adopt"}, vars); code != exitConfig || !strings.Contains(stderr, "intent") {
+		t.Fatalf("bad intent: %d %q", code, stderr)
+	}
+	if code, _, stderr := runCmd([]string{"enrollment", "create"}, vars); code != exitFail || !strings.Contains(stderr, "start it once first") {
+		t.Fatalf("uninitialized: %d %q", code, stderr)
+	}
+	cfg, err := config.Load(envconfig.Map(vars, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := app.Start(testutil.Context(t), app.Options{Config: cfg, Logger: testutil.Logger(t), UI: fstest.MapFS{"index.html": {Data: []byte("x")}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = m.Close()
+	if code, _, stderr := runCmd([]string{"enrollment", "create", "-ttl", "48h"}, vars); code != exitConfig || !strings.Contains(stderr, "expiresInSeconds") {
+		t.Fatalf("ttl too long: %d %q", code, stderr)
+	}
+	code, stdout, stderr := runCmd([]string{"enrollment", "create", "-name", "NAS", "-json"}, vars)
+	if code != exitOK {
+		t.Fatalf("create: %d %q", code, stderr)
+	}
+	var out struct {
+		Token           string `json:"token"`
+		Intent          string `json:"intent"`
+		ManagerURL      string `json:"managerUrl"`
+		InstallCommands []struct {
+			Variant string `json:"variant"`
+			Command string `json:"command"`
+		} `json:"installCommands"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &out); err != nil || !strings.HasPrefix(out.Token, "dye_") || out.Intent != "new" ||
+		out.ManagerURL != "https://docker.example.com" || len(out.InstallCommands) != 3 || out.InstallCommands[0].Variant != "colocated" ||
+		!strings.Contains(out.InstallCommands[0].Command, out.Token) {
+		t.Fatalf("json output %q (%v)", stdout, err)
+	}
+	code, stdout, _ = runCmd([]string{"enrollment", "create"}, vars)
+	if code != exitOK || !strings.Contains(stdout, "One-use token") || !strings.Contains(stdout, "dockyard-agent enroll") {
+		t.Fatalf("text output %d %q", code, stdout)
 	}
 }

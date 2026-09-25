@@ -5,6 +5,10 @@ package testharness
 import (
 	"context"
 	"fmt"
+	"net"
+	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -169,6 +173,28 @@ func (e *Engine) Client(t testing.TB) *client.Client {
 	}
 	t.Cleanup(func() { _ = cli.Close() })
 	return cli
+}
+
+// HostAccessAddress returns the address containers inside the Engine use to
+// reach port p of the test process (EngineOptions.HostAccessPorts): the IP
+// behind host.testcontainers.internal in the DinD container's /etc/hosts,
+// which nested containers do not share.
+func (e *Engine) HostAccessAddress(t testing.TB, p int) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	code, out, err := e.Exec(ctx, "cat", "/etc/hosts")
+	if err != nil || code != 0 {
+		t.Fatalf("read /etc/hosts of the Engine: %d %v", code, err)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 2 && slices.Contains(f[1:], "host.testcontainers.internal") {
+			return net.JoinHostPort(f[0], strconv.Itoa(p))
+		}
+	}
+	t.Fatalf("host.testcontainers.internal not in the Engine's /etc/hosts (pass HostAccessPorts):\n%s", out)
+	return ""
 }
 
 // Exec runs a command inside the DinD container (the Engine's own network

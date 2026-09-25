@@ -273,10 +273,20 @@ docker compose up -d
 docker compose ps               # manager, agent and proxy healthy/running
 ```
 
-Open `https://docker.example.com` and create the owner account (#16). Then
-enroll the co-located agent (#3): create an enrollment token in the UI, put
-it into `.env` as `DOCKYARD_ENROLLMENT_TOKEN`, `docker compose up -d`, and
-remove it again once the agent is enrolled.
+Enroll the co-located agent (#3). Create a one-use token (in the UI once
+#16/#22 ship, or now on the command line inside the manager container) and
+hand it to the running agent on stdin — it never appears in a URL, a
+process list or the container configuration:
+
+```bash
+docker compose exec -T dockyard-manager dockyard-manager enrollment create -name host-a
+# prints the token (shown once) and the install commands
+printf '%s\n' "$TOKEN" | docker compose exec -T dockyard-agent dockyard-agent enroll
+# enrolled: agent …, environment …; the environment is online
+```
+
+(Putting the token into `.env` as `DOCKYARD_ENROLLMENT_TOKEN` and running
+`docker compose up -d` works as well; remove it again afterwards.)
 
 **Host B:**
 
@@ -284,18 +294,35 @@ remove it again once the agent is enrolled.
 cd deploy/remote-agent
 cp .env.example .env
 # .env: DOCKYARD_MANAGER_URL=https://docker.example.com
-#       DOCKYARD_ENROLLMENT_TOKEN=<token from the UI>
+#       DOCKYARD_ENROLLMENT_TOKEN=<token created on host A>
 #       DOCKYARD_ENVIRONMENT_NAME=host-b
 docker compose up -d
 ```
+
+One agent per Docker Engine: enrolling a second agent for an enrolled
+Engine is refused with `engine_already_enrolled` unless the token's intent
+is `replace:<agentId>`, which revokes the old agent. Cloned VMs share the
+Engine ID; the manager refuses them with `engine_identity_conflict` (see
+`docs/protocol/agent-v1.md`).
+
+**Docker socket access is host-level authority.** The agent needs the
+Docker socket (and the volume directory, #28) to manage the host, and
+anyone who controls the agent — or its credential and the manager — can
+run anything on that host. Protect the manager like root on every enrolled
+host: restrict who can reach `/agent/v1` (optionally allowlist agent IPs at
+the proxy), keep `DOCKYARD_MANAGER_ALLOW_HTTP` to the internal network,
+remove agents you no longer use (their credential stops working at once)
+and rotate agent credentials if you suspect exposure. See Docker's
+[daemon attack surface](https://docs.docker.com/engine/security/#docker-daemon-attack-surface)
+and [protect daemon access](https://docs.docker.com/engine/security/protect-access/).
 
 For a private PKI, copy the CA bundle into the `dockyard_agent_ca` volume
 and set `DOCKYARD_MANAGER_CA_FILE=/etc/dockyard/ca/ca.pem` (see the comment
 in `deploy/remote-agent/compose.yaml`).
 
-Both environments then appear in the UI; host A's agent is marked as using
-the internal plain-HTTP URL. Until enrollment ships (#3) both agents start,
-log that they are not enrolled, and stay healthy.
+Both environments then appear (`GET /api/v1/environments`, and in the UI
+with #22); host A's agent is marked as using the internal plain-HTTP URL
+(`transport.plainHttp` in `GET /api/v1/environments/{id}/system`).
 
 ## For contributors
 
@@ -305,13 +332,14 @@ log that they are not enrolled, and stay healthy.
 - Secure-context check for setup and other credential-creating flows:
   `requestinfo.CheckSecureOrigin(publicURL, localDevelopment, info)`; map
   failures to 403 `insecure_origin` and show the error's `Explanation`.
-- `/agent/v1` handlers (#3) are passed as `server.Options.Agent` and run
-  behind the agent guard (`server.AgentLimits`: per-IP token bucket, 64 KiB
-  bodies, 10 s pre-auth read deadline) and the credential separation
-  (`internal/manager/authsep`: mint credentials with
-  `authsep.NewAgentCredential`/`NewEnrollmentToken`). Reject with
-  `server.AgentFailure`; call `server.EndPreAuth` after authenticating a
-  request that keeps streaming a body.
+- `/agent/v1` is served by `internal/manager/agents` (`Service.Handler()`,
+  passed as `server.Options.Agent`) behind the agent guard
+  (`server.AgentLimits`: per-IP token bucket, 64 KiB bodies, 10 s pre-auth
+  read deadline) and the credential separation (`internal/manager/authsep`:
+  `MintAgentCredential`/`MintEnrollmentToken` embed the record ID, only
+  `Verifier`s are stored). Reject with `server.AgentFailure`; call
+  `server.EndPreAuth` after authenticating a request that keeps streaming a
+  body.
 - Streams: `internal/manager/server/sse` (headers, flushing, heartbeats) is
   the one SSE implementation; Huma operations use its adapter
   `api.StartSSE`; `internal/manager/server/ws` (`Accept`, bounded read
@@ -319,4 +347,4 @@ log that they are not enrolled, and stay healthy.
   `DOCKYARD_STREAM_HEARTBEAT`.
 - Agent side: `internal/agent/transport` builds the HTTP/WebSocket client
   (TLS roots, CA bundle, no redirects) and `protocol.TransportInfo`, which
-  #3 reports in the capabilities.
+  the session reports in the capabilities (`internal/agent/session`).

@@ -69,6 +69,9 @@ type Deps struct {
 	// Identity serves setup, sign-in, factors, invitations, users and the
 	// sign-in policy (#16); nil answers those routes with 503.
 	Identity IdentityService
+	// Agents is the agent/environment service (#3); nil answers its
+	// routes with 503.
+	Agents AgentService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -117,6 +120,8 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerJobs(a, deps)
 	registerAudit(a, deps)
 	registerIdentity(a, deps)
+	registerAgents(a, deps)
+	registerEnvironments(a, deps)
 	return a
 }
 
