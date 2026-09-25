@@ -274,6 +274,10 @@ snapshot contents can hold secrets).
 ## Audit export (`export-audit-events`)
 
 `GET /audit/exports?format=ndjson|csv&<audit list filters>` streams
-`application/x-ndjson` (one event per line) or `text/csv`, oldest first,
-ending when the filtered range is exhausted (#30). There is no resume; repeat
-with a narrower time range.
+`application/x-ndjson` (one `AuditEvent` per line, `details` exactly as
+hashed) or `text/csv` (header row; cells starting with `=`, `+`, `-`, `@`,
+tab or CR are prefixed with `'` against formula injection), oldest first, as
+an attachment (`Content-Disposition`), covering the records present when the
+export started (#30). There is no resume; repeat with a narrower time range.
+A failure mid-stream aborts the connection instead of ending the body
+cleanly. The export requires `audit.export` and is itself audited.

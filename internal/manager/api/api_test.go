@@ -306,6 +306,10 @@ func checkCompleteness(t reporter, spec []byte) {
 			if err := ValidateScope(scope); scope == "" || err != nil {
 				t.Errorf("%s: missing/invalid %s: %v", where, ExtScope, err)
 			}
+			// Audit by construction (#30): every mutating operation records.
+			if action, _ := op[ExtAudit].(string); method != "get" && !IsCapabilityKey(action) {
+				t.Errorf("%s: mutating operation without a valid %s action (%q)", where, ExtAudit, action)
+			}
 			responses, _ := op["responses"].(map[string]any)
 			hasError := false
 			for code := range responses {
@@ -321,10 +325,11 @@ func checkCompleteness(t reporter, spec []byte) {
 }
 
 func TestCompletenessCheckCatchesViolations(t *testing.T) {
-	bad := []byte(`{"openapi":"3.1.0","paths":{"/api/v1/a":{"get":{"operationId":"x","responses":{"default":{}}}},"/api/v1/b":{"get":{"operationId":"x","x-dockyard-capability":"public","x-dockyard-scope":"none","responses":{}}}}}`)
+	bad := []byte(`{"openapi":"3.1.0","paths":{"/api/v1/a":{"get":{"operationId":"x","responses":{"default":{}}}},"/api/v1/b":{"get":{"operationId":"x","x-dockyard-capability":"public","x-dockyard-scope":"none","responses":{}}},` +
+		`"/api/v1/c":{"post":{"operationId":"y","x-dockyard-capability":"public","x-dockyard-scope":"none","responses":{"default":{}}}}}}`)
 	ft := &fakeT{T: t}
 	checkCompleteness(ft, bad)
-	if ft.errors < 4 { // cap+scope missing on /a, duplicate id, no default response on /b
+	if ft.errors < 5 { // cap+scope missing on /a, duplicate id, no default response on /b, unaudited POST /c
 		t.Fatalf("completeness check reported %d problems, want >= 4", ft.errors)
 	}
 }

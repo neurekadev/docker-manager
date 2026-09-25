@@ -36,11 +36,20 @@ not, is listed in `api/route-inventory.yaml`.
     manager-wide), `environment` or `resource`. Emitted as `x-dockyard-scope`.
   - `Idempotency` — `stored` or `job` when the input takes an
     `Idempotency-Key` (below). Emitted as `x-dockyard-idempotency`.
+  - `Audit` / `AuditAction` — every non-GET operation is recorded in the
+    audit trail (#30) by `Register`, with no opt-out; GET operations opt in
+    with `Audit: AuditAlways` (downloads, exports). The action is the
+    capability key, or for pseudo-capabilities a key derived from the
+    operation ID (`create-invitation` → `invitation.create`) unless
+    `AuditAction` overrides it. Emitted as `x-dockyard-audit`. See
+    [audit](../architecture/audit.md).
   - `Summary` (and ideally `Description`, `Tags`, `Errors`).
 - `Register` adds the security requirements (cookie or bearer) and a `401`
   to every non-public operation, and panics at startup on missing or
   inconsistent metadata. `TestOpenAPICompleteness` checks the generated spec;
-  `TestRouteInventory` reconciles it with the inventory.
+  `TestRouteInventory` reconciles it with the inventory;
+  `TestEveryCatalogedMutatingRouteIsAudited` proves every mutating catalog
+  route records an audit event.
 
 ## JSON
 

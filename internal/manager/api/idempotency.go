@@ -17,6 +17,7 @@ import (
 
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/logging"
+	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 )
 
@@ -78,10 +79,15 @@ var replayHeaders = []string{"Content-Type", "Location", "ETag"}
 
 type depsKey struct{}
 
-// withDeps is an API-wide middleware exposing Deps to operation middlewares.
+// withDeps is an API-wide middleware exposing Deps to operation middlewares
+// and the audit recorder to every handler (audit.Record, #30).
 func withDeps(deps Deps) func(huma.Context, func(huma.Context)) {
 	return func(ctx huma.Context, next func(huma.Context)) {
-		next(huma.WithValue(ctx, depsKey{}, deps))
+		c := context.WithValue(ctx.Context(), depsKey{}, deps)
+		if deps.Audit != nil {
+			c = audit.WithRecorder(c, deps.Audit)
+		}
+		next(huma.WithContext(ctx, c))
 	}
 }
 

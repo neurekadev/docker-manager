@@ -46,12 +46,12 @@ Legend for "where": PR = `ci.yaml` PR suite; X:`job` = `extended.yaml` job.
 | V21 | Metrics-only and restart-only grants | #17 | Decision corpus + API tests | PR | planned |
 | V22 | TOTP/passkey enforcement and recovery | #16 | Playwright (helpers implemented) | X:`e2e` | planned |
 | V23 | Secret storage | #2, #10, #19 | `TestSealOpenRoundTrip`, `TestMissingKeyForExistingInstallFailsClosed`; canary sweeps over DB dumps per secret kind | PR, X:`secret-canary` | partial |
-| V24 | Secrets never in logs, audit, job output, API responses | #16, #19, #10, #30, #31 | `internal/testutil/canary` (implemented, unit-tested); `TestJSONOutputAndSecretRedaction`, `TestAccessLogOmitsQuery`; per-feature canary tests | PR, X:`secret-canary` | partial |
+| V24 | Secrets never in logs, audit, job output, API responses | #16, #19, #10, #30, #31 | `internal/testutil/canary` (implemented, unit-tested); `TestJSONOutputAndSecretRedaction`, `TestAccessLogOmitsQuery`; audit: `TestSecretCanariesNeverReachTheAuditTrail`, `TestSecretCanariesNeverStored`, `FuzzCanonicalDetails`; per-feature canary tests | PR, X:`secret-canary` | partial |
 | V25 | TLS enforcement | #2, #3, #27 | `TestPublicURLValidation`, `TestRefusesPlainHTTPWithoutOptIn`, `TestRunRefusesPlainHTTPManager`; TLS proxy fixtures | PR, X:`e2e` | implemented |
 | V26 | Docker socket exposure | #2, #28, #32 | `TestAgentNeverListens`; smoke `fresh-start`: socket mounted only in the agent | PR, X:`smoke` | implemented |
 | V27 | Path traversal | #15 | `test/corpora/fs` + `fscorpus` (implemented: generator, `os.Root` reference tests, TOCTOU race); file manager consumers | PR, X:`fs-security` | partial |
 | V28 | WebSocket authorization | #3, #23 | Agent session and UI stream tests: unauthenticated/revoked/foreign-scope connections refused | PR, X:`e2e` | planned |
-| V29 | Audit coverage and tamper evidence | #30 | Every mutating operation emits an audit row (OpenAPI-driven completeness test); hash-chain verification test | PR | planned |
+| V29 | Audit coverage and tamper evidence | #30 | `TestEveryCatalogedMutatingRouteIsAudited` (every non-GET inventory route), `TestEveryServedMutatingOperationIsAudited`, `TestOpenAPICompleteness` (`x-dockyard-audit`), `TestOperationsRegisteredOnlyThroughRegister`, `TestEveryJobKindEmitsLifecycleAuditRecords`; `TestVerifyDetectsTampering`, `TestRetentionPurgeKeepsChainVerifiable`, `TestSizeCapPurge`, `TestAppendOnlyAtTheDatabase` | PR | implemented |
 | V30 | Dependency vulnerabilities | #2 | `vuln` (govulncheck, `npm audit --omit=dev`), `licenses` | PR | implemented |
 | V31 | API token scoping and expiry | #31 | Token × capability × scope tests; expired/revoked token tests (fake clock) | PR | planned |
 | V32 | Self-protection of DockYard's own containers/images/volumes | #32 | Engine tests: stop/remove/prune of own resources refused | X:`engine-matrix` | planned |

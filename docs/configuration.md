@@ -30,6 +30,9 @@ Sources: `internal/manager/config`, `internal/agent/config`,
 | `DOCKYARD_JOB_EVENTS_MAX` | `500` | Progress/event log entries kept per job (10..100000); older entries are trimmed. |
 | `DOCKYARD_JOB_MAX_CONCURRENT_PULLS` | `2` | Concurrent pull-class jobs (`image.pull`, `stack.update`, `update.run`) per environment (1..64). |
 | `DOCKYARD_JOB_MAX_CONCURRENT_BUILDS` | `1` | Concurrent build-class jobs (`image.build`, `stack.build`) per environment (1..64). |
+| `DOCKYARD_AUDIT_RETENTION_DAYS` | `365` | Audit records older than this many days are deleted (1..36500). The purge is itself audited and keeps the hash chain verifiable. See `docs/architecture/audit.md`. |
+| `DOCKYARD_AUDIT_MAX_SIZE_MB` | `1024` | Size cap of the retained audit records in MiB (16..1048576); above it the oldest records are purged down to 90% of the cap. |
+| `DOCKYARD_AUDIT_LOG_MIRROR` | `false` | Also write every audit record (redacted, as stored) to the structured log as `msg="audit"` lines for external collection. |
 
 ### Secret-protection key
 

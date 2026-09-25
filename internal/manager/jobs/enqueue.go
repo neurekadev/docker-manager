@@ -17,6 +17,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/faultinject"
 	"github.com/neurekadev/dockyard/internal/ids"
 	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 )
@@ -108,6 +109,9 @@ func (e *Engine) Enqueue(ctx context.Context, req Request) (job domain.Job, crea
 		}
 		if err := e.event(ctx, tx, domain.JobEvent{JobID: j.ID, Type: domain.JobEventState, State: domain.JobQueued,
 			Message: "queued (" + string(j.Origin) + ")"}); err != nil {
+			return err
+		}
+		if err := e.recordJob(ctx, tx, &j, audit.ActionJobQueued, audit.ActorFor(req.Principal), domain.AuditSuccess, "", nil); err != nil {
 			return err
 		}
 		job, created = j, true

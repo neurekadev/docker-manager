@@ -13,6 +13,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/faultinject"
 	"github.com/neurekadev/dockyard/internal/jobexec"
 	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
@@ -314,9 +315,16 @@ func (e *Engine) Cancel(ctx context.Context, id string) (domain.Job, error) {
 		if err != nil {
 			return err
 		}
-		switch {
-		case cur.State.Terminal():
+		if cur.State.Terminal() {
 			return domain.ErrJobFinished
+		}
+		if !cur.CancelRequested {
+			if err := e.recordJob(ctx, tx, &cur, audit.ActionJobCancelRequested, cancelActor(ctx), domain.AuditSuccess, "",
+				map[string]any{"state": string(cur.State)}); err != nil {
+				return err
+			}
+		}
+		switch {
 		case cur.State.Waiting():
 			cur.CancelRequested = true
 			if err := e.finish(ctx, tx, &cur, domain.JobCancelled, domain.ErrorCancelled,

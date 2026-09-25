@@ -34,6 +34,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobexec"
 	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 )
@@ -99,6 +100,9 @@ type Options struct {
 	RetentionInterval time.Duration
 	// MaxResumes bounds automatic re-dispatches of one job.
 	MaxResumes int
+	// Audit records job lifecycle events (#30) inside the engine's
+	// transactions; the manager always sets it (audit.go).
+	Audit audit.TxRecorder
 }
 
 // Engine is the job engine. Create it with New.
@@ -278,7 +282,8 @@ func (e *Engine) event(ctx context.Context, db bun.IDB, ev domain.JobEvent) erro
 
 // transition is the ONLY place a job changes state. It enforces the state
 // machine, stamps timestamps, releases locks on terminal states, persists
-// the job and records a state event.
+// the job, records a state event and the job.started / job.finished audit
+// records (#30).
 func (e *Engine) transition(ctx context.Context, db bun.IDB, j *domain.Job, to domain.JobState, message string) error {
 	if !domain.CanTransition(j.State, to) {
 		return fmt.Errorf("%w: job %s %s -> %s", errIllegalTransition, j.ID, j.State, to)
@@ -305,6 +310,9 @@ func (e *Engine) transition(ctx context.Context, db bun.IDB, j *domain.Job, to d
 		}
 	}
 	if err := store.UpdateJob(ctx, db, j); err != nil {
+		return err
+	}
+	if err := e.auditTransition(ctx, db, j, to); err != nil {
 		return err
 	}
 	return e.event(ctx, db, domain.JobEvent{JobID: j.ID, Type: domain.JobEventState, State: to, Message: message})
