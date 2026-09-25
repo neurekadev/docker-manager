@@ -131,7 +131,7 @@
 						{#if engine.rootless}<Badge tone="warn">Rootless</Badge>{:else}Rootful{/if}
 						{#if engine.dockerDesktop}<Badge
 								tone="danger"
-								title="Docker Desktop is not supported (#25)"
+								title="Docker Desktop is not supported"
 								>Docker Desktop: unsupported</Badge
 							>{/if}
 					</dd>

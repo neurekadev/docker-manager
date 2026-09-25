@@ -15,6 +15,8 @@ import (
 
 	"github.com/coder/websocket"
 
+	agentbackups "github.com/neurekadev/dockyard/internal/agent/backups"
+	"github.com/neurekadev/dockyard/internal/agent/compose"
 	agentio "github.com/neurekadev/dockyard/internal/agent/containerio"
 	"github.com/neurekadev/dockyard/internal/agent/engine"
 	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
@@ -112,6 +114,14 @@ func connectAgent(ctx context.Context, m *app.Manager, base, stateDir string, h 
 	maps.Copy(streams, fs.streams())
 	maps.Copy(requests, stackSim.requests())
 	maps.Copy(streams, stackSim.streams())
+	// The production backup scope preview (#10): which sources a policy
+	// covers and, with shutdown on, which containers stop; DockYard's own
+	// containers and volumes are excluded with the reason (#32). Only the
+	// preview: the devstack agents run no restic, so backup runs still fail
+	// (the seeded partial set).
+	bk := agentbackups.New(agentbackups.Options{Engine: func() engine.Engine { return fe },
+		Loader: func() agentbackups.Loader { return composeLoader{} }, Storage: fs.storage, Guard: guard, Clock: clk, Logger: alog})
+	requests[protocol.ReqBackupScopePreview] = bk.Requests()[protocol.ReqBackupScopePreview]
 
 	a := &devAgent{name: h.name, env: er.EnvironmentID, engine: fe, done: make(chan struct{})}
 	client := session.New(session.Options{
@@ -164,6 +174,14 @@ func (a *devAgent) stop() {
 		<-a.done
 		a.cancel = nil
 	}
+}
+
+// composeLoader loads Compose projects from the host's stacks directory
+// with the production loader (no Engine needed).
+type composeLoader struct{}
+
+func (composeLoader) Load(ctx context.Context, spec compose.ProjectSpec) (*compose.Project, error) {
+	return compose.LoadProject(ctx, spec)
 }
 
 // devEngine is the fake Engine plus simulated container logs (the fake

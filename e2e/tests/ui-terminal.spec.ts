@@ -29,11 +29,16 @@ async function signIn(page: Page) {
 }
 
 test.describe('terminal screen', () => {
-	test.skip(!configured, 'set E2E_TERMINAL_USER, E2E_TERMINAL_PASSWORD, E2E_TERMINAL_ENV and E2E_TERMINAL_CONTAINER');
+	test.skip(
+		!configured,
+		'set E2E_TERMINAL_USER, E2E_TERMINAL_PASSWORD, E2E_TERMINAL_ENV and E2E_TERMINAL_CONTAINER'
+	);
 
 	test('connect, type, resize and disconnect', async ({ page }) => {
 		await signIn(page);
-		await page.goto(`/containers/${encodeURIComponent(envId)}/${encodeURIComponent(container)}/terminal`);
+		await page.goto(
+			`/containers/${encodeURIComponent(envId)}/${encodeURIComponent(container)}/terminal`
+		);
 		await expect(page.getByLabel('Command')).toHaveValue('/bin/sh');
 		await page.getByRole('button', { name: 'Connect' }).click();
 		await expect(page.getByText(/^Connected to /)).toBeVisible({ timeout: 15_000 });
@@ -54,10 +59,14 @@ test.describe('terminal screen', () => {
 
 	test('a command the image does not have ends with 4422 and says so', async ({ page }) => {
 		await signIn(page);
-		await page.goto(`/containers/${encodeURIComponent(envId)}/${encodeURIComponent(container)}/terminal`);
+		await page.goto(
+			`/containers/${encodeURIComponent(envId)}/${encodeURIComponent(container)}/terminal`
+		);
 		await page.getByLabel('Command').fill('/definitely-not-a-shell');
 		await page.getByRole('button', { name: 'Connect' }).click();
-		await expect(page.getByText('This image has no /definitely-not-a-shell — try another command.')).toBeVisible({
+		await expect(
+			page.getByText('This image has no /definitely-not-a-shell — try another command.')
+		).toBeVisible({
 			timeout: 15_000
 		});
 		await expect(page.getByRole('button', { name: 'Connect again' })).toBeEnabled();

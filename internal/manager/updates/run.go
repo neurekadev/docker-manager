@@ -88,7 +88,7 @@ func (s *Service) planRun(ctx context.Context, p domain.UpdatePolicy, selection 
 		pl.drift = st.Applied == nil || st.UndeployedChanges()
 		if s.opts.Resources != nil {
 			if pr, err := s.opts.Resources.ProjectProtection(ctx, st.EnvironmentID, st.Name); err == nil && protection.Excluded(pr) {
-				return nil, &domain.UpdateError{Code: domain.UpdateErrTargetIneligible, Message: "DockYard's own Compose project is never updated (#32)"}
+				return nil, &domain.UpdateError{Code: domain.UpdateErrTargetIneligible, Message: "DockYard's own Compose project is never updated"}
 			}
 		}
 	case domain.UpdateTargetContainer:

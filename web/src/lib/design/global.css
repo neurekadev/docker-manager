@@ -71,6 +71,18 @@ a:hover {
 	text-underline-offset: 3px;
 }
 
+/* Links inside running text are underlined as well as coloured (WCAG
+   1.4.1: the link colour alone is not enough next to body text). */
+:where(p, .prose, .notice-body) a {
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+	text-underline-offset: 3px;
+}
+
+:where(p, .prose, .notice-body) a:hover {
+	text-decoration-color: currentColor;
+}
+
 button,
 input,
 select,

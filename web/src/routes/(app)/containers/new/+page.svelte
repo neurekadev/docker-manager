@@ -8,7 +8,6 @@
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import ContainerIcon from '@lucide/svelte/icons/container';
 	import Download from '@lucide/svelte/icons/download';
 	import Layers from '@lucide/svelte/icons/layers';
 	import Plus from '@lucide/svelte/icons/plus';
@@ -49,7 +48,7 @@
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
 	usePage({
-		title: 'Create a container',
+		title: 'Create container',
 		crumbs: [{ label: 'Containers', href: routes.containers() }, { label: 'Create' }],
 		environmentScoped: true
 	});
@@ -294,10 +293,8 @@
 {:else}
 	<Page>
 		<PageHeader
-			title="Create a container"
+			title="Create container"
 			description="One container from an image that is already on the environment."
-			icon={ContainerIcon}
-			color="blue"
 		/>
 		<Notice
 			tone="info"

@@ -210,8 +210,6 @@
 			description="Images on {scope.single
 				? scope.targets[0]?.name
 				: 'your environments'}, with the containers that use them."
-			icon={Box}
-			color="blue"
 		>
 			{#snippet actions()}
 				{#if scope.hasAny('image.build')}

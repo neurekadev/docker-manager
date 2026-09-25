@@ -39,10 +39,17 @@ test.describe('WebAuthn virtual authenticator', () => {
 			const cred = (await navigator.credentials.create({
 				publicKey: {
 					rp: { name: 'DockYard E2E', id: location.hostname },
-					user: { id: new Uint8Array(16).fill(7), name: 'e2e@dockyard.test', displayName: 'E2E' },
+					user: {
+						id: new Uint8Array(16).fill(7),
+						name: 'e2e@dockyard.test',
+						displayName: 'E2E'
+					},
 					challenge: crypto.getRandomValues(new Uint8Array(32)),
 					pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
-					authenticatorSelection: { residentKey: 'required', userVerification: 'required' }
+					authenticatorSelection: {
+						residentKey: 'required',
+						userVerification: 'required'
+					}
 				}
 			})) as PublicKeyCredential;
 			return { id: cred.id, type: cred.type };

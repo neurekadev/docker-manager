@@ -57,6 +57,9 @@ describe('stack status and counts', () => {
 		expect(stackIcon({ icon: 'database' })).toEqual({ icon: 'database', color: 'teal' });
 		expect(stackIcon({ icon: 'not-an-icon' })).toEqual({ icon: 'layers', color: 'blue' });
 		expect(stackIcon({})).toEqual({ icon: 'layers', color: 'blue' });
+		// The default stack icon stays on the blue stack tile, never the rose
+		// cache colour the same icon has on a service.
+		expect(stackIcon({ icon: 'layers' })).toEqual({ icon: 'layers', color: 'blue' });
 	});
 
 	it('prefers what DockYard did for failed, down and undeployed stacks, else the Engine state', () => {

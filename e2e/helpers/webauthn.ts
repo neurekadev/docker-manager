@@ -61,7 +61,10 @@ export async function addVirtualAuthenticator(
 			return credentials as VirtualCredential[];
 		},
 		async setUserVerified(verified: boolean) {
-			await cdp.send('WebAuthn.setUserVerified', { authenticatorId, isUserVerified: verified });
+			await cdp.send('WebAuthn.setUserVerified', {
+				authenticatorId,
+				isUserVerified: verified
+			});
 		},
 		async clear() {
 			await cdp.send('WebAuthn.clearCredentials', { authenticatorId });

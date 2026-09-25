@@ -10,8 +10,6 @@
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import Plus from '@lucide/svelte/icons/plus';
-	import Server from '@lucide/svelte/icons/server';
-	import Undo2 from '@lucide/svelte/icons/undo-2';
 	import { api, unwrap, unwrapEmpty, type Schema } from '$lib/api/client';
 	import {
 		enrollmentsQuery,
@@ -184,7 +182,6 @@
 			description={reattachId
 				? 'Run a DockYard agent on the same Docker Engine. Once it enrolls, the environment comes back with its stacks and policies.'
 				: 'Run the DockYard agent on a Docker host and enroll it with a one-time token. The agent dials out to this DockYard; the host opens no ports.'}
-			icon={reattachId ? Undo2 : Server}
 		/>
 
 		{#if !created}

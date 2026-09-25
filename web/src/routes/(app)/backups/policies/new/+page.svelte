@@ -11,7 +11,7 @@
 	import PolicyWizard from '$lib/features/backups/PolicyWizard.svelte';
 
 	usePage({
-		title: 'New backup policy',
+		title: 'Create backup policy',
 		crumbs: [
 			{ label: 'Backups', href: routes.backups() },
 			{ label: 'Policies', href: routes.backupPolicies() },
@@ -23,7 +23,7 @@
 
 <Page narrow>
 	<PageHeader
-		title="New backup policy"
+		title="Create backup policy"
 		description="Choose what to back up, how, when and for how long. Nothing runs until you start it or turn its schedule on."
 	/>
 	{#if perms.isPending}

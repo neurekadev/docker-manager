@@ -56,7 +56,14 @@ npm --prefix web run build            # the devstack serves web/build/app from d
 go run ./test/devstack                # http://localhost:8080, seeded, owner signed up
 go run ./test/devstack -setup         # first-run setup still open (no accounts, no jobs)
 go run ./test/devstack -addr 127.0.0.1:8090 -keep -log-level info
+go run ./test/devstack -control 127.0.0.1:8081   # tests may change the Engines directly
 ```
+
+`-control` (loopback only, off by default) serves
+`POST /engines/{environment}/containers/{container}/stop|start`: it changes
+the fake Engine directly, bypassing DockYard, the way `docker stop` on the
+host would, so the Docker event reaches the UI through the production relay
+(`e2e/tests/live-ui.spec.ts`, `E2E_DEVSTACK_CONTROL`).
 
 It prints the environments and credentials:
 
@@ -75,7 +82,10 @@ Seeded data:
   networks and images; DockYard itself as the co-located Compose project
   `dockyard` (`dockyard-manager`, and `dockyard-agent`, which the agent's
   guard knows as its own container) with its data, agent state and stacks
-  volumes, all protected (#32).
+  volumes, and an exited one-off `docker compose run` container of the
+  manager, all protected (#32): a prune preview lists the one-off as
+  protected, and the agents serve the production backup scope preview, so a
+  policy that selects `dockyard_data` shows it excluded with the reason.
   Silo has a revision history: the owner deployed it (a `stack.deploy`
   job, revision 2), then `compose.yaml` was edited on the host (revision
   3: **Undeployed changes**). A Compose project `grafana` runs unmanaged
@@ -183,6 +193,15 @@ host-side edit test writes into its project directory:
 E2E_BASE_URL=http://localhost:8080 E2E_UI_OWNER=admin E2E_UI_PASSWORD=dockyard-devstack-owner \
   E2E_FILES_STACK_DIR=/tmp/dockyard-devstack/hosts/homelab/volumes/dockyard_stacks/_data/silo \
   npx playwright test tests/ui-files.spec.ts tests/ui-logs.spec.ts
+```
+
+Accessibility (axe on every main route, keyboard-only checks) and live
+convergence in the real screens (start the devstack with `-control`):
+
+```bash
+E2E_BASE_URL=http://localhost:8080 E2E_UI_OWNER=admin E2E_UI_PASSWORD=dockyard-devstack-owner \
+  E2E_DEVSTACK_CONTROL=http://127.0.0.1:8081 \
+  npx playwright test tests/a11y.spec.ts tests/live-ui.spec.ts
 ```
 
 `tests/ui-terminal.spec.ts` needs exec on a real Engine (CI, `E2E_TERMINAL_*`).

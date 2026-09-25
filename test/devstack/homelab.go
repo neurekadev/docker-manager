@@ -365,6 +365,12 @@ func addDockYard(h *homelabHost) {
 		Mounts: []engine.MountSpec{{Type: "volume", Source: "dockyard_agent", Target: "/var/lib/dockyard-agent"},
 			{Type: "volume", Source: "dockyard_stacks", Target: h.stacksDir}}}, true)
 	h.stacksVolume = "dockyard_stacks"
+	// A one-off container left behind by `docker compose run dockyard-manager
+	// snapshots list` (#34): exited, part of DockYard's project, so a prune
+	// preview lists it as protected (#32) instead of removing it.
+	exited(h.engine, engine.ContainerSpec{Name: "dockyard-dockyard-manager-run-4f2a9c", Image: "ghcr.io/neurekadev/dockyard-manager:edge",
+		Labels: project("dockyard-manager", map[string]string{protocol.LabelRole: "manager", "com.docker.compose.oneoff": "True"}),
+		Mounts: []engine.MountSpec{{Type: "volume", Source: "dockyard_data", Target: "/var/lib/dockyard"}}})
 	h.usage["dockyard-manager"] = usage{1.2, 96 * mib}
 	h.usage["dockyard-agent"] = usage{0.6, 38 * mib}
 	h.logLines["dockyard-agent"] = []string{`{"level":"INFO","msg":"session established","manager":"http://dockyard-manager:8080"}`,

@@ -457,6 +457,14 @@
 		gap: var(--space-4);
 	}
 
+	/* Phones: two compact KPI cards per row (KpiCard's compact layout). */
+	@media (max-width: 767px) {
+		.kpis {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: var(--space-3);
+		}
+	}
+
 	.kpi-skeleton {
 		padding: var(--space-4);
 		border: 1px solid var(--border-subtle);

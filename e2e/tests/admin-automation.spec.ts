@@ -61,7 +61,7 @@ test.describe('updates (#20)', () => {
 			await expect(
 				page.getByRole('heading', {
 					level: 1,
-					name: 'New update policy'
+					name: 'Create update policy'
 				})
 			).toBeVisible();
 			await expect(page.getByRole('button', { name: 'Create update policy' })).toBeDisabled();
@@ -297,5 +297,151 @@ test.describe('fresh-manager import (#24)', () => {
 		await expect(page.getByText(/enroll its agent again/)).toBeVisible();
 		await page.getByRole('button', { name: 'Sign in' }).click();
 		await expect(page).toHaveURL(/\/sign-in/);
+	});
+});
+
+// #32 through the UI: DockYard's own containers, volumes and images are
+// kept out of prune runs, update policies and backup shutdown plans, and
+// each screen says why. The devstack runs DockYard itself on homelab (the
+// Compose project "dockyard" with an exited one-off manager container).
+test.describe('self-protection in automation (#32)', () => {
+	const run = `${Date.now() % 100000}`;
+
+	async function homelab(page: Page) {
+		const env = (await onlineEnvironments(page)).find((e) => e.name === 'homelab');
+		test.skip(!env, 'needs the devstack (DockYard deployed on homelab)');
+		return env!;
+	}
+
+	test('a prune preview keeps DockYard objects and says why', async ({ page }) => {
+		await signIn(page);
+		const env = await homelab(page);
+		const created = await page.request.post('/api/v1/maintenance-policies', {
+			data: {
+				environmentId: env.id,
+				name: `E2E self-protection ${run}`,
+				rules: [{ category: 'stopped_containers', enabled: true, minAgeHours: 0 }]
+			}
+		});
+		expect(created.status()).toBe(201);
+		const policy = (await created.json()) as { id: string };
+		try {
+			await page.goto(`/maintenance/${policy.id}`);
+			await page.getByRole('button', { name: 'Preview', exact: true }).click();
+			const table = page.getByRole('table', { name: /Stopped containers in the preview/ });
+			await expect(table).toBeVisible();
+			const row = table.getByRole('row', { name: /dockyard-dockyard-manager-run/ });
+			await expect(row).toBeVisible();
+			await expect(row.getByText('Protected')).toBeVisible();
+			await expect(row.getByText(/DockYard/)).toBeVisible();
+			// Other stopped containers are candidates; DockYard's never are.
+			await expect(
+				table.getByRole('row', { name: /backup-runner/ }).getByText('Will be removed')
+			).toBeVisible();
+			await shot(page, 'selfprot-prune');
+			// The API agrees: the preview marks it protected with the reason.
+			const preview = await (
+				await page.request.post(`/api/v1/maintenance-policies/${policy.id}/previews`, {
+					data: {}
+				})
+			).json();
+			const items = preview.categories.flatMap(
+				(c: { items: { name?: string; decision: string; reason: string }[] }) => c.items
+			);
+			const own = items.find((i: { name?: string }) =>
+				i.name?.startsWith('dockyard-dockyard-manager-run')
+			);
+			expect(own?.decision).toBe('protected');
+			expect(own?.reason).toMatch(/DockYard/);
+		} finally {
+			await page.request.delete(`/api/v1/maintenance-policies/${policy.id}`);
+		}
+	});
+
+	test('update policies never target DockYard and the form says why', async ({ page }) => {
+		await signIn(page);
+		const env = await homelab(page);
+		await page.goto('/updates/new');
+		await page.getByLabel('Environment', { exact: true }).selectOption(env.id);
+		await page.getByRole('radio', { name: /A standalone container/ }).check();
+		const target = page.getByLabel('Container', { exact: true });
+		await expect(target).toBeVisible();
+		await expect(page.getByText(/DockYard's own containers are never offered/)).toBeVisible();
+		const offered = await target.locator('option').allTextContents();
+		expect(offered.some((o) => o.startsWith('dockyard-'))).toBe(false);
+		await page.getByRole('radio', { name: /A stack/ }).check();
+		await expect(page.getByText(/DockYard's own Compose project is not a stack/)).toBeVisible();
+		await shot(page, 'selfprot-update');
+		// The API refuses DockYard's containers with the reason.
+		const res = await page.request.post('/api/v1/update-policies', {
+			data: {
+				name: `E2E self-protection ${run}`,
+				environmentId: env.id,
+				target: { type: 'container', id: 'dockyard-agent' }
+			}
+		});
+		expect(res.status()).toBe(409);
+		const body = await res.json();
+		expect(body.code).toBe('update_target_ineligible');
+		expect(body.message).toMatch(/DockYard's own containers are never updated/);
+		expect(body.message).not.toMatch(/#\d/);
+	});
+
+	test('a backup shutdown plan leaves DockYard running and excludes its volume', async ({
+		page
+	}) => {
+		await signIn(page);
+		const env = await homelab(page);
+		const repos = (await (await page.request.get('/api/v1/backup-repositories')).json())
+			.items as { id: string; name: string; state: string; executor: string }[];
+		// executor: "manager" or the environment whose agent writes the repository.
+		const ready = repos.filter((r) => r.state === 'ready');
+		const local = ready.find((r) => r.executor === env.id);
+		const primary = ready.find((r) => r.executor === 'manager') ?? ready[0];
+		test.skip(!local || !primary, 'needs a ready repository on homelab (devstack)');
+		const stacks = (await (await page.request.get('/api/v1/stacks')).json()).items as {
+			id: string;
+			name: string;
+			environmentId: string;
+		}[];
+		const silo = stacks.find((s) => s.name === 'silo' && s.environmentId === env.id);
+		test.skip(!silo, 'needs the seeded Silo stack');
+		const name = `E2E self-protection ${run}`;
+		// DockYard's data volume and Silo, with shutdown on: the API accepts
+		// the selection, the agent's plan decides what stops and what is kept.
+		const created = await page.request.post('/api/v1/backup-policies', {
+			data: {
+				name,
+				repositoryId: primary!.id,
+				includeManagerState: false,
+				environmentRepositories: { [env.id]: local!.id },
+				shutdown: true,
+				stacks: [{ stackId: silo!.id }],
+				volumes: [{ environmentId: env.id, volume: 'dockyard_data' }]
+			}
+		});
+		expect(created.status(), await created.text()).toBe(201);
+		const policy = (await created.json()) as { id: string };
+		try {
+			await page.goto(`/backups/policies/${policy.id}`);
+			await page.getByRole('button', { name: 'More actions' }).click();
+			await page.getByRole('menuitem', { name: 'Edit policy' }).click();
+			await page.getByRole('button', { name: 'Next' }).click();
+			await page.getByRole('button', { name: 'Next' }).click();
+			await expect(
+				page.getByRole('switch', { name: 'Stop containers during backups' })
+			).toHaveAttribute('aria-checked', 'true');
+			await page.getByRole('button', { name: 'Preview the shutdown' }).click();
+			await expect(
+				page.getByText(/DockYard's own volume: the DockYard manager's data volume/).first()
+			).toBeVisible();
+			// The stop order holds Silo's containers, never DockYard's.
+			const stopOrder = page.getByRole('table').filter({ hasText: 'Stop order' }).first();
+			await expect(stopOrder.getByText('silo-silo-db-1')).toBeVisible();
+			await expect(stopOrder.getByText(/dockyard-/)).toHaveCount(0);
+			await shot(page, 'selfprot-backup');
+		} finally {
+			await page.request.delete(`/api/v1/backup-policies/${policy.id}`);
+		}
 	});
 });

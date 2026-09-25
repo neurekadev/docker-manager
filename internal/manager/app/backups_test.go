@@ -358,7 +358,12 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 	confirm := "/api/v1/backup-repositories/" + id + "/recovery-confirmations"
 	wrong, _ := backups.GenerateRecoveryKey(nil)
 	owner.fail(http.StatusUnprocessableEntity, "recovery_key_mismatch", http.MethodPost, confirm, map[string]any{"recoveryKey": wrong.String(), "backedUp": true})
-	owner.fail(http.StatusUnprocessableEntity, "recovery_key_malformed", http.MethodPost, confirm, map[string]any{"recoveryKey": key[:len(key)-2] + "QQ", "backedUp": true})
+	// Change the last two characters (a random key may already end in "QQ").
+	broken := key[:len(key)-2] + "QQ"
+	if strings.HasSuffix(key, "QQ") {
+		broken = key[:len(key)-2] + "RR"
+	}
+	owner.fail(http.StatusUnprocessableEntity, "recovery_key_malformed", http.MethodPost, confirm, map[string]any{"recoveryKey": broken, "backedUp": true})
 	owner.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPost, confirm, map[string]any{"recoveryKey": key, "backedUp": false})
 	var conf struct {
 		Activated bool `json:"activated"`

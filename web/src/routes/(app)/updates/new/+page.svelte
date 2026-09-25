@@ -13,7 +13,7 @@
 	import PolicyForm from '$lib/features/updates/PolicyForm.svelte';
 
 	usePage({
-		title: 'New update policy',
+		title: 'Create update policy',
 		crumbs: [{ label: 'Updates', href: routes.updates() }, { label: 'New policy' }]
 	});
 	const perms = createQuery(() => myPermissionsQuery());
@@ -21,7 +21,7 @@
 
 <Page narrow>
 	<PageHeader
-		title="New update policy"
+		title="Create update policy"
 		description="Choose what follows its tags. Checks and updates stay off until you turn them on."
 	/>
 	{#if perms.isPending}

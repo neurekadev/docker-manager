@@ -105,8 +105,6 @@
 		<PageHeader
 			title="Jobs"
 			description="Everything DockYard did or is doing: deploys, pulls, updates, backups, prunes and file operations."
-			icon={Activity}
-			color="violet"
 		/>
 
 		<div class="filters" role="group" aria-label="Filter jobs">

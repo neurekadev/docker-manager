@@ -111,6 +111,9 @@ describe('formatting', () => {
 		expect(formatRelative('2026-09-25T11:55:00Z', now)).toBe('5 minutes ago');
 		expect(formatRelative('2026-09-23T12:00:00Z', now)).toBe('2 days ago');
 		expect(formatRelative('2026-09-11T12:00:00Z', now)).toBe('2 weeks ago');
+		// Rounding never produces "60 seconds" or "60 minutes".
+		expect(formatRelative('2026-09-25T11:59:00.400Z', now)).toBe('1 minute ago');
+		expect(formatRelative('2026-09-25T11:00:10Z', now)).toBe('1 hour ago');
 		expect(formatRelative('2026-09-25T13:00:00Z', now)).toBe('in 1 hour');
 	});
 });

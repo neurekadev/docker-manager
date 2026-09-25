@@ -38,7 +38,8 @@ test.describe('PWA shell', () => {
 		expect(res.headers()['content-type']).toBe('application/manifest+json');
 		expect(res.headers()['cache-control']).toBe('no-cache');
 
-		const icons = (m.manifest!.icons as { src: string; sizes: string; purpose?: string }[]) ?? [];
+		const icons =
+			(m.manifest!.icons as { src: string; sizes: string; purpose?: string }[]) ?? [];
 		expect(icons.some((i) => i.purpose === 'maskable')).toBe(true);
 		for (const icon of icons) {
 			const r = await request.get(icon.src);
@@ -98,7 +99,10 @@ test.describe('PWA shell', () => {
 		expect(offline?.status()).toBe(200);
 		expect(offline?.headers()['x-dockyard-shell']).toBe('offline');
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-		await expect(page.getByTestId('connection-status')).toHaveAttribute('data-state', 'offline');
+		await expect(page.getByTestId('connection-status')).toHaveAttribute(
+			'data-state',
+			'offline'
+		);
 		expect(new URL(page.url()).pathname).toBe('/stacks/demo/files');
 		await context.setOffline(false);
 	});
@@ -159,8 +163,13 @@ test.describe('PWA shell', () => {
 
 		await context.setOffline(true);
 		// The indicator reacts without a reload...
-		await expect(page.getByTestId('connection-status')).toHaveAttribute('data-state', 'offline');
-		await expect(page.getByRole('status', { name: 'Connection status' })).toContainText('Offline');
+		await expect(page.getByTestId('connection-status')).toHaveAttribute(
+			'data-state',
+			'offline'
+		);
+		await expect(page.getByRole('status', { name: 'Connection status' })).toContainText(
+			'Offline'
+		);
 
 		// ...and a reload while offline boots the precached shell.
 		const res = await page.reload();
@@ -169,7 +178,10 @@ test.describe('PWA shell', () => {
 		expect(res?.headers()['x-dockyard-shell']).toBe('offline');
 		// The precached shell boots and waits (#22 boot screen or public page).
 		await expect(page.getByRole('heading', { level: 1, name: /DockYard/ })).toBeVisible();
-		await expect(page.getByTestId('connection-status')).toHaveAttribute('data-state', 'offline');
+		await expect(page.getByTestId('connection-status')).toHaveAttribute(
+			'data-state',
+			'offline'
+		);
 		await expect(page.getByText('Waiting for the network…').first()).toBeVisible();
 		expect(await cachedUrls(page)).toEqual([]);
 
@@ -190,7 +202,9 @@ test.describe('lazy-loaded libraries (#11 proof, now on the #22 design gallery)'
 		});
 		await page.goto('/design');
 		await expect(page.getByTestId('loaded')).toHaveText('Loaded: none');
-		await expect(page.locator('.cm-editor, .xterm, [data-testid="chart"] canvas')).toHaveCount(0);
+		await expect(page.locator('.cm-editor, .xterm, [data-testid="chart"] canvas')).toHaveCount(
+			0
+		);
 
 		const before = scripts.size;
 		await page.getByRole('button', { name: 'Load editor' }).click();

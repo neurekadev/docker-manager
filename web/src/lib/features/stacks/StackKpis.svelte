@@ -148,7 +148,8 @@
 </div>
 
 <style>
-	/* Six cards in one row as in the mockup when the page is wide enough
+	/* Six compact cards in one row as in the mockup from about 1120 px of
+	   content (a 1440 px screen with the sidebar), else three, two or one
 	   (container width, so the sidebar and rail are accounted for). */
 	.wrap {
 		container-type: inline-size;
@@ -160,7 +161,7 @@
 		gap: var(--space-4);
 	}
 
-	@container (min-width: 1280px) {
+	@container (min-width: 1120px) {
 		.kpis {
 			grid-template-columns: repeat(6, minmax(0, 1fr));
 		}
@@ -169,10 +170,12 @@
 	@container (max-width: 759px) {
 		.kpis {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: var(--space-3);
 		}
 	}
 
-	@container (max-width: 459px) {
+	/* Phones keep two compact cards per row down to 340 px of content. */
+	@container (max-width: 339px) {
 		.kpis {
 			grid-template-columns: 1fr;
 		}

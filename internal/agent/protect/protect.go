@@ -232,7 +232,7 @@ func (g *Guard) Identify(ctx context.Context, eng engine.Engine, cs []engine.Con
 		}
 	}
 	if g.opts.StacksVolume != "" {
-		s.volumes[g.opts.StacksVolume] = prot(protection.RoleStacks, "the DockYard stacks volume: every stack's project files (#28)", false)
+		s.volumes[g.opts.StacksVolume] = prot(protection.RoleStacks, "the DockYard stacks volume: every stack's project files", false)
 	}
 	for _, c := range dockyard {
 		role := s.containers[c.ID].Role

@@ -61,9 +61,16 @@ async function openFiles(page: Page, t: Target, path = '') {
 
 const grid = (page: Page) => page.getByRole('grid', { name: /^Files in / });
 const row = (page: Page, name: string) =>
-	grid(page).getByRole('row').filter({ has: page.getByText(name, { exact: true }) });
+	grid(page)
+		.getByRole('row')
+		.filter({ has: page.getByText(name, { exact: true }) });
 
-async function newSignedIn(browser: Browser, baseURL: string | undefined, viewport: { width: number; height: number }, touch = false) {
+async function newSignedIn(
+	browser: Browser,
+	baseURL: string | undefined,
+	viewport: { width: number; height: number },
+	touch = false
+) {
 	const ctx = await browser.newContext({
 		baseURL,
 		viewport,
@@ -89,8 +96,12 @@ test.describe.serial('file manager', () => {
 		if (!target) return;
 		// Remove what this run created (best effort).
 		const page = await newSignedIn(browser, baseURL, { width: 1440, height: 900 });
-		const list = await page.request.get(`/api/v1/stacks/${target.stackId}/files?path=.&hidden=true&limit=200`);
-		const names = ((await list.json()).items as { name: string }[]).map((i) => i.name).filter((n) => n.includes(run));
+		const list = await page.request.get(
+			`/api/v1/stacks/${target.stackId}/files?path=.&hidden=true&limit=200`
+		);
+		const names = ((await list.json()).items as { name: string }[])
+			.map((i) => i.name)
+			.filter((n) => n.includes(run));
 		if (names.length)
 			await page.request.post(`/api/v1/stacks/${target.stackId}/files/deletions`, {
 				data: { paths: names },
@@ -99,7 +110,9 @@ test.describe.serial('file manager', () => {
 		await page.context().close();
 	});
 
-	test('browse with the mouse: folders, the ".." row, breadcrumbs, filter, hidden files', async ({ page }) => {
+	test('browse with the mouse: folders, the ".." row, breadcrumbs, filter, hidden files', async ({
+		page
+	}) => {
 		await openFiles(page, target!);
 		await expect(row(page, 'compose.yaml')).toBeVisible();
 		await expect(grid(page).getByRole('row', { name: /Parent folder/ })).toHaveCount(0);
@@ -118,12 +131,17 @@ test.describe.serial('file manager', () => {
 		await page.getByRole('button', { name: 'Show hidden files' }).click();
 		await expect(row(page, '.env')).toBeVisible();
 		await page.goto(`/stacks/${target!.stackId}/files?path=config`);
-		await page.getByRole('navigation', { name: 'Folder path' }).getByRole('link', { name: stackName }).click();
+		await page
+			.getByRole('navigation', { name: 'Folder path' })
+			.getByRole('link', { name: stackName })
+			.click();
 		await expect(row(page, 'compose.yaml')).toBeVisible();
 		if (shots) await page.screenshot({ path: `${shots}/files-1440.png` });
 	});
 
-	test('keyboard: arrows, Enter, Backspace, Ctrl/Cmd+A, Escape, context menu', async ({ page }) => {
+	test('keyboard: arrows, Enter, Backspace, Ctrl/Cmd+A, Escape, context menu', async ({
+		page
+	}) => {
 		await openFiles(page, target!);
 		await grid(page).focus();
 		await page.keyboard.press('ArrowDown');
@@ -148,26 +166,34 @@ test.describe.serial('file manager', () => {
 		await page.keyboard.press('Escape');
 	});
 
-	test('create, edit and save a file; a Compose source says it is not deployed', async ({ page }) => {
+	test('create, edit and save a file; a Compose source says it is not deployed', async ({
+		page
+	}) => {
 		await openFiles(page, target!);
 		await page.getByRole('button', { name: 'New file' }).click();
 		await page.getByLabel('File name').fill(`${run}-notes.yaml`);
 		await page.getByRole('button', { name: 'Create file' }).click();
-		await expect(page.getByRole('tab', { name: new RegExp(`${run}-notes\\.yaml`) })).toBeVisible();
+		await expect(
+			page.getByRole('tab', { name: new RegExp(`${run}-notes\\.yaml`) })
+		).toBeVisible();
 		const editor = page.locator('.cm-content');
 		await editor.click();
 		await page.keyboard.type('key: value');
 		await expect(page.getByText('Unsaved changes')).toBeVisible();
 		await page.keyboard.press('ControlOrMeta+s');
 		await expect(page.getByText(`Saved ${run}-notes.yaml`)).toBeVisible();
-		const saved = await page.request.get(`/api/v1/stacks/${target!.stackId}/files/content?path=${run}-notes.yaml`);
+		const saved = await page.request.get(
+			`/api/v1/stacks/${target!.stackId}/files/content?path=${run}-notes.yaml`
+		);
 		expect((await saved.json()).content).toBe('key: value');
 		// Opening compose.yaml shows the revision notice.
 		await row(page, 'compose.yaml').click();
 		await expect(page.getByRole('region', { name: 'Editor' })).toContainText(
 			'Compose source: saving records a new revision'
 		);
-		await expect(page.getByRole('region', { name: 'Editor' })).toContainText('it is not deployed');
+		await expect(page.getByRole('region', { name: 'Editor' })).toContainText(
+			'it is not deployed'
+		);
 	});
 
 	test('copy and paste into the same folder asks per item; keep both', async ({ page }) => {
@@ -188,7 +214,9 @@ test.describe.serial('file manager', () => {
 		await row(page, `${run}-notes (1).yaml`).dragTo(row(page, 'config'));
 		await expect(row(page, `${run}-notes (1).yaml`)).toHaveCount(0, { timeout: 15_000 });
 		await openFiles(page, target!, 'config');
-		await row(page, `${run}-notes (1).yaml`).dragTo(grid(page).getByRole('row', { name: /Parent folder/ }));
+		await row(page, `${run}-notes (1).yaml`).dragTo(
+			grid(page).getByRole('row', { name: /Parent folder/ })
+		);
 		await expect(row(page, `${run}-notes (1).yaml`)).toHaveCount(0, { timeout: 15_000 });
 		await openFiles(page, target!);
 		await expect(row(page, `${run}-notes (1).yaml`)).toBeVisible();
@@ -218,8 +246,13 @@ test.describe.serial('file manager', () => {
 			await expect
 				.poll(
 					async () =>
-						(await (await page.request.get(`/api/v1/stacks/${target!.stackId}/files/content?path=${run}-upload.txt`)).json())
-							.content,
+						(
+							await (
+								await page.request.get(
+									`/api/v1/stacks/${target!.stackId}/files/content?path=${run}-upload.txt`
+								)
+							).json()
+						).content,
 					{ timeout: 15_000 }
 				)
 				.toBe('second upload\n');
@@ -249,21 +282,29 @@ test.describe.serial('file manager', () => {
 		await expect(row(page, 'config')).toBeVisible();
 	});
 
-	test('permissions with recursion preview, then delete with type-to-confirm', async ({ page }) => {
+	test('permissions with recursion preview, then delete with type-to-confirm', async ({
+		page
+	}) => {
 		await openFiles(page, target!);
 		await row(page, `${run}-extracted`).click({ button: 'right' });
 		await page.getByRole('menuitem', { name: 'Permissions…' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Change permissions' });
-		await dialog.getByRole('switch', { name: 'Apply to everything inside the selected folders' }).click();
+		await dialog
+			.getByRole('switch', { name: 'Apply to everything inside the selected folders' })
+			.click();
 		await expect(dialog.getByText(/^Changes \d+ folders?/)).toBeVisible();
 		await dialog.getByLabel(/^Mode/).first().fill('0750');
 		await dialog.getByRole('button', { name: 'Change permissions' }).click();
-		await expect(page.getByText(new RegExp(`Changed permissions of ${run}-extracted`))).toBeVisible({ timeout: 20_000 });
+		await expect(
+			page.getByText(new RegExp(`Changed permissions of ${run}-extracted`))
+		).toBeVisible({ timeout: 20_000 });
 
 		await row(page, `${run}-extracted`).click();
 		await grid(page).focus();
 		await page.keyboard.press('Delete');
-		const confirm = page.getByRole('alertdialog', { name: new RegExp(`Delete ${run}-extracted`) });
+		const confirm = page.getByRole('alertdialog', {
+			name: new RegExp(`Delete ${run}-extracted`)
+		});
 		await expect(confirm).toContainText('This cannot be undone');
 		await expect(confirm.getByRole('button', { name: 'Delete' })).toBeDisabled();
 		await confirm.getByLabel(`Type ${run}-extracted to confirm`).fill(`${run}-extracted`);
@@ -271,8 +312,13 @@ test.describe.serial('file manager', () => {
 		await expect(row(page, `${run}-extracted`)).toHaveCount(0, { timeout: 20_000 });
 	});
 
-	test('a host-side edit appears in the open listing; an unsaved edit survives and blocks saving', async ({ page }) => {
-		test.skip(!stackDir || !existsSync(stackDir), 'set E2E_FILES_STACK_DIR to the stack directory as this runner sees it');
+	test('a host-side edit appears in the open listing; an unsaved edit survives and blocks saving', async ({
+		page
+	}) => {
+		test.skip(
+			!stackDir || !existsSync(stackDir),
+			'set E2E_FILES_STACK_DIR to the stack directory as this runner sees it'
+		);
 		await openFiles(page, target!);
 		const name = `${run}-host.txt`;
 		writeFileSync(join(stackDir, name), 'from the host\n');
@@ -283,17 +329,23 @@ test.describe.serial('file manager', () => {
 		await page.keyboard.press('ControlOrMeta+End');
 		await page.keyboard.type('my unsaved line');
 		appendFileSync(join(stackDir, name), 'the host again\n');
-		const banner = page.getByRole('alert').filter({ hasText: `${name} changed on disk. Your edits are kept.` });
+		const banner = page
+			.getByRole('alert')
+			.filter({ hasText: `${name} changed on disk. Your edits are kept.` });
 		await expect(banner).toBeVisible({ timeout: 10_000 });
 		await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
 		await expect(page.locator('.cm-content')).toContainText('my unsaved line');
 		await banner.getByRole('button', { name: 'Compare' }).click();
-		await expect(page.getByRole('dialog', { name: `Compare ${name}` })).toContainText('the host again');
+		await expect(page.getByRole('dialog', { name: `Compare ${name}` })).toContainText(
+			'the host again'
+		);
 		await page.keyboard.press('Escape');
 		await banner.getByRole('button', { name: 'Overwrite' }).click();
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Overwrite' }).click();
 		await expect(banner).toHaveCount(0);
-		const got = await page.request.get(`/api/v1/stacks/${target!.stackId}/files/content?path=${name}`);
+		const got = await page.request.get(
+			`/api/v1/stacks/${target!.stackId}/files/content?path=${name}`
+		);
 		expect((await got.json()).content).toContain('my unsaved line');
 		if (shots) await page.screenshot({ path: `${shots}/files-editor-1440.png` });
 	});
@@ -303,7 +355,9 @@ test.describe.serial('file manager', () => {
 		await openFiles(page, target!);
 		await row(page, 'config').tap();
 		await expect(page).toHaveURL(/\?path=config$/);
-		await grid(page).getByRole('row', { name: /Parent folder/ }).tap();
+		await grid(page)
+			.getByRole('row', { name: /Parent folder/ })
+			.tap();
 		await expect(page).not.toHaveURL(/path=/);
 		await page.getByRole('checkbox', { name: 'Select nginx.conf' }).tap();
 		await page.getByRole('checkbox', { name: 'Select README.md' }).tap();
@@ -313,15 +367,22 @@ test.describe.serial('file manager', () => {
 		await page.keyboard.press('Escape');
 		// Opening a file switches to the editor pane; the list stays one tap away.
 		await row(page, 'compose.yaml').tap();
-		await expect(page.getByRole('button', { name: /^Editor \(1\)$/ })).toHaveAttribute('aria-pressed', 'true');
+		await expect(page.getByRole('button', { name: /^Editor \(1\)$/ })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
 		await page.getByRole('button', { name: 'Files', exact: true }).tap();
 		await expect(grid(page)).toBeVisible();
 		if (shots) await page.screenshot({ path: `${shots}/files-390.png` });
 		await page.context().close();
 	});
 
-	test('the same file manager in a volume: create, upload, edit, archive, extract, permissions, delete', async ({ page }) => {
-		const vol = await page.request.get(`/api/v1/environments/${target!.environmentId}/volumes/${volumeName}`);
+	test('the same file manager in a volume: create, upload, edit, archive, extract, permissions, delete', async ({
+		page
+	}) => {
+		const vol = await page.request.get(
+			`/api/v1/environments/${target!.environmentId}/volumes/${volumeName}`
+		);
 		test.skip(!vol.ok(), `no volume ${volumeName}`);
 		const base = `/api/v1/environments/${target!.environmentId}/volumes/${volumeName}/files`;
 		await page.goto(`/volumes/${target!.environmentId}/${volumeName}/files`);
@@ -356,7 +417,9 @@ test.describe.serial('file manager', () => {
 		expect((await saved.json()).content).toBe('max_connections = 100\nshared_buffers = 256MB');
 
 		// Archive the folder, extract it next to it, change its mode.
-		await grid(page).getByRole('row', { name: /Parent folder/ }).dblclick();
+		await grid(page)
+			.getByRole('row', { name: /Parent folder/ })
+			.dblclick();
 		await row(page, `${run}-dir`).click({ button: 'right' });
 		await page.getByRole('menuitem', { name: 'Create archive…' }).click();
 		await page.getByRole('radio', { name: /tar\.gz/ }).check();
@@ -371,10 +434,14 @@ test.describe.serial('file manager', () => {
 		await row(page, `${run}-copy`).click({ button: 'right' });
 		await page.getByRole('menuitem', { name: 'Permissions…' }).click();
 		const perms = page.getByRole('dialog', { name: 'Change permissions' });
-		await perms.getByRole('switch', { name: 'Apply to everything inside the selected folders' }).click();
+		await perms
+			.getByRole('switch', { name: 'Apply to everything inside the selected folders' })
+			.click();
 		await perms.getByRole('checkbox', { name: 'Others read' }).uncheck();
 		await perms.getByRole('button', { name: 'Change permissions' }).click();
-		await expect(page.getByText(new RegExp(`Changed permissions of ${run}-copy`))).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByText(new RegExp(`Changed permissions of ${run}-copy`))).toBeVisible({
+			timeout: 20_000
+		});
 
 		// Delete what this test made (recursive: type-to-confirm).
 		for (const name of [`${run}-copy`, `${run}-dir`]) {
@@ -397,7 +464,9 @@ test.describe.serial('file manager', () => {
 		// Windows cannot change numeric owners: the devstack's agent there
 		// reports it per item. Linux agents (production, CI) apply it.
 		test.skip(process.platform === 'win32', 'chown needs a POSIX host for the agent');
-		const vol = await page.request.get(`/api/v1/environments/${target!.environmentId}/volumes/${volumeName}`);
+		const vol = await page.request.get(
+			`/api/v1/environments/${target!.environmentId}/volumes/${volumeName}`
+		);
 		test.skip(!vol.ok(), `no volume ${volumeName}`);
 		await page.goto(`/volumes/${target!.environmentId}/${volumeName}/files`);
 		await page.getByRole('button', { name: 'New folder' }).click();
@@ -411,7 +480,9 @@ test.describe.serial('file manager', () => {
 		// The current owner (prefilled): allowed for the agent's own user too.
 		await expect(perms.getByLabel('Owner ID (UID)')).not.toHaveValue('');
 		await perms.getByRole('button', { name: 'Change permissions' }).click();
-		await expect(page.getByText(new RegExp(`Changed permissions of ${run}-owned`))).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByText(new RegExp(`Changed permissions of ${run}-owned`))).toBeVisible(
+			{ timeout: 20_000 }
+		);
 		await row(page, `${run}-owned`).click();
 		await grid(page).focus();
 		await page.keyboard.press('Delete');

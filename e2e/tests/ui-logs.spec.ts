@@ -34,7 +34,9 @@ async function signIn(page: Page) {
 async function findStack(page: Page): Promise<StackRef | null> {
 	const res = await page.request.get('/api/v1/stacks?limit=200');
 	if (!res.ok()) return null;
-	const s = ((await res.json()).items as { id: string; name: string; environmentId: string }[]).find((x) => x.name === stackName);
+	const s = (
+		(await res.json()).items as { id: string; name: string; environmentId: string }[]
+	).find((x) => x.name === stackName);
 	return s ? { id: s.id, environmentId: s.environmentId } : null;
 }
 
@@ -49,20 +51,32 @@ test.describe('log viewer', () => {
 		test.skip(!stack, `no stack "${stackName}" on this manager (the devstack has one)`);
 	});
 
-	test('stack logs: services merged, filter chips, search, follow, timestamps, clear, download', async ({ page }) => {
-		const services = (await (await page.request.get(`/api/v1/stacks/${stack!.id}/services`)).json()).services as { name: string }[];
+	test('stack logs: services merged, filter chips, search, follow, timestamps, clear, download', async ({
+		page
+	}) => {
+		const services = (
+			await (await page.request.get(`/api/v1/stacks/${stack!.id}/services`)).json()
+		).services as { name: string }[];
 		await page.goto(`/stacks/${stack!.id}/logs`);
 		const viewer = page.getByRole('region', { name: /^Logs of / });
 		await expect(viewer).toBeVisible();
 		await expect(lines(page).locator('.line').first()).toBeVisible({ timeout: 15_000 });
 		// Every service has a chip; its lines carry the service name.
 		const chips = viewer.getByRole('group', { name: 'Services' });
-		for (const s of services) await expect(chips.getByRole('button', { name: s.name })).toBeVisible();
+		for (const s of services)
+			await expect(chips.getByRole('button', { name: s.name })).toBeVisible();
 		const first = services[0].name;
 		await expect(lines(page)).toContainText(first);
 		await chips.getByRole('button', { name: first, exact: true }).click();
-		await expect(chips.getByRole('button', { name: first, exact: true })).toHaveAttribute('aria-pressed', 'false');
-		await expect(lines(page).locator('.src').filter({ hasText: new RegExp(`^${first}$`) })).toHaveCount(0);
+		await expect(chips.getByRole('button', { name: first, exact: true })).toHaveAttribute(
+			'aria-pressed',
+			'false'
+		);
+		await expect(
+			lines(page)
+				.locator('.src')
+				.filter({ hasText: new RegExp(`^${first}$`) })
+		).toHaveCount(0);
 		await chips.getByRole('button', { name: 'All services' }).click();
 
 		// Search highlights and counts.
@@ -101,7 +115,9 @@ test.describe('log viewer', () => {
 		await expect(win).toHaveURL(/\/popout\/logs\?stack=/);
 		await expect(win.getByRole('region', { name: /^Logs of / })).toBeVisible();
 		await expect(win.getByRole('navigation', { name: 'Main' })).toHaveCount(0); // no app shell
-		await expect(win.getByRole('log').locator('.line').first()).toBeVisible({ timeout: 15_000 });
+		await expect(win.getByRole('log').locator('.line').first()).toBeVisible({
+			timeout: 15_000
+		});
 		await win.close();
 
 		await page.goto(`/stacks/${stack!.id}/files`);
@@ -123,7 +139,8 @@ test.describe('log viewer', () => {
 	});
 
 	test('one container: logs route', async ({ page }) => {
-		const svc = (await (await page.request.get(`/api/v1/stacks/${stack!.id}/services`)).json()).services as {
+		const svc = (await (await page.request.get(`/api/v1/stacks/${stack!.id}/services`)).json())
+			.services as {
 			containers: { name: string; state: string }[];
 		}[];
 		const c = svc.flatMap((s) => s.containers).find((x) => x.state === 'running');

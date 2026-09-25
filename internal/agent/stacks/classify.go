@@ -86,7 +86,7 @@ func classify(err error) error {
 	}
 	rec := stackRecoveries[class]
 	if strings.HasPrefix(class, "storage_") {
-		rec = "The stack's project directory is not in a verified stack root of this agent (#28): fix the agent's storage layout " +
+		rec = "The stack's project directory is not in a verified stack root of this agent: fix the agent's storage layout " +
 			"(see its diagnostics) and retry."
 	}
 	return &stepError{class: class, recovery: rec, err: err}

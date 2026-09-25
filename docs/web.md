@@ -154,14 +154,20 @@ dismissing it throws `StepUpCancelledError`.
   `standalone`. Colours are the design tokens (#22): `THEME_COLOR` is
   `--surface-shell`, `BACKGROUND_COLOR` `--surface-canvas`; keep
   `app.html`'s `theme-color` equal to `THEME_COLOR` (unit-tested).
-- **Icons**: still the #11 placeholder artwork authored as
-  `web/static/icons/icon.svg` (not derived from the mockup; the in-app
-  logo is `src/lib/shell/Logo.svelte`). Regenerate the PNGs after changing it:
+- **Icons** (#22): the app icon is the shell's cube mark
+  (`src/lib/shell/Logo.svelte`) on the `--surface-shell` tile with a faint
+  accent glow. Sources: `web/static/icons/icon.svg` (rounded tile,
+  transparent corners: the `any` icons and `favicon.ico`) and
+  `web/scripts/icon-maskable.svg` (full bleed, the cube inside the 80 %
+  safe circle: the maskable and Apple touch icons). Keep the cube's colours
+  equal to the logo's. Regenerate the PNGs after changing either:
 
   ```bash
   cd web
   npx --yes @vite-pwa/assets-generator@2.0.0 --config scripts/pwa-assets.config.mjs
+  npx --yes @vite-pwa/assets-generator@2.0.0 --config scripts/pwa-assets-maskable.config.mjs
   mv static/icons/favicon.ico static/favicon.ico
+  mv scripts/maskable-icon-512x512.png scripts/apple-touch-icon-180x180.png static/icons/
   ```
 
 - **Service worker** (`src/service-worker.ts`, rules in
@@ -247,11 +253,15 @@ What the client does: a non-resumed `hello` invalidates every query (fresh
 snapshot); reconnects resume from the last applied cursor with exponential
 backoff and jitter (1–30 s); duplicate or older ids are ignored; `reset`
 invalidates everything (or one environment's keys); `permissions.changed`
-calls `queryClient.clear()` at once, refetches `/me/permissions` and
-reconnects; `close session_expired` stops until `liveClient()?.reconnectNow()`
-(after signing in); three failed connections within a minute switch to
-polling (details every 10 s, lists and metrics every 30 s) until the stream
-is back.
+drops every cached query no view shows and refetches the open ones at once
+(their denied or not-found result replaces the old data; `clear()` would
+leave mounted views showing theirs), refetches `/me/permissions` and
+reconnects; `close
+session_expired` stops until `liveClient()?.reconnectNow()` (after signing
+in); the browser's `offline` event drops the stream at once and `online`
+reconnects from the cursor; three failed connections within a minute switch
+to polling (details every 10 s, lists and metrics every 30 s) until the
+stream is back.
 
 **`liveStatus`** (`src/lib/live/status.svelte.ts`) is the interface for the
 shell (#22): reactive `state` (`idle`, `connecting`, `live`,

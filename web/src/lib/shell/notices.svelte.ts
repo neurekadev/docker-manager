@@ -4,6 +4,8 @@
 // tab only (no persistence of API data). Keys deduplicate: pushing the same
 // key again updates the notice instead of adding one.
 
+import { routes } from '$lib/routes';
+
 export type NoticeKind = 'job' | 'environment' | 'update';
 export type NoticeTone = 'ok' | 'warn' | 'danger' | 'info';
 
@@ -72,7 +74,7 @@ export function environmentNotices(target: Notices = notices) {
 					tone: 'warn',
 					title: `${e.name} is offline`,
 					body: 'Its agent is not connected. DockYard shows its last known state.',
-					href: `/environments/${encodeURIComponent(e.id)}`
+					href: routes.environment(e.id)
 				});
 			} else if (e.online && was === false) {
 				target.resolve(key);
@@ -146,7 +148,7 @@ export function jobNotices(
 				tone: JOB_TONES[j.state] ?? 'info',
 				title: `${label(j.kind)}${what ? ` ${what}` : ''} ${JOB_OUTCOMES[j.state] ?? j.state}`,
 				body: problem ? j.error?.recovery : undefined,
-				href: `/jobs/${encodeURIComponent(j.id)}`
+				href: routes.job(j.id)
 			});
 		}
 		seen = next;
@@ -182,7 +184,7 @@ export function updateNotices(target: Notices = notices) {
 					tone: 'warn',
 					title: `${n} ${n === 1 ? 'update' : 'updates'} available for ${p.name}`,
 					body: 'Review the update preview before applying it.',
-					href: '/updates'
+					href: routes.updatePolicy(p.id)
 				});
 				shown.set(key, n);
 			} else if (n === 0 && shown.has(key)) {

@@ -101,7 +101,7 @@ func (f *facts) containerProtection(c engine.Container) string {
 		return f.projects[project]
 	}
 	if c.Labels[protocol.LabelManaged] == protocol.ManagedStandalone && c.Labels[protocol.LabelSpec] != "" {
-		return "created through DockYard with a saved recreate specification (#6)"
+		return "created through DockYard with a saved recreate specification"
 	}
 	return ""
 }

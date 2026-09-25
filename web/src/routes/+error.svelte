@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import Compass from '@lucide/svelte/icons/compass';
 	import Logo from '$lib/shell/Logo.svelte';
+	import { routes } from '$lib/routes';
 	import { Button, EmptyState } from '$lib/ui';
 
 	const notFound = $derived(page.status === 404);
@@ -25,7 +26,7 @@
 		level={2}
 	>
 		{#snippet actions()}
-			<Button variant="primary" href="/">Go to the dashboard</Button>
+			<Button variant="primary" href={routes.dashboard()}>Go to the dashboard</Button>
 		{/snippet}
 	</EmptyState>
 </div>

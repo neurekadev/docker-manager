@@ -638,7 +638,11 @@ Guides: `docs/design/README.md` (tokens, components, copy, a11y),
   `e2e/tests/ui.spec.ts` and one spec per UI track (`e2e/tests/<track>*.spec.ts`,
   e.g. `b1-environments.spec.ts`; they check empty states on a manager
   without agents). Components reading queries: `web/src/test/QueryHarness.svelte`
-  with a stubbed `fetch`.
+  with a stubbed `fetch`. New main routes go into `e2e/tests/a11y.spec.ts`
+  (axe: no serious/critical violations); live behaviour of screens into
+  `e2e/tests/live-ui.spec.ts` (devstack `-control` changes Engines directly).
+  e2e specs are Prettier-formatted like the web app (`scripts/web-check.sh`).
+  Every `routes.*` builder needs a page (`src/lib/routes.spec.ts`).
 - **Run and look:** `npm --prefix web run build && go run ./test/devstack`
   (Docker-free manager + agents + seeded homelab; `-setup` for a fresh
   instance; `docs/development.md`). Playwright: `E2E_BASE_URL=http://localhost:8080

@@ -34,9 +34,12 @@ export function startLive(queryClient: QueryClient): () => void {
 	current = client;
 	client.start();
 	const online = () => client.reconnectNow();
+	const offline = () => client.networkLost();
 	window.addEventListener('online', online);
+	window.addEventListener('offline', offline);
 	return () => {
 		window.removeEventListener('online', online);
+		window.removeEventListener('offline', offline);
 		client.stop();
 		if (current === client) current = null;
 	};

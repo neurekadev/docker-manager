@@ -72,13 +72,20 @@ async function openLive(page: Page): Promise<void> {
 		for (const type of ['hello', 'files.changed', 'invalidate', 'reset', 'close']) {
 			es.addEventListener(type, (e) => {
 				const m = e as MessageEvent;
-				w.__live.push({ type, id: m.lastEventId, data: String(m.data), t: performance.now() });
+				w.__live.push({
+					type,
+					id: m.lastEventId,
+					data: String(m.data),
+					t: performance.now()
+				});
 			});
 		}
 		w.__liveSource = es;
 	}, stackId);
 	await expect
-		.poll(async () => (await liveEvents(page)).some((e) => e.type === 'hello'), { timeout: 10_000 })
+		.poll(async () => (await liveEvents(page)).some((e) => e.type === 'hello'), {
+			timeout: 10_000
+		})
 		.toBe(true);
 }
 
@@ -95,7 +102,9 @@ async function waitForFileChange(page: Page, path: string): Promise<LiveRecord> 
 				hit = (await liveEvents(page)).find(
 					(e) =>
 						e.type === 'files.changed' &&
-						((JSON.parse(e.data) as { paths: string[]; overflow: boolean }).paths.includes(path) ||
+						((
+							JSON.parse(e.data) as { paths: string[]; overflow: boolean }
+						).paths.includes(path) ||
 							(JSON.parse(e.data) as { overflow: boolean }).overflow)
 				);
 				return hit !== undefined;
@@ -117,7 +126,10 @@ async function api(
 		async ({ method, url, body, headers }) => {
 			const res = await fetch(url, {
 				method,
-				headers: body === undefined ? headers : { 'Content-Type': 'application/json', ...headers },
+				headers:
+					body === undefined
+						? headers
+						: { 'Content-Type': 'application/json', ...headers },
 				body: body === undefined ? undefined : JSON.stringify(body)
 			});
 			const text = await res.text();
@@ -134,7 +146,10 @@ async function api(
 }
 
 test.describe('live synchronization', () => {
-	test.skip(!configured, 'set E2E_LIVE_USER, E2E_LIVE_PASSWORD, E2E_LIVE_STACK and E2E_LIVE_STACK_DIR');
+	test.skip(
+		!configured,
+		'set E2E_LIVE_USER, E2E_LIVE_PASSWORD, E2E_LIVE_STACK and E2E_LIVE_STACK_DIR'
+	);
 
 	test('an external edit reaches open file views; an unsaved buffer is kept and its save refused', async ({
 		browser
@@ -157,7 +172,10 @@ test.describe('live synchronization', () => {
 			const start = Date.now();
 			writeFileSync(join(stackDir, name), 'changed outside DockYard\n');
 			writeFileSync(join(stackDir, created), 'new\n');
-			const [ea, eb] = await Promise.all([waitForFileChange(a, name), waitForFileChange(b, name)]);
+			const [ea, eb] = await Promise.all([
+				waitForFileChange(a, name),
+				waitForFileChange(b, name)
+			]);
 			expect(Date.now() - start).toBeLessThan(10_000);
 			test.info().annotations.push({
 				type: 'latency',
@@ -171,7 +189,9 @@ test.describe('live synchronization', () => {
 			for (const p of [a, b]) {
 				const listing = await api(p, 'GET', `${files}?path=.`);
 				expect(listing.status).toBe(200);
-				const names = (listing.json as { items: { name: string }[] }).items.map((i) => i.name);
+				const names = (listing.json as { items: { name: string }[] }).items.map(
+					(i) => i.name
+				);
 				expect(names).toContain(created);
 			}
 
@@ -188,8 +208,14 @@ test.describe('live synchronization', () => {
 			expect(stale.etag).not.toBe('');
 			expect(stale.etag).not.toBe(loaded.etag);
 			expect(unsaved).toContain('my unsaved line');
-			const current = await api(b, 'GET', `${files}/content?path=${encodeURIComponent(name)}`);
-			expect((current.json as { content: string }).content).toBe('changed outside DockYard\n');
+			const current = await api(
+				b,
+				'GET',
+				`${files}/content?path=${encodeURIComponent(name)}`
+			);
+			expect((current.json as { content: string }).content).toBe(
+				'changed outside DockYard\n'
+			);
 			expect(current.etag).toBe(stale.etag);
 
 			// An explicit overwrite with the current ETag saves the buffer,
@@ -206,7 +232,10 @@ test.describe('live synchronization', () => {
 				.poll(
 					async () =>
 						(await liveEvents(b)).filter(
-							(e) => e.type === 'files.changed' && e.data.includes(name) && Number(e.t) > 0
+							(e) =>
+								e.type === 'files.changed' &&
+								e.data.includes(name) &&
+								Number(e.t) > 0
 						).length,
 					{ timeout: 10_000 }
 				)

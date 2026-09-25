@@ -2,7 +2,6 @@
 	// Header and tabs of the builds section (#33): build history and saved
 	// build definitions, with "Build image" as the primary action.
 	import { page } from '$app/state';
-	import Hammer from '@lucide/svelte/icons/hammer';
 	import Play from '@lucide/svelte/icons/play';
 	import { routes } from '$lib/routes';
 	import { Button, PageHeader, TabNav } from '$lib/ui';
@@ -17,7 +16,7 @@
 	let { canBuild, environmentId, description }: Props = $props();
 </script>
 
-<PageHeader title="Builds" {description} icon={Hammer} color="violet">
+<PageHeader title="Builds" {description}>
 	{#snippet actions()}
 		{#if canBuild}
 			<Button variant="primary" icon={Play} href={routes.newBuild(environmentId)}

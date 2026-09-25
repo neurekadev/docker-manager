@@ -71,7 +71,9 @@ test.describe.serial('B1: dashboard, environments, jobs, schedules', () => {
 		const envs = await environments(page);
 		if (!envs.length) {
 			await expect(page.getByText('No environments yet.')).toBeVisible();
-			await expect(page.getByRole('main').getByRole('link', { name: 'Add environment' }).first()).toBeVisible();
+			await expect(
+				page.getByRole('main').getByRole('link', { name: 'Add environment' }).first()
+			).toBeVisible();
 			return;
 		}
 		for (const e of envs) {
@@ -86,7 +88,9 @@ test.describe.serial('B1: dashboard, environments, jobs, schedules', () => {
 			await expect(card.getByText(/^\d+(\.\d)?%$/).first()).toBeVisible();
 			await expect(card).toContainText(/Memory\s*[\d.]+ [KMGT]?B\s*\/\s*[\d.]+ [KMGT]?B/);
 			await expect(card.locator('canvas').first()).toBeVisible(); // sparkline drawn
-			await expect(summary.getByRole('group', { name: 'Memory in use' })).not.toContainText('0 B / 0 B');
+			await expect(summary.getByRole('group', { name: 'Memory in use' })).not.toContainText(
+				'0 B / 0 B'
+			);
 			// The open dashboard updates live: a new metrics sample (every 10 s)
 			// reaches the view through the live stream without a reload.
 			const cpu = card.getByText(/^\d+(\.\d)?%$/).first();
@@ -95,11 +99,16 @@ test.describe.serial('B1: dashboard, environments, jobs, schedules', () => {
 			// overview's safety-net poll is 60 s).
 			for (let i = 0; i < 2; i++) {
 				const before = await cpu.textContent();
-				await expect(async () => expect(await cpu.textContent()).not.toBe(before)).toPass({ timeout: 30_000 });
+				await expect(async () => expect(await cpu.textContent()).not.toBe(before)).toPass({
+					timeout: 30_000
+				});
 			}
 		}
 		const offline = envs.find((e) => !e.online);
-		if (offline) await expect(page.getByRole('article', { name: offline.name })).toContainText('Values are the last known.');
+		if (offline)
+			await expect(page.getByRole('article', { name: offline.name })).toContainText(
+				'Values are the last known.'
+			);
 		await shot(page, 'dashboard-1440');
 	});
 
@@ -112,8 +121,12 @@ test.describe.serial('B1: dashboard, environments, jobs, schedules', () => {
 		await page.getByRole('button', { name: 'Create enrollment token' }).click();
 		await expect(page.getByText('Waiting for the agent to connect.')).toBeVisible();
 		const commands = page.getByRole('tablist', { name: 'Install commands' });
-		await expect(commands.getByRole('tab', { name: 'On another Docker host', exact: true })).toHaveAttribute('aria-selected', 'true');
-		await expect(page.getByLabel('Agent on another Docker host: command')).toContainText("DOCKYARD_ENVIRONMENT_NAME='e2e-host'");
+		await expect(
+			commands.getByRole('tab', { name: 'On another Docker host', exact: true })
+		).toHaveAttribute('aria-selected', 'true');
+		await expect(page.getByLabel('Agent on another Docker host: command')).toContainText(
+			"DOCKYARD_ENVIRONMENT_NAME='e2e-host'"
+		);
 		await expect(page.getByLabel('enrollment token', { exact: true })).toContainText(/^dye_/);
 		// Keyboard: the Compose variant.
 		await commands.getByRole('tab', { name: 'On another Docker host', exact: true }).focus();
@@ -121,14 +134,21 @@ test.describe.serial('B1: dashboard, environments, jobs, schedules', () => {
 		await expect(page.getByText(/DOCKYARD_ENROLLMENT_TOKEN=dye_/)).toBeVisible();
 		await shot(page, 'add-environment-1440');
 		// The token is no API data kept by the browser.
-		const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }));
+		const stored = await page.evaluate(
+			() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage })
+		);
 		expect(stored).not.toContain('dye_');
 
 		await page.getByRole('button', { name: 'Revoke token' }).click();
 		await expect(page).toHaveURL(/\/environments$/);
-		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText('Revoked enrollment token');
+		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(
+			'Revoked enrollment token'
+		);
 		const list = await (await page.request.get('/api/v1/agent-enrollments?limit=200')).json();
-		expect(list.items.find((e: { environmentName?: string }) => e.environmentName === 'e2e-host')?.state).toBe('revoked');
+		expect(
+			list.items.find((e: { environmentName?: string }) => e.environmentName === 'e2e-host')
+				?.state
+		).toBe('revoked');
 	});
 
 	test('environment detail: metrics with gaps, system, agents, edit', async ({ page }) => {
@@ -136,7 +156,10 @@ test.describe.serial('B1: dashboard, environments, jobs, schedules', () => {
 		test.skip(!envs.length, 'no enrolled environments on this manager');
 		const env = envs.find((e) => e.online) ?? envs[0];
 		await page.goto('/environments');
-		await page.getByRole('table', { name: 'Active environments' }).getByRole('link', { name: env.name }).click();
+		await page
+			.getByRole('table', { name: 'Active environments' })
+			.getByRole('link', { name: env.name })
+			.click();
 		await expect(page.getByRole('heading', { level: 1, name: env.name })).toBeVisible();
 		for (const title of ['CPU', 'Memory', 'Network', 'Load'])
 			await expect(page.getByRole('figure', { name: title })).toBeVisible();
@@ -158,7 +181,9 @@ test.describe.serial('B1: dashboard, environments, jobs, schedules', () => {
 		const dialog = page.getByRole('dialog', { name: `Edit ${env.name}` });
 		await dialog.getByRole('textbox', { name: /^Name/ }).fill(`${env.name}-renamed`);
 		await dialog.getByRole('button', { name: 'Save changes' }).click();
-		await expect(page.getByRole('heading', { level: 1, name: `${env.name}-renamed` })).toBeVisible();
+		await expect(
+			page.getByRole('heading', { level: 1, name: `${env.name}-renamed` })
+		).toBeVisible();
 		await page.getByRole('button', { name: 'Edit' }).click();
 		await page.getByRole('dialog').getByRole('textbox', { name: /^Name/ }).fill(env.name);
 		await page.getByRole('dialog').getByRole('button', { name: 'Save changes' }).click();
@@ -174,22 +199,33 @@ test.describe.serial('B1: dashboard, environments, jobs, schedules', () => {
 		await expect(archive).toBeHidden();
 	});
 
-	test('offline environment: last known state and the offline interval as a gap', async ({ page }) => {
+	test('offline environment: last known state and the offline interval as a gap', async ({
+		page
+	}) => {
 		const offline = (await environments(page)).find((e) => !e.online);
 		test.skip(!offline, 'no offline environment on this manager');
 		await page.goto(`/environments/${offline!.id}`);
 		await expect(page.getByText(`${offline!.name} is offline`)).toBeVisible();
 		const cpu = page.getByRole('figure', { name: 'CPU' });
-		await expect(cpu.getByRole('list', { name: 'CPU: time without samples' })).toContainText(/No samples (since|\d)/);
+		await expect(cpu.getByRole('list', { name: 'CPU: time without samples' })).toContainText(
+			/No samples (since|\d)/
+		);
 		await expect(page.getByRole('button', { name: /^Notices/ })).toBeVisible();
 		await page.getByRole('button', { name: /^Notices/ }).click();
-		await expect(page.getByRole('dialog', { name: 'Notices' }).or(page.getByText(`${offline!.name} is offline`).last())).toBeVisible();
+		await expect(
+			page
+				.getByRole('dialog', { name: 'Notices' })
+				.or(page.getByText(`${offline!.name} is offline`).last())
+		).toBeVisible();
 	});
 
 	test('jobs: filters in the URL, detail with items, recovery and targets', async ({ page }) => {
 		await page.goto('/jobs');
 		await expect(page.getByRole('heading', { level: 1, name: 'Jobs' })).toBeVisible();
-		const jobs = (await (await page.request.get('/api/v1/jobs?limit=50')).json()).items as { id: string; state: string }[];
+		const jobs = (await (await page.request.get('/api/v1/jobs?limit=50')).json()).items as {
+			id: string;
+			state: string;
+		}[];
 		if (!jobs.length) {
 			await expect(page.getByText('No jobs yet.')).toBeVisible();
 			return;
@@ -220,7 +256,10 @@ test.describe.serial('B1: dashboard, environments, jobs, schedules', () => {
 	test('schedules: next runs with DST notes and history', async ({ page }) => {
 		await page.goto('/schedules');
 		await expect(page.getByRole('heading', { level: 1, name: 'Schedules' })).toBeVisible();
-		const list = (await (await page.request.get('/api/v1/schedules')).json()).items as { policyName: string; timeZone: string }[];
+		const list = (await (await page.request.get('/api/v1/schedules')).json()).items as {
+			policyName: string;
+			timeZone: string;
+		}[];
 		if (!list.length) {
 			await expect(page.getByText('No scheduled policies yet.')).toBeVisible();
 			return;
@@ -235,7 +274,9 @@ test.describe.serial('B1: dashboard, environments, jobs, schedules', () => {
 			const row = page.getByRole('row').filter({ hasText: 'Europe/Berlin' }).first();
 			await row.getByRole('button', { name: 'Details' }).click();
 			// The seeded 02:30 Sunday check lands on the repeated October hour.
-			await expect(page.getByRole('dialog').getByText('Clocks move back', { exact: true })).toBeVisible();
+			await expect(
+				page.getByRole('dialog').getByText('Clocks move back', { exact: true })
+			).toBeVisible();
 		}
 		await shot(page, 'schedules-1440');
 	});
@@ -244,12 +285,16 @@ test.describe.serial('B1: dashboard, environments, jobs, schedules', () => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.goto('/');
 		await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
-		const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+		const overflow = await page.evaluate(
+			() => document.documentElement.scrollWidth - window.innerWidth
+		);
 		expect(overflow).toBeLessThanOrEqual(1);
 		await shot(page, 'dashboard-390');
 		await page.goto('/jobs');
 		await expect(page.getByRole('heading', { level: 1, name: 'Jobs' })).toBeVisible();
-		expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+		).toBeLessThanOrEqual(1);
 		await shot(page, 'jobs-390');
 	});
 });

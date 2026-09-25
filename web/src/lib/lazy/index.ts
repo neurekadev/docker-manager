@@ -360,8 +360,16 @@ export async function mountSparkline(
 		]
 	});
 	chart.setOption(option(values));
+	// KPI cards change width with their grid (container queries, the
+	// sidebar rail); follow the element instead of keeping the first size.
+	const observer =
+		typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => chart.resize());
+	observer?.observe(el);
 	return {
-		destroy: () => chart.dispose(),
+		destroy: () => {
+			observer?.disconnect();
+			chart.dispose();
+		},
 		update: (vs) => chart.setOption(option(vs))
 	};
 }

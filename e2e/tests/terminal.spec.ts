@@ -55,7 +55,10 @@ async function signIn(page: Page): Promise<void> {
 	expect(status).toBe(200);
 }
 
-async function createSession(page: Page, body: object): Promise<{ status: number; session: ExecSession }> {
+async function createSession(
+	page: Page,
+	body: object
+): Promise<{ status: number; session: ExecSession }> {
 	return page.evaluate(
 		async ({ url, body }) => {
 			const res = await fetch(url, {
@@ -74,7 +77,12 @@ async function createSession(page: Page, body: object): Promise<{ status: number
  * resizes, sends input as stdin frames and collects stdout until the
  * server closes the socket.
  */
-async function runTerminal(page: Page, s: ExecSession, input: string, protocols?: string[]): Promise<TerminalRun> {
+async function runTerminal(
+	page: Page,
+	s: ExecSession,
+	input: string,
+	protocols?: string[]
+): Promise<TerminalRun> {
 	return page.evaluate(
 		({ path, input, protocols }) =>
 			new Promise<TerminalRun>((resolve, reject) => {
@@ -110,18 +118,29 @@ async function runTerminal(page: Page, s: ExecSession, input: string, protocols?
 					resolve({ protocol: ws.protocol, output, messages, closeCode: e.code });
 				};
 			}),
-		{ path: s.streamUrl, input, protocols: protocols ?? [s.subprotocol, `dockyard.ticket.${s.ticket}`] }
+		{
+			path: s.streamUrl,
+			input,
+			protocols: protocols ?? [s.subprotocol, `dockyard.ticket.${s.ticket}`]
+		}
 	);
 }
 
 test.describe('container logs and terminal', () => {
-	test.skip(!configured, 'set E2E_TERMINAL_USER, E2E_TERMINAL_PASSWORD, E2E_TERMINAL_ENV and E2E_TERMINAL_CONTAINER');
+	test.skip(
+		!configured,
+		'set E2E_TERMINAL_USER, E2E_TERMINAL_PASSWORD, E2E_TERMINAL_ENV and E2E_TERMINAL_CONTAINER'
+	);
 
 	test('logs: bounded tail and an unbuffered SSE stream', async ({ page }) => {
 		await signIn(page);
 		const tail = await page.evaluate(async (url) => {
 			const res = await fetch(url);
-			return { status: res.status, cacheControl: res.headers.get('cache-control'), body: await res.json() };
+			return {
+				status: res.status,
+				cacheControl: res.headers.get('cache-control'),
+				body: await res.json()
+			};
 		}, `${base}/logs?tail=5`);
 		expect(tail.status).toBe(200);
 		expect(tail.cacheControl).toContain('no-store');
@@ -135,16 +154,26 @@ test.describe('container logs and terminal', () => {
 			tty: false
 		});
 		await runTerminal(page, session, '');
-		const r = await sseTimeline(page, `${base}/logs/stream?tail=20`, { until: 'log', timeoutMs: 20_000 });
+		const r = await sseTimeline(page, `${base}/logs/stream?tail=20`, {
+			until: 'log',
+			timeoutMs: 20_000
+		});
 		expect(r.status).toBe(200);
 		expect(r.contentType).toContain('text/event-stream');
 		expect(r.cacheControl).toContain('no-store');
 		expect(r.lines.some((l) => l.line === 'event: log')).toBe(true);
 	});
 
-	test('terminal: ticket subprotocol, stdin/stdout, resize and exit through the proxy', async ({ page }) => {
+	test('terminal: ticket subprotocol, stdin/stdout, resize and exit through the proxy', async ({
+		page
+	}) => {
 		await signIn(page);
-		const { status, session } = await createSession(page, { command: ['/bin/sh'], tty: true, cols: 80, rows: 24 });
+		const { status, session } = await createSession(page, {
+			command: ['/bin/sh'],
+			tty: true,
+			cols: 80,
+			rows: 24
+		});
 		expect(status).toBe(201);
 		expect(session.subprotocol).toBe('dockyard.exec.v1');
 		expect(session.streamUrl).toContain(`/exec-sessions/${session.id}/stream`);
@@ -165,7 +194,10 @@ test.describe('container logs and terminal', () => {
 	test('terminal: a wrong ticket is refused, a missing command is reported', async ({ page }) => {
 		await signIn(page);
 		const { session } = await createSession(page, { command: ['/bin/sh'] });
-		const wrong = await runTerminal(page, session, '', [session.subprotocol, 'dockyard.ticket.not-the-ticket']);
+		const wrong = await runTerminal(page, session, '', [
+			session.subprotocol,
+			'dockyard.ticket.not-the-ticket'
+		]);
 		expect(wrong.closeCode).toBe(1006);
 
 		const missing = await createSession(page, { command: ['/definitely/not/here'] });
