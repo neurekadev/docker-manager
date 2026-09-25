@@ -175,6 +175,13 @@ func TestWatchSetFollowsStacksAndOpenVolumes(t *testing.T) {
 	if len(h.agents.pushes()) != n+1 {
 		t.Fatal("not re-sent after reconnect")
 	}
+	// A reconnect that never looked offline (resync) re-sends it too.
+	h.w.Handle(events.Event{Type: events.EnvironmentResync, EnvironmentID: envID, Attributes: map[string]string{"reason": "reconnect"}})
+	h.settle()
+	if len(h.agents.pushes()) != n+2 {
+		t.Fatal("not re-sent after a resync")
+	}
+	n++
 	// Offline agents are retried when they come online; agents without a
 	// watcher are not asked again.
 	h.agents.unsupported = true

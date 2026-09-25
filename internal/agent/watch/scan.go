@@ -59,9 +59,9 @@ func walkTree(root, prefix string, maxEntries int, visit visitDir) (scan, error)
 	if prefix != "." {
 		// No component of the prefix may be a symlink (Lstat follows the
 		// intermediate ones): the walk must stay beneath the root.
-		real, rerr := filepath.EvalSymlinks(start)
+		resolved, rerr := filepath.EvalSymlinks(start)
 		rroot, rrerr := filepath.EvalSymlinks(root)
-		if rerr != nil || rrerr != nil || real != filepath.Join(rroot, filepath.FromSlash(prefix)) {
+		if rerr != nil || rrerr != nil || resolved != filepath.Join(rroot, filepath.FromSlash(prefix)) {
 			return res, fs.ErrInvalid
 		}
 	}

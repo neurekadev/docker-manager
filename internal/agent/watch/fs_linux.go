@@ -22,7 +22,7 @@ var remoteMagic = map[int64]string{
 	0x5346414f: "afs",
 	0x01021997: "v9fs",
 	0x47504653: "gpfs",
-	0x0bd00bd0: "lustre",
+	0x0bd00bd0: "lustre", //nolint:misspell // the Lustre filesystem
 	0x00c36400: "ceph",
 	0x19830326: "fhgfs",
 }

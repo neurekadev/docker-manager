@@ -69,7 +69,7 @@ const (
 	ResetOverflow      = "overflow"
 )
 
-// ErrTooManyStreams: the principal already has MaxStreamsPerPrincipal
+// ErrTooManyStreams means the principal already has MaxStreamsPerPrincipal
 // live streams open.
 var ErrTooManyStreams = errors.New("live: too many live streams for this principal")
 

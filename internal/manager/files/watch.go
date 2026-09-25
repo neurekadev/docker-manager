@@ -195,7 +195,7 @@ func (w *Watcher) leaseLocked(env, volume string) bool {
 func relevant(e events.Event) bool {
 	switch e.Type {
 	case events.EnvironmentOnline, events.EnvironmentOffline, events.StackCreated, events.StackRemoved, events.StackUpdated,
-		events.FilesInvalidated:
+		events.FilesInvalidated, events.AgentCapabilitiesUpdate, events.EnvironmentResync:
 		return true
 	}
 	return false
@@ -234,9 +234,15 @@ func (w *Watcher) Handle(e events.Event) {
 		// A (re)connected agent may have restarted: push the set again.
 		delete(w.pushed, env)
 		w.markLocked(env)
+	case events.EnvironmentResync:
+		if e.Attributes["reason"] == "reconnect" { // also when it never looked offline
+			delete(w.pushed, env)
+			w.markLocked(env)
+		}
 	case events.EnvironmentOffline:
 		delete(w.pushed, env)
-	case events.StackCreated, events.StackRemoved, events.StackUpdated:
+	case events.StackCreated, events.StackRemoved, events.StackUpdated, events.AgentCapabilitiesUpdate:
+		// A capabilities change may bring (or lose) the verified stacks root.
 		w.markLocked(env)
 	case events.FilesInvalidated:
 		if e.ResourceID == "*" {
