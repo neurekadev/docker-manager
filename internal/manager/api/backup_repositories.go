@@ -93,6 +93,11 @@ type BackupService interface {
 	RestoreTargets(ctx context.Context, sn domain.BackupSnapshot, req backups.RestoreRequest) ([]domain.JobTarget, string, error)
 	PreviewRestore(ctx context.Context, sn domain.BackupSnapshot, req backups.RestoreRequest) (protocol.RestorePreviewOutput, []domain.JobTarget, error)
 	Restore(ctx context.Context, sn domain.BackupSnapshot, req backups.RestoreRequest, principal authz.Principal, idempotencyKey string) (domain.Job, error)
+
+	TestImport(ctx context.Context, src backups.ImportSource) (backups.ImportConnection, error)
+	PreviewImport(ctx context.Context, src backups.ImportSource, setID string) (backups.ImportPreview, error)
+	StartImport(ctx context.Context, src backups.ImportSource, setID, idempotencyKey string) (domain.Job, error)
+	LatestImport(ctx context.Context) (*backups.ImportStatus, error)
 }
 
 func backupRepositoryResource(id string) authz.Resource {
@@ -139,7 +144,7 @@ func backupError(err error) error {
 	case errors.Is(err, backups.ErrFileTooLarge):
 		return NewError(http.StatusRequestEntityTooLarge, CodeBackupFileTooLarge, "the file is larger than the download limit")
 	case errors.Is(err, backups.ErrManagerStateRestore):
-		return Conflict(CodeManagerRestoreRequired, "manager-state backups are restored with the owner's manager restore procedure")
+		return Conflict(CodeManagerRestoreRequired, "manager-state backups are restored by importing them into a fresh manager (first-run setup, backup import)")
 	case errors.Is(err, backups.ErrContentUnavailable):
 		return Unavailable(CodeUnavailable, "the backup contents cannot be read right now")
 	case errors.As(err, &re):
@@ -204,6 +209,7 @@ type BackupScopeProbe struct {
 	Scope              string `json:"scope" example:"manager" doc:"manager or env:<environmentId>."`
 	Exists             bool   `json:"exists"`
 	KeyAccepted        bool   `json:"keyAccepted"`
+	PreviousKey        bool   `json:"previousKey,omitempty" doc:"Only the previous Recovery Key opens it: the rotation has not reached it yet."`
 	ResticRepositoryID string `json:"resticRepositoryId,omitempty"`
 	ErrorClass         string `json:"errorClass,omitempty"`
 }
@@ -246,7 +252,7 @@ func newBackupConnectionTest(t *domain.BackupConnectionTest) *BackupConnectionTe
 	out := &BackupConnectionTest{At: t.At, OK: t.OK, Result: t.Result, Message: t.Message, CanRead: t.CanRead, CanWrite: t.CanWrite,
 		CanDelete: t.CanDelete, ObjectLock: t.ObjectLock, Warnings: t.Warnings}
 	for _, s := range t.Scopes {
-		out.Scopes = append(out.Scopes, BackupScopeProbe{Scope: s.Scope, Exists: s.Exists, KeyAccepted: s.KeyAccepted,
+		out.Scopes = append(out.Scopes, BackupScopeProbe{Scope: s.Scope, Exists: s.Exists, KeyAccepted: s.KeyAccepted, PreviousKey: s.PreviousKey,
 			ResticRepositoryID: s.ResticRepositoryID, ErrorClass: s.ErrorClass})
 	}
 	return out

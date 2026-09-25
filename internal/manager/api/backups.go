@@ -422,6 +422,7 @@ func registerBackups(a huma.API, deps Deps) {
 	h := &backupsAPI{svc: deps.Backups, authz: authz.OrDenyAll(deps.Authorizer), deps: deps}
 	registerBackupRepositories(a, h)
 	registerBackupPolicies(a, h)
+	registerBackupImports(a, deps)
 	Register(a, Operation{
 		Operation: huma.Operation{
 			OperationID: "list-backups", Method: http.MethodGet, Path: BasePath + "/backups",

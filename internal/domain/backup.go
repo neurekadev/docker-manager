@@ -115,9 +115,12 @@ type BackupConnectionTest struct {
 
 // BackupScopeProbe is one restic repository found by a connection test.
 type BackupScopeProbe struct {
-	Scope              string
-	Exists             bool
-	KeyAccepted        bool
+	Scope       string
+	Exists      bool
+	KeyAccepted bool
+	// PreviousKey: only the previous Recovery Key opens it (a rotation
+	// that has not reached it yet).
+	PreviousKey        bool
 	ResticRepositoryID string
 	ErrorClass         string
 }

@@ -32,6 +32,8 @@ const (
 type IdentityService interface {
 	SetupStatus(ctx context.Context) (domain.SetupStatus, error)
 	SetupOwner(ctx context.Context, in domain.OwnerSetup) (domain.SessionState, error)
+	// SetupOpen admits the other first-run setup routes (backup import).
+	SetupOpen(ctx context.Context) error
 
 	SignIn(ctx context.Context, username, password, totpCode string) (domain.SessionState, error)
 	CurrentSession(ctx context.Context) (domain.SessionState, error)
@@ -296,9 +298,10 @@ type sessionOutput struct{ Body Session }
 
 type setupStatusOutput struct {
 	Body struct {
-		SetupComplete bool   `json:"setupComplete" doc:"The instance owner exists; setup routes are closed."`
-		SecureOrigin  bool   `json:"secureOrigin" doc:"This request reached DockYard over HTTPS on its public URL, so setup can complete."`
-		Explanation   string `json:"explanation,omitempty" doc:"Why setup cannot complete over this request, and how to fix it."`
+		SetupComplete bool               `json:"setupComplete" doc:"The instance owner exists; setup routes are closed."`
+		SecureOrigin  bool               `json:"secureOrigin" doc:"This request reached DockYard over HTTPS on its public URL, so setup can complete."`
+		Explanation   string             `json:"explanation,omitempty" doc:"Why setup cannot complete over this request, and how to fix it."`
+		BackupImport  *SetupBackupImport `json:"backupImport,omitempty" doc:"The newest backup import (#24) while setup is open."`
 	}
 }
 

@@ -426,6 +426,10 @@ func (s *Service) TestRepository(ctx context.Context, id string) (domain.BackupC
 			if sc.ErrorClass != "" && sc.ErrorClass != restic.CodeRepositoryNotFound {
 				fail(sc.ErrorClass, restic.RecoveryFor(sc.ErrorClass))
 			}
+			if sc.PreviousKey {
+				t.Warnings = append(t.Warnings, "Location "+sc.Scope+" still uses the previous Recovery Key (the rotation has not reached it); "+
+					"it moves to the current key the next time a job uses it.")
+			}
 		}
 	}
 	if err := store.RecordBackupRepositoryTest(ctx, s.db, id, t); err != nil {
@@ -451,7 +455,7 @@ func probeWritable(dir string) error {
 // probeScopes opens the scopes the repository can hold that DockYard knows
 // (the manager scope, and every location recorded).
 func (s *Service) probeScopes(ctx context.Context, r domain.BackupRepository, creds backup.S3Credentials) []domain.BackupScopeProbe {
-	cur, _, _, _, err := s.currentKeys(ctx, s.db)
+	cur, prev, _, _, err := s.currentKeys(ctx, s.db)
 	if err != nil {
 		// Without a confirmed key only reachability was tested.
 		return nil
@@ -484,6 +488,15 @@ func (s *Service) probeScopes(ctx context.Context, r domain.BackupRepository, cr
 				p.Exists, p.KeyAccepted, p.ResticRepositoryID = true, true, cfg.ID
 			case restic.IsCode(err, restic.CodeKeyRejected):
 				p.Exists, p.ErrorClass = true, restic.CodeKeyRejected
+				if prev != "" {
+					// A rotation that has not reached this location yet.
+					cctx, cancel := context.WithTimeout(ctx, time.Minute)
+					cfg, perr := s.opts.Restic.Open(destination(r).Location(scope, creds), prev).Config(cctx)
+					cancel()
+					if perr == nil {
+						p.KeyAccepted, p.PreviousKey, p.ErrorClass, p.ResticRepositoryID = true, true, "", cfg.ID
+					}
+				}
 			default:
 				p.ErrorClass = restic.CodeOf(err)
 				if p.ErrorClass == "" {

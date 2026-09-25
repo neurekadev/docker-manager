@@ -71,6 +71,25 @@ func (s *Service) checkSecureOrigin(ctx context.Context) error {
 	return nil
 }
 
+// SetupOpen admits a first-run setup request other than the owner's
+// creation (the backup import routes, #24): no owner exists yet, the
+// request arrived over HTTPS on the public origin, and the per-IP limit
+// allows it. It returns domain.ErrSetupComplete once an owner exists.
+func (s *Service) SetupOpen(ctx context.Context) error {
+	if _, done, err := store.OwnerID(ctx, s.db); err != nil {
+		return err
+	} else if done {
+		return domain.ErrSetupComplete
+	}
+	if err := s.checkSecureOrigin(ctx); err != nil {
+		return err
+	}
+	if !s.kit.IPLimit.Take(ipKey(ctx)) {
+		return &domain.RateLimitedError{RetryAfter: max(s.kit.IPLimit.RetryAfter(ipKey(ctx)), time.Second)}
+	}
+	return nil
+}
+
 // SetupOwner creates the instance owner (first-run setup) and signs them
 // in. It is single-use and race-safe: the database admits one owner, so of
 // concurrent requests exactly one succeeds and the others get

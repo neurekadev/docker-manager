@@ -40,8 +40,9 @@ only production process execution in DockYard.
   the members that did not complete.
 - The **snapshot index** (`backup_snapshots`, the API's "backups") is
   filled by the jobs' finish hooks and caught up by verification jobs,
-  which list what a location holds (a restored manager learns snapshots
-  written after its own state snapshot this way).
+  which list what a location holds; a restored manager also reconciles it
+  with every manifest the import read (snapshots written after its own
+  state snapshot).
 
 ## The Recovery Key (#25 Q7)
 
@@ -70,9 +71,11 @@ host repository would need to know which key belongs to which location.
   (`backup.OpenLocation`) adds the current key where only the previous one
   works and removes the previous key; verification jobs for every location
   are queued at once. While locations remain on the previous key the
-  rotation is **partial**: `keyState.pendingLocations` lists them, a fresh
-  import of those needs the previous key (`recovery_key_rejected` says so),
-  and a new rotation is refused (`key_rotation_in_progress`).
+  rotation is **partial**: `keyState.pendingLocations` lists them,
+  connection tests report `previousKey`, a fresh import of those needs the
+  previous key too (`backup_import_key_rotated` / the import's
+  per-location `key: previous`), and a new rotation is refused
+  (`key_rotation_in_progress`).
 - Agents receive the key (and, during a rotation, the previous key) only in
   a command's `secrets.repositories` at dispatch, or in the `credential`
   of a `backup.snapshots` / `backup.contents` request or `backup.file`
@@ -213,8 +216,105 @@ again, dependencies first. A crash mid-swap leaves
 `.dockyard-rollback-<job>` next to the target (the job's recovery guidance
 says so). Authorization: `backup.restore` on the backup **and** on every
 target (stack, volumes, repository). Manager-state snapshots answer
-`manager_restore_required`: the owner restores them with the manager
-restore procedure.
+`manager_restore_required`: the manager state is restored by importing it
+into a fresh manager (below), never over a running one.
+
+## Fresh-manager import (#24)
+
+The system restore is an **isolated recovery exercise**: a clean manager
+(new data volume, no owner) is pointed at the backups. It needs only the
+destination, its S3 key pair (newly issued keys are fine) and the saved
+Recovery Key; not the old volume, database or a running old manager.
+
+1. **Connection test** (`POST /setup/backup-imports/connection-tests`):
+   S3 read/write/delete and Object Lock, whether the key opens the manager
+   repository (`dockyard-manager`), and every host repository the set
+   manifests name or the destination holds (S3 listing or the local
+   directory), each `found`, opened with the `current` or `previous` key,
+   or why not (`note`: local to a host, another repository).
+2. **Preview** (`POST .../previews`): the newest 20 sets from the manifests
+   (never from a database), merged with the host manifests: completeness,
+   each member's snapshot `located` as `found`, `missing` (its repository
+   was read and the snapshot is gone), `unverified` (not reachable from the
+   manager yet: a host-local repository) or `not_backed_up`; the version
+   that wrote it and whether this build knows every migration of its
+   schema. With `setId`, the set's secret-key bundle is opened too.
+3. **Import** (`POST .../restores`, `confirm: true`, 202 + `backup.import`
+   job; progress in `GET /setup/status` → `backupImport`): `scan` dumps
+   `state.json`, the bundle and the database from the manager-state
+   snapshot into `<data>/backup-import/<job>/`, opens the bundle with the
+   Recovery Key (the current, else the previous one), runs
+   `PRAGMA quick_check`, checks the instance and the schema, and opens the
+   restored Recovery Key record with the recovered secret key (proof that
+   the encrypted settings decrypt); `import_index` reads every manifest it
+   can reach and renames the directory to `<data>/restore-pending/` with a
+   marker (credentials and a newer key sealed with the recovered secret
+   key). The job's success requests a **controlled restart** (`app.Run`
+   starts the manager again in process).
+4. **Apply at startup** (`backups.ApplyPendingRestore`, before the
+   database opens; every step repeatable after a crash): the current
+   database (with `-wal`/`-shm`) and key file move to
+   `<data>/pre-restore-<time>/`, the restored database and the recovered
+   secret key (`DOCKYARD_SECRET_KEY_FILE`, which must be writable) take
+   their places, migrations run as usual.
+5. **Complete** (before anything is served; the marker is removed only
+   when every step succeeded): every stored session is deleted and every
+   user's session epoch bumped (no session of the snapshot is revived);
+   `auth.Service.RevokeAllAPITokens(ctx, domain.RevokedRestore)`; every
+   agent is revoked and detached (`agent.restore_revoke`): its environment
+   keeps its ID, stacks and backups and waits for an enrollment with intent
+   `reattach:<environmentId>` (#34), so a restored credential is never
+   trusted silently; the imported repository points at the destination and
+   S3 key pair entered for the import (a local repository may now live at a
+   new path); a newer entered Recovery Key becomes current with the
+   restored one as previous (locations move as jobs use them); the snapshot
+   index is reconciled with the manifests (members the snapshot did not
+   know yet, and sets written after it); one `system.restore` audit record
+   carries the counts.
+
+What survives: users, groups, permissions, TOTP and passkeys, registry and
+Git credentials, backup repositories, policies and the index, stacks and
+their revisions, environments: all decrypt with the recovered secret key,
+so nothing must be re-entered except the S3 key pair of the import (which
+replaces the stored one). What does not: sessions, API tokens (revoked,
+reason `restore`), agent credentials (revoked; re-attach each host), jobs
+that were running (recovered as interrupted), metrics (never backed up by
+default).
+
+Errors, each with recovery guidance in the message:
+
+| Code | When | What to do |
+| --- | --- | --- |
+| `backup_import_key_rejected` | the key opens neither the manager repository nor a host one | check it; after a rotation enter the previous key too; a **lost key** cannot be recovered by anyone (restic encryption): set up a new instance |
+| `backup_import_not_found` | no repository at the destination, or no such set | check endpoint/bucket/prefix or the mounted path (below `DOCKYARD_BACKUP_LOCAL_ROOTS`) |
+| `backup_import_manifest_corrupt` | the set's manifest is truncated or fails its checksum | choose another set; `restic check` the repository |
+| `backup_import_schema_incompatible` | a newer DockYard wrote the set | install at least that version |
+| `backup_import_key_rotated` | the set's secret key is sealed under another key (rotated after the set: **partially rotated keys**) | enter the newest key and the previous one |
+| `backup_import_state_missing` | no readable manager state (host-only set, damaged bundle or database) | choose another set, or host-only recovery |
+| `backup_import_unreachable` | storage refused access, unreachable, locked, damaged | the message names the class |
+| `backup_import_in_progress` | another import runs | wait |
+| `backup_import_secrets_lost` (job) | the manager restarted during the import (the key is kept in memory only) | start the import again |
+
+The connection test and preview report partially rotated keys per location
+(`key: previous`) and missing repositories as problems without failing.
+
+**Host-local repositories** are never reachable by the new manager: they
+show as `unverified` and become usable once their host re-attaches with
+the repository directory mounted at the same path (the path is part of the
+restored repository; mount it there, or recreate the agent's
+`DOCKYARD_BACKUP_LOCAL_ROOTS` accordingly).
+
+**Host-only recovery** (the manager repository is lost): the preview lists
+sets from host manifests (`hostOnly`), which cannot be imported. Set up a
+new instance, then restore a host's data with restic directly: the
+repository is a plain restic repository whose password is the Recovery
+Key; its host manifests (`restic snapshots --tag dockyard-manifest`, then
+`restic dump <id> /dockyard-manifest.json`) list every snapshot with its
+paths, stack and volume.
+
+The setup routes are public but refused once an owner exists
+(`setup_complete`), outside a secure origin (`insecure_origin`) and beyond
+the setup rate limit; the Recovery Key and credentials are write-only.
 
 ## Jobs and locks
 
@@ -227,6 +327,7 @@ restore procedure.
 | `manager.backup` | manager | repository X | snapshot_database, backup, write_manifest |
 | `manager.retention` | manager | repository X | forget, prune_repository |
 | `manager.verify` | manager | repository S | check |
+| `backup.import` | manager | repository S | scan, import_index (then a controlled restart) |
 
 Repository locks name the DockYard repository (destination): the manager
 backup waits for the environment backups of its set to the same
@@ -268,4 +369,12 @@ repository, so its manifest usually carries their results.
   agent session (Recovery Key once, confirmation challenge, rotation across
   locations, runs, contents, downloads, manifests, authorization, API token
   refusal, a scheduled run after its creator was deleted, canaries in
-  responses, logs, audit and the database).
+  responses, logs, audit and the database); `backup_import_test.go`: the
+  recovery proof (a clean manager imports a set across the manager and two
+  host repositories with a new S3 secret, every import error, partially
+  rotated keys, revocations, re-attach and a restore; a local repository at
+  a new mount path; the key is never stored and a restart loses it);
+  `backup_import_integration_test.go` (`TestBackupImport*`): the same with
+  the real restic, local and MinIO with stack, volume and file restores.
+- `internal/manager/backups/restoreapply_test.go`: applying a staged
+  restore is repeatable after a crash and keeps the replaced files.

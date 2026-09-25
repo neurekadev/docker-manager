@@ -1897,7 +1897,7 @@ routes:
     scope: none
     owner: 10
     kind: json
-    status: planned
+    status: implemented
     notes: "Protected first-run setup session only (#16, #24); refused once an owner exists."
   - method: POST
     path: /api/v1/setup/backup-imports/previews
@@ -1906,7 +1906,7 @@ routes:
     scope: none
     owner: 10
     kind: json
-    status: planned
+    status: implemented
     notes: "Protected first-run setup session only (#16, #24); refused once an owner exists."
   - method: POST
     path: /api/v1/setup/backup-imports/restores
@@ -1915,7 +1915,7 @@ routes:
     scope: none
     owner: 10
     kind: json
-    status: planned
+    status: implemented
     notes: "Protected first-run setup session only (#16, #24); refused once an owner exists. 202 + job."
   - method: GET
     path: /api/v1/jobs

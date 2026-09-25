@@ -211,6 +211,28 @@ func UpdateBackupRepository(ctx context.Context, db bun.IDB, r *domain.BackupRep
 	return nil
 }
 
+// RelocateBackupRepository points a repository at a new destination of the
+// same kind (a restored manager whose repository was re-mounted or moved,
+// #24) and, when sealed is set, replaces its credentials. The revision
+// increases.
+func RelocateBackupRepository(ctx context.Context, db bun.IDB, r *domain.BackupRepository, sealed *BackupRepositorySealed) error {
+	var s BackupRepositorySealed
+	cols := []string{"path", "endpoint", "bucket", "prefix", "region", "path_style", "revision", "updated_at"}
+	if sealed != nil {
+		s = *sealed
+		cols = append(cols, "access_key_sealed", "secret_key_sealed", "credential_fingerprint")
+	}
+	row := fromBackupRepository(r, s)
+	res, err := db.NewUpdate().Model(&row).Column(cols...).WherePK().Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("store: relocate backup repository: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return domain.ErrBackupRepositoryNotFound
+	}
+	return nil
+}
+
 // RecordBackupRepositoryTest stores a connection test (status, not
 // configuration: the revision does not change).
 func RecordBackupRepositoryTest(ctx context.Context, db bun.IDB, id string, t domain.BackupConnectionTest) error {

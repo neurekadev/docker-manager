@@ -46,7 +46,10 @@ import (
 
 type backupEnv struct {
 	*env
-	store   *restictest.Store
+	store *restictest.Store
+	// opener is restic for the manager and the agents (store, or the real
+	// restic in integration tests).
+	opener  restic.Opener
 	s3      *s3probetest.Server
 	root    string
 	stacks  string
@@ -64,16 +67,30 @@ func (loaderFunc) Load(ctx context.Context, spec compose.ProjectSpec) (*compose.
 
 func newBackupEnv(t *testing.T) *backupEnv {
 	t.Helper()
-	store := restictest.New(nil)
-	root := t.TempDir()
 	access := "AKIADYTESTACCESS0001"
-	s3 := s3probetest.New(t, access, "backups")
+	return newBackupEnvWith(t, restictest.New(nil), s3probetest.New(t, access, "backups"))
+}
+
+// newBackupEnvWith starts a manager on its own data directory that reaches
+// the given repositories (a fresh manager importing another's backups).
+func newBackupEnvWith(t *testing.T, store *restictest.Store, s3 *s3probetest.Server) *backupEnv {
+	t.Helper()
+	return newBackupEnvOn(t, store, store, s3)
+}
+
+// newBackupEnvOn starts a manager whose restic is opener (store may be
+// nil for the real restic; s3 nil for a real S3 endpoint).
+func newBackupEnvOn(t *testing.T, opener restic.Opener, store *restictest.Store, s3 *s3probetest.Server) *backupEnv {
+	t.Helper()
+	root := t.TempDir()
 	e := newEnv(t, func(o *Options) {
-		o.Restic = store
-		o.BackupHTTPClient = s3.Client()
+		o.Restic = opener
+		if s3 != nil {
+			o.BackupHTTPClient = s3.Client()
+		}
 		o.Config.BackupLocalRoots = []string{filepath.ToSlash(filepath.Join(root, "manager-backups"))}
 	})
-	b := &backupEnv{env: e, store: store, s3: s3, root: root, stacks: filepath.Join(root, "stacks"), volumes: filepath.Join(root, "volumes")}
+	b := &backupEnv{env: e, store: store, opener: opener, s3: s3, root: root, stacks: filepath.Join(root, "stacks"), volumes: filepath.Join(root, "volumes")}
 	t.Cleanup(func() { scanDatabase(t, e) })
 	return b
 }
@@ -91,13 +108,39 @@ func writeFile(t *testing.T, p, content string) {
 // connectBackupAgent enrolls an environment whose agent serves backups
 // over fe and a stack root in the test directory.
 func (b *backupEnv) connectBackupAgent(name string) {
+	b.t.Helper()
+	h := b.connectHost(hostOpts{name: name, stacks: b.stacks, volumes: b.volumes})
+	b.fe, b.agent = h.fe, h.agent
+	b.seedStack()
+}
+
+// hostOpts describes one backup host of a test: its stack and volume
+// roots, and for a re-attach the environment and the Engine it keeps.
+type hostOpts struct {
+	name, stacks, volumes string
+	// reattach enrolls with intent reattach:<environmentId> and reuses fe.
+	reattach string
+	fe       *enginefake.Engine
+}
+
+type backupHost struct {
+	fe    *enginefake.Engine
+	agent *testAgent
+}
+
+// connectHost enrolls an agent serving backups over a fake Engine (a new
+// one with the "app" stack and the "uploads" volume, or o.fe) and waits
+// until its environment is online.
+func (b *backupEnv) connectHost(o hostOpts) backupHost {
 	e := b.env
 	t := e.t
 	t.Helper()
 	ctx := testutil.Context(t)
-	fe := enginefake.New("ENGINE-" + name)
-	b.fe = fe
-	project := filepath.Join(b.stacks, "app")
+	if o.fe != nil {
+		return b.enrollHost(ctx, o, o.fe)
+	}
+	fe := enginefake.New("ENGINE-" + o.name)
+	project := filepath.Join(o.stacks, "app")
 	writeFile(t, filepath.Join(project, "compose.yaml"), "services:\n  db:\n    image: postgres:16\n    volumes:\n      - dbdata:/data\n"+
 		"  web:\n    image: nginx:1.27\n    depends_on: [db]\n    volumes:\n      - ./html:/usr/share/nginx/html\nvolumes:\n  dbdata:\n")
 	writeFile(t, filepath.Join(project, ".env"), "PASSWORD="+e.secrets.New(canary.EnvValue, "stack env value")+"\n")
@@ -112,25 +155,37 @@ func (b *backupEnv) connectBackupAgent(name string) {
 	fe.AddContainer(engine.ContainerSpec{Name: "app-db-1", Image: "postgres:16", Labels: lbl("db", ""),
 		Mounts: []engine.MountSpec{{Type: "volume", Source: "app_dbdata", Target: "/data"}}}, true)
 	fe.AddContainer(engine.ContainerSpec{Name: "app-web-1", Image: "nginx:1.27", Labels: lbl("web", "db:service_started:false:true")}, true)
-	dbdata := filepath.Join(b.volumes, "app_dbdata", "_data")
+	dbdata := filepath.Join(o.volumes, "app_dbdata", "_data")
 	writeFile(t, filepath.Join(dbdata, "PG_VERSION"), "16")
 	fe.SetVolumeMountpoint("app_dbdata", filepath.ToSlash(dbdata))
 	fe.AddVolume("uploads", nil)
-	up := filepath.Join(b.volumes, "uploads", "_data")
+	up := filepath.Join(o.volumes, "uploads", "_data")
 	writeFile(t, filepath.Join(up, "photo.jpg"), "jpeg bytes")
 	fe.SetVolumeMountpoint("uploads", filepath.ToSlash(up))
-	res := &storage.Result{StacksDir: filepath.ToSlash(b.stacks), VolumesDir: filepath.ToSlash(b.volumes),
-		Roots: []storage.Root{{Kind: storage.KindStacks, Path: filepath.ToSlash(b.stacks), OK: true},
-			{Kind: storage.KindVolumes, Path: filepath.ToSlash(b.volumes), OK: true}}}
+	return b.enrollHost(ctx, o, fe)
+}
+
+func (b *backupEnv) enrollHost(ctx context.Context, o hostOpts, fe *enginefake.Engine) backupHost {
+	e := b.env
+	t := e.t
+	t.Helper()
+	name := o.name
+	res := &storage.Result{StacksDir: filepath.ToSlash(o.stacks), VolumesDir: filepath.ToSlash(o.volumes),
+		Roots: []storage.Root{{Kind: storage.KindStacks, Path: filepath.ToSlash(o.stacks), OK: true},
+			{Kind: storage.KindVolumes, Path: filepath.ToSlash(o.volumes), OK: true}}}
 	agentLog := b.secrets.CaptureLogger(t) // agent logs are checked for canaries too
 	guard := protect.New(protect.Options{StacksVolume: "dockyard_stacks", Logger: agentLog})
 	svc := agentbackups.New(agentbackups.Options{Engine: func() engine.Engine { return fe }, Loader: func() agentbackups.Loader { return loaderFunc{} },
-		Storage: func() *storage.Result { return res }, Guard: guard, Restic: b.store, Clock: e.clk, Logger: agentLog,
+		Storage: func() *storage.Result { return res }, Guard: guard, Restic: b.opener, Clock: e.clk, Logger: agentLog,
 		WaitTimeout: time.Second})
 
 	sub := e.m.Events().Subscribe(256, func(ev events.Event) bool { return ev.Type == events.EnvironmentOnline })
 	defer sub.Close()
-	created, err := e.m.Agents().CreateEnrollment(ctx, domain.EnrollmentSpec{EnvironmentName: name})
+	spec := domain.EnrollmentSpec{EnvironmentName: name}
+	if o.reattach != "" {
+		spec = domain.EnrollmentSpec{Intent: domain.IntentReattach, TargetID: o.reattach}
+	}
+	created, err := e.m.Agents().CreateEnrollment(ctx, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,13 +244,11 @@ func (b *backupEnv) connectBackupAgent(name string) {
 	client.SetRunner(a.runner)
 	go func() { a.done <- client.Run(runCtx) }()
 	t.Cleanup(a.stop)
-	b.agent = a
 	for {
 		select {
 		case ev := <-sub.C():
 			if ev.ResourceID == er.EnvironmentID || ev.EnvironmentID == er.EnvironmentID {
-				b.seedStack()
-				return
+				return backupHost{fe: fe, agent: a}
 			}
 		case <-ctx.Done():
 			t.Fatal("environment did not come online")

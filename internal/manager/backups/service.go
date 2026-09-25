@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -127,6 +128,14 @@ type Options struct {
 	HTTPClient *http.Client
 	// ForgetResource drops authorization state of deleted resources.
 	ForgetResource func(ctx context.Context, ref authz.ResourceRef) (int, error)
+	// CheckSchema reports whether this build can run a manager database
+	// (a restored snapshot's): nil, or an error wrapping
+	// store.ErrUnknownMigrations for a newer schema.
+	CheckSchema func(ctx context.Context, db bun.IDB) error
+	// RequestRestart asks the manager process for a controlled restart
+	// (a staged manager-state restore is applied at startup); nil in tests
+	// that restart by hand.
+	RequestRestart func()
 	// Build identifies this build (manifests).
 	Build buildinfo.Info
 	// Random overrides crypto/rand (tests).
@@ -140,6 +149,11 @@ type Service struct {
 	log  *slog.Logger
 
 	wake chan struct{}
+
+	// imports holds the secrets of running fresh-manager imports (#24),
+	// in memory only, by job ID.
+	importMu sync.Mutex
+	imports  map[string]*importSecrets
 }
 
 // New returns the service and registers its job executors and finish
@@ -160,7 +174,7 @@ func New(opts Options) (*Service, error) {
 	if opts.Build.Version == "" {
 		opts.Build = buildinfo.Get()
 	}
-	s := &Service{opts: opts, db: opts.DB, log: opts.Logger, wake: make(chan struct{}, 1)}
+	s := &Service{opts: opts, db: opts.DB, log: opts.Logger, wake: make(chan struct{}, 1), imports: map[string]*importSecrets{}}
 	for _, x := range s.executors() {
 		if err := opts.Jobs.RegisterManagerExecutor(x); err != nil {
 			return nil, err
@@ -178,6 +192,7 @@ func New(opts Options) (*Service, error) {
 	if opts.DataDir != "" {
 		// Staging left behind by a crash holds a database copy: remove it.
 		_ = os.RemoveAll(filepath.Join(opts.DataDir, stagingDirName))
+		_ = os.RemoveAll(filepath.Join(opts.DataDir, importDirName))
 	}
 	return s, nil
 }

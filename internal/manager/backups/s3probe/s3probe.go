@@ -97,6 +97,45 @@ func Probe(ctx context.Context, client *http.Client, t Target, now func() time.T
 	return r
 }
 
+// ListDirs lists the "directories" directly below the target's prefix
+// (ListObjectsV2 with a delimiter; at most 1000). A fresh manager uses it to
+// discover the scope repositories of a destination (#24). The class is ""
+// on success, otherwise one of Probe's classes.
+func ListDirs(ctx context.Context, client *http.Client, t Target, now func() time.Time) ([]string, string) {
+	if client == nil {
+		client = &http.Client{Timeout: 30 * time.Second}
+	}
+	if now == nil {
+		now = time.Now
+	}
+	p := prober{c: client, t: t, now: now}
+	prefix := ""
+	if t.Prefix != "" {
+		prefix = t.Prefix + "/"
+	}
+	status, body, err := p.do(ctx, http.MethodGet, "", url.Values{"list-type": {"2"}, "delimiter": {"/"}, "prefix": {prefix}}, nil)
+	if class := classify(status, err); class != "" {
+		return nil, class
+	}
+	var res struct {
+		CommonPrefixes []struct {
+			Prefix string `xml:"Prefix"`
+		} `xml:"CommonPrefixes"`
+	}
+	if xml.Unmarshal(body, &res) != nil {
+		return nil, "invalid_response"
+	}
+	out := make([]string, 0, len(res.CommonPrefixes))
+	for _, cp := range res.CommonPrefixes {
+		name := strings.TrimSuffix(strings.TrimPrefix(cp.Prefix, prefix), "/")
+		if name != "" && !strings.Contains(name, "/") {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out, ""
+}
+
 func boolPtr(b bool) *bool { return &b }
 
 func classify(status int, err error) string {

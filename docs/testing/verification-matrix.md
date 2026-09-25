@@ -72,14 +72,14 @@ Legend for "where": PR = `ci.yaml` PR suite; X:`job` = `extended.yaml` job.
 
 | # | #12 item | owner | test / suite | where | status |
 | --- | --- | --- | --- | --- | --- |
-| V40 | Clean-manager multi-repository backup import | #24 | MinIO fixture (implemented) + two local repos; import into a fresh manager | X:`storage` | planned |
-| V41 | Portable manifest and secret-key recovery (Recovery Key) | #24 | Recovery with the key; failure without it; corrupt/truncated manifest fixtures | X:`storage` | planned |
+| V40 | Clean-manager multi-repository backup import | #24 | PR: `TestBackupImportIntoAFreshManager` (clean manager; manager + two host repositories; new S3 secret; key loss, missing repository, corrupt manifest, newer schema, partially rotated keys; sessions, API tokens and agents revoked; re-attach; volume restore), `TestBackupImportFromARemountedLocalRepository`; X:`storage`: `TestBackupImportWithRealResticLocal` (real restic, new mount path), `TestBackupImportWithRealResticMinIO` (MinIO, two hosts, stack/volume/file restores; not yet run in CI) | PR, X:`storage` | partial |
+| V41 | Portable manifest and secret-key recovery (Recovery Key) | #24 | `internal/backup` manifest round trip and corruption (`FuzzDecodeManifest`); key bundle tests (`internal/manager/backups`); `TestRestoreApplyIsRepeatable`; import errors in `TestBackupImportIntoAFreshManager` | PR, X:`storage` | implemented |
 | V42 | Shared backup/job ownership; authorized cross-user job visibility | #10, #26, #17 | API tests over the job engine | PR | planned |
 | V43 | Scheduled runs after creator removal | #13 | Fake-clock scheduler test | PR | planned |
 | V44 | Queued manual job rejected after grant revocation | #26, #17 | `TestRecheckAtDispatch` (engine), `TestQueuedJobRecheckedAtDispatch` (real permission service) | PR | implemented |
 | V45 | In-flight recovery after requester logout | #26 | Job engine test | PR | planned |
 | V46 | Local and S3 restic backup | #10 | `TestResticPinnedBinary` (fixture round trip, implemented); agent backup jobs against local + MinIO | X:`storage` | partial |
-| V47 | Selective file/stack/volume restore | #10 | Restore tests on a DinD Engine | X:`storage` | planned |
+| V47 | Selective file/stack/volume restore | #10 | `internal/agent/backups/restore_test.go` (fake Engine), `TestRestoresThroughTheAPI`; X:`storage`: `TestRestoreWithRealRestic`, `TestBackupImportWithRealResticMinIO` (Linux; not yet run in CI) | PR, X:`storage` | partial |
 | V48 | Retention | #10 | Fake-clock retention tests + restic `forget` against MinIO | PR, X:`storage` | planned |
 | V49 | Backup/restore of a relative bind-mounted directory beside compose.yaml | #10, #28 | `test/smoke/sample-stack` (has `./html`), restore on a DinD Engine | X:`storage` | planned |
 | V50 | Optional pre-backup shutdown with dependency-aware resume (success/failure/cancel) | #10 | Engine test with a depends_on stack | X:`storage` | planned |

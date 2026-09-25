@@ -116,6 +116,17 @@ func (s *Store) Delete(repository string) {
 	delete(s.repos, repository)
 }
 
+// Move moves a repository to another location (a directory mounted at a
+// new path, or copied to another bucket).
+func (s *Store) Move(from, to string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if r := s.repos[from]; r != nil {
+		s.repos[to] = r
+		delete(s.repos, from)
+	}
+}
+
 // Exists reports whether a repository exists.
 func (s *Store) Exists(repository string) bool {
 	s.mu.Lock()

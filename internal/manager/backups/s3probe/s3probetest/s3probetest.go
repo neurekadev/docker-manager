@@ -5,9 +5,11 @@
 package s3probetest
 
 import (
+	"html"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -63,6 +65,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if q := r.URL.Query(); r.Method == http.MethodGet && key == "" && q.Get("list-type") == "2" {
+		s.list(w, q.Get("prefix"), q.Get("delimiter"))
+		return
+	}
 	switch r.Method {
 	case http.MethodPut:
 		b, _ := io.ReadAll(r.Body)
@@ -84,6 +90,44 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+// list answers ListObjectsV2 (common prefixes only with a delimiter).
+func (s *Server) list(w http.ResponseWriter, prefix, delim string) {
+	seen := map[string]bool{}
+	var b strings.Builder
+	b.WriteString("<ListBucketResult>")
+	keys := make([]string, 0, len(s.objects))
+	for k := range s.objects {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		rest, ok := strings.CutPrefix(k, prefix)
+		if !ok {
+			continue
+		}
+		if delim != "" {
+			if i := strings.Index(rest, delim); i >= 0 {
+				cp := prefix + rest[:i+len(delim)]
+				if !seen[cp] {
+					seen[cp] = true
+					b.WriteString("<CommonPrefixes><Prefix>" + html.EscapeString(cp) + "</Prefix></CommonPrefixes>")
+				}
+				continue
+			}
+		}
+		b.WriteString("<Contents><Key>" + html.EscapeString(k) + "</Key></Contents>")
+	}
+	b.WriteString("</ListBucketResult>")
+	_, _ = io.WriteString(w, b.String())
+}
+
+// Put stores an object (tests seed "directories").
+func (s *Server) Put(key string, data []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.objects[key] = data
 }
 
 // Objects returns the number of stored objects.

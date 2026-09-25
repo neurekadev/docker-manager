@@ -103,6 +103,37 @@ func appliedMigrations(t *testing.T, dataDir string) []string {
 	return applied
 }
 
+// TestRunRestartsInProcessOnRequest: a controlled restart (a staged
+// manager-state restore, #24) stops the manager gracefully and Run starts
+// a new one on the same data directory.
+func TestRunRestartsInProcessOnRequest(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "data")
+	ctx, cancel := context.WithCancel(testutil.Context(t))
+	defer cancel()
+	started := make(chan *Manager, 2)
+	addrs := make(chan net.Addr, 2)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- Run(ctx, Options{Config: testConfig(dataDir), Logger: testutil.Logger(t), UI: testUI, Clock: testutil.FakeClock(),
+			OnStarted: func(m *Manager) { started <- m }, OnListening: func(a net.Addr) { addrs <- a }})
+	}()
+	first := <-started
+	<-addrs
+	first.RequestRestart()
+	second := <-started
+	addr := <-addrs
+	if second == first || second.Instance().ID != first.Instance().ID {
+		t.Fatalf("restart: %p %p", first, second)
+	}
+	if code, _ := get(t, "http://"+addr.String()+"/api/v1/health"); code != http.StatusOK {
+		t.Errorf("health after the restart: %d", code)
+	}
+	cancel()
+	if err := <-errCh; err != nil {
+		t.Fatalf("run: %v", err)
+	}
+}
+
 func TestFreshStartServesAndRestartDoesNotReplay(t *testing.T) {
 	dataDir := filepath.Join(t.TempDir(), "data")
 
