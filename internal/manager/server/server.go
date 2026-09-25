@@ -55,6 +55,10 @@ type Options struct {
 	Agent http.Handler
 	// AgentLimits hardens /agent/v1 (zero: DefaultAgentLimits).
 	AgentLimits AgentLimits
+	// Auth wraps every /api/v1 request: session loading, CSRF protection
+	// and principals (internal/manager/auth, #16). Nil leaves the API
+	// unauthenticated (every non-public route answers 401).
+	Auth func(http.Handler) http.Handler
 }
 
 // Server is the assembled handler plus the Huma API (for tests/tools).
@@ -85,8 +89,12 @@ func New(opts Options) (*Server, error) {
 	apiMux := http.NewServeMux()
 	humaAPI := api.New(apiMux, opts.API)
 
+	var apiHandler = apiRouter(apiMux)
+	if opts.Auth != nil {
+		apiHandler = opts.Auth(apiHandler)
+	}
 	mux := http.NewServeMux()
-	mux.Handle(api.BasePath+"/", apiRouter(apiMux))
+	mux.Handle(api.BasePath+"/", apiHandler)
 	agent := opts.Agent
 	if agent == nil {
 		agent = agentPlaceholder()

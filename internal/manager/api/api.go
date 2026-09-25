@@ -66,6 +66,9 @@ type Deps struct {
 	// (spec generation, focused tests) records nothing and answers the
 	// audit routes with 503.
 	Audit AuditService
+	// Identity serves setup, sign-in, factors, invitations, users and the
+	// sign-in policy (#16); nil answers those routes with 503.
+	Identity IdentityService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -113,6 +116,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerSystem(a, deps)
 	registerJobs(a, deps)
 	registerAudit(a, deps)
+	registerIdentity(a, deps)
 	return a
 }
 

@@ -36,6 +36,12 @@ func TestNewKitValidates(t *testing.T) {
 	if k.RP.ID() != "docker.example.com" || k.Sessions.Cookie.Name != "__Host-dockyard_session" || k.CSRF == nil || k.IPLimit == nil || k.AccountLimit == nil {
 		t.Fatalf("kit %+v", k)
 	}
+	if k.IdleTimeout != time.Hour || k.Lifetime != 24*time.Hour || k.Sessions.IdleTimeout != 0 || k.Sessions.Lifetime != 24*time.Hour {
+		t.Fatalf("session limits: kit %v/%v, scs %v/%v", k.IdleTimeout, k.Lifetime, k.Sessions.IdleTimeout, k.Sessions.Lifetime)
+	}
+	if _, err := NewKit(KitOptions{DB: db, PublicURL: pub, SessionError: noSessionError, PasswordParams: cheapParams, IdleTimeout: 2 * time.Hour, Lifetime: time.Hour}); err == nil {
+		t.Error("idle timeout above lifetime accepted")
+	}
 }
 
 func TestHousekeepingSweepsExpiredSessions(t *testing.T) {
@@ -47,10 +53,11 @@ func TestHousekeepingSweepsExpiredSessions(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := testutil.Context(t)
-	if err := k.SessionStore.CommitCtx(ctx, "old", []byte("x"), clk.Now().Add(-time.Second)); err != nil {
+	// Session rows expire on the wall clock (SCS's clock), not the injected one.
+	if err := k.SessionStore.CommitCtx(ctx, "old", []byte("x"), time.Now().Add(-time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if err := k.SessionStore.CommitCtx(ctx, "live", []byte("y"), clk.Now().Add(time.Hour)); err != nil {
+	if err := k.SessionStore.CommitCtx(ctx, "live", []byte("y"), time.Now().Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	k.sweep(ctx)

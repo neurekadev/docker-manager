@@ -79,7 +79,17 @@ SHA-256 hashes of session tokens. Idle timeout 1 h and absolute lifetime
 24 h by default (NIST SP 800-63B AAL2), configurable with
 `DOCKYARD_SESSION_IDLE_TIMEOUT` / `DOCKYARD_SESSION_LIFETIME`. Handlers call
 `RenewToken` on every privilege change (sign-in, second factor, step-up,
-completed enrollment) against session fixation.
+completed enrollment, password change) against session fixation.
+
+Split of responsibilities (found while integrating #16): SCS owns the
+token, the cookie, renewal and the absolute lifetime (row expiry and cookie
+`Max-Age`). SCS's own idle timeout is **off**: it marks every loaded
+session modified and rewrites it on every request, and it computes
+deadlines from `time.Now()`. The identity middleware enforces both idle
+timeout and lifetime on the injected clock at every request (and writes the
+last-activity time at most once a minute), and additionally checks the
+account (exists, active, current session epoch). The Bun store compares row
+expiry with the wall clock, the clock SCS computed it with.
 
 SCS limitation found by the proof: with `HashTokenInStore`, `Iterate`
 yields the stored (hashed) tokens, so `Destroy` inside `Iterate` hashes
@@ -212,6 +222,28 @@ everything, everyone else is denied (deny by default).
   release notes (attestation, UV, backup flags) before bumping.
 - Argon2id parameter increases go through a new `ParamsVn`, never an edit.
 - Security advisories for any of these modules are patched out of band.
+
+### Identity decisions made while implementing #16
+
+- **No first-run setup token.** Setup is protected by HTTPS on the public
+  origin (`403 insecure_origin`), single use and race-safe (a partial
+  unique index admits one owner). An exposed, not yet set-up instance can be
+  claimed by the first visitor; the deployment guide says to finish setup
+  right after the first start, and owner recovery needs data-volume access.
+- **Revocation by session epoch.** Each account has a session epoch stored
+  in its sessions and checked on every request; disabling, credential
+  changes, resets, revocations and policy changes bump it. In-flight
+  requests and streams are cancelled through an in-process hub at once, and
+  a sweeper (15 s) catches changes made by another process (the
+  owner-recovery CLI).
+- **Factor policies** (`none`, `totp`, `passkey`, `either`, `both`) are
+  alternatives of factor sets (`internal/manager/auth/factors.go`); a
+  recovery code stands in for TOTP/passkey after a password. Accounts
+  lacking enrolled factors get a limited enrollment session with a
+  deadline (grace period); the owner has none.
+- **Recovery codes**: ten 80-bit codes, stored as SHA-256 bound to the user.
+  **Invitation / reset / owner-recovery codes**: 256-bit with prefixes
+  `dyi_`, `dyr_`, `dyo_`, stored as SHA-256 verifiers, consumed atomically.
 
 ### Residual app-owned workflows
 

@@ -33,15 +33,23 @@ public operations have none.
 - `POST /api/v1/auth/session` signs in (password, then TOTP / passkey /
   recovery code as required) and sets the cookie `__Host-dockyard_session`:
   `HttpOnly; Secure; SameSite=Strict; Path=/`, no `Domain` (pinned to the one
-  origin). `DELETE /api/v1/auth/session` signs out.
+  origin). `DELETE /api/v1/auth/session` signs out. Passkeys sign in
+  without a username (`/auth/passkeys/authentication-options` →
+  `/authentication-verifications`). The session state is
+  `second_factor_required` (send one of `factors`), `enrollment_required`
+  (a limited session that may only use `/me`, `/me/…` and `/auth/…` to
+  enroll the factors the instance policy requires; everything else answers
+  `403 enrollment_required`) or `authenticated`. The token changes at every
+  privilege change; sessions end after 1 h idle / 24 h.
 - **Cross-site protection:** requests with unsafe methods authenticated by
   the cookie must come from the manager's own origin — the manager checks
   `Origin` (and `Sec-Fetch-Site`) against `DOCKYARD_PUBLIC_URL` and rejects
-  others with `403`. WebSocket upgrades are checked the same way.
+  others with `403 cross_origin_request` (Go's `CrossOriginProtection`). WebSocket upgrades are checked the same way.
 - **Step-up:** sensitive changes (security settings, permissions, passwords,
   factor removal, Recovery Key flows) additionally require a recent
-  re-authentication (`POST /api/v1/auth/step-ups`); the route answers `403`
-  with a step-up code otherwise (#16).
+  re-authentication (`POST /api/v1/auth/step-ups`, valid 10 minutes; a
+  fresh sign-in counts); the route answers `403 step_up_required`
+  otherwise (#16).
 - Session and permission changes invalidate open streams (#23).
 
 ### `bearerToken` — scripts and integrations (#31)
@@ -56,8 +64,11 @@ public operations have none.
 - Cookie-only routes (`/auth/session`, `/auth/step-ups`, passkey and TOTP
   enrollment, owner security settings) reject bearer tokens.
 
-The handlers arrive with #16 (sessions) and #31 (tokens). Until then every
-non-public route answers `401 unauthenticated` — the API fails closed.
+Sessions are implemented (#16); API tokens arrive with #31 (until then a
+bearer request has no principal and non-public routes answer `401`).
+Until #17's permission rules land, the instance owner may use every route
+and every other account is denied (`403`/`404`, lists empty) — the API
+fails closed.
 
 ### Public routes
 

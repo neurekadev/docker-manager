@@ -60,11 +60,19 @@ type KitOptions struct {
 	SessionError func(http.ResponseWriter, *http.Request, error)
 	// PasswordParams overrides password.Current (tests).
 	PasswordParams *password.Params
+	// OnPasswordCompute is called for every Argon2id computation (tests).
+	OnPasswordCompute func()
 }
 
 // Kit holds the configured primitives.
 type Kit struct {
-	Clock        clock.Clock
+	Clock clock.Clock
+	// IdleTimeout and Lifetime bound sessions. SCS enforces the lifetime
+	// (row expiry, cookie Max-Age); the identity service enforces both on
+	// the injected clock at every request (SCS's own idle handling is off:
+	// it would rewrite every session on every request).
+	IdleTimeout  time.Duration
+	Lifetime     time.Duration
 	SessionStore *sessions.Store
 	Sessions     *scs.SessionManager
 	Passwords    *password.Hasher
@@ -87,14 +95,26 @@ func NewKit(o KitOptions) (*Kit, error) {
 	if o.Logger == nil {
 		o.Logger = slog.New(slog.DiscardHandler)
 	}
-	store := sessions.NewStore(o.DB, o.Clock)
+	if o.IdleTimeout <= 0 {
+		o.IdleTimeout = sessions.DefaultIdleTimeout
+	}
+	if o.Lifetime <= 0 {
+		o.Lifetime = sessions.DefaultLifetime
+	}
+	if o.IdleTimeout > o.Lifetime {
+		return nil, errors.New("auth: session idle timeout exceeds the lifetime")
+	}
+	// SCS computes session deadlines from the wall clock, so its store must
+	// compare them with the wall clock too. DockYard's own idle/lifetime
+	// checks (identity service) run on the injected clock.
+	store := sessions.NewStore(o.DB, clock.Real())
 	sm, err := sessions.NewManager(sessions.Options{
-		Store: store, IdleTimeout: o.IdleTimeout, Lifetime: o.Lifetime, ErrorFunc: o.SessionError,
+		Store: store, IdleTimeout: -1, Lifetime: o.Lifetime, ErrorFunc: o.SessionError,
 	})
 	if err != nil {
 		return nil, err
 	}
-	hasher, err := password.NewHasher(password.Options{Params: o.PasswordParams})
+	hasher, err := password.NewHasher(password.Options{Params: o.PasswordParams, OnCompute: o.OnPasswordCompute})
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +127,7 @@ func NewKit(o KitOptions) (*Kit, error) {
 		return nil, err
 	}
 	return &Kit{
-		Clock: o.Clock, SessionStore: store, Sessions: sm, Passwords: hasher, RP: rp, CSRF: guard,
+		Clock: o.Clock, IdleTimeout: o.IdleTimeout, Lifetime: o.Lifetime, SessionStore: store, Sessions: sm, Passwords: hasher, RP: rp, CSRF: guard,
 		IPLimit:      throttle.New(PerIP, o.Clock, 50000),
 		AccountLimit: throttle.New(PerAccount, o.Clock, 50000),
 		logger:       o.Logger,

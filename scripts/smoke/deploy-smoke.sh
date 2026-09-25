@@ -5,7 +5,8 @@
 #   wait-images    edge images carry org.opencontainers.image.revision == SMOKE_REVISION
 #   fresh-start    docker compose up on empty volumes; manager and agent healthy
 #   health-ready   GET /api/v1/health/ready through the Caddy TLS proxy (verified CA)
-#   owner-setup    pending (#16)
+#   owner-setup    first-run owner over HTTPS through Caddy, session cookie,
+#                  sign-out/sign-in, second setup refused (#16)
 #   enroll-agent   pending (#3)
 #   deploy-stack   pending (#7): test/smoke/sample-stack/compose.yaml
 #
@@ -240,7 +241,32 @@ step_health_ready() {
 }
 
 step_owner_setup() {
-	pending owner-setup "#16" "create the first owner and log in" 'setup|owner|bootstrap'
+	local jar="${SMOKE_ARTIFACTS}/cookies.txt" out="${SMOKE_ARTIFACTS}/owner-setup.json" pw code
+	# Random per run; never printed.
+	pw="smoke-$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 32)"
+	local body
+	body="$(jq -nc --arg p "$pw" '{username: "smoke-owner", displayName: "Smoke Owner", password: $p}')"
+	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" -c "$jar" -H 'Content-Type: application/json' \
+		-d "$body" "${BASE_URL}/api/v1/setup/owner" || true)"
+	[ "$code" = 201 ] || fail owner-setup "POST /api/v1/setup/owner through the proxy: HTTP ${code:-no response} $(jq -c '{code, message}' "$out" 2>/dev/null)"
+	jq -e '.state == "authenticated" and .user.owner == true and .user.username == "smoke-owner"' "$out" >/dev/null ||
+		fail owner-setup "unexpected setup response: $(jq -c '{state, user: .user.username}' "$out")"
+	grep -q '__Host-dockyard_session' "$jar" || fail owner-setup "no __Host-dockyard_session cookie was set"
+	curl -sS --fail --cacert "$CA" -b "$jar" "${BASE_URL}/api/v1/me" | jq -e '.owner == true' >/dev/null ||
+		fail owner-setup "GET /api/v1/me with the session cookie failed"
+	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" -H 'Content-Type: application/json' \
+		-d "$body" "${BASE_URL}/api/v1/setup/owner" || true)"
+	[ "$code" = 409 ] && jq -e '.code == "setup_complete"' "$out" >/dev/null ||
+		fail owner-setup "a second setup was not refused (HTTP ${code})"
+	code="$(curl -sS -o /dev/null -w '%{http_code}' --cacert "$CA" -b "$jar" -c "$jar" -X DELETE "${BASE_URL}/api/v1/auth/session" || true)"
+	[ "$code" = 204 ] || fail owner-setup "sign-out: HTTP ${code}"
+	code="$(curl -sS -o /dev/null -w '%{http_code}' --cacert "$CA" -b "$jar" "${BASE_URL}/api/v1/me" || true)"
+	[ "$code" = 401 ] || fail owner-setup "session still valid after sign-out (HTTP ${code})"
+	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" -c "$jar" -H 'Content-Type: application/json' \
+		-d "$(jq -nc --arg p "$pw" '{username: "smoke-owner", password: $p}')" "${BASE_URL}/api/v1/auth/session" || true)"
+	[ "$code" = 200 ] && jq -e '.state == "authenticated"' "$out" >/dev/null || fail owner-setup "sign-in: HTTP ${code}"
+	rm -f "$jar"
+	record owner-setup PASSED "owner created over HTTPS through Caddy; cookie session, sign-out/sign-in; second setup refused (409)"
 }
 
 step_enroll_agent() {

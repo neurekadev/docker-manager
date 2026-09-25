@@ -143,6 +143,13 @@ No Docker locally: Engine-dependent tests run in CI only.
   implementation), WebSockets through `server/ws`; `/agent/v1` handlers go in
   `server.Options.Agent` and reject with `server.AgentFailure`
   (`docs/deployment.md`, "For contributors").
+- Identity (#16, ADR 0003): `internal/manager/auth` authenticates every
+  `/api/v1` request (SCS session, CSRF, principal via `authz.WithPrincipal`
+  for full sessions only). Handlers read `authz.PrincipalFrom(ctx)`; the
+  evaluator allows the owner everything and denies everyone else until #17.
+  Identity events enrich the #30 audit record of the request (`auth.TrailAuditor`).
+  Never add auth routes outside Huma, never log passwords, codes, seeds or
+  tokens (canary tests in `internal/manager/app/identity*_test.go`).
 - New dependencies must pass `scripts/license-check.sh` and govulncheck; pin
   exact versions. Pin GitHub Actions by commit SHA with a `# vX.Y.Z` comment.
 

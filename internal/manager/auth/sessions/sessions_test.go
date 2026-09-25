@@ -246,4 +246,7 @@ func TestNewManagerValidates(t *testing.T) {
 	if err != nil || sm.IdleTimeout != DefaultIdleTimeout || sm.Lifetime != DefaultLifetime || !sm.HashTokenInStore {
 		t.Fatalf("defaults: %+v %v", sm, err)
 	}
+	if sm, err := NewManager(Options{Store: st, ErrorFunc: ef, IdleTimeout: -1}); err != nil || sm.IdleTimeout != 0 {
+		t.Fatalf("disabled idle: %+v %v", sm, err)
+	}
 }
