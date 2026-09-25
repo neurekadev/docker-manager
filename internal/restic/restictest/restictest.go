@@ -46,10 +46,10 @@ type Store struct {
 	// OnBackup runs at the start of every Backup (tests use it to observe
 	// container state while "restic" runs); an error fails the backup.
 	OnBackup func(req restic.BackupRequest) error
-	// persistPath, when set (Persist), receives the state after every
-	// operation that holds the lock to its end.
-	persistPath string
 }
+
+// unlock releases s.mu.
+func (s *Store) unlock() { s.mu.Unlock() }
 
 type repoState struct {
 	id    string

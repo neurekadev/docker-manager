@@ -56,10 +56,10 @@ type Engine struct {
 	// when they start (SetStartHealth).
 	remote      map[string]string
 	startHealth map[string]string
-	// persistPath, when set (Persist), receives the state after every
-	// operation.
-	persistPath string
 }
+
+// unlock releases e.mu.
+func (e *Engine) unlock() { e.mu.Unlock() }
 
 // ExecInstance is an exec instance created with CreateExec (the fake
 // records it; attaching is not supported).

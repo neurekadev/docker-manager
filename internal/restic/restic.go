@@ -34,8 +34,7 @@ import (
 // DefaultBinary is where both DockYard images install restic.
 const DefaultBinary = "/usr/local/bin/restic"
 
-// Version is the pinned restic release (deploy/docker/*.Dockerfile,
-// internal/testharness ResticVersion).
+// Version is the pinned restic release (deploy/docker/*.Dockerfile).
 const Version = "0.19.1"
 
 // Location addresses one physical restic repository.

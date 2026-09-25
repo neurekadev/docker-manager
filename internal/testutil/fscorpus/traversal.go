@@ -11,9 +11,7 @@
 //   - Swapper / RaceWhile: a TOCTOU helper that races swapping a directory
 //     for a symlink to outside the root.
 //
-// The static parts are committed under test/corpora/fs (regenerate with
-// `go test ./internal/testutil/fscorpus -run TestCorpusFiles -update`) so
-// non-Go consumers can use them; see test/corpora/README.md.
+// Everything is generated in memory at test time; nothing is committed.
 package fscorpus
 
 // PathCase is one hostile path string.

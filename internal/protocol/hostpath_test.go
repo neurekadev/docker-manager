@@ -8,7 +8,7 @@ import (
 
 // TestIsAbsHostPath: agents report slash-separated host paths; Linux paths
 // are absolute everywhere, drive paths only where the platform has drives
-// (the Docker-free devstack and tests on Windows).
+// (tests on Windows).
 func TestIsAbsHostPath(t *testing.T) {
 	for _, p := range []string{"/var/lib/docker/volumes", "/"} {
 		if !IsAbsHostPath(p) {

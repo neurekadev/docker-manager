@@ -47,8 +47,7 @@ import (
 type backupEnv struct {
 	*env
 	store *restictest.Store
-	// opener is restic for the manager and the agents (store, or the real
-	// restic in integration tests).
+	// opener is restic for the manager and the agents (the in-memory store).
 	opener  restic.Opener
 	s3      *s3probetest.Server
 	root    string

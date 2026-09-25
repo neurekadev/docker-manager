@@ -1,9 +1,7 @@
-// Package deploy checks the deployment examples in deploy/ (#27, #28)
-// without Docker: topology, pinning, volumes, proxy settings, and that the
-// proxy E2E stack (e2e/compose.yaml) runs exactly these proxy
-// configurations. The examples themselves are exercised through each proxy
-// by the Playwright suite (e2e/tests/proxy.spec.ts) and validated with
-// `docker compose config` in CI.
+// Package deploy checks the deployment examples in deploy/ (#27, #28) as
+// files, without Docker or a network: topology, pinning, volumes, proxy
+// settings and the variables each example sets. Nothing here starts the
+// examples; running them through each proxy is not automated.
 package deploy
 
 import (
@@ -75,7 +73,7 @@ func TestProxyExamplesTopology(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			c := load(t, "deploy/"+dir+"/compose.yaml")
 			m, a, p := c.Services["dockyard-manager"], c.Services["dockyard-agent"], c.Services[proxy]
-			if m.Image != "ghcr.io/neurekadev/dockyard-manager:edge" || a.Image != "ghcr.io/neurekadev/dockyard-agent:edge" {
+			if m.Image != "code.neureka.dev/dockyard/dockyard-manager:edge" || a.Image != "code.neureka.dev/dockyard/dockyard-agent:edge" {
 				t.Errorf("DockYard images %q %q", m.Image, a.Image)
 			}
 			if !pinnedRE.MatchString(p.Image) {
@@ -233,37 +231,6 @@ func TestProxySettings(t *testing.T) {
 	}
 }
 
-// TestE2EComposeMatchesDeploy: the proxy E2E stack runs the deploy/ proxy
-// images, arguments and configuration files.
-func TestE2EComposeMatchesDeploy(t *testing.T) {
-	e2e := load(t, "e2e/compose.yaml")
-	mounts := map[string]string{
-		"caddy":   "../deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro",
-		"traefik": "../deploy/traefik/dynamic:/etc/traefik/dynamic:ro",
-		"nginx":   "../deploy/nginx/templates:/etc/nginx/templates:ro",
-	}
-	for dir, proxy := range proxies {
-		dep := load(t, "deploy/"+dir+"/compose.yaml").Services[proxy]
-		got, ok := e2e.Services[proxy]
-		if !ok {
-			t.Fatalf("e2e lacks %s", proxy)
-		}
-		if got.Image != dep.Image {
-			t.Errorf("%s image %q differs from deploy %q", proxy, got.Image, dep.Image)
-		}
-		if !slices.Contains(got.Volumes, mounts[proxy]) {
-			t.Errorf("%s does not mount the deploy config %q: %v", proxy, mounts[proxy], got.Volumes)
-		}
-		want := make([]string, 0, len(dep.Command))
-		for _, a := range dep.Command {
-			want = append(want, interp(a))
-		}
-		if !slices.Equal(got.Command, want) {
-			t.Errorf("%s arguments differ from deploy:\n got  %v\n want %v", proxy, got.Command, want)
-		}
-	}
-}
-
 var (
 	configVarRE  = regexp.MustCompile(`"(DOCKYARD_[A-Z0-9_]+)"`)
 	envExampleRE = regexp.MustCompile(`(?m)^#?\s*(DOCKYARD_[A-Z0-9_]+)=`)
@@ -304,7 +271,7 @@ func TestExampleVariablesAreKnown(t *testing.T) {
 					}
 					continue
 				}
-				if svc.Image != "ghcr.io/neurekadev/"+name+":edge" {
+				if svc.Image != "code.neureka.dev/dockyard/"+name+":edge" {
 					t.Errorf("%s image %q, want the published edge image", name, svc.Image)
 				}
 				for k := range svc.Environment {

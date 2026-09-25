@@ -12,9 +12,6 @@ coverage.out
 **/secret.key
 **/.env
 web/node_modules
-e2e/node_modules
-e2e/playwright-report
-e2e/test-results
 web/.svelte-kit
 web/build/app
 docs

@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/faultinject"
 	"github.com/neurekadev/dockyard/internal/jobexec"
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
@@ -20,16 +19,6 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/store"
 	"github.com/neurekadev/dockyard/internal/protocol"
 	"github.com/neurekadev/dockyard/internal/streammux"
-)
-
-// Fault points of a migration's transfer (internal/faultinject; the job
-// engine adds manager.step.* points around every step): after the
-// destination stream opened, after the first relayed bytes and after a
-// part was verified.
-const (
-	PointPartOpened   = "migration.part.opened"
-	PointPartRelaying = "migration.part.relaying"
-	PointPartVerified = "migration.part.verified"
 )
 
 // Job error classes of migrations.
@@ -404,9 +393,6 @@ func (s *Service) transferParts(ctx context.Context, sc *jobexec.StepContext, so
 			msg += fmt.Sprintf("; %d entries skipped (sockets or device nodes)", n)
 		}
 		sc.Item(ctx, p.name, domain.ItemSucceeded, msg)
-		if err := faultinject.Point(ctx, PointPartVerified); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -495,24 +481,12 @@ func (s *Service) relayPart(ctx context.Context, sc *jobexec.StepContext, source
 	if err != nil {
 		return RelayResult{}, err
 	}
-	if err := faultinject.Point(ctx, PointPartOpened); err != nil {
-		dst.Abort(protocol.CloseReasonCancelled, protocol.CodeCancelled, "")
-		return RelayResult{}, err
-	}
 	src, err := s.opts.Agents.OpenStream(pctx, source, protocol.StreamMigrationSend, p.send, streammux.OpenOptions{JobID: sc.JobID})
 	if err != nil {
 		dst.Abort(protocol.CloseReasonCancelled, protocol.CodeCancelled, "the source is unavailable")
 		return RelayResult{}, err
 	}
-	reported := false
-	return Relay(pctx, src, dst, RelayOptions{Limiter: s.limiter, BufferSize: s.opts.RelayBuffer, Progress: func(n int64) {
-		if !reported {
-			reported = true
-			if err := faultinject.Point(ctx, PointPartRelaying); err != nil {
-				cancel()
-			}
-		}
-	}})
+	return Relay(pctx, src, dst, RelayOptions{Limiter: s.limiter, BufferSize: s.opts.RelayBuffer})
 }
 
 // agentFailure classifies a failed request to an agent.

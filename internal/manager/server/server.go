@@ -100,9 +100,6 @@ func New(opts Options) (*Server, error) {
 		agent = agentPlaceholder()
 	}
 	mux.Handle(AgentBasePath+"/", agent)
-	if testRoutes != nil {
-		testRoutes(mux, opts) // e2e builds only (e2e_routes.go)
-	}
 	mux.Handle("/", ui)
 
 	var h http.Handler = mux
@@ -160,10 +157,6 @@ func apiRouter(apiMux *http.ServeMux) http.Handler {
 		api.WriteError(w, r, api.NotFound("no such API route"))
 	})
 }
-
-// testRoutes registers test-only routes; set by e2e_routes.go in builds
-// with the e2e tag, nil otherwise.
-var testRoutes func(mux *http.ServeMux, opts Options)
 
 // agentPlaceholder reserves /agent/v1 until enrollment and the session
 // endpoint land.

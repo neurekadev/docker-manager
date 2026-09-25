@@ -27,21 +27,10 @@ import (
 
 	"github.com/neurekadev/dockyard/internal/clock"
 	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/faultinject"
 	"github.com/neurekadev/dockyard/internal/ids"
 	"github.com/neurekadev/dockyard/internal/jobexec"
 	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/protocol"
-)
-
-// Fault points of the agent command path (step points come from jobexec
-// with prefix "agent").
-const (
-	PointCommandReceived  = "agent.command.received"
-	PointCommandJournaled = "agent.command.journaled"
-	PointCommandAcked     = "agent.command.acked"
-	PointResultBeforeSend = "agent.result.before_send"
-	PointResultSent       = "agent.result.sent"
 )
 
 // MaxReportOutputs bounds the result outputs carried by one job_report
@@ -129,7 +118,7 @@ func New(ctx context.Context, opts Options) (*Runner, error) {
 		if e, ok := r.execs[st.Kind]; ok {
 			exec = &e
 		}
-		res, err := jobexec.Recover(ctx, exec, &st, jobexec.Options{Journal: j, FaultPrefix: "agent"})
+		res, err := jobexec.Recover(ctx, exec, &st, jobexec.Options{Journal: j})
 		if err != nil {
 			return nil, err
 		}
@@ -223,9 +212,6 @@ func (r *Runner) handleCommand(ctx context.Context, f *protocol.Frame) error {
 	if f.RequestID != "" {
 		log = log.With("request_id", f.RequestID)
 	}
-	if err := faultinject.Point(ctx, PointCommandReceived); err != nil {
-		return r.ack(ctx, f, protocol.AckPayload{Code: protocol.AckJournalFailed, Message: err.Error()})
-	}
 	p, err := protocol.DecodePayload[protocol.CommandPayload](f)
 	if err != nil {
 		return r.ack(ctx, f, protocol.AckPayload{Code: protocol.AckInvalid, Message: err.Error()})
@@ -287,12 +273,8 @@ func (r *Runner) handleCommand(ctx context.Context, f *protocol.Frame) error {
 	st.Secrets = p.Secrets
 	p.Secrets = nil
 
-	skipAck := faultinject.Point(ctx, PointCommandJournaled) != nil // simulate a lost ack
-	if !skipAck {
-		if err := r.ack(ctx, f, protocol.AckPayload{Accepted: true}); err != nil {
-			log.Warn("could not send job ack; the job_report on reconnect carries its state", "error", err)
-		}
-		_ = faultinject.Point(ctx, PointCommandAcked)
+	if err := r.ack(ctx, f, protocol.AckPayload{Accepted: true}); err != nil {
+		log.Warn("could not send job ack; the job_report on reconnect carries its state", "error", err)
 	}
 	r.wg.Add(1)
 	go r.execute(exec, st, a)
@@ -325,7 +307,7 @@ func (r *Runner) execute(exec jobexec.Executor, st jobexec.State, a *attempt) {
 	}
 	ctx = logging.IntoContext(ctx, jl)
 	_, err := jobexec.Run(ctx, exec, &st, jobexec.Options{Journal: r.journal, Reporter: reporter{r, ref},
-		CancelRequested: a.cancel.Load, FaultPrefix: "agent"})
+		CancelRequested: a.cancel.Load})
 	st.Secrets = nil // the attempt is over; drop the credentials
 	// Leaving the running set and sending the result happen as one step
 	// relative to SendReport (see reportSeq).
@@ -342,13 +324,9 @@ func (r *Runner) execute(exec jobexec.Executor, st jobexec.State, a *attempt) {
 	if err != nil {
 		r.opts.Logger.Error("could not journal job outcome", "job_id", st.JobID, "error", err)
 	}
-	if faultinject.Point(r.ctx, PointResultBeforeSend) != nil {
-		return // simulate a lost result; the job_report carries it
-	}
 	if err := r.sendResult(r.ctx, &st); err != nil {
 		r.opts.Logger.Warn("could not send job result; the job_report on reconnect carries it", "job_id", st.JobID, "error", err)
 	}
-	_ = faultinject.Point(r.ctx, PointResultSent)
 }
 
 func (r *Runner) sendResult(ctx context.Context, st *jobexec.State) error {

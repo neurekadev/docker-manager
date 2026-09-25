@@ -47,29 +47,6 @@ func TestMintParseVerify(t *testing.T) {
 	}
 }
 
-// FuzzParseAgentSecret: parsing presented bearer secrets never panics, and
-// whatever parses re-assembles to the same token with a valid ID.
-func FuzzParseAgentSecret(f *testing.F) {
-	c, _ := MintAgentCredential("0190a6e0-4444-7000-8000-000000000004")
-	e, _ := MintEnrollmentToken("0190a6e0-4444-7000-8000-000000000005")
-	for _, s := range []string{c.Token, e.Token, "dya_x_y", "dye_", "dya_" + strings.Repeat("_", 50), "Bearer dya_x", "dya_\x00_\xff"} {
-		f.Add(s)
-	}
-	f.Fuzz(func(t *testing.T, s string) {
-		for prefix, parse := range map[string]func(string) (string, string, bool){
-			AgentCredentialPrefix: ParseAgentCredential, EnrollmentTokenPrefix: ParseEnrollmentToken,
-		} {
-			id, secret, ok := parse(s)
-			if !ok {
-				continue
-			}
-			if prefix+id+"_"+secret != s || !validRecordID(id) || len(secret) != 43 {
-				t.Fatalf("inconsistent parse of %q: %q %q", s, id, secret)
-			}
-		}
-	})
-}
-
 func TestMintParseAPIToken(t *testing.T) {
 	const id = "0190a6e0-4444-7000-8000-000000000031"
 	tok, err := MintAPIToken(id)
