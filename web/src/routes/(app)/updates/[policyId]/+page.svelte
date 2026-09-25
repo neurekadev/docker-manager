@@ -18,7 +18,7 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Layers from '@lucide/svelte/icons/layers';
 	import Server from '@lucide/svelte/icons/server';
-	import { api, unwrap, type Job } from '$lib/api/client';
+	import { api, unwrap, unwrapEmpty, type Job } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
@@ -137,7 +137,7 @@
 
 	async function remove() {
 		if (!p) return;
-		await unwrap(
+		await unwrapEmpty(
 			api.DELETE('/api/v1/update-policies/{policyId}', {
 				params: { path: { policyId: p.id }, header: { 'If-Match': ifMatch(p.revision) } }
 			})

@@ -13,7 +13,7 @@
 	import PlugZap from '@lucide/svelte/icons/plug-zap';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import { api, unwrap } from '$lib/api/client';
+	import { api, unwrap, unwrapEmpty } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
@@ -174,7 +174,7 @@
 
 	async function remove(r: BackupRepository) {
 		try {
-			await unwrap(
+			await unwrapEmpty(
 				api.DELETE('/api/v1/backup-repositories/{repositoryId}', {
 					params: {
 						path: { repositoryId: r.id },

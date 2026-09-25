@@ -11,7 +11,7 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Play from '@lucide/svelte/icons/play';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import { api, unwrap, type Job } from '$lib/api/client';
+	import { api, unwrap, unwrapEmpty, type Job } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
@@ -137,7 +137,7 @@
 	}
 
 	async function remove(p: BackupPolicy) {
-		await unwrap(
+		await unwrapEmpty(
 			api.DELETE('/api/v1/backup-policies/{policyId}', {
 				params: { path: { policyId: p.id }, header: { 'If-Match': ifMatch(p.revision) } }
 			})
