@@ -132,6 +132,9 @@ type Engine struct {
 	mgrExecs   map[domain.JobKind]jobexec.Executor
 	mgrRunning map[string]*managerRun
 
+	hooksMu     sync.RWMutex
+	finishHooks map[domain.JobKind][]FinishHook
+
 	lifetime context.Context
 	stop     context.CancelFunc
 	wg       sync.WaitGroup
@@ -169,7 +172,8 @@ func New(opts Options) (*Engine, error) {
 		opts: opts, db: opts.DB, limits: opts.Limits.withDefaults(),
 		wake: make(chan struct{}, 1), subs: map[string]map[chan struct{}]struct{}{},
 		mgrExecs: map[domain.JobKind]jobexec.Executor{}, mgrRunning: map[string]*managerRun{},
-		lifetime: lifetime, stop: stop,
+		finishHooks: map[domain.JobKind][]FinishHook{},
+		lifetime:    lifetime, stop: stop,
 	}, nil
 }
 
@@ -321,10 +325,43 @@ func (e *Engine) transition(ctx context.Context, db bun.IDB, j *domain.Job, to d
 	if err := store.UpdateJob(ctx, db, j); err != nil {
 		return err
 	}
+	if to.Terminal() {
+		if err := e.runFinishHooks(ctx, db, j); err != nil {
+			return err
+		}
+	}
 	if err := e.auditTransition(ctx, db, j, to); err != nil {
 		return err
 	}
 	return e.event(ctx, db, domain.JobEvent{JobID: j.ID, Type: domain.JobEventState, State: to, Message: message})
+}
+
+// FinishHook lets a feature react to a job of its kind reaching a terminal
+// state, inside the transaction that finishes the job (j.State is the
+// terminal state; j.ResultOutput the executor's result output, nil when the
+// job ended without one). Use db for every write so the feature's state and
+// the job's outcome commit together. A hook must tolerate malformed output
+// (log it and record what it can): its error aborts the transaction, and an
+// agent's result is then delivered again later.
+type FinishHook func(ctx context.Context, db bun.IDB, j domain.Job) error
+
+// OnFinish registers a finish hook for kind (call before Run).
+func (e *Engine) OnFinish(kind domain.JobKind, h FinishHook) {
+	e.hooksMu.Lock()
+	defer e.hooksMu.Unlock()
+	e.finishHooks[kind] = append(e.finishHooks[kind], h)
+}
+
+func (e *Engine) runFinishHooks(ctx context.Context, db bun.IDB, j *domain.Job) error {
+	e.hooksMu.RLock()
+	hooks := e.finishHooks[j.Kind]
+	e.hooksMu.RUnlock()
+	for _, h := range hooks {
+		if err := h(ctx, db, *j); err != nil {
+			return fmt.Errorf("jobs: finish hook of %s: %w", j.Kind, err)
+		}
+	}
+	return nil
 }
 
 // finish moves a job to a terminal state with its error class, message and

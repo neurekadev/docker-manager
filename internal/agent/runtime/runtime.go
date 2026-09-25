@@ -43,6 +43,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/observe"
 	"github.com/neurekadev/dockyard/internal/agent/resources"
 	"github.com/neurekadev/dockyard/internal/agent/session"
+	"github.com/neurekadev/dockyard/internal/agent/stacks"
 	"github.com/neurekadev/dockyard/internal/agent/state"
 	"github.com/neurekadev/dockyard/internal/agent/storage"
 	"github.com/neurekadev/dockyard/internal/agent/transport"
@@ -254,6 +255,21 @@ func New(opts Options) (*Agent, error) {
 	if opts.Files {
 		a.enableFiles()
 	}
+	// Compose stacks (#7): the compose.* requests and stack.* executors run
+	// on the live Engine/Compose adapters and the verified storage roots.
+	st := stacks.New(stacks.Options{Deps: stackDeps{a}, Clock: opts.Clock, Logger: opts.Logger.With("component", "stacks")})
+	own := map[domain.JobKind]bool{}
+	for _, x := range a.opts.Executors {
+		own[x.Kind] = true
+	}
+	for _, x := range st.Executors() {
+		if !own[x.Kind] {
+			a.opts.Executors = append(a.opts.Executors, x)
+		}
+	}
+	reqs := st.Requests()
+	maps.Copy(reqs, a.opts.Requests)
+	a.opts.Requests = reqs
 	return a, nil
 }
 
@@ -284,6 +300,18 @@ func (a *Agent) addResources() {
 func (a *Agent) observedEngine() observe.EngineAPI {
 	if e := a.Engine(); e != nil {
 		return e
+	}
+	return nil
+}
+
+// stackDeps exposes the agent's live components to the stacks service.
+type stackDeps struct{ a *Agent }
+
+func (d stackDeps) Engine() engine.Engine { return d.a.Engine() }
+
+func (d stackDeps) Composer() stacks.Composer {
+	if c := d.a.Compose(); c != nil {
+		return c
 	}
 	return nil
 }
@@ -335,6 +363,16 @@ func (a *Agent) enableFiles() {
 	}
 	a.opts.Streams = streams
 	a.opts.Executors = append(append([]jobexec.Executor(nil), a.opts.Executors...), svc.Executors()...)
+}
+
+func (d stackDeps) Storage() *storage.Result {
+	d.a.mu.RLock()
+	defer d.a.mu.RUnlock()
+	if d.a.storage == nil {
+		return nil
+	}
+	r := *d.a.storage
+	return &r
 }
 
 // Capabilities returns the current capabilities (safe for concurrent use).

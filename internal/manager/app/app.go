@@ -52,6 +52,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/resources"
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
 	"github.com/neurekadev/dockyard/internal/manager/server"
+	"github.com/neurekadev/dockyard/internal/manager/stacks"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
@@ -113,6 +114,7 @@ type Manager struct {
 	// resources is the Docker resource service (#6).
 	resources *resources.Service
 	files     *files.Service
+	stacks    *stacks.Service
 	handler   http.Handler
 	git       *gitcreds.Service
 	builds    *builds.Service
@@ -302,14 +304,28 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Compose stacks (#7): finish hooks on the stack.* jobs (registered
+	// before recovery and the engine loop), the stack Locator of the
+	// resource graph and the reconciliation after agent reconnects.
+	m.stacks, err = stacks.New(stacks.Options{
+		DB: db, Clock: opts.Clock, Logger: log.With("component", "stacks"), Keyring: m.keyring,
+		Agents: m.agents.Hub(), Environments: m.agents, Jobs: m.jobs, Bus: m.events, Registries: m.regs, Systems: m.agents,
+	})
+	if err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
+	m.perms.RegisterLocator(catalog.TypeStack, m.stacks.Locator())
+	m.agents.Hub().AddReconciler(m.stacks.Reconciler())
 	if err := m.jobs.Recover(ctx); err != nil {
 		m.jobs.Close()
 		return nil, fmt.Errorf("recover jobs: %w", err)
 	}
 	m.agents.AttachJobs(m.jobs)
-	// The scoped file manager (#15); stack scopes resolve once #7 installs
-	// its stack roots (Files().SetStacks).
+	// The scoped file manager (#15): stack scopes resolve through the stack
+	// service (#7), which records a revision when a definition file changes.
 	m.files = files.New(files.Options{Agents: m.agents.Hub(), Jobs: m.jobs, Logger: log.With("component", "files")})
+	m.files.SetStacks(m.stacks, m.stacks)
 
 	// Image builds (#33): build records, definitions and the image.build
 	// jobs they enqueue.
@@ -370,7 +386,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	// place Compose-stack members in their stack (#17) and a reconciler
 	// refreshes that after every (re)connect.
 	m.resources, err = resources.New(resources.Options{
-		DB: db, Keyring: m.keyring, Agents: hub, Jobs: m.jobs, Permissions: m.perms, Registries: m.regs,
+		DB: db, Keyring: m.keyring, Agents: hub, Jobs: m.jobs, Permissions: m.perms, Registries: m.regs, Stacks: m.stacks,
 		InstanceID: m.instance.ID, Clock: opts.Clock, Logger: log.With("component", "resources"),
 	})
 	if err != nil {
@@ -416,6 +432,8 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			FilesMaxUpload: cfg.FilesMaxUpload,
 			GitCredentials: m.git,
 			Builds:         m.builds,
+			Stacks:         m.stacks,
+			Events:         m.events,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -552,6 +570,12 @@ func (m *Manager) GitCredentials() *gitcreds.Service { return m.git }
 
 // Builds returns the image build service (#33).
 func (m *Manager) Builds() *builds.Service { return m.builds }
+
+// Stacks returns the Compose stack service (#7): the file manager (#15)
+// resolves stack roots with Root and reports definition saves with
+// RecordFileSave; the watcher (#23) reports external edits with
+// RecordObserved.
+func (m *Manager) Stacks() *stacks.Service { return m.stacks }
 
 // Events returns the internal event bus.
 func (m *Manager) Events() *events.Bus { return m.events }

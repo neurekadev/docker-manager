@@ -1002,6 +1002,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/stacks/discovered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List discovered Compose projects
+         * @description Compose projects the Engine knows from container labels, read-only: whether each can be adopted in place (its directory is under the stacks volume or a registered root) and the DockYard stack already managing it. Labels never reconstruct a Compose source.
+         */
+        get: operations["list-discovered-stacks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/stacks/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a Compose project
+         * @description Adopts a discovered project. Without source, in place: its real files become the first revision (409 stack_not_adoptable when its directory is outside the stacks volume and registered roots). With source, the given definition is written into a new directory <projectName> of the stacks volume. Never overwrites: 409 stack_name_taken when DockYard already manages the project, stack_directory_exists when the directory exists.
+         */
+        post: operations["create-stack-import"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/system": {
         parameters: {
             query?: never;
@@ -2075,6 +2115,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stacks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List stacks
+         * @description Managed Compose stacks in creation order, filtered per item (#17): stack.read shows a stack in full, any other capability on it (or inside it) only its identity and status. Pages may hold fewer items than limit; follow nextCursor.
+         */
+        get: operations["list-stacks"];
+        put?: never;
+        /**
+         * Create a stack
+         * @description Validates the definition on the environment's agent, writes compose.yaml (and the optional override and .env) into a new project directory <name> of the environment's stacks volume and records it as the first revision. Nothing existing is overwritten: 409 stack_name_taken (DockYard stack), compose_project_exists (a Compose project of that name runs on the Engine: import it), stack_directory_exists (the directory exists). 422 invalid_definition lists the findings. Does not deploy.
+         */
+        post: operations["create-stack"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/validations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate a Compose definition
+         * @description Validates a definition on the environment's agent as if it were the project <name> in the stacks volume, without side effects: syntax and paths, unsupported features (docs/support-matrix.md), warnings for obsolete keys and bind sources outside the project directory.
+         */
+        post: operations["create-stack-validation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a stack
+         * @description The stack's deployment status (what DockYard last did), last applied revision and images, the newest revision observed on disk (undeployedChanges when they differ), the failed revision and recovery guidance after a failed deploy, and the Engine state as last observed. While the environment is offline the last known state is returned with readOnly.
+         */
+        get: operations["get-stack"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a stack
+         * @description Starts a stack.remove job (202): the stack is taken down (containers and networks removed; named volumes and the project directory are kept on the host) and, when that succeeds, removed from DockYard with its revisions and the permission rules naming it.
+         */
+        delete: operations["delete-stack"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a stack's display metadata
+         * @description Display name, description, Lucide icon override and per-service metadata, stored in DockYard and never written to Compose files. Requires If-Match.
+         */
+        patch: operations["update-stack"];
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/deployments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deploy a stack
+         * @description Starts a stack.deploy job (202). The agent deploys the definition on disk when the job runs (up with builds through the Engine's BuildKit, dependency order and conditions) and reports the exact bytes it used, which become the applied revision. Deploys of one stack serialize (job lock). A failed deploy keeps the last applied revision; nothing is rolled back.
+         */
+        post: operations["create-stack-deployment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream a stack's events (SSE)
+         * @description Server-sent events: first `event: stack` with the current Stack, then `stack.updated`, `stack.revision_recorded` and `stack.removed` events (id = bus sequence) as they happen, and `engine` events of the stack's containers the caller may see; refetch the stack (or its services/revisions) on each. No replay: after a reconnect the new snapshot is the state. Comments `: heartbeat` keep the connection alive. Job progress is on /jobs/{jobId}/events/stream.
+         */
+        get: operations["stream-stack-events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stacks/{stackId}/files": {
         parameters: {
             query?: never;
@@ -2313,6 +2465,126 @@ export interface paths {
          * @description Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-DockYard-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKYARD_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
          */
         post: operations["upload-stack-files"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/image-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a stack's image status
+         * @description Images applied by the last deploy (reference, image ID, repository digest, platform) and whether each service could follow its tag's digest (#20: build-only, digest-pinned and untagged services are ineligible). Update candidates arrive with #20.
+         */
+        get: operations["get-stack-image-status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start, stop, restart or take down a stack
+         * @description Starts a stack.start/stop/restart/down job (202); the body's action selects the capability. Start, stop and restart follow the deployed dependency graph: stop in reverse dependency order, start dependencies first and wait for their depends_on conditions, restart propagates to restart: true dependents. Down removes containers and networks, never volumes.
+         */
+        post: operations["create-stack-operation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/revision-restores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a revision to disk
+         * @description Writes the revision's bytes back to the project directory (the definition currently on disk is recorded first; 409 stack_definition_changed if it changes meanwhile) and records a restore revision. It never deploys: when the result differs from the applied revision, deployOffered is true. 503 environment_offline while the agent is offline (revisions are read-only then).
+         */
+        post: operations["create-stack-revision-restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a stack's revisions
+         * @description Immutable revisions of the definition, newest first: recorded at every deploy and whenever a change was observed (stack editor, file manager, external edit, restore). Metadata only; GET a revision for its contents. Diffs are computed client-side from two revisions' contents.
+         */
+        get: operations["list-stack-revisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/revisions/{revisionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a stack revision
+         * @description The revision with the contents of its files (compose, override and env files, which may hold secrets; every read is audited). To show a diff, fetch both revisions and compare their files client-side.
+         */
+        get: operations["get-stack-revision"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a stack's services
+         * @description Services of the applied definition joined with their containers on the Engine (live while the environment is online, else the last observed state with live false), with drift from DockYard's intent. Container image, ports, restart policy and resources need container.details.read on the container; per-service metrics are #5's.
+         */
+        get: operations["list-stack-services"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3308,6 +3580,26 @@ export interface components {
             /** @enum {string} */
             type?: "file" | "dir";
         };
+        CreateStackInputBody: {
+            /** @description Required: compose.yaml content. */
+            compose?: string;
+            description?: string;
+            displayName?: string;
+            /** @description .env content (optional; may hold secrets: it is stored sealed and never logged). */
+            env?: string;
+            /** @description Required: the environment to create the stack in. */
+            environmentId?: string;
+            /** @description Lucide icon name. */
+            icon?: string;
+            /** @description Required: Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume. */
+            name?: string;
+            /** @description compose.override.yaml content (optional). */
+            override?: string;
+        };
+        CreateStackOutputBody: {
+            stack: components["schemas"]["Stack"];
+            validation: components["schemas"]["StackValidation"];
+        };
         CreateVolumeEntryInputBody: {
             /** @description Initial content of a new file (UTF-8). */
             content?: string;
@@ -3368,6 +3660,51 @@ export interface components {
         DeletionVolumeInputBody: {
             /** @description Entries to delete, recursively (symlinks are removed, never followed). Preview first with a conflict preview of operation delete. */
             paths?: string[];
+        };
+        DeployStackInputBody: {
+            /** @description Rebuild every build section (default: only missing images are built). */
+            build?: boolean;
+            forceRecreate?: boolean;
+            /**
+             * @description missing (default): pull only images that are not on the host; always: pull every image first.
+             * @enum {string}
+             */
+            pull?: "missing" | "always";
+            /** @description Remove containers of services no longer in the definition. */
+            removeOrphans?: boolean;
+            /** @description Deploy only these services (and their dependencies). */
+            services?: string[];
+            /**
+             * Format: int64
+             * @description Stop grace period for recreated containers.
+             */
+            timeoutSeconds?: number;
+        };
+        DiscoveredOutputBody: {
+            projects: components["schemas"]["DiscoveredStack"][];
+        };
+        DiscoveredStack: {
+            /** @description Can be imported in place from its real files. */
+            adoptable: boolean;
+            /** @description Where it lies under a verified stack root (adoptable in place). */
+            location?: components["schemas"]["StackLocation"];
+            /** @description Compose project name. */
+            name: string;
+            /** @description Why it cannot be adopted in place (import it with an explicit Compose source). */
+            reason?: string;
+            services: components["schemas"]["DiscoveredStackService"][];
+            /** @description The DockYard stack already managing it. */
+            stackId?: string;
+            /** @description Project directory from the containers' labels (host path). */
+            workingDir?: string;
+        };
+        DiscoveredStackService: {
+            /** Format: int64 */
+            containers: number;
+            image: string;
+            name: string;
+            /** Format: int64 */
+            running: number;
         };
         DockerCounts: {
             /** Format: int64 */
@@ -3973,6 +4310,18 @@ export interface components {
             volumes: string[];
             workingDir?: string;
         };
+        ImageStatusOutputBody: {
+            images: components["schemas"]["StackImageStatus"][];
+        };
+        ImportStackInputBody: {
+            description?: string;
+            displayName?: string;
+            icon?: string;
+            /** @description Required: the discovered Compose project to adopt. */
+            projectName?: string;
+            /** @description Explicit Compose source (written into a new directory of the stacks volume); omit to adopt the project in place. */
+            source?: components["schemas"]["StackDefinitionBody"];
+        };
         InstallCommand: {
             /** @description Shell text; contains the token (show once, never log). */
             command: string;
@@ -4221,6 +4570,20 @@ export interface components {
             /** @enum {string} */
             view: "minimal" | "full";
         };
+        OperateStackInputBody: {
+            /**
+             * @description Required; selects the capability: stack.start, stack.stop, stack.restart or stack.down.
+             * @enum {string}
+             */
+            action?: "start" | "stop" | "restart" | "down";
+            /** @description Only these services (start/stop/restart); dependencies and restart: true dependents follow the lifecycle rules. */
+            services?: string[];
+            /**
+             * Format: int64
+             * @description Stop grace period.
+             */
+            timeoutSeconds?: number;
+        };
         Overview: {
             environments: components["schemas"]["OverviewEnvironment"][];
             totals: components["schemas"]["OverviewTotals"];
@@ -4439,6 +4802,28 @@ export interface components {
         PageRegistryConnection: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["RegistryConnection"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageStack: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["Stack"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageStackRevision: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["StackRevision"][];
             /** @description Opaque cursor for the next page; absent on the last page. */
             nextCursor?: string;
             /**
@@ -4884,6 +5269,10 @@ export interface components {
             id: string;
             type: string;
         };
+        RestoreStackInputBody: {
+            /** @description Required: the revision to write back to disk. */
+            revisionId?: string;
+        };
         RevokeTokensBody: {
             /** @description Also revoke every API token of the account (#31), for example when the account may be compromised. */
             revokeApiTokens?: boolean;
@@ -4981,6 +5370,195 @@ export interface components {
             /** @description The instance owner exists; setup routes are closed. */
             setupComplete: boolean;
         };
+        Stack: {
+            /** @description Granted stack capabilities. */
+            actions: string[];
+            /** @description Last revision deployed successfully by DockYard (absent: never deployed by DockYard). */
+            appliedRevision?: components["schemas"]["StackRevisionRef"];
+            /** @description Resolved bind sources (with stack.definition.read). */
+            binds?: components["schemas"]["StackBind"][];
+            /** @description Explicit Compose files (empty: compose.yaml plus its override file). */
+            configFiles?: string[];
+            /** Format: date-time */
+            createdAt?: string;
+            description?: string;
+            displayName?: string;
+            /** @description Live Engine state as last observed (compare with status and appliedRevision to see drift). */
+            engine?: components["schemas"]["StackEngineState"];
+            environmentId: string;
+            /** @description The environment's agent is connected. */
+            environmentOnline?: boolean;
+            /** @description Revision of the last failed deploy (cleared by a successful one). */
+            failedRevision?: components["schemas"]["StackRevisionRef"];
+            /** @description Lucide icon name override. */
+            icon?: string;
+            /** @example 0190a6e0-7777-7000-8000-000000000007 */
+            id: string;
+            /** @description Images applied by the last successful deploy. */
+            images?: components["schemas"]["StackImage"][];
+            lastJob?: components["schemas"]["StackJobRef"];
+            location?: components["schemas"]["StackLocation"];
+            /**
+             * @description Compose project name.
+             * @example shop
+             */
+            name: string;
+            /** @enum {string} */
+            origin?: "created" | "imported";
+            /** @description Engine state before the last deploy (recovery of a failed deploy). */
+            previousState?: components["schemas"]["StackServiceState"][];
+            /** @description The environment is offline: the last known revision and state are shown read-only. */
+            readOnly?: boolean;
+            /** @description How to recover from a failed deploy. */
+            recovery?: string;
+            /**
+             * Format: int64
+             * @description Metadata revision (the ETag); full view or with stack.manage.
+             */
+            revision?: number;
+            /** @description Services of the last deploy (or of the definition before the first deploy). */
+            services?: components["schemas"]["StackServiceDef"][];
+            /** @description Newest revision observed on disk. */
+            sourceRevision?: components["schemas"]["StackRevisionRef"];
+            /**
+             * @description What DockYard last did to the stack (not the live Engine state, see engine).
+             * @enum {string}
+             */
+            status: "undeployed" | "deployed" | "stopped" | "down" | "failed";
+            /** @description The definition on disk differs from the last applied revision. */
+            undeployedChanges?: boolean;
+            /** Format: date-time */
+            updatedAt?: string;
+            /** @enum {string} */
+            view: "minimal" | "full";
+        };
+        StackBind: {
+            /** @description Outside the project directory: backups need an explicit opt-in (#10). */
+            external: boolean;
+            readOnly: boolean;
+            /** @description Path inside the project directory (stack backups include it by default, #10). */
+            relPath?: string;
+            service: string;
+            /** @description Host path. */
+            source: string;
+            target: string;
+        };
+        StackContainer: {
+            /** Format: int64 */
+            cpuShares?: number;
+            /** Format: int64 */
+            exitCode?: number;
+            health?: string;
+            id?: string;
+            image?: string;
+            imageId?: string;
+            /**
+             * Format: int64
+             * @description Memory limit in bytes (0: unlimited).
+             */
+            memory?: number;
+            name?: string;
+            /**
+             * Format: int64
+             * @description CPU limit in 1e-9 CPUs (0: unlimited).
+             */
+            nanoCpus?: number;
+            /** Format: int64 */
+            pidsLimit?: number;
+            ports?: components["schemas"]["StackPort"][];
+            restartPolicy?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** @enum {string} */
+            state: "created" | "running" | "paused" | "restarting" | "removing" | "exited" | "dead";
+            /** @enum {string} */
+            view: "minimal" | "full";
+        };
+        StackDefinitionBody: {
+            /** @description Required: compose.yaml content. */
+            compose?: string;
+            /** @description .env content (optional; may hold secrets: it is stored sealed and never logged). */
+            env?: string;
+            /** @description compose.override.yaml content (optional). */
+            override?: string;
+        };
+        StackDependency: {
+            /** @enum {string} */
+            condition: "service_started" | "service_healthy" | "service_completed_successfully";
+            required: boolean;
+            restart: boolean;
+            service: string;
+        };
+        StackEngineState: {
+            /** Format: date-time */
+            observedAt?: string;
+            services: components["schemas"]["StackServiceState"][];
+            /** @enum {string} */
+            state: "unknown" | "running" | "partial" | "stopped" | "missing";
+        };
+        StackEvent: {
+            /** Format: date-time */
+            at: string;
+            /** @description Small facts (job ID and kind, revision source and number); never file contents. */
+            attributes?: {
+                [key: string]: string;
+            };
+            /** @description The container of an engine event. */
+            resourceId?: string;
+            /** Format: int64 */
+            seq: number;
+            stackId: string;
+            /** @enum {string} */
+            type: "stack.created" | "stack.updated" | "stack.removed" | "stack.revision_recorded" | "docker.event";
+        };
+        StackImage: {
+            build: boolean;
+            /** @description Repository digest applied on this host (empty for locally built images). */
+            digest?: string;
+            /** @description Reference as resolved from the definition (the tag text never changes, #20). */
+            image: string;
+            imageId?: string;
+            /** @example linux/amd64 */
+            platform?: string;
+            service: string;
+        };
+        StackImageStatus: {
+            build: boolean;
+            /** @description Digest applied on this host by the last deploy (#20 baseline). */
+            digest?: string;
+            /** @description The service could follow its tag's digest (#20). */
+            eligible: boolean;
+            image: string;
+            imageId?: string;
+            platform?: string;
+            /** @enum {string} */
+            reason?: "build_only" | "digest_pinned" | "untagged";
+            service: string;
+            /**
+             * @description Update state; unknown until digest checks (#20) exist.
+             * @enum {string}
+             */
+            update: "unknown";
+        };
+        StackIssue: {
+            /** @description invalid_project, unsupported_compose_feature, obsolete_version, bind_outside_project, ... */
+            code: string;
+            message: string;
+            service?: string;
+        };
+        StackJobRef: {
+            id: string;
+            kind: string;
+        };
+        StackLocation: {
+            /** @description Project directory relative to the root. */
+            dir: string;
+            /**
+             * @description stacks: the environment's stacks volume; bind: a registered stack root (#28).
+             * @enum {string}
+             */
+            root: "stacks" | "bind";
+        };
         StackMembership: {
             /** @description A DockYard-managed stack: direct updates and removals are refused with stack_managed. */
             managed: boolean;
@@ -4989,6 +5567,133 @@ export interface components {
             service?: string;
             /** @description The DockYard stack (#7) when the project is one. */
             stackId?: string;
+        };
+        StackPort: {
+            hostIp?: string;
+            /** Format: int32 */
+            privatePort: number;
+            protocol: string;
+            /** Format: int32 */
+            publicPort?: number;
+        };
+        StackRestoreResult: {
+            /** @description The restored definition differs from the applied revision: offer a deploy (never started automatically). */
+            deployOffered: boolean;
+            /** @description The new revision (source restore) now on disk. */
+            revision: components["schemas"]["StackRevision"];
+            stack: components["schemas"]["Stack"];
+        };
+        StackRevision: {
+            /** @description This is the stack's applied revision. */
+            applied?: boolean;
+            /** @description Audit metadata. */
+            authorTokenId?: string;
+            /** @description Audit metadata. */
+            authorUserId?: string;
+            /** @description Only hashes were captured; the revision cannot be shown or restored. */
+            contentOmitted?: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            files: components["schemas"]["StackRevisionFile"][];
+            hash: string;
+            id: string;
+            /** @description The deploy job (source deploy). */
+            jobId?: string;
+            /** @description The revision a restore wrote back. */
+            restoredFrom?: string;
+            /** Format: int64 */
+            seq: number;
+            /**
+             * @description How the revision was observed.
+             * @enum {string}
+             */
+            source: "deploy" | "editor" | "file_manager" | "external" | "restore";
+        };
+        StackRevisionFile: {
+            /** @description File content (revision detail only). */
+            content?: string;
+            /**
+             * @description base64 when the file is not valid UTF-8.
+             * @enum {string}
+             */
+            encoding?: "utf-8" | "base64";
+            /** @example compose.yaml */
+            path: string;
+            sha256: string;
+            /** Format: int64 */
+            size: number;
+        };
+        StackRevisionRef: {
+            /**
+             * Format: date-time
+             * @description When it was applied (appliedRevision) or last seen on disk (sourceRevision).
+             */
+            at?: string;
+            /** @description SHA-256 of the definition (files and their hashes). */
+            hash: string;
+            id: string;
+            /**
+             * Format: int64
+             * @description Revision number (1 = first).
+             */
+            seq: number;
+        };
+        StackServiceDef: {
+            /** @description The service has a build section (#33). */
+            build: boolean;
+            dependsOn: components["schemas"]["StackDependency"][];
+            /** @description DockYard display metadata (never written to Compose files). */
+            description?: string;
+            /** @description Lucide icon name override. */
+            icon?: string;
+            /** @description Resolved image reference. */
+            image: string;
+            name: string;
+        };
+        StackServiceMetaBody: {
+            description: string;
+            icon: string;
+        };
+        StackServiceState: {
+            /** Format: int64 */
+            containers: number;
+            /** Format: int64 */
+            running: number;
+            service: string;
+        };
+        StackServiceStatus: {
+            /** @description Image applied by the last deploy. */
+            applied?: components["schemas"]["StackImage"];
+            build: boolean;
+            containers: components["schemas"]["StackContainer"][];
+            dependsOn: components["schemas"]["StackDependency"][];
+            description?: string;
+            /** @description missing, not_running, running_while_stopped, unexpected_service, image_changed. */
+            drift: string[];
+            icon?: string;
+            /** @description Image of the definition. */
+            image?: string;
+            name: string;
+            /** @enum {string} */
+            status: "running" | "partial" | "exited" | "created" | "missing";
+        };
+        StackServices: {
+            /** @description The Engine state differs from what DockYard last applied. */
+            drift: boolean;
+            /** @description Read from the Engine now; false: the environment is offline and the last observed state is shown. */
+            live: boolean;
+            /** Format: date-time */
+            observedAt?: string;
+            services: components["schemas"]["StackServiceStatus"][];
+        };
+        StackValidation: {
+            binds: components["schemas"]["StackBind"][];
+            errors: components["schemas"]["StackIssue"][];
+            projectName?: string;
+            services: components["schemas"]["StackServiceDef"][];
+            valid: boolean;
+            /** @description Non-fatal findings: obsolete keys (top-level version), bind sources outside the project directory (#10). */
+            warnings: components["schemas"]["StackIssue"][];
         };
         StepUpInputBody: {
             /** @description A passkey assertion (PublicKeyCredential JSON) for options requested with purpose step_up. */
@@ -5172,6 +5877,28 @@ export interface components {
              * @enum {string}
              */
             status?: "revoked";
+        };
+        UpdateStackInputBody: {
+            description?: string;
+            displayName?: string;
+            /** @description Lucide icon name; empty clears the override. */
+            icon?: string;
+            /** @description Display metadata per service name (empty values clear it). */
+            services?: {
+                [key: string]: components["schemas"]["StackServiceMetaBody"];
+            };
+        };
+        ValidateStackInputBody: {
+            /** @description Required: compose.yaml content. */
+            compose?: string;
+            /** @description .env content (optional; may hold secrets: it is stored sealed and never logged). */
+            env?: string;
+            /** @description Required: the environment whose agent validates. */
+            environmentId?: string;
+            /** @description Required: project name the definition would be deployed as. */
+            name?: string;
+            /** @description compose.override.yaml content (optional). */
+            override?: string;
         };
         VisibleEnvironment: {
             /** @description Granted environment capabilities. */
@@ -10317,6 +11044,220 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-discovered-stacks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveredOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportStackInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Stack"];
                 };
             };
             /** @description Unauthorized */
@@ -15893,6 +16834,660 @@ export interface operations {
             };
         };
     };
+    "list-stacks": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Only stacks of this environment. */
+                environmentId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageStack"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStackInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateStackOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-validation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ValidateStackInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackValidation"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-stack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Stack"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-stack": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-stack": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateStackInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Stack"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-deployment": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DeployStackInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "stream-stack-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["Stack"] | components["schemas"]["StackEvent"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-stack-files": {
         parameters: {
             query?: {
@@ -17456,6 +19051,496 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-stack-image-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageStatusOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-operation": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperateStackInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-revision-restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreStackInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackRestoreResult"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-stack-revisions": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageStackRevision"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-stack-revision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+                /** @description Revision ID. */
+                revisionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackRevision"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-stack-services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackServices"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

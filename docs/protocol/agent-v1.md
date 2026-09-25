@@ -404,8 +404,13 @@ Defined in `internal/protocol/jobs.go` and
   `deadline_exceeded`, `journal_failed`.
 - `progress {step, percent (-1 unknown), message, item}`, `result {outcome,
   errorClass, message, recovery, items, completedSteps, interruptedStep,
-  resumable, compensations}`; outcomes `succeeded`, `failed`, `partial`,
-  `cancelled`, `interrupted`.
+  resumable, compensations, output}`; outcomes `succeeded`, `failed`, `partial`,
+  `cancelled`, `interrupted`. `output` is the kind's result data (a JSON
+  object of at most 128 KiB, journaled with the attempt and sent with every
+  outcome), e.g. the sources, images and pre-operation state of a
+  `stack.deploy` (`protocol.StackJobOutput`). A `job_report` carries at most
+  512 KiB of outputs; beyond that they are dropped and the manager treats
+  them as unknown.
 - The manager acks a result with `forget: [jobId]`; after every reconnect the
   agent sends `job_report {highWater, jobs}` and the manager reconciles
   instead of re-running. A job the report lists as `running` sends its
@@ -420,6 +425,17 @@ Defined in `internal/protocol/jobs.go` and
   "payload": { "name": "files.list", "input": { "scope": { "kind": "volume", "id": "data" }, "path": "config" } } }
 { "type": "response", "id": "r-7", "correlationId": "q-7", "payload": { "output": { "entries": [] } } }
 ```
+
+The `compose.*` payloads are defined in `internal/protocol/compose.go`
+(#7): projects are addressed by a `ProjectRef` (root `stacks` or a registered
+`bind` root, a clean relative project directory and the project name); the
+agent resolves it against its verified roots (#28) and refuses anything
+outside them (`forbidden_path`). Definition files (compose files, override
+files, `.env` and service `env_file`s inside the project directory) travel
+with SHA-256 hashes; `SourceHash` identifies a definition identically on
+both sides. `compose.write` creates a new project directory (never over an
+existing one: `conflict`) or replaces definition files when the current
+definition still has the expected hash (`conflict` otherwise).
 
 Failures answer with `error` (correlationId = request). Requests the agent
 does not serve fail with `unsupported_request`. The Docker resource
@@ -644,6 +660,7 @@ enqueueing and again at dispatch for queued manual jobs.
 | `stack.build` | command | `stack.build` |
 | `stack.deploy` | command | `stack.deploy` |
 | `stack.down` | command | `stack.down` |
+| `stack.remove` | command | `stack.remove` |
 | `stack.restart` | command | `stack.restart` |
 | `stack.start` | command | `stack.start` |
 | `stack.stop` | command | `stack.stop` |
@@ -689,6 +706,9 @@ on a new session with a new frame ID.
 | `network.inspect` | request | `network.read` | no | #6 |
 | `compose.discover` | request | `stack.import` | no | #7 |
 | `compose.validate` | request | `stack.create` / `stack.manage` | no | #7 |
+| `compose.read` | request | `stack.definition.read`, or the manager service (revision recording, #7) | no | #7 |
+| `compose.write` | request | `stack.create` / `stack.import` / `stack.definition.write` (create a project directory or restore a revision; expected hash) | yes | #7 |
+| `compose.services` | request | `stack.read` | no | #7 |
 | `files.list` | request | `stack.files.read` / `volume.files.read` | no | #15 |
 | `files.stat` | request | `stack.files.read` / `volume.files.read` | no | #15 |
 | `files.read` | request | `stack.files.read` / `volume.files.read` (≤ 512 KiB; larger via `files.download`) | no | #15 |
@@ -838,4 +858,5 @@ The manager maps them to public errors: `not_found` → 404,
 | `engine.info`, `host.metrics`, Docker event relay (coalescing, rate bound) | `internal/agent/observe`, `internal/manager/observe` | implemented (#5) |
 | Docker resource requests (`container.list/inspect`, `image.list/inspect/tag`, `volume.list/inspect`, `network.list/inspect`) and executors (`container.*`, `image.pull/remove`, `volume.*`, `network.*`) | `internal/protocol/docker.go` (inputs/outputs), `internal/agent/resources` | implemented (#6) |
 | `rescan` (agent answers `unsupported_request`), agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stubs | #23 (rescan, watcher) |
-| other request/stream executors | agent adapter | #7, #8, #10, #14, #21, #35 |
+| `compose.discover/validate/read/write/services` requests, `stack.deploy/start/stop/restart/down/remove` executors, result `output` | `internal/agent/stacks`, `internal/jobexec`, `internal/manager/stacks` | implemented (#7) |
+| other request/stream executors | agent adapter | #8, #10, #14, #21, #35 |

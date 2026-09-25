@@ -2284,6 +2284,66 @@
         },
         "type": "object"
       },
+      "CreateStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "compose": {
+            "description": "Required: compose.yaml content.",
+            "maxLength": 262144,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "env": {
+            "description": ".env content (optional; may hold secrets: it is stored sealed and never logged).",
+            "maxLength": 262144,
+            "type": "string"
+          },
+          "environmentId": {
+            "description": "Required: the environment to create the stack in.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "icon": {
+            "description": "Lucide icon name.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "name": {
+            "description": "Required: Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume.",
+            "maxLength": 63,
+            "type": "string"
+          },
+          "override": {
+            "description": "compose.override.yaml content (optional).",
+            "maxLength": 262144,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateStackOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "stack": {
+            "$ref": "#/components/schemas/Stack"
+          },
+          "validation": {
+            "$ref": "#/components/schemas/StackValidation"
+          }
+        },
+        "required": [
+          "stack",
+          "validation"
+        ],
+        "type": "object"
+      },
       "CreateVolumeEntryInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -2452,6 +2512,128 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "DeployStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "build": {
+            "description": "Rebuild every build section (default: only missing images are built).",
+            "type": "boolean"
+          },
+          "forceRecreate": {
+            "type": "boolean"
+          },
+          "pull": {
+            "description": "missing (default): pull only images that are not on the host; always: pull every image first.",
+            "enum": [
+              "missing",
+              "always"
+            ],
+            "type": "string"
+          },
+          "removeOrphans": {
+            "description": "Remove containers of services no longer in the definition.",
+            "type": "boolean"
+          },
+          "services": {
+            "description": "Deploy only these services (and their dependencies).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "timeoutSeconds": {
+            "description": "Stop grace period for recreated containers.",
+            "format": "int64",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DiscoveredOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveredStack"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "projects"
+        ],
+        "type": "object"
+      },
+      "DiscoveredStack": {
+        "additionalProperties": false,
+        "properties": {
+          "adoptable": {
+            "description": "Can be imported in place from its real files.",
+            "type": "boolean"
+          },
+          "location": {
+            "$ref": "#/components/schemas/StackLocation",
+            "description": "Where it lies under a verified stack root (adoptable in place)."
+          },
+          "name": {
+            "description": "Compose project name.",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why it cannot be adopted in place (import it with an explicit Compose source).",
+            "type": "string"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveredStackService"
+            },
+            "type": "array"
+          },
+          "stackId": {
+            "description": "The DockYard stack already managing it.",
+            "type": "string"
+          },
+          "workingDir": {
+            "description": "Project directory from the containers' labels (host path).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "services",
+          "adoptable"
+        ],
+        "type": "object"
+      },
+      "DiscoveredStackService": {
+        "additionalProperties": false,
+        "properties": {
+          "containers": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "image": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "running": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "image",
+          "containers",
+          "running"
+        ],
         "type": "object"
       },
       "DockerCounts": {
@@ -4016,6 +4198,48 @@
         ],
         "type": "object"
       },
+      "ImageStatusOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "images": {
+            "items": {
+              "$ref": "#/components/schemas/StackImageStatus"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "images"
+        ],
+        "type": "object"
+      },
+      "ImportStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "icon": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "projectName": {
+            "description": "Required: the discovered Compose project to adopt.",
+            "maxLength": 63,
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/StackDefinitionBody",
+            "description": "Explicit Compose source (written into a new directory of the stacks volume); omit to adopt the project in place."
+          }
+        },
+        "type": "object"
+      },
       "InstallCommand": {
         "additionalProperties": false,
         "properties": {
@@ -4751,6 +4975,37 @@
         ],
         "type": "object"
       },
+      "OperateStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "Required; selects the capability: stack.start, stack.stop, stack.restart or stack.down.",
+            "enum": [
+              "start",
+              "stop",
+              "restart",
+              "down"
+            ],
+            "type": "string"
+          },
+          "services": {
+            "description": "Only these services (start/stop/restart); dependencies and restart: true dependents follow the lifecycle rules.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "timeoutSeconds": {
+            "description": "Stop grace period.",
+            "format": "int64",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "Overview": {
         "additionalProperties": false,
         "properties": {
@@ -5268,6 +5523,56 @@
             "description": "Items on this page (possibly empty, also when nextCursor is present).",
             "items": {
               "$ref": "#/components/schemas/RegistryConnection"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Opaque cursor for the next page; absent on the last page.",
+            "type": "string"
+          },
+          "total": {
+            "description": "Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "PageStack": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Items on this page (possibly empty, also when nextCursor is present).",
+            "items": {
+              "$ref": "#/components/schemas/Stack"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Opaque cursor for the next page; absent on the last page.",
+            "type": "string"
+          },
+          "total": {
+            "description": "Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "PageStackRevision": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Items on this page (possibly empty, also when nextCursor is present).",
+            "items": {
+              "$ref": "#/components/schemas/StackRevision"
             },
             "type": "array"
           },
@@ -6522,6 +6827,17 @@
         ],
         "type": "object"
       },
+      "RestoreStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "revisionId": {
+            "description": "Required: the revision to write back to disk.",
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "RevokeTokensBody": {
         "additionalProperties": false,
         "properties": {
@@ -6781,6 +7097,545 @@
         ],
         "type": "object"
       },
+      "Stack": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "description": "Granted stack capabilities.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "appliedRevision": {
+            "$ref": "#/components/schemas/StackRevisionRef",
+            "description": "Last revision deployed successfully by DockYard (absent: never deployed by DockYard)."
+          },
+          "binds": {
+            "description": "Resolved bind sources (with stack.definition.read).",
+            "items": {
+              "$ref": "#/components/schemas/StackBind"
+            },
+            "type": "array"
+          },
+          "configFiles": {
+            "description": "Explicit Compose files (empty: compose.yaml plus its override file).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/StackEngineState",
+            "description": "Live Engine state as last observed (compare with status and appliedRevision to see drift)."
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "environmentOnline": {
+            "description": "The environment's agent is connected.",
+            "type": "boolean"
+          },
+          "failedRevision": {
+            "$ref": "#/components/schemas/StackRevisionRef",
+            "description": "Revision of the last failed deploy (cleared by a successful one)."
+          },
+          "icon": {
+            "description": "Lucide icon name override.",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "0190a6e0-7777-7000-8000-000000000007"
+            ],
+            "type": "string"
+          },
+          "images": {
+            "description": "Images applied by the last successful deploy.",
+            "items": {
+              "$ref": "#/components/schemas/StackImage"
+            },
+            "type": "array"
+          },
+          "lastJob": {
+            "$ref": "#/components/schemas/StackJobRef"
+          },
+          "location": {
+            "$ref": "#/components/schemas/StackLocation"
+          },
+          "name": {
+            "description": "Compose project name.",
+            "examples": [
+              "shop"
+            ],
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "created",
+              "imported"
+            ],
+            "type": "string"
+          },
+          "previousState": {
+            "description": "Engine state before the last deploy (recovery of a failed deploy).",
+            "items": {
+              "$ref": "#/components/schemas/StackServiceState"
+            },
+            "type": "array"
+          },
+          "readOnly": {
+            "description": "The environment is offline: the last known revision and state are shown read-only.",
+            "type": "boolean"
+          },
+          "recovery": {
+            "description": "How to recover from a failed deploy.",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Metadata revision (the ETag); full view or with stack.manage.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "services": {
+            "description": "Services of the last deploy (or of the definition before the first deploy).",
+            "items": {
+              "$ref": "#/components/schemas/StackServiceDef"
+            },
+            "type": "array"
+          },
+          "sourceRevision": {
+            "$ref": "#/components/schemas/StackRevisionRef",
+            "description": "Newest revision observed on disk."
+          },
+          "status": {
+            "description": "What DockYard last did to the stack (not the live Engine state, see engine).",
+            "enum": [
+              "undeployed",
+              "deployed",
+              "stopped",
+              "down",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "undeployedChanges": {
+            "description": "The definition on disk differs from the last applied revision.",
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "view": {
+            "enum": [
+              "minimal",
+              "full"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "environmentId",
+          "name",
+          "status",
+          "view",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "StackBind": {
+        "additionalProperties": false,
+        "properties": {
+          "external": {
+            "description": "Outside the project directory: backups need an explicit opt-in (#10).",
+            "type": "boolean"
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "relPath": {
+            "description": "Path inside the project directory (stack backups include it by default, #10).",
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "source": {
+            "description": "Host path.",
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "source",
+          "target",
+          "external",
+          "readOnly"
+        ],
+        "type": "object"
+      },
+      "StackContainer": {
+        "additionalProperties": false,
+        "properties": {
+          "cpuShares": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "exitCode": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "health": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "imageId": {
+            "type": "string"
+          },
+          "memory": {
+            "description": "Memory limit in bytes (0: unlimited).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nanoCpus": {
+            "description": "CPU limit in 1e-9 CPUs (0: unlimited).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pidsLimit": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ports": {
+            "items": {
+              "$ref": "#/components/schemas/StackPort"
+            },
+            "type": "array"
+          },
+          "restartPolicy": {
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "created",
+              "running",
+              "paused",
+              "restarting",
+              "removing",
+              "exited",
+              "dead"
+            ],
+            "type": "string"
+          },
+          "view": {
+            "enum": [
+              "minimal",
+              "full"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "view"
+        ],
+        "type": "object"
+      },
+      "StackDefinitionBody": {
+        "additionalProperties": false,
+        "properties": {
+          "compose": {
+            "description": "Required: compose.yaml content.",
+            "maxLength": 262144,
+            "type": "string"
+          },
+          "env": {
+            "description": ".env content (optional; may hold secrets: it is stored sealed and never logged).",
+            "maxLength": 262144,
+            "type": "string"
+          },
+          "override": {
+            "description": "compose.override.yaml content (optional).",
+            "maxLength": 262144,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "StackDependency": {
+        "additionalProperties": false,
+        "properties": {
+          "condition": {
+            "enum": [
+              "service_started",
+              "service_healthy",
+              "service_completed_successfully"
+            ],
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "restart": {
+            "type": "boolean"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "condition",
+          "required",
+          "restart"
+        ],
+        "type": "object"
+      },
+      "StackEngineState": {
+        "additionalProperties": false,
+        "properties": {
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/StackServiceState"
+            },
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "unknown",
+              "running",
+              "partial",
+              "stopped",
+              "missing"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "services"
+        ],
+        "type": "object"
+      },
+      "StackEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "attributes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Small facts (job ID and kind, revision source and number); never file contents.",
+            "type": "object"
+          },
+          "resourceId": {
+            "description": "The container of an engine event.",
+            "type": "string"
+          },
+          "seq": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "stackId": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "stack.created",
+              "stack.updated",
+              "stack.removed",
+              "stack.revision_recorded",
+              "docker.event"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "type",
+          "stackId",
+          "at"
+        ],
+        "type": "object"
+      },
+      "StackImage": {
+        "additionalProperties": false,
+        "properties": {
+          "build": {
+            "type": "boolean"
+          },
+          "digest": {
+            "description": "Repository digest applied on this host (empty for locally built images).",
+            "type": "string"
+          },
+          "image": {
+            "description": "Reference as resolved from the definition (the tag text never changes, #20).",
+            "type": "string"
+          },
+          "imageId": {
+            "type": "string"
+          },
+          "platform": {
+            "examples": [
+              "linux/amd64"
+            ],
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "image",
+          "build"
+        ],
+        "type": "object"
+      },
+      "StackImageStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "build": {
+            "type": "boolean"
+          },
+          "digest": {
+            "description": "Digest applied on this host by the last deploy (#20 baseline).",
+            "type": "string"
+          },
+          "eligible": {
+            "description": "The service could follow its tag's digest (#20).",
+            "type": "boolean"
+          },
+          "image": {
+            "type": "string"
+          },
+          "imageId": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "build_only",
+              "digest_pinned",
+              "untagged"
+            ],
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "update": {
+            "description": "Update state; unknown until digest checks (#20) exist.",
+            "enum": [
+              "unknown"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "image",
+          "build",
+          "eligible",
+          "update"
+        ],
+        "type": "object"
+      },
+      "StackIssue": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "description": "invalid_project, unsupported_compose_feature, obsolete_version, bind_outside_project, ...",
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "StackJobRef": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "StackLocation": {
+        "additionalProperties": false,
+        "properties": {
+          "dir": {
+            "description": "Project directory relative to the root.",
+            "type": "string"
+          },
+          "root": {
+            "description": "stacks: the environment's stacks volume; bind: a registered stack root (#28).",
+            "enum": [
+              "stacks",
+              "bind"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "root",
+          "dir"
+        ],
+        "type": "object"
+      },
       "StackMembership": {
         "additionalProperties": false,
         "properties": {
@@ -6803,6 +7658,400 @@
         "required": [
           "project",
           "managed"
+        ],
+        "type": "object"
+      },
+      "StackPort": {
+        "additionalProperties": false,
+        "properties": {
+          "hostIp": {
+            "type": "string"
+          },
+          "privatePort": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "publicPort": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "privatePort",
+          "protocol"
+        ],
+        "type": "object"
+      },
+      "StackRestoreResult": {
+        "additionalProperties": false,
+        "properties": {
+          "deployOffered": {
+            "description": "The restored definition differs from the applied revision: offer a deploy (never started automatically).",
+            "type": "boolean"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/StackRevision",
+            "description": "The new revision (source restore) now on disk."
+          },
+          "stack": {
+            "$ref": "#/components/schemas/Stack"
+          }
+        },
+        "required": [
+          "stack",
+          "revision",
+          "deployOffered"
+        ],
+        "type": "object"
+      },
+      "StackRevision": {
+        "additionalProperties": false,
+        "properties": {
+          "applied": {
+            "description": "This is the stack's applied revision.",
+            "type": "boolean"
+          },
+          "authorTokenId": {
+            "description": "Audit metadata.",
+            "type": "string"
+          },
+          "authorUserId": {
+            "description": "Audit metadata.",
+            "type": "string"
+          },
+          "contentOmitted": {
+            "description": "Only hashes were captured; the revision cannot be shown or restored.",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/StackRevisionFile"
+            },
+            "type": "array"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "jobId": {
+            "description": "The deploy job (source deploy).",
+            "type": "string"
+          },
+          "restoredFrom": {
+            "description": "The revision a restore wrote back.",
+            "type": "string"
+          },
+          "seq": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "source": {
+            "description": "How the revision was observed.",
+            "enum": [
+              "deploy",
+              "editor",
+              "file_manager",
+              "external",
+              "restore"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "hash",
+          "source",
+          "files",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "StackRevisionFile": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "File content (revision detail only).",
+            "type": "string"
+          },
+          "encoding": {
+            "description": "base64 when the file is not valid UTF-8.",
+            "enum": [
+              "utf-8",
+              "base64"
+            ],
+            "type": "string"
+          },
+          "path": {
+            "examples": [
+              "compose.yaml"
+            ],
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "sha256",
+          "size"
+        ],
+        "type": "object"
+      },
+      "StackRevisionRef": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "description": "When it was applied (appliedRevision) or last seen on disk (sourceRevision).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "hash": {
+            "description": "SHA-256 of the definition (files and their hashes).",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "seq": {
+            "description": "Revision number (1 = first).",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "hash"
+        ],
+        "type": "object"
+      },
+      "StackServiceDef": {
+        "additionalProperties": false,
+        "properties": {
+          "build": {
+            "description": "The service has a build section (#33).",
+            "type": "boolean"
+          },
+          "dependsOn": {
+            "items": {
+              "$ref": "#/components/schemas/StackDependency"
+            },
+            "type": "array"
+          },
+          "description": {
+            "description": "DockYard display metadata (never written to Compose files).",
+            "type": "string"
+          },
+          "icon": {
+            "description": "Lucide icon name override.",
+            "type": "string"
+          },
+          "image": {
+            "description": "Resolved image reference.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "image",
+          "build",
+          "dependsOn"
+        ],
+        "type": "object"
+      },
+      "StackServiceMetaBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "icon": {
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "icon"
+        ],
+        "type": "object"
+      },
+      "StackServiceState": {
+        "additionalProperties": false,
+        "properties": {
+          "containers": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "running": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "containers",
+          "running"
+        ],
+        "type": "object"
+      },
+      "StackServiceStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "applied": {
+            "$ref": "#/components/schemas/StackImage",
+            "description": "Image applied by the last deploy."
+          },
+          "build": {
+            "type": "boolean"
+          },
+          "containers": {
+            "items": {
+              "$ref": "#/components/schemas/StackContainer"
+            },
+            "type": "array"
+          },
+          "dependsOn": {
+            "items": {
+              "$ref": "#/components/schemas/StackDependency"
+            },
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "drift": {
+            "description": "missing, not_running, running_while_stopped, unexpected_service, image_changed.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "image": {
+            "description": "Image of the definition.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "partial",
+              "exited",
+              "created",
+              "missing"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "build",
+          "dependsOn",
+          "status",
+          "containers",
+          "drift"
+        ],
+        "type": "object"
+      },
+      "StackServices": {
+        "additionalProperties": false,
+        "properties": {
+          "drift": {
+            "description": "The Engine state differs from what DockYard last applied.",
+            "type": "boolean"
+          },
+          "live": {
+            "description": "Read from the Engine now; false: the environment is offline and the last observed state is shown.",
+            "type": "boolean"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/StackServiceStatus"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "live",
+          "drift",
+          "services"
+        ],
+        "type": "object"
+      },
+      "StackValidation": {
+        "additionalProperties": false,
+        "properties": {
+          "binds": {
+            "items": {
+              "$ref": "#/components/schemas/StackBind"
+            },
+            "type": "array"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/StackIssue"
+            },
+            "type": "array"
+          },
+          "projectName": {
+            "type": "string"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/StackServiceDef"
+            },
+            "type": "array"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "warnings": {
+            "description": "Non-fatal findings: obsolete keys (top-level version), bind sources outside the project directory (#10).",
+            "items": {
+              "$ref": "#/components/schemas/StackIssue"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "valid",
+          "errors",
+          "warnings",
+          "services",
+          "binds"
         ],
         "type": "object"
       },
@@ -7318,6 +8567,63 @@
             "enum": [
               "revoked"
             ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "icon": {
+            "description": "Lucide icon name; empty clears the override.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "services": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StackServiceMetaBody"
+            },
+            "description": "Display metadata per service name (empty values clear it).",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "ValidateStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "compose": {
+            "description": "Required: compose.yaml content.",
+            "maxLength": 262144,
+            "type": "string"
+          },
+          "env": {
+            "description": ".env content (optional; may hold secrets: it is stored sealed and never logged).",
+            "maxLength": 262144,
+            "type": "string"
+          },
+          "environmentId": {
+            "description": "Required: the environment whose agent validates.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "name": {
+            "description": "Required: project name the definition would be deployed as.",
+            "maxLength": 63,
+            "type": "string"
+          },
+          "override": {
+            "description": "compose.override.yaml content (optional).",
+            "maxLength": 262144,
             "type": "string"
           }
         },
@@ -15520,6 +16826,300 @@
         "x-dockyard-scope": "resource"
       }
     },
+    "/api/v1/environments/{environmentId}/stacks/discovered": {
+      "get": {
+        "description": "Compose projects the Engine knows from container labels, read-only: whether each can be adopted in place (its directory is under the stacks volume or a registered root) and the DockYard stack already managing it. Labels never reconstruct a Compose source.",
+        "operationId": "list-discovered-stacks",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveredOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List discovered Compose projects",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-capability": "stack.import",
+        "x-dockyard-scope": "environment"
+      }
+    },
+    "/api/v1/environments/{environmentId}/stacks/imports": {
+      "post": {
+        "description": "Adopts a discovered project. Without source, in place: its real files become the first revision (409 stack_not_adoptable when its directory is outside the stacks volume and registered roots). With source, the given definition is written into a new directory <projectName> of the stacks volume. Never overwrites: 409 stack_name_taken when DockYard already manages the project, stack_directory_exists when the directory exists.",
+        "operationId": "create-stack-import",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stack"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              },
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Import a Compose project",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-audit": "stack.import",
+        "x-dockyard-capability": "stack.import",
+        "x-dockyard-scope": "environment"
+      }
+    },
     "/api/v1/environments/{environmentId}/system": {
       "get": {
         "description": "The agent's last capabilities report: Engine identity and negotiated API version, agent version and window status, transport (plain-HTTP flag), verified file roots and diagnostics (#21, #27, #28), plus the Engine inventory: host identity, capacity and Docker counts, refreshed on change (#5). Host metrics: GET …/metrics and …/capacity.",
@@ -23627,6 +25227,982 @@
         "x-dockyard-scope": "none"
       }
     },
+    "/api/v1/stacks": {
+      "get": {
+        "description": "Managed Compose stacks in creation order, filtered per item (#17): stack.read shows a stack in full, any other capability on it (or inside it) only its identity and status. Pages may hold fewer items than limit; follow nextCursor.",
+        "operationId": "list-stacks",
+        "parameters": [
+          {
+            "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Only stacks of this environment.",
+            "explode": false,
+            "in": "query",
+            "name": "environmentId",
+            "schema": {
+              "description": "Only stacks of this environment.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageStack"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List stacks",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-capability": "stack.read",
+        "x-dockyard-scope": "resource"
+      },
+      "post": {
+        "description": "Validates the definition on the environment's agent, writes compose.yaml (and the optional override and .env) into a new project directory <name> of the environment's stacks volume and records it as the first revision. Nothing existing is overwritten: 409 stack_name_taken (DockYard stack), compose_project_exists (a Compose project of that name runs on the Engine: import it), stack_directory_exists (the directory exists). 422 invalid_definition lists the findings. Does not deploy.",
+        "operationId": "create-stack",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateStackOutputBody"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              },
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Create a stack",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-audit": "stack.create",
+        "x-dockyard-capability": "stack.create",
+        "x-dockyard-scope": "environment"
+      }
+    },
+    "/api/v1/stacks/validations": {
+      "post": {
+        "description": "Validates a definition on the environment's agent as if it were the project <name> in the stacks volume, without side effects: syntax and paths, unsupported features (docs/support-matrix.md), warnings for obsolete keys and bind sources outside the project directory.",
+        "operationId": "create-stack-validation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StackValidation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Validate a Compose definition",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-audit": "stack.create",
+        "x-dockyard-capability": "stack.create",
+        "x-dockyard-scope": "environment"
+      }
+    },
+    "/api/v1/stacks/{stackId}": {
+      "delete": {
+        "description": "Starts a stack.remove job (202): the stack is taken down (containers and networks removed; named volumes and the project directory are kept on the host) and, when that succeeds, removed from DockYard with its revisions and the permission rules naming it.",
+        "operationId": "delete-stack",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Delete a stack",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-audit": "stack.remove",
+        "x-dockyard-capability": "stack.remove",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      },
+      "get": {
+        "description": "The stack's deployment status (what DockYard last did), last applied revision and images, the newest revision observed on disk (undeployedChanges when they differ), the failed revision and recovery guidance after a failed deploy, and the Engine state as last observed. While the environment is offline the last known state is returned with readOnly.",
+        "operationId": "get-stack",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stack"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get a stack",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-capability": "stack.read",
+        "x-dockyard-scope": "resource"
+      },
+      "patch": {
+        "description": "Display name, description, Lucide icon override and per-service metadata, stored in DockYard and never written to Compose files. Requires If-Match.",
+        "operationId": "update-stack",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag.",
+              "maxLength": 1024,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stack"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Failed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Required"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Edit a stack's display metadata",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-audit": "stack.manage",
+        "x-dockyard-capability": "stack.manage",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/deployments": {
+      "post": {
+        "description": "Starts a stack.deploy job (202). The agent deploys the definition on disk when the job runs (up with builds through the Engine's BuildKit, dependency order and conditions) and reports the exact bytes it used, which become the applied revision. Deploys of one stack serialize (job lock). A failed deploy keeps the last applied revision; nothing is rolled back.",
+        "operationId": "create-stack-deployment",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeployStackInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Deploy a stack",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-audit": "stack.deploy",
+        "x-dockyard-capability": "stack.deploy",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/events/stream": {
+      "get": {
+        "description": "Server-sent events: first `event: stack` with the current Stack, then `stack.updated`, `stack.revision_recorded` and `stack.removed` events (id = bus sequence) as they happen, and `engine` events of the stack's containers the caller may see; refetch the stack (or its services/revisions) on each. No replay: after a reconnect the new snapshot is the state. Comments `: heartbeat` keep the connection alive. Job progress is on /jobs/{jobId}/events/stream.",
+        "operationId": "stream-stack-events",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "description": "A Stack (event: stack), then StackEvents.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Stack"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StackEvent"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Event stream"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Stream a stack's events (SSE)",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-capability": "stack.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
     "/api/v1/stacks/{stackId}/files": {
       "get": {
         "description": "One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/api/files.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
@@ -26037,6 +28613,732 @@
         ],
         "x-dockyard-audit": "stack.files.write",
         "x-dockyard-capability": "stack.files.write",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/image-status": {
+      "get": {
+        "description": "Images applied by the last deploy (reference, image ID, repository digest, platform) and whether each service could follow its tag's digest (#20: build-only, digest-pinned and untagged services are ineligible). Update candidates arrive with #20.",
+        "operationId": "get-stack-image-status",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageStatusOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get a stack's image status",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-capability": "stack.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/operations": {
+      "post": {
+        "description": "Starts a stack.start/stop/restart/down job (202); the body's action selects the capability. Start, stop and restart follow the deployed dependency graph: stop in reverse dependency order, start dependencies first and wait for their depends_on conditions, restart propagates to restart: true dependents. Down removes containers and networks, never volumes.",
+        "operationId": "create-stack-operation",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperateStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Start, stop, restart or take down a stack",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-audit": "stack_operation.create",
+        "x-dockyard-capability": "stack.{action}",
+        "x-dockyard-capability-values": [
+          "stack.start",
+          "stack.stop",
+          "stack.restart",
+          "stack.down"
+        ],
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/revision-restores": {
+      "post": {
+        "description": "Writes the revision's bytes back to the project directory (the definition currently on disk is recorded first; 409 stack_definition_changed if it changes meanwhile) and records a restore revision. It never deploys: when the result differs from the applied revision, deployOffered is true. 503 environment_offline while the agent is offline (revisions are read-only then).",
+        "operationId": "create-stack-revision-restore",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StackRestoreResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Restore a revision to disk",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-audit": "stack.definition.write",
+        "x-dockyard-capability": "stack.definition.write",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/revisions": {
+      "get": {
+        "description": "Immutable revisions of the definition, newest first: recorded at every deploy and whenever a change was observed (stack editor, file manager, external edit, restore). Metadata only; GET a revision for its contents. Diffs are computed client-side from two revisions' contents.",
+        "operationId": "list-stack-revisions",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageStackRevision"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List a stack's revisions",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-capability": "stack.definition.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/revisions/{revisionId}": {
+      "get": {
+        "description": "The revision with the contents of its files (compose, override and env files, which may hold secrets; every read is audited). To show a diff, fetch both revisions and compare their files client-side.",
+        "operationId": "get-stack-revision",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Revision ID.",
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "description": "Revision ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StackRevision"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get a stack revision",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-audit": "stack.definition.read",
+        "x-dockyard-capability": "stack.definition.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/services": {
+      "get": {
+        "description": "Services of the applied definition joined with their containers on the Engine (live while the environment is online, else the last observed state with live false), with drift from DockYard's intent. Container image, ports, restart policy and resources need container.details.read on the container; per-service metrics are #5's.",
+        "operationId": "list-stack-services",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StackServices"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List a stack's services",
+        "tags": [
+          "Stacks"
+        ],
+        "x-dockyard-capability": "stack.read",
         "x-dockyard-scope": "resource"
       }
     },

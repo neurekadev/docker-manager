@@ -11,7 +11,7 @@ the [route inventory](../../api/route-inventory.yaml) is listed here
 | `GET /live/stream` | `stream-live-events` | SSE | #23 |
 | `GET /jobs/{jobId}/events/stream` | `stream-job-events` | SSE | #26 (implemented) |
 | `GET /environments/{environmentId}/events/stream` | `stream-environment-events` | SSE | #5 (implemented) |
-| `GET /stacks/{stackId}/events/stream` | `stream-stack-events` | SSE | #7 |
+| `GET /stacks/{stackId}/events/stream` | `stream-stack-events` | SSE | #7 (implemented) |
 | `GET /environments/{environmentId}/containers/{containerId}/logs/stream` | `stream-container-logs` | SSE | #8 |
 | `GET /environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}/stream` | `stream-container-exec-session` | WebSocket | #8 |
 | `GET /stacks/{stackId}/files/downloads` | `download-stack-files` | binary response | #15 (implemented) |
@@ -166,13 +166,24 @@ integer (`422` otherwise).
 
 ## Environment and stack events
 
-`stream-environment-events` and `stream-stack-events` relay Docker Engine
-events (container/image/volume/network lifecycle, health) for one
-environment or one stack, filtered per resource capability. Framing as
-above; `event: engine`, `data: {type, action, resourceId, attributes, at}`,
-`id` is a per-environment cursor with a bounded in-memory replay (1 000
-events); outside it the stream starts with `reset`. Attributes are an
-allowlist (no environment variables or secret labels).
+`stream-environment-events` (#5) relays Docker Engine events
+(container/image/volume/network lifecycle, health) for one environment,
+filtered per resource capability. Framing as above; `event: engine`,
+`data: {type, action, resourceId, attributes, at}`, `id` is a
+per-environment cursor with a bounded in-memory replay (1 000 events);
+outside it the stream starts with `reset`. Attributes are an allowlist (no
+environment variables or secret labels).
+
+`stream-stack-events` (#7, implemented) needs `stack.read`. It starts with
+`event: stack` (the current `Stack`, no id), then sends, as they happen:
+`stack.updated` (status, job started or finished, Engine state observed,
+metadata), `stack.revision_recorded` (a new revision of the definition:
+`attributes.source`, `attributes.seq`), `stack.removed` (the stream then
+ends) and `engine` events of the stack's containers the caller may see
+(when the agent relays the Compose project label). `id` is the manager bus
+sequence; there is no replay: after a reconnect the new `stack` snapshot is
+the state, so clients refetch the stack (and its services or revisions) on
+every event. Attributes never contain file contents or `.env` values.
 
 ### `stream-environment-events` (implemented, #5)
 

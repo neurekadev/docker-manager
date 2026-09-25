@@ -63,6 +63,13 @@ const (
 	// InventoryUpdated: an environment's Engine inventory (identity,
 	// capacity, Docker counts) was refreshed (#5).
 	InventoryUpdated = "inventory.updated"
+
+	// Stack changes (#7): created/imported, updated (status, jobs, Engine
+	// state, metadata), removed, and a new revision of the definition.
+	StackCreated          = "stack.created"
+	StackUpdated          = "stack.updated"
+	StackRemoved          = "stack.removed"
+	StackRevisionRecorded = "stack.revision_recorded"
 )
 
 // Resource types.
@@ -75,6 +82,7 @@ const (
 	ResourceVolume      = "volume"
 	ResourceNetwork     = "network"
 	ResourceFileScope   = "file_scope"
+	ResourceStack       = "stack"
 )
 
 // Event is one published change.

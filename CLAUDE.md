@@ -324,6 +324,30 @@ tests: `internal/agent/engine/enginefake`.
   `stack.definition.*`); shared types `internal/protocol/files.go`; contract
   `docs/api/files.md`. Never log file contents or put them in audit details.
 
+## Compose stacks (#7)
+
+Guide: `docs/architecture/stacks.md`. Manager: `internal/manager/stacks`
+(`app.Manager.Stacks()`); agent: `internal/agent/stacks`; lifecycle:
+`internal/agent/lifecycle`; payloads: `internal/protocol/compose.go`.
+
+- The on-disk definition is the source of truth (#25 Q1). Never write
+  Compose/override/env files except through `compose.write` (creation,
+  explicit restores); deploys and updates only read and report the bytes
+  they used (`protocol.StackJobOutput.Sources`).
+- Revisions are immutable and sealed; record observed changes with
+  `stacks.Service.RecordObserved` (#23) / `RecordFileSave` (#15); resolve a
+  stack's files with `Root`; paths needing `stack.definition.*`:
+  `stacks.IsDefinitionFile`.
+- Stop/start containers of a stack (backups #10, updates #20, migrations
+  #35, container actions #9) with `internal/agent/lifecycle`
+  (`GraphFromContainers` + `EngineRuntime`, `Stop`/`Start`/`Restart`/`Resume`),
+  never by looping over containers.
+- Job results: steps set output with `sc.SetOutput`; the manager reacts in
+  `jobs.Engine.OnFinish` hooks (transactional, `j.ResultOutput`).
+- Agent payloads address a project with `protocol.ProjectRef` (root +
+  project-relative dir + project name); `protocol.StackRef` is #6's
+  "which Compose project a Docker object belongs to".
+
 ## Adding a migration
 
 - New file `internal/db/migrations/<UTC YYYYMMDDHHMMSS>_<snake_name>.go`.

@@ -296,6 +296,11 @@ type Job struct {
 	DispatchedAt *time.Time
 	StartedAt    *time.Time
 	FinishedAt   *time.Time
+	// ResultOutput is the executor's result output (a JSON object) of the
+	// attempt that finished the job. It is not persisted: the engine hands
+	// it to the kind's finish hooks in the finishing transaction (nil when
+	// the job ended without an executor result).
+	ResultOutput []byte
 }
 
 // JobCompensation is a compensating action registered by a step (e.g.

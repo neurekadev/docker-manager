@@ -1,0 +1,501 @@
+package stacks
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/neurekadev/dockyard/internal/agent/compose"
+	"github.com/neurekadev/dockyard/internal/agent/engine"
+	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
+	"github.com/neurekadev/dockyard/internal/agent/regauth"
+	"github.com/neurekadev/dockyard/internal/domain"
+	"github.com/neurekadev/dockyard/internal/jobexec"
+	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/protocol"
+)
+
+// sourceRetries bounds how often apply re-reads a definition that changed
+// while it was being loaded.
+const sourceRetries = 3
+
+// Executors returns the stack.* job executors (runtime.Options.Executors).
+func (s *Service) Executors() []jobexec.Executor {
+	return []jobexec.Executor{
+		{Kind: jobspec.StackDeploy, Steps: map[string]jobexec.StepFunc{
+			"resolve_sources": classified(s.resolveSources),
+			"pull_images":     classified(s.pullImages),
+			"build_images":    classified(s.buildImages),
+			"apply":           classified(s.apply),
+		}},
+		{Kind: jobspec.StackStart, Steps: map[string]jobexec.StepFunc{"start": classified(s.lifecycleStep(opStart))}},
+		{Kind: jobspec.StackStop, Steps: map[string]jobexec.StepFunc{"stop": classified(s.lifecycleStep(opStop))}},
+		{Kind: jobspec.StackRestart, Steps: map[string]jobexec.StepFunc{"restart": classified(s.lifecycleStep(opRestart))}},
+		{Kind: jobspec.StackDown, Steps: map[string]jobexec.StepFunc{"down": classified(s.down)}},
+		{Kind: jobspec.StackRemove, Steps: map[string]jobexec.StepFunc{"down": classified(s.down)}},
+	}
+}
+
+func input(sc *jobexec.StepContext) (protocol.StackJobInput, error) {
+	var in protocol.StackJobInput
+	if err := json.Unmarshal(sc.Input, &in); err != nil {
+		return in, fmt.Errorf("malformed stack job input: %w", err)
+	}
+	if err := in.Stack.Validate(); err != nil {
+		return in, err
+	}
+	switch in.Pull {
+	case "", "missing", "always":
+	default:
+		return in, fmt.Errorf("unknown pull mode %q", in.Pull)
+	}
+	return in, nil
+}
+
+// auth returns the registry credentials of the command (#19): every
+// credential it carries, for pulls, builds (BuildKit asks per host) and the
+// SDK's own pulls. When the input named connections, their credentials must
+// be there: the job fails rather than pulling anonymously.
+func auth(sc *jobexec.StepContext, in protocol.StackJobInput) ([]engine.RegistryAuth, error) {
+	a := regauth.All(sc.Secrets)
+	if len(in.RegistryConnections) > 0 && len(a) == 0 {
+		return nil, regauth.ErrMissing
+	}
+	return a, nil
+}
+
+// update reads the output so far, applies fn and journals it.
+func update(ctx context.Context, sc *jobexec.StepContext, fn func(o *protocol.StackJobOutput)) error {
+	var o protocol.StackJobOutput
+	if b := sc.Output(); len(b) > 0 {
+		if err := json.Unmarshal(b, &o); err != nil {
+			return err
+		}
+	}
+	fn(&o)
+	err := sc.SetOutput(ctx, o)
+	if errors.Is(err, jobexec.ErrOutputTooLarge) && o.Sources != nil && !o.Sources.ContentOmitted {
+		// Report the definition by hash only rather than losing the output.
+		src := *o.Sources
+		src.Files = slices.Clone(src.Files)
+		for i := range src.Files {
+			src.Files[i].Content = nil
+		}
+		src.ContentOmitted = true
+		o.Sources = &src
+		return sc.SetOutput(ctx, o)
+	}
+	return err
+}
+
+// project resolves and loads the stack's project (with the storage guard).
+func (s *Service) project(ctx context.Context, in protocol.StackJobInput) (*compose.Project, string, error) {
+	dir, err := s.resolve(in.Stack)
+	if err != nil {
+		return nil, "", err
+	}
+	c, err := s.composer()
+	if err != nil {
+		return nil, "", err
+	}
+	p, err := c.Load(ctx, specOf(in.Stack, dir))
+	if err != nil {
+		return nil, "", err
+	}
+	return p, dir, nil
+}
+
+func (s *Service) progress(ctx context.Context, sc *jobexec.StepContext) func(compose.Event) {
+	return func(e compose.Event) {
+		if e.Status == "working" && e.Text == "" {
+			return
+		}
+		msg := strings.TrimSpace(e.Resource + " " + e.Text)
+		if e.Details != "" {
+			msg += " (" + e.Details + ")"
+		}
+		sc.Progress(ctx, -1, msg)
+	}
+}
+
+// resolveSources validates the on-disk project and captures the state of
+// its containers before anything changes (journaled for recovery).
+func (s *Service) resolveSources(ctx context.Context, sc *jobexec.StepContext) error {
+	in, err := input(sc)
+	if err != nil {
+		return err
+	}
+	p, dir, err := s.project(ctx, in)
+	if err != nil {
+		return err
+	}
+	eng, err := s.engine()
+	if err != nil {
+		return err
+	}
+	before, err := serviceStates(ctx, eng, in.Stack.ProjectName)
+	if err != nil {
+		return err
+	}
+	bs := binds(p, dir)
+	sc.Progress(ctx, 5, fmt.Sprintf("loaded %s: %d services", p.Name, len(p.Services)))
+	return update(ctx, sc, func(o *protocol.StackJobOutput) {
+		o.Before = before
+		o.Services = serviceInfos(p)
+		o.Binds = bs
+		o.Warnings = warnings(p, bs)
+	})
+}
+
+// pullImages pulls every image with pull "always"; otherwise the apply step
+// pulls only images missing on the host (a redeploy never moves tags
+// implicitly, #20).
+func (s *Service) pullImages(ctx context.Context, sc *jobexec.StepContext) error {
+	in, err := input(sc)
+	if err != nil {
+		return err
+	}
+	if in.Pull != "always" {
+		return nil
+	}
+	creds, err := auth(sc, in)
+	if err != nil {
+		return err
+	}
+	p, _, err := s.project(ctx, in)
+	if err != nil {
+		return err
+	}
+	c, _ := s.composer()
+	sc.Progress(ctx, 15, "pulling images")
+	return c.Pull(ctx, p, compose.RunOptions{Events: s.progress(ctx, sc), Auth: creds})
+}
+
+// buildImages rebuilds every build section when requested; otherwise the
+// apply step builds only images missing on the host (#33).
+func (s *Service) buildImages(ctx context.Context, sc *jobexec.StepContext) error {
+	in, err := input(sc)
+	if err != nil {
+		return err
+	}
+	if !in.Build {
+		return nil
+	}
+	creds, err := auth(sc, in)
+	if err != nil {
+		return err
+	}
+	p, _, err := s.project(ctx, in)
+	if err != nil {
+		return err
+	}
+	c, _ := s.composer()
+	sc.Progress(ctx, 35, "building images")
+	return c.Build(ctx, p, compose.BuildOptions{RunOptions: compose.RunOptions{Events: s.progress(ctx, sc), Auth: creds}, Services: in.Services})
+}
+
+// apply deploys exactly the bytes it reports: it snapshots the definition,
+// loads the project from that snapshot and checks the files did not change
+// meanwhile. The result carries the sources (the applied revision), the
+// applied images and the state after the deploy, also when Up fails.
+func (s *Service) apply(ctx context.Context, sc *jobexec.StepContext) error {
+	in, err := input(sc)
+	if err != nil {
+		return err
+	}
+	creds, err := auth(sc, in)
+	if err != nil {
+		return err
+	}
+	dir, err := s.resolve(in.Stack)
+	if err != nil {
+		return err
+	}
+	c, err := s.composer()
+	if err != nil {
+		return err
+	}
+	eng, err := s.engine()
+	if err != nil {
+		return err
+	}
+	var p *compose.Project
+	var snap protocol.SourceSnapshot
+	for attempt := 0; ; attempt++ {
+		p, snap, err = s.loadSnapshot(ctx, c, in, dir)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, errSourcesChanged) || attempt+1 >= sourceRetries {
+			return err
+		}
+	}
+	sc.Progress(ctx, 50, "applying "+short(snap.Hash))
+	var timeout *time.Duration
+	if in.TimeoutSeconds > 0 {
+		d := time.Duration(in.TimeoutSeconds) * time.Second
+		timeout = &d
+	}
+	upErr := c.Up(ctx, p, compose.UpOptions{RunOptions: compose.RunOptions{Events: s.progress(ctx, sc), Auth: creds},
+		Services: in.Services, ForceRecreate: in.ForceRecreate, RemoveOrphans: in.RemoveOrphans, StopTimeout: timeout})
+	if upErr != nil && ctx.Err() != nil {
+		return upErr // shutdown: the attempt is recovered from the journal
+	}
+	after, aerr := serviceStates(ctx, eng, in.Stack.ProjectName)
+	images := appliedImages(ctx, eng, p)
+	bs := binds(p, dir)
+	if err := update(ctx, sc, func(o *protocol.StackJobOutput) {
+		src := snap
+		if inlineSize(src) > protocol.MaxInlineSources {
+			for i := range src.Files {
+				src.Files[i].Content = nil
+			}
+			src.ContentOmitted = true
+		}
+		o.Sources = &src
+		o.Services = serviceInfos(p)
+		o.Images = images
+		o.Binds = bs
+		o.Warnings = warnings(p, bs)
+		o.After = after
+	}); err != nil {
+		return errors.Join(upErr, err)
+	}
+	if upErr != nil {
+		return upErr
+	}
+	return aerr
+}
+
+var errSourcesChanged = errors.New("the definition files changed while the deploy read them")
+
+// loadSnapshot reads the definition, loads the project from those bytes
+// and re-reads the files to make sure they did not change in between.
+func (s *Service) loadSnapshot(ctx context.Context, c Composer, in protocol.StackJobInput, dir string) (*compose.Project, protocol.SourceSnapshot, error) {
+	files, _ := definitionFiles(ctx, in.Stack, dir)
+	snap, err := readSources(dir, files)
+	if err != nil {
+		return nil, snap, err
+	}
+	spec := specOf(in.Stack, dir)
+	spec.Content = map[string][]byte{}
+	for _, f := range snap.Files {
+		spec.Content[f.Path] = f.Content
+	}
+	p, err := c.Load(ctx, spec)
+	if err != nil {
+		return nil, snap, err
+	}
+	again, err := readSources(dir, files)
+	if err != nil {
+		return nil, snap, err
+	}
+	if again.Hash != snap.Hash {
+		return nil, snap, errSourcesChanged
+	}
+	return p, snap, nil
+}
+
+func inlineSize(s protocol.SourceSnapshot) int {
+	n := 0
+	for _, f := range s.Files {
+		n += len(f.Content)
+	}
+	return n
+}
+
+func short(hash string) string {
+	if len(hash) > 12 {
+		return hash[:12]
+	}
+	return hash
+}
+
+// appliedImages resolves each service's running image: its ID, the
+// repository digest matching the reference (the #20 baseline) and the
+// platform.
+func appliedImages(ctx context.Context, eng engine.Engine, p *compose.Project) []protocol.AppliedImage {
+	list, _ := lifecycle.ProjectContainers(ctx, eng, p.Name)
+	out := make([]protocol.AppliedImage, 0, len(p.Services))
+	for _, svc := range p.Services {
+		ai := protocol.AppliedImage{Service: svc.Name, Image: svc.Image, Build: svc.Build}
+		for _, c := range list {
+			if c.Labels[lifecycle.ComposeServiceLabel] == svc.Name && c.ImageID != "" {
+				ai.ImageID = c.ImageID
+				break
+			}
+		}
+		if ai.ImageID != "" {
+			if img, err := eng.InspectImage(ctx, ai.ImageID); err == nil {
+				ai.Digest = DigestFor(svc.Image, img.RepoDigests)
+				ai.Platform = img.OS + "/" + img.Architecture
+				if img.Variant != "" {
+					ai.Platform += "/" + img.Variant
+				}
+			}
+		}
+		out = append(out, ai)
+	}
+	return out
+}
+
+// DigestFor picks the repository digest of ref from an image's
+// RepoDigests ("repo@sha256:..."): the digest pinned in ref itself, or the
+// entry whose repository matches ref's. Docker Hub names match in their
+// short and fully qualified forms.
+func DigestFor(ref string, repoDigests []string) string {
+	if i := strings.Index(ref, "@"); i >= 0 {
+		return ref[i+1:]
+	}
+	repo := normalizeRepo(repository(ref))
+	for _, rd := range repoDigests {
+		i := strings.Index(rd, "@")
+		if i < 0 {
+			continue
+		}
+		if normalizeRepo(rd[:i]) == repo {
+			return rd[i+1:]
+		}
+	}
+	return ""
+}
+
+// repository strips the tag from a reference ("host:5000/app:1" -> "host:5000/app").
+func repository(ref string) string {
+	slash := strings.LastIndex(ref, "/")
+	if colon := strings.LastIndex(ref, ":"); colon > slash {
+		return ref[:colon]
+	}
+	return ref
+}
+
+func normalizeRepo(r string) string {
+	first, _, found := strings.Cut(r, "/")
+	if !found || (!strings.ContainsAny(first, ".:") && first != "localhost") {
+		r = "docker.io/" + r
+	}
+	if strings.HasPrefix(r, "docker.io/") && strings.Count(r, "/") == 1 {
+		r = "docker.io/library/" + strings.TrimPrefix(r, "docker.io/")
+	}
+	return r
+}
+
+// Lifecycle operations.
+type lifecycleOp int
+
+const (
+	opStart lifecycleOp = iota
+	opStop
+	opRestart
+)
+
+// lifecycleStep runs start/stop/restart on the deployed containers through
+// the shared dependency-aware lifecycle (graph from the containers'
+// labels: the deployed stack, not undeployed edits on disk).
+func (s *Service) lifecycleStep(op lifecycleOp) jobexec.StepFunc {
+	return func(ctx context.Context, sc *jobexec.StepContext) error {
+		in, err := input(sc)
+		if err != nil {
+			return err
+		}
+		eng, err := s.engine()
+		if err != nil {
+			return err
+		}
+		list, err := lifecycle.ProjectContainers(ctx, eng, in.Stack.ProjectName)
+		if err != nil {
+			return err
+		}
+		if len(list) == 0 {
+			return fmt.Errorf("project %s has no containers on this Engine; deploy the stack first", in.Stack.ProjectName)
+		}
+		before, err := serviceStates(ctx, eng, in.Stack.ProjectName)
+		if err != nil {
+			return err
+		}
+		if err := update(ctx, sc, func(o *protocol.StackJobOutput) { o.Before = before }); err != nil {
+			return err
+		}
+		g, err := lifecycle.GraphFromContainers(list)
+		if err != nil {
+			return err
+		}
+		rt := lifecycle.EngineRuntime{Engine: eng, Project: in.Stack.ProjectName, Clock: s.opts.Clock}
+		o := lifecycle.Options{Clock: s.opts.Clock, WaitTimeout: s.opts.WaitTimeout,
+			Progress: func(service, msg string) { sc.Progress(ctx, -1, service+": "+msg) }}
+		if in.TimeoutSeconds > 0 {
+			d := time.Duration(in.TimeoutSeconds) * time.Second
+			o.StopTimeout = &d
+		}
+		var rep lifecycle.Report
+		switch op {
+		case opStart:
+			rep, err = lifecycle.Start(ctx, g, rt, in.Services, o)
+		case opStop:
+			rep, err = lifecycle.Stop(ctx, g, rt, in.Services, o)
+		case opRestart:
+			rep, err = lifecycle.Restart(ctx, g, rt, in.Services, o)
+		}
+		after, aerr := serviceStates(ctx, eng, in.Stack.ProjectName)
+		for _, w := range rep.Warnings {
+			sc.Item(ctx, w, domain.ItemSkipped, "")
+		}
+		if uerr := update(ctx, sc, func(o *protocol.StackJobOutput) {
+			o.After = after
+			for _, w := range rep.Warnings {
+				o.Warnings = append(o.Warnings, protocol.ComposeIssue{Code: "optional_dependency", Message: w})
+			}
+		}); uerr != nil && err == nil {
+			err = uerr
+		}
+		if err != nil {
+			return err
+		}
+		return aerr
+	}
+}
+
+// down stops and removes the project's containers and networks through the
+// Compose SDK (volumes are always kept). The project is found by its name
+// and labels, so a stack whose files are gone can still be taken down.
+func (s *Service) down(ctx context.Context, sc *jobexec.StepContext) error {
+	in, err := input(sc)
+	if err != nil {
+		return err
+	}
+	c, err := s.composer()
+	if err != nil {
+		return err
+	}
+	eng, err := s.engine()
+	if err != nil {
+		return err
+	}
+	before, err := serviceStates(ctx, eng, in.Stack.ProjectName)
+	if err != nil {
+		return err
+	}
+	if err := update(ctx, sc, func(o *protocol.StackJobOutput) { o.Before = before }); err != nil {
+		return err
+	}
+	var timeout *time.Duration
+	if in.TimeoutSeconds > 0 {
+		d := time.Duration(in.TimeoutSeconds) * time.Second
+		timeout = &d
+	}
+	if len(before) > 0 {
+		if err := c.Down(ctx, in.Stack.ProjectName, nil, compose.DownOptions{RunOptions: compose.RunOptions{Events: s.progress(ctx, sc)},
+			RemoveOrphans: true, Timeout: timeout}); err != nil {
+			return err
+		}
+	}
+	after, err := serviceStates(ctx, eng, in.Stack.ProjectName)
+	if uerr := update(ctx, sc, func(o *protocol.StackJobOutput) { o.After = after }); uerr != nil && err == nil {
+		err = uerr
+	}
+	return err
+}

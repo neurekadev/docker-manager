@@ -170,7 +170,7 @@ func TestAPIResponsesAreNoStore(t *testing.T) {
 
 func TestAPIFallbackErrorShape(t *testing.T) {
 	s, _ := newTestServer(t)
-	rec := request(t, s.Handler, http.MethodGet, "/api/v1/stacks/nope", map[string]string{RequestIDHeader: "client-req-1"})
+	rec := request(t, s.Handler, http.MethodGet, "/api/v1/no-such-collection/nope", map[string]string{RequestIDHeader: "client-req-1"})
 	if rec.Code != http.StatusNotFound || rec.Header().Get("Content-Type") != api.ErrorContentType {
 		t.Fatalf("status %d content-type %q", rec.Code, rec.Header().Get("Content-Type"))
 	}

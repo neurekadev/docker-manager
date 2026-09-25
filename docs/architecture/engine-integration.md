@@ -166,6 +166,17 @@ directory as working directory:
   (list in the support matrix); the obsolete top-level `version:` produces a
   warning.
 
+`LoadProject` also loads a definition **from memory** (`ProjectSpec.Content`:
+Compose files and env files by project-relative path), as if it were in the
+project directory, for validation before anything is written (#7). A
+loaded `Project` lists its definition files (Compose files, env files and
+service `env_file`s), its resolved bind mounts and per-service display
+labels (`dev.neureka.dockyard.description` / `.icon`). Every service gets
+the label `dev.neureka.dockyard.depends_on`
+(`service:condition:restart:required`), which the shared lifecycle
+(`internal/agent/lifecycle`, [stacks.md](stacks.md)) reads to operate the
+deployed graph; Compose's own `depends_on` label lacks `required`.
+
 Operations: `Up` (with build), `Down`, `Start`, `Stop`, `Restart`, `Ps`,
 `Pull`, `Build`. The SDK's own dependency engine orders starts and stops and
 waits for `service_started`, `service_healthy` and

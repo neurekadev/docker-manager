@@ -43,6 +43,10 @@ const (
 	PointResultSent       = "agent.result.sent"
 )
 
+// MaxReportOutputs bounds the result outputs carried by one job_report
+// (the frame limit is protocol.MaxFrameSize).
+const MaxReportOutputs = 512 << 10
+
 // Sender delivers frames to the manager over the current session.
 type Sender interface {
 	Send(ctx context.Context, f *protocol.Frame) error
@@ -144,6 +148,7 @@ func (r *Runner) Wait() { r.wg.Wait() }
 // journaled attempt.
 func (r *Runner) Report() protocol.JobReportPayload {
 	p := protocol.JobReportPayload{HighWater: r.journal.HighWater(), Jobs: []protocol.JobReportEntry{}}
+	outputs := 0
 	for _, st := range r.journal.Entries() {
 		e := protocol.JobReportEntry{JobID: st.JobID, Attempt: st.Attempt, FencingToken: st.FencingToken,
 			Kind: string(st.Kind), CurrentStep: st.CurrentStep, CompletedSteps: st.Completed}
@@ -156,6 +161,14 @@ func (r *Runner) Report() protocol.JobReportPayload {
 		} else {
 			e.Status = protocol.ReportFinished
 			e.Result = st.Outcome
+			// Result outputs share one frame: beyond the budget they are
+			// dropped (the manager treats the output as unknown) rather than
+			// making the report too large to send.
+			if outputs += len(e.Result.Output); outputs > MaxReportOutputs {
+				res := *e.Result
+				res.Output = nil
+				e.Result = &res
+			}
 		}
 		p.Jobs = append(p.Jobs, e)
 	}

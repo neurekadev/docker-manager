@@ -119,6 +119,13 @@ same change.
 | `file_type_mismatch` | 409 | no | File manager: the path is a directory where a file is needed, or a path component is not a directory. | #15 |
 | `file_unsupported` | 409 | no | File manager: the entry's content is not served (a symlink, device, FIFO or socket, or a file with several hard links whose other names may lie outside the root). | #15 |
 | `volume_files_unsupported` | 409 | no | File manager: this volume cannot be browsed (non-local driver or remote-backed local volume, DockYard's own volumes, the stacks volume, or the agent's storage layout is not verified); the message says why. | #15 |
+| `stack_name_taken` | 409 | no | The environment already has a DockYard stack with this Compose project name or project directory; nothing was overwritten. | #7 |
+| `compose_project_exists` | 409 | no | The Docker Engine already runs a Compose project with this name that DockYard does not manage; import it instead of creating a new stack. | #7 |
+| `stack_directory_exists` | 409 | no | The project directory already exists in the stacks volume; nothing was overwritten (import the project or choose another name). | #7 |
+| `stack_definition_changed` | 409 | no | The stack's definition on disk changed while the request ran (for example during a revision restore); reload and retry. | #7 |
+| `stack_not_adoptable` | 409 | no | The discovered Compose project cannot be adopted in place (its directory is outside the stacks volume and the registered stack roots, or its files are elsewhere); import it with an explicit Compose source. | #7 |
+| `stack_root_unavailable` | 409 | no | The agent refuses the stack's project directory: its storage layout is not verified, the root is not registered, or the directory is missing (#28). | #7 |
+| `revision_content_unavailable` | 409 | no | The revision was recorded by hash only (its definition was too large for a deploy result) and cannot be restored. | #7 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `length_required` | 411 | no | Uploads need a `Content-Length` header. | #15 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |
@@ -128,6 +135,8 @@ same change.
 | `validation_failed` | 422 | no | One or more inputs are invalid; `details` lists each field. | #2 |
 | `recreate_required` | 422 | no | The requested container settings cannot change in place; create a new container (or use a Compose stack). `details` lists the fields. | #6 |
 | `content_digest_mismatch` | 422 | no | The uploaded bytes do not match `X-DockYard-Content-SHA256`; nothing was written. | #15 |
+| `invalid_definition` | 422 | no | The Compose definition does not validate (syntax, paths or unsupported features); `details` lists each finding. | #7 |
+| `definition_too_large` | 422 | no | The Compose definition exceeds its bounds (256 KiB per file, 512 KiB and 32 files in total). | #7 |
 | `version_unsupported` | 426 | no | Agent routes: the agent's protocol or version is outside the manager's window (same or previous minor release, never newer than the manager); upgrade as the message says. | #3 |
 | `precondition_required` | 428 | no | The edit requires an `If-Match` header with the resource's current `ETag`. | #4 |
 | `rate_limited` | 429 | yes | Too many requests; retry after the `Retry-After` delay. | #2 |

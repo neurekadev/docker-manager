@@ -1,0 +1,400 @@
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/neurekadev/dockyard/internal/domain"
+	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"github.com/neurekadev/dockyard/internal/manager/authz/authztest"
+	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
+	"github.com/neurekadev/dockyard/internal/manager/authz/policy"
+	"github.com/neurekadev/dockyard/internal/testutil"
+)
+
+// fakeStacks is an in-memory StackService for the HTTP mapping and
+// shaping tests (the real service is tested in internal/manager/stacks).
+type fakeStacks struct {
+	mu      sync.Mutex
+	stacks  map[string]domain.Stack
+	err     error
+	jobs    []domain.JobKind
+	online  bool
+	patches int
+}
+
+const secretBind = "/srv/secret-bind-path"
+
+func newFakeStacks() *fakeStacks {
+	now := testutil.Epoch
+	applied := &domain.RevisionRef{ID: "rev-2", Seq: 2, Hash: strings.Repeat("a", 64)}
+	return &fakeStacks{online: true, stacks: map[string]domain.Stack{
+		"st-1": {ID: "st-1", EnvironmentID: "env-1", Name: "shop", DisplayName: "Shop", Meta: domain.DisplayMeta{Description: "orders"},
+			ServiceMeta: map[string]domain.DisplayMeta{"web": {Icon: "globe"}}, Root: "stacks", Dir: "shop", Origin: "created",
+			Status: domain.StackDeployed, Applied: applied, AppliedAt: &now, Observed: &domain.RevisionRef{ID: "rev-3", Seq: 3, Hash: strings.Repeat("b", 64)},
+			Services:    []domain.StackServiceDef{{Name: "web", Image: "nginx:1.27", DependsOn: []domain.StackDependency{{Service: "db", Condition: "service_started", Required: true}}}},
+			Images:      []domain.StackImage{{Service: "web", Image: "nginx:1.27", ImageID: "sha256:img", Digest: "sha256:dig"}},
+			Binds:       []domain.StackBind{{Service: "web", Source: secretBind, Target: "/data", External: true}},
+			EngineState: domain.EngineStateRunning, Revision: 4, CreatedAt: now, UpdatedAt: now},
+		"st-secret": {ID: "st-secret", EnvironmentID: "env-1", Name: "hidden", Status: domain.StackUndeployed, Revision: 1, CreatedAt: now, UpdatedAt: now},
+	}}
+}
+
+func (f *fakeStacks) List(_ context.Context, flt domain.StackFilter) ([]domain.Stack, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []domain.Stack
+	for _, id := range []string{"st-1", "st-secret"} {
+		st := f.stacks[id]
+		if id > flt.AfterID && (flt.EnvironmentID == "" || st.EnvironmentID == flt.EnvironmentID) {
+			out = append(out, st)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeStacks) Get(_ context.Context, id string) (domain.Stack, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	st, ok := f.stacks[id]
+	if !ok {
+		return st, domain.ErrStackNotFound
+	}
+	return st, nil
+}
+
+func (f *fakeStacks) Online(context.Context, string) bool { return f.online }
+
+func (f *fakeStacks) Create(_ context.Context, _ authz.Principal, r domain.StackCreate) (domain.Stack, domain.StackValidation, error) {
+	if f.err != nil {
+		return domain.Stack{}, domain.StackValidation{}, f.err
+	}
+	st := domain.Stack{ID: "st-new", EnvironmentID: r.EnvironmentID, Name: r.Name, Status: domain.StackUndeployed, Revision: 1}
+	return st, domain.StackValidation{Valid: true, ProjectName: r.Name}, nil
+}
+
+func (f *fakeStacks) Validate(_ context.Context, d domain.StackDefinition) (domain.StackValidation, error) {
+	return domain.StackValidation{Valid: true, ProjectName: d.Name, Warnings: []domain.StackIssue{{Code: "obsolete_version", Message: "version"}}}, f.err
+}
+
+func (f *fakeStacks) Update(_ context.Context, id string, rev int64, p domain.StackPatch) (domain.Stack, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	st := f.stacks[id]
+	if st.Revision != rev {
+		return st, domain.ErrStackRevisionStale
+	}
+	if p.DisplayName != nil {
+		st.DisplayName = *p.DisplayName
+	}
+	st.Revision++
+	f.stacks[id] = st
+	f.patches++
+	return st, nil
+}
+
+func (f *fakeStacks) job(kind domain.JobKind, st domain.Stack) (domain.Job, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return domain.Job{}, f.err
+	}
+	f.jobs = append(f.jobs, kind)
+	return domain.Job{ID: "job-1", Kind: kind, State: domain.JobQueued, EnvironmentID: st.EnvironmentID,
+		Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: st.ID}}, Attempt: 1}, nil
+}
+
+func (f *fakeStacks) Delete(_ context.Context, _ authz.Principal, st domain.Stack, _ domain.StackJobRequest) (domain.Job, error) {
+	return f.job("stack.remove", st)
+}
+
+func (f *fakeStacks) Deploy(_ context.Context, _ authz.Principal, st domain.Stack, _ domain.StackJobRequest, _ domain.StackDeployOptions) (domain.Job, error) {
+	return f.job("stack.deploy", st)
+}
+
+func (f *fakeStacks) Operate(_ context.Context, _ authz.Principal, st domain.Stack, action string, _ domain.StackJobRequest) (domain.Job, error) {
+	return f.job(domain.JobKind("stack."+action), st)
+}
+
+func (f *fakeStacks) Restore(_ context.Context, _ authz.Principal, st domain.Stack, revisionID string) (domain.StackRestore, error) {
+	if f.err != nil {
+		return domain.StackRestore{}, f.err
+	}
+	return domain.StackRestore{Stack: st, Revision: domain.StackRevision{ID: "rev-4", Seq: 4, Source: domain.RevisionRestore, RestoredFrom: revisionID},
+		DeployOffered: true}, nil
+}
+
+func (f *fakeStacks) Revisions(context.Context, string, int64, int) ([]domain.StackRevision, error) {
+	return []domain.StackRevision{{ID: "rev-3", Seq: 3, Hash: strings.Repeat("b", 64), Source: domain.RevisionExternal,
+		Files: []domain.StackFile{{Path: ".env", SHA256: "x", Size: 9}}}}, nil
+}
+
+func (f *fakeStacks) Revision(_ context.Context, _, id string) (domain.StackRevision, error) {
+	if id != "rev-3" {
+		return domain.StackRevision{}, domain.ErrStackRevisionNotFound
+	}
+	return domain.StackRevision{ID: "rev-3", Seq: 3, Source: domain.RevisionExternal, Files: []domain.StackFile{
+		{Path: ".env", Content: []byte("DB_PASSWORD=env-canary\n")}, {Path: "bin", Content: []byte{0xff, 0xfe}}}}, nil
+}
+
+func (f *fakeStacks) Services(context.Context, domain.Stack) (domain.StackServicesView, error) {
+	started := testutil.Epoch
+	return domain.StackServicesView{Live: true, Services: []domain.StackServiceView{{Name: "web", Status: "running",
+		Containers: []domain.StackContainer{{ID: "c1", Name: "shop-web-1", Service: "web", Image: "nginx:1.27", ImageID: "sha256:img",
+			State: "running", RestartPolicy: "unless-stopped", Memory: 1 << 30, StartedAt: &started,
+			Ports: []domain.PortMapping{{PrivatePort: 80, PublicPort: 8080, Protocol: "tcp"}}}}}}}, nil
+}
+
+func (f *fakeStacks) ImageStatus(st domain.Stack) []domain.StackImageView {
+	return []domain.StackImageView{{Service: "web", Image: "nginx:1.27", Digest: "sha256:dig", Eligible: true}}
+}
+
+func (f *fakeStacks) Discovered(context.Context, string) ([]domain.DiscoveredStack, error) {
+	return []domain.DiscoveredStack{{Name: "legacy", WorkingDir: "/home/me/legacy", Reason: "outside"}}, f.err
+}
+
+func (f *fakeStacks) Import(_ context.Context, _ authz.Principal, r domain.StackImport) (domain.Stack, error) {
+	if f.err != nil {
+		return domain.Stack{}, f.err
+	}
+	return domain.Stack{ID: "st-imp", EnvironmentID: r.EnvironmentID, Name: r.ProjectName, Status: domain.StackDeployed, Revision: 1}, nil
+}
+
+var _ StackService = (*fakeStacks)(nil)
+
+func stacksAPIFor(t *testing.T, pol *authztest.Policy) (http.Handler, *fakeStacks) {
+	t.Helper()
+	svc := newFakeStacks()
+	pol.Locate(func(ref authz.ResourceRef) policy.Location {
+		if ref.Type == catalog.TypeStack {
+			if st, ok := svc.stacks[ref.ID]; ok {
+				return policy.Location{Found: true, EnvironmentID: st.EnvironmentID}
+			}
+		}
+		return policy.Location{}
+	})
+	mux := http.NewServeMux()
+	New(mux, Deps{Stacks: svc, Agents: newFakeAgents(), Authorizer: pol, Clock: testutil.FakeClock(), Idempotency: &memIdempotency{}})
+	return authztest.Authenticate(withTestContext(t, mux, "")), svc
+}
+
+func stackRoutes(t *testing.T) []authztest.Call {
+	t.Helper()
+	all := authztest.Routes(t, map[string]string{"stackId": "st-1", "environmentId": "env-1", "revisionId": "rev-3"},
+		"/api/v1/stacks", "/api/v1/environments/{environmentId}/stacks")
+	var calls []authztest.Call
+	for _, c := range all {
+		if !strings.Contains(c.OperationID, "-file") { // the stack file scope is #15's (tested there)
+			calls = append(calls, c)
+		}
+	}
+	for i := range calls {
+		calls[i].Headers = map[string]string{"If-Match": `"4"`, "Idempotency-Key": "k-" + calls[i].OperationID}
+		switch calls[i].OperationID {
+		case "create-stack", "create-stack-validation":
+			calls[i].Body = map[string]any{"environmentId": "env-1", "name": "new", "compose": "services: {}\n"}
+		case "create-stack-operation":
+			calls[i].Body = map[string]any{"action": "restart"}
+		case "create-stack-revision-restore":
+			calls[i].Body = map[string]any{"revisionId": "rev-3"}
+		case "create-stack-import":
+			calls[i].Body = map[string]any{"projectName": "legacy"}
+		}
+	}
+	if len(calls) != 16 {
+		t.Fatalf("%d stack routes, want 16", len(calls))
+	}
+	return calls
+}
+
+func TestStackReadDoesNotOpenTheDefinition(t *testing.T) {
+	h, _ := stacksAPIFor(t, authztest.Only("sam", "allow stack.read @stack:st-1"))
+	allowed, denied := authztest.Split(stackRoutes(t), "stack.read")
+	authztest.AssertOnly(t, h, "sam", allowed, denied)
+
+	r := authztest.Do(t, h, "sam", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1"})
+	var st Stack
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &st) != nil {
+		t.Fatalf("get: %d %s", r.Status, r.Body)
+	}
+	if st.View != "full" || st.AppliedRevision == nil || st.SourceRevision == nil || !st.UndeployedChanges || len(st.Images) != 1 ||
+		st.Engine == nil || st.Engine.State != "running" || len(st.Services) != 1 || st.Services[0].Icon != "globe" {
+		t.Errorf("full view %+v", st)
+	}
+	// Bind sources come from the Compose definition: stack.definition.read only.
+	authztest.AssertAbsent(t, "stack.read view", r.Body, secretBind)
+	if r.Header.Get("ETag") != `"4"` {
+		t.Errorf("ETag %q", r.Header.Get("ETag"))
+	}
+	// The hidden stack is not listed.
+	r = authztest.Do(t, h, "sam", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks"})
+	if !strings.Contains(string(r.Body), `"st-1"`) || strings.Contains(string(r.Body), "st-secret") {
+		t.Errorf("list %s", r.Body)
+	}
+	// Containers are shown minimally without container.details.read.
+	r = authztest.Do(t, h, "sam", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1/services"})
+	if r.Status != http.StatusOK || !strings.Contains(string(r.Body), `"state":"running"`) {
+		t.Fatalf("services %d %s", r.Status, r.Body)
+	}
+	authztest.AssertAbsent(t, "minimal containers", r.Body, "sha256:img", "8080", "unless-stopped")
+}
+
+func TestDefinitionReadOpensRevisionsAndBinds(t *testing.T) {
+	h, _ := stacksAPIFor(t, authztest.Only("dana", "allow stack.read @stack:st-1", "allow stack.definition.read @stack:st-1",
+		"allow container.details.read @stack:st-1"))
+	allowed, denied := authztest.Split(stackRoutes(t), "stack.read", "stack.definition.read")
+	authztest.AssertOnly(t, h, "dana", allowed, denied)
+	r := authztest.Do(t, h, "dana", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1"})
+	if !strings.Contains(string(r.Body), secretBind) {
+		t.Errorf("binds missing with stack.definition.read: %s", r.Body)
+	}
+	r = authztest.Do(t, h, "dana", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1/revisions/rev-3"})
+	var rev StackRevision
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &rev) != nil || len(rev.Files) != 2 {
+		t.Fatalf("revision %d %s", r.Status, r.Body)
+	}
+	if rev.Files[0].Content != "DB_PASSWORD=env-canary\n" || rev.Files[0].Encoding != "utf-8" || rev.Files[1].Encoding != "base64" || rev.Files[1].Content != "//4=" {
+		t.Errorf("files %+v", rev.Files)
+	}
+	// With container.details.read on the stack the containers are full.
+	r = authztest.Do(t, h, "dana", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1/services"})
+	if !strings.Contains(string(r.Body), `"publicPort":8080`) || !strings.Contains(string(r.Body), `"memory":1073741824`) {
+		t.Errorf("full containers %s", r.Body)
+	}
+}
+
+func TestDeployOnlyShowsTheMinimalStack(t *testing.T) {
+	h, svc := stacksAPIFor(t, authztest.Only("dev", "allow stack.deploy @stack:st-1"))
+	allowed, denied := authztest.Split(stackRoutes(t), "stack.deploy")
+	allowed, denied = authztest.Discoverable(allowed, denied, "list-stacks", "get-stack")
+	authztest.AssertOnly(t, h, "dev", allowed, denied)
+	r := authztest.Do(t, h, "dev", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1"})
+	var st Stack
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &st) != nil || st.View != "minimal" || len(st.Actions) != 1 || st.Actions[0] != "stack.deploy" {
+		t.Fatalf("minimal get: %d %s", r.Status, r.Body)
+	}
+	authztest.AssertAbsent(t, "minimal stack", r.Body, "nginx", "orders", `"revision"`, "appliedRevision", "engine")
+	svc.jobs = nil
+	r = authztest.Do(t, h, "dev", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/deployments", Body: map[string]any{}})
+	if r.Status != http.StatusAccepted || r.Header.Get("Location") != "/api/v1/jobs/job-1" || len(svc.jobs) != 1 || svc.jobs[0] != "stack.deploy" {
+		t.Errorf("deploy %d %s %v", r.Status, r.Body, svc.jobs)
+	}
+}
+
+func TestRestrictedSeesNoStacks(t *testing.T) {
+	h, _ := stacksAPIFor(t, authztest.New().Member("rita", "restricted"))
+	authztest.AssertOnly(t, h, "rita", nil, stackRoutes(t))
+}
+
+func TestStackOperationSelectsCapability(t *testing.T) {
+	h, svc := stacksAPIFor(t, authztest.Only("op", "allow stack.stop @stack:st-1"))
+	do := func(action string) int {
+		return authztest.Do(t, h, "op", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/operations",
+			Body: map[string]any{"action": action}}).Status
+	}
+	if s := do("stop"); s != http.StatusAccepted {
+		t.Errorf("stop: %d", s)
+	}
+	if s := do("restart"); s != http.StatusForbidden {
+		t.Errorf("restart without stack.restart: %d", s)
+	}
+	if s := do("explode"); s != http.StatusUnprocessableEntity {
+		t.Errorf("unknown action: %d", s)
+	}
+	if len(svc.jobs) != 1 || svc.jobs[0] != "stack.stop" {
+		t.Errorf("jobs %v", svc.jobs)
+	}
+}
+
+func TestStackErrorMapping(t *testing.T) {
+	h, svc := stacksAPIFor(t, authztest.New().Owner("own"))
+	create := func() Response {
+		r := authztest.Do(t, h, "own", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks",
+			Body: map[string]any{"environmentId": "env-1", "name": "shop", "compose": "services: {}\n"}})
+		var e Error
+		_ = json.Unmarshal(r.Body, &e)
+		return Response{r.Status, e.Code, e}
+	}
+	cases := []struct {
+		err    error
+		status int
+		code   string
+	}{
+		{domain.ErrStackNameTaken, 409, CodeStackNameTaken},
+		{&domain.StackError{Code: domain.StackErrProjectExists}, 409, CodeComposeProjectExists},
+		{&domain.StackError{Code: domain.StackErrDirectoryExists}, 409, CodeStackDirectoryExists},
+		{&domain.StackError{Code: domain.StackErrOffline}, 503, CodeEnvironmentOffline},
+		{&domain.StackError{Code: domain.StackErrAgent}, 502, CodeEngineError},
+		{&domain.StackError{Code: domain.StackErrEngineUnavailable}, 503, CodeEngineUnavailable},
+		{&domain.StackError{Code: domain.StackErrEnvironmentUnsupported}, 501, CodeAgentUnsupported},
+		{&domain.StackError{Code: domain.StackErrInvalidDefinition, Message: "invalid",
+			Issues: []domain.StackIssue{{Code: "unsupported_compose_feature", Message: "use_api_socket", Service: "x"}}}, 422, CodeInvalidDefinition},
+		{&domain.InputError{Field: "name", Message: "bad"}, 422, CodeValidationFailed},
+	}
+	for _, c := range cases {
+		svc.err = c.err
+		r := create()
+		if r.Status != c.status || r.Code != c.code {
+			t.Errorf("%v: %d %s, want %d %s", c.err, r.Status, r.Code, c.status, c.code)
+		}
+		if c.code == CodeInvalidDefinition && (len(r.Err.Details) != 1 || !strings.Contains(r.Err.Details[0].Message, "service x: use_api_socket")) {
+			t.Errorf("invalid definition details %+v", r.Err.Details)
+		}
+	}
+	svc.err = nil
+	r := create()
+	if r.Status != http.StatusCreated {
+		t.Errorf("create: %d", r.Status)
+	}
+	// A stale If-Match on a metadata edit: 412 with the current ETag.
+	rr := authztest.Do(t, h, "own", authztest.Call{Method: http.MethodPatch, Path: "/api/v1/stacks/st-1",
+		Headers: map[string]string{"If-Match": `"3"`}, Body: map[string]any{"displayName": "x"}})
+	if rr.Status != http.StatusPreconditionFailed || rr.Header.Get("ETag") != `"4"` {
+		t.Errorf("stale edit %d %v", rr.Status, rr.Header)
+	}
+	rr = authztest.Do(t, h, "own", authztest.Call{Method: http.MethodPatch, Path: "/api/v1/stacks/st-1",
+		Headers: map[string]string{"If-Match": `"4"`}, Body: map[string]any{"displayName": "Shop 2"}})
+	if rr.Status != http.StatusOK || rr.Header.Get("ETag") != `"5"` || svc.patches != 1 {
+		t.Errorf("edit %d %s", rr.Status, rr.Body)
+	}
+	// Restore answers with the new revision and offers a deploy.
+	rr = authztest.Do(t, h, "own", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/revision-restores",
+		Body: map[string]any{"revisionId": "rev-2"}})
+	if rr.Status != http.StatusOK || !strings.Contains(string(rr.Body), `"deployOffered":true`) || !strings.Contains(string(rr.Body), `"restoredFrom":"rev-2"`) {
+		t.Errorf("restore %d %s", rr.Status, rr.Body)
+	}
+	// Registry selection failures of a deploy (#19).
+	for err, code := range map[error]string{
+		&domain.AmbiguousRegistryError{Host: "ghcr.io", CandidateIDs: []string{"a", "b"}}: CodeAmbiguousRegistryConnection,
+		domain.ErrRegistryConnectionRevoked:                                               CodeRegistryConnectionRevoked,
+	} {
+		svc.err = err
+		rr = authztest.Do(t, h, "own", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/deployments", Body: map[string]any{}})
+		var e Error
+		_ = json.Unmarshal(rr.Body, &e)
+		if rr.Status != http.StatusConflict || e.Code != code {
+			t.Errorf("%v: %d %s", err, rr.Status, rr.Body)
+		}
+	}
+	svc.err = nil
+	// Offline: the stack is read-only.
+	svc.online = false
+	rr = authztest.Do(t, h, "own", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1"})
+	if !strings.Contains(string(rr.Body), `"readOnly":true`) {
+		t.Errorf("offline get %s", rr.Body)
+	}
+}
+
+// Response is a decoded error answer.
+type Response struct {
+	Status int
+	Code   string
+	Err    Error
+}
+
+var _ = time.Second

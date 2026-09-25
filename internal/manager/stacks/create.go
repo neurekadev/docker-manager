@@ -1,0 +1,418 @@
+package stacks
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/uptrace/bun"
+
+	"github.com/neurekadev/dockyard/internal/domain"
+	"github.com/neurekadev/dockyard/internal/ids"
+	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"github.com/neurekadev/dockyard/internal/manager/store"
+	"github.com/neurekadev/dockyard/internal/protocol"
+)
+
+// Definition files a stack can be created or imported with. Other files
+// (service env_files, build contexts, bind-mounted data) are added through
+// the file manager (#15).
+var definitionNames = []string{
+	"compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml",
+	"compose.override.yaml", "compose.override.yml", "docker-compose.override.yaml", "docker-compose.override.yml",
+	".env",
+}
+
+// Display metadata bounds.
+const (
+	MaxDisplayName = 128
+	MaxDescription = 1024
+	MaxIcon        = 64
+)
+
+// checkDefinition validates a submitted definition's shape.
+func checkDefinition(d domain.StackDefinition) error {
+	if !protocol.ValidProjectName(d.Name) {
+		return &domain.InputError{Field: "name", Message: "must be a Compose project name: 1-63 lower-case letters, digits, '-' and '_', starting with a letter or digit"}
+	}
+	hasCompose := false
+	for _, f := range d.Files {
+		if !slices.Contains(definitionNames, f.Path) {
+			return &domain.InputError{Field: "files", Message: fmt.Sprintf("%s is not a definition file (%s)", f.Path, strings.Join(definitionNames, ", "))}
+		}
+		if !utf8.Valid(f.Content) {
+			return &domain.InputError{Field: "files", Message: f.Path + " is not valid UTF-8"}
+		}
+		if !strings.Contains(f.Path, "override") && f.Path != ".env" {
+			hasCompose = true
+		}
+	}
+	if !hasCompose {
+		return &domain.InputError{Field: "compose", Message: "a Compose file is required"}
+	}
+	if err := protocol.ValidateSources(sourceFiles(d.Files)); err != nil {
+		return &domain.StackError{Code: domain.StackErrDefinitionTooLarge, Message: err.Error()}
+	}
+	return nil
+}
+
+// sourceFiles converts submitted files to the protocol form.
+func sourceFiles(in []domain.StackFile) []protocol.SourceFile {
+	out := make([]protocol.SourceFile, 0, len(in))
+	for _, f := range in {
+		out = append(out, protocol.SourceFile{Path: f.Path, Content: f.Content, SHA256: protocol.FileHash(f.Content), Size: int64(len(f.Content))})
+	}
+	return out
+}
+
+func newRef(name string) protocol.ProjectRef {
+	return protocol.ProjectRef{Root: protocol.RootStacks, Dir: name, ProjectName: name}
+}
+
+func (s *Service) activeEnvironment(ctx context.Context, id string) (domain.Environment, error) {
+	env, err := s.opts.Environments.GetEnvironment(ctx, id)
+	if err != nil {
+		return env, err
+	}
+	if env.Status != domain.EnvironmentActive {
+		return env, domain.ErrEnvironmentArchived
+	}
+	return env, nil
+}
+
+// Validate validates a definition on the environment's agent without side
+// effects (nothing is written).
+func (s *Service) Validate(ctx context.Context, d domain.StackDefinition) (domain.StackValidation, error) {
+	if err := checkDefinition(d); err != nil {
+		return domain.StackValidation{}, err
+	}
+	if _, err := s.activeEnvironment(ctx, d.EnvironmentID); err != nil {
+		return domain.StackValidation{}, err
+	}
+	var out protocol.ComposeValidateOutput
+	err := s.call(ctx, d.EnvironmentID, protocol.ReqComposeValidate, protocol.ComposeValidateInput{Stack: newRef(d.Name), Files: sourceFiles(d.Files)}, &out)
+	return validationOf(out), err
+}
+
+// validationOf converts the agent's validation output.
+func validationOf(v protocol.ComposeValidateOutput) domain.StackValidation {
+	out := domain.StackValidation{Valid: v.Valid, ProjectName: v.ProjectName, Errors: issues(v.Errors), Warnings: issues(v.Warnings),
+		Binds: bindsFrom(v.Binds), Services: []domain.StackServiceInfo{}}
+	defs := servicesFrom(v.Services)
+	for i, sv := range v.Services {
+		out.Services = append(out.Services, domain.StackServiceInfo{StackServiceDef: defs[i], Profiles: sv.Profiles,
+			Meta: domain.DisplayMeta{Description: sv.Description, Icon: sv.Icon}})
+	}
+	return out
+}
+
+func issues(in []protocol.ComposeIssue) []domain.StackIssue {
+	out := []domain.StackIssue{}
+	for _, i := range in {
+		out = append(out, domain.StackIssue{Code: i.Code, Message: i.Message, Service: i.Service})
+	}
+	return out
+}
+
+func invalidDefinition(v protocol.ComposeValidateOutput) error {
+	e := &domain.StackError{Code: domain.StackErrInvalidDefinition, Message: "the Compose definition is invalid"}
+	for _, i := range v.Errors {
+		e.Issues = append(e.Issues, domain.StackIssue{Code: i.Code, Message: i.Message, Service: i.Service})
+	}
+	return e
+}
+
+// discovered returns the environment's Compose projects by name.
+func (s *Service) discovered(ctx context.Context, environmentID string) (map[string]protocol.DiscoveredProject, error) {
+	var out protocol.ComposeDiscoverOutput
+	if err := s.call(ctx, environmentID, protocol.ReqComposeDiscover, struct{}{}, &out); err != nil {
+		return nil, err
+	}
+	m := map[string]protocol.DiscoveredProject{}
+	for _, p := range out.Projects {
+		m[p.Name] = p
+	}
+	return m, nil
+}
+
+func checkMeta(displayName string, m domain.DisplayMeta) error {
+	switch {
+	case utf8.RuneCountInString(displayName) > MaxDisplayName:
+		return &domain.InputError{Field: "displayName", Message: fmt.Sprintf("at most %d characters", MaxDisplayName)}
+	case utf8.RuneCountInString(m.Description) > MaxDescription:
+		return &domain.InputError{Field: "description", Message: fmt.Sprintf("at most %d characters", MaxDescription)}
+	case !validIcon(m.Icon):
+		return &domain.InputError{Field: "icon", Message: "must be a Lucide icon name (lower-case letters, digits and '-')"}
+	}
+	return nil
+}
+
+func validIcon(s string) bool {
+	if len(s) > MaxIcon {
+		return false
+	}
+	for _, c := range s {
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+// Create validates the definition on the agent, writes it into a new
+// project directory of the environment's stacks volume (never over an
+// existing one) and records it as the first revision. It does not deploy.
+func (s *Service) Create(ctx context.Context, p authz.Principal, r domain.StackCreate) (domain.Stack, domain.StackValidation, error) {
+	var v protocol.ComposeValidateOutput
+	if err := checkDefinition(r.StackDefinition); err != nil {
+		return domain.Stack{}, validationOf(v), err
+	}
+	if err := checkMeta(r.DisplayName, r.Meta); err != nil {
+		return domain.Stack{}, validationOf(v), err
+	}
+	if _, err := s.activeEnvironment(ctx, r.EnvironmentID); err != nil {
+		return domain.Stack{}, validationOf(v), err
+	}
+	if _, err := store.FindStackByName(ctx, s.db, r.EnvironmentID, r.Name); err == nil {
+		return domain.Stack{}, validationOf(v), domain.ErrStackNameTaken
+	} else if !errors.Is(err, domain.ErrStackNotFound) {
+		return domain.Stack{}, validationOf(v), err
+	}
+	// A Compose project of that name already on the Engine would be taken
+	// over by the first deploy: import it instead.
+	projects, err := s.discovered(ctx, r.EnvironmentID)
+	if err != nil {
+		return domain.Stack{}, validationOf(v), err
+	}
+	if _, ok := projects[r.Name]; ok {
+		return domain.Stack{}, validationOf(v), &domain.StackError{Code: domain.StackErrProjectExists,
+			Message: fmt.Sprintf("the Docker Engine already runs a Compose project named %q; import it instead", r.Name)}
+	}
+	ref := newRef(r.Name)
+	if err := s.call(ctx, r.EnvironmentID, protocol.ReqComposeValidate, protocol.ComposeValidateInput{Stack: ref, Files: sourceFiles(r.Files)}, &v); err != nil {
+		return domain.Stack{}, validationOf(v), err
+	}
+	if !v.Valid {
+		return domain.Stack{}, validationOf(v), invalidDefinition(v)
+	}
+	var w protocol.ComposeWriteOutput
+	if err := s.call(ctx, r.EnvironmentID, protocol.ReqComposeWrite, protocol.ComposeWriteInput{Stack: ref, Mode: protocol.WriteCreate, Files: sourceFiles(r.Files)}, &w); err != nil {
+		if isCode(err, domain.StackErrDefinitionChanged) {
+			return domain.Stack{}, validationOf(v), &domain.StackError{Code: domain.StackErrDirectoryExists,
+				Message: fmt.Sprintf("the stacks volume already has a directory %q; nothing was overwritten (import the project or choose another name)", r.Name)}
+		}
+		return domain.Stack{}, validationOf(v), err
+	}
+	now := s.now()
+	st := domain.Stack{ID: ids.New(), EnvironmentID: r.EnvironmentID, Name: r.Name, DisplayName: r.DisplayName, Meta: r.Meta,
+		Root: domain.StackRootStacks, Dir: r.Name, Origin: domain.StackOriginCreated, Status: domain.StackUndeployed,
+		Services: servicesFrom(v.Services), Binds: bindsFrom(v.Binds), EngineState: domain.EngineStateMissing,
+		Revision: 1, CreatedAt: now, UpdatedAt: now}
+	importLabelMeta(&st, v.Services)
+	err = s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		if err := store.InsertStack(ctx, tx, &st); err != nil {
+			return err
+		}
+		if _, err := s.observe(ctx, tx, &st, w.Snapshot, domain.RevisionEditor, p); err != nil {
+			return err
+		}
+		return store.UpdateStack(ctx, tx, &st)
+	})
+	if err != nil {
+		return domain.Stack{}, validationOf(v), err
+	}
+	s.log.Info("stack created", "stack_id", st.ID, "environment_id", st.EnvironmentID, "project", st.Name, "hash", w.Snapshot.Hash)
+	s.publish(EventCreated, st, nil)
+	return st, validationOf(v), nil
+}
+
+// Discovered lists the environment's Compose projects (read-only), with
+// the DockYard stack managing each one, if any.
+func (s *Service) Discovered(ctx context.Context, environmentID string) ([]domain.DiscoveredStack, error) {
+	if _, err := s.activeEnvironment(ctx, environmentID); err != nil {
+		return nil, err
+	}
+	var out protocol.ComposeDiscoverOutput
+	if err := s.call(ctx, environmentID, protocol.ReqComposeDiscover, struct{}{}, &out); err != nil {
+		return nil, err
+	}
+	list := make([]domain.DiscoveredStack, 0, len(out.Projects))
+	for _, p := range out.Projects {
+		d := domain.DiscoveredStack{Name: p.Name, WorkingDir: p.WorkingDir, ConfigFiles: p.ConfigFiles, Root: p.Root, Dir: p.Dir,
+			Adoptable: p.Adoptable, Reason: p.Reason}
+		for _, sv := range p.Services {
+			d.Services = append(d.Services, domain.DiscoveredService{Name: sv.Name, Image: sv.Image, Containers: sv.Containers, Running: sv.Running})
+		}
+		if st, err := store.FindStackByName(ctx, s.db, environmentID, p.Name); err == nil {
+			d.StackID = st.ID
+			d.Adoptable, d.Reason = false, "already managed by DockYard"
+		}
+		list = append(list, d)
+	}
+	return list, nil
+}
+
+// Import adopts a discovered project. In place, the real files in its
+// directory become the first revision; with an explicit source, the source
+// is written into a new directory of the stacks volume. Labels never
+// reconstruct a source, and nothing existing is overwritten: a project
+// already managed or a directory that exists is a conflict.
+func (s *Service) Import(ctx context.Context, principal authz.Principal, r domain.StackImport) (domain.Stack, error) {
+	if !protocol.ValidProjectName(r.ProjectName) {
+		return domain.Stack{}, &domain.InputError{Field: "projectName", Message: "must be a Compose project name"}
+	}
+	if err := checkMeta(r.DisplayName, r.Meta); err != nil {
+		return domain.Stack{}, err
+	}
+	if _, err := s.activeEnvironment(ctx, r.EnvironmentID); err != nil {
+		return domain.Stack{}, err
+	}
+	if _, err := store.FindStackByName(ctx, s.db, r.EnvironmentID, r.ProjectName); err == nil {
+		return domain.Stack{}, domain.ErrStackNameTaken
+	} else if !errors.Is(err, domain.ErrStackNotFound) {
+		return domain.Stack{}, err
+	}
+	projects, err := s.discovered(ctx, r.EnvironmentID)
+	if err != nil {
+		return domain.Stack{}, err
+	}
+	p, ok := projects[r.ProjectName]
+	if !ok {
+		return domain.Stack{}, &domain.StackError{Code: domain.StackErrProjectNotFound,
+			Message: fmt.Sprintf("the Docker Engine has no Compose project named %q", r.ProjectName)}
+	}
+	now := s.now()
+	st := domain.Stack{ID: ids.New(), EnvironmentID: r.EnvironmentID, Name: r.ProjectName, DisplayName: r.DisplayName, Meta: r.Meta,
+		Origin: domain.StackOriginImported, Status: domain.StackDeployed, Revision: 1, CreatedAt: now, UpdatedAt: now}
+	var states []domain.StackServiceState
+	for _, sv := range p.Services {
+		states = append(states, domain.StackServiceState{Service: sv.Name, Containers: sv.Containers, Running: sv.Running})
+	}
+	s.setEngine(&st, states)
+	var snap protocol.SourceSnapshot
+	source := domain.RevisionExternal
+	var v protocol.ComposeValidateOutput
+	if len(r.Files) == 0 {
+		if !p.Adoptable {
+			return domain.Stack{}, &domain.StackError{Code: domain.StackErrNotAdoptable, Message: p.Reason}
+		}
+		st.Root, st.RootPath, st.Dir = p.Root, p.RootPath, p.Dir
+		st.ConfigFiles, st.EnvFiles = relativeTo(p.WorkingDir, p.ConfigFiles), relativeTo(p.WorkingDir, p.EnvFiles)
+		var read protocol.ComposeReadOutput
+		if err := s.call(ctx, r.EnvironmentID, protocol.ReqComposeRead, protocol.ComposeReadInput{Stack: Ref(st)}, &read); err != nil {
+			return domain.Stack{}, err
+		}
+		if read.Missing {
+			return domain.Stack{}, &domain.StackError{Code: domain.StackErrNotAdoptable,
+				Message: "the project directory has no Compose file any more; import it with an explicit Compose source"}
+		}
+		snap = read.Snapshot
+		// The project runs already: a definition that no longer loads is
+		// imported anyway (it shows as invalid until fixed).
+		if err := s.call(ctx, r.EnvironmentID, protocol.ReqComposeValidate, protocol.ComposeValidateInput{Stack: Ref(st)}, &v); err != nil {
+			return domain.Stack{}, err
+		}
+	} else {
+		if err := checkDefinition(domain.StackDefinition{EnvironmentID: r.EnvironmentID, Name: r.ProjectName, Files: r.Files}); err != nil {
+			return domain.Stack{}, err
+		}
+		st.Root, st.Dir = domain.StackRootStacks, r.ProjectName
+		if err := s.call(ctx, r.EnvironmentID, protocol.ReqComposeValidate, protocol.ComposeValidateInput{Stack: Ref(st), Files: sourceFiles(r.Files)}, &v); err != nil {
+			return domain.Stack{}, err
+		}
+		if !v.Valid {
+			return domain.Stack{}, invalidDefinition(v)
+		}
+		var w protocol.ComposeWriteOutput
+		if err := s.call(ctx, r.EnvironmentID, protocol.ReqComposeWrite, protocol.ComposeWriteInput{Stack: Ref(st), Mode: protocol.WriteCreate, Files: sourceFiles(r.Files)}, &w); err != nil {
+			if isCode(err, domain.StackErrDefinitionChanged) {
+				return domain.Stack{}, &domain.StackError{Code: domain.StackErrDirectoryExists,
+					Message: fmt.Sprintf("the stacks volume already has a directory %q; nothing was overwritten", r.ProjectName)}
+			}
+			return domain.Stack{}, err
+		}
+		snap, source = w.Snapshot, domain.RevisionEditor
+	}
+	if v.Valid {
+		st.Services, st.Binds = servicesFrom(v.Services), bindsFrom(v.Binds)
+		importLabelMeta(&st, v.Services)
+	}
+	err = s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		if err := store.InsertStack(ctx, tx, &st); err != nil {
+			return err
+		}
+		if _, err := s.observe(ctx, tx, &st, snap, source, principal); err != nil {
+			return err
+		}
+		return store.UpdateStack(ctx, tx, &st)
+	})
+	if err != nil {
+		return domain.Stack{}, err
+	}
+	s.log.Info("stack imported", "stack_id", st.ID, "environment_id", st.EnvironmentID, "project", st.Name,
+		"in_place", len(r.Files) == 0, "hash", snap.Hash)
+	s.publish(EventCreated, st, map[string]string{"origin": domain.StackOriginImported})
+	return st, nil
+}
+
+// relativeTo makes label paths relative to the project directory.
+func relativeTo(dir string, files []string) []string {
+	var out []string
+	for _, f := range files {
+		out = append(out, strings.TrimPrefix(f, dir+"/"))
+	}
+	return out
+}
+
+// Update applies a metadata patch when expectRevision is current.
+func (s *Service) Update(ctx context.Context, id string, expectRevision int64, p domain.StackPatch) (domain.Stack, error) {
+	var st domain.Stack
+	err := s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		var err error
+		if st, err = store.GetStack(ctx, tx, id); err != nil {
+			return err
+		}
+		if st.Revision != expectRevision {
+			return domain.ErrStackRevisionStale
+		}
+		if p.DisplayName != nil {
+			st.DisplayName = strings.TrimSpace(*p.DisplayName)
+		}
+		if p.Description != nil {
+			st.Meta.Description = strings.TrimSpace(*p.Description)
+		}
+		if p.Icon != nil {
+			st.Meta.Icon = *p.Icon
+		}
+		if err := checkMeta(st.DisplayName, st.Meta); err != nil {
+			return err
+		}
+		if st.ServiceMeta == nil {
+			st.ServiceMeta = map[string]domain.DisplayMeta{}
+		}
+		for name, m := range p.Services {
+			if name == "" || len(name) > 128 {
+				return &domain.InputError{Field: "services", Message: "invalid service name"}
+			}
+			if err := checkMeta("", m); err != nil {
+				return &domain.InputError{Field: "services." + name, Message: err.(*domain.InputError).Message} //nolint:errorlint // checkMeta returns *InputError
+			}
+			if m == (domain.DisplayMeta{}) {
+				delete(st.ServiceMeta, name)
+			} else {
+				st.ServiceMeta[name] = m
+			}
+		}
+		st.Revision++
+		st.UpdatedAt = s.now()
+		return store.UpdateStack(ctx, tx, &st)
+	})
+	if err != nil {
+		return domain.Stack{}, err
+	}
+	s.publish(EventUpdated, st, map[string]string{"change": "metadata"})
+	return st, nil
+}
