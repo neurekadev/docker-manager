@@ -114,7 +114,7 @@ func TestHostWithOnlyAnAgent(t *testing.T) {
 	role(t, "state", s.Volume(d.AgentState, nil), protection.RoleAgentState, false)
 	role(t, "stacks", s.Volume(d.Stacks, nil), protection.RoleStacks, false)
 	role(t, "agent image", s.Image(d.AgentImage), protection.RoleImage, false)
-	role(t, "project", s.Project("dockyard-agent"), protection.RoleProject, false)
+	role(t, "project", s.Project("dockyard"), protection.RoleProject, false)
 	other := fe.AddContainer(engine.ContainerSpec{Name: "other-manager", Image: "nginx:1.27",
 		Labels: map[string]string{protocol.LabelRole: "manager"}}, true)
 	role(t, "other installation's manager", identify(t, g, fe).Container(other), protection.RoleManager, false)

@@ -43,11 +43,16 @@ server {
 		proxy_http_version 1.1;
 
 		# The manager checks Host/Origin against DOCKYARD_PUBLIC_URL; keep
-		# the port. Client-supplied X-Forwarded-* values are overwritten
-		# (X-Forwarded-For is appended to; the manager reads it right to
-		# left and trusts only this proxy's hop).
+		# the port. Client-supplied X-Forwarded-* values are overwritten:
+		# X-Forwarded-For is replaced with the client's address, not
+		# appended to. The manager trusts whole address ranges
+		# (DOCKYARD_TRUSTED_PROXIES, Docker's default pools), so a client
+		# whose own address falls into them (e.g. a LAN in 192.168.0.0/16)
+		# could otherwise prepend a fake hop the manager would skip to.
+		# Behind another proxy (CDN, load balancer), use
+		# $proxy_add_x_forwarded_for and trust that proxy's addresses too.
 		proxy_set_header Host              $http_host;
-		proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-For   $remote_addr;
 		proxy_set_header X-Forwarded-Proto $scheme;
 		proxy_set_header X-Forwarded-Host  $http_host;
 		proxy_set_header X-Request-ID      $request_id;

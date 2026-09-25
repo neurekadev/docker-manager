@@ -4,8 +4,9 @@ import "github.com/neurekadev/dockyard/internal/agent/engine"
 
 // Deployment is DockYard deployed on a fake Engine like the deploy
 // examples (deploy/caddy): Compose project "dockyard" with the manager,
-// the co-located agent and a reverse proxy, their volumes and network; or,
-// for a remote host, only the agent (project "dockyard-agent").
+// the co-located agent and a reverse proxy, their volumes (dockyard_data,
+// dockyard_agent, dockyard_stacks) and network; or, for a remote host, only
+// the agent (deploy/remote-agent, also project "dockyard").
 type Deployment struct {
 	AgentID, ManagerID, ProxyID          string
 	AgentImage, ManagerImage, ProxyImage string
@@ -16,11 +17,8 @@ type Deployment struct {
 // Deploy adds DockYard to the Engine: with manager (the co-located
 // deployment of deploy/caddy) or agent only (deploy/remote-agent).
 func (e *Engine) Deploy(withManager bool) Deployment {
-	project := "dockyard-agent"
-	if withManager {
-		project = "dockyard"
-	}
-	d := Deployment{Stacks: "dockyard_stacks", AgentState: project + "_dockyard_agent_state", Network: project + "_default"}
+	const project = "dockyard"
+	d := Deployment{Stacks: project + "_stacks", AgentState: project + "_agent", Network: project}
 	d.AgentImage = e.AddImage("code.neureka.dev/dockyard/dockyard-agent:edge")
 	e.AddNetwork(d.Network, map[string]string{"com.docker.compose.project": project})
 	labels := func(service, role string) map[string]string {
@@ -41,7 +39,7 @@ func (e *Engine) Deploy(withManager bool) Deployment {
 	if !withManager {
 		return d
 	}
-	d.ManagerData, d.ProxyData = project+"_dockyard_data", project+"_caddy_data"
+	d.ManagerData, d.ProxyData = project+"_data", project+"_caddy_data"
 	d.ManagerImage = e.AddImage("code.neureka.dev/dockyard/dockyard-manager:edge")
 	d.ProxyImage = e.AddImage("caddy:2.11.4-alpine")
 	d.ManagerID = e.AddContainer(engine.ContainerSpec{Name: project + "-dockyard-manager-1", Image: "code.neureka.dev/dockyard/dockyard-manager:edge",

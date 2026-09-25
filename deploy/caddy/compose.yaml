@@ -17,12 +17,15 @@ services:
     restart: unless-stopped
     environment:
       DOCKYARD_PUBLIC_URL: https://${DOCKYARD_HOST:-localhost}
-      # Only the proxy's X-Forwarded-For/Proto/Host headers are honored
-      # (client IP for rate limits and audit, https for first-run setup).
-      DOCKYARD_TRUSTED_PROXIES: ${DOCKYARD_PROXY_IP:-10.227.27.10}
+      # X-Forwarded-For/Proto/Host (client IP for rate limits and audit,
+      # https for first-run setup) are honored only from these peers: by
+      # default Docker's default address pools, which hold the dockyard
+      # network and so the proxy. Any other container on the manager's
+      # networks could set them too; see .env.example to narrow it.
+      DOCKYARD_TRUSTED_PROXIES: ${DOCKYARD_TRUSTED_PROXIES:-172.16.0.0/12,192.168.0.0/16}
       DOCKYARD_LOG_LEVEL: ${DOCKYARD_LOG_LEVEL:-info}
     volumes:
-      - dockyard_data:/var/lib/dockyard
+      - data:/var/lib/dockyard
     labels:
       dev.neureka.dockyard.role: manager
     networks:
@@ -52,8 +55,8 @@ services:
       - /var/lib/docker/volumes:/var/lib/docker/volumes
       # Ensures the stacks volume exists; it is the same directory the
       # identical-path mount above already exposes.
-      - dockyard_stacks:/var/lib/docker/volumes/dockyard_stacks/_data
-      - dockyard_agent_state:/var/lib/dockyard-agent
+      - stacks:/var/lib/docker/volumes/dockyard_stacks/_data
+      - agent:/var/lib/dockyard-agent
     labels:
       dev.neureka.dockyard.role: agent
     networks:
@@ -78,23 +81,19 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     networks:
-      dockyard:
-        # Fixed address so the manager can trust exactly this proxy.
-        ipv4_address: ${DOCKYARD_PROXY_IP:-10.227.27.10}
-
-volumes:
-  dockyard_data:
-  dockyard_agent_state:
-  # Stack project directories (#28). A fixed name so the agent finds it at
-  # /var/lib/docker/volumes/dockyard_stacks/_data regardless of project name.
-  dockyard_stacks:
-    name: dockyard_stacks
-  caddy_data:
-  caddy_config:
+      - dockyard
 
 networks:
   dockyard:
-    ipam:
-      config:
-        # Change (with DOCKYARD_PROXY_IP) if it overlaps a network on your host.
-        - subnet: ${DOCKYARD_SUBNET:-10.227.27.0/24}
+    name: dockyard
+
+# With the project name "dockyard" these are the volumes dockyard_data
+# (manager), dockyard_agent (agent state) and dockyard_stacks (stack project
+# directories, #28: the agent's default DOCKYARD_STACKS_VOLUME, found at
+# /var/lib/docker/volumes/dockyard_stacks/_data). Keep the project name.
+volumes:
+  data:
+  agent:
+  stacks:
+  caddy_data:
+  caddy_config:

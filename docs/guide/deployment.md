@@ -47,9 +47,13 @@ What the example creates:
 
 | Service | Image | Notes |
 | --- | --- | --- |
-| `dockyard-manager` | `code.neureka.dev/dockyard/dockyard-manager:edge` | volume `dockyard_data` (database, snapshots, `secret.key`); publishes no port; trusts only the proxy's forwarded headers (`DOCKYARD_TRUSTED_PROXIES`) |
-| `dockyard-agent` | `code.neureka.dev/dockyard/dockyard-agent:edge` | the Docker socket, Docker's volume directory at the identical path, volumes `dockyard_agent_state` and `dockyard_stacks`; talks to the manager over the internal network (`DOCKYARD_MANAGER_ALLOW_HTTP=true`) |
-| proxy | pinned by digest | the only published ports; fixed address `DOCKYARD_PROXY_IP` on the `dockyard` network |
+| `dockyard-manager` | `code.neureka.dev/dockyard/dockyard-manager:edge` | volume `dockyard_data` (database, snapshots, `secret.key`); publishes no port; honors forwarded headers only from `DOCKYARD_TRUSTED_PROXIES` (default: Docker's address pools, where the proxy's network lies) |
+| `dockyard-agent` | `code.neureka.dev/dockyard/dockyard-agent:edge` | the Docker socket, Docker's volume directory at the identical path, volumes `dockyard_agent` and `dockyard_stacks`; talks to the manager over the internal network (`DOCKYARD_MANAGER_ALLOW_HTTP=true`) |
+| proxy | pinned by digest | the only published ports; on the `dockyard` network |
+
+The Compose project is always `dockyard` (`name: dockyard`), which makes
+the volumes (`data`, `agent`, `stacks` in `compose.yaml`) `dockyard_data`,
+`dockyard_agent` and `dockyard_stacks` on the host.
 
 ## Settings you are likely to change
 
@@ -59,7 +63,7 @@ All in `.env` (every variable: [configuration.md](../configuration.md)):
 | --- | --- | --- |
 | `DOCKYARD_HOST` | `localhost` | always: the public DNS name |
 | `DOCKYARD_TLS` (Caddy) | `internal` | an email address for ACME, or your certificate files |
-| `DOCKYARD_SUBNET`, `DOCKYARD_PROXY_IP` | `10.227.27.0/24`, `.10` | the subnet overlaps one of your networks (change both) |
+| `DOCKYARD_TRUSTED_PROXIES` | `172.16.0.0/12,192.168.0.0/16` | other, untrusted containers share the `dockyard` network (narrow it to that network's subnet), or your Engine uses other `default-address-pools` ([trusted proxies](../deployment.md#trusted-proxies)) |
 | `DOCKYARD_MAX_BODY_SIZE` | 1 GB | you upload larger archives or restore larger files |
 | `DOCKYARD_LOG_LEVEL` | `info` | you need `debug` logs for a support case |
 

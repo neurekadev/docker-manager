@@ -39,9 +39,9 @@ check each row.
 | No response buffering for streams | SSE must arrive as written | `flush_interval -1` (and automatic for `text/event-stream`) | automatic | the manager sends `X-Accel-Buffering: no` on every stream; keep `proxy_buffering` on for the rest |
 | Idle/read timeout above the heartbeat | quiet streams must not be cut | `read_timeout 60s` | entry point `readTimeout=0s` (see below) | `proxy_read_timeout 60s` |
 | Pass the `Host` header (with port) | Origin/WebSocket checks against `DOCKYARD_PUBLIC_URL` | default | `passHostHeader: true` | `Host $http_host` |
-| Set `X-Forwarded-For/Proto/Host`, overwrite client values | client IP, https detection | default (client values ignored) | default (untrusted client values replaced) | `$proxy_add_x_forwarded_for`, `$scheme`, `$http_host` |
+| Set `X-Forwarded-For/Proto/Host`, overwrite client values | client IP, https detection | default (client values ignored) | default (untrusted client values replaced) | `$remote_addr` (replaced, not appended), `$scheme`, `$http_host` |
 | Body size ≥ the manager's maximum upload/archive size (#15) | uploads, archives, restores | `request_body max_size` (`DOCKYARD_MAX_BODY_SIZE`, 1GB) | no limit by default | `client_max_body_size` (`DOCKYARD_MAX_BODY_SIZE`, 1024m); `proxy_request_buffering off` streams uploads |
-| Fixed proxy address trusted by the manager | forwarded headers are honored only from `DOCKYARD_TRUSTED_PROXIES` | `ipv4_address` | `ipv4_address` | `ipv4_address` |
+| Proxy address trusted by the manager | forwarded headers are honored only from `DOCKYARD_TRUSTED_PROXIES` | Docker's default address pools (below) | same | same |
 
 ### Trusted proxies
 
@@ -50,11 +50,31 @@ The manager honors `X-Forwarded-For`, `X-Forwarded-Proto`,
 listed in `DOCKYARD_TRUSTED_PROXIES`; from anyone else they are ignored,
 and they are removed from every request before a handler sees it. The
 client IP is the rightmost `X-Forwarded-For` entry that is not itself a
-trusted proxy, so addresses a client prepends are never used. The examples
-put the proxy on a fixed address (`DOCKYARD_PROXY_IP`, default
-`10.227.27.10` in `DOCKYARD_SUBNET=10.227.27.0/24`) and trust exactly that
-address. If the subnet overlaps one of your networks, change both values in
-`.env`.
+trusted proxy, so addresses a client prepends are never used.
+
+The examples put the proxy and the manager on the `dockyard` network
+without a fixed address or subnet and default `DOCKYARD_TRUSTED_PROXIES` to
+Docker's default address pools, `172.16.0.0/12,192.168.0.0/16`: whatever
+address Docker gives the proxy lies in them. Override it in `.env`:
+
+- **Trade-off:** any container on a network the manager is attached to
+  can then set forwarded headers (fake its client IP for rate limits and
+  audit, claim https), and so can processes on the host itself (they reach
+  the container through the network's gateway address). In the examples
+  the manager publishes no port and its only network, `dockyard`, holds
+  DockYard and its proxy alone. If other, untrusted containers join it, or
+  you attach the manager to a network shared with other applications (an
+  existing proxy's network, for example), narrow the value to the proxy's
+  network or address, e.g. the `dockyard` subnet (`docker network inspect
+  dockyard -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}'`).
+- If your Engine allocates networks from other `default-address-pools`
+  (`daemon.json`), list those ranges instead.
+- Clients whose own address lies in these ranges (a LAN in
+  `192.168.0.0/16`) are still resolved correctly because every example
+  proxy replaces `X-Forwarded-For` with the client's address instead of
+  appending to it (nginx: `$remote_addr`). If you put another proxy (CDN,
+  load balancer) in front, forward its chain
+  (`$proxy_add_x_forwarded_for`) and trust its addresses as well.
 
 Without the right `DOCKYARD_TRUSTED_PROXIES` the manager sees every request
 as plain HTTP from the proxy's address: rate limits then apply to all
@@ -162,7 +182,7 @@ else (containers, images, logs, …) keeps working.
 | `storage_path_mismatch` | mounted, but from a different host path | use the identical path on both sides |
 | `storage_read_only` / `storage_not_writable` | read-only mount, or the agent is not root | read-write mount; the agent runs as UID 0 |
 | `storage_path_not_visible` | the directory does not exist inside the agent | check the mount |
-| `storage_stacks_volume_missing` / `storage_stacks_volume_not_local` | the stacks volume does not exist / is not a local volume | declare it (`name: dockyard_stacks`) with the local driver |
+| `storage_stacks_volume_missing` / `storage_stacks_volume_not_local` | the stacks volume does not exist / is not a local volume | declare it with the local driver (the examples' `stacks` volume in the project `dockyard` is `dockyard_stacks`) |
 | `storage_root_mismatch` | a `DOCKYARD_STACK_ROOTS` entry is not mounted at its identical path (only that root is refused) | bind-mount it at the same path |
 | `storage_self_unknown` | the agent cannot identify its own container | do not override the agent's `hostname` |
 | `storage_rootless_engine` / `storage_docker_desktop` | unsupported Engines ([support matrix](support-matrix.md)) | use a rootful Linux Engine |
@@ -288,12 +308,13 @@ Two Docker hosts, each one Environment:
 - **host B** runs only an agent that connects through the public origin.
 
 Everything DockYard stores lives in named volumes: `dockyard_data`
-(manager database, snapshots, secret key), `dockyard_agent_state` (agent
+(manager database, snapshots, secret key), `dockyard_agent` (agent
 credential and job journal) and `dockyard_stacks` (stack project
-directories). The only host paths are the Docker socket and Docker's volume
-directory, mounted at the **identical path** (`/var/lib/docker/volumes`) so
-stack and volume paths mean the same inside the agent and on the Engine
-(#28).
+directories), declared as `data`, `agent` and `stacks` in the Compose
+project `dockyard` of every example (remote agents included). The only
+host paths are the Docker socket and Docker's volume directory, mounted at
+the **identical path** (`/var/lib/docker/volumes`) so stack and volume
+paths mean the same inside the agent and on the Engine (#28).
 
 **Host A** (public name `docker.example.com`, ports 80/443 reachable):
 

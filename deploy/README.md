@@ -57,20 +57,29 @@ publicly reachable host.
 
 What the example sets up (`caddy/compose.yaml`):
 
-- **dockyard-manager** with the named volume `dockyard_data` at
-  `/var/lib/dockyard` (database, snapshots, secret key),
+- **dockyard-manager** with the volume `data` (`dockyard_data` on the
+  host) at `/var/lib/dockyard` (database, snapshots, secret key),
   `DOCKYARD_PUBLIC_URL=https://${DOCKYARD_HOST}` and
-  `DOCKYARD_TRUSTED_PROXIES` set to the proxy's fixed address. It publishes
-  no ports; only the proxy reaches it.
+  `DOCKYARD_TRUSTED_PROXIES` defaulting to Docker's default address pools
+  `172.16.0.0/12,192.168.0.0/16`, which contain the proxy's address on the
+  `dockyard` network whatever Docker assigns. It publishes no ports; only
+  the proxy reaches it.
 - **dockyard-agent** on the same network, using the internal URL
   `http://dockyard-manager:8080` with the explicit
   `DOCKYARD_MANAGER_ALLOW_HTTP=true` opt-in, the Docker socket, Docker's volume
-  directory at the identical path (`/var/lib/docker/volumes`), the named
-  volume `dockyard_agent_state`, and the stacks volume `dockyard_stacks`.
+  directory at the identical path (`/var/lib/docker/volumes`), the volume
+  `agent` (`dockyard_agent`) and the stacks volume `stacks`
+  (`dockyard_stacks`).
 - **caddy** terminating TLS for one origin with one route to the manager,
-  streaming responses unbuffered, on the fixed address `DOCKYARD_PROXY_IP`
-  of the `dockyard` network (`DOCKYARD_SUBNET`; change both if the subnet
-  overlaps one of your networks).
+  streaming responses unbuffered, on the `dockyard` network.
+
+Every example is the Compose project `dockyard` (`name: dockyard`), so the
+volumes are always `dockyard_data`, `dockyard_agent` and `dockyard_stacks`;
+`dockyard_stacks` is the agent's default `DOCKYARD_STACKS_VOLUME`. Keep the
+project name. Trusting whole address ranges means any container on the
+manager's networks could set `X-Forwarded-*`; if untrusted containers share
+one with it, narrow `DOCKYARD_TRUSTED_PROXIES` in `.env` to the proxy's
+network or address (see `.env.example`).
 
 Create the owner account on the setup screen right away, then enroll the
 co-located agent (#3): create a one-use token in the UI (**Environments →

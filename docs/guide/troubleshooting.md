@@ -24,7 +24,7 @@ curl -fsS https://docker.example.com/api/v1/health/ready
 | Symptom | Cause and fix |
 | --- | --- |
 | Setup says the request did not arrive over HTTPS | you used the internal address, or the proxy is not in `DOCKYARD_TRUSTED_PROXIES`, or `DOCKYARD_PUBLIC_URL` is not https ([details](../deployment.md#first-run-setup-over-https)) |
-| Rate limits hit everyone at once; audit shows one IP | the manager does not trust the proxy: check `DOCKYARD_TRUSTED_PROXIES` / `DOCKYARD_PROXY_IP` |
+| Rate limits hit everyone at once; audit shows one IP | the manager does not trust the proxy: `DOCKYARD_TRUSTED_PROXIES` must contain the proxy's address (`docker network inspect dockyard`); the default covers Docker's default address pools only |
 | Live views stop updating after about a minute | a proxy or load balancer idle timeout below the 15 s heartbeat, or response buffering; see [timeouts](../deployment.md#timeouts-and-heartbeats) |
 | Agent stays offline | `docker compose logs dockyard-agent`: wrong `DOCKYARD_MANAGER_URL`, an untrusted certificate (set `DOCKYARD_MANAGER_CA_FILE`), a used or expired enrollment token (create a new one), or `version_unsupported` (upgrade the manager first, then the agent) |
 | Enrollment refused with `engine_already_enrolled` | this Engine already has an agent: create the token with the intent to replace it, or remove the old agent |

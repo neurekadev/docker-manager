@@ -17,10 +17,10 @@ services:
     restart: unless-stopped
     environment:
       DOCKYARD_PUBLIC_URL: https://${DOCKYARD_HOST:-localhost}
-      DOCKYARD_TRUSTED_PROXIES: ${DOCKYARD_PROXY_IP:-10.227.27.10}
+      DOCKYARD_TRUSTED_PROXIES: ${DOCKYARD_TRUSTED_PROXIES:-172.16.0.0/12,192.168.0.0/16}
       DOCKYARD_LOG_LEVEL: ${DOCKYARD_LOG_LEVEL:-info}
     volumes:
-      - dockyard_data:/var/lib/dockyard
+      - data:/var/lib/dockyard
     labels:
       dev.neureka.dockyard.role: manager
     networks:
@@ -40,8 +40,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker/volumes:/var/lib/docker/volumes
-      - dockyard_stacks:/var/lib/docker/volumes/dockyard_stacks/_data
-      - dockyard_agent_state:/var/lib/dockyard-agent
+      - stacks:/var/lib/docker/volumes/dockyard_stacks/_data
+      - agent:/var/lib/dockyard-agent
     labels:
       dev.neureka.dockyard.role: agent
     networks:
@@ -66,17 +66,15 @@ services:
       - ./templates:/etc/nginx/templates:ro
       - ${DOCKYARD_TLS_DIR:-./certs}:/certs:ro
     networks:
-      dockyard:
-        ipv4_address: ${DOCKYARD_PROXY_IP:-10.227.27.10}
-
-volumes:
-  dockyard_data:
-  dockyard_agent_state:
-  dockyard_stacks:
-    name: dockyard_stacks
+      - dockyard
 
 networks:
   dockyard:
-    ipam:
-      config:
-        - subnet: ${DOCKYARD_SUBNET:-10.227.27.0/24}
+    name: dockyard
+
+# dockyard_data, dockyard_agent and dockyard_stacks with the project name
+# "dockyard" (see deploy/caddy/compose.yaml).
+volumes:
+  data:
+  agent:
+  stacks:
