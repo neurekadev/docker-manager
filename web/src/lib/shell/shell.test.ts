@@ -157,7 +157,7 @@ describe('CommandPalette', () => {
 		await user.keyboard('{ArrowDown}');
 		expect(input).toHaveAttribute('aria-activedescendant', options[1].id);
 		await user.keyboard('{Enter}');
-		expect(onnavigate).toHaveBeenCalledWith('/environments/e1/containers/c1');
+		expect(onnavigate).toHaveBeenCalledWith('/containers/e1/silo-silo-web-1');
 		expect(fetchMock).toHaveBeenCalled();
 	});
 });

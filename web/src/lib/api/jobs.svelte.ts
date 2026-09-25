@@ -34,6 +34,8 @@ export interface JobWatcherOptions {
 	pollMs?: number;
 	/** Called once with the job when it reaches a terminal state. */
 	onfinish?: (job: Job) => void;
+	/** Log lines kept (default 50; a build log keeps the server's 500). */
+	maxLog?: number;
 }
 
 const MAX_LOG = 50;
@@ -168,7 +170,7 @@ export class JobWatcher {
 							message: ev.message,
 							warning: ev.type === 'warning'
 						}
-					].slice(-MAX_LOG);
+					].slice(-(this.#opts.maxLog ?? MAX_LOG));
 				break;
 		}
 		if (ev.type === 'state' && isTerminal(ev.state)) {

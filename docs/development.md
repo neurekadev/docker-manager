@@ -72,8 +72,13 @@ Seeded data:
   with the #22 display metadata; descriptions and icons are DockYard
   metadata, not images), the stack **Media** (`jellyfin`), standalone
   `homeassistant`, `pihole` and an exited `backup-runner`, volumes,
-  networks and images.
-- **nas** (online): `syncthing`, `samba` and stopped leftovers for prune.
+  networks and images; DockYard itself as the co-located Compose project
+  `dockyard` (`dockyard-manager`, and `dockyard-agent`, which the agent's
+  guard knows as its own container) with its data, agent state and stacks
+  volumes, all protected (#32).
+- **nas** (online): `syncthing`, `samba` and stopped leftovers for prune;
+  the volumes `media_archive` (NFS-backed) and `offsite_backups` (plugin
+  driver), which DockYard lists read-only.
 - **edge** (arm64): enrolled, then disconnected, so it is **offline**.
 - Metrics: a 30-minute history and a live 10 s sampler per host and
   container (smooth, deterministic curves); `engine.info` inventories.
@@ -110,6 +115,11 @@ Seeded data:
 - Import (#24): a seeded run starts `-backups` fresh; a later `-setup` run
   keeps it, so setup's **Import from backup** can restore it (directory
   `<-backups>/manager`, the printed Recovery Key).
+- Credentials and builds: registry connections (GHCR for `silo/*`, Docker
+  Hub bound to homelab, a revoked mirror), a Git credential, the build
+  definition `silo-web` and two past builds (records only: the devstack
+  cannot run BuildKit, so their logs are absent). The secrets are
+  placeholders; connection tests fail against the real registries.
 
 What is simulated: the Docker Engines, host metrics, Compose reads
 (`compose.read` from the project directories on disk, `compose.services`

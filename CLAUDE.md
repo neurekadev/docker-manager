@@ -643,6 +643,14 @@ Guides: `docs/design/README.md` (tokens, components, copy, a11y),
   npx playwright test tests/ui.spec.ts` in `e2e/`. Review screenshots at
   1440×900 and 390×844 against #22 (`E2E_SCREENSHOTS_DIR`, outside the repo;
   never commit the mockup or screenshots of it).
+- **Resource pages (#6, #19, #33):** `$lib/features/resources`:
+  `useEnvironmentScope()` (selected or all environments, create rights),
+  cross-environment lists (`acrossEnvironments` in `$lib/api/multi-env.ts`;
+  offline environments are reported, not hidden), `trackJob` (toast, notice
+  and refresh when a mutation's job ends), `refusal`/`jobFailure` (#32 and
+  other refusals with the server's reason), `RemovalDialog` (the server's
+  removal preview). Credential changes go through `withStepUp`
+  (`$lib/auth/stepup.svelte`). `unwrap` resolves a 204 to `undefined`.
 - **Search:** `GET /api/v1/search` (`internal/manager/api/search.go`) feeds
   the ⌘K palette; new searchable resource types go there, filtered with the
   resource's own `ViewOf` and identity/status fields only.

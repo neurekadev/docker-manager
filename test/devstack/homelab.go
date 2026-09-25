@@ -45,6 +45,9 @@ type homelabHost struct {
 	// stacks volume inside it: real directories below the data directory
 	// (files.go), so the file manager (#15) and watcher (#23) work.
 	volumesDir, stacksDir string
+	// selfContainer is the connected agent's own container and
+	// stacksVolume the stacks volume (#32: the agent's protection guard).
+	selfContainer, stacksVolume string
 }
 
 // project is a Compose project's files as the stacks volume holds them
@@ -234,6 +237,7 @@ func newHomelab(dataDir string) []*homelabHost {
 	exited(fe, engine.ContainerSpec{Name: "backup-runner", Image: "alpine:3.20"})
 	fe.AddImage("alpine:3.20")
 	fe.AddImage("postgres:15")
+	addDockYard(homelab)
 
 	// nas: file services and stopped leftovers (the prune run's candidates).
 	fe = nas.engine
@@ -245,11 +249,54 @@ func newHomelab(dataDir string) []*homelabHost {
 	exited(fe, engine.ContainerSpec{Name: "tmp-builder", Image: "golang:1.22"})
 	exited(fe, engine.ContainerSpec{Name: "speedtest", Image: "ghcr.io/librespeed/speedtest:5.4"})
 	fe.AddVolume("nextcloud_data", nil)
+	// Volumes DockYard can list but not open (#28: shown read-only with the
+	// reason): a local volume backed by NFS and a plugin driver's volume.
+	_, _ = fe.CreateVolume(context.Background(), engine.VolumeSpec{Name: "media_archive",
+		DriverOpts: map[string]string{"type": "nfs", "o": "addr=192.168.1.20,rw,nfsvers=4", "device": ":/export/media"}})
+	_, _ = fe.CreateVolume(context.Background(), engine.VolumeSpec{Name: "offsite_backups", Driver: "rclone"})
 
 	// edge: one broker, disconnected after seeding.
 	edge.engine.AddContainer(engine.ContainerSpec{Name: "mqtt-broker", Image: "emqx/emqx:5.8", RestartPolicy: "unless-stopped",
 		Ports: []engine.PortBinding{{ContainerPort: 1883, HostPort: 1883}}}, true)
 	return []*homelabHost{homelab, nas, edge}
+}
+
+// addDockYard runs DockYard itself on homelab like the co-located deploy
+// example (#32): the Compose project "dockyard" with the manager and the
+// connected agent (labeled dev.neureka.dockyard.role), the manager's data
+// volume, the agent's state volume and the stacks volume. The agent's
+// guard knows its own container, so these show as "DockYard system" and
+// every destructive action on them is refused.
+func addDockYard(h *homelabHost) {
+	fe := h.engine
+	project := func(service string, extra map[string]string) map[string]string {
+		l := map[string]string{protocol.ComposeProjectLabel: "dockyard", protocol.ComposeServiceLabel: service,
+			protocol.ComposeWorkingDirLabel: "/opt/dockyard", "com.docker.compose.container-number": "1",
+			"com.docker.compose.project.config_files": "/opt/dockyard/compose.yaml"}
+		for k, v := range extra {
+			l[k] = v
+		}
+		return l
+	}
+	fe.AddNetwork("dockyard_default", map[string]string{protocol.ComposeProjectLabel: "dockyard", "com.docker.compose.network": "default"})
+	for _, v := range []string{"data", "agent", "stacks"} {
+		fe.AddVolume("dockyard_"+v, map[string]string{protocol.ComposeProjectLabel: "dockyard", "com.docker.compose.volume": v})
+	}
+	fe.AddContainer(engine.ContainerSpec{Name: "dockyard-manager", Image: "ghcr.io/neurekadev/dockyard-manager:edge",
+		RestartPolicy: "unless-stopped", NetworkMode: "dockyard_default", NetworkAliases: []string{"dockyard-manager"},
+		Labels: project("dockyard-manager", map[string]string{protocol.LabelRole: "manager"}),
+		Ports:  []engine.PortBinding{{ContainerPort: 8080, HostPort: 8080, HostIP: "127.0.0.1"}},
+		Mounts: []engine.MountSpec{{Type: "volume", Source: "dockyard_data", Target: "/var/lib/dockyard"}}}, true)
+	h.selfContainer = fe.AddContainer(engine.ContainerSpec{Name: "dockyard-agent", Image: "ghcr.io/neurekadev/dockyard-agent:edge",
+		RestartPolicy: "unless-stopped", NetworkMode: "dockyard_default", NetworkAliases: []string{"dockyard-agent"},
+		Labels: project("dockyard-agent", map[string]string{protocol.LabelRole: "agent"}),
+		Mounts: []engine.MountSpec{{Type: "volume", Source: "dockyard_agent", Target: "/var/lib/dockyard-agent"},
+			{Type: "volume", Source: "dockyard_stacks", Target: h.stacksDir}}}, true)
+	h.stacksVolume = "dockyard_stacks"
+	h.usage["dockyard-manager"] = usage{1.2, 96 * mib}
+	h.usage["dockyard-agent"] = usage{0.6, 38 * mib}
+	h.logLines["dockyard-agent"] = []string{`{"level":"INFO","msg":"session established","manager":"http://dockyard-manager:8080"}`,
+		`{"level":"INFO","msg":"capabilities announced","requests":42}`}
 }
 
 // addStack creates a stack's network, volumes and containers with the

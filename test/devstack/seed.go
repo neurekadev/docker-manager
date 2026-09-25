@@ -301,7 +301,10 @@ func (s *seeder) seedAccountsAndJobs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return s.seedAdmin(ctx, owner)
+	if err := s.seedAdmin(ctx, owner); err != nil {
+		return err
+	}
+	return s.seedCredentialsAndBuilds(ctx, owner)
 }
 
 func (s *seeder) waitJob(ctx context.Context, c *apiClient, id string) error {

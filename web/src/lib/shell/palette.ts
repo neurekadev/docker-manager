@@ -41,14 +41,15 @@ export function hrefForHit(hit: SearchHit): string {
 			return routes.stack(hit.id);
 		case 'service':
 			return `${routes.stack(hit.stackId ?? hit.id.split('/')[0])}?service=${encodeURIComponent(hit.name)}`;
+		// Containers and networks are addressed by name (#17 identity, #23 keys).
 		case 'container':
-			return routes.container(env, hit.id);
+			return routes.container(env, hit.name);
 		case 'image':
 			return routes.image(env, hit.id);
 		case 'volume':
 			return routes.volume(env, hit.id);
 		case 'network':
-			return routes.network(env, hit.id);
+			return routes.network(env, hit.name);
 	}
 }
 

@@ -1,0 +1,197 @@
+<script lang="ts">
+	// Add or edit a Git credential (#33): an HTTPS username and access token
+	// for private build contexts, handled like registry connections
+	// (write-only token, sealed, sent only to the build that needs it).
+	import { untrack } from 'svelte';
+	import { useQueryClient } from '@tanstack/svelte-query';
+	import { api, unwrap } from '$lib/api/client';
+	import { queryKeys, type GitCredential } from '$lib/api/queries';
+	import { withStepUp } from '$lib/auth/stepup.svelte';
+	import {
+		Button,
+		Checkbox,
+		Dialog,
+		PasswordField,
+		TextField,
+		errorMessage,
+		fieldError,
+		toast
+	} from '$lib/ui';
+
+	interface Props {
+		open?: boolean;
+		credential?: GitCredential | null;
+	}
+
+	let { open = $bindable(false), credential = null }: Props = $props();
+	const queryClient = useQueryClient();
+
+	let name = $state('');
+	let host = $state('');
+	let pathPrefix = $state('');
+	let username = $state('');
+	let secret = $state('');
+	let plainHttp = $state(false);
+	let busy = $state(false);
+	let failure = $state<unknown>(null);
+
+	$effect(() => {
+		if (!open) return;
+		untrack(() => {
+			name = credential?.name ?? '';
+			host = credential?.host ?? '';
+			pathPrefix = credential?.pathPrefix ?? '';
+			username = credential?.username ?? '';
+			secret = '';
+			plainHttp = !!credential?.plainHttp;
+			failure = null;
+		});
+	});
+
+	const valid = $derived(
+		!!name.trim() && !!username.trim() && (!!credential || (!!host.trim() && !!secret))
+	);
+
+	async function save() {
+		busy = true;
+		failure = null;
+		try {
+			if (credential) {
+				await withStepUp(() =>
+					unwrap(
+						api.PATCH('/api/v1/git-credentials/{credentialId}', {
+							params: {
+								path: { credentialId: credential!.id },
+								header: { 'If-Match': `"${credential!.revision ?? 0}"` }
+							},
+							body: {
+								name: name.trim(),
+								pathPrefix: pathPrefix.trim(),
+								username: username.trim(),
+								plainHttp
+							}
+						})
+					)
+				);
+				toast.success(`Saved ${name.trim()}`);
+			} else {
+				await withStepUp(() =>
+					unwrap(
+						api.POST('/api/v1/git-credentials', {
+							body: {
+								name: name.trim(),
+								host: host.trim(),
+								pathPrefix: pathPrefix.trim() || undefined,
+								username: username.trim(),
+								secret,
+								plainHttp: plainHttp || undefined
+							}
+						})
+					)
+				);
+				toast.success(`Added ${name.trim()}`);
+			}
+			secret = '';
+			void queryClient.invalidateQueries({ queryKey: queryKeys.registries.all });
+			open = false;
+		} catch (e) {
+			failure = e;
+		} finally {
+			busy = false;
+		}
+	}
+</script>
+
+<Dialog
+	bind:open
+	title={credential ? `Edit ${credential.name}` : 'Add a Git credential'}
+	description="For builds from private repositories over HTTPS. Shared by the whole instance; builds get the token only while they run."
+	size="md"
+	dismissible={!busy}
+>
+	<form
+		id="git-form"
+		class="form"
+		onsubmit={(e) => {
+			e.preventDefault();
+			if (valid) void save();
+		}}
+	>
+		<TextField
+			label="Name"
+			required
+			bind:value={name}
+			placeholder="GitHub (acme builds)"
+			error={fieldError(failure, 'body.name')}
+		/>
+		{#if !credential}
+			<TextField
+				label="Host"
+				mono
+				required
+				bind:value={host}
+				placeholder="github.com"
+				error={fieldError(failure, 'body.host')}
+			/>
+		{/if}
+		<TextField
+			label="Repositories below"
+			mono
+			bind:value={pathPrefix}
+			placeholder="acme"
+			description="Optional. Only repositories under this path get the token; empty: every repository on the host."
+		/>
+		<TextField
+			label="Username"
+			mono
+			required
+			bind:value={username}
+			autocomplete="off"
+			description="For GitHub and GitLab tokens any name works, e.g. x-access-token or oauth2."
+		/>
+		{#if !credential}
+			<PasswordField
+				label="Access token"
+				autocomplete="new-password"
+				required
+				bind:value={secret}
+				description="A read-only repository token is enough. Write-only: never shown again."
+				error={fieldError(failure, 'body.secret')}
+			/>
+		{/if}
+		<Checkbox
+			label="Allow plain HTTP"
+			description="Send the token to http:// repositories (trusted networks only)."
+			bind:checked={plainHttp}
+		/>
+		{#if failure && !fieldError(failure, 'body.name')}
+			<p class="error" role="alert">
+				{(failure as { status?: number }).status === 412
+					? 'Someone changed this credential meanwhile. Close the dialog and open it again.'
+					: errorMessage(failure)}
+			</p>
+		{/if}
+	</form>
+	{#snippet footer()}
+		<Button variant="ghost" onclick={() => (open = false)} disabled={busy}>Cancel</Button>
+		<Button type="submit" form="git-form" variant="primary" loading={busy} disabled={!valid}
+			>{credential ? 'Save changes' : 'Add credential'}</Button
+		>
+	{/snippet}
+</Dialog>
+
+<style>
+	.form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+	}
+
+	.error {
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--danger-border);
+		border-radius: var(--radius-sm);
+		background: var(--danger-soft);
+		color: var(--danger);
+	}
+</style>
