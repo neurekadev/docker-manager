@@ -477,11 +477,18 @@ func TestAgentStopsOnNonRetryableRefusal(t *testing.T) {
 	a.version = testManagerVersion
 	a.start()
 	f.waitOnline(r.EnvironmentID)
+	f.waitEvent(events.EnvironmentResync, r.EnvironmentID) // first session online
 	a.waitState(session.StateOnline)
 	// A retryable close (1011) makes it reconnect and come back online.
+	// The new session may attach before the old one's teardown ran; then
+	// it takes over without an offline/online transition (and without
+	// environment.online), so wait for the new session's resync instead.
 	f.svc.Hub().Session(r.AgentID).closeWith(protocol.CloseInternal, "test")
 	a.waitState(session.StateDisconnected)
-	f.waitOnline(r.EnvironmentID)
+	f.waitEvent(events.EnvironmentResync, r.EnvironmentID) // reconnected session online
+	if !f.svc.Hub().Online(r.EnvironmentID) {
+		t.Fatal("environment not online after the reconnect")
+	}
 	a.waitState(session.StateOnline)
 
 	if _, err := f.svc.RemoveAgent(f.ctx, r.AgentID, mustAgent(t, f, r.AgentID).Revision); err != nil {
