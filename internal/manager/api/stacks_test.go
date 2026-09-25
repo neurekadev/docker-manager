@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -50,7 +52,7 @@ func (f *fakeStacks) List(_ context.Context, flt domain.StackFilter) ([]domain.S
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []domain.Stack
-	for _, id := range []string{"st-1", "st-secret"} {
+	for _, id := range slices.Sorted(maps.Keys(f.stacks)) {
 		st := f.stacks[id]
 		if id > flt.AfterID && (flt.EnvironmentID == "" || st.EnvironmentID == flt.EnvironmentID) {
 			out = append(out, st)

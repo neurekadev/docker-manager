@@ -7,8 +7,23 @@
 import createClient from 'openapi-fetch';
 import type { components, paths } from './schema';
 
+/** Schema type by name: Schema<'Stack'>. */
+export type Schema<K extends keyof components['schemas']> = components['schemas'][K];
+
 export type Health = components['schemas']['HealthBody'];
 export type ApiError = components['schemas']['Error'];
+export type Session = Schema<'Session'>;
+export type Account = Schema<'Account'>;
+export type MyPermissions = Schema<'MyPermissions'>;
+export type Environment = Schema<'Environment'>;
+export type EnvironmentSystem = Schema<'EnvironmentSystem'>;
+export type Job = Schema<'Job'>;
+export type JobEvent = Schema<'JobEvent'>;
+export type JobItem = Schema<'JobItem'>;
+export type SearchHit = Schema<'SearchHit'>;
+export type SearchResults = Schema<'SearchResults'>;
+export type SchedulePreview = Schema<'SchedulePreview'>;
+export type Overview = Schema<'Overview'>;
 export type ApiClient = ReturnType<typeof createApiClient>;
 
 /**
@@ -27,7 +42,9 @@ export function createApiClient(
 	});
 }
 
-export const api = createApiClient();
+// Same-origin absolute base (relative URLs also work in browsers; tests in
+// jsdom need an absolute one).
+export const api = createApiClient(undefined, globalThis.location?.origin ?? '');
 
 /**
  * A failed API call. `status` is null when the request never produced an

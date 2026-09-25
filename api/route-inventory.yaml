@@ -77,7 +77,7 @@ routes:
     scope: none
     owner: 22
     kind: json
-    status: planned
+    status: implemented
     notes: "Global search for the command palette; every hit is filtered by the capability that makes it visible (#17)."
   - method: GET
     path: /api/v1/live/stream

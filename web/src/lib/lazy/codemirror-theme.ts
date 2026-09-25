@@ -1,0 +1,69 @@
+// DockYard's CodeMirror theme (#22): the mockup's editor colours (keys in
+// blue, strings amber, URLs red, muted punctuation, JetBrains Mono) on the
+// panel surface. Loaded only through import() from ./index.ts.
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { EditorView } from '@codemirror/view';
+import { tags as t } from '@lezer/highlight';
+import { EDITOR_COLORS as c } from './palette';
+
+const theme = EditorView.theme(
+	{
+		'&': {
+			color: c.text,
+			backgroundColor: c.background,
+			fontSize: '13px',
+			height: '100%'
+		},
+		'.cm-scroller': {
+			fontFamily: c.fontMono,
+			lineHeight: '20px'
+		},
+		'.cm-content': { caretColor: c.caret, padding: '8px 0' },
+		'.cm-cursor, .cm-dropCursor': { borderLeftColor: c.caret, borderLeftWidth: '2px' },
+		'&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+			backgroundColor: c.selection
+		},
+		'.cm-activeLine': { backgroundColor: c.activeLine },
+		'.cm-gutters': {
+			backgroundColor: c.background,
+			color: c.gutter,
+			border: 'none',
+			paddingRight: '8px'
+		},
+		'.cm-activeLineGutter': { backgroundColor: 'transparent', color: c.gutterActive },
+		'.cm-lineNumbers .cm-gutterElement': { minWidth: '32px', paddingRight: '12px' },
+		'.cm-foldPlaceholder': {
+			backgroundColor: c.surfaceRaised,
+			border: `1px solid ${c.border}`,
+			color: c.muted
+		},
+		'.cm-tooltip': {
+			backgroundColor: c.surfaceRaised,
+			border: `1px solid ${c.border}`,
+			color: c.text
+		},
+		'.cm-panels': { backgroundColor: c.surfaceRaised, color: c.text },
+		'.cm-searchMatch': { backgroundColor: 'rgba(245, 181, 68, 0.25)' },
+		'.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(245, 181, 68, 0.45)' },
+		'.cm-matchingBracket, .cm-nonmatchingBracket': {
+			backgroundColor: c.selection,
+			outline: 'none'
+		},
+		'&.cm-focused': { outline: 'none' }
+	},
+	{ dark: true }
+);
+
+const highlight = HighlightStyle.define([
+	{ tag: [t.propertyName, t.definition(t.propertyName), t.attributeName], color: c.key },
+	{ tag: [t.string, t.special(t.string)], color: c.string },
+	{ tag: [t.number, t.bool, t.null, t.atom], color: c.number },
+	{ tag: [t.url, t.link], color: c.url },
+	{ tag: [t.comment, t.lineComment, t.blockComment], color: c.comment, fontStyle: 'italic' },
+	{ tag: [t.punctuation, t.separator, t.bracket, t.operator], color: c.punctuation },
+	{ tag: [t.keyword, t.typeName, t.labelName], color: c.keyword },
+	{ tag: t.invalid, color: c.url }
+]);
+
+/** The theme and highlighting as one extension. */
+export const dockyardEditorTheme = [theme, syntaxHighlighting(highlight)];

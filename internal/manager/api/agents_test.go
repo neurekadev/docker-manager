@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -150,7 +152,7 @@ func (f *fakeAgents) ListEnvironments(_ context.Context, flt domain.EnvironmentF
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []domain.Environment
-	for _, id := range []string{"env-1", "env-secret"} {
+	for _, id := range slices.Sorted(maps.Keys(f.envs)) {
 		e := f.envs[id]
 		if id > flt.AfterID {
 			for _, s := range flt.Statuses {

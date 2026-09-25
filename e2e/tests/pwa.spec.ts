@@ -88,7 +88,7 @@ test.describe('PWA shell', () => {
 		expect(online?.fromServiceWorker()).toBe(true); // network-first through the worker
 		expect(online?.headers()['x-dockyard-shell']).toBeUndefined();
 		// The SPA boots; its router renders the route or its not-found view.
-		await expect(page).toHaveTitle('DockYard');
+		await expect(page).toHaveTitle(/DockYard$/);
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 		await expect(page.getByRole('status', { name: 'Connection status' })).toBeAttached();
 		expect(new URL(page.url()).pathname).toBe('/stacks/demo/files');
@@ -108,7 +108,7 @@ test.describe('PWA shell', () => {
 		await page.goto('/');
 		await waitForServiceWorkerControl(page);
 		await page.reload();
-		await expect(page.getByText(/^Manager ok/)).toBeVisible();
+		await expect(page.getByText(/^DockYard \S+ \(\w+\)$/)).toBeVisible();
 
 		// More API traffic from the controlled page, including a 404 and a
 		// non-GET request.
@@ -167,19 +167,20 @@ test.describe('PWA shell', () => {
 		expect(res?.status()).toBe(200);
 		expect(res?.fromServiceWorker()).toBe(true);
 		expect(res?.headers()['x-dockyard-shell']).toBe('offline');
-		await expect(page.getByRole('heading', { level: 1, name: 'DockYard' })).toBeVisible();
+		// The precached shell boots and waits (#22 boot screen or public page).
+		await expect(page.getByRole('heading', { level: 1, name: /DockYard/ })).toBeVisible();
 		await expect(page.getByTestId('connection-status')).toHaveAttribute('data-state', 'offline');
-		await expect(page.getByText('Waiting for the network…')).toBeVisible();
+		await expect(page.getByText('Waiting for the network…').first()).toBeVisible();
 		expect(await cachedUrls(page)).toEqual([]);
 
 		// Back online: the indicator clears and the typed API call succeeds.
 		await context.setOffline(false);
 		await expect(page.getByTestId('connection-status')).toHaveAttribute('data-state', 'online');
-		await expect(page.getByText(/^Manager ok/)).toBeVisible();
+		await expect(page.getByText(/^DockYard \S+ \(\w+\)$/)).toBeVisible();
 	});
 });
 
-test.describe('lazy-loaded libraries (#11 proof page)', () => {
+test.describe('lazy-loaded libraries (#11 proof, now on the #22 design gallery)', () => {
 	test('CodeMirror, ECharts and xterm.js load on demand; Bits UI menu works', async ({
 		page
 	}) => {
@@ -187,7 +188,7 @@ test.describe('lazy-loaded libraries (#11 proof page)', () => {
 		page.on('request', (r) => {
 			if (r.resourceType() === 'script') scripts.add(new URL(r.url()).pathname);
 		});
-		await page.goto('/lazy-proof');
+		await page.goto('/design');
 		await expect(page.getByTestId('loaded')).toHaveText('Loaded: none');
 		await expect(page.locator('.cm-editor, .xterm, [data-testid="chart"] canvas')).toHaveCount(0);
 

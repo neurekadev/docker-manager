@@ -216,6 +216,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerUpdates(a, deps)
 	registerBackups(a, deps)
 	registerLive(a, deps)
+	registerSearch(a, deps)
 	return a
 }
 

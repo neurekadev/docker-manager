@@ -221,7 +221,13 @@ idle period), `checkManifest` / `checkServiceWorker` / `cachedUrls` /
 covers the PWA shell (#11): manifest, service-worker scope under the proxy,
 deep-link reloads, API responses absent from Cache Storage, the offline
 shell (`context.setOffline`, which Playwright also applies to service
-workers) and lazily loaded libraries. The CI job uploads the HTML report as
+workers) and lazily loaded libraries. `tests/ui.spec.ts` covers the #22 UI
+foundation in order on one manager: first-run setup, sign-out and sign-in,
+shell navigation (sidebar, breadcrumbs, command palette, skip link), the
+narrow navigation drawer, the environment switcher (skipped without
+environments) and an invited Restricted user's denied state. Locally it runs
+against the Docker-free devstack (`go run ./test/devstack -setup`,
+[development.md](../development.md#playwright-against-the-devstack)). The CI job uploads the HTML report as
 the `playwright-report` artifact.
 
 ## Deploy smoke test

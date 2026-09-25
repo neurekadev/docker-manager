@@ -1,14 +1,15 @@
 // Web app manifest (#11). Written to /manifest.webmanifest at build time by
 // @vite-pwa/sveltekit (vite.config.ts) and linked from src/app.html.
 //
-// PROVISIONAL until the design system (#22): the colours are neutral
-// placeholders and the icons are simple placeholder artwork generated from
-// static/icons/icon.svg (see docs/web.md). Do not treat either as branding.
+// Colours are the design tokens (#22): the shell surface as theme colour
+// (browser chrome matches the top bar) and the canvas as splash background.
+// The icons are still the #11 placeholder artwork generated from
+// static/icons/icon.svg (see docs/web.md).
 import type { ManifestOptions } from 'vite-plugin-pwa';
 
-/** Neutral placeholder colours; #22 replaces them with design tokens. */
-export const PLACEHOLDER_THEME_COLOR = '#404040';
-export const PLACEHOLDER_BACKGROUND_COLOR = '#ffffff';
+/** --surface-shell and --surface-canvas (src/lib/design/tokens.css). */
+export const THEME_COLOR = '#0e141d';
+export const BACKGROUND_COLOR = '#0b1016';
 
 export const webManifest = {
 	id: '/',
@@ -21,8 +22,8 @@ export const webManifest = {
 	scope: '/',
 	display: 'standalone',
 	orientation: 'any',
-	theme_color: PLACEHOLDER_THEME_COLOR,
-	background_color: PLACEHOLDER_BACKGROUND_COLOR,
+	theme_color: THEME_COLOR,
+	background_color: BACKGROUND_COLOR,
 	icons: [
 		{ src: '/icons/pwa-64x64.png', sizes: '64x64', type: 'image/png' },
 		{ src: '/icons/pwa-192x192.png', sizes: '192x192', type: 'image/png' },

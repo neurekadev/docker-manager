@@ -586,6 +586,46 @@ agent watcher `internal/agent/watch`; browser `web/src/lib/live`.
   them (`Session.Serves`; an N-1 agent would close the session on an
   unknown request name).
 
+## Web UI (#22)
+
+Guides: `docs/design/README.md` (tokens, components, copy, a11y),
+`docs/web.md` (client, PWA); live gallery `/design`. Dark-only v1.
+
+- **Components:** build pages only from `$lib/ui` (one barrel) and tokens
+  (`$lib/design/tokens.css`); no raw hex, no one-off copies of a component.
+  `IconButton` needs `label`; confirmations use `ConfirmDialog` /
+  `DestructiveConfirm` (consequences listed, type-to-confirm for high
+  impact); status is `StatusBadge` (dot + text). Service colours:
+  `serviceIdentity`/`serviceSeriesColor` (`$lib/design/hue`). Heavy
+  libraries only through `$lib/lazy` or `CodeEditor`/`Sparkline`/`TerminalView`.
+- **Pages:** signed-in pages in `web/src/routes/(app)/<section>/` (replace
+  the `SectionPlaceholder`), public ones in `(auth)`. URLs only from
+  `$lib/routes.ts`. Call `usePage({ title, crumbs, environmentScoped })`;
+  lists filter by `environmentSelection.id` (null = all).
+- **Data:** typed client + Svelte Query; a `queryOptions` factory per
+  resource in `src/lib/api/queries.ts` keyed with `liveKeys` (#23 section
+  above) so live events refresh it; mutations invalidate by prefix, never
+  retry; views never read the stream. Jobs: `JobProgress` / `JobWatcher`.
+  Never store API data in `localStorage`/Cache Storage.
+- **Permissions:** show actions from DTO `actions`/`view`; navigation from
+  `/me/permissions` (`$lib/shell/nav.ts`); hide, don't disable; Restricted
+  users get `DeniedState`. The server still decides.
+- **Copy:** buttons name the result and the toast repeats it ("Deployed
+  Silo"); errors say what happened and what to do, no apology; empty states
+  invite action; sentence case, no all-caps labels.
+- **Tests:** `*.spec.ts` (Node logic), `*.test.ts` (jsdom components with
+  `@testing-library/svelte`: roles, labels, keyboard, focus). E2E in
+  `e2e/tests/ui.spec.ts`.
+- **Run and look:** `npm --prefix web run build && go run ./test/devstack`
+  (Docker-free manager + agents + seeded homelab; `-setup` for a fresh
+  instance; `docs/development.md`). Playwright: `E2E_BASE_URL=http://localhost:8080
+  npx playwright test tests/ui.spec.ts` in `e2e/`. Review screenshots at
+  1440×900 and 390×844 against #22 (`E2E_SCREENSHOTS_DIR`, outside the repo;
+  never commit the mockup or screenshots of it).
+- **Search:** `GET /api/v1/search` (`internal/manager/api/search.go`) feeds
+  the ⌘K palette; new searchable resource types go there, filtered with the
+  resource's own `ViewOf` and identity/status fields only.
+
 ## Adding a migration
 
 - New file `internal/db/migrations/<UTC YYYYMMDDHHMMSS>_<snake_name>.go`.

@@ -1,0 +1,160 @@
+/*
+ * DockYard design tokens (#22). Values are sampled from the #22 mockup and
+ * fixed by the design brief; docs/design/README.md documents them. Dark-only
+ * for v1 (#25 Q8), but every component reads these semantic properties, so a
+ * light theme is a second :root block, never a component change.
+ *
+ * Rules: components use tokens, never raw hex values; add a token here (and
+ * to the README) before using a new value in more than one place.
+ */
+:root {
+	color-scheme: dark;
+
+	/* Surfaces: cool blue-black steps, not neutral grey. */
+	--surface-canvas: #0b1016; /* page background, the gaps between cards */
+	--surface-shell: #0e141d; /* sidebar and top bar */
+	--surface-panel: #10161d; /* cards and panels */
+	--surface-raised: #151b24; /* table header, inputs, secondary buttons */
+	--surface-search: #141a22; /* the top bar's search field */
+	--surface-hover: #1a212b; /* hovered or selected table row */
+	--surface-selected: #112745; /* active nav item, current tab */
+	--surface-selected-strong: #162a51; /* selected file row */
+	--surface-overlay: rgb(5 8 12 / 0.72); /* behind dialogs and drawers */
+	--border-subtle: #1c2430; /* card and panel edges */
+	--border-strong: #263041; /* inputs, dividers, menus */
+
+	/* Text. --text-faint is decorative only (3.0:1, fails AA for text). */
+	--text-strong: #f2f4f7;
+	--text-default: #c8d3e2;
+	--text-muted: #8392a8; /* 5.75:1 on --surface-panel */
+	--text-faint: #596476;
+	--text-on-accent: #ffffff;
+
+	/* Accent and status. Status is never colour alone: dot plus text. */
+	--accent: #2566fd;
+	--accent-hover: #3d78ff;
+	--accent-text: #52a3f7;
+	--accent-soft: #112745;
+	--ok: #4cf683;
+	--ok-soft: #0f2a1f;
+	--ok-border: #1d4a33;
+	--danger: #fd6b66;
+	--danger-soft: #3f2029;
+	--danger-border: #5a2a33;
+	--warn: #f5b544;
+	--warn-soft: #33280f;
+	--warn-border: #4d3c14;
+	--info: #2bb0f6;
+	--info-soft: #0f2533;
+	--offline: #8392a8;
+	--offline-soft: #1a212b;
+
+	/* Category tiles: translucent tint + saturated icon (tile/icon pairs). */
+	--tile-blue-bg: #1d2d57;
+	--tile-blue-fg: #5b92fd;
+	--tile-cyan-bg: #172b39;
+	--tile-cyan-fg: #2bb0f6;
+	--tile-indigo-bg: #172235;
+	--tile-indigo-fg: #3199ff;
+	--tile-green-bg: #19322c;
+	--tile-green-fg: #4ff98b;
+	--tile-violet-bg: #242848;
+	--tile-violet-fg: #707ffc;
+	--tile-teal-bg: #162224;
+	--tile-teal-fg: #46ffce;
+	--tile-rose-bg: #3c0e2a;
+	--tile-rose-fg: #fc737d;
+	--tile-slate-bg: #23283a;
+	--tile-slate-fg: #b4c4f2;
+
+	/* Code editor (the mockup's YAML colours) and terminal. */
+	--code-bg: #0e141b;
+	--code-gutter: #596476;
+	--code-gutter-active: #c8d3e2;
+	--code-key: #52a3f7;
+	--code-string: #e8c07d;
+	--code-number: #f59f6b;
+	--code-url: #fd6b66;
+	--code-comment: #596476;
+	--code-punctuation: #8392a8;
+	--code-selection: #1d3561;
+	--code-active-line: #131b25;
+
+	/* Type. */
+	--font-sans:
+		'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono:
+		'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas,
+		monospace;
+	--text-caption: 12px; /* captions and meta */
+	--leading-caption: 16px;
+	--text-body: 13px; /* tables and body: the dense default */
+	--leading-body: 20px;
+	--text-control: 14px; /* controls */
+	--leading-control: 20px;
+	--text-section: 16px; /* section titles */
+	--leading-section: 24px;
+	--text-kpi: 20px; /* KPI values */
+	--leading-kpi: 28px;
+	--text-title: 28px; /* page titles */
+	--leading-title: 34px;
+	--weight-regular: 400;
+	--weight-medium: 500;
+	--weight-semibold: 600;
+
+	/* Shape: radius follows hierarchy. */
+	--radius-sm: 6px; /* badges, inputs, small buttons */
+	--radius-md: 8px; /* buttons, tiles, row hover */
+	--radius-lg: 12px; /* cards and panels */
+	--radius-full: 999px;
+
+	/* Spacing: 4 px base. */
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 20px;
+	--space-6: 24px;
+	--space-8: 32px;
+	--space-10: 40px;
+	--space-12: 48px;
+
+	/* Elevation: none on cards; floating layers only. */
+	--shadow-float: 0 12px 32px rgb(0 0 0 / 0.45);
+
+	/* Motion. */
+	--ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+	--duration-fast: 120ms; /* hover and press */
+	--duration-open: 180ms; /* menus, drawers, dialogs */
+	--duration-pulse: 600ms; /* the one live-change pulse */
+
+	/* Focus. */
+	--focus-ring: 2px solid var(--accent-text);
+	--focus-offset: 2px;
+
+	/* Layout. */
+	--sidebar-width: 224px;
+	--sidebar-rail: 64px;
+	--topbar-height: 52px;
+	--page-gutter: 24px;
+	--control-height: 36px;
+	--control-height-sm: 30px;
+	--touch-target: 40px;
+
+	/* Stacking. */
+	--z-sticky: 10;
+	--z-shell: 20;
+	--z-drawer: 40;
+	--z-dialog: 50;
+	--z-menu: 60;
+	--z-toast: 70;
+	--z-tooltip: 80;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--duration-fast: 0ms;
+		--duration-open: 0ms;
+		--duration-pulse: 0ms;
+	}
+}

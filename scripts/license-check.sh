@@ -77,5 +77,20 @@ if [ -n "$report" ]; then
 		echo '```'
 	} >>"$report"
 fi
-"${checker[@]}" --onlyAllow "$NPM_ALLOWED" >/dev/null
+# Self-hosted UI fonts (#22, ADR 0002) are SIL Open Font License 1.1: allowed
+# for these font packages only, never as a general npm license. They are
+# checked on their own and excluded from the general allowlist run.
+FONT_PACKAGES=("@fontsource-variable/inter" "@fontsource-variable/jetbrains-mono")
+font_excludes=""
+for pkg in "${FONT_PACKAGES[@]}"; do
+	lic="$(node -p "require('./web/node_modules/${pkg}/package.json').license" 2>/dev/null || true)"
+	ver="$(node -p "require('./web/node_modules/${pkg}/package.json').version" 2>/dev/null || true)"
+	if [ "$lic" != "OFL-1.1" ]; then
+		echo "license-check: font package ${pkg} is '${lic:-missing}', expected OFL-1.1; review it" >&2
+		exit 1
+	fi
+	echo "reviewed: ${pkg}@${ver} (OFL-1.1, font files only)"
+	font_excludes+="${font_excludes:+;}${pkg}@${ver}"
+done
+"${checker[@]}" --onlyAllow "$NPM_ALLOWED" --excludePackages "$font_excludes" >/dev/null
 echo "license-check: ok"
