@@ -10,6 +10,8 @@
 // file edit, a live terminal, an in-progress restore or upload is never
 // reloaded away. Release is idempotent; register again for new work.
 
+import { untrack } from 'svelte';
+
 export type CriticalKind = 'unsaved-edit' | 'terminal' | 'restore' | 'upload' | 'other';
 
 export interface CriticalItem {
@@ -27,12 +29,14 @@ export class CriticalWork {
 	/** Registers work; returns its release function. */
 	register(kind: CriticalKind, label: string): () => void {
 		const id = this.#next++;
-		this.items = [...this.items, { id, kind, label }];
+		// Untracked: views register from $effect, which must not come to
+		// depend on the registry it writes (effect_update_depth_exceeded).
+		untrack(() => (this.items = [...this.items, { id, kind, label }]));
 		let released = false;
 		return () => {
 			if (released) return;
 			released = true;
-			this.items = this.items.filter((i) => i.id !== id);
+			untrack(() => (this.items = this.items.filter((i) => i.id !== id)));
 		};
 	}
 }

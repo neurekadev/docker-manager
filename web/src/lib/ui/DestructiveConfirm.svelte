@@ -10,6 +10,7 @@
 	// Type-to-confirm for high-impact actions (#22): lists what will happen
 	// and every affected resource, and enables the danger button only after
 	// the user typed `confirmText` (usually the resource name) exactly.
+	import type { Snippet } from 'svelte';
 	import ConfirmDialog from './ConfirmDialog.svelte';
 	import Field from './Field.svelte';
 
@@ -22,6 +23,8 @@
 		confirmText: string;
 		confirmLabel: string;
 		onconfirm: () => unknown | Promise<unknown>;
+		/** Extra content before the affected list (e.g. a "migrate first" offer). */
+		extra?: Snippet;
 	}
 
 	let {
@@ -31,7 +34,8 @@
 		affected = [],
 		confirmText,
 		confirmLabel,
-		onconfirm
+		onconfirm,
+		extra
 	}: Props = $props();
 
 	let typed = $state('');
@@ -50,6 +54,7 @@
 	{onconfirm}
 	canConfirm={matches}
 >
+	{#if extra}{@render extra()}{/if}
 	{#if affected.length}
 		<div class="affected">
 			<p class="head">Affected ({affected.length})</p>

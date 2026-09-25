@@ -362,6 +362,7 @@ type JobEvent struct {
 type JobFilter struct {
 	States        []JobState
 	Kinds         []JobKind
+	Origins       []JobOrigin
 	EnvironmentID string
 	// Target matches jobs with this target (EnvironmentID optional).
 	Target *JobTarget

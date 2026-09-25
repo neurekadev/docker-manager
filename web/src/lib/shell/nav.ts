@@ -4,6 +4,7 @@
 import Activity from '@lucide/svelte/icons/activity';
 import Archive from '@lucide/svelte/icons/archive';
 import Box from '@lucide/svelte/icons/box';
+import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 import Container from '@lucide/svelte/icons/container';
 import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 import Hammer from '@lucide/svelte/icons/hammer';
@@ -162,6 +163,22 @@ export const NAV_ITEMS: NavItem[] = [
 		group: 'operations',
 		// Jobs are visible through their targets' capabilities: anyone with a grant.
 		visible: (a) => !isRestricted(a)
+	},
+	{
+		id: 'schedules',
+		label: 'Schedules',
+		href: routes.schedules(),
+		icon: CalendarClock,
+		group: 'operations',
+		// GET /schedules shows the policies the caller may read (#13 kinds).
+		visible: (a) =>
+			hasAny(
+				a,
+				'backup_policy.read',
+				'update_policy.read',
+				'maintenance_policy.read',
+				'backup_repository.read'
+			)
 	},
 	{
 		id: 'access',

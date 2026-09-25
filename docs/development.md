@@ -77,8 +77,15 @@ Seeded data:
 - **edge** (arm64): enrolled, then disconnected, so it is **offline**.
 - Metrics: a 30-minute history and a live 10 s sampler per host and
   container (smooth, deterministic curves); `engine.info` inventories.
+  Each agent's history is collected (through the production collector)
+  before the devstack reports ready, so the dashboard has usage from the
+  first load and **edge** keeps its last known values; its offline time
+  shows as a growing gap in its charts.
 - Jobs: a container restart (succeeded), a container start that fails, and
   a prune run with one failed removal (**partial**).
+- Schedules: the prune policy (disabled) and an update policy for Silo whose
+  check runs Sundays at 02:30 Europe/Berlin (enabled; its fifth next run
+  falls on the repeated hour of the October DST change).
 - Container logs: a few lines per service, followed every 4 s.
 
 What is simulated: the Docker Engines, host metrics, Compose reads

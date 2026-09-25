@@ -1,19 +1,35 @@
 <script lang="ts">
-	// Dashboard (#22 placeholder for the #5 overview): a Restricted user sees
-	// the calm denied state (#17); everyone else sees the environments they
-	// can reach with their status and usage (GET /overview). Feature work
-	// extends this page; keep it built from $lib/ui components.
+	// Dashboard (#5, #22): every environment the user can reach, with status,
+	// Engine, CPU and memory (the last 30 minutes as sparklines), Docker
+	// counts, undeployed changes and available updates, plus recent jobs and
+	// failures. Everything is live: overview and charts are keyed with
+	// liveKeys, so connection, inventory and metrics events refresh them. A
+	// Restricted user sees the calm denied state (#17).
 	import { createQuery } from '@tanstack/svelte-query';
 	import Container from '@lucide/svelte/icons/container';
-	import Server from '@lucide/svelte/icons/server';
+	import Cpu from '@lucide/svelte/icons/cpu';
 	import MemoryStick from '@lucide/svelte/icons/memory-stick';
-	import type { Schema } from '$lib/api/client';
-	import { myPermissionsQuery, overviewQuery } from '$lib/api/queries';
+	import Plus from '@lucide/svelte/icons/plus';
+	import Server from '@lucide/svelte/icons/server';
+	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+	import {
+		environmentsQuery,
+		myPermissionsQuery,
+		overviewQuery,
+		recentJobsQuery,
+		stacksSummaryQuery,
+		updatePoliciesSummaryQuery
+	} from '$lib/api/queries';
+	import EnvironmentCard from '$lib/features/dashboard/EnvironmentCard.svelte';
+	import { dashboardTotals, perEnvironment } from '$lib/features/dashboard/totals';
+	import JobsTable from '$lib/features/jobs/JobsTable.svelte';
+	import { jobKindLabel, stackNames } from '$lib/features/jobs/labels';
 	import { routes } from '$lib/routes';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
-	import { accessOf, isRestricted } from '$lib/shell/nav';
+	import { accessOf, hasAny, isRestricted } from '$lib/shell/nav';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
+		Button,
 		Card,
 		DeniedState,
 		EmptyState,
@@ -21,22 +37,29 @@
 		KpiCard,
 		Meter,
 		Skeleton,
-		StatusBadge,
-		Table,
 		formatBytes,
 		formatPercent,
-		type Column
+		formatRelative
 	} from '$lib/ui';
-
-	type Row = Schema<'OverviewEnvironment'>;
 
 	usePage({ title: 'Dashboard', crumbs: [{ label: 'Dashboard' }] });
 
 	const perms = createQuery(() => myPermissionsQuery());
-	const restricted = $derived(perms.data ? isRestricted(accessOf(perms.data)) : false);
-	const overview = createQuery(() => ({
-		...overviewQuery(),
-		enabled: !!perms.data && !restricted
+	const access = $derived(accessOf(perms.data));
+	const restricted = $derived(perms.data ? isRestricted(access) : false);
+	const ready = $derived(!!perms.data && !restricted);
+	const canEnroll = $derived(access.owner || access.allowed.has('agent.enroll'));
+
+	const overview = createQuery(() => ({ ...overviewQuery(), enabled: ready }));
+	const envList = createQuery(() => ({ ...environmentsQuery(), enabled: ready }));
+	const jobs = createQuery(() => ({ ...recentJobsQuery(50), enabled: ready }));
+	const stacks = createQuery(() => ({
+		...stacksSummaryQuery(),
+		enabled: ready && hasAny(access, 'stack.')
+	}));
+	const updates = createQuery(() => ({
+		...updatePoliciesSummaryQuery(),
+		enabled: ready && hasAny(access, 'update_policy.')
 	}));
 
 	const rows = $derived(
@@ -44,101 +67,35 @@
 			(e) => !environmentSelection.id || e.id === environmentSelection.id
 		)
 	);
-	const totals = $derived.by(() => {
-		const online = rows.filter((r) => r.online).length;
-		const containers = rows.reduce((n, r) => n + Math.max(0, r.docker?.containers ?? 0), 0);
-		const running = rows.reduce((n, r) => n + Math.max(0, r.docker?.containersRunning ?? 0), 0);
-		const memUsed = rows.reduce((n, r) => n + (r.usage?.memoryUsedBytes ?? 0), 0);
-		const memTotal = rows.reduce(
-			(n, r) =>
-				n + (r.usage?.memoryUsedBytes !== undefined ? (r.usage?.memoryTotalBytes ?? 0) : 0),
-			0
-		);
-		return { online, offline: rows.length - online, containers, running, memUsed, memTotal };
-	});
-
-	const columns: Column<Row>[] = [
-		{
-			id: 'name',
-			header: 'Environment',
-			cell: nameCell,
-			sortValue: (r) => r.name,
-			stack: 'title'
-		},
-		{
-			id: 'status',
-			header: 'Status',
-			cell: statusCell,
-			sortValue: (r) => (r.online ? 0 : 1),
-			stack: 'status',
-			width: '140px'
-		},
-		{
-			id: 'containers',
-			header: 'Containers',
-			cell: containersCell,
-			sortValue: (r) => r.docker?.containersRunning ?? null,
-			numeric: true,
-			width: '130px'
-		},
-		{
-			id: 'cpu',
-			header: 'CPU',
-			cell: cpuCell,
-			sortValue: (r) => r.usage?.cpuPercent ?? null,
-			numeric: true,
-			width: '100px'
-		},
-		{
-			id: 'memory',
-			header: 'Memory',
-			cell: memoryCell,
-			sortValue: (r) => r.usage?.memoryUsedBytes ?? null,
-			width: '240px'
-		}
-	];
+	const since = $derived(new Map((envList.data ?? []).map((e) => [e.id, e.connectionChangedAt])));
+	const names = $derived(new Map((overview.data?.environments ?? []).map((e) => [e.id, e.name])));
+	const counts = $derived(perEnvironment(stacks.data, updates.data));
+	const recent = $derived(
+		(jobs.data?.items ?? []).filter(
+			(j) => !environmentSelection.id || j.environmentId === environmentSelection.id
+		)
+	);
+	const totals = $derived(dashboardTotals(rows, recent, Date.now()));
+	// Online environments first, then by name.
+	const ordered = $derived(
+		[...rows].sort(
+			(a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name)
+		)
+	);
 </script>
-
-{#snippet nameCell(r: Row)}
-	<a class="env-link" href={routes.environment(r.id)}>{r.name}</a>
-{/snippet}
-{#snippet statusCell(r: Row)}
-	<StatusBadge status={r.online ? 'online' : 'offline'} />
-{/snippet}
-{#snippet containersCell(r: Row)}
-	{#if r.docker}
-		<span class="num">{r.docker.containersRunning} / {r.docker.containers}</span>
-	{:else}<span class="muted">—</span>{/if}
-{/snippet}
-{#snippet cpuCell(r: Row)}
-	<span class="num">{formatPercent(r.usage?.cpuPercent)}</span>
-{/snippet}
-{#snippet memoryCell(r: Row)}
-	{#if r.usage?.memoryUsedBytes !== undefined && r.usage?.memoryTotalBytes}
-		<div class="mem">
-			<span class="num"
-				>{formatBytes(r.usage.memoryUsedBytes)}
-				<span class="muted">/ {formatBytes(r.usage.memoryTotalBytes)}</span></span
-			>
-			<Meter
-				value={r.usage.memoryUsedBytes}
-				max={r.usage.memoryTotalBytes}
-				label="Memory of {r.name}"
-				valueText="{formatBytes(r.usage.memoryUsedBytes)} of {formatBytes(
-					r.usage.memoryTotalBytes
-				)}"
-			/>
-		</div>
-	{:else}<span class="muted">—</span>{/if}
-{/snippet}
 
 {#if restricted}
 	<DeniedState level={1} />
 {:else}
 	<div class="page">
 		<header class="head">
-			<h1>Dashboard</h1>
-			<p class="muted">Every environment you can reach, with what runs on it.</p>
+			<div>
+				<h1>Dashboard</h1>
+				<p class="muted">Every environment you can reach, with what runs on it.</p>
+			</div>
+			{#if canEnroll}
+				<Button icon={Plus} href={routes.addEnvironment()}>Add environment</Button>
+			{/if}
 		</header>
 
 		{#if overview.isError}
@@ -148,9 +105,9 @@
 				onretry={() => overview.refetch()}
 			/>
 		{:else}
-			<div class="kpis" aria-busy={overview.isPending}>
+			<section class="kpis" aria-label="Summary" aria-busy={overview.isPending}>
 				{#if overview.isPending}
-					{#each [0, 1, 2] as i (i)}<div class="kpi-skeleton">
+					{#each [0, 1, 2, 3, 4] as i (i)}<div class="kpi-skeleton">
 							<Skeleton height="64px" radius="lg" />
 						</div>{/each}
 				{:else}
@@ -160,14 +117,27 @@
 						icon={Server}
 						color="blue"
 						secondary={totals.offline ? `${totals.offline} offline` : 'All connected'}
-						tone={totals.offline ? 'warn' : 'ok'}
+						tone={totals.offline ? 'warn' : rows.length ? 'ok' : undefined}
 					/>
 					<KpiCard
 						label="Containers running"
-						value="{totals.running} / {totals.containers}"
+						value={totals.counted ? `${totals.running} / ${totals.containers}` : '—'}
 						icon={Container}
 						color="green"
-						secondary="{totals.containers - totals.running} stopped"
+						secondary={totals.counted
+							? `${totals.containers - totals.running} not running`
+							: 'Counts need system access'}
+					/>
+					<KpiCard
+						label="CPU in use"
+						value={formatPercent(totals.cpuAverage)}
+						icon={Cpu}
+						color="cyan"
+						secondary={totals.cpuBusiest
+							? `Highest: ${totals.cpuBusiest.name} ${formatPercent(totals.cpuBusiest.value)}`
+							: totals.cpuAverage === null
+								? 'No usage samples yet'
+								: 'Of all cores'}
 					/>
 					{#if totals.memTotal > 0}
 						<KpiCard
@@ -197,31 +167,106 @@
 							secondary="No usage samples yet"
 						/>
 					{/if}
+					<KpiCard
+						label="Failed jobs (24 h)"
+						value={String(totals.failures)}
+						icon={TriangleAlert}
+						color={totals.failures ? 'rose' : 'slate'}
+						tone={totals.failures ? 'danger' : undefined}
+					>
+						{#snippet secondary()}
+							{#if totals.lastFailure}
+								<a href={routes.job(totals.lastFailure.id)}
+									>{jobKindLabel(totals.lastFailure.kind)}, {formatRelative(
+										totals.lastFailure.createdAt
+									)}</a
+								>
+							{:else}
+								Nothing failed
+							{/if}
+						{/snippet}
+					</KpiCard>
 				{/if}
-			</div>
+			</section>
 
-			<Card title="Environments" padding="none" id="environments">
+			<section class="section" aria-labelledby="environments-title">
+				<div class="section-head">
+					<h2 id="environments-title">Environments</h2>
+					<a href={routes.environments()} class="more">View all environments</a>
+				</div>
 				{#if overview.isPending}
-					<div class="table-skeleton"><Skeleton lines={4} height="20px" /></div>
+					<div class="grid" aria-busy="true">
+						{#each [0, 1] as i (i)}<div class="card-skeleton">
+								<Skeleton lines={5} height="18px" />
+							</div>{/each}
+					</div>
+				{:else if !rows.length}
+					<Card>
+						<EmptyState
+							icon={Server}
+							color="blue"
+							title="No environments yet."
+							description="Add an environment: run the DockYard agent on a Docker host and enroll it."
+							level={3}
+						>
+							{#snippet actions()}
+								{#if canEnroll}<Button
+										variant="primary"
+										icon={Plus}
+										href={routes.addEnvironment()}>Add environment</Button
+									>{/if}
+							{/snippet}
+						</EmptyState>
+					</Card>
 				{:else}
-					<Table
-						label="Environments"
-						{rows}
-						{columns}
-						rowKey={(r) => r.id}
-						sort={{ column: 'name', direction: 'asc' }}
+					<div class="grid">
+						{#each ordered as env (env.id)}
+							<EnvironmentCard
+								{env}
+								since={since.get(env.id)}
+								stacks={stacks.data ? (counts.get(env.id)?.stacks ?? 0) : undefined}
+								undeployed={counts.get(env.id)?.undeployed ?? 0}
+								updates={counts.get(env.id)?.updates ?? 0}
+							/>
+						{/each}
+					</div>
+				{/if}
+			</section>
+
+			<Card title="Recent jobs" padding="none" id="recent-jobs">
+				{#snippet actions()}
+					<a href={routes.jobs()} class="more">View all jobs</a>
+				{/snippet}
+				{#if jobs.isPending}
+					<div class="table-skeleton" aria-busy="true">
+						<Skeleton lines={4} height="20px" />
+					</div>
+				{:else if jobs.isError}
+					<div class="table-skeleton">
+						<ErrorState
+							error={jobs.error}
+							title="Recent jobs could not be loaded."
+							onretry={() => jobs.refetch()}
+							compact
+						/>
+					</div>
+				{:else}
+					<JobsTable
+						jobs={recent.slice(0, 8)}
+						label="Recent jobs"
+						environments={names}
+						nameOf={stackNames(stacks.data)}
+						compact
 					>
 						{#snippet empty()}
 							<EmptyState
-								icon={Server}
-								color="blue"
-								title="No environments yet."
-								description="Add an environment: run the DockYard agent on a Docker host and enroll it."
+								title="No jobs yet."
+								description="Deploys, updates, backups and prunes show up here while they run and after they finish."
 								level={3}
 								compact
 							/>
 						{/snippet}
-					</Table>
+					</JobsTable>
 				{/if}
 			</Card>
 		{/if}
@@ -233,6 +278,14 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
+	}
+
+	.head {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: var(--space-4);
+		flex-wrap: wrap;
 	}
 
 	.head h1 {
@@ -248,28 +301,55 @@
 
 	.kpis {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
 		gap: var(--space-4);
 	}
 
-	.kpi-skeleton {
+	/* Five cards: 3 + 2 where 5 do not fit in one row (never 4 + 1). */
+	@media (min-width: 768px) and (max-width: 1439px) {
+		.kpis {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+
+	.kpi-skeleton,
+	.card-skeleton {
 		padding: var(--space-4);
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-lg);
 		background: var(--surface-panel);
 	}
 
+	.section {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+
+	.section-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-3);
+		padding-top: var(--space-2);
+	}
+
+	.section-head h2 {
+		font-size: var(--text-section);
+		line-height: var(--leading-section);
+	}
+
+	.more {
+		font-size: var(--text-caption);
+	}
+
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+		gap: var(--space-4);
+	}
+
 	.table-skeleton {
 		padding: var(--space-4) var(--space-5) var(--space-5);
-	}
-
-	.env-link {
-		color: var(--text-strong);
-		font-weight: var(--weight-medium);
-	}
-
-	.mem {
-		display: grid;
-		gap: 4px;
 	}
 </style>

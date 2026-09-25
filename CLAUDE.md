@@ -609,7 +609,14 @@ Guides: `docs/design/README.md` (tokens, components, copy, a11y),
 - **Pages:** signed-in pages in `web/src/routes/(app)/<section>/` (replace
   the `SectionPlaceholder`), public ones in `(auth)`. URLs only from
   `$lib/routes.ts`. Call `usePage({ title, crumbs, environmentScoped })`;
-  lists filter by `environmentSelection.id` (null = all).
+  lists filter by `environmentSelection.id` (null = all). Feature view
+  models and components live in `$lib/features/<area>/` (pure `*.ts` with
+  `*.spec.ts`); only generic pieces go to `$lib/ui`. The environment route
+  parameter is `[environmentId]` (`routes/(app)/environments/[environmentId]`);
+  Docker object pages below it must use the same name.
+- **Charts:** `TimeSeriesChart` for metric responses (nulls are breaks,
+  gaps shaded and listed as text), `Sparkline` in KPI cards; metric queries
+  keyed with `liveKeys.metrics(envId, …)`. 204 responses: `unwrapEmpty`.
 - **Data:** typed client + Svelte Query; a `queryOptions` factory per
   resource in `src/lib/api/queries.ts` keyed with `liveKeys` (#23 section
   above) so live events refresh it; mutations invalidate by prefix, never
@@ -623,7 +630,10 @@ Guides: `docs/design/README.md` (tokens, components, copy, a11y),
   invite action; sentence case, no all-caps labels.
 - **Tests:** `*.spec.ts` (Node logic), `*.test.ts` (jsdom components with
   `@testing-library/svelte`: roles, labels, keyboard, focus). E2E in
-  `e2e/tests/ui.spec.ts`.
+  `e2e/tests/ui.spec.ts` and one spec per UI track (`e2e/tests/<track>*.spec.ts`,
+  e.g. `b1-environments.spec.ts`; they check empty states on a manager
+  without agents). Components reading queries: `web/src/test/QueryHarness.svelte`
+  with a stubbed `fetch`.
 - **Run and look:** `npm --prefix web run build && go run ./test/devstack`
   (Docker-free manager + agents + seeded homelab; `-setup` for a fresh
   instance; `docs/development.md`). Playwright: `E2E_BASE_URL=http://localhost:8080

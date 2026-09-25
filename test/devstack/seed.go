@@ -31,6 +31,7 @@ type seeder struct {
 	agents  []*devAgent
 	hosts   []*homelabHost
 	envs    map[string]string // host name -> environment ID
+	stacks  map[string]string // stack name -> stack ID
 	jobs    []string
 }
 
@@ -42,6 +43,7 @@ func (s *seeder) stopAgents() {
 
 func (s *seeder) seed(ctx context.Context, accounts bool) error {
 	s.envs = map[string]string{}
+	s.stacks = map[string]string{}
 	s.hosts = newHomelab()
 	for _, h := range s.hosts {
 		a, err := connectAgent(ctx, s.m, s.base, filepath.Join(s.dataDir, "agents", h.name), h, s.log)
@@ -51,6 +53,14 @@ func (s *seeder) seed(ctx context.Context, accounts bool) error {
 		s.agents = append(s.agents, a)
 		s.envs[h.name] = a.env
 		if err := s.waitOnline(ctx, a.env, true); err != nil {
+			return fmt.Errorf("agent %s: %w", h.name, err)
+		}
+		// Read the agent's buffered 30 min of samples now, through the
+		// production collector, instead of waiting for its first 10 s tick:
+		// the dashboard has usage from the first page load, and the offline
+		// environment keeps its last known usage and a history whose end
+		// becomes the visible offline gap.
+		if err := s.collect(ctx, a.env); err != nil {
 			return fmt.Errorf("agent %s: %w", h.name, err)
 		}
 		if h.serviceAddress != "" {
@@ -102,6 +112,26 @@ func (s *seeder) waitOnline(ctx context.Context, env string, online bool) error 
 	return fmt.Errorf("environment %s did not become online=%v", env, online)
 }
 
+// collect stores the environment's buffered metric samples (Store.Ingest
+// through observe.Service.Collect) and waits until its latest host sample
+// is readable.
+func (s *seeder) collect(ctx context.Context, env string) error {
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := s.m.Observe().Collect(ctx, env); err == nil {
+			if _, ok, err := s.m.Observe().Latest(ctx, env); err == nil && ok {
+				return nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+	return fmt.Errorf("environment %s: no metric samples collected", env)
+}
+
 // seedStack records a deployed DockYard stack with display metadata, reads
 // its definition from the (simulated) stacks volume as an observed
 // revision, and marks that revision applied.
@@ -123,6 +153,7 @@ func (s *seeder) seedStack(ctx context.Context, env string, seed stackSeed) erro
 	if err := store.InsertStack(ctx, s.m.DB(), &st); err != nil {
 		return err
 	}
+	s.stacks[seed.name] = st.ID
 	if _, err := s.m.Stacks().RecordObserved(ctx, st.ID, domain.RevisionExternal, authz.Service()); err != nil {
 		return err
 	}
@@ -248,7 +279,18 @@ func (s *seeder) seedAccountsAndJobs(ctx context.Context) error {
 		return err
 	}
 	s.jobs = append(s.jobs, j.ID)
-	return s.waitJob(ctx, owner, j.ID)
+	if err := s.waitJob(ctx, owner, j.ID); err != nil {
+		return err
+	}
+
+	// An enabled weekly update check in Europe/Berlin at 02:30 on Sundays:
+	// the schedules view shows its next runs, the fifth falling on the
+	// repeated hour of the October DST change (#13 annotations). The run
+	// schedule stays disabled (automatic updates start disabled, #20).
+	_, err := owner.do(ctx, http.MethodPost, "/api/v1/update-policies", map[string]any{"environmentId": hl, "name": "Silo images",
+		"target":        map[string]string{"type": "stack", "id": s.stacks["silo"]},
+		"checkSchedule": map[string]any{"cron": "30 2 * * 0", "timeZone": "Europe/Berlin", "enabled": true}}, nil)
+	return err
 }
 
 func (s *seeder) waitJob(ctx context.Context, c *apiClient, id string) error {

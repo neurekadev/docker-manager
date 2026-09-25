@@ -9,6 +9,7 @@ import {
 	MutationCache,
 	QueryCache,
 	QueryClient,
+	infiniteQueryOptions,
 	queryOptions,
 	type QueryKey
 } from '@tanstack/svelte-query';
@@ -17,10 +18,17 @@ import {
 	api,
 	ApiRequestError,
 	unwrap,
+	type Agent,
+	type AgentEnrollment,
 	type ApiClient,
 	type Environment,
+	type EnvironmentCapacity,
+	type EnvironmentMetrics,
 	type EnvironmentSystem,
 	type Job,
+	type Schedule,
+	type Stack,
+	type UpdatePolicy,
 	type MyPermissions,
 	type Overview,
 	type SchedulePreview,
@@ -111,9 +119,10 @@ export function overviewQuery(client: ApiClient = api) {
 		queryFn: ({ signal }): Promise<Overview> =>
 			unwrap(client.GET('/api/v1/overview', { signal })),
 		staleTime: 15_000,
-		// Live events refresh counts and connection state, not usage samples
-		// (metrics events refresh charts only): re-read usage every 30 s.
-		refetchInterval: 30_000
+		// Live events refresh it: connection and inventory changes, and new
+		// metric samples (latest usage, at most every 10 s; keysForInvalidate).
+		// The interval is only a safety net for a stalled stream.
+		refetchInterval: 60_000
 	});
 }
 
@@ -161,6 +170,251 @@ export function jobQuery(id: string, client: ApiClient = api) {
 		queryKey: queryKeys.jobs.detail(id),
 		queryFn: ({ signal }): Promise<Job> =>
 			unwrap(client.GET('/api/v1/jobs/{jobId}', { params: { path: { jobId: id } }, signal }))
+	});
+}
+
+// --- Environments, agents, metrics, jobs and schedules (#22 track B1) ---
+
+/** GET /environments/{id}: the environment with its revision (If-Match). */
+export function environmentQuery(id: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.environments.detail(id),
+		queryFn: ({ signal }): Promise<Environment> =>
+			unwrap(
+				client.GET('/api/v1/environments/{environmentId}', {
+					params: { path: { environmentId: id } },
+					signal
+				})
+			),
+		staleTime: 15_000
+	});
+}
+
+/** Archived environments (status=archived), for re-attaching. */
+export function archivedEnvironmentsQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: liveKeys.list('environments', 'archived'),
+		queryFn: async ({ signal }): Promise<Environment[]> => {
+			const page = await unwrap(
+				client.GET('/api/v1/environments', {
+					params: { query: { limit: 200, status: ['archived'] } },
+					signal
+				})
+			);
+			return page.items;
+		},
+		staleTime: 30_000
+	});
+}
+
+/** GET /environments/{id}/agents: the environment's agents (active and revoked). */
+export function environmentAgentsQuery(id: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: liveKeys.list('agents', { environmentId: id }),
+		queryFn: async ({ signal }): Promise<Agent[]> => {
+			const page = await unwrap(
+				client.GET('/api/v1/environments/{environmentId}/agents', {
+					params: { path: { environmentId: id }, query: { limit: 200 } },
+					signal
+				})
+			);
+			return page.items;
+		},
+		staleTime: 15_000
+	});
+}
+
+/** GET /agent-enrollments (agent.enroll): tokens issued, newest first. */
+export function enrollmentsQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: liveKeys.list('agents', 'enrollments'),
+		queryFn: async ({ signal }): Promise<AgentEnrollment[]> => {
+			const page = await unwrap(
+				client.GET('/api/v1/agent-enrollments', {
+					params: { query: { limit: 200 } },
+					signal
+				})
+			);
+			return page.items;
+		},
+		staleTime: 10_000
+	});
+}
+
+/** GET /environments/{id}/capacity: cores, memory, disks and the latest usage. */
+export function environmentCapacityQuery(id: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: liveKeys.metrics(id, 'capacity'),
+		queryFn: ({ signal }): Promise<EnvironmentCapacity> =>
+			unwrap(
+				client.GET('/api/v1/environments/{environmentId}/capacity', {
+					params: { path: { environmentId: id } },
+					signal
+				})
+			),
+		staleTime: 10_000
+	});
+}
+
+/**
+ * GET /environments/{id}/metrics over the last `seconds` (read at fetch
+ * time, so live refreshes move the window). Keyed by the range, not the
+ * instant: `metrics` live events refresh it at most every 10 s.
+ */
+export function environmentMetricsQuery(
+	id: string,
+	seconds: number,
+	opts: { series?: string[]; stepSeconds?: number } = {},
+	client: ApiClient = api
+) {
+	return queryOptions({
+		queryKey: liveKeys.metrics(
+			id,
+			'host',
+			seconds,
+			opts.series?.join(',') ?? '',
+			opts.stepSeconds ?? 0
+		),
+		queryFn: ({ signal }): Promise<EnvironmentMetrics> => {
+			const to = new Date();
+			const from = new Date(to.getTime() - seconds * 1000);
+			return unwrap(
+				client.GET('/api/v1/environments/{environmentId}/metrics', {
+					params: {
+						path: { environmentId: id },
+						query: {
+							from: from.toISOString(),
+							to: to.toISOString(),
+							stepSeconds: opts.stepSeconds,
+							series: opts.series?.length ? [opts.series.join(',')] : undefined
+						}
+					},
+					signal
+				})
+			);
+		},
+		staleTime: 10_000,
+		placeholderData: (prev) => prev
+	});
+}
+
+/** Filters of the jobs list (GET /jobs). */
+export interface JobFilters {
+	/** Comma-free state names; several are ORed. */
+	states?: Job['state'][];
+	kind?: string;
+	environmentId?: string;
+	origins?: Job['origin'][];
+	target?: string;
+}
+
+/** One page of GET /jobs (newest first). `state` is comma-separated on the wire. */
+export async function fetchJobsPage(
+	f: JobFilters,
+	cursor: string | undefined,
+	limit: number,
+	signal?: AbortSignal,
+	client: ApiClient = api
+): Promise<{ items: Job[]; nextCursor?: string }> {
+	return unwrap(
+		client.GET('/api/v1/jobs', {
+			params: {
+				query: {
+					limit,
+					cursor,
+					// The state parameter is not exploded: one comma-separated value.
+					state: f.states?.length ? ([f.states.join(',')] as Job['state'][]) : undefined,
+					kind: f.kind || undefined,
+					environmentId: f.environmentId || undefined,
+					origin: f.origins?.length ? f.origins : undefined,
+					target: f.target || undefined
+				}
+			},
+			signal
+		})
+	);
+}
+
+/** GET /jobs page by page (the jobs view's "Load more"); refreshed by job events. */
+export function jobsInfiniteQuery(f: JobFilters, limit = 50, client: ApiClient = api) {
+	return infiniteQueryOptions({
+		queryKey: liveKeys.list('jobs', 'pages', f),
+		queryFn: ({ signal, pageParam }) => fetchJobsPage(f, pageParam, limit, signal, client),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (last) => last.nextCursor,
+		staleTime: 10_000
+	});
+}
+
+/** The newest jobs (dashboard, notices); refreshed by job events. */
+export function recentJobsQuery(limit = 20, f: JobFilters = {}, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: liveKeys.list('jobs', 'recent', limit, f),
+		queryFn: ({ signal }) => fetchJobsPage(f, undefined, limit, signal, client),
+		staleTime: 10_000
+	});
+}
+
+/** GET /schedules: every visible policy's schedule with next and recent runs. */
+export function schedulesQuery(
+	f: { kind?: string; environmentId?: string } = {},
+	client: ApiClient = api
+) {
+	return queryOptions({
+		queryKey: liveKeys.list('policies', 'schedules', f),
+		queryFn: async ({ signal }): Promise<Schedule[]> => {
+			const out: Schedule[] = [];
+			let cursor: string | undefined;
+			do {
+				const page = await unwrap(
+					client.GET('/api/v1/schedules', {
+						params: {
+							query: {
+								limit: 200,
+								cursor,
+								kind: f.kind || undefined,
+								environmentId: f.environmentId || undefined
+							}
+						},
+						signal
+					})
+				);
+				out.push(...page.items);
+				cursor = page.nextCursor;
+			} while (cursor);
+			return out;
+		},
+		staleTime: 30_000,
+		// Next runs move on as time passes; runs change with job events.
+		refetchInterval: 60_000
+	});
+}
+
+/** GET /update-policies (first 200): per-policy update summaries. */
+export function updatePoliciesSummaryQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: liveKeys.list('policies', 'update-summary'),
+		queryFn: async ({ signal }): Promise<UpdatePolicy[]> => {
+			const page = await unwrap(
+				client.GET('/api/v1/update-policies', { params: { query: { limit: 200 } }, signal })
+			);
+			return page.items;
+		},
+		staleTime: 60_000
+	});
+}
+
+/** GET /stacks (first 200), for per-environment counts on the dashboard. */
+export function stacksSummaryQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: liveKeys.list('stacks', 'summary'),
+		queryFn: async ({ signal }): Promise<Stack[]> => {
+			const page = await unwrap(
+				client.GET('/api/v1/stacks', { params: { query: { limit: 200 } }, signal })
+			);
+			return page.items;
+		},
+		staleTime: 30_000
 	});
 }
 

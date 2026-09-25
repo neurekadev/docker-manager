@@ -6,7 +6,8 @@
 //   /stacks[/{stackId}[/files|logs|terminal|revisions|policies|activity]]
 //   /containers, /images, /volumes, /networks   lists (all or the selected environment)
 //   /environments/{id}/containers/{containerId} and images/volumes/networks details
-//   /builds, /registries, /backups, /updates, /maintenance, /jobs[/{jobId}]
+//   /builds, /registries, /backups, /updates, /maintenance, /jobs[/{jobId}], /schedules
+//   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
 //   /access (users, groups, invitations), /settings[/security|/tokens|/audit]
 //   /setup, /sign-in, /enroll, /invitation, /password-reset (public)
 //
@@ -18,7 +19,11 @@ const e = encodeURIComponent;
 export const routes = {
 	dashboard: () => '/',
 	environments: () => '/environments',
-	environment: (id: string) => `/environments/${e(id)}`,
+	environment: (id: string, tab?: 'system' | 'agents' | 'jobs') =>
+		`/environments/${e(id)}${tab ? `?tab=${tab}` : ''}`,
+	/** Enroll an agent: a new environment, or re-attach an archived one. */
+	addEnvironment: (reattach?: string) =>
+		`/environments/add${reattach ? `?reattach=${e(reattach)}` : ''}`,
 	stacks: () => '/stacks',
 	stack: (
 		id: string,
@@ -39,6 +44,7 @@ export const routes = {
 	maintenance: () => '/maintenance',
 	jobs: () => '/jobs',
 	job: (id: string) => `/jobs/${e(id)}`,
+	schedules: () => '/schedules',
 	access: () => '/access',
 	settings: () => '/settings',
 	security: () => '/settings/security',

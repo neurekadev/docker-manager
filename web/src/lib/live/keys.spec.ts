@@ -64,7 +64,22 @@ describe('invalidation map', () => {
 			['policies', 'item', 'p1']
 		]);
 		expect(inv('permissions', 'group', 'g1')).toContainEqual(['me', 'permissions']);
-		expect(inv('metrics', 'metrics', 'e1', 'e1')).toEqual([['metrics', 'item', 'e1']]);
+		// New samples refresh the environment's charts and the dashboard's
+		// overview (its latest CPU and memory), throttled as metrics.
+		expect(inv('metrics', 'metrics', 'e1', 'e1')).toEqual([
+			['metrics', 'item', 'e1'],
+			['overview']
+		]);
+		expect(
+			keysForInvalidate({
+				topic: 'metrics',
+				kind: 'metrics',
+				resourceId: 'e1',
+				environmentId: 'e1',
+				action: 'updated',
+				at: ''
+			}).map((i) => i.class)
+		).toEqual(['metrics', 'metrics']);
 		expect(inv('environments', 'inventory', 'e1', 'e1')).toContainEqual([
 			'environments',
 			'item',

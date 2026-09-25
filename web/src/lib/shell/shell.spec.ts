@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { MyPermissions, SearchHit } from '$lib/api/client';
 import { EnvironmentSelection, type StorageLike } from './environment.svelte';
 import { accessOf, activeNav, isRestricted, visibleNav } from './nav';
-import { environmentNotices, Notices } from './notices.svelte';
+import { environmentNotices, jobNotices, Notices, updateNotices } from './notices.svelte';
 import { grouped, hitResults, hrefForHit, pageResults } from './palette';
 import { bannerDelay, indicatorText, OFFLINE_BANNER_DELAY_MS } from './live-banner';
 
@@ -59,7 +59,23 @@ describe('navigation filter (#17)', () => {
 		const ids = visibleNav(accessOf(perms({ owner: true }))).map((i) => i.id);
 		expect(ids).toContain('access');
 		expect(ids).toContain('registries');
-		expect(ids).toHaveLength(15);
+		expect(ids).toContain('schedules');
+		expect(ids).toHaveLength(16);
+	});
+
+	it('shows Schedules, after Jobs, to readers of scheduled policies only', () => {
+		const reader = visibleNav(accessOf(perms({ entries: [allow('update_policy.read')] }))).map(
+			(i) => i.id
+		);
+		expect(reader.slice(reader.indexOf('jobs'), reader.indexOf('jobs') + 2)).toEqual([
+			'jobs',
+			'schedules'
+		]);
+		const runner = visibleNav(accessOf(perms({ entries: [allow('update.run')] }))).map(
+			(i) => i.id
+		);
+		expect(runner).not.toContain('schedules');
+		expect(activeNav('/schedules')?.id).toBe('schedules');
 	});
 
 	it('finds the active section, including environment-scoped details', () => {
@@ -159,6 +175,70 @@ describe('notices', () => {
 		]);
 		expect(n.items.map((x) => x.title)).toEqual(['edge is offline']);
 		expect(n.items[0].href).toBe('/environments/e2');
+	});
+
+	it('announces finished jobs: the user’s own always, anyone’s failures, never old ones', () => {
+		const n = new Notices(() => 1);
+		const feed = jobNotices(
+			() => 'me',
+			(k) => (k === 'stack.deploy' ? 'Deploy stack' : k),
+			n
+		);
+		const j = (id: string, state: string, by: string, at = '2026-09-25T12:00:00Z') => ({
+			id,
+			kind: 'stack.deploy',
+			state,
+			createdAt: at,
+			initiatorUserId: by,
+			targets: [{ type: 'stack', id: 'silo' }],
+			error: { recovery: 'Fix the file and deploy again.' }
+		});
+		// First list: already finished jobs are history, not news.
+		feed([
+			j('1', 'failed', 'me'),
+			j('2', 'running', 'me'),
+			j('3', 'running', 'other'),
+			j('4', 'running', 'other')
+		]);
+		expect(n.items).toHaveLength(0);
+		feed([
+			j('5', 'succeeded', 'me', '2026-09-25T12:01:00Z'), // new and already done (fast)
+			j('1', 'failed', 'me'),
+			j('2', 'succeeded', 'me'),
+			j('3', 'succeeded', 'other'), // someone else's success: not news
+			j('4', 'partial', 'other') // someone else's (or a schedule's) failure: news
+		]);
+		expect(n.items.map((x) => [x.key, x.tone, x.title])).toEqual([
+			['job:4', 'warn', 'Deploy stack silo partly failed'],
+			['job:2', 'ok', 'Deploy stack silo succeeded'],
+			['job:5', 'ok', 'Deploy stack silo succeeded']
+		]);
+		expect(n.items[0].body).toBe('Fix the file and deploy again.');
+		expect(n.items[0].href).toBe('/jobs/4');
+		// Refreshing the same list announces nothing new.
+		feed([j('4', 'partial', 'other')]);
+		expect(n.items).toHaveLength(3);
+	});
+
+	it('shows available updates per policy and resolves them when applied', () => {
+		const n = new Notices(() => 1);
+		const feed = updateNotices(n);
+		feed([
+			{ id: 'p1', name: 'Silo images', summary: { available: 2 } },
+			{ id: 'p2', name: 'Media', summary: { available: 0 } }
+		]);
+		expect(n.items.map((x) => x.title)).toEqual(['2 updates available for Silo images']);
+		expect(n.items[0].href).toBe('/updates');
+		n.markAllRead();
+		feed([{ id: 'p1', name: 'Silo images', summary: { available: 2 } }]);
+		expect(n.unread).toBe(0); // unchanged: not pushed again
+		feed([{ id: 'p1', name: 'Silo images', summary: { available: 1 } }]);
+		expect(n.items[0].title).toBe('1 update available for Silo images');
+		feed([{ id: 'p1', name: 'Silo images', summary: { available: 0 } }]);
+		expect(n.items).toHaveLength(0);
+		feed([{ id: 'p3', name: 'X', summary: { available: 1 } }]);
+		feed([]);
+		expect(n.items).toHaveLength(0);
 	});
 });
 

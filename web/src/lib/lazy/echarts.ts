@@ -3,11 +3,12 @@
 // import('./echarts') from ./index.ts only; never import it statically.
 import { init, registerTheme, use } from 'echarts/core';
 import { LineChart } from 'echarts/charts';
-import { GridComponent, TooltipComponent } from 'echarts/components';
+import { GridComponent, MarkAreaComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import { DOCKYARD_ECHARTS_THEME, dockyardEchartsTheme } from './echarts-theme';
 
-use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
+// MarkArea shades time ranges without samples (offline intervals, #5).
+use([LineChart, GridComponent, TooltipComponent, MarkAreaComponent, CanvasRenderer]);
 registerTheme(DOCKYARD_ECHARTS_THEME, dockyardEchartsTheme);
 
 export { init, DOCKYARD_ECHARTS_THEME };

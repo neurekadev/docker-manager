@@ -208,6 +208,7 @@ type listJobsInput struct {
 	PageParams
 	State         []string `query:"state" enum:"queued,blocked,dispatched,running,cancelling,succeeded,failed,partial,cancelled,interrupted" doc:"Only jobs in these states."`
 	Kind          string   `query:"kind" maxLength:"64" doc:"Only jobs of this kind."`
+	Origin        []string `query:"origin,explode" enum:"manual,scheduled,api_token" doc:"Only jobs with these origins (repeat the parameter)."`
 	EnvironmentID string   `query:"environmentId" maxLength:"128" doc:"Only jobs in (or targeting) this environment."`
 	Target        string   `query:"target" maxLength:"1100" doc:"Only jobs with this target, as type:id (e.g. stack:0190a6e0-...)."`
 }
@@ -293,12 +294,15 @@ func (h *jobsAPI) list(ctx context.Context, in *listJobsInput) (*listJobsOutput,
 	if in.Kind != "" {
 		f.Kinds = []domain.JobKind{domain.JobKind(in.Kind)}
 	}
+	for _, o := range in.Origin {
+		f.Origins = append(f.Origins, domain.JobOrigin(o))
+	}
 	if in.Target != "" {
 		if f.Target, err = parseTarget(in.Target); err != nil {
 			return nil, err
 		}
 	}
-	fingerprint := QueryFingerprint(strings.Join(in.State, ","), in.Kind, in.EnvironmentID, in.Target)
+	fingerprint := QueryFingerprint(strings.Join(in.State, ","), in.Kind, in.EnvironmentID, in.Target, strings.Join(in.Origin, ","))
 	var after jobsCursor
 	if in.Cursor != "" {
 		if err := DecodeCursorFor(in.Cursor, fingerprint, &after); err != nil {

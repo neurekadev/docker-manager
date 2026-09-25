@@ -43,7 +43,9 @@ export const CHART_COLORS = {
 	],
 	ok: '#4cf683',
 	warn: '#f5b544',
-	danger: '#fd6b66'
+	danger: '#fd6b66',
+	/** Shading of time ranges without samples: --offline at 8 % (#5 gaps). */
+	gap: '#8392a814'
 } as const;
 
 export const TERMINAL_THEME = {

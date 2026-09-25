@@ -14,15 +14,24 @@
 	let { values, color, label }: Props = $props();
 	let el = $state<HTMLElement>();
 	let chart: Sparkline | null = null;
+	let destroyed = false;
 
 	onMount(() => {
 		if (!el) return;
-		void mountSparkline(el, values, color).then((c) => (chart = c));
+		void mountSparkline(el, values, color).then((c) => {
+			if (destroyed) return c.destroy();
+			chart = c;
+			// Values that arrived while ECharts was loading.
+			c.update(values);
+		});
 	});
 	$effect(() => {
 		chart?.update(values);
 	});
-	onDestroy(() => chart?.destroy());
+	onDestroy(() => {
+		destroyed = true;
+		chart?.destroy();
+	});
 </script>
 
 <div class="spark" bind:this={el} aria-hidden="true"></div>

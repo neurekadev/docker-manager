@@ -153,6 +153,10 @@ Docker socket); tokens and secrets never go to `localStorage`,
   const release = criticalWork.register('unsaved-edit', path); // on first edit
   release(); // after save or discard (idempotent)
   ```
+
+  `register` and its release do not track reactive reads, so an `$effect`
+  may return `criticalWork.register(...)` as its cleanup while a form is
+  dirty.
 - **Offline**: the *Connection status* notice shows when the browser is
   offline or the manager is unreachable (network failure or a bare
   502/503/504 from the proxy). Queries pause while offline and refetch on
@@ -194,7 +198,7 @@ anything themselves; they only have to
    | a list of a topic | `liveKeys.list('stacks', filters)` → `['stacks', 'list', filters]` (refreshed at most every second) |
    | an instance-wide resource | `liveKeys.item('stacks', stackId, 'revisions')` → `['stacks', 'item', id, …]` (stacks, jobs, environments, agents, policies, backups, registries, settings, permissions) |
    | a Docker object | `liveKeys.item('containers', envId, name, 'logs')` (containers, images, volumes, networks are named per environment) |
-   | charts | `liveKeys.metrics(envId, …)` (at most every 10 s) |
+   | charts | `liveKeys.metrics(envId, …)` (at most every 10 s; the same `metrics` event also refreshes `['overview']`, the dashboard's latest usage) |
    | a stack's containers | `liveKeys.stackServices(stackId)` (refreshed on container events) |
    | scoped files | `liveKeys.files({kind: 'stack', id: stackId}, 'list' \| 'stat' \| 'content', path)`; volumes use `id: '<envId>/<volume>'` |
    | the caller's permissions | `liveKeys.myPermissions` |

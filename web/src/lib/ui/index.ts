@@ -82,6 +82,17 @@ export { errorView, errorMessage, fieldError, type ErrorView } from './errors';
 // Lazy surfaces
 export { default as CodeEditor } from './CodeEditor.svelte';
 export { default as Sparkline } from './Sparkline.svelte';
+export { default as TimeSeriesChart } from './TimeSeriesChart.svelte';
+export {
+	formatValue,
+	gapIntervals,
+	latestValue,
+	valueExtent,
+	formatTimeRange,
+	type ChartLine,
+	type ValueUnit,
+	type TimeRange
+} from './timeseries';
 export { default as TerminalView } from './TerminalView.svelte';
 
 // Formatting
