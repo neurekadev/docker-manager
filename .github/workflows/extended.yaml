@@ -196,17 +196,15 @@ jobs:
         if: always()
         run: |
           # Per-Engine evidence for docs/support-matrix.md (#21, #25 Q2):
-          # every TestEngine* test and subtest (one per v1 operation).
-          msg="two agents on two Engines (#3, #34)"
-          echo "::notice title=engine-matrix pending checks::${msg}"
+          # every TestEngine* test and subtest (one per v1 operation), incl.
+          # two agents on two Engines (TestEngineTwoAgentsEnrollAndServeJobs, #3).
+          # No engine-matrix checks are pending.
           {
             echo "### engine-matrix ${{ matrix.engine }} on ${{ matrix.runner }}"
             echo
             echo '```'
             grep -E '^\s*--- (PASS|FAIL|SKIP)|^\s+fixtures_integration_test.go:[0-9]+: Engine |^(ok|FAIL)\s' engine-tests.log || true
             echo '```'
-            echo
-            echo "Pending: ${msg}"
           } >> "$GITHUB_STEP_SUMMARY"
 
   compose-fixtures:
@@ -242,7 +240,7 @@ jobs:
       - name: Pending checks
         if: always()
         run: |
-          msg="stack deploys through the manager and agent session (#3, #7); file manager, watcher and restic through the identical-path mount (#15, #23, #10); manual Git builds with private repositories as jobs (#33); Docker Hub pulls on two agents and credential rotation (#19)"
+          msg="stack deploys through the manager and the agent session (#7; the #3 session is merged); file manager, watcher and restic through the identical-path mount (#15, #23, #10); manual Git builds with private repositories as jobs (#33); Docker Hub pulls on two agents and credential rotation (#19)"
           echo "::notice title=compose-fixtures pending checks::${msg}"
           {
             echo '```'
@@ -344,7 +342,12 @@ jobs:
       - name: Pending checks
         if: always()
         run: |
-          msg="kill the manager or agent mid-job with in-flight recovery (#26), drop agent connections and reconnect with gap recovery (#3, #23), clock skew between manager and agent (#3, #13)"
+          # Covered above: TestKillAtEveryStage kills the manager or the agent at
+          # every stage of simulated deploy/backup/prune/retention/manager-backup
+          # jobs (#26); agent reconnect, reconciliation and event gap relay are
+          # unit-tested with #3 (TestAgentRuntimeEnrollsReconnectsAndReenrolls,
+          # TestReconnectReconcilesRunningJob, TestRelaySequenceAndGaps).
+          msg="kill mid-job against the real deploy (#7), backup (#10) and prune (#14) executors; gap recovery in the browser live stream after dropped agent connections (#23); clock skew between manager and agent (#29; scheduler timing #13)"
           echo "::notice title=fault-injection pending checks::${msg} — faultinject-tagged files: ${{ steps.tagged.outputs.files || 0 }}, kill suites ran: ${{ steps.kill.outputs.ran || false }}"
           echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
 
@@ -370,7 +373,10 @@ jobs:
       - name: Pending checks
         if: always()
         run: |
-          msg="canary sweeps over logs, audit rows, job output and API responses for passwords/TOTP (#16), API tokens (#31), registry credentials (#19), S3 keys (#10), .env values (#7), audit (#30)"
+          # Covered above: passwords/TOTP seeds in identity logs, audit rows and
+          # API responses (#16, internal/manager/app/identity*_test.go) and the
+          # audit redaction of every canary kind (#30, audit_canary_test.go).
+          msg="canary sweeps over each feature's logs, job output and API responses for API tokens (#31), registry credentials (#19), S3 keys (#10), .env values (#7)"
           echo "::notice title=secret-canary pending checks::${msg} — packages using internal/testutil/canary: ${{ steps.canary.outputs.consumers || 0 }}"
           echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
 
@@ -446,7 +452,7 @@ jobs:
       - name: Pending checks
         if: always()
         run: |
-          msg="passkey/TOTP login and recovery flows (#16), live updates across views (#23), enrolled agent sessions and reconnects through each proxy (#3, #27), exec WebSocket through each proxy (#6, #27), responsive layouts (#22)"
+          msg="passkey/TOTP login and recovery flows in the browser (UI #22; the #16 API is merged and tested in Go), live updates across views (#23), the real agent session (merged in #3) and its reconnects through Caddy, Traefik and nginx (TestTLSProxyAgentTransport still uses a stand-in session handler behind Caddy, #27), exec WebSocket through each proxy (#6, #27), responsive layouts (#22)"
           echo "::notice title=e2e pending checks::${msg}"
           echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
 
