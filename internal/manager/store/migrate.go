@@ -37,6 +37,9 @@ type MigrateOptions struct {
 	KeepSnapshots int // DefaultKeepSnapshots when <= 0
 	Clock         clock.Clock
 	Logger        *slog.Logger
+	// NoSnapshot skips the pre-migration snapshot (the metrics database,
+	// #5: its data is expendable and can be large).
+	NoSnapshot bool
 }
 
 // MigrateResult reports what Migrate did.
@@ -108,7 +111,7 @@ func Migrate(ctx context.Context, db *bun.DB, opts MigrateOptions) (MigrateResul
 	if err != nil {
 		return res, fmt.Errorf("store: list tables: %w", err)
 	}
-	if len(tables) > 0 {
+	if len(tables) > 0 && !opts.NoSnapshot {
 		res.Snapshot, err = Snapshot(ctx, db, opts.SnapshotDir, "pre-"+pending[0], opts.Clock)
 		if err != nil {
 			return res, err

@@ -102,6 +102,15 @@ func TestRelaySequenceAndGaps(t *testing.T) {
 	if res, missed := tr.Observe(seqOf(third)); res != protocol.SeqGap || missed != 1 {
 		t.Fatalf("manager view: %v %d", res, missed)
 	}
+	// Drop (the producer discarded an item, e.g. over its rate) consumes
+	// a number without sending: the manager sees another gap.
+	c.Events().Drop()
+	if !c.Events().Publish(ev) {
+		t.Fatal("event after a drop not queued")
+	}
+	if s := seqOf(<-k.out); s != 5 {
+		t.Fatalf("seq after a drop %d, want 5", s)
+	}
 
 	// File invalidations have their own counter; too many paths become an
 	// overflow of the whole scope.

@@ -41,6 +41,12 @@ const (
 	EnvAuditRetentionDays = "DOCKYARD_AUDIT_RETENTION_DAYS"
 	EnvAuditMaxSizeMB     = "DOCKYARD_AUDIT_MAX_SIZE_MB"
 	EnvAuditLogMirror     = "DOCKYARD_AUDIT_LOG_MIRROR"
+
+	EnvMetricsRetentionRaw     = "DOCKYARD_METRICS_RETENTION_RAW"
+	EnvMetricsRetentionMinute  = "DOCKYARD_METRICS_RETENTION_1M"
+	EnvMetricsRetentionQuarter = "DOCKYARD_METRICS_RETENTION_15M"
+	EnvMetricsMaxSizeMB        = "DOCKYARD_METRICS_MAX_SIZE_MB"
+	EnvMetricsMaxSeries        = "DOCKYARD_METRICS_MAX_SERIES"
 )
 
 // Defaults.
@@ -63,7 +69,29 @@ const (
 
 	DefaultAuditRetentionDays = 365
 	DefaultAuditMaxSizeMB     = 1024
+
+	// Metrics (#5): a separate database file, excluded from manager-state
+	// backups by default (#10).
+	MetricsFileName                = "metrics.db"
+	DefaultMetricsRetentionRaw     = 24 * time.Hour
+	DefaultMetricsRetentionMinute  = 7 * 24 * time.Hour
+	DefaultMetricsRetentionQuarter = 90 * 24 * time.Hour
+	DefaultMetricsMaxSizeMB        = 2048
+	DefaultMetricsMaxSeries        = 5000
 )
+
+// MetricsConfig bounds the metrics database (#5).
+type MetricsConfig struct {
+	// RetentionRaw, RetentionMinute and RetentionQuarter keep 10 s samples,
+	// 1 min and 15 min rollups this long.
+	RetentionRaw     time.Duration
+	RetentionMinute  time.Duration
+	RetentionQuarter time.Duration
+	// MaxBytes caps the database; retention shortens above it.
+	MaxBytes int64
+	// MaxSeries caps the stored series (hosts, filesystems, containers).
+	MaxSeries int
+}
 
 // SessionsConfig bounds browser sessions (#16).
 type SessionsConfig struct {
@@ -122,10 +150,14 @@ type Config struct {
 	Jobs            JobsConfig
 	Sessions        SessionsConfig
 	Audit           AuditConfig
+	Metrics         MetricsConfig
 }
 
 // DatabasePath is the SQLite database file inside the data directory.
 func (c Config) DatabasePath() string { return filepath.Join(c.DataDir, DatabaseFileName) }
+
+// MetricsPath is the metrics database file inside the data directory (#5).
+func (c Config) MetricsPath() string { return filepath.Join(c.DataDir, MetricsFileName) }
 
 // SnapshotDir holds pre-migration database snapshots.
 func (c Config) SnapshotDir() string { return filepath.Join(c.DataDir, SnapshotDirName) }
@@ -193,6 +225,11 @@ func Load(src envconfig.Source) (Config, error) {
 		errs = append(errs, err)
 	}
 
+	cfg.Metrics, err = loadMetrics(src)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	if len(errs) > 0 {
 		return Config{}, errors.Join(errs...)
 	}
@@ -232,6 +269,26 @@ func loadAudit(src envconfig.Source) (AuditConfig, error) {
 	c.MaxBytes, errs[1] = int64(mb)<<20, err
 	c.LogMirror, errs[2] = src.Bool(EnvAuditLogMirror, false)
 	return c, errors.Join(errs[:]...)
+}
+
+func loadMetrics(src envconfig.Source) (MetricsConfig, error) {
+	var c MetricsConfig
+	var errs [5]error
+	day := 24 * time.Hour
+	c.RetentionRaw, errs[0] = src.Duration(EnvMetricsRetentionRaw, DefaultMetricsRetentionRaw, time.Hour, 7*day)
+	c.RetentionMinute, errs[1] = src.Duration(EnvMetricsRetentionMinute, DefaultMetricsRetentionMinute, day, 90*day)
+	c.RetentionQuarter, errs[2] = src.Duration(EnvMetricsRetentionQuarter, DefaultMetricsRetentionQuarter, 7*day, 5*365*day)
+	mb, err := src.Int(EnvMetricsMaxSizeMB, DefaultMetricsMaxSizeMB, 64, 1<<20)
+	c.MaxBytes, errs[3] = int64(mb)<<20, err
+	c.MaxSeries, errs[4] = src.Int(EnvMetricsMaxSeries, DefaultMetricsMaxSeries, 100, 1_000_000)
+	if err := errors.Join(errs[:]...); err != nil {
+		return c, err
+	}
+	if c.RetentionRaw > c.RetentionMinute || c.RetentionMinute > c.RetentionQuarter {
+		return c, fmt.Errorf("%s <= %s <= %s is required (finer levels are rolled up into coarser ones)",
+			EnvMetricsRetentionRaw, EnvMetricsRetentionMinute, EnvMetricsRetentionQuarter)
+	}
+	return c, nil
 }
 
 // ParsePublicURL validates DOCKYARD_PUBLIC_URL. It must be an absolute origin

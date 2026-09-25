@@ -161,6 +161,10 @@ type RequestError struct {
 
 func (e *RequestError) Error() string { return "agent: " + e.Code + ": " + e.Message }
 
+// AgentCode returns the protocol error code (lets packages that do not
+// import agents classify the error).
+func (e *RequestError) AgentCode() string { return e.Code }
+
 // Request sends a named request to the agent's live session and waits for
 // its response (timeout 0: SessionOptions.RequestTimeout). Errors:
 // jobs.ErrAgentOffline (no session, or the session ended), *RequestError,

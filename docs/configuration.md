@@ -33,6 +33,11 @@ Sources: `internal/manager/config`, `internal/agent/config`,
 | `DOCKYARD_AUDIT_RETENTION_DAYS` | `365` | Audit records older than this many days are deleted (1..36500). The purge is itself audited and keeps the hash chain verifiable. See `docs/architecture/audit.md`. |
 | `DOCKYARD_AUDIT_MAX_SIZE_MB` | `1024` | Size cap of the retained audit records in MiB (16..1048576); above it the oldest records are purged down to 90% of the cap. |
 | `DOCKYARD_AUDIT_LOG_MIRROR` | `false` | Also write every audit record (redacted, as stored) to the structured log as `msg="audit"` lines for external collection. |
+| `DOCKYARD_METRICS_RETENTION_RAW` | `24h` | Keep 10 s metric samples this long (`1h`..`168h`). Metrics live in `<data dir>/metrics.db`, a separate database (#5, `docs/architecture/metrics.md`). |
+| `DOCKYARD_METRICS_RETENTION_1M` | `168h` | Keep 1 min rollups this long (`24h`..`2160h`, at least the raw retention). |
+| `DOCKYARD_METRICS_RETENTION_15M` | `2160h` | Keep 15 min rollups this long (`168h`..`43800h`, at least the 1 min retention). |
+| `DOCKYARD_METRICS_MAX_SIZE_MB` | `2048` | Size cap of the metrics database in MiB (64..1048576). Above it every level's retention is shortened (oldest data first); at 5% of the retention new series are refused until space is free. The full scale budget (25 environments, 1 000 containers) needs about 1.2 GiB. |
+| `DOCKYARD_METRICS_MAX_SERIES` | `5000` | Maximum number of metric series (one per environment host, filesystem and container; 100..1000000). Samples of new containers beyond it are dropped (hosts are always kept). |
 
 ### Secret-protection key
 
@@ -65,7 +70,12 @@ SQLite (pure Go, `modernc.org/sqlite` via Bun's `sqliteshim`) in WAL mode with
    snapshot only if you need to roll back an earlier successful migration.
 
 A database migrated by a newer DockYard build (unknown migrations) is refused.
-Sampled metrics will live in a separate database file (#5).
+
+Sampled metrics live in a separate database file, `<data dir>/metrics.db`
+(#5), with its own migrations. It is migrated at startup without a
+snapshot (its data is expendable) and refused, like the main database, when
+a newer build migrated it; moving the file away starts an empty one.
+Manager-state backups (#10) leave it out by default.
 
 ## Agent (`dockyard-agent`)
 
@@ -80,6 +90,7 @@ Sampled metrics will live in a separate database file (#5).
 | `DOCKYARD_ENVIRONMENT_NAME` | empty | Optional initial display name of this Environment (≤ 63 characters). |
 | `DOCKYARD_STACKS_VOLUME` | `dockyard_stacks` | Local named volume holding one directory per stack (#28). Must be mounted into the agent at its identical path (see "Host storage layout" in `docs/deployment.md`). |
 | `DOCKYARD_STACK_ROOTS` | empty | Comma-separated extra host directories with stacks (absolute, non-overlapping, at most 16), each bind-mounted into the agent at the identical path. Verified at startup like the stacks volume; a root that fails is refused on its own. |
+| `DOCKYARD_HOST_PROC` | `/proc` | procfs the host telemetry is read from (#5). CPU, memory, load and uptime are host-wide in any procfs; network rates come from `<proc>/1/net/dev`, i.e. the host's interfaces only when the agent shares the host's PID namespace (`pid: host`) or network (`network_mode: host`). See "Host telemetry" in `docs/architecture/metrics.md`. |
 | `DOCKYARD_LOG_LEVEL` | `info` | As for the manager. |
 | `DOCKYARD_LOG_FORMAT` | `json` | As for the manager. |
 

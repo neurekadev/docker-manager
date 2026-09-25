@@ -67,6 +67,23 @@ type SystemEngine struct {
 	OS            string `json:"os" example:"linux"`
 	Arch          string `json:"arch" example:"amd64"`
 	Rootless      bool   `json:"rootless"`
+	// From the Engine inventory (#5).
+	MaxAPIVersion string `json:"maxApiVersion,omitempty" example:"1.51" doc:"Highest API version the Engine serves (Engine inventory)."`
+	StorageDriver string `json:"storageDriver,omitempty" example:"overlay2"`
+	CgroupVersion string `json:"cgroupVersion,omitempty" example:"2"`
+	DockerDesktop bool   `json:"dockerDesktop,omitempty" doc:"The Engine runs inside Docker Desktop (unsupported, #25)."`
+}
+
+// SystemHost is the host as reported by the Engine inventory (#5).
+type SystemHost struct {
+	Hostname        string `json:"hostname" example:"nas" doc:"Engine host name (the environment name is editable separately)."`
+	OperatingSystem string `json:"operatingSystem,omitempty" example:"Debian GNU/Linux 12 (bookworm)"`
+	KernelVersion   string `json:"kernelVersion,omitempty"`
+	OS              string `json:"os" example:"linux"`
+	Arch            string `json:"arch" example:"amd64"`
+	CPUs            int    `json:"cpus"`
+	MemoryBytes     int64  `json:"memoryBytes"`
+	UptimeSeconds   *int64 `json:"uptimeSeconds,omitempty" doc:"From the latest metrics sample."`
 }
 
 // SystemAgent is the environment's active agent as reported by it.
@@ -108,6 +125,12 @@ type EnvironmentSystem struct {
 	Roots         []SystemRoot       `json:"roots"`
 	Diagnostics   []SystemDiagnostic `json:"diagnostics"`
 	ReportedAt    *time.Time         `json:"reportedAt,omitempty" doc:"When the agent last reported its capabilities."`
+	// Engine inventory (#5): refreshed on reconnect, on Docker changes and
+	// every 5 minutes; the last known one while offline.
+	Host             *SystemHost   `json:"host,omitempty" doc:"Host identity and capacity (Engine inventory)."`
+	Docker           *DockerCounts `json:"docker,omitempty" doc:"Docker object counts (Engine inventory; -1 = unknown)."`
+	InventoryAt      *time.Time    `json:"inventoryAt,omitempty" doc:"When the agent read the Engine inventory."`
+	ClockSkewSeconds *float64      `json:"clockSkewSeconds,omitempty" doc:"The agent clock's offset (manager minus agent) applied to its samples; absent within 2 s."`
 }
 
 // capabilitiesOf decodes an agent's stored capabilities (nil when none).
@@ -152,6 +175,35 @@ func newSystem(s domain.EnvironmentSystem) EnvironmentSystem {
 		out.Diagnostics = append(out.Diagnostics, SystemDiagnostic{Area: d.Area, Code: d.Code, Message: d.Message})
 	}
 	return out
+}
+
+// addInventory fills in the Engine inventory and clock skew (#5).
+func addInventory(out *EnvironmentSystem, obs ObserveService, envID string) {
+	if skew := obs.Skew(envID); skew != 0 {
+		v := skew.Seconds()
+		out.ClockSkewSeconds = &v
+	}
+	inv, ok := obs.Inventory(envID)
+	if !ok {
+		return
+	}
+	at := inv.CollectedAt
+	out.InventoryAt = &at
+	out.Host = &SystemHost{Hostname: inv.Hostname, OperatingSystem: inv.OperatingSystem, KernelVersion: inv.KernelVersion, OS: inv.OS,
+		Arch: inv.Arch, CPUs: inv.CPUs, MemoryBytes: inv.MemoryBytes}
+	if hx, ok := obs.Host(envID); ok {
+		out.Host.UptimeSeconds = hx.UptimeSeconds
+	}
+	out.Docker = dockerCounts(inv)
+	if out.Engine == nil {
+		out.Engine = &SystemEngine{ID: inv.EngineID, Version: inv.Version, APIVersion: inv.NegotiatedAPIVersion, MinAPIVersion: inv.MinAPIVersion,
+			OS: inv.OS, Arch: inv.Arch, Rootless: inv.Rootless}
+	}
+	out.Engine.MaxAPIVersion, out.Engine.StorageDriver, out.Engine.CgroupVersion = inv.APIVersion, inv.StorageDriver, inv.CgroupVersion
+	out.Engine.DockerDesktop = inv.DockerDesktop
+	if inv.Version != "" {
+		out.Engine.Version = inv.Version
+	}
 }
 
 type listEnvironmentsInput struct {
@@ -347,7 +399,11 @@ func (h *agentsAPI) environmentSystem(ctx context.Context, in *environmentIDInpu
 	if err != nil {
 		return nil, agentErr(err)
 	}
-	return &environmentSystemOutput{Body: newSystem(sys)}, nil
+	out := newSystem(sys)
+	if obs := h.deps.Observe; obs != nil {
+		addInventory(&out, obs, env.ID)
+	}
+	return &environmentSystemOutput{Body: out}, nil
 }
 
 func registerEnvironments(a huma.API, deps Deps) {
@@ -411,7 +467,8 @@ func registerEnvironments(a huma.API, deps Deps) {
 			OperationID: "get-environment-system", Method: http.MethodGet, Path: BasePath + "/environments/{environmentId}/system",
 			Summary: "Get an environment's system information",
 			Description: "The agent's last capabilities report: Engine identity and negotiated API version, agent version and window status, " +
-				"transport (plain-HTTP flag), verified file roots and diagnostics (#21, #27, #28). Live host metrics are #5.",
+				"transport (plain-HTTP flag), verified file roots and diagnostics (#21, #27, #28), plus the Engine inventory: host identity, " +
+				"capacity and Docker counts, refreshed on change (#5). Host metrics: GET …/metrics and …/capacity.",
 			Tags: []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound},
 		},
 		Capability: CapEnvironmentSystemRead, Scope: ScopeEnvironment,

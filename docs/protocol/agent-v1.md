@@ -611,6 +611,29 @@ on a new session with a new frame ID.
 | `agent.credential.rotate` | request | `agent.manage` | yes | #3 |
 | `agent.diagnostics` | request | owner (support bundle, redacted) | no | #34 |
 
+### Observation requests (#5)
+
+Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
+(manager); Go types in `internal/protocol/observe.go`; units and buffering in
+[metrics.md](../architecture/metrics.md).
+
+- `engine.info` → `EngineInventory {engineId, hostname, version, apiVersion,
+  minApiVersion, negotiatedApiVersion, os, arch, operatingSystem,
+  kernelVersion, storageDriver, cgroupVersion, cpus, memoryBytes, rootless,
+  dockerDesktop, containers, containersRunning, containersPaused,
+  containersStopped, images, volumes, networks, collectedAt}` (counts the
+  agent could not read are `-1`; never host paths). The manager asks after
+  every reconnect (a reconciler, before the environment is online), 5 s
+  after Docker events or a capabilities change, and every 5 minutes.
+- `host.metrics {epoch?, afterSeq?, maxBatches?}` → `HostMetricsOutput {epoch,
+  now, intervalSeconds, oldestSeq, lastSeq, more, batches}`. The agent samples
+  every 10 s into a ring of 180 batches (30 min); each batch is `{seq, at,
+  flags, host, disks, containers}` with `seq` increasing per sampler epoch
+  (one per agent process). The manager passes its cursor (`epoch`,
+  `afterSeq`); another epoch returns the whole ring. An answer holds at most
+  60 batches or 768 KiB (`more: true` asks for the next page). `now` is the
+  agent clock for skew estimation. Absent values are unknown (gaps).
+
 ## Allowed streams
 
 | kind | frame | direction | capability | owner |
@@ -704,4 +727,5 @@ The manager maps them to public errors: `not_found` → 404,
 | `/agent/v1/enroll`, `/agent/v1/session`, handshake, heartbeats, close codes, requests, rotation, event/invalidation relay with sequence numbers | `internal/manager/agents` (manager), `internal/agent/{enroll,session,state,runtime}` (agent) | implemented (#3) |
 | job dispatch over the session (`jobs.AgentDispatcher`) and job frame routing, reconcile-before-online | `internal/manager/agents` (`Hub`), `internal/agent/session` + `internal/agent/jobs` | implemented (#3) |
 | `rescan` (agent answers `unsupported_request`), agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stubs | #15, #23 (rescan), #8, #15, #35 (streams) |
-| request/stream executors | agent adapter | #5, #6, #7, #8, #10, #14, #15, #21, #35 |
+| `engine.info`, `host.metrics`, Docker event relay (coalescing, rate bound) | `internal/agent/observe`, `internal/manager/observe` | implemented (#5) |
+| request/stream executors | agent adapter | #6, #7, #8, #10, #14, #15, #21, #35 |

@@ -36,6 +36,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/config"
 	"github.com/neurekadev/dockyard/internal/agent/engine"
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
+	"github.com/neurekadev/dockyard/internal/agent/observe"
 	"github.com/neurekadev/dockyard/internal/agent/session"
 	"github.com/neurekadev/dockyard/internal/agent/state"
 	"github.com/neurekadev/dockyard/internal/agent/storage"
@@ -97,6 +98,10 @@ type Options struct {
 	// Requests are the named request handlers the session serves
 	// (docs/protocol/agent-v1.md, "Allowed requests").
 	Requests map[string]session.RequestHandler
+	// Observe runs the host/container sampler and the Docker event relay
+	// and serves engine.info and host.metrics (#5). The dockyard-agent
+	// command sets it; focused tests leave it off.
+	Observe bool
 	// TokenPoll is how often a handed-over enrollment token is looked for
 	// (default DefaultTokenPoll).
 	TokenPoll time.Duration
@@ -163,6 +168,8 @@ type Agent struct {
 	client      *session.Client
 	engineReady chan struct{}
 	readyOnce   sync.Once
+
+	sampler *observe.Sampler
 }
 
 // Run runs the agent until ctx is canceled.
@@ -212,7 +219,44 @@ func New(opts Options) (*Agent, error) {
 	if opts.TokenPoll <= 0 {
 		opts.TokenPoll = DefaultTokenPoll
 	}
-	return &Agent{opts: opts, log: opts.Logger, status: StatusNotEnrolled, engineReady: make(chan struct{})}, nil
+	a := &Agent{opts: opts, log: opts.Logger, status: StatusNotEnrolled, engineReady: make(chan struct{})}
+	if opts.Observe {
+		a.sampler = observe.New(observe.Options{Clock: opts.Clock, Logger: opts.Logger, ProcRoot: opts.Config.HostProc,
+			Engine: a.observedEngine, Roots: a.observedRoots})
+		reqs := make(map[string]session.RequestHandler, len(opts.Requests)+2)
+		reqs[protocol.ReqEngineInfo] = a.sampler.EngineInfo
+		reqs[protocol.ReqHostMetrics] = a.sampler.HostMetrics
+		for k, v := range opts.Requests {
+			reqs[k] = v
+		}
+		a.opts.Requests = reqs
+	}
+	return a, nil
+}
+
+// observedEngine is the Engine for observation (nil while disconnected).
+func (a *Agent) observedEngine() observe.EngineAPI {
+	if e := a.Engine(); e != nil {
+		return e
+	}
+	return nil
+}
+
+// observedRoots are the verified storage roots whose filesystems are
+// reported (#28, #5).
+func (a *Agent) observedRoots() []observe.Root {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if a.storage == nil {
+		return nil
+	}
+	var out []observe.Root
+	for _, r := range a.storage.Roots {
+		if r.OK {
+			out = append(out, observe.Root{Kind: r.Kind, Path: r.Path})
+		}
+	}
+	return out
 }
 
 // Capabilities returns the current capabilities (safe for concurrent use).
@@ -390,6 +434,12 @@ func (a *Agent) Run(ctx context.Context) error {
 	var control sync.WaitGroup
 	control.Add(1)
 	go func() { defer control.Done(); a.control(ctx) }()
+	if a.sampler != nil {
+		relay := observe.NewEventRelay(observe.EventOptions{Clock: clk, Logger: log, Engine: a.observedEngine, Publisher: a.client.Events()})
+		control.Add(2)
+		go func() { defer control.Done(); a.sampler.Run(ctx) }()
+		go func() { defer control.Done(); relay.Run(ctx) }()
+	}
 	defer func() {
 		control.Wait()
 		runner.Wait()

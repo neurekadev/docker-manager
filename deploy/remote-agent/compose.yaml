@@ -23,6 +23,11 @@ services:
       DOCKYARD_ENROLLMENT_TOKEN: ${DOCKYARD_ENROLLMENT_TOKEN:-}
       DOCKYARD_ENVIRONMENT_NAME: ${DOCKYARD_ENVIRONMENT_NAME:-}
       DOCKYARD_LOG_LEVEL: ${DOCKYARD_LOG_LEVEL:-info}
+    # Host metrics (#5): CPU, memory, load and uptime are host-wide as is;
+    # network rates cover only the agent container unless you uncomment
+    # this (it shows every host process to the agent). See
+    # docs/architecture/metrics.md, "Host telemetry".
+    # pid: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # Identical-path mount: stack and volume paths resolve the same inside

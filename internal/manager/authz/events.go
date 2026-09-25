@@ -57,6 +57,37 @@ func filesVisible(c Checker, e events.Event) bool {
 	return c.Can("stack.files.read", Instance()).Allowed && c.Can("volume.files.read", Instance()).Allowed
 }
 
+// metricsVisible: new host samples need the environment's host stats
+// capability, container samples container.metrics.read on at least one of
+// the sampled containers (#5). The event carries no values.
+func metricsVisible(c Checker, e events.Event) bool {
+	if e.EnvironmentID == "" {
+		return false
+	}
+	if e.Attributes["host"] == "true" && c.Can("environment.metrics.read", EnvironmentResource(e.EnvironmentID)).Allowed {
+		return true
+	}
+	return ContainerMetricsVisible(c, e) != ""
+}
+
+// ContainerMetricsVisible returns the first container of a metrics.sampled
+// event whose metrics c may read ("" for none).
+func ContainerMetricsVisible(c Checker, e events.Event) string {
+	for _, name := range e.Members {
+		if c.Can("container.metrics.read", Resource{Type: catalog.TypeContainer, ID: name, EnvironmentID: e.EnvironmentID}).Allowed {
+			return name
+		}
+	}
+	return ""
+}
+
+// inventoryVisible: the Engine inventory is system information and host
+// capacity.
+func inventoryVisible(c Checker, e events.Event) bool {
+	env := EnvironmentResource(e.EnvironmentID)
+	return e.EnvironmentID != "" && (c.Can("environment.system.read", env).Allowed || c.Can("environment.metrics.read", env).Allowed)
+}
+
 var eventRules = map[string]eventRule{
 	events.EnvironmentCreated:      envVisible,
 	events.EnvironmentUpdated:      envVisible,
@@ -76,6 +107,8 @@ var eventRules = map[string]eventRule{
 	events.EnrollmentRejected:      enrollmentVisible,
 	events.DockerEvent:             dockerVisible,
 	events.FilesInvalidated:        filesVisible,
+	events.MetricsSampled:          metricsVisible,
+	events.InventoryUpdated:        inventoryVisible,
 }
 
 // HasEventRule reports whether an event type has a visibility rule.

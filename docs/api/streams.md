@@ -10,7 +10,7 @@ the [route inventory](../../api/route-inventory.yaml) is listed here
 | --- | --- | --- | --- |
 | `GET /live/stream` | `stream-live-events` | SSE | #23 |
 | `GET /jobs/{jobId}/events/stream` | `stream-job-events` | SSE | #26 (implemented) |
-| `GET /environments/{environmentId}/events/stream` | `stream-environment-events` | SSE | #5 |
+| `GET /environments/{environmentId}/events/stream` | `stream-environment-events` | SSE | #5 (implemented) |
 | `GET /stacks/{stackId}/events/stream` | `stream-stack-events` | SSE | #7 |
 | `GET /environments/{environmentId}/containers/{containerId}/logs/stream` | `stream-container-logs` | SSE | #8 |
 | `GET /environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}/stream` | `stream-container-exec-session` | WebSocket | #8 |
@@ -173,6 +173,40 @@ above; `event: engine`, `data: {type, action, resourceId, attributes, at}`,
 `id` is a per-environment cursor with a bounded in-memory replay (1 000
 events); outside it the stream starts with `reset`. Attributes are an
 allowlist (no environment variables or secret labels).
+
+### `stream-environment-events` (implemented, #5)
+
+Opening needs `environment.events.read` on the environment (`403` when the
+environment is visible without it, `404` when it is not visible). Every
+event is then filtered per subscriber with the #17 event rules
+(`authz.EventVisible`) and shaped per view:
+
+| event | id | data | who receives it |
+| --- | --- | --- | --- |
+| `hello` | — | `{version: "dockyard.environment-events/v1", cursor, heartbeatMs}` | everyone, first |
+| `reset` | — | `{reason: server_restart\|cursor_expired\|gap\|overflow, cursor}` | after `hello` when `Last-Event-ID` cannot be resumed, or when the manager lost events |
+| `engine` | cursor | `{type, action, resourceId, attributes, at}` | holders of any capability on the resource (containers and networks by name). For a container seen only minimally (e.g. metrics-only or restart-only) `attributes` keep only `name`, `exitCode` and `health`; `image` and `signal` need `container.details.read`. |
+| `status` | cursor | `{environmentId, status: online\|offline\|resync\|updated\|archived\|reattached, reason?, at}` | everyone who sees the environment; `resync` (reason `reconnect` or `event_gap`) means refetch the environment's inventory |
+| `metrics` | cursor | `{environmentId, host, containers, at}` | new samples: `host` with `environment.metrics.read`, `containers` with `container.metrics.read` on at least one sampled container; refetch open charts (at most every 10 s per environment) |
+| `inventory` | cursor | `{environmentId, at}` | `environment.system.read` or `environment.metrics.read`: refetch system information and capacity |
+| `close` | — | `{reason: max_age\|permissions_changed\|session_expired}` | stream ends |
+
+- **Replay:** the manager journals, per environment, the newest 1 000
+  events or the last 15 minutes (`internal/manager/observe`, `Journal`).
+  `id` is `<journal epoch>.<sequence>`; a cursor from before a manager
+  restart gets `reset` `server_restart`, one older than the retained events
+  `reset` `cursor_expired`. Replayed events are filtered again with the
+  caller's current permissions.
+- **Limits:** each stream has a queue of 256 events; when a slow client lets
+  it overflow, the queue is dropped and the stream sends `reset` `overflow`
+  with a new cursor. If the journal itself falls behind the bus, every
+  environment's streams get `reset` `gap`. The agent coalesces repeated
+  Docker events (the same action on the same resource within 1 s), drops
+  noise (`exec_*`, `attach`, `top`, volume `mount`, …) and rate-limits
+  relayed events (50/s, burst 200); anything dropped for the rate becomes a
+  sequence gap, which the manager turns into `status` `resync`.
+- **Heartbeat and max age** as for every stream (`: heartbeat`, `close`
+  `max_age` after 1 h).
 
 ## Container logs (`stream-container-logs`)
 

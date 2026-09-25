@@ -212,3 +212,37 @@ func TestSessionLimits(t *testing.T) {
 		}
 	}
 }
+
+func TestMetricsConfig(t *testing.T) {
+	cfg, err := load(t, map[string]string{EnvPublicURL: "https://d.example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := MetricsConfig{RetentionRaw: 24 * time.Hour, RetentionMinute: 7 * 24 * time.Hour, RetentionQuarter: 90 * 24 * time.Hour,
+		MaxBytes: 2048 << 20, MaxSeries: 5000}
+	if cfg.Metrics != want || cfg.MetricsPath() != filepath.Join(cfg.DataDir, "metrics.db") {
+		t.Fatalf("defaults %+v %s", cfg.Metrics, cfg.MetricsPath())
+	}
+	cfg, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvMetricsRetentionRaw: "6h", EnvMetricsRetentionMinute: "48h",
+		EnvMetricsRetentionQuarter: "720h", EnvMetricsMaxSizeMB: "256", EnvMetricsMaxSeries: "1000"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = MetricsConfig{RetentionRaw: 6 * time.Hour, RetentionMinute: 48 * time.Hour, RetentionQuarter: 720 * time.Hour, MaxBytes: 256 << 20,
+		MaxSeries: 1000}
+	if cfg.Metrics != want {
+		t.Fatalf("custom %+v", cfg.Metrics)
+	}
+	_, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvMetricsRetentionRaw: "10m", EnvMetricsRetentionMinute: "1h",
+		EnvMetricsRetentionQuarter: "1h", EnvMetricsMaxSizeMB: "1", EnvMetricsMaxSeries: "5"})
+	for _, name := range []string{EnvMetricsRetentionRaw, EnvMetricsRetentionMinute, EnvMetricsRetentionQuarter, EnvMetricsMaxSizeMB, EnvMetricsMaxSeries} {
+		if err == nil || !strings.Contains(err.Error(), name) {
+			t.Fatalf("invalid %s not reported: %v", name, err)
+		}
+	}
+	// Finer levels must not outlive coarser ones (they are rolled up).
+	if _, err := load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvMetricsRetentionRaw: "72h",
+		EnvMetricsRetentionMinute: "48h"}); err == nil || !strings.Contains(err.Error(), "<=") {
+		t.Fatalf("inverted retention accepted: %v", err)
+	}
+}

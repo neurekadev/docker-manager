@@ -80,6 +80,12 @@ type Deps struct {
 	// APITokens serves the API token routes (#31); nil answers them with
 	// 503. The identity middleware authenticates bearer tokens.
 	APITokens APITokenService
+	// Observe serves metrics, capacity, the overview, the Engine inventory
+	// of system information and the environment event stream (#5); nil
+	// answers those routes with 503 (system information without inventory).
+	Observe ObserveService
+	// StreamMaxAge overrides DefaultStreamMaxAge (tests).
+	StreamMaxAge time.Duration
 }
 
 func (d Deps) clock() clock.Clock {
@@ -132,6 +138,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerEnvironments(a, deps)
 	registerPermissions(a, deps)
 	registerAPITokens(a, deps)
+	registerObserve(a, deps)
 	return a
 }
 
