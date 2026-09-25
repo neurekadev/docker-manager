@@ -14,10 +14,7 @@ import (
 	agentres "github.com/neurekadev/dockyard/internal/agent/resources"
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/authz/authztest"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/authz/policy"
 	"github.com/neurekadev/dockyard/internal/manager/metrics"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
@@ -79,11 +76,19 @@ func names(items []containerJSON) []string {
 	return out
 }
 
-// TestDockerRoutesRestricted: a Restricted user gets 404 (or an empty page)
-// for every Docker route of every environment, before any agent is asked.
+// TestDockerRoutesRestricted (#17 Done-when 1): a Restricted user gets 404
+// (or an empty page) for every Docker, stack, log and terminal route,
+// before any agent is asked.
 func TestDockerRoutesRestricted(t *testing.T) {
 	f := newDockerFixture(t, authztest.New().Member("rita", "restricted"))
-	authztest.AssertOnly(t, f.h, "rita", nil, f.dockerRoutes())
+	f.locateStack()
+	authztest.AssertOnly(t, f.h, "rita", nil, f.matrixRoutes())
+	if calls := f.io.Calls(); len(calls) != 0 {
+		t.Fatalf("logs or a terminal were opened: %v", calls)
+	}
+	if len(f.stackSvc.jobs) != 0 {
+		t.Fatalf("stack jobs %v", f.stackSvc.jobs)
+	}
 	if len(f.req.calls) != 0 {
 		t.Fatalf("the agent was asked for a hidden environment: %v", f.req.calls)
 	}
@@ -94,10 +99,12 @@ func TestDockerRoutesRestricted(t *testing.T) {
 
 // TestContainerMetricsOnly (#17 Done-when 2): container.metrics.read on one
 // container shows only that container, minimally (identity, state,
-// stack/service, the granted action), and refuses every other route.
+// stack/service, the granted action), and refuses every other route,
+// including stacks, its logs and a terminal.
 func TestContainerMetricsOnly(t *testing.T) {
 	f := newDockerFixture(t, authztest.Only("mia", "allow container.metrics.read @container:env-1/web"))
-	allowed, denied := authztest.Split(f.dockerRoutes(), "container.metrics.read")
+	f.locateStack()
+	allowed, denied := authztest.Split(f.matrixRoutes(), "container.metrics.read")
 	allowed, denied = authztest.Discoverable(allowed, denied, "list-containers", "get-container")
 	authztest.AssertOnly(t, f.h, "mia", allowed, denied)
 
@@ -136,7 +143,8 @@ func TestContainerMetricsOnly(t *testing.T) {
 func TestContainerRestartOnly(t *testing.T) {
 	t.Run("container", func(t *testing.T) {
 		f := newDockerFixture(t, authztest.Only("rex", "allow container.restart @container:env-1/web"))
-		allowed, denied := authztest.Split(f.dockerRoutes(), "container.restart")
+		f.locateStack()
+		allowed, denied := authztest.Split(f.matrixRoutes(), "container.restart")
 		allowed, denied = authztest.Discoverable(allowed, denied, "list-containers", "get-container")
 		authztest.AssertOnly(t, f.h, "rex", allowed, denied)
 		r := f.do("rex", authztest.Call{Method: http.MethodPost, Path: "/api/v1/environments/env-1/containers/web/restart"})
@@ -167,23 +175,23 @@ func TestContainerRestartOnly(t *testing.T) {
 		}
 	})
 	t.Run("stack", func(t *testing.T) {
-		pol := authztest.Only("rex", "allow container.restart @stack:stack-shop")
-		f := newDockerFixture(t, pol)
-		f.stacks["env-1"]["shop"] = "stack-shop"
+		f := newDockerFixture(t, authztest.Only("rex", "allow container.restart @stack:stack-shop"))
 		// The resource graph as the manager wires it: the stack Locator (#7)
 		// places stack-shop in env-1; the container Locator of the resource
 		// service knows the stack membership it saw (used by the job
 		// engine's checks, which carry no parents).
-		pol.Locate(func(ref authz.ResourceRef) policy.Location {
-			if ref.Type == catalog.TypeStack && ref.ID == "stack-shop" {
-				return policy.Location{Found: true, EnvironmentID: "env-1"}
-			}
-			loc, err := f.svc.Locator(ref.Type).Locate(t.Context(), ref)
-			if err != nil {
-				t.Error(err)
-			}
-			return loc
-		})
+		f.locateStack()
+		// Every route of a container of the stack: only the restart; the
+		// stack itself is shown minimally (a capability inside it), its
+		// operations, definition, builds, logs and terminals are refused.
+		allowed, denied := authztest.Split(f.matrixRoutesFor("shop-web-1"), "container.restart")
+		allowed, denied = authztest.Discoverable(allowed, denied, "list-containers", "get-container", "list-stacks", "get-stack")
+		authztest.AssertOnly(t, f.h, "rex", allowed, denied)
+		r := f.get("rex", "/api/v1/stacks/stack-shop", nil)
+		if !strings.Contains(string(r.Body), `"view":"minimal"`) {
+			t.Fatalf("stack for a restart-only user: %s", r.Body)
+		}
+		authztest.AssertAbsent(t, "minimal stack", r.Body, "nginx", "orders", secretBind, "appliedRevision")
 		var page containerPage
 		f.get("rex", "/api/v1/environments/env-1/containers", &page)
 		if got := names(page.Items); !slices.Equal(got, []string{"shop-db-1", "shop-web-1"}) {

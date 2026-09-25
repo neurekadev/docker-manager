@@ -190,6 +190,27 @@ func TestRestrictedUserSeesNoResources(t *testing.T) {
 		"/api/v1/jobs/" + job.ID, "/api/v1/jobs/" + job.ID + "/events/stream"} {
 		user.fail(http.StatusNotFound, "not_found", http.MethodGet, p, nil)
 	}
+	// Stacks (#7), containers (#6), logs and terminals (#8) and metrics (#5)
+	// of the hidden environment do not exist for the new user.
+	e.seedStack("st-1", "e1", "shop")
+	var stacks struct {
+		Items []json.RawMessage `json:"items"`
+	}
+	user.must(http.StatusOK, http.MethodGet, "/api/v1/stacks", nil).json(t, &stacks)
+	if stacks.Items == nil || len(stacks.Items) != 0 {
+		t.Fatalf("stacks %+v", stacks)
+	}
+	for _, p := range []string{"/api/v1/stacks/st-1", "/api/v1/stacks/st-1/services", "/api/v1/stacks/st-1/revisions",
+		"/api/v1/stacks/st-1/events/stream", "/api/v1/environments/e1/stacks/discovered", "/api/v1/environments/e1/containers",
+		"/api/v1/environments/e1/containers/web", "/api/v1/environments/e1/containers/web/logs",
+		"/api/v1/environments/e1/containers/web/logs/stream", "/api/v1/environments/e1/containers/web/metrics",
+		"/api/v1/environments/e1/metrics"} {
+		user.fail(http.StatusNotFound, "not_found", http.MethodGet, p, nil)
+	}
+	for _, p := range []string{"/api/v1/stacks/st-1/deployments", "/api/v1/stacks/st-1/builds",
+		"/api/v1/environments/e1/containers/web/exec-sessions", "/api/v1/environments/e1/containers/web/restart"} {
+		user.fail(http.StatusNotFound, "not_found", http.MethodPost, p, map[string]any{}, header("Idempotency-Key", "k-"+strings.ReplaceAll(p, "/", ".")))
+	}
 	user.fail(http.StatusForbidden, "forbidden", http.MethodGet, "/api/v1/audit", nil)
 	user.fail(http.StatusForbidden, "forbidden", http.MethodGet, "/api/v1/audit/exports", nil)
 	user.fail(http.StatusForbidden, "forbidden", http.MethodGet, "/api/v1/agent-enrollments", nil)
