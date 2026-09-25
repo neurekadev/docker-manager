@@ -73,7 +73,7 @@ func TestSelfProtectionOnTwoHosts(t *testing.T) {
 	}
 	// Host with only an agent.
 	p = protectedOf(cloudEnv + "/containers")
-	if a := p["dockyard-agent-dockyard-agent-1"]; len(p) != 1 || a.Protection == nil || !a.Protection.Self || a.Protection.RestartAllowed {
+	if a := p["dockyard-dockyard-agent-1"]; len(p) != 1 || a.Protection == nil || !a.Protection.Self || a.Protection.RestartAllowed {
 		t.Fatalf("Cloud protections %+v", p)
 	}
 	if vols := protectedOf(cloudEnv + "/volumes"); len(vols) != 2 {
@@ -89,7 +89,7 @@ func TestSelfProtectionOnTwoHosts(t *testing.T) {
 		{http.MethodDelete, nasEnv + "/volumes/" + nd.ManagerData, "protected"},
 		{http.MethodDelete, nasEnv + "/volumes/" + nd.Stacks, "protected"},
 		{http.MethodDelete, nasEnv + "/images/" + nd.AgentImage + "?force=true", "protected"},
-		{http.MethodPost, cloudEnv + "/containers/dockyard-agent-dockyard-agent-1/stop", "protected"},
+		{http.MethodPost, cloudEnv + "/containers/dockyard-dockyard-agent-1/stop", "protected"},
 		{http.MethodDelete, cloudEnv + "/volumes/" + cd.Stacks, "protected"},
 	} {
 		r := owner.fail(http.StatusConflict, c.code, c.method, c.path, nil)
@@ -112,8 +112,8 @@ func TestSelfProtectionOnTwoHosts(t *testing.T) {
 	ctx := testutil.Context(t)
 	for _, kind := range []domain.JobKind{jobspec.ContainerStop, jobspec.ContainerRemove} {
 		j, _, err := e.m.Jobs().Enqueue(ctx, jobs.Request{Kind: kind, Principal: authz.Service(), EnvironmentID: cloud.env,
-			Targets: []domain.JobTarget{{Type: domain.TargetContainer, ID: "dockyard-agent-dockyard-agent-1"}},
-			Input:   protocol.ContainerActionInput{Name: "dockyard-agent-dockyard-agent-1", ID: cd.AgentID, Force: true}})
+			Targets: []domain.JobTarget{{Type: domain.TargetContainer, ID: "dockyard-dockyard-agent-1"}},
+			Input:   protocol.ContainerActionInput{Name: "dockyard-dockyard-agent-1", ID: cd.AgentID, Force: true}})
 		if err != nil {
 			t.Fatal(err)
 		}

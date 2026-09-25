@@ -356,7 +356,7 @@ invalidation):
 | platform | notifier | p50 | p95 | max |
 | --- | --- | --- | --- | --- |
 | windows/amd64 (development machine, NTFS) | ReadDirectoryChangesW | 200.6 ms | 200.9 ms | 201.0 ms |
-| linux/amd64 (CI runner, ext4) | inotify | pending: the test runs in CI's `Unit Tests` job; its numbers are not recorded here yet | | |
+| linux/amd64 (Hyperion CI host, `golang:1.27.1`) | inotify | 200.5 ms | 200.8 ms | 200.9 ms |
 
 The latency is dominated by the 200 ms debounce; the manager's coalescing
 window (250 ms, first event immediate) and the live stream add network

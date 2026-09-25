@@ -33,7 +33,7 @@ func InstallCommands(managerURL, image, token, name string) []domain.InstallComm
 	run.WriteString("  -v /var/run/docker.sock:/var/run/docker.sock \\\n")
 	run.WriteString("  -v /var/lib/docker/volumes:/var/lib/docker/volumes \\\n")
 	run.WriteString("  -v dockyard_stacks:/var/lib/docker/volumes/dockyard_stacks/_data \\\n")
-	run.WriteString("  -v dockyard_agent_state:/var/lib/dockyard-agent \\\n")
+	run.WriteString("  -v dockyard_agent:/var/lib/dockyard-agent \\\n")
 	run.WriteString("  " + image + "\n")
 	run.WriteString("printf '%s\\n' " + shellQuote(token) + " | docker exec -i dockyard-agent dockyard-agent enroll")
 

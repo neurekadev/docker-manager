@@ -16,6 +16,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	agentconfig "github.com/neurekadev/dockyard/internal/agent/config"
+	"github.com/neurekadev/dockyard/internal/manager/config"
 	"github.com/neurekadev/dockyard/internal/manager/server/sse"
 )
 
@@ -29,8 +31,10 @@ type service struct {
 }
 
 type composeFile struct {
-	Services map[string]service `yaml:"services"`
-	Volumes  map[string]any     `yaml:"volumes"`
+	Name     string                    `yaml:"name"`
+	Services map[string]service        `yaml:"services"`
+	Volumes  map[string]any            `yaml:"volumes"`
+	Networks map[string]map[string]any `yaml:"networks"`
 }
 
 func repoRoot(t *testing.T) string {
@@ -79,14 +83,11 @@ func TestProxyExamplesTopology(t *testing.T) {
 			if !pinnedRE.MatchString(p.Image) {
 				t.Errorf("proxy image %q is not pinned by digest", p.Image)
 			}
-			// One public HTTPS origin; only the proxy is trusted.
+			// One public HTTPS origin, reached through the proxy.
 			if interp(m.Environment["DOCKYARD_PUBLIC_URL"]) != "https://localhost" {
 				t.Errorf("public URL %q", m.Environment["DOCKYARD_PUBLIC_URL"])
 			}
-			proxyIP := proxyAddress(t, p)
-			if interp(m.Environment["DOCKYARD_TRUSTED_PROXIES"]) != proxyIP || proxyIP == "" {
-				t.Errorf("trusted proxies %q, proxy address %q", m.Environment["DOCKYARD_TRUSTED_PROXIES"], proxyIP)
-			}
+			checkTrustedProxies(t, c, m, p)
 			if len(m.Ports) != 0 || len(a.Ports) != 0 {
 				t.Error("manager or agent publishes ports; only the proxy may")
 			}
@@ -99,20 +100,39 @@ func TestProxyExamplesTopology(t *testing.T) {
 			}
 			checkStorage(t, c, m, a)
 			checkStacksVolume(t, c, a)
+			checkVolumes(t, c, "data", "agent", "stacks")
+			if !slices.Contains(m.Volumes, "data:/var/lib/dockyard") || !slices.Contains(a.Volumes, "agent:/var/lib/dockyard-agent") {
+				t.Errorf("manager volumes %v, agent volumes %v", m.Volumes, a.Volumes)
+			}
 		})
 	}
 }
 
-// proxyAddress returns the proxy's fixed ipv4_address (defaults resolved).
-func proxyAddress(t *testing.T, p service) string {
+// defaultTrustedProxies are Docker's default address pools (the bridge
+// network and user-defined networks without their own ipam).
+const defaultTrustedProxies = "172.16.0.0/12,192.168.0.0/16"
+
+// checkTrustedProxies: the manager trusts forwarded headers from Docker's
+// default address pools unless .env overrides DOCKYARD_TRUSTED_PROXIES, and
+// the proxy shares the plain "dockyard" network with the manager (no fixed
+// address or subnet: whatever Docker assigns lies in those pools).
+func checkTrustedProxies(t *testing.T, c composeFile, m, p service) {
 	t.Helper()
-	var nets map[string]struct {
-		IPv4 string `yaml:"ipv4_address"`
+	if got := m.Environment["DOCKYARD_TRUSTED_PROXIES"]; got != "${DOCKYARD_TRUSTED_PROXIES:-"+defaultTrustedProxies+"}" {
+		t.Errorf("trusted proxies %q, want Docker's default pools overridable from .env", got)
 	}
-	if err := p.Networks.Decode(&nets); err != nil {
-		t.Fatalf("proxy networks: %v", err)
+	if _, err := config.ParseTrustedProxies(defaultTrustedProxies); err != nil {
+		t.Errorf("default trusted proxies: %v", err)
 	}
-	return interp(nets["dockyard"].IPv4)
+	for _, svc := range []service{m, p} {
+		var nets []string
+		if err := svc.Networks.Decode(&nets); err != nil || !slices.Equal(nets, []string{"dockyard"}) {
+			t.Errorf("%s networks: want the plain list [dockyard] (no fixed address), err %v", svc.Image, err)
+		}
+	}
+	if n := c.Networks["dockyard"]; len(n) != 1 || n["name"] != "dockyard" {
+		t.Errorf("network dockyard must only be named (no ipam subnet): %v", n)
+	}
 }
 
 // checkStorage enforces #28: DockYard state only in named volumes, plus the
@@ -167,20 +187,46 @@ func TestRemoteAgentExample(t *testing.T) {
 	}
 	checkStorage(t, c, a)
 	checkStacksVolume(t, c, a)
+	checkVolumes(t, c, "agent", "stacks")
+	if !slices.Contains(a.Volumes, "agent:/var/lib/dockyard-agent") {
+		t.Errorf("agent volumes %v", a.Volumes)
+	}
 }
 
-// checkStacksVolume enforces the #28 stacks volume: a fixed volume name
-// (the agent's DOCKYARD_STACKS_VOLUME default) mounted into the agent at its
+// checkStacksVolume enforces the #28 stacks volume: the volume key
+// "stacks" in the project "dockyard" is the volume dockyard_stacks (the
+// agent's DOCKYARD_STACKS_VOLUME default), mounted into the agent at its
 // own mountpoint, i.e. the identical path under Docker's volume directory.
 func checkStacksVolume(t *testing.T, c composeFile, agent service) {
 	t.Helper()
-	const mnt = "dockyard_stacks:/var/lib/docker/volumes/dockyard_stacks/_data"
+	const mnt = "stacks:/var/lib/docker/volumes/" + agentconfig.DefaultStacksVolume + "/_data"
 	if !slices.Contains(agent.Volumes, mnt) {
 		t.Errorf("agent lacks %q", mnt)
 	}
-	v, ok := c.Volumes["dockyard_stacks"].(map[string]any)
-	if !ok || v["name"] != "dockyard_stacks" {
-		t.Errorf("volume dockyard_stacks must be declared with name: dockyard_stacks (got %v)", c.Volumes["dockyard_stacks"])
+	if c.Name+"_stacks" != agentconfig.DefaultStacksVolume {
+		t.Errorf("project %q: the stacks volume would be %s_stacks, not %s", c.Name, c.Name, agentconfig.DefaultStacksVolume)
+	}
+}
+
+// checkVolumes: every example is the Compose project "dockyard" and
+// declares DockYard's volumes under the plain keys data (manager), agent
+// (agent state) and stacks, so they are dockyard_data, dockyard_agent and
+// dockyard_stacks on every host. No volume is renamed with name: or has
+// other keys; the project name decides.
+func checkVolumes(t *testing.T, c composeFile, keys ...string) {
+	t.Helper()
+	if c.Name != "dockyard" {
+		t.Errorf("project name %q, want dockyard", c.Name)
+	}
+	for _, k := range keys {
+		if _, ok := c.Volumes[k]; !ok {
+			t.Errorf("volume %q not declared", k)
+		}
+	}
+	for k, v := range c.Volumes {
+		if v != nil {
+			t.Errorf("volume %q has extra keys %v; declare it plainly", k, v)
+		}
 	}
 }
 
@@ -195,7 +241,7 @@ func TestProxySettings(t *testing.T) {
 	nginx := read(t, "deploy/nginx/templates/dockyard.conf.template")
 	for _, want := range []string{
 		"http2 on;", "proxy_http_version 1.1;", "proxy_set_header Host              $http_host;",
-		"X-Forwarded-For   $proxy_add_x_forwarded_for;", "X-Forwarded-Proto $scheme;", "X-Forwarded-Host  $http_host;",
+		"X-Forwarded-For   $remote_addr;", "X-Forwarded-Proto $scheme;", "X-Forwarded-Host  $http_host;",
 		"proxy_set_header Upgrade    $http_upgrade;", "proxy_set_header Connection $connection_upgrade;",
 		"proxy_read_timeout ${DOCKYARD_PROXY_READ_TIMEOUT};", "client_max_body_size ${DOCKYARD_MAX_BODY_SIZE};",
 		"resolver 127.0.0.11",

@@ -7,8 +7,11 @@
 #   docker compose up -d
 #
 # Only named volumes plus the identical-path mount of Docker's volume
-# directory are used (#28). See docs/deployment.md.
-name: dockyard-agent
+# directory are used (#28). See docs/deployment.md. The project name is
+# "dockyard" as in the manager examples, so the volumes are dockyard_agent
+# (agent state), dockyard_stacks (the agent's default DOCKYARD_STACKS_VOLUME)
+# and dockyard_agent_ca.
+name: dockyard
 
 services:
   dockyard-agent:
@@ -37,17 +40,16 @@ services:
       # '{{.DockerRootDir}}'`): replace /var/lib/docker on both sides here and
       # below. SELinux hosts: see docs/deployment.md.
       - /var/lib/docker/volumes:/var/lib/docker/volumes
-      - dockyard_stacks:/var/lib/docker/volumes/dockyard_stacks/_data
-      - dockyard_agent_state:/var/lib/dockyard-agent
+      - stacks:/var/lib/docker/volumes/dockyard_stacks/_data
+      - agent:/var/lib/dockyard-agent
       # Private PKI: a named volume holding the CA bundle, e.g.
       #   docker run --rm -v dockyard_agent_ca:/ca -v "$PWD":/src alpine cp /src/ca.pem /ca/
       # then set DOCKYARD_MANAGER_CA_FILE=/etc/dockyard/ca/ca.pem.
-      - dockyard_agent_ca:/etc/dockyard/ca:ro
+      - agent_ca:/etc/dockyard/ca:ro
     labels:
       dev.neureka.dockyard.role: agent
 
 volumes:
-  dockyard_agent_state:
-  dockyard_agent_ca:
-  dockyard_stacks:
-    name: dockyard_stacks
+  agent:
+  stacks:
+  agent_ca:

@@ -75,12 +75,48 @@ docker compose up -d dockyard-agent
 ```
 
 The agent keeps its identity and credential in its state volume
-(`dockyard_agent_state`); it reconnects, reports its new version and its
+(`dockyard_agent`); it reconnects, reports its new version and its
 environment's `compatibility` becomes `current`. Jobs the agent was running
 are reconciled by its job journal (#26).
 
 Plain `docker run` agents: `docker pull` the image, then remove and
 recreate the container with the same volumes, mounts and environment.
+
+## Deployments from before the volume renaming (2026-09-25)
+
+The examples in `deploy/` declare the volumes `data`, `agent` and `stacks`
+in the Compose project `dockyard` (remote agents included), so they are
+`dockyard_data`, `dockyard_agent` and `dockyard_stacks`, and they no longer
+give the proxy a fixed address (`DOCKYARD_SUBNET` and `DOCKYARD_PROXY_IP`
+are gone; `DOCKYARD_TRUSTED_PROXIES` defaults to Docker's default address
+pools). Deployments created from the earlier files have their state in
+volumes with other names and would start empty after switching to the new
+files. Copy the state once, per host:
+
+| Old volume | New volume |
+| --- | --- |
+| `dockyard_dockyard_data` (manager host) | `dockyard_data` |
+| `dockyard_dockyard_agent_state` (manager host) | `dockyard_agent` |
+| `dockyard-agent_dockyard_agent_state` (remote host) | `dockyard_agent` |
+| `dockyard-agent_dockyard_agent_ca` (remote host, private PKI only) | `dockyard_agent_ca` |
+| `dockyard_stacks` | unchanged |
+
+```bash
+cd deploy/caddy                 # your deploy directory, still with the old files
+docker compose down             # removes containers and network, keeps volumes
+# Replace compose.yaml (and the proxy files) with the new example; remove
+# DOCKYARD_SUBNET and DOCKYARD_PROXY_IP from .env.
+docker compose up --no-start    # creates the new, empty volumes
+docker run --rm -v dockyard_dockyard_data:/from:ro -v dockyard_data:/to alpine cp -a /from/. /to/
+docker run --rm -v dockyard_dockyard_agent_state:/from:ro -v dockyard_agent:/to alpine cp -a /from/. /to/
+docker compose up -d
+```
+
+On a remote host run the same steps in `deploy/remote-agent` with the
+`dockyard-agent_…` volumes from the table. Once the environment is back
+online, remove the old volumes with `docker volume rm`. An agent started
+without its old state has a new identity and must be enrolled again (with
+the intent to replace the old agent).
 
 ## Roll back a failed upgrade
 
