@@ -602,7 +602,9 @@
 				{#each runJobs as j (j.id)}
 					<JobProgress
 						jobId={j.id}
-						title="Back up {j.environmentId ? envName(j.environmentId) : 'the manager'}"
+						title="Back up {j.environmentId
+							? envName(j.environmentId)
+							: 'DockYard Manager'}"
 					/>
 				{/each}
 			</Fields>

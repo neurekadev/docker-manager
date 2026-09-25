@@ -93,6 +93,14 @@ func fakeRestic(repo string) int {
 		_, _ = f.Write(append(b, '\n'))
 		_ = f.Close()
 	}
+	// Like restic, which stages pack files in TMPDIR while saving.
+	pack, err := os.CreateTemp(os.Getenv("TMPDIR"), "restic-temp-pack-")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Fatal: unable to save snapshot:", err)
+		return 1
+	}
+	_ = pack.Close()
+	_ = os.Remove(pack.Name())
 	answers := map[string]fakeAnswer{}
 	if raw, err := os.ReadFile(filepath.Join(repo, "scenario.json")); err == nil {
 		_ = json.Unmarshal(raw, &answers)
@@ -391,6 +399,22 @@ func TestRetryWatchSplitsLines(t *testing.T) {
 	}
 	if w.code != CodeAccessDenied || aborted != 1 || !strings.HasSuffix(w.tail.String(), "Access Denied.\n") {
 		t.Fatalf("code %q, aborted %d, tail %q", w.code, aborted, w.tail.String())
+	}
+}
+
+func TestRunnerCreatesItsTempDir(t *testing.T) {
+	f := newFake(t, map[string]fakeAnswer{"snapshots": {Stdout: "[]"}})
+	// A fresh data volume has no tmp directory yet.
+	f.r.TempDir = filepath.Join(f.tmp, "data", "tmp")
+	if _, err := f.r.Open(Location{Repository: f.dir}, "password-123456").Snapshots(testutil.Context(t), SnapshotFilter{}); err != nil {
+		t.Fatalf("snapshots: %v", err)
+	}
+	fi, err := os.Stat(f.r.TempDir)
+	if err != nil || !fi.IsDir() {
+		t.Fatalf("temp dir not created: %v", err)
+	}
+	if got, _ := envValue(f.calls()[0].Env, "TMPDIR"); got != f.r.TempDir {
+		t.Fatalf("TMPDIR = %q, want %q", got, f.r.TempDir)
 	}
 }
 

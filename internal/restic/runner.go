@@ -98,6 +98,11 @@ func (p *repo) run(ctx context.Context, c call) (result, error) {
 	if tmp == "" {
 		tmp = os.TempDir()
 	}
+	// restic stages pack files in TMPDIR; a fresh data volume has no tmp
+	// directory yet (and on Linux the secrets never touch it either).
+	if err := os.MkdirAll(tmp, 0o700); err != nil {
+		return result{}, &Error{Op: c.op, Code: CodeFailed, Message: "prepare the temporary directory: " + scrub(err.Error(), secrets)}
+	}
 	files, err := newSecretFiles(tmp)
 	if err != nil {
 		return result{}, &Error{Op: c.op, Code: CodeFailed, Message: "prepare secret delivery: " + scrub(err.Error(), secrets)}
