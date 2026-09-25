@@ -149,8 +149,10 @@ func (h *Hub) EnvironmentSession(environmentID string) *Session {
 	return h.byEnv[environmentID]
 }
 
-// ErrRequestTimeout means the agent did not answer a request in time.
-var ErrRequestTimeout = errors.New("agents: the agent did not answer in time")
+// ErrRequestTimeout means the agent did not answer a request in time. It
+// is protocol.ErrRequestTimeout, so packages that must not import this one
+// (it imports the API) can match it too.
+var ErrRequestTimeout = protocol.ErrRequestTimeout
 
 // RequestError is an error frame the agent answered a request with.
 type RequestError struct {
@@ -164,6 +166,12 @@ func (e *RequestError) Error() string { return "agent: " + e.Code + ": " + e.Mes
 // AgentCode returns the protocol error code (lets packages that do not
 // import agents classify the error).
 func (e *RequestError) AgentCode() string { return e.Code }
+
+// ProtocolCode returns the error frame code (protocol.CodedError).
+func (e *RequestError) ProtocolCode() string { return e.Code }
+
+// ProtocolMessage returns the error frame message (protocol.CodedError).
+func (e *RequestError) ProtocolMessage() string { return e.Message }
 
 // Request sends a named request to the agent's live session and waits for
 // its response (timeout 0: SessionOptions.RequestTimeout). Errors:

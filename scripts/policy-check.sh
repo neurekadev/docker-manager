@@ -81,6 +81,7 @@ in_list() {
 #   internal/testharness/             DinD readiness probes and agent mounts of the CI fixtures
 #   test/deploy/*_test.go             tests asserting the deploy examples mount the socket
 #   internal/manager/agents/install.go  the agent install command's socket bind mount (text shown to operators)
+#   internal/protocol/docker{,_test}.go  refuses binding the Docker socket into containers created through DockYard (#6)
 engine_http_exceptions=(
 	'^internal/agent/engine/'
 	'^internal/agent/compose/[^/]+_test\.go$'
@@ -89,6 +90,7 @@ engine_http_exceptions=(
 	'^internal/testharness/'
 	'^test/deploy/[^/]+_test\.go$'
 	'^internal/manager/agents/install\.go$'
+	'^internal/protocol/docker(_test)?\.go$'
 )
 
 check_direct_engine_http() {

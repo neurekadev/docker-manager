@@ -172,8 +172,11 @@ func catalogSpecs() []Spec {
 				target(domain.LockContainer, exclusive, domain.TargetContainer),
 				optional(target(domain.LockStack, shared, domain.TargetStack))},
 			OfflineDeadline: deadlineInteractive,
+			// create is the only safe point: once the container exists, the
+			// job finishes connecting and (optionally) starting it.
 			Steps: []Step{step("create", false, true,
-				"The container may or may not have been created. Check the environment's container list for it before creating it again.")},
+				"The container may or may not have been created. Check the environment's container list for it before creating it again."),
+				step("connect_networks", true, false, ""), step("start", true, false, "")},
 		},
 		containerKind(ContainerStart, "start", "Start a container"),
 		containerKind(ContainerStop, "stop", "Stop a container"),

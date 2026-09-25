@@ -97,10 +97,16 @@ func (c *Client) InspectContainer(ctx context.Context, id string) (ContainerDeta
 		d.User = cfg.User
 		d.Tty = cfg.Tty
 		d.Hostname = cfg.Hostname
+		if h := cfg.Healthcheck; h != nil {
+			d.Healthcheck = &HealthcheckSpec{Test: h.Test, Interval: h.Interval, Timeout: h.Timeout,
+				StartPeriod: h.StartPeriod, Retries: h.Retries}
+		}
 	}
 	if hc := r.HostConfig; hc != nil {
 		d.RestartPolicy = string(hc.RestartPolicy.Name)
 		d.NetworkMode = string(hc.NetworkMode)
+		d.Resources = Resources{NanoCPUs: hc.NanoCPUs, CPUShares: hc.CPUShares, Memory: hc.Memory,
+			MemorySwap: hc.MemorySwap, PidsLimit: hc.PidsLimit}
 	}
 	for _, m := range r.Mounts {
 		d.Mounts = append(d.Mounts, mountFrom(m))

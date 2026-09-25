@@ -820,6 +820,813 @@
         ],
         "type": "object"
       },
+      "Container": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "description": "Granted container capabilities (e.g. container.restart).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "command": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ContainerDetails",
+            "description": "Full view of GET only."
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "health": {
+            "enum": [
+              "starting",
+              "healthy",
+              "unhealthy",
+              "none"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "image": {
+            "description": "Full view.",
+            "type": "string"
+          },
+          "imageId": {
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "managed": {
+            "$ref": "#/components/schemas/ContainerOwnership",
+            "description": "Set for standalone containers created through DockYard."
+          },
+          "mounts": {
+            "items": {
+              "$ref": "#/components/schemas/ContainerMount"
+            },
+            "type": "array"
+          },
+          "name": {
+            "examples": [
+              "web"
+            ],
+            "type": "string"
+          },
+          "ports": {
+            "items": {
+              "$ref": "#/components/schemas/ContainerPort"
+            },
+            "type": "array"
+          },
+          "stack": {
+            "$ref": "#/components/schemas/StackMembership",
+            "description": "Compose project and service."
+          },
+          "state": {
+            "enum": [
+              "created",
+              "running",
+              "paused",
+              "restarting",
+              "removing",
+              "exited",
+              "dead"
+            ],
+            "examples": [
+              "running"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "The Engine's description, e.g. \"Up 3 hours\".",
+            "type": "string"
+          },
+          "view": {
+            "description": "full: container.details.read; minimal: identity, state and the granted actions (#17).",
+            "enum": [
+              "minimal",
+              "full"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "environmentId",
+          "state",
+          "view",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "ContainerCreateBody": {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "entrypoint": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "env": {
+            "description": "KEY=value. Values are stored sealed in the recreate specification and never returned.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "type": "array"
+          },
+          "healthcheck": {
+            "$ref": "#/components/schemas/ContainerHealthcheck"
+          },
+          "image": {
+            "description": "Image reference or ID; the image must be present (pull it first).",
+            "examples": [
+              "nginx:1.27"
+            ],
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "User labels; dev.neureka.dockyard.* and com.docker.compose.* are reserved.",
+            "type": "object"
+          },
+          "mounts": {
+            "items": {
+              "$ref": "#/components/schemas/ContainerMountSpec"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "name": {
+            "examples": [
+              "web"
+            ],
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+            "type": "string"
+          },
+          "networks": {
+            "description": "The first is the container's network (default bridge; host and none stand alone); the others are connected after creation.",
+            "items": {
+              "$ref": "#/components/schemas/ContainerNetworkSpec"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "ports": {
+            "items": {
+              "$ref": "#/components/schemas/ContainerPortSpec"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "resources": {
+            "$ref": "#/components/schemas/ContainerResources"
+          },
+          "restartPolicy": {
+            "enum": [
+              "no",
+              "always",
+              "on-failure",
+              "unless-stopped"
+            ],
+            "type": "string"
+          },
+          "start": {
+            "description": "Start the container after creating it (default true).",
+            "type": "boolean"
+          },
+          "user": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "workingDir": {
+            "maxLength": 4096,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "image"
+        ],
+        "type": "object"
+      },
+      "ContainerDetails": {
+        "additionalProperties": false,
+        "properties": {
+          "cmd": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "entrypoint": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "error": {
+            "type": "string"
+          },
+          "exitCode": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "finishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "healthcheck": {
+            "$ref": "#/components/schemas/ContainerHealthcheck"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "networkMode": {
+            "type": "string"
+          },
+          "networks": {
+            "items": {
+              "$ref": "#/components/schemas/ContainerNetwork"
+            },
+            "type": "array"
+          },
+          "oomKilled": {
+            "type": "boolean"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "recreate": {
+            "$ref": "#/components/schemas/ContainerRecreate"
+          },
+          "removal": {
+            "$ref": "#/components/schemas/Removal"
+          },
+          "resources": {
+            "$ref": "#/components/schemas/ContainerResources"
+          },
+          "restartCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "restartPolicy": {
+            "type": "string"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "tty": {
+            "type": "boolean"
+          },
+          "user": {
+            "type": "string"
+          },
+          "workingDir": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cmd",
+          "entrypoint",
+          "tty",
+          "networks",
+          "restartCount",
+          "running",
+          "paused",
+          "oomKilled",
+          "exitCode",
+          "resources",
+          "recreate",
+          "removal"
+        ],
+        "type": "object"
+      },
+      "ContainerHealthcheck": {
+        "additionalProperties": false,
+        "properties": {
+          "intervalSeconds": {
+            "format": "int64",
+            "maximum": 86400,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "retries": {
+            "format": "int64",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "startPeriodSeconds": {
+            "format": "int64",
+            "maximum": 86400,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "test": {
+            "description": "[\"CMD\", \"/bin/check\"], [\"CMD-SHELL\", \"curl -f http://localhost/\"] or [\"NONE\"].",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "minItems": 1,
+            "type": "array"
+          },
+          "timeoutSeconds": {
+            "format": "int64",
+            "maximum": 86400,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "test"
+        ],
+        "type": "object"
+      },
+      "ContainerMetrics": {
+        "additionalProperties": false,
+        "properties": {
+          "container": {
+            "description": "Container name (metrics follow the name across recreations).",
+            "type": "string"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "incomplete": {
+            "type": "boolean"
+          },
+          "online": {
+            "type": "boolean"
+          },
+          "resolution": {
+            "enum": [
+              "raw",
+              "1m",
+              "15m"
+            ],
+            "type": "string"
+          },
+          "series": {
+            "description": "CPU as a percentage of the environment's cores; memory against the container limit when set.",
+            "items": {
+              "$ref": "#/components/schemas/MetricSeries"
+            },
+            "type": "array"
+          },
+          "skewCorrected": {
+            "type": "boolean"
+          },
+          "stepSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "timestamps": {
+            "items": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "environmentId",
+          "container",
+          "from",
+          "to",
+          "stepSeconds",
+          "resolution",
+          "timestamps",
+          "series",
+          "skewCorrected",
+          "incomplete",
+          "online"
+        ],
+        "type": "object"
+      },
+      "ContainerMount": {
+        "additionalProperties": false,
+        "properties": {
+          "destination": {
+            "type": "string"
+          },
+          "name": {
+            "description": "Volume name (volume mounts).",
+            "type": "string"
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "source": {
+            "description": "Host path (bind mounts).",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "volume"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "destination",
+          "readOnly"
+        ],
+        "type": "object"
+      },
+      "ContainerMountSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "readOnly": {
+            "type": "boolean"
+          },
+          "source": {
+            "description": "bind: absolute host path (never the Docker socket); volume: volume name (absent: anonymous volume).",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "target": {
+            "description": "Absolute path in the container.",
+            "maxLength": 4096,
+            "minLength": 2,
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "bind",
+              "volume",
+              "tmpfs"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "target"
+        ],
+        "type": "object"
+      },
+      "ContainerNetwork": {
+        "additionalProperties": false,
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ipAddress": {
+            "type": "string"
+          },
+          "ipv6Address": {
+            "type": "string"
+          },
+          "macAddress": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "ContainerNetworkSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "ContainerOwnership": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "standalone"
+            ],
+            "type": "string"
+          },
+          "specSaved": {
+            "description": "DockYard saved the container's recreate specification (used by automatic updates, #20).",
+            "type": "boolean"
+          },
+          "thisInstance": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "specSaved",
+          "thisInstance"
+        ],
+        "type": "object"
+      },
+      "ContainerPort": {
+        "additionalProperties": false,
+        "properties": {
+          "containerPort": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "hostIp": {
+            "type": "string"
+          },
+          "hostPort": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "protocol": {
+            "enum": [
+              "tcp",
+              "udp",
+              "sctp"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "containerPort",
+          "protocol"
+        ],
+        "type": "object"
+      },
+      "ContainerPortSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "containerPort": {
+            "format": "int64",
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "hostIp": {
+            "maxLength": 45,
+            "type": "string"
+          },
+          "hostPort": {
+            "description": "0 or absent: an ephemeral port.",
+            "format": "int64",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "protocol": {
+            "description": "Default tcp.",
+            "enum": [
+              "tcp",
+              "udp"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "containerPort"
+        ],
+        "type": "object"
+      },
+      "ContainerRecreate": {
+        "additionalProperties": false,
+        "properties": {
+          "envKeys": {
+            "description": "Environment variable names of the saved recreate specification; values are sealed and never returned.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "fields": {
+            "description": "Settings that cannot change in place: changing them needs a new container (PATCH refuses them with recreate_required).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields"
+        ],
+        "type": "object"
+      },
+      "ContainerRef": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ContainerResources": {
+        "additionalProperties": false,
+        "properties": {
+          "cpuShares": {
+            "description": "Relative CPU weight.",
+            "format": "int64",
+            "maximum": 262144,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "cpus": {
+            "description": "CPU quota in CPUs (e.g. 1.5).",
+            "format": "double",
+            "maximum": 1024,
+            "minimum": 0,
+            "type": "number"
+          },
+          "memoryBytes": {
+            "description": "Memory limit; at least 6 MiB when set.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memorySwapBytes": {
+            "description": "Memory plus swap; -1 unlimited swap.",
+            "format": "int64",
+            "minimum": -1,
+            "type": "integer"
+          },
+          "pidsLimit": {
+            "description": "Maximum number of processes; -1 unlimited.",
+            "format": "int64",
+            "minimum": -1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ContainerStopInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "timeoutSeconds": {
+            "description": "Seconds to wait before killing; default: the container's stop timeout.",
+            "format": "int64",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ContainerUpdateBody": {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "description": "Needs recreation: refused with recreate_required.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "entrypoint": {
+            "description": "Needs recreation: refused with recreate_required.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "env": {
+            "description": "Needs recreation: refused with recreate_required.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "healthcheck": {
+            "$ref": "#/components/schemas/ContainerHealthcheck",
+            "description": "Needs recreation: refused with recreate_required."
+          },
+          "image": {
+            "description": "Needs recreation: refused with recreate_required.",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Needs recreation: refused with recreate_required.",
+            "type": "object"
+          },
+          "mounts": {
+            "description": "Needs recreation: refused with recreate_required.",
+            "items": {
+              "$ref": "#/components/schemas/ContainerMountSpec"
+            },
+            "type": "array"
+          },
+          "name": {
+            "description": "Needs recreation: refused with recreate_required.",
+            "type": "string"
+          },
+          "networks": {
+            "description": "Needs recreation: refused with recreate_required.",
+            "items": {
+              "$ref": "#/components/schemas/ContainerNetworkSpec"
+            },
+            "type": "array"
+          },
+          "ports": {
+            "description": "Needs recreation: refused with recreate_required.",
+            "items": {
+              "$ref": "#/components/schemas/ContainerPortSpec"
+            },
+            "type": "array"
+          },
+          "resources": {
+            "$ref": "#/components/schemas/ContainerResources"
+          },
+          "restartPolicy": {
+            "enum": [
+              "no",
+              "always",
+              "on-failure",
+              "unless-stopped"
+            ],
+            "type": "string"
+          },
+          "user": {
+            "description": "Needs recreation: refused with recreate_required.",
+            "type": "string"
+          },
+          "workingDir": {
+            "description": "Needs recreation: refused with recreate_required.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateAPITokenInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -972,6 +1779,50 @@
         ],
         "type": "object"
       },
+      "CreateNetworkInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "attachable": {
+            "type": "boolean"
+          },
+          "driver": {
+            "description": "Default bridge.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "internal": {
+            "description": "No external connectivity.",
+            "type": "boolean"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "dev.neureka.dockyard.* and com.docker.compose.* are reserved.",
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "backend"
+            ],
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+            "type": "string"
+          },
+          "options": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Driver options.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "CreateRegistryInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -1063,6 +1914,42 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "CreateVolumeInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "driver": {
+            "description": "Default local.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "driverOpts": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "dev.neureka.dockyard.* and com.docker.compose.* are reserved.",
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "cache"
+            ],
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
         "type": "object"
       },
       "CreatedAgentEnrollment": {
@@ -1957,6 +2844,147 @@
         ],
         "type": "object"
       },
+      "Image": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ImageDetails",
+            "description": "Full view of GET only."
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "sha256:4e1b5f1a6d8e..."
+            ],
+            "type": "string"
+          },
+          "inUse": {
+            "description": "Full view: used by at least one container.",
+            "type": "boolean"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "repoDigests": {
+            "description": "Full view.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "repoTags": {
+            "description": "References (repository:tag); empty for untagged (dangling) images.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "size": {
+            "description": "Bytes.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "usedBy": {
+            "description": "Containers created from the image (running or not).",
+            "items": {
+              "$ref": "#/components/schemas/ContainerRef"
+            },
+            "type": "array"
+          },
+          "view": {
+            "enum": [
+              "minimal",
+              "full"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "environmentId",
+          "repoTags",
+          "view",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "ImageDetails": {
+        "additionalProperties": false,
+        "properties": {
+          "architecture": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "cmd": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "entrypoint": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "exposedPorts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "hasHealthTest": {
+            "type": "boolean"
+          },
+          "os": {
+            "type": "string"
+          },
+          "removal": {
+            "$ref": "#/components/schemas/Removal"
+          },
+          "user": {
+            "type": "string"
+          },
+          "variant": {
+            "type": "string"
+          },
+          "volumes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "workingDir": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entrypoint",
+          "cmd",
+          "exposedPorts",
+          "volumes",
+          "hasHealthTest",
+          "removal"
+        ],
+        "type": "object"
+      },
       "InstallCommand": {
         "additionalProperties": false,
         "properties": {
@@ -2547,6 +3575,100 @@
         ],
         "type": "object"
       },
+      "Network": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "attachable": {
+            "type": "boolean"
+          },
+          "builtin": {
+            "description": "A predefined network (bridge, host, none).",
+            "type": "boolean"
+          },
+          "containers": {
+            "description": "Attached containers (GET only; lists do not report them).",
+            "items": {
+              "$ref": "#/components/schemas/ContainerRef"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "driver": {
+            "description": "Full view.",
+            "type": "string"
+          },
+          "enableIpv6": {
+            "type": "boolean"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "gateways": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "internal": {
+            "type": "boolean"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "shop_default"
+            ],
+            "type": "string"
+          },
+          "removal": {
+            "$ref": "#/components/schemas/Removal",
+            "description": "Full view of GET only."
+          },
+          "scope": {
+            "type": "string"
+          },
+          "stack": {
+            "$ref": "#/components/schemas/StackMembership"
+          },
+          "subnets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "view": {
+            "enum": [
+              "minimal",
+              "full"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "environmentId",
+          "view",
+          "actions"
+        ],
+        "type": "object"
+      },
       "Overview": {
         "additionalProperties": false,
         "properties": {
@@ -2807,6 +3929,31 @@
         ],
         "type": "object"
       },
+      "PageContainer": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Items on this page (possibly empty, also when nextCursor is present).",
+            "items": {
+              "$ref": "#/components/schemas/Container"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Opaque cursor for the next page; absent on the last page.",
+            "type": "string"
+          },
+          "total": {
+            "description": "Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "PageEnvironment": {
         "additionalProperties": false,
         "properties": {
@@ -2814,6 +3961,31 @@
             "description": "Items on this page (possibly empty, also when nextCursor is present).",
             "items": {
               "$ref": "#/components/schemas/Environment"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Opaque cursor for the next page; absent on the last page.",
+            "type": "string"
+          },
+          "total": {
+            "description": "Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "PageImage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Items on this page (possibly empty, also when nextCursor is present).",
+            "items": {
+              "$ref": "#/components/schemas/Image"
             },
             "type": "array"
           },
@@ -2882,6 +4054,31 @@
         ],
         "type": "object"
       },
+      "PageNetwork": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Items on this page (possibly empty, also when nextCursor is present).",
+            "items": {
+              "$ref": "#/components/schemas/Network"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Opaque cursor for the next page; absent on the last page.",
+            "type": "string"
+          },
+          "total": {
+            "description": "Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "PagePasskey": {
         "additionalProperties": false,
         "properties": {
@@ -2914,6 +4111,31 @@
             "description": "Items on this page (possibly empty, also when nextCursor is present).",
             "items": {
               "$ref": "#/components/schemas/RegistryConnection"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Opaque cursor for the next page; absent on the last page.",
+            "type": "string"
+          },
+          "total": {
+            "description": "Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "PageVolume": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Items on this page (possibly empty, also when nextCursor is present).",
+            "items": {
+              "$ref": "#/components/schemas/Volume"
             },
             "type": "array"
           },
@@ -3377,6 +4599,37 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "PullImageInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "platform": {
+            "description": "Default: the Engine's platform.",
+            "examples": [
+              "linux/arm64"
+            ],
+            "maxLength": 64,
+            "type": "string"
+          },
+          "reference": {
+            "description": "Image reference; without a tag, latest.",
+            "examples": [
+              "ghcr.io/org/app:1.2"
+            ],
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "registryConnectionId": {
+            "description": "Registry connection to authenticate with (#19); default: the matching connection, else anonymous.",
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference"
+        ],
         "type": "object"
       },
       "ReadinessBody": {
@@ -3863,6 +5116,54 @@
         ],
         "type": "object"
       },
+      "Removal": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed": {
+            "description": "A removal request would be accepted now (it is re-checked when it runs).",
+            "type": "boolean"
+          },
+          "blockers": {
+            "description": "Why a removal is refused (the error code the request would get).",
+            "items": {
+              "$ref": "#/components/schemas/RemovalBlocker"
+            },
+            "type": "array"
+          },
+          "consequences": {
+            "description": "What a removal deletes or changes, in plain language.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "allowed",
+          "blockers",
+          "consequences"
+        ],
+        "type": "object"
+      },
+      "RemovalBlocker": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "examples": [
+              "volume_in_use"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
       "RenameAPITokenInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -4209,6 +5510,31 @@
         ],
         "type": "object"
       },
+      "StackMembership": {
+        "additionalProperties": false,
+        "properties": {
+          "managed": {
+            "description": "A DockYard-managed stack: direct updates and removals are refused with stack_managed.",
+            "type": "boolean"
+          },
+          "project": {
+            "type": "string"
+          },
+          "service": {
+            "description": "Compose service (containers).",
+            "type": "string"
+          },
+          "stackId": {
+            "description": "The DockYard stack (#7) when the project is one.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project",
+          "managed"
+        ],
+        "type": "object"
+      },
       "StepUpInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -4448,6 +5774,29 @@
         ],
         "type": "object"
       },
+      "TagImageInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "repository": {
+            "examples": [
+              "registry.example.com/team/app"
+            ],
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "tag": {
+            "description": "Default latest.",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repository"
+        ],
+        "type": "object"
+      },
       "TokenGrant": {
         "additionalProperties": false,
         "properties": {
@@ -4607,6 +5956,81 @@
         "required": [
           "id",
           "name",
+          "view",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "Volume": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "driver": {
+            "description": "Full view.",
+            "type": "string"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "inUse": {
+            "description": "At least one container (running or not) mounts the volume.",
+            "type": "boolean"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "name": {
+            "examples": [
+              "shop_data"
+            ],
+            "type": "string"
+          },
+          "options": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "removal": {
+            "$ref": "#/components/schemas/Removal",
+            "description": "Full view of GET only."
+          },
+          "scope": {
+            "type": "string"
+          },
+          "stack": {
+            "$ref": "#/components/schemas/StackMembership"
+          },
+          "usedBy": {
+            "items": {
+              "$ref": "#/components/schemas/ContainerRef"
+            },
+            "type": "array"
+          },
+          "view": {
+            "enum": [
+              "minimal",
+              "full"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "environmentId",
+          "inUse",
           "view",
           "actions"
         ],
@@ -7930,6 +9354,1911 @@
         "x-dockyard-scope": "environment"
       }
     },
+    "/api/v1/environments/{environmentId}/containers": {
+      "get": {
+        "description": "Every container of the environment (running or not), filtered per item (#17): container.details.read shows a container in full; any other container capability shows only its identity, state, health, stack and service and the granted actions (view minimal). Sort fields: name (default), createdAt, state. total counts the visible matches. 503 environment_offline while the environment's agent is not connected.",
+        "operationId": "list-containers",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Comma-separated sort fields; a leading - sorts descending (e.g. -createdAt,name). Allowed fields are listed in the operation description.",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Comma-separated sort fields; a leading - sorts descending (e.g. -createdAt,name). Allowed fields are listed in the operation description.",
+              "maxLength": 256,
+              "pattern": "^-?[A-Za-z][A-Za-z0-9]*(,-?[A-Za-z][A-Za-z0-9]*)*$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only containers whose name contains this text (case-insensitive).",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Only containers whose name contains this text (case-insensitive).",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only containers in these states.",
+            "explode": false,
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "description": "Only containers in these states.",
+              "items": {
+                "enum": [
+                  "created",
+                  "running",
+                  "paused",
+                  "restarting",
+                  "removing",
+                  "exited",
+                  "dead"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Only containers with these labels (key or key=value; all must match). Full view only.",
+            "explode": false,
+            "in": "query",
+            "name": "label",
+            "schema": {
+              "description": "Only containers with these labels (key or key=value; all must match). Full view only.",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 16,
+              "type": "array"
+            }
+          },
+          {
+            "description": "Only containers of this Compose project.",
+            "explode": false,
+            "in": "query",
+            "name": "stack",
+            "schema": {
+              "description": "Only containers of this Compose project.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageContainer"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List containers",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-capability": "container.details.read",
+        "x-dockyard-scope": "environment"
+      },
+      "post": {
+        "description": "Validates the v1 create-container form (common options only; anything more complex belongs in a Compose stack) and starts a container.create job (202). The image must be present on the environment (pull it first). DockYard labels the container as its own standalone container and saves its recreate specification (sealed) for automatic updates.",
+        "operationId": "create-container",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContainerCreateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Create a container",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-audit": "container.create",
+        "x-dockyard-capability": "container.create",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "environment"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}": {
+      "delete": {
+        "description": "Starts a container.remove job (202). A running container needs force=true (409 container_running); containers of a DockYard-managed stack are refused (409 stack_managed). See the container's removal consequences.",
+        "operationId": "delete-container",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Kill a running container first.",
+            "explode": false,
+            "in": "query",
+            "name": "force",
+            "schema": {
+              "description": "Kill a running container first.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Also remove the container's anonymous volumes (named volumes are never removed).",
+            "explode": false,
+            "in": "query",
+            "name": "removeVolumes",
+            "schema": {
+              "description": "Also remove the container's anonymous volumes (named volumes are never removed).",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Remove a container",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-audit": "container.remove",
+        "x-dockyard-capability": "container.remove",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      },
+      "get": {
+        "description": "Full view with container.details.read (configuration, state, networks, resources, recreate fields and the removal consequences; never environment variable values), minimal view with any other container capability, 404 otherwise.",
+        "operationId": "get-container",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Container"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get a container",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-capability": "container.details.read",
+        "x-dockyard-scope": "resource"
+      },
+      "patch": {
+        "description": "Changes the in-place settings (restart policy, resource limits) with a container.update job (202). Settings that need a new container are refused with 422 recreate_required; containers of a DockYard-managed stack with 409 stack_managed.",
+        "operationId": "update-container",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContainerUpdateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Update a container",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-audit": "container.update",
+        "x-dockyard-capability": "container.update",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}/metrics": {
+      "get": {
+        "description": "Downsampled CPU, memory, network, block I/O and process counts of one container (#5 storage). container.metrics.read shows the charts and the container's minimal view only (no details, logs or actions). While the environment is offline the stored history stays readable by container name, with gaps for the offline time.",
+        "operationId": "get-container-metrics",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Range start (RFC 3339; default: one hour before to).",
+            "explode": false,
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "description": "Range start (RFC 3339; default: one hour before to).",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Range end (RFC 3339; default: now).",
+            "explode": false,
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "description": "Range end (RFC 3339; default: now).",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Bucket width in seconds (0: automatic).",
+            "explode": false,
+            "in": "query",
+            "name": "stepSeconds",
+            "schema": {
+              "description": "Bucket width in seconds (0: automatic).",
+              "format": "int64",
+              "maximum": 7776000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Metric keys to return (default: all).",
+            "explode": false,
+            "in": "query",
+            "name": "series",
+            "schema": {
+              "description": "Metric keys to return (default: all).",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContainerMetrics"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get a container's metrics",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-capability": "container.metrics.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}/pause": {
+      "post": {
+        "description": "Starts a container.pause job (202). Already in the target state: the job succeeds without changes.",
+        "operationId": "pause-container",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Pause a container",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-audit": "container.pause",
+        "x-dockyard-capability": "container.pause",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}/restart": {
+      "post": {
+        "description": "Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files).",
+        "operationId": "restart-container",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContainerStopInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Restart a container",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-audit": "container.restart",
+        "x-dockyard-capability": "container.restart",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}/start": {
+      "post": {
+        "description": "Starts a container.start job (202). Already in the target state: the job succeeds without changes.",
+        "operationId": "start-container",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Start a container",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-audit": "container.start",
+        "x-dockyard-capability": "container.start",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}/stop": {
+      "post": {
+        "description": "Starts a container.stop job (202); timeoutSeconds bounds the graceful stop before the container is killed.",
+        "operationId": "stop-container",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContainerStopInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Stop a container",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-audit": "container.stop",
+        "x-dockyard-capability": "container.stop",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}/unpause": {
+      "post": {
+        "description": "Starts a container.unpause job (202). Already in the target state: the job succeeds without changes.",
+        "operationId": "unpause-container",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Unpause a container",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-audit": "container.unpause",
+        "x-dockyard-capability": "container.unpause",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
     "/api/v1/environments/{environmentId}/events/stream": {
       "get": {
         "description": "Server-sent events: `hello` (cursor), then `engine` (Docker events), `status` (online/offline/resync), `metrics` (new samples: refetch open charts) and `inventory` (Engine inventory refreshed), each with `id: <cursor>`. Every event is filtered by the capability of its resource; container events of a container the caller sees only minimally carry only name, exit code and health. Reconnect with Last-Event-ID to replay the retained events (newest 1 000 or 15 min); outside them the stream starts with `reset`. `: heartbeat` comments keep it alive. Wire contract: docs/api/streams.md.",
@@ -8056,6 +11385,812 @@
         ],
         "x-dockyard-capability": "environment.events.read",
         "x-dockyard-scope": "environment"
+      }
+    },
+    "/api/v1/environments/{environmentId}/images": {
+      "get": {
+        "description": "Every image of the environment with the containers using it, filtered per item (#17). Sort fields: reference (default; untagged last), createdAt, size. total counts the visible matches.",
+        "operationId": "list-images",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Comma-separated sort fields; a leading - sorts descending (e.g. -createdAt,name). Allowed fields are listed in the operation description.",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Comma-separated sort fields; a leading - sorts descending (e.g. -createdAt,name). Allowed fields are listed in the operation description.",
+              "maxLength": 256,
+              "pattern": "^-?[A-Za-z][A-Za-z0-9]*(,-?[A-Za-z][A-Za-z0-9]*)*$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only images with a reference containing this text (case-insensitive).",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Only images with a reference containing this text (case-insensitive).",
+              "maxLength": 256,
+              "type": "string"
+            }
+          },
+          {
+            "description": "true: only untagged images; false: only tagged ones.",
+            "explode": false,
+            "in": "query",
+            "name": "dangling",
+            "schema": {
+              "description": "true: only untagged images; false: only tagged ones.",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageImage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List images",
+        "tags": [
+          "Images"
+        ],
+        "x-dockyard-capability": "image.read",
+        "x-dockyard-scope": "environment"
+      }
+    },
+    "/api/v1/environments/{environmentId}/images/pulls": {
+      "post": {
+        "description": "Starts an image.pull job (202) with progress in its events. A registry connection (#19) authenticates the pull when selected or matching; credentials go to the agent for that operation only and never appear in the job. Registry failures fail the job with the class unauthorized, forbidden, not_found, rate_limited or registry_unavailable.",
+        "operationId": "create-image-pull",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PullImageInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Pull an image",
+        "tags": [
+          "Images"
+        ],
+        "x-dockyard-audit": "image.pull",
+        "x-dockyard-capability": "image.pull",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "environment"
+      }
+    },
+    "/api/v1/environments/{environmentId}/images/{imageId}": {
+      "delete": {
+        "description": "Starts an image.remove job (202). Images used by any container are refused (409 image_in_use); an image with several tags needs force=true (409 conflict otherwise).",
+        "operationId": "delete-image",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Image ID (sha256:<hex>) or a unique prefix of at least 12 hex digits.",
+            "in": "path",
+            "name": "imageId",
+            "required": true,
+            "schema": {
+              "description": "Image ID (sha256:<hex>) or a unique prefix of at least 12 hex digits.",
+              "maxLength": 71,
+              "pattern": "^(sha256:)?[a-f0-9]{12,64}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Remove an image with several tags (every tag). Images in use are never removed.",
+            "explode": false,
+            "in": "query",
+            "name": "force",
+            "schema": {
+              "description": "Remove an image with several tags (every tag). Images in use are never removed.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Remove an image",
+        "tags": [
+          "Images"
+        ],
+        "x-dockyard-audit": "image.remove",
+        "x-dockyard-capability": "image.remove",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      },
+      "get": {
+        "description": "The image's configuration, users and removal consequences (full view with image.read).",
+        "operationId": "get-image",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Image ID (sha256:<hex>) or a unique prefix of at least 12 hex digits.",
+            "in": "path",
+            "name": "imageId",
+            "required": true,
+            "schema": {
+              "description": "Image ID (sha256:<hex>) or a unique prefix of at least 12 hex digits.",
+              "maxLength": 71,
+              "pattern": "^(sha256:)?[a-f0-9]{12,64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Image"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get an image",
+        "tags": [
+          "Images"
+        ],
+        "x-dockyard-capability": "image.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/images/{imageId}/tags": {
+      "post": {
+        "description": "Adds repository[:tag] to the image (a short agent request, no job). An existing tag moves to this image.",
+        "operationId": "create-image-tag",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Image ID (sha256:<hex>) or a unique prefix of at least 12 hex digits.",
+            "in": "path",
+            "name": "imageId",
+            "required": true,
+            "schema": {
+              "description": "Image ID (sha256:<hex>) or a unique prefix of at least 12 hex digits.",
+              "maxLength": 71,
+              "pattern": "^(sha256:)?[a-f0-9]{12,64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagImageInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Image"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Tag an image",
+        "tags": [
+          "Images"
+        ],
+        "x-dockyard-audit": "image.tag",
+        "x-dockyard-capability": "image.tag",
+        "x-dockyard-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/metrics": {
@@ -8201,6 +12336,637 @@
         "x-dockyard-scope": "environment"
       }
     },
+    "/api/v1/environments/{environmentId}/networks": {
+      "get": {
+        "description": "Every network of the environment, filtered per item (#17). Sort fields: name (default), createdAt. total counts the visible matches.",
+        "operationId": "list-networks",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Comma-separated sort fields; a leading - sorts descending (e.g. -createdAt,name). Allowed fields are listed in the operation description.",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Comma-separated sort fields; a leading - sorts descending (e.g. -createdAt,name). Allowed fields are listed in the operation description.",
+              "maxLength": 256,
+              "pattern": "^-?[A-Za-z][A-Za-z0-9]*(,-?[A-Za-z][A-Za-z0-9]*)*$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only networks whose name contains this text (case-insensitive).",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Only networks whose name contains this text (case-insensitive).",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only networks of this driver. Full view only.",
+            "explode": false,
+            "in": "query",
+            "name": "driver",
+            "schema": {
+              "description": "Only networks of this driver. Full view only.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageNetwork"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List networks",
+        "tags": [
+          "Networks"
+        ],
+        "x-dockyard-capability": "network.read",
+        "x-dockyard-scope": "environment"
+      },
+      "post": {
+        "description": "Starts a network.create job (202); 409 resource_name_taken when the name exists.",
+        "operationId": "create-network",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNetworkInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Create a network",
+        "tags": [
+          "Networks"
+        ],
+        "x-dockyard-audit": "network.create",
+        "x-dockyard-capability": "network.create",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "environment"
+      }
+    },
+    "/api/v1/environments/{environmentId}/networks/{networkId}": {
+      "delete": {
+        "description": "Starts a network.remove job (202). Refused for predefined networks (409 network_builtin), networks with attached containers (409 network_in_use) and networks of a DockYard-managed stack (409 stack_managed).",
+        "operationId": "delete-network",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Network name, ID or unique ID prefix (12+ characters).",
+            "in": "path",
+            "name": "networkId",
+            "required": true,
+            "schema": {
+              "description": "Network name, ID or unique ID prefix (12+ characters).",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Remove a network",
+        "tags": [
+          "Networks"
+        ],
+        "x-dockyard-audit": "network.remove",
+        "x-dockyard-capability": "network.remove",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      },
+      "get": {
+        "description": "The network with its attached containers, stack and removal consequences (full view with network.read).",
+        "operationId": "get-network",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Network name, ID or unique ID prefix (12+ characters).",
+            "in": "path",
+            "name": "networkId",
+            "required": true,
+            "schema": {
+              "description": "Network name, ID or unique ID prefix (12+ characters).",
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Network"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get a network",
+        "tags": [
+          "Networks"
+        ],
+        "x-dockyard-capability": "network.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
     "/api/v1/environments/{environmentId}/system": {
       "get": {
         "description": "The agent's last capabilities report: Engine identity and negotiated API version, agent version and window status, transport (plain-HTTP flag), verified file roots and diagnostics (#21, #27, #28), plus the Engine inventory: host identity, capacity and Docker counts, refreshed on change (#5). Host metrics: GET …/metrics and …/capacity.",
@@ -8294,6 +13060,651 @@
         ],
         "x-dockyard-capability": "environment.system.read",
         "x-dockyard-scope": "environment"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes": {
+      "get": {
+        "description": "Every volume of the environment with the containers using it and its Compose stack, filtered per item (#17). Sort fields: name (default), createdAt. total counts the visible matches.",
+        "operationId": "list-volumes",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Comma-separated sort fields; a leading - sorts descending (e.g. -createdAt,name). Allowed fields are listed in the operation description.",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Comma-separated sort fields; a leading - sorts descending (e.g. -createdAt,name). Allowed fields are listed in the operation description.",
+              "maxLength": 256,
+              "pattern": "^-?[A-Za-z][A-Za-z0-9]*(,-?[A-Za-z][A-Za-z0-9]*)*$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only volumes whose name contains this text (case-insensitive).",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Only volumes whose name contains this text (case-insensitive).",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "true: only volumes used by a container; false: only unused ones.",
+            "explode": false,
+            "in": "query",
+            "name": "inUse",
+            "schema": {
+              "description": "true: only volumes used by a container; false: only unused ones.",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only volumes of this driver. Full view only.",
+            "explode": false,
+            "in": "query",
+            "name": "driver",
+            "schema": {
+              "description": "Only volumes of this driver. Full view only.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageVolume"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List volumes",
+        "tags": [
+          "Volumes"
+        ],
+        "x-dockyard-capability": "volume.read",
+        "x-dockyard-scope": "environment"
+      },
+      "post": {
+        "description": "Starts a volume.create job (202); 409 resource_name_taken when the name exists.",
+        "operationId": "create-volume",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVolumeInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Create a volume",
+        "tags": [
+          "Volumes"
+        ],
+        "x-dockyard-audit": "volume.create",
+        "x-dockyard-capability": "volume.create",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "environment"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}": {
+      "delete": {
+        "description": "Starts a volume.remove job (202) that deletes the volume's data permanently. Refused while containers use it (409 volume_in_use) and for volumes of a DockYard-managed stack (409 stack_managed).",
+        "operationId": "delete-volume",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Volume name.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Remove a volume",
+        "tags": [
+          "Volumes"
+        ],
+        "x-dockyard-audit": "volume.remove",
+        "x-dockyard-capability": "volume.remove",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      },
+      "get": {
+        "description": "The volume with its users, stack and removal consequences (full view with volume.read).",
+        "operationId": "get-volume",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Volume name.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Volume"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get a volume",
+        "tags": [
+          "Volumes"
+        ],
+        "x-dockyard-capability": "volume.read",
+        "x-dockyard-scope": "resource"
       }
     },
     "/api/v1/groups": {

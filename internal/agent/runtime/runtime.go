@@ -23,10 +23,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
 	goruntime "runtime"
+	"slices"
 	"sync"
 	"time"
 
@@ -37,12 +39,14 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/engine"
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
 	"github.com/neurekadev/dockyard/internal/agent/observe"
+	"github.com/neurekadev/dockyard/internal/agent/resources"
 	"github.com/neurekadev/dockyard/internal/agent/session"
 	"github.com/neurekadev/dockyard/internal/agent/state"
 	"github.com/neurekadev/dockyard/internal/agent/storage"
 	"github.com/neurekadev/dockyard/internal/agent/transport"
 	"github.com/neurekadev/dockyard/internal/buildinfo"
 	"github.com/neurekadev/dockyard/internal/clock"
+	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobexec"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
@@ -231,7 +235,31 @@ func New(opts Options) (*Agent, error) {
 		}
 		a.opts.Requests = reqs
 	}
+	a.addResources()
 	return a, nil
+}
+
+// addResources adds the Docker resource requests and executors (#6) to
+// the options; handlers and executors the caller passed for the same
+// names or kinds win (tests).
+func (a *Agent) addResources() {
+	svc := resources.New(resources.Options{
+		Engine:          a.Engine,
+		ManagedStackDir: func(dir string) bool { return a.StackGuard(dir) == nil },
+		Logger:          a.log,
+	})
+	reqs := svc.Requests()
+	maps.Copy(reqs, a.opts.Requests)
+	a.opts.Requests = reqs
+	own := map[domain.JobKind]bool{}
+	for _, x := range a.opts.Executors {
+		own[x.Kind] = true
+	}
+	for _, x := range svc.Executors() {
+		if !own[x.Kind] {
+			a.opts.Executors = append(a.opts.Executors, x)
+		}
+	}
 }
 
 // observedEngine is the Engine for observation (nil while disconnected).
@@ -306,7 +334,7 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 		Protocols:    []string{protocol.Version},
 		OS:           goruntime.GOOS,
 		Arch:         goruntime.GOARCH,
-		Commands:     []string{},
+		Commands:     a.commands(),
 		Requests:     []string{},
 		Streams:      []string{},
 		Transport:    ti,
@@ -348,6 +376,16 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 		}
 	}
 	return p, true
+}
+
+// commands lists the job kinds this agent executes (sorted).
+func (a *Agent) commands() []string {
+	out := make([]string, 0, len(a.opts.Executors))
+	for _, x := range a.opts.Executors {
+		out = append(out, string(x.Kind))
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
 }
 
 // bound truncates a diagnostic message to the protocol limit.

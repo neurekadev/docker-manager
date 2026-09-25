@@ -529,6 +529,178 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/containers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List containers
+         * @description Every container of the environment (running or not), filtered per item (#17): container.details.read shows a container in full; any other container capability shows only its identity, state, health, stack and service and the granted actions (view minimal). Sort fields: name (default), createdAt, state. total counts the visible matches. 503 environment_offline while the environment's agent is not connected.
+         */
+        get: operations["list-containers"];
+        put?: never;
+        /**
+         * Create a container
+         * @description Validates the v1 create-container form (common options only; anything more complex belongs in a Compose stack) and starts a container.create job (202). The image must be present on the environment (pull it first). DockYard labels the container as its own standalone container and saves its recreate specification (sealed) for automatic updates.
+         */
+        post: operations["create-container"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/containers/{containerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a container
+         * @description Full view with container.details.read (configuration, state, networks, resources, recreate fields and the removal consequences; never environment variable values), minimal view with any other container capability, 404 otherwise.
+         */
+        get: operations["get-container"];
+        put?: never;
+        post?: never;
+        /**
+         * Remove a container
+         * @description Starts a container.remove job (202). A running container needs force=true (409 container_running); containers of a DockYard-managed stack are refused (409 stack_managed). See the container's removal consequences.
+         */
+        delete: operations["delete-container"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a container
+         * @description Changes the in-place settings (restart policy, resource limits) with a container.update job (202). Settings that need a new container are refused with 422 recreate_required; containers of a DockYard-managed stack with 409 stack_managed.
+         */
+        patch: operations["update-container"];
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/containers/{containerId}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a container's metrics
+         * @description Downsampled CPU, memory, network, block I/O and process counts of one container (#5 storage). container.metrics.read shows the charts and the container's minimal view only (no details, logs or actions). While the environment is offline the stored history stays readable by container name, with gaps for the offline time.
+         */
+        get: operations["get-container-metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/containers/{containerId}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pause a container
+         * @description Starts a container.pause job (202). Already in the target state: the job succeeds without changes.
+         */
+        post: operations["pause-container"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/containers/{containerId}/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restart a container
+         * @description Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files).
+         */
+        post: operations["restart-container"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/containers/{containerId}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a container
+         * @description Starts a container.start job (202). Already in the target state: the job succeeds without changes.
+         */
+        post: operations["start-container"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/containers/{containerId}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop a container
+         * @description Starts a container.stop job (202); timeoutSeconds bounds the graceful stop before the container is killed.
+         */
+        post: operations["stop-container"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/containers/{containerId}/unpause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unpause a container
+         * @description Starts a container.unpause job (202). Already in the target state: the job succeeds without changes.
+         */
+        post: operations["unpause-container"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/events/stream": {
         parameters: {
             query?: never;
@@ -543,6 +715,90 @@ export interface paths {
         get: operations["stream-environment-events"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List images
+         * @description Every image of the environment with the containers using it, filtered per item (#17). Sort fields: reference (default; untagged last), createdAt, size. total counts the visible matches.
+         */
+        get: operations["list-images"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/images/pulls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pull an image
+         * @description Starts an image.pull job (202) with progress in its events. A registry connection (#19) authenticates the pull when selected or matching; credentials go to the agent for that operation only and never appear in the job. Registry failures fail the job with the class unauthorized, forbidden, not_found, rate_limited or registry_unavailable.
+         */
+        post: operations["create-image-pull"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/images/{imageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an image
+         * @description The image's configuration, users and removal consequences (full view with image.read).
+         */
+        get: operations["get-image"];
+        put?: never;
+        post?: never;
+        /**
+         * Remove an image
+         * @description Starts an image.remove job (202). Images used by any container are refused (409 image_in_use); an image with several tags needs force=true (409 conflict otherwise).
+         */
+        delete: operations["delete-image"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/images/{imageId}/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tag an image
+         * @description Adds repository[:tag] to the image (a short agent request, no job). An existing tag moves to this image.
+         */
+        post: operations["create-image-tag"];
         delete?: never;
         options?: never;
         head?: never;
@@ -569,6 +825,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/networks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List networks
+         * @description Every network of the environment, filtered per item (#17). Sort fields: name (default), createdAt. total counts the visible matches.
+         */
+        get: operations["list-networks"];
+        put?: never;
+        /**
+         * Create a network
+         * @description Starts a network.create job (202); 409 resource_name_taken when the name exists.
+         */
+        post: operations["create-network"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/networks/{networkId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a network
+         * @description The network with its attached containers, stack and removal consequences (full view with network.read).
+         */
+        get: operations["get-network"];
+        put?: never;
+        post?: never;
+        /**
+         * Remove a network
+         * @description Starts a network.remove job (202). Refused for predefined networks (409 network_builtin), networks with attached containers (409 network_in_use) and networks of a DockYard-managed stack (409 stack_managed).
+         */
+        delete: operations["delete-network"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/system": {
         parameters: {
             query?: never;
@@ -584,6 +888,54 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/volumes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List volumes
+         * @description Every volume of the environment with the containers using it and its Compose stack, filtered per item (#17). Sort fields: name (default), createdAt. total counts the visible matches.
+         */
+        get: operations["list-volumes"];
+        put?: never;
+        /**
+         * Create a volume
+         * @description Starts a volume.create job (202); 409 resource_name_taken when the name exists.
+         */
+        post: operations["create-volume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a volume
+         * @description The volume with its users, stack and removal consequences (full view with volume.read).
+         */
+        get: operations["get-volume"];
+        put?: never;
+        post?: never;
+        /**
+         * Remove a volume
+         * @description Starts a volume.remove job (202) that deletes the volume's data permanently. Refused while containers use it (409 volume_in_use) and for volumes of a DockYard-managed stack (409 stack_managed).
+         */
+        delete: operations["delete-volume"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1754,6 +2106,270 @@ export interface components {
         CodeInputBody: {
             code: string;
         };
+        Container: {
+            /** @description Granted container capabilities (e.g. container.restart). */
+            actions: string[];
+            command?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** @description Full view of GET only. */
+            details?: components["schemas"]["ContainerDetails"];
+            environmentId: string;
+            /** @enum {string} */
+            health?: "starting" | "healthy" | "unhealthy" | "none";
+            id: string;
+            /** @description Full view. */
+            image?: string;
+            imageId?: string;
+            labels?: {
+                [key: string]: string;
+            };
+            /** @description Set for standalone containers created through DockYard. */
+            managed?: components["schemas"]["ContainerOwnership"];
+            mounts?: components["schemas"]["ContainerMount"][];
+            /** @example web */
+            name: string;
+            ports?: components["schemas"]["ContainerPort"][];
+            /** @description Compose project and service. */
+            stack?: components["schemas"]["StackMembership"];
+            /**
+             * @example running
+             * @enum {string}
+             */
+            state: "created" | "running" | "paused" | "restarting" | "removing" | "exited" | "dead";
+            /** @description The Engine's description, e.g. "Up 3 hours". */
+            status?: string;
+            /**
+             * @description full: container.details.read; minimal: identity, state and the granted actions (#17).
+             * @enum {string}
+             */
+            view: "minimal" | "full";
+        };
+        ContainerCreateBody: {
+            command?: string[];
+            entrypoint?: string[];
+            /** @description KEY=value. Values are stored sealed in the recreate specification and never returned. */
+            env?: string[];
+            healthcheck?: components["schemas"]["ContainerHealthcheck"];
+            /**
+             * @description Image reference or ID; the image must be present (pull it first).
+             * @example nginx:1.27
+             */
+            image: string;
+            /** @description User labels; dev.neureka.dockyard.* and com.docker.compose.* are reserved. */
+            labels?: {
+                [key: string]: string;
+            };
+            mounts?: components["schemas"]["ContainerMountSpec"][];
+            /** @example web */
+            name: string;
+            /** @description The first is the container's network (default bridge; host and none stand alone); the others are connected after creation. */
+            networks?: components["schemas"]["ContainerNetworkSpec"][];
+            ports?: components["schemas"]["ContainerPortSpec"][];
+            resources?: components["schemas"]["ContainerResources"];
+            /** @enum {string} */
+            restartPolicy?: "no" | "always" | "on-failure" | "unless-stopped";
+            /** @description Start the container after creating it (default true). */
+            start?: boolean;
+            user?: string;
+            workingDir?: string;
+        };
+        ContainerDetails: {
+            cmd: string[];
+            entrypoint: string[];
+            error?: string;
+            /** Format: int64 */
+            exitCode: number;
+            /** Format: date-time */
+            finishedAt?: string;
+            healthcheck?: components["schemas"]["ContainerHealthcheck"];
+            hostname?: string;
+            networkMode?: string;
+            networks: components["schemas"]["ContainerNetwork"][];
+            oomKilled: boolean;
+            paused: boolean;
+            platform?: string;
+            recreate: components["schemas"]["ContainerRecreate"];
+            removal: components["schemas"]["Removal"];
+            resources: components["schemas"]["ContainerResources"];
+            /** Format: int64 */
+            restartCount: number;
+            restartPolicy?: string;
+            running: boolean;
+            /** Format: date-time */
+            startedAt?: string;
+            tty: boolean;
+            user?: string;
+            workingDir?: string;
+        };
+        ContainerHealthcheck: {
+            /** Format: int64 */
+            intervalSeconds?: number;
+            /** Format: int64 */
+            retries?: number;
+            /** Format: int64 */
+            startPeriodSeconds?: number;
+            /** @description ["CMD", "/bin/check"], ["CMD-SHELL", "curl -f http://localhost/"] or ["NONE"]. */
+            test: string[];
+            /** Format: int64 */
+            timeoutSeconds?: number;
+        };
+        ContainerMetrics: {
+            /** @description Container name (metrics follow the name across recreations). */
+            container: string;
+            environmentId: string;
+            /** Format: date-time */
+            from: string;
+            incomplete: boolean;
+            online: boolean;
+            /** @enum {string} */
+            resolution: "raw" | "1m" | "15m";
+            /** @description CPU as a percentage of the environment's cores; memory against the container limit when set. */
+            series: components["schemas"]["MetricSeries"][];
+            skewCorrected: boolean;
+            /** Format: int64 */
+            stepSeconds: number;
+            timestamps: string[];
+            /** Format: date-time */
+            to: string;
+        };
+        ContainerMount: {
+            destination: string;
+            /** @description Volume name (volume mounts). */
+            name?: string;
+            readOnly: boolean;
+            /** @description Host path (bind mounts). */
+            source?: string;
+            /** @example volume */
+            type: string;
+        };
+        ContainerMountSpec: {
+            readOnly?: boolean;
+            /** @description bind: absolute host path (never the Docker socket); volume: volume name (absent: anonymous volume). */
+            source?: string;
+            /** @description Absolute path in the container. */
+            target: string;
+            /** @enum {string} */
+            type: "bind" | "volume" | "tmpfs";
+        };
+        ContainerNetwork: {
+            aliases?: string[];
+            ipAddress?: string;
+            ipv6Address?: string;
+            macAddress?: string;
+            name: string;
+        };
+        ContainerNetworkSpec: {
+            aliases?: string[];
+            name: string;
+        };
+        ContainerOwnership: {
+            /** @enum {string} */
+            kind: "standalone";
+            /** @description DockYard saved the container's recreate specification (used by automatic updates, #20). */
+            specSaved: boolean;
+            thisInstance: boolean;
+        };
+        ContainerPort: {
+            /** Format: int64 */
+            containerPort: number;
+            hostIp?: string;
+            /** Format: int64 */
+            hostPort?: number;
+            /** @enum {string} */
+            protocol: "tcp" | "udp" | "sctp";
+        };
+        ContainerPortSpec: {
+            /** Format: int64 */
+            containerPort: number;
+            hostIp?: string;
+            /**
+             * Format: int64
+             * @description 0 or absent: an ephemeral port.
+             */
+            hostPort?: number;
+            /**
+             * @description Default tcp.
+             * @enum {string}
+             */
+            protocol?: "tcp" | "udp";
+        };
+        ContainerRecreate: {
+            /** @description Environment variable names of the saved recreate specification; values are sealed and never returned. */
+            envKeys?: string[];
+            /** @description Settings that cannot change in place: changing them needs a new container (PATCH refuses them with recreate_required). */
+            fields: string[];
+        };
+        ContainerRef: {
+            id: string;
+            name: string;
+            state?: string;
+        };
+        ContainerResources: {
+            /**
+             * Format: int64
+             * @description Relative CPU weight.
+             */
+            cpuShares?: number;
+            /**
+             * Format: double
+             * @description CPU quota in CPUs (e.g. 1.5).
+             */
+            cpus?: number;
+            /**
+             * Format: int64
+             * @description Memory limit; at least 6 MiB when set.
+             */
+            memoryBytes?: number;
+            /**
+             * Format: int64
+             * @description Memory plus swap; -1 unlimited swap.
+             */
+            memorySwapBytes?: number;
+            /**
+             * Format: int64
+             * @description Maximum number of processes; -1 unlimited.
+             */
+            pidsLimit?: number;
+        };
+        ContainerStopInputBody: {
+            /**
+             * Format: int64
+             * @description Seconds to wait before killing; default: the container's stop timeout.
+             */
+            timeoutSeconds?: number;
+        };
+        ContainerUpdateBody: {
+            /** @description Needs recreation: refused with recreate_required. */
+            command?: string[];
+            /** @description Needs recreation: refused with recreate_required. */
+            entrypoint?: string[];
+            /** @description Needs recreation: refused with recreate_required. */
+            env?: string[];
+            /** @description Needs recreation: refused with recreate_required. */
+            healthcheck?: components["schemas"]["ContainerHealthcheck"];
+            /** @description Needs recreation: refused with recreate_required. */
+            image?: string;
+            /** @description Needs recreation: refused with recreate_required. */
+            labels?: {
+                [key: string]: string;
+            };
+            /** @description Needs recreation: refused with recreate_required. */
+            mounts?: components["schemas"]["ContainerMountSpec"][];
+            /** @description Needs recreation: refused with recreate_required. */
+            name?: string;
+            /** @description Needs recreation: refused with recreate_required. */
+            networks?: components["schemas"]["ContainerNetworkSpec"][];
+            /** @description Needs recreation: refused with recreate_required. */
+            ports?: components["schemas"]["ContainerPortSpec"][];
+            resources?: components["schemas"]["ContainerResources"];
+            /** @enum {string} */
+            restartPolicy?: "no" | "always" | "on-failure" | "unless-stopped";
+            /** @description Needs recreation: refused with recreate_required. */
+            user?: string;
+            /** @description Needs recreation: refused with recreate_required. */
+            workingDir?: string;
+        };
         CreateAPITokenInputBody: {
             /**
              * Format: date-time
@@ -1814,6 +2430,23 @@ export interface components {
             /** @description Link on the public origin that redeems the code (the code is in the URL fragment). */
             url: string;
         };
+        CreateNetworkInputBody: {
+            attachable?: boolean;
+            /** @description Default bridge. */
+            driver?: string;
+            /** @description No external connectivity. */
+            internal?: boolean;
+            /** @description dev.neureka.dockyard.* and com.docker.compose.* are reserved. */
+            labels?: {
+                [key: string]: string;
+            };
+            /** @example backend */
+            name: string;
+            /** @description Driver options. */
+            options?: {
+                [key: string]: string;
+            };
+        };
         CreateRegistryInputBody: {
             /**
              * @default token
@@ -1844,6 +2477,19 @@ export interface components {
             totpCode?: string;
             /** @description Start a sign-in with username and password. */
             username?: string;
+        };
+        CreateVolumeInputBody: {
+            /** @description Default local. */
+            driver?: string;
+            driverOpts?: {
+                [key: string]: string;
+            };
+            /** @description dev.neureka.dockyard.* and com.docker.compose.* are reserved. */
+            labels?: {
+                [key: string]: string;
+            };
+            /** @example cache */
+            name: string;
         };
         CreatedAgentEnrollment: {
             enrollment: components["schemas"]["AgentEnrollment"];
@@ -2209,6 +2855,48 @@ export interface components {
              */
             version: string;
         };
+        Image: {
+            actions: string[];
+            /** Format: date-time */
+            createdAt?: string;
+            /** @description Full view of GET only. */
+            details?: components["schemas"]["ImageDetails"];
+            environmentId: string;
+            /** @example sha256:4e1b5f1a6d8e... */
+            id: string;
+            /** @description Full view: used by at least one container. */
+            inUse?: boolean;
+            labels?: {
+                [key: string]: string;
+            };
+            /** @description Full view. */
+            repoDigests?: string[];
+            /** @description References (repository:tag); empty for untagged (dangling) images. */
+            repoTags: string[];
+            /**
+             * Format: int64
+             * @description Bytes.
+             */
+            size?: number;
+            /** @description Containers created from the image (running or not). */
+            usedBy?: components["schemas"]["ContainerRef"][];
+            /** @enum {string} */
+            view: "minimal" | "full";
+        };
+        ImageDetails: {
+            architecture?: string;
+            author?: string;
+            cmd: string[];
+            entrypoint: string[];
+            exposedPorts: string[];
+            hasHealthTest: boolean;
+            os?: string;
+            removal: components["schemas"]["Removal"];
+            user?: string;
+            variant?: string;
+            volumes: string[];
+            workingDir?: string;
+        };
         InstallCommand: {
             /** @description Shell text; contains the token (show once, never log). */
             command: string;
@@ -2410,6 +3098,35 @@ export interface components {
             owner: boolean;
             userId?: string;
         };
+        Network: {
+            actions: string[];
+            attachable?: boolean;
+            /** @description A predefined network (bridge, host, none). */
+            builtin?: boolean;
+            /** @description Attached containers (GET only; lists do not report them). */
+            containers?: components["schemas"]["ContainerRef"][];
+            /** Format: date-time */
+            createdAt?: string;
+            /** @description Full view. */
+            driver?: string;
+            enableIpv6?: boolean;
+            environmentId: string;
+            gateways?: string[];
+            id: string;
+            internal?: boolean;
+            labels?: {
+                [key: string]: string;
+            };
+            /** @example shop_default */
+            name: string;
+            /** @description Full view of GET only. */
+            removal?: components["schemas"]["Removal"];
+            scope?: string;
+            stack?: components["schemas"]["StackMembership"];
+            subnets?: string[];
+            /** @enum {string} */
+            view: "minimal" | "full";
+        };
         Overview: {
             environments: components["schemas"]["OverviewEnvironment"][];
             totals: components["schemas"]["OverviewTotals"];
@@ -2515,9 +3232,31 @@ export interface components {
              */
             total?: number;
         };
+        PageContainer: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["Container"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageEnvironment: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Environment"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageImage: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["Image"][];
             /** @description Opaque cursor for the next page; absent on the last page. */
             nextCursor?: string;
             /**
@@ -2548,6 +3287,17 @@ export interface components {
              */
             total?: number;
         };
+        PageNetwork: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["Network"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PagePasskey: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Passkey"][];
@@ -2562,6 +3312,17 @@ export interface components {
         PageRegistryConnection: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["RegistryConnection"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageVolume: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["Volume"][];
             /** @description Opaque cursor for the next page; absent on the last page. */
             nextCursor?: string;
             /**
@@ -2717,6 +3478,20 @@ export interface components {
             userId?: string;
             /** @description Unsaved user overrides to preview. */
             userRules?: components["schemas"]["PermissionRule"][];
+        };
+        PullImageInputBody: {
+            /**
+             * @description Default: the Engine's platform.
+             * @example linux/arm64
+             */
+            platform?: string;
+            /**
+             * @description Image reference; without a tag, latest.
+             * @example ghcr.io/org/app:1.2
+             */
+            reference: string;
+            /** @description Registry connection to authenticate with (#19); default: the matching connection, else anonymous. */
+            registryConnectionId?: string;
         };
         ReadinessBody: {
             checks: components["schemas"]["ReadinessCheck"][];
@@ -2909,6 +3684,19 @@ export interface components {
              */
             platform?: string;
         };
+        Removal: {
+            /** @description A removal request would be accepted now (it is re-checked when it runs). */
+            allowed: boolean;
+            /** @description Why a removal is refused (the error code the request would get). */
+            blockers: components["schemas"]["RemovalBlocker"][];
+            /** @description What a removal deletes or changes, in plain language. */
+            consequences: string[];
+        };
+        RemovalBlocker: {
+            /** @example volume_in_use */
+            code: string;
+            message: string;
+        };
         RenameAPITokenInputBody: {
             name: string;
         };
@@ -3030,6 +3818,15 @@ export interface components {
             /** @description The instance owner exists; setup routes are closed. */
             setupComplete: boolean;
         };
+        StackMembership: {
+            /** @description A DockYard-managed stack: direct updates and removals are refused with stack_managed. */
+            managed: boolean;
+            project: string;
+            /** @description Compose service (containers). */
+            service?: string;
+            /** @description The DockYard stack (#7) when the project is one. */
+            stackId?: string;
+        };
         StepUpInputBody: {
             /** @description A passkey assertion (PublicKeyCredential JSON) for options requested with purpose step_up. */
             credential?: unknown;
@@ -3110,6 +3907,12 @@ export interface components {
             /** @enum {string} */
             watch: "inotify" | "poll" | "none";
         };
+        TagImageInputBody: {
+            /** @example registry.example.com/team/app */
+            repository: string;
+            /** @description Default latest. */
+            tag?: string;
+        };
         TokenGrant: {
             /** @example container.restart */
             capability: string;
@@ -3171,6 +3974,31 @@ export interface components {
              * @description minimal: name and status only (a grant inside it); full: environment.read.
              * @enum {string}
              */
+            view: "minimal" | "full";
+        };
+        Volume: {
+            actions: string[];
+            /** Format: date-time */
+            createdAt?: string;
+            /** @description Full view. */
+            driver?: string;
+            environmentId: string;
+            /** @description At least one container (running or not) mounts the volume. */
+            inUse: boolean;
+            labels?: {
+                [key: string]: string;
+            };
+            /** @example shop_data */
+            name: string;
+            options?: {
+                [key: string]: string;
+            };
+            /** @description Full view of GET only. */
+            removal?: components["schemas"]["Removal"];
+            scope?: string;
+            stack?: components["schemas"]["StackMembership"];
+            usedBy?: components["schemas"]["ContainerRef"][];
+            /** @enum {string} */
             view: "minimal" | "full";
         };
     };
@@ -5364,6 +6192,1200 @@ export interface operations {
             };
         };
     };
+    "list-containers": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Comma-separated sort fields; a leading - sorts descending (e.g. -createdAt,name). Allowed fields are listed in the operation description. */
+                sort?: string;
+                /** @description Only containers whose name contains this text (case-insensitive). */
+                q?: string;
+                /** @description Only containers in these states. */
+                state?: ("created" | "running" | "paused" | "restarting" | "removing" | "exited" | "dead")[];
+                /** @description Only containers with these labels (key or key=value; all must match). Full view only. */
+                label?: string[];
+                /** @description Only containers of this Compose project. */
+                stack?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageContainer"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-container": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContainerCreateBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-container": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Container"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-container": {
+        parameters: {
+            query?: {
+                /** @description Kill a running container first. */
+                force?: boolean;
+                /** @description Also remove the container's anonymous volumes (named volumes are never removed). */
+                removeVolumes?: boolean;
+            };
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-container": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContainerUpdateBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-container-metrics": {
+        parameters: {
+            query?: {
+                /** @description Range start (RFC 3339; default: one hour before to). */
+                from?: string;
+                /** @description Range end (RFC 3339; default: now). */
+                to?: string;
+                /** @description Bucket width in seconds (0: automatic). */
+                stepSeconds?: number;
+                /** @description Metric keys to return (default: all). */
+                series?: string[];
+            };
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContainerMetrics"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "pause-container": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "restart-container": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ContainerStopInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "start-container": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "stop-container": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ContainerStopInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "unpause-container": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "stream-environment-events": {
         parameters: {
             query?: never;
@@ -5426,6 +7448,526 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-images": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Comma-separated sort fields; a leading - sorts descending (e.g. -createdAt,name). Allowed fields are listed in the operation description. */
+                sort?: string;
+                /** @description Only images with a reference containing this text (case-insensitive). */
+                q?: string;
+                /** @description true: only untagged images; false: only tagged ones. */
+                dangling?: "true" | "false";
+            };
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageImage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-image-pull": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PullImageInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Image ID (sha256:<hex>) or a unique prefix of at least 12 hex digits. */
+                imageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Image"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-image": {
+        parameters: {
+            query?: {
+                /** @description Remove an image with several tags (every tag). Images in use are never removed. */
+                force?: boolean;
+            };
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Image ID (sha256:<hex>) or a unique prefix of at least 12 hex digits. */
+                imageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-image-tag": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Image ID (sha256:<hex>) or a unique prefix of at least 12 hex digits. */
+                imageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagImageInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Image"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5512,6 +8054,413 @@ export interface operations {
             };
         };
     };
+    "list-networks": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Comma-separated sort fields; a leading - sorts descending (e.g. -createdAt,name). Allowed fields are listed in the operation description. */
+                sort?: string;
+                /** @description Only networks whose name contains this text (case-insensitive). */
+                q?: string;
+                /** @description Only networks of this driver. Full view only. */
+                driver?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageNetwork"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-network": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateNetworkInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-network": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Network name, ID or unique ID prefix (12+ characters). */
+                networkId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Network"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-network": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Network name, ID or unique ID prefix (12+ characters). */
+                networkId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "get-environment-system": {
         parameters: {
             query?: never;
@@ -5571,6 +8520,415 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-volumes": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Comma-separated sort fields; a leading - sorts descending (e.g. -createdAt,name). Allowed fields are listed in the operation description. */
+                sort?: string;
+                /** @description Only volumes whose name contains this text (case-insensitive). */
+                q?: string;
+                /** @description true: only volumes used by a container; false: only unused ones. */
+                inUse?: "true" | "false";
+                /** @description Only volumes of this driver. Full view only. */
+                driver?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageVolume"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-volume": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVolumeInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-volume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Volume name. */
+                volumeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Volume"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-volume": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Volume name. */
+                volumeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -164,7 +164,7 @@ func capabilities() []Capability {
 		adv(normal("container.unpause", TypeContainer, "Unpause", "Resume a paused container.", containerScopes)),
 		adv(normal("container.update", TypeContainer, "Change resources", "Change a container's resource limits or restart policy.", containerScopes)),
 		adv(high("container.remove", TypeContainer, "Remove", "Remove a container.", containerScopes)),
-		adv(normal("container.create", TypeContainer, "Create containers", "Create standalone containers in an environment.", instEnv)),
+		adv(high("container.create", TypeContainer, "Create containers", "Create standalone containers in an environment. Bind mounts give them access to host files.", instEnv)),
 	)
 
 	// Images.

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -51,6 +52,8 @@ type Session struct {
 
 	mu      sync.Mutex
 	pending map[string]chan requestResult
+	// requests are the request names of the last capabilities frame.
+	requests []string
 
 	// Reader-goroutine state.
 	seen          frameDedup
@@ -80,6 +83,14 @@ func (s *Session) AgentID() string { return s.p.AgentID }
 
 // EnvironmentID returns the session's environment.
 func (s *Session) EnvironmentID() string { return s.p.EnvironmentID }
+
+// Serves reports whether the agent advertised the named request in its
+// last capabilities frame (reconcilers skip what an older agent lacks).
+func (s *Session) Serves(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Contains(s.requests, name)
+}
 
 // Context ends when the session ends.
 func (s *Session) Context() context.Context { return s.ctx }
@@ -478,6 +489,9 @@ func (s *Session) handle(f *protocol.Frame) bool {
 			return false
 		}
 		s.haveCaps = true
+		s.mu.Lock()
+		s.requests = slices.Clone(c.Requests)
+		s.mu.Unlock()
 		return true
 	case protocol.TypeJobReport:
 		if !s.haveCaps || s.reported {

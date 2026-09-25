@@ -745,7 +745,7 @@ routes:
     scope: environment
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: "Items also appear, with minimal identity/status fields, for any other container capability on them (#17)."
   - method: POST
     path: "/api/v1/environments/{environmentId}/containers"
@@ -754,7 +754,7 @@ routes:
     scope: environment
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: GET
     path: "/api/v1/environments/{environmentId}/containers/{containerId}"
@@ -763,7 +763,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/environments/{environmentId}/containers/{containerId}"
     operationId: update-container
@@ -771,7 +771,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: DELETE
     path: "/api/v1/environments/{environmentId}/containers/{containerId}"
@@ -780,7 +780,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: POST
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/start"
@@ -789,7 +789,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: POST
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/stop"
@@ -798,7 +798,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: POST
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/restart"
@@ -807,7 +807,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: POST
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/pause"
@@ -816,7 +816,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: POST
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/unpause"
@@ -825,7 +825,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: GET
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/metrics"
@@ -834,8 +834,8 @@ routes:
     scope: resource
     owner: 5
     kind: json
-    status: planned
-    notes: "Storage and query exist (metrics.Store.Query, kind container, #5); the route needs #6's container identity routing and locator."
+    status: implemented
+    notes: "#5 storage (metrics.Store.Query, kind container) behind #6's container identity routing; readable by name while the environment is offline."
   - method: GET
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/logs"
     operationId: get-container-logs
@@ -892,7 +892,7 @@ routes:
     scope: environment
     owner: 6
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/images/{imageId}"
     operationId: get-image
@@ -900,7 +900,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
   - method: DELETE
     path: "/api/v1/environments/{environmentId}/images/{imageId}"
     operationId: delete-image
@@ -908,7 +908,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: POST
     path: "/api/v1/environments/{environmentId}/images/pulls"
@@ -917,7 +917,7 @@ routes:
     scope: environment
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: "202 + job; uses a matching registry connection (#19)."
   - method: POST
     path: "/api/v1/environments/{environmentId}/images/{imageId}/tags"
@@ -926,7 +926,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/environments/{environmentId}/images/builds"
     operationId: create-image-build
@@ -1009,7 +1009,7 @@ routes:
     scope: environment
     owner: 6
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes"
     operationId: create-volume
@@ -1017,7 +1017,7 @@ routes:
     scope: environment
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: GET
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}"
@@ -1026,7 +1026,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
   - method: DELETE
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}"
     operationId: delete-volume
@@ -1034,7 +1034,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/migration-previews"
@@ -1060,7 +1060,7 @@ routes:
     scope: environment
     owner: 6
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/environments/{environmentId}/networks"
     operationId: create-network
@@ -1068,7 +1068,7 @@ routes:
     scope: environment
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: GET
     path: "/api/v1/environments/{environmentId}/networks/{networkId}"
@@ -1077,7 +1077,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
   - method: DELETE
     path: "/api/v1/environments/{environmentId}/networks/{networkId}"
     operationId: delete-network
@@ -1085,7 +1085,7 @@ routes:
     scope: resource
     owner: 6
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: GET
     path: "/api/v1/environments/{environmentId}/stacks/discovered"
