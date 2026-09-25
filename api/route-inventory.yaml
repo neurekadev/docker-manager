@@ -934,7 +934,7 @@ routes:
     scope: environment
     owner: 33
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: GET
     path: "/api/v1/environments/{environmentId}/image-builds"
@@ -943,7 +943,7 @@ routes:
     scope: environment
     owner: 33
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/image-builds/{buildId}"
     operationId: get-image-build
@@ -951,7 +951,7 @@ routes:
     scope: resource
     owner: 33
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/build-definitions"
     operationId: list-build-definitions
@@ -959,7 +959,7 @@ routes:
     scope: environment
     owner: 33
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/environments/{environmentId}/build-definitions"
     operationId: create-build-definition
@@ -967,7 +967,7 @@ routes:
     scope: environment
     owner: 33
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/build-definitions/{definitionId}"
     operationId: get-build-definition
@@ -975,7 +975,7 @@ routes:
     scope: resource
     owner: 33
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/environments/{environmentId}/build-definitions/{definitionId}"
     operationId: update-build-definition
@@ -983,7 +983,7 @@ routes:
     scope: resource
     owner: 33
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match.
   - method: DELETE
     path: "/api/v1/environments/{environmentId}/build-definitions/{definitionId}"
@@ -992,7 +992,7 @@ routes:
     scope: resource
     owner: 33
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/environments/{environmentId}/build-definitions/{definitionId}/runs"
     operationId: create-build-definition-run
@@ -1000,7 +1000,7 @@ routes:
     scope: resource
     owner: 33
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: GET
     path: "/api/v1/environments/{environmentId}/volumes"
@@ -2005,7 +2005,7 @@ routes:
     scope: resource
     owner: 33
     kind: json
-    status: planned
+    status: implemented
     notes: Metadata only.
   - method: POST
     path: /api/v1/git-credentials
@@ -2014,7 +2014,7 @@ routes:
     scope: instance
     owner: 33
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/git-credentials/{credentialId}"
     operationId: get-git-credential
@@ -2022,7 +2022,7 @@ routes:
     scope: resource
     owner: 33
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/git-credentials/{credentialId}"
     operationId: update-git-credential
@@ -2030,7 +2030,7 @@ routes:
     scope: instance
     owner: 33
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match.
   - method: DELETE
     path: "/api/v1/git-credentials/{credentialId}"
@@ -2039,7 +2039,7 @@ routes:
     scope: instance
     owner: 33
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/git-credentials/{credentialId}/connection-tests"
     operationId: create-git-credential-connection-test
@@ -2047,7 +2047,7 @@ routes:
     scope: instance
     owner: 33
     kind: json
-    status: planned
+    status: implemented
 agentRoutes:
   - method: POST
     path: /agent/v1/enroll

@@ -118,12 +118,15 @@ const (
 	TargetPath TargetType = "path"
 	// TargetDestinationPath is a file-system path the job writes.
 	TargetDestinationPath TargetType = "destination_path"
+	// TargetBuildDefinition is the saved build a run executes (#33); the
+	// images it tags are covered by it for authorization.
+	TargetBuildDefinition TargetType = "build_definition"
 )
 
 // TargetTypes returns every target type.
 func TargetTypes() []TargetType {
 	return []TargetType{TargetStack, TargetContainer, TargetVolume, TargetImage, TargetNetwork,
-		TargetRepository, TargetPath, TargetDestinationPath}
+		TargetRepository, TargetPath, TargetDestinationPath, TargetBuildDefinition}
 }
 
 // JobTarget is one resource a job acts on.

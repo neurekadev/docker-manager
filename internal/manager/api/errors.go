@@ -165,6 +165,12 @@ const (
 	CodeRegistryNameTaken           = "registry_connection_name_taken"
 	CodeAmbiguousRegistryConnection = "ambiguous_registry_connection"
 	CodeRegistryConnectionRevoked   = "registry_connection_revoked"
+
+	// Image builds (#33).
+	CodeGitCredentialNameTaken   = "git_credential_name_taken" //nolint:gosec // G101: an error code, not a credential
+	CodeAmbiguousGitCredential   = "ambiguous_git_credential"  //nolint:gosec // G101: an error code, not a credential
+	CodeGitCredentialRevoked     = "git_credential_revoked"    //nolint:gosec // G101: an error code, not a credential
+	CodeBuildDefinitionNameTaken = "build_definition_name_taken"
 )
 
 // CodeForStatus returns the default code for an HTTP status.

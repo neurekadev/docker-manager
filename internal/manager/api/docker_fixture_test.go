@@ -319,11 +319,12 @@ func (f *dockerFixture) dockerRoutes() []authztest.Call {
 	params := map[string]string{"environmentId": "env-1", "containerId": "web", "imageId": f.imageID("env-1", "nginx:1.27"),
 		"volumeId": "scratch", "networkId": "spare"}
 	bodies := map[string]any{
-		"create-container":  map[string]any{"name": "new", "image": "nginx:1.27"},
-		"create-image-pull": map[string]any{"reference": "alpine:3.22"},
-		"create-image-tag":  map[string]any{"repository": "mirror/nginx", "tag": "1.27"},
-		"create-volume":     map[string]any{"name": "fresh"},
-		"create-network":    map[string]any{"name": "fresh"},
+		"create-container":   map[string]any{"name": "new", "image": "nginx:1.27"},
+		"create-image-pull":  map[string]any{"reference": "alpine:3.22"},
+		"create-image-tag":   map[string]any{"repository": "mirror/nginx", "tag": "1.27"},
+		"create-volume":      map[string]any{"name": "fresh"},
+		"create-network":     map[string]any{"name": "fresh"},
+		"create-image-build": sampleBodies["create-image-build"],
 	}
 	var out []authztest.Call
 	for _, c := range authztest.Routes(f.t, params, "/api/v1/environments") {

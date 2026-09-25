@@ -392,7 +392,7 @@ Defined in `internal/protocol/jobs.go` and
   `fencingToken` (per-environment, persisted, strictly increasing) and
   `deadline` (latest start).
 - `secrets {registries: [{connectionId, host, serverAddress, username,
-  secret}], git: [{credentialId, host, username, secret}]}` (optional) are
+  secret}], git: [{credentialId, host, username, secret, plainHttp}]}` (optional) are
   the credentials of this attempt only (#19, #33). The manager resolves them
   at every dispatch from the connection IDs named in the job input (never
   stored with the job); the agent keeps them in memory for the attempt and

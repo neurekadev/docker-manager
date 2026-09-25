@@ -117,7 +117,9 @@ the legacy builder and never buildx:
   archive;
 - Git context: `http(s)` URLs with `#ref[:subdir]` are fetched by the
   Engine's BuildKit itself (`remote`); SSH URLs and URLs with embedded
-  credentials are refused (private Git credentials are #33's job);
+  credentials are refused; private repositories authenticate with
+  `BuildSpec.GitAuth`, served over the build's BuildKit session as the
+  secret `GIT_AUTH_HEADER.<host>` from memory (#33, [builds.md](builds.md));
 - progress: BuildKit status messages (`moby.buildkit.trace`) are decoded
   into `BuildEvent`s (step started/cached/done/error and step logs); the
   result is the image ID from `moby.image.id`.

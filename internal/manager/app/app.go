@@ -37,9 +37,11 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/auth/password"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
+	"github.com/neurekadev/dockyard/internal/manager/builds"
 	"github.com/neurekadev/dockyard/internal/manager/config"
 	"github.com/neurekadev/dockyard/internal/manager/events"
 	"github.com/neurekadev/dockyard/internal/manager/files"
+	"github.com/neurekadev/dockyard/internal/manager/gitcreds"
 	"github.com/neurekadev/dockyard/internal/manager/idempotency"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
 	"github.com/neurekadev/dockyard/internal/manager/metrics"
@@ -86,6 +88,9 @@ type Options struct {
 	// RegistryHTTPClient overrides the HTTP client of manager-side
 	// registry checks (#19; tests trust a fake registry's certificate).
 	RegistryHTTPClient *http.Client
+	// GitHTTPClient overrides the HTTP client of Git credential connection
+	// tests (#33; tests trust a fake Git server's certificate).
+	GitHTTPClient *http.Client
 }
 
 // Manager is a started (migrated, not yet serving) manager.
@@ -109,6 +114,8 @@ type Manager struct {
 	resources *resources.Service
 	files     *files.Service
 	handler   http.Handler
+	git       *gitcreds.Service
+	builds    *builds.Service
 }
 
 // ErrSecretKeyMissing means the database belongs to an existing installation
@@ -264,6 +271,24 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		}
 		return permissions.Location{Found: true, Parents: []authz.ResourceRef{}}, nil
 	}))
+	// Git credentials (#33), handled like registry connections.
+	m.git, err = gitcreds.New(gitcreds.Options{
+		DB: db, Keyring: m.keyring, Clock: opts.Clock, Logger: log.With("component", "gitcreds"),
+		Guard: m.identity, Audit: m.audit, HTTP: opts.GitHTTPClient, ForgetResource: m.perms.ForgetResource,
+	})
+	if err != nil {
+		return nil, err
+	}
+	m.perms.RegisterLocator(catalog.TypeGitCredential, permissions.LocatorFunc(func(ctx context.Context, ref authz.ResourceRef) (permissions.Location, error) {
+		_, err := m.git.Get(ctx, ref.ID)
+		if errors.Is(err, domain.ErrGitCredentialNotFound) {
+			return permissions.Location{}, nil
+		}
+		if err != nil {
+			return permissions.Location{}, err
+		}
+		return permissions.Location{Found: true, Parents: []authz.ResourceRef{}}, nil
+	}))
 	m.jobs, err = jobs.New(jobs.Options{
 		DB: db, Clock: opts.Clock, Logger: log.With("component", "jobs"),
 		Dispatcher: m.agents.Hub(), Authorizer: authorizer, Audit: m.audit, CommandSecrets: m.commandSecrets,
@@ -285,6 +310,27 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	// The scoped file manager (#15); stack scopes resolve once #7 installs
 	// its stack roots (Files().SetStacks).
 	m.files = files.New(files.Options{Agents: m.agents.Hub(), Jobs: m.jobs, Logger: log.With("component", "files")})
+
+	// Image builds (#33): build records, definitions and the image.build
+	// jobs they enqueue.
+	m.builds, err = builds.New(builds.Options{
+		DB: db, Clock: opts.Clock, Logger: log.With("component", "builds"), Jobs: m.jobs, Git: m.git, Registries: m.regs,
+		ForgetResource: m.perms.ForgetResource,
+	})
+	if err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
+	m.perms.RegisterLocator(catalog.TypeBuildDefinition, permissions.LocatorFunc(func(ctx context.Context, ref authz.ResourceRef) (permissions.Location, error) {
+		d, err := m.builds.GetDefinition(ctx, ref.ID)
+		if errors.Is(err, domain.ErrBuildDefinitionNotFound) {
+			return permissions.Location{}, nil
+		}
+		if err != nil {
+			return permissions.Location{}, err
+		}
+		return permissions.Location{Found: true, EnvironmentID: d.EnvironmentID, Parents: []authz.ResourceRef{}}, nil
+	}))
 
 	// Observation (#5): metrics live in their own database file so sample
 	// writes never contend with jobs and auth; manager-state backups (#10)
@@ -368,6 +414,8 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			InstanceID:     m.instance.ID,
 			Files:          m.files,
 			FilesMaxUpload: cfg.FilesMaxUpload,
+			GitCredentials: m.git,
+			Builds:         m.builds,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -388,13 +436,17 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 }
 
 // commandSecrets resolves the credentials named by a job's input for its
-// agent command (#19 registry connections; #33 adds Git credentials).
+// agent command (#19 registry connections, #33 Git credentials).
 func (m *Manager) commandSecrets(ctx context.Context, j *domain.Job) (*protocol.CommandSecrets, error) {
 	regs, err := m.regs.CommandSecrets(ctx, j)
 	if err != nil {
 		return nil, err
 	}
-	s := &protocol.CommandSecrets{Registries: regs}
+	git, err := m.git.CommandSecrets(ctx, j)
+	if err != nil {
+		return nil, err
+	}
+	s := &protocol.CommandSecrets{Registries: regs, Git: git}
 	if s.Empty() {
 		return nil, nil
 	}
@@ -494,6 +546,12 @@ func (m *Manager) Registries() *registries.Service { return m.regs }
 // Files returns the scoped file service (#15): #7 installs its stack root
 // resolver and source observer with SetStacks.
 func (m *Manager) Files() *files.Service { return m.files }
+
+// GitCredentials returns the Git credential service (#33).
+func (m *Manager) GitCredentials() *gitcreds.Service { return m.git }
+
+// Builds returns the image build service (#33).
+func (m *Manager) Builds() *builds.Service { return m.builds }
 
 // Events returns the internal event bus.
 func (m *Manager) Events() *events.Bus { return m.events }
