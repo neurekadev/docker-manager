@@ -339,6 +339,13 @@ func (s *Service) probeFor(ctx context.Context, cp catalog.Capability, sc domain
 	case domain.ScopeKindResource:
 		ref := authz.ResourceRef{Type: sc.ResourceType, ID: sc.ResourceID, EnvironmentID: sc.EnvironmentID}
 		loc := s.locate(ctx, ref)
+		if stackID, _, ok := strings.Cut(ref.ID, "/"); !loc.Found && ref.Type == catalog.TypeService && ok && stackID != "" {
+			// A service without a Locator lives in its stack (as in
+			// policy.Checker): the stack's rules apply to it.
+			stack := authz.ResourceRef{Type: catalog.TypeStack, ID: stackID}
+			sl := s.locate(ctx, stack)
+			loc = Location{Found: true, EnvironmentID: sl.EnvironmentID, Parents: append([]authz.ResourceRef{stack}, sl.Parents...)}
+		}
 		env := loc.EnvironmentID
 		if env == "" {
 			env = sc.EnvironmentID

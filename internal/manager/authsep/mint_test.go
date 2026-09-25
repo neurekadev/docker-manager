@@ -69,3 +69,33 @@ func FuzzParseAgentSecret(f *testing.F) {
 		}
 	})
 }
+
+func TestMintParseAPIToken(t *testing.T) {
+	const id = "0190a6e0-4444-7000-8000-000000000031"
+	tok, err := MintAPIToken(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(tok.Token, "dy_"+id+"_") || Classify(tok.Token) != KindOther {
+		t.Fatalf("format %q, kind %v", tok.Token, Classify(tok.Token))
+	}
+	gotID, secret, ok := ParseAPIToken(tok.Token)
+	if !ok || gotID != id || !VerifierMatches(tok.Verifier, secret) || strings.Contains(tok.Verifier, secret) {
+		t.Fatalf("parse: %q %v", gotID, ok)
+	}
+	agent, _ := MintAgentCredential(id)
+	enroll, _ := MintEnrollmentToken(id)
+	for _, other := range []string{agent.Token, enroll.Token} {
+		if _, _, ok := ParseAPIToken(other); ok {
+			t.Fatalf("agent secret %q parsed as an API token", other[:4])
+		}
+	}
+	if _, _, ok := ParseAgentCredential(tok.Token); ok {
+		t.Fatal("API token parsed as an agent credential")
+	}
+	for _, bad := range []string{"", "dy_", "dy_" + id, "dy_" + id + "_short", "Dy_" + id + "_" + strings.Repeat("A", 43)} {
+		if _, _, ok := ParseAPIToken(bad); ok {
+			t.Errorf("parsed %q", bad)
+		}
+	}
+}

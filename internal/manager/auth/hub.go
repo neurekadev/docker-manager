@@ -11,8 +11,9 @@ import (
 )
 
 // hub tracks the contexts of in-flight authenticated requests (including
-// SSE and WebSocket streams) per user, so ending a user's sessions also
-// ends their open streams immediately.
+// SSE and WebSocket streams) per user, made with a browser session or an
+// API token (#31), so ending a user's sessions or revoking a token also
+// ends the open streams immediately.
 type hub struct {
 	mu   sync.Mutex
 	next uint64
@@ -20,14 +21,27 @@ type hub struct {
 }
 
 type hubEntry struct {
-	epoch  int64
-	cancel context.CancelCauseFunc
+	// epoch is the session epoch of a session request.
+	epoch int64
+	// tokenID is set for API-token requests (epoch is unused then).
+	tokenID string
+	cancel  context.CancelCauseFunc
 }
 
 func newHub() *hub { return &hub{subs: map[string]map[uint64]hubEntry{}} }
 
 // register tracks cancel for userID's request made with session epoch.
 func (h *hub) register(userID string, epoch int64, cancel context.CancelCauseFunc) func() {
+	return h.add(userID, hubEntry{epoch: epoch, cancel: cancel})
+}
+
+// registerToken tracks cancel for a request made with API token tokenID
+// of userID.
+func (h *hub) registerToken(userID, tokenID string, cancel context.CancelCauseFunc) func() {
+	return h.add(userID, hubEntry{tokenID: tokenID, cancel: cancel})
+}
+
+func (h *hub) add(userID string, e hubEntry) func() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.next++
@@ -35,7 +49,7 @@ func (h *hub) register(userID string, epoch int64, cancel context.CancelCauseFun
 	if h.subs[userID] == nil {
 		h.subs[userID] = map[uint64]hubEntry{}
 	}
-	h.subs[userID][id] = hubEntry{epoch: epoch, cancel: cancel}
+	h.subs[userID][id] = e
 	return func() {
 		h.mu.Lock()
 		defer h.mu.Unlock()
@@ -46,23 +60,51 @@ func (h *hub) register(userID string, epoch int64, cancel context.CancelCauseFun
 	}
 }
 
-// revoke cancels userID's requests whose epoch differs from keep (all of
-// them when keep is -1): their sessions ended (authz.ErrSessionEnded).
+// revoke cancels userID's session requests whose epoch differs from keep
+// (all of them when keep is -1): their sessions ended
+// (authz.ErrSessionEnded). API-token requests are not affected.
 func (h *hub) revoke(userID string, keep int64) { h.revokeCause(userID, keep, authz.ErrSessionEnded) }
 
 // revokeCause cancels like revoke with the given cause, which streams
 // report to the client (authz.CloseReason).
 func (h *hub) revokeCause(userID string, keep int64, cause error) {
+	h.cancelWhere(cause, func(uid string, e hubEntry) bool {
+		return uid == userID && e.tokenID == "" && (keep < 0 || e.epoch != keep)
+	})
+}
+
+// revokeUser cancels every request of userID: sessions and API tokens.
+func (h *hub) revokeUser(userID string, cause error) {
+	h.cancelWhere(cause, func(uid string, _ hubEntry) bool { return uid == userID })
+}
+
+// revokeTokens cancels the requests made with the given API tokens.
+func (h *hub) revokeTokens(tokenIDs []string, cause error) {
+	set := make(map[string]bool, len(tokenIDs))
+	for _, id := range tokenIDs {
+		set[id] = true
+	}
+	h.cancelWhere(cause, func(_ string, e hubEntry) bool { return e.tokenID != "" && set[e.tokenID] })
+}
+
+// revokeAllTokens cancels every API-token request.
+func (h *hub) revokeAllTokens(cause error) {
+	h.cancelWhere(cause, func(_ string, e hubEntry) bool { return e.tokenID != "" })
+}
+
+func (h *hub) cancelWhere(cause error, match func(userID string, e hubEntry) bool) {
 	h.mu.Lock()
 	var cancels []context.CancelCauseFunc
-	for id, e := range h.subs[userID] {
-		if keep < 0 || e.epoch != keep {
-			cancels = append(cancels, e.cancel)
-			delete(h.subs[userID], id)
+	for uid, m := range h.subs {
+		for id, e := range m {
+			if match(uid, e) {
+				cancels = append(cancels, e.cancel)
+				delete(m, id)
+			}
 		}
-	}
-	if len(h.subs[userID]) == 0 {
-		delete(h.subs, userID)
+		if len(m) == 0 {
+			delete(h.subs, uid)
+		}
 	}
 	h.mu.Unlock()
 	for _, c := range cancels {
@@ -70,14 +112,22 @@ func (h *hub) revokeCause(userID string, keep int64, cause error) {
 	}
 }
 
-func (h *hub) snapshot() map[string]struct{} {
+// snapshot returns the users with open session requests and the API
+// tokens with open requests (token ID -> user).
+func (h *hub) snapshot() (sessions map[string]struct{}, tokens map[string]string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	out := make(map[string]struct{}, len(h.subs))
-	for id := range h.subs {
-		out[id] = struct{}{}
+	sessions, tokens = map[string]struct{}{}, map[string]string{}
+	for uid, m := range h.subs {
+		for _, e := range m {
+			if e.tokenID != "" {
+				tokens[e.tokenID] = uid
+			} else {
+				sessions[uid] = struct{}{}
+			}
+		}
 	}
-	return out
+	return sessions, tokens
 }
 
 func (h *hub) count() int {

@@ -216,8 +216,13 @@ type SecuritySettings struct {
 	EnrollmentGraceHours  int
 	InvitationTTLHours    int
 	PasswordResetTTLHours int
-	Revision              int64
-	UpdatedAt             time.Time
+	// API tokens (#31): enabled instance-wide, the maximum lifetime of new
+	// tokens in days, and whether tokens without expiry may be created.
+	APITokensEnabled     bool
+	APITokenMaxDays      int
+	APITokensNonExpiring bool
+	Revision             int64
+	UpdatedAt            time.Time
 }
 
 // Factor is a sign-in factor kind.
@@ -332,6 +337,9 @@ type SecuritySettingsPatch struct {
 	EnrollmentGraceHours  *int
 	InvitationTTLHours    *int
 	PasswordResetTTLHours *int
+	APITokensEnabled      *bool
+	APITokenMaxDays       *int
+	APITokensNonExpiring  *bool
 }
 
 // PasskeyPurpose selects what a passkey assertion is for.

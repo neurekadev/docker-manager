@@ -14,6 +14,7 @@ import (
 
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/manager/audit"
+	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 )
@@ -337,6 +338,11 @@ func (s *Service) PatchUser(ctx context.Context, id string, revision int64, p do
 		action := "user.enable"
 		if *p.Status == domain.UserDisabled {
 			action = "user.disable"
+			// Disabling revokes the account's API tokens for good (#31):
+			// re-enabling the account does not bring them back.
+			if err := s.revokeUserTokens(ctx, id, cur.user.ID, domain.RevokedUserDisabled); err != nil {
+				return domain.Account{}, err
+			}
 			if err := s.endSessions(ctx, id, false); err != nil {
 				return domain.Account{}, err
 			}
@@ -370,10 +376,16 @@ func (s *Service) DeleteUser(ctx context.Context, id string) error {
 	if s.isOwner(id) {
 		return domain.ErrOwnerProtected
 	}
+	tokens, err := store.UserAPITokenIDs(ctx, s.db, id)
+	if err != nil {
+		return err
+	}
+	// The account's API tokens are deleted with it (#31).
 	if err := store.DeleteUser(ctx, s.db, id); err != nil {
 		return err
 	}
 	s.record(ctx, "user.delete", OutcomeSuccess, cur.user.ID, "user", id, "")
+	s.endTokens(ctx, tokens)
 	return s.endSessions(ctx, id, false)
 }
 
@@ -392,8 +404,9 @@ func (s *Service) RevokeUserSessions(ctx context.Context, id string) error {
 
 // ResetUserFactors removes an account's TOTP, passkeys and recovery codes
 // (owner, recent authentication; not the owner, who uses owner recovery).
-// Its sessions end and a new enrollment grace period starts.
-func (s *Service) ResetUserFactors(ctx context.Context, id string) (domain.Account, error) {
+// Its sessions end and a new enrollment grace period starts. With
+// revokeAPITokens the account's API tokens are revoked too (#31).
+func (s *Service) ResetUserFactors(ctx context.Context, id string, revokeAPITokens bool) (domain.Account, error) {
 	cur, err := s.requireOwner(ctx, true)
 	if err != nil {
 		return domain.Account{}, err
@@ -423,6 +436,11 @@ func (s *Service) ResetUserFactors(ctx context.Context, id string) (domain.Accou
 	if err != nil {
 		return domain.Account{}, err
 	}
+	if revokeAPITokens {
+		if err := s.revokeUserTokens(ctx, id, cur.user.ID, domain.RevokedCredentialReset); err != nil {
+			return domain.Account{}, err
+		}
+	}
 	s.record(ctx, "user.factor_reset", OutcomeSuccess, cur.user.ID, "user", id, "")
 	if err := s.endSessions(ctx, id, false); err != nil {
 		return domain.Account{}, err
@@ -436,8 +454,9 @@ func (s *Service) ResetUserFactors(ctx context.Context, id string) (domain.Accou
 
 // CreatePasswordReset issues a one-time password reset code for an account
 // (owner, recent authentication; not the owner). Earlier unused codes of
-// the account stop working.
-func (s *Service) CreatePasswordReset(ctx context.Context, id string) (domain.IssuedCode, error) {
+// the account stop working. With revokeAPITokens the account's API tokens
+// are revoked at once (#31).
+func (s *Service) CreatePasswordReset(ctx context.Context, id string, revokeAPITokens bool) (domain.IssuedCode, error) {
 	cur, err := s.requireOwner(ctx, true)
 	if err != nil {
 		return domain.IssuedCode{}, err
@@ -458,6 +477,11 @@ func (s *Service) CreatePasswordReset(ctx context.Context, id string) (domain.Is
 		ExpiresAt: now.Add(time.Duration(set.PasswordResetTTLHours) * time.Hour)}
 	if err := store.InsertAccountReset(ctx, s.db, r, verifier(code)); err != nil {
 		return domain.IssuedCode{}, err
+	}
+	if revokeAPITokens {
+		if err := s.revokeUserTokens(ctx, id, cur.user.ID, domain.RevokedCredentialReset); err != nil {
+			return domain.IssuedCode{}, err
+		}
 	}
 	s.record(ctx, "user.password_reset_issue", OutcomeSuccess, cur.user.ID, "user", id, "")
 	return domain.IssuedCode{ID: r.ID, Code: code, URL: s.link("/password-reset", code), ExpiresAt: r.ExpiresAt}, nil
@@ -506,6 +530,15 @@ func (s *Service) UpdateSecuritySettings(ctx context.Context, revision int64, p 
 	if p.PasswordResetTTLHours != nil {
 		next.PasswordResetTTLHours = *p.PasswordResetTTLHours
 	}
+	if p.APITokensEnabled != nil {
+		next.APITokensEnabled = *p.APITokensEnabled
+	}
+	if p.APITokenMaxDays != nil {
+		next.APITokenMaxDays = *p.APITokenMaxDays
+	}
+	if p.APITokensNonExpiring != nil {
+		next.APITokensNonExpiring = *p.APITokensNonExpiring
+	}
 	if err := validateSettings(next); err != nil {
 		return domain.SecuritySettings{}, err
 	}
@@ -533,6 +566,12 @@ func (s *Service) UpdateSecuritySettings(ctx context.Context, revision int64, p 
 		return domain.SecuritySettings{}, err
 	}
 	s.record(ctx, "settings.security_update", OutcomeSuccess, cur.user.ID, "settings", "security", "")
+	if (old.APITokensEnabled && !next.APITokensEnabled) || factorsChanged {
+		// API tokens (#31) stop working instance-wide, or must meet the new
+		// factor policy: end their open streams; the next request is
+		// authenticated (or refused) under the new settings.
+		s.hub.revokeAllTokens(authz.ErrSessionEnded)
+	}
 	if factorsChanged {
 		owner, err := store.GetUser(ctx, s.db, cur.user.ID)
 		if err != nil {
@@ -578,6 +617,8 @@ func validateSettings(s domain.SecuritySettings) error {
 		return &domain.FieldError{Field: "invitationTtlHours", Message: "1..720"}
 	case s.PasswordResetTTLHours < 1 || s.PasswordResetTTLHours > 168:
 		return &domain.FieldError{Field: "passwordResetTtlHours", Message: "1..168"}
+	case s.APITokenMaxDays < 1 || s.APITokenMaxDays > 3650:
+		return &domain.FieldError{Field: "apiTokenMaxLifetimeDays", Message: "1..3650"}
 	}
 	return nil
 }

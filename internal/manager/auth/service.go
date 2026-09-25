@@ -76,6 +76,8 @@ type Service struct {
 	idem      Forgetter
 	hub       *hub
 	ownerID   atomic.Pointer[string]
+	// scopes validates API token scopes (#31, the permission service).
+	scopes atomic.Pointer[ScopeValidator]
 }
 
 // NewService returns the identity service and loads the owner (if set up).
@@ -141,14 +143,17 @@ func (s *Service) RequireOwner(ctx context.Context, recent bool) (string, error)
 // filtered by the new rules. Sessions stay signed in
 // (permissions are evaluated on every request, so no session state holds
 // old access). The instance owner is never affected (owner bypass), so the
-// owner's own request is not cancelled.
+// owner's own request is not cancelled. The users' API tokens (#31) are
+// narrowed the same way: token scope ∩ the new permissions applies to the
+// next request, and their open streams and stored responses end too.
 func (s *Service) AccessChanged(ctx context.Context, userIDs []string) {
 	for _, id := range userIDs {
 		if s.isOwner(id) {
 			continue
 		}
 		s.forget(ctx, id)
-		s.hub.revokeCause(id, -1, authz.ErrPermissionsChanged)
+		s.forgetUserTokens(ctx, id)
+		s.hub.revokeUser(id, authz.ErrPermissionsChanged)
 	}
 }
 
@@ -201,29 +206,30 @@ func (s *Service) RunStreamSweeper(ctx context.Context) {
 	}
 }
 
-// SweepStreams cancels open requests of sessions that are no longer valid.
+// SweepStreams cancels open requests of sessions and API tokens that are
+// no longer valid (a token revoked by another process, expired while a
+// stream was open, or disabled instance-wide).
 func (s *Service) SweepStreams(ctx context.Context) error {
-	live := s.hub.snapshot()
-	if len(live) == 0 {
-		return nil
-	}
-	ids := make([]string, 0, len(live))
-	for id := range live {
-		ids = append(ids, id)
-	}
-	states, err := store.SessionEpochs(ctx, s.db, ids)
-	if err != nil {
-		return err
-	}
-	for _, id := range ids {
-		st, ok := states[id]
-		if !ok || !st.Active {
-			s.hub.revoke(id, -1)
-			continue
+	live, tokens := s.hub.snapshot()
+	if len(live) > 0 {
+		ids := make([]string, 0, len(live))
+		for id := range live {
+			ids = append(ids, id)
 		}
-		s.hub.revoke(id, st.Epoch)
+		states, err := store.SessionEpochs(ctx, s.db, ids)
+		if err != nil {
+			return err
+		}
+		for _, id := range ids {
+			st, ok := states[id]
+			if !ok || !st.Active {
+				s.hub.revoke(id, -1)
+				continue
+			}
+			s.hub.revoke(id, st.Epoch)
+		}
 	}
-	return nil
+	return s.sweepTokens(ctx, tokens)
 }
 
 // OpenStreams is the number of registered authenticated requests (tests,

@@ -411,6 +411,9 @@ type securitySettingsRow struct {
 	EnrollmentGraceHours  int       `bun:"enrollment_grace_hours,notnull"`
 	InvitationTTLHours    int       `bun:"invitation_ttl_hours,notnull"`
 	PasswordResetTTLHours int       `bun:"password_reset_ttl_hours,notnull"`
+	APITokensEnabled      int       `bun:"api_tokens_enabled,notnull"`
+	APITokenMaxDays       int       `bun:"api_token_max_days,notnull"`
+	APITokensNonExpiring  int       `bun:"api_tokens_non_expiring,notnull"`
 	Revision              int64     `bun:"revision,notnull"`
 	UpdatedAt             time.Time `bun:"updated_at,notnull"`
 }
@@ -420,6 +423,7 @@ func (r securitySettingsRow) toDomain() domain.SecuritySettings {
 		StrictPasswords: r.StrictPasswords == 1, MinPasswordLength: r.MinPasswordLength,
 		RequiredFactors: domain.RequiredFactors(r.RequiredFactors), EnrollmentGraceHours: r.EnrollmentGraceHours,
 		InvitationTTLHours: r.InvitationTTLHours, PasswordResetTTLHours: r.PasswordResetTTLHours,
+		APITokensEnabled: r.APITokensEnabled == 1, APITokenMaxDays: r.APITokenMaxDays, APITokensNonExpiring: r.APITokensNonExpiring == 1,
 		Revision: r.Revision, UpdatedAt: r.UpdatedAt.UTC(),
 	}
 }
@@ -440,6 +444,8 @@ func UpdateSecuritySettings(ctx context.Context, db bun.IDB, revision int64, s d
 		Set("strict_passwords = ?", boolInt(s.StrictPasswords)).Set("min_password_length = ?", s.MinPasswordLength).
 		Set("required_factors = ?", string(s.RequiredFactors)).Set("enrollment_grace_hours = ?", s.EnrollmentGraceHours).
 		Set("invitation_ttl_hours = ?", s.InvitationTTLHours).Set("password_reset_ttl_hours = ?", s.PasswordResetTTLHours).
+		Set("api_tokens_enabled = ?", boolInt(s.APITokensEnabled)).Set("api_token_max_days = ?", s.APITokenMaxDays).
+		Set("api_tokens_non_expiring = ?", boolInt(s.APITokensNonExpiring)).
 		Set("revision = revision + 1").Set("updated_at = ?", now.UTC()).
 		Where("singleton = 1 AND revision = ?", revision).Exec(ctx)
 	if err != nil {

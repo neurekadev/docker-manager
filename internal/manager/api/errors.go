@@ -156,6 +156,10 @@ const (
 	CodeGroupNameTaken        = "group_name_taken"
 	CodeDefaultGroupProtected = "default_group_protected"
 	CodeGroupNotEmpty         = "group_not_empty"
+
+	// API tokens (#31).
+	CodeAPITokenNotAllowed = "api_token_not_allowed" //nolint:gosec // G101: an error code, not a credential
+	CodeAPITokensDisabled  = "api_tokens_disabled"   //nolint:gosec // G101: an error code, not a credential
 )
 
 // CodeForStatus returns the default code for an HTTP status.

@@ -189,6 +189,11 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return nil, err
 	}
 	authorizer := m.perms
+	// API tokens (#31): the permission service evaluates token scope ∩
+	// the user's current permissions (also at job dispatch) and validates
+	// the scope of new tokens against the creator's permissions.
+	m.perms.SetTokenScopes(m.identity.APITokenScopes)
+	m.identity.SetScopeValidator(m.perms)
 
 	m.events = events.New(opts.Clock)
 	m.agents, err = agents.New(agents.Options{
@@ -250,6 +255,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Identity:     m.identity,
 			Agents:       m.agents,
 			Permissions:  m.perms,
+			APITokens:    m.identity,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
