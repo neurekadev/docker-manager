@@ -63,8 +63,16 @@ same change.
 | code | status | retryable | meaning | added by |
 | --- | --- | --- | --- | --- |
 | `bad_request` | 400 | no | The request is malformed (unparsable JSON, wrong content encoding). | #2 |
+| `invalid_code` | 400 | no | The one-time code (invitation, password reset or owner recovery) is unknown, expired, revoked or already used. The response never says which. | #16 |
 | `unauthenticated` | 401 | no | No valid session cookie or API token; sign in again or send a valid bearer token. | #2 |
+| `invalid_credentials` | 401 | no | Sign-in, second factor or step-up failed: unknown account, wrong password or code, disabled account and bad passkey assertions all look alike. | #16 |
 | `forbidden` | 403 | no | Authenticated, but the named capability is not granted for this resource. Returned only when the caller may know the resource exists; otherwise `not_found`. | #2 |
+| `insecure_origin` | 403 | no | The request did not reach DockYard over HTTPS on DOCKYARD_PUBLIC_URL (first-run setup); the message explains how to fix the proxy or URL. | #16 |
+| `cross_origin_request` | 403 | no | A browser sent an unsafe request from another origin (cross-site request forgery protection). | #16 |
+| `step_up_required` | 403 | no | The change needs recent authentication; re-authenticate with POST /api/v1/auth/step-ups and retry. | #16 |
+| `enrollment_required` | 403 | no | The session may only enroll the sign-in factors the instance policy requires; finish enrollment first. | #16 |
+| `enrollment_expired` | 403 | no | The grace period to enroll required sign-in factors has passed; ask the instance owner for a factor or password reset. | #16 |
+| `sign_in_method_not_allowed` | 403 | no | The instance sign-in policy does not accept this sign-in method (for example a passkey when password and TOTP are required). | #16 |
 | `not_found` | 404 | no | The resource or route does not exist, or the caller may not know that it exists. | #2 |
 | `method_not_allowed` | 405 | no | The route exists but not with this method; see the `Allow` header. | #2 |
 | `not_acceptable` | 406 | no | The `Accept` header excludes every media type the route can produce. | #2 |
@@ -72,6 +80,13 @@ same change.
 | `job_finished` | 409 | no | The job already reached a terminal state (for example a cancellation of a finished job). | #26 |
 | `idempotency_key_reused` | 409 | no | The `Idempotency-Key` was already used by this caller for a different request (different route, parameters or body). | #26 |
 | `idempotency_key_in_flight` | 409 | yes | A request with the same `Idempotency-Key` is still being processed; retry after the `Retry-After` delay. | #4 |
+| `setup_complete` | 409 | no | First-run setup already created the instance owner; sign in instead. | #16 |
+| `username_taken` | 409 | no | Another account already uses this username. | #16 |
+| `owner_protected` | 409 | no | The instance owner cannot be disabled, deleted or reset through this route (use owner recovery). | #16 |
+| `factor_required` | 409 | no | Removing this factor would leave the account unable to satisfy the instance sign-in policy. | #16 |
+| `totp_already_enabled` | 409 | no | TOTP is already enabled; remove it before enrolling a new secret. | #16 |
+| `invitation_redeemed` | 409 | no | The invitation was already redeemed and can no longer be revoked. | #16 |
+| `no_pending_flow` | 409 | no | No sign-in, TOTP enrollment or passkey ceremony is in progress in this session (or it expired); start again. | #16 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |
 | `payload_too_large` | 413 | no | The request body exceeds the route's documented limit. | #2 |

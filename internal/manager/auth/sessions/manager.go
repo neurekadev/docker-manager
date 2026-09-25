@@ -25,7 +25,9 @@ const (
 // Options configures the session manager.
 type Options struct {
 	Store scs.Store
-	// IdleTimeout ends a session after this much inactivity.
+	// IdleTimeout ends a session after this much inactivity. Negative
+	// disables SCS's idle handling (the caller enforces inactivity itself;
+	// SCS would otherwise rewrite the session on every request).
 	IdleTimeout time.Duration
 	// Lifetime is the absolute limit from sign-in (or the last renewal).
 	Lifetime time.Duration
@@ -47,7 +49,10 @@ func NewManager(o Options) (*scs.SessionManager, error) {
 	if o.ErrorFunc == nil {
 		return nil, errors.New("sessions: error func is required")
 	}
-	if o.IdleTimeout <= 0 {
+	switch {
+	case o.IdleTimeout < 0:
+		o.IdleTimeout = 0
+	case o.IdleTimeout == 0:
 		o.IdleTimeout = DefaultIdleTimeout
 	}
 	if o.Lifetime <= 0 {

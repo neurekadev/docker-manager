@@ -198,6 +198,55 @@ manager runs in its explicit localhost development mode and accepts plain
 HTTP requests addressed to that host. Never expose such an instance to a
 network. (The check is `requestinfo.CheckSecureOrigin`.)
 
+Setup is single use: the first successful request creates the owner and
+every later one answers `409 setup_complete`. Complete it right after the
+first start; until then anyone who reaches the public origin could claim the
+instance (restrict access at the proxy if the host is exposed before you
+finish).
+
+## Accounts, sign-in policy and recovery (#16)
+
+- **No self-registration.** The owner invites users (`POST
+  /api/v1/invitations`); the one-time link is shown once and expires
+  (default 72 h). New users join the default group, initially
+  **Restricted** with no access, until the owner grants permissions (#17).
+- **Sign-in policy** (owner, *Settings → Security*): strict passwords
+  (default on: at least 15 characters, common and breached passwords
+  refused, no composition rules or forced rotation) and the required
+  factors: `none`, `totp`, `passkey`, `either` or `both`. Changing the
+  required factors signs everyone out; users then get a limited enrollment
+  session with a grace period (default 72 h) to add the factors. After the
+  grace period only an owner factor or password reset helps. The owner has
+  no deadline and is never locked out.
+- **Sessions** end after 1 h of inactivity and 24 h at most
+  (`DOCKYARD_SESSION_IDLE_TIMEOUT`, `DOCKYARD_SESSION_LIFETIME`); disabling
+  a user, a factor or password reset, and "sign out everywhere" end the
+  user's sessions and open live streams immediately.
+- **Lost factors:** a user completes a password sign-in with one of their
+  ten one-time recovery codes, or asks the owner for a factor reset (TOTP,
+  passkeys and recovery codes removed; sign in with the password and enroll
+  again) or a password reset link.
+- **Passkeys** are bound to the host name of `DOCKYARD_PUBLIC_URL`. Moving
+  DockYard to another host name makes existing passkeys unusable: users
+  sign in with password (+ TOTP or a recovery code) and register new
+  passkeys, or the owner resets their factors.
+
+### Owner lockout (break-glass)
+
+If the owner lost their password or factors, run on the manager's host:
+
+```sh
+docker exec dockyard-manager dockyard-manager owner-recovery
+```
+
+It prints a one-time owner-recovery code and link (valid 1 hour), signs the
+owner out everywhere and records an audit event. Open the link (or `POST
+/api/v1/auth/password-resets/redemptions` with the code and a new password):
+the owner gets the new password and their TOTP, passkeys and recovery codes
+are removed; sign in and enroll them again. Anyone who can run the command
+already controls the data volume. Ownership cannot be transferred in v1; the
+owner account is permanent and cannot be disabled or deleted.
+
 ## Two-environment example
 
 Two Docker hosts, each one Environment:

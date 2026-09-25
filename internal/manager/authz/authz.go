@@ -4,9 +4,11 @@
 //
 // Rules (#17, #26):
 //   - Everything is denied unless an Authorizer explicitly allows it; the
-//     default Authorizer is DenyAll, so routes fail closed (401 without a
-//     principal, 403/404 without a grant) until #16/#17 wire real principals
-//     and grants.
+//     fallback Authorizer is DenyAll, so routes fail closed (401 without a
+//     principal, 403/404 without a grant). The identity layer (#16,
+//     internal/manager/auth) sets request principals and, until #17's rules
+//     land, uses an evaluator that allows the instance owner everything and
+//     denies every other principal.
 //   - The manager service identity (scheduled jobs) is not an HTTP
 //     principal; it can only be created in-process via Service().
 //   - Initiators are audit metadata; authorization is by capability and

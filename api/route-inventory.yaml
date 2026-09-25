@@ -81,7 +81,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/setup/owner
     operationId: create-setup-owner
@@ -89,7 +89,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Single-use bootstrap; requires the protected first-run setup session and HTTPS; 409/410 once an owner exists.
   - method: POST
     path: /api/v1/auth/session
@@ -98,7 +98,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Sign-in; rate limited; sets the session cookie; may answer with a pending second-factor state.
   - method: GET
     path: /api/v1/auth/session
@@ -107,7 +107,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Cookie sessions only.
   - method: DELETE
     path: /api/v1/auth/session
@@ -116,7 +116,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Sign-out; cookie sessions only.
   - method: POST
     path: /api/v1/auth/step-ups
@@ -125,7 +125,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Re-authentication before sensitive changes; cookie sessions only.
   - method: POST
     path: /api/v1/auth/recovery-codes/redemptions
@@ -134,7 +134,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Second factor during a pending sign-in.
   - method: POST
     path: /api/v1/auth/password-resets/redemptions
@@ -143,7 +143,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Owner-issued reset link; single use.
   - method: POST
     path: /api/v1/auth/totp/enrollments
@@ -152,7 +152,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/auth/totp/enrollments/verifications
     operationId: create-totp-enrollment-verification
@@ -160,7 +160,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: DELETE
     path: /api/v1/auth/totp
     operationId: delete-totp
@@ -168,7 +168,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Requires step-up.
   - method: POST
     path: /api/v1/auth/passkeys/registration-options
@@ -177,7 +177,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/auth/passkeys/registration-verifications
     operationId: create-passkey-registration-verification
@@ -185,7 +185,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/auth/passkeys/authentication-options
     operationId: create-passkey-authentication-options
@@ -193,7 +193,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/auth/passkeys/authentication-verifications
     operationId: create-passkey-authentication-verification
@@ -201,7 +201,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: /api/v1/me
     operationId: get-me
@@ -209,7 +209,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: /api/v1/me/password
     operationId: update-my-password
@@ -217,7 +217,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Requires step-up.
   - method: GET
     path: /api/v1/me/recovery-codes
@@ -226,7 +226,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Status only (remaining count); codes are shown once at creation.
   - method: POST
     path: /api/v1/me/recovery-codes
@@ -235,7 +235,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Rotates the set; requires step-up; stored-idempotent.
   - method: GET
     path: /api/v1/me/passkeys
@@ -244,7 +244,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: DELETE
     path: "/api/v1/me/passkeys/{credentialId}"
     operationId: delete-my-passkey
@@ -252,7 +252,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Requires step-up.
   - method: GET
     path: /api/v1/invitations
@@ -261,7 +261,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/invitations
     operationId: create-invitation
@@ -269,7 +269,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Returns the one-time link once; stored-idempotent.
   - method: DELETE
     path: "/api/v1/invitations/{invitationId}"
@@ -278,7 +278,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/invitations/redemptions
     operationId: create-invitation-redemption
@@ -286,7 +286,7 @@ routes:
     scope: none
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: The only way to create a non-owner account.
   - method: GET
     path: /api/v1/users
@@ -295,7 +295,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/users/{userId}"
     operationId: get-user
@@ -303,7 +303,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/users/{userId}"
     operationId: update-user
@@ -311,7 +311,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: "Assigns exactly one group (#17); If-Match."
   - method: DELETE
     path: "/api/v1/users/{userId}"
@@ -320,7 +320,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/users/{userId}/session-revocations"
     operationId: create-user-session-revocation
@@ -328,7 +328,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/users/{userId}/factor-resets"
     operationId: create-user-factor-reset
@@ -336,7 +336,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/users/{userId}/password-resets"
     operationId: create-user-password-reset
@@ -344,7 +344,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Returns a one-time reset link; stored-idempotent.
   - method: GET
     path: /api/v1/settings
@@ -370,7 +370,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: /api/v1/settings/security
     operationId: update-security-settings
@@ -378,7 +378,7 @@ routes:
     scope: instance
     owner: 16
     kind: json
-    status: planned
+    status: implemented
     notes: Requires step-up; If-Match.
   - method: GET
     path: /api/v1/permission-catalog

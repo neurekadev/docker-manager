@@ -125,6 +125,23 @@ const (
 	// Jobs (#26).
 	CodeJobFinished        = "job_finished"
 	CodeJobKindUnavailable = "job_kind_unavailable"
+
+	// Identity (#16).
+	CodeInvalidCredentials     = "invalid_credentials" //nolint:gosec // G101: an error code, not a credential
+	CodeInvalidCode            = "invalid_code"
+	CodeInsecureOrigin         = "insecure_origin"
+	CodeCrossOriginRequest     = "cross_origin_request"
+	CodeStepUpRequired         = "step_up_required"
+	CodeEnrollmentRequired     = "enrollment_required"
+	CodeEnrollmentExpired      = "enrollment_expired"
+	CodeSignInMethodNotAllowed = "sign_in_method_not_allowed"
+	CodeSetupComplete          = "setup_complete"
+	CodeUsernameTaken          = "username_taken"
+	CodeOwnerProtected         = "owner_protected"
+	CodeFactorRequired         = "factor_required"
+	CodeTOTPAlreadyEnabled     = "totp_already_enabled"
+	CodeInvitationRedeemed     = "invitation_redeemed"
+	CodeNoPendingFlow          = "no_pending_flow"
 )
 
 // CodeForStatus returns the default code for an HTTP status.

@@ -31,7 +31,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/api"
 	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/auth"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"github.com/neurekadev/dockyard/internal/manager/auth/password"
 	"github.com/neurekadev/dockyard/internal/manager/config"
 	"github.com/neurekadev/dockyard/internal/manager/idempotency"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
@@ -57,6 +57,13 @@ type Options struct {
 	Listen func(network, address string) (net.Listener, error)
 	// OnListening is called with the bound address before serving.
 	OnListening func(net.Addr)
+	// PasswordParams overrides the Argon2id parameters (tests only; the
+	// production set is password.Current).
+	PasswordParams *password.Params
+	// OnPasswordCompute is called for every Argon2id computation (tests only).
+	OnPasswordCompute func()
+	// Audit records security events (#30); nil logs them.
+	Audit auth.Auditor
 }
 
 // Manager is a started (migrated, not yet serving) manager.
@@ -66,6 +73,7 @@ type Manager struct {
 	instance domain.Instance
 	keyring  *secrets.Keyring
 	auth     *auth.Kit
+	identity *auth.Service
 	jobs     *jobs.Engine
 	idem     *idempotency.Store
 	audit    *audit.Log
@@ -119,7 +127,8 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	// party fails startup here, before anything listens.
 	if m.auth, err = auth.NewKit(auth.KitOptions{
 		DB: db, Clock: opts.Clock, Logger: log.With("component", "auth"), PublicURL: cfg.PublicURL,
-		IdleTimeout: cfg.Sessions.IdleTimeout, Lifetime: cfg.Sessions.Lifetime,
+		IdleTimeout: cfg.Sessions.IdleTimeout, Lifetime: cfg.Sessions.Lifetime, PasswordParams: opts.PasswordParams,
+		OnPasswordCompute: opts.OnPasswordCompute,
 		SessionError: func(w http.ResponseWriter, r *http.Request, err error) {
 			api.WriteError(w, r, api.Internal(err))
 		},
@@ -140,9 +149,30 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return nil, err
 	}
 
-	// Authorization fails closed until #16/#17 provide principals and
-	// grants; agents are unreachable until the #3 transport exists.
-	authorizer := authz.DenyAll{}
+	identityAuditor := opts.Audit
+	if identityAuditor == nil {
+		identityAuditor = auth.TrailAuditor{Recorder: m.audit, Logger: log.With("component", "identity")}
+	}
+
+	m.idem, err = idempotency.New(idempotency.Options{DB: db, Keyring: m.keyring, Clock: opts.Clock})
+	if err != nil {
+		return nil, err
+	}
+
+	// Identity (#16): sessions, principals and the owner-only evaluator
+	// (the owner may do everything, everyone else is denied until #17).
+	m.identity, err = auth.NewService(ctx, auth.ServiceOptions{
+		DB: db, Kit: m.auth, Keyring: m.keyring, Logger: log.With("component", "identity"),
+		PublicURL: cfg.PublicURL, LocalDevelopment: cfg.LocalDevelopment,
+		IdleTimeout: cfg.Sessions.IdleTimeout, Lifetime: cfg.Sessions.Lifetime,
+		Audit: identityAuditor, Idempotency: m.idem,
+	})
+	if err != nil {
+		return nil, err
+	}
+	authorizer := m.identity.Authorizer()
+
+	// Agents are unreachable until the #3 transport exists.
 	m.jobs, err = jobs.New(jobs.Options{
 		DB: db, Clock: opts.Clock, Logger: log.With("component", "jobs"),
 		Dispatcher: jobs.NoAgents{}, Authorizer: authorizer, Audit: m.audit,
@@ -161,12 +191,6 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return nil, fmt.Errorf("recover jobs: %w", err)
 	}
 
-	m.idem, err = idempotency.New(idempotency.Options{DB: db, Keyring: m.keyring, Clock: opts.Clock})
-	if err != nil {
-		m.jobs.Close()
-		return nil, err
-	}
-
 	srv, err := server.New(server.Options{
 		Logger: log,
 		Clock:  opts.Clock,
@@ -180,11 +204,13 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Idempotency:  m.idem,
 			Audit:        m.audit,
 			SSEHeartbeat: cfg.StreamHeartbeat,
+			Identity:     m.identity,
 		},
 		TrustedProxies:   cfg.TrustedProxies,
 		PublicURL:        cfg.PublicURL,
 		LocalDevelopment: cfg.LocalDevelopment,
 		StreamHeartbeat:  cfg.StreamHeartbeat,
+		Auth:             m.identity.Middleware,
 	})
 	if err != nil {
 		m.jobs.Close()
@@ -263,6 +289,9 @@ func (m *Manager) Auth() *auth.Kit { return m.auth }
 // diagnostics, #34).
 func (m *Manager) Audit() *audit.Log { return m.audit }
 
+// Identity returns the identity service (#16).
+func (m *Manager) Identity() *auth.Service { return m.identity }
+
 // Idempotency returns the Idempotency-Key response store (its Forget is
 // called when a principal's sessions, token or permissions change).
 func (m *Manager) Idempotency() *idempotency.Store { return m.idem }
@@ -287,11 +316,17 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		defer close(auditDone)
 		_ = m.audit.Run(engineCtx)
 	}()
+	sweepDone := make(chan struct{})
+	go func() {
+		defer close(sweepDone)
+		m.identity.RunStreamSweeper(engineCtx)
+	}()
 	defer func() {
 		stopEngine()
 		<-engineDone
 		<-authDone
 		<-auditDone
+		<-sweepDone
 	}()
 	srv := server.HTTPServer(m.handler, m.opts.Logger)
 	errCh := make(chan error, 1)

@@ -13,7 +13,6 @@ package password
 import (
 	"context"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"runtime"
 
@@ -38,8 +37,16 @@ var ParamsV1 = &Params{Memory: 64 * 1024, Iterations: 3, Parallelism: 2, SaltLen
 // Current is the parameter set new hashes use.
 var Current = ParamsV1
 
-// ErrBusy is returned when the context ends while waiting for a hashing slot.
-var ErrBusy = errors.New("password: hashing capacity exhausted")
+// ErrBusy is returned when the context ends while waiting for a hashing
+// slot. The API answers it with a retryable 503 (it implements Busy()).
+var ErrBusy error = busyError{}
+
+type busyError struct{}
+
+func (busyError) Error() string { return "password: hashing capacity exhausted" }
+
+// Busy marks the error as a temporary capacity problem.
+func (busyError) Busy() bool { return true }
 
 // Hasher hashes and verifies passwords with bounded concurrency (each
 // Argon2id computation holds Params.Memory; unbounded parallel sign-ins

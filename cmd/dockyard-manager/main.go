@@ -7,7 +7,7 @@
 //	dockyard-manager healthcheck      probe the local /api/v1/health (image HEALTHCHECK)
 //	dockyard-manager openapi [-format json|yaml]   print the OpenAPI 3.1 spec
 //	dockyard-manager version          print build information
-//	dockyard-manager owner-recovery   reserved for owner account recovery (#16)
+//	dockyard-manager owner-recovery   issue a one-time owner recovery code (#16)
 package main
 
 import (
@@ -60,9 +60,7 @@ func run(args []string, env envconfig.Source, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stdout, "dockyard-manager", buildinfo.Get())
 		return exitOK
 	case "owner-recovery":
-		// TODO(#16): offline owner recovery against the data volume.
-		_, _ = fmt.Fprintln(stderr, "owner-recovery is not implemented yet (see issue #16)")
-		return exitConfig
+		return ownerRecovery(env, stdout, stderr)
 	case "help", "-h", "--help":
 		usage(stdout)
 		return exitOK
@@ -81,7 +79,8 @@ Commands:
   healthcheck      exit 0 if the local manager reports healthy
   openapi          print the OpenAPI 3.1 spec (-format json|yaml)
   version          print build information
-  owner-recovery   reserved (#16)
+  owner-recovery   issue a one-time owner recovery code (run inside the
+                   manager container; signs the owner out everywhere)
 
 Configuration is read from environment variables; see docs/configuration.md.
 `)
@@ -103,6 +102,40 @@ func serve(env envconfig.Source, stderr io.Writer) int {
 		return exitFail
 	}
 	logger.Info("dockyard-manager stopped")
+	return exitOK
+}
+
+// ownerRecovery is the owner lockout break-glass (#16): it prints a
+// one-time recovery code for the instance owner and signs the owner out.
+// Run it where the manager's data volume is mounted:
+//
+//	docker exec dockyard-manager dockyard-manager owner-recovery
+func ownerRecovery(env envconfig.Source, stdout, stderr io.Writer) int {
+	cfg, err := config.Load(env)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "dockyard-manager: invalid configuration:\n%v\n", err)
+		return exitConfig
+	}
+	logger := logging.New(stderr, cfg.LogLevel, cfg.LogFormat)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	code, err := app.OwnerRecovery(ctx, cfg, logger, nil)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, "owner-recovery:", err)
+		return exitFail
+	}
+	_, _ = fmt.Fprintf(stdout, `Owner recovery code (single use, valid until %s):
+
+  %s
+
+Open this link and choose a new password:
+
+  %s
+
+(or POST {"code": "...", "newPassword": "..."} to /api/v1/auth/password-resets/redemptions).
+Every owner session has been signed out. Redeeming the code sets a new password and
+removes the owner's TOTP, passkeys and recovery codes; sign in and enroll them again.
+`, code.ExpiresAt.Format(time.RFC3339), code.Code, code.URL)
 	return exitOK
 }
 

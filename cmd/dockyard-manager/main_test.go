@@ -8,10 +8,64 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/fstest"
 
+	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/envconfig"
+	"github.com/neurekadev/dockyard/internal/ids"
 	"github.com/neurekadev/dockyard/internal/manager/api"
+	"github.com/neurekadev/dockyard/internal/manager/app"
+	"github.com/neurekadev/dockyard/internal/manager/config"
+	"github.com/neurekadev/dockyard/internal/manager/store"
+	"github.com/neurekadev/dockyard/internal/testutil"
 )
+
+// TestOwnerRecoveryCommand: owner-recovery against a data directory prints
+// a one-time code and link, and refuses before first-run setup.
+func TestOwnerRecoveryCommand(t *testing.T) {
+	dir := t.TempDir()
+	vars := map[string]string{"DOCKYARD_PUBLIC_URL": "https://docker.example.com", "DOCKYARD_DATA_DIR": dir}
+	if code, _, stderr := runCmd([]string{"owner-recovery"}, vars); code != exitFail || !strings.Contains(stderr, "no DockYard database") {
+		t.Fatalf("empty data dir: %d %q", code, stderr)
+	}
+	cfg, err := config.Load(envconfig.Map(vars, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := testutil.Context(t)
+	m, err := app.Start(ctx, app.Options{Config: cfg, Logger: testutil.Logger(t), UI: fstest.MapFS{"index.html": {Data: []byte("<!doctype html><title>DockYard</title>")}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code, _, stderr := runCmd([]string{"owner-recovery"}, vars); code != exitFail || !strings.Contains(stderr, "first-run setup") {
+		t.Fatalf("before setup: %d %q", code, stderr)
+	}
+	group, err := store.DefaultGroupID(ctx, m.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateUser(ctx, m.DB(), domain.NewUser{ID: ids.New(), Username: "owner", Owner: true, GroupID: group,
+		WebAuthnHandle: []byte("handle-0123456789"), CreatedAt: m.Identity().Now()}); err != nil {
+		t.Fatal(err)
+	}
+	_ = m.Close()
+	code, out, stderr := runCmd([]string{"owner-recovery"}, vars)
+	if code != exitOK || !strings.Contains(out, "dyo_") || !strings.Contains(out, "https://docker.example.com/password-reset#code=dyo_") {
+		t.Fatalf("owner-recovery: %d %q %q", code, out, stderr)
+	}
+	if strings.Contains(stderr, "dyo_") {
+		t.Fatalf("the code leaked to the log: %q", stderr)
+	}
+	db, err := store.Open(ctx, cfg.DatabasePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	var n int
+	if err := db.NewRaw("SELECT count(*) FROM audit_events WHERE action = 'owner.recovery_issue' AND actor_kind = 'service'").Scan(ctx, &n); err != nil || n != 1 {
+		t.Fatalf("owner recovery audit records: %d %v", n, err)
+	}
+}
 
 func runCmd(args []string, vars map[string]string) (int, string, string) {
 	var out, errOut bytes.Buffer
@@ -47,8 +101,8 @@ func TestOpenAPIAndVersion(t *testing.T) {
 	if code != exitOK || !strings.HasPrefix(out, "dockyard-manager ") {
 		t.Fatalf("version: %d %q", code, out)
 	}
-	if code, _, _ := runCmd([]string{"owner-recovery"}, nil); code != exitConfig {
-		t.Fatalf("owner-recovery placeholder exit %d", code)
+	if code, _, stderr := runCmd([]string{"owner-recovery"}, nil); code != exitConfig || !strings.Contains(stderr, "DOCKYARD_PUBLIC_URL") {
+		t.Fatalf("owner-recovery without configuration: exit %d %q", code, stderr)
 	}
 	if code, _, _ := runCmd([]string{"frobnicate"}, nil); code != exitConfig {
 		t.Fatalf("unknown command exit %d", code)
