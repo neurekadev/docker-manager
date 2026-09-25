@@ -131,6 +131,15 @@ loading/denied/not-found/error states, `Facts`, `NameCell`, `Fields`,
 still follow `liveKeys` (a feature marker after `'list'` keeps cached
 shapes apart).
 
+The permission editor of #17 (the design's "PermissionTree") is
+`$lib/features/access/PermissionEditor.svelte`: a searchable resource tree
+(`ResourceTree`, categories in `tree.ts`) beside the actions of the chosen
+scope (`ActionMatrix`), in three modes: `group` (No rule / Allow / Deny),
+`user` (Inherit / Allow / Deny with the inherited decision explained) and
+`token` (grants limited to what the caller holds, #31). Rule logic
+(scope keys, diffs, inheritance precedence) is in `permissions.ts`;
+`RulesSaveBar` lists every change before the revisioned, step-up save.
+
 Changes the manager guards with recent authentication answer
 `403 step_up_required`; wrap the call in `withStepUp(() => …)` from
 `$lib/auth/stepup.svelte`: the signed-in layout's `StepUpDialog` asks for
