@@ -2,8 +2,8 @@
 
 DockYard ships two images, published from `main` as the rolling `edge` tag:
 
-- `ghcr.io/neurekadev/dockyard-manager:edge` — UI, API, agent endpoint, SQLite
-- `ghcr.io/neurekadev/dockyard-agent:edge` — one per Docker Engine, outbound only
+- `code.neureka.dev/dockyard/dockyard-manager:edge` — UI, API, agent endpoint, SQLite
+- `code.neureka.dev/dockyard/dockyard-agent:edge` — one per Docker Engine, outbound only
 
 Both run as root (UID 0); running them as a non-root user is not supported.
 There are no semver releases yet.
@@ -32,11 +32,11 @@ later and the Compose plugin, using the default data root
 (`/var/lib/docker`). Rootless Engines, Docker Desktop and NAS vendor Engines
 are not supported; see [../docs/support-matrix.md](../docs/support-matrix.md).
 
-The packages are private, so log in to GHCR first with a GitHub personal
-access token that has `read:packages`:
+The packages are private, so log in to the Forgejo registry first with a
+Forgejo access token that has the `read:package` scope:
 
 ```bash
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
+echo "$FORGEJO_TOKEN" | docker login code.neureka.dev -u <forgejo-user> --password-stdin
 
 cd deploy/caddy
 cp .env.example .env        # set DOCKYARD_HOST to your DNS name (default: localhost)

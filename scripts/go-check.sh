@@ -39,6 +39,13 @@ if [ "${GO_CHECK_SKIP_LINT:-0}" != "1" ]; then
 	*) echo "warning: golangci-lint ${have} found; CI uses v${GOLANGCI_LINT_VERSION}" >&2 ;;
 	esac
 	golangci-lint run ./...
+	# CI lints on Linux: files behind a linux build constraint (agent
+	# fixtures, inotify watcher, procfs sampler) are invisible to a lint run
+	# on another host OS, so lint them for GOOS=linux as well.
+	if [ "$(go env GOOS)" != "linux" ]; then
+		echo "==> golangci-lint (GOOS=linux)"
+		GOOS=linux golangci-lint run ./...
+	fi
 fi
 
 echo "==> go test"

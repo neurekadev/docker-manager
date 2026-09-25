@@ -249,12 +249,13 @@ the `playwright-report` artifact.
 
 `scripts/smoke/deploy-smoke.sh` (job `smoke`) runs `deploy/caddy` with
 the images under test: on `main` it waits (up to 30 min) until
-`ghcr.io/neurekadev/dockyard-{manager,agent}:edge` carry
+`code.neureka.dev/dockyard/dockyard-{manager,agent}:edge` carry
 `org.opencontainers.image.revision == github.sha`; on branches it builds
 the images locally (`smoke-images` input; `smoke-revision` tests the
 current edge against a given commit). If `:edge` has already moved on to a
 newer `main` commit that contains the run's commit, that newer image is
-tested instead of waiting (GitHub compare API). Steps: fresh start (healthy,
+tested instead of waiting (the job fetches `main` with its token and
+checks ancestry with `git merge-base`). Steps: fresh start (healthy,
 UID 0, Docker socket only on the agent) → readiness, UI shell and OpenAPI
 through the Caddy TLS proxy with a verified CA → owner setup over HTTPS
 (#16) → `enroll-agent`: the owner creates the enrollment token through the

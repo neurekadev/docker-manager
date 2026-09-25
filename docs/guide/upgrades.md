@@ -13,7 +13,7 @@ short version.
 
    ```bash
    docker image inspect --format '{{index .RepoDigests 0}}' \
-     ghcr.io/neurekadev/dockyard-manager:edge ghcr.io/neurekadev/dockyard-agent:edge
+     code.neureka.dev/dockyard/dockyard-manager:edge code.neureka.dev/dockyard/dockyard-agent:edge
    ```
 
 2. Recommended: run the **Manager state** backup (Backups → policies →
@@ -71,7 +71,7 @@ image's own command, pin the previous digest and start it:
 docker compose stop dockyard-manager
 docker compose run --rm --no-deps dockyard-manager snapshots list
 docker compose run --rm --no-deps dockyard-manager snapshots restore <snapshot file>
-# compose.yaml: image: ghcr.io/neurekadev/dockyard-manager@sha256:<previous digest>
+# compose.yaml: image: code.neureka.dev/dockyard/dockyard-manager@sha256:<previous digest>
 docker compose up -d dockyard-manager
 ```
 

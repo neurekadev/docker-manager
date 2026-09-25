@@ -30,7 +30,7 @@ in GitHub issues #1 (roadmap) and #25 (decision register).
   directory mounted at its identical host path (#28).
 - **Images** — separate manager and agent images from `deploy/docker/`, each
   with its static binary and a pinned, checksum-verified restic. Published as
-  rolling `ghcr.io/neurekadev/dockyard-{manager,agent}:edge` from `main`.
+  rolling `code.neureka.dev/dockyard/dockyard-{manager,agent}:edge` from `main`.
 
 ## Package boundaries
 

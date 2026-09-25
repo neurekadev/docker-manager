@@ -23,8 +23,8 @@ import (
 // other stack of the same backup, then snapshots DockYard's project live.
 func TestShutdownPlanExcludesDockYardProject(t *testing.T) {
 	e := newEnv(t)
-	write(t, filepath.Join(e.stacks, "dockyard", "compose.yaml"), "services:\n  dockyard-manager:\n    image: ghcr.io/neurekadev/dockyard-manager:edge\n"+
-		"  dockyard-agent:\n    image: ghcr.io/neurekadev/dockyard-agent:edge\n    depends_on: [dockyard-manager]\n"+
+	write(t, filepath.Join(e.stacks, "dockyard", "compose.yaml"), "services:\n  dockyard-manager:\n    image: code.neureka.dev/dockyard/dockyard-manager:edge\n"+
+		"  dockyard-agent:\n    image: code.neureka.dev/dockyard/dockyard-agent:edge\n    depends_on: [dockyard-manager]\n"+
 		"  caddy:\n    image: caddy:2\n    depends_on: [dockyard-manager]\n")
 	lbl := func(svc, role, deps string) map[string]string {
 		l := map[string]string{lifecycle.ComposeProjectLabel: "dockyard", lifecycle.ComposeServiceLabel: svc}
@@ -36,9 +36,9 @@ func TestShutdownPlanExcludesDockYardProject(t *testing.T) {
 		}
 		return l
 	}
-	e.eng.AddContainer(engine.ContainerSpec{Name: "dockyard-dockyard-manager-1", Image: "ghcr.io/neurekadev/dockyard-manager:edge",
+	e.eng.AddContainer(engine.ContainerSpec{Name: "dockyard-dockyard-manager-1", Image: "code.neureka.dev/dockyard/dockyard-manager:edge",
 		Labels: lbl("dockyard-manager", "manager", "")}, true)
-	e.eng.AddContainer(engine.ContainerSpec{Name: "dockyard-dockyard-agent-1", Image: "ghcr.io/neurekadev/dockyard-agent:edge",
+	e.eng.AddContainer(engine.ContainerSpec{Name: "dockyard-dockyard-agent-1", Image: "code.neureka.dev/dockyard/dockyard-agent:edge",
 		Labels: lbl("dockyard-agent", "agent", "dockyard-manager:service_started:false:true")}, true)
 	e.eng.AddContainer(engine.ContainerSpec{Name: "dockyard-caddy-1", Image: "caddy:2",
 		Labels: lbl("caddy", "", "dockyard-manager:service_started:false:true")}, true)

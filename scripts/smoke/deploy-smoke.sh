@@ -39,7 +39,7 @@
 # Environment:
 #   SMOKE_IMAGES         edge (default) | local
 #   SMOKE_REVISION       expected revision label / commit (default: git HEAD)
-#   SMOKE_MANAGER_IMAGE  default ghcr.io/neurekadev/dockyard-manager:edge (edge)
+#   SMOKE_MANAGER_IMAGE  default code.neureka.dev/dockyard/dockyard-manager:edge (edge)
 #                        or dockyard-manager:smoke (local)
 #   SMOKE_AGENT_IMAGE    likewise for the agent
 #   SMOKE_WAIT_SECONDS   how long to wait for edge images (default 1800)
@@ -64,8 +64,8 @@ SMOKE_HTTPS_PORT="${SMOKE_HTTPS_PORT:-8443}"
 SMOKE_ARTIFACTS="${SMOKE_ARTIFACTS:-$(mktemp -d)}"
 case "$SMOKE_IMAGES" in
 edge)
-	: "${SMOKE_MANAGER_IMAGE:=ghcr.io/neurekadev/dockyard-manager:edge}"
-	: "${SMOKE_AGENT_IMAGE:=ghcr.io/neurekadev/dockyard-agent:edge}"
+	: "${SMOKE_MANAGER_IMAGE:=code.neureka.dev/dockyard/dockyard-manager:edge}"
+	: "${SMOKE_AGENT_IMAGE:=code.neureka.dev/dockyard/dockyard-agent:edge}"
 	export SMOKE_PULL_POLICY=always
 	;;
 local)
@@ -200,13 +200,17 @@ step_wait_images() {
 	record wait-images PASSED "edge images carry revision ${SMOKE_REVISION}"
 }
 
-# commit_contains HEAD BASE: HEAD is a descendant of BASE (GitHub compare API;
-# needs GH_TOKEN and GITHUB_REPOSITORY, i.e. only in Actions).
+# commit_contains HEAD BASE: HEAD is a descendant of BASE. Fetches main from
+# the checkout's origin with the job token (SMOKE_GIT_TOKEN, i.e. only in
+# Actions); the token reaches git through the environment, never argv.
 commit_contains() {
-	[ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GH_TOKEN:-}" ] || return 1
-	local status
-	status="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${2}...${1}" --jq .status 2>/dev/null)" || return 1
-	[ "$status" = ahead ]
+	[ -n "${SMOKE_GIT_TOKEN:-}" ] || return 1
+	local deepen=()
+	[ "$(git rev-parse --is-shallow-repository)" = true ] && deepen=(--unshallow)
+	GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.extraHeader \
+		GIT_CONFIG_VALUE_0="Authorization: basic $(printf 'x-access-token:%s' "$SMOKE_GIT_TOKEN" | base64 | tr -d '\n')" \
+		git fetch --quiet --no-tags "${deepen[@]}" origin '+refs/heads/main:refs/remotes/origin/main' >/dev/null 2>&1 || return 1
+	[ "$1" != "$2" ] && git merge-base --is-ancestor "$2" "$1" 2>/dev/null
 }
 
 container_health() {

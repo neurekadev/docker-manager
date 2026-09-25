@@ -12,7 +12,7 @@ name: dockyard-agent
 
 services:
   dockyard-agent:
-    image: ghcr.io/neurekadev/dockyard-agent:edge
+    image: code.neureka.dev/dockyard/dockyard-agent:edge
     restart: unless-stopped
     environment:
       # The public origin, always https (certificate validated against the

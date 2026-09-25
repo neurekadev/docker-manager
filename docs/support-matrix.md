@@ -38,12 +38,15 @@ topology, Q16 root containers). How each line is verified:
 
 | Artifact | Contents | Published as |
 | --- | --- | --- |
-| `dockyard-manager` executable | API, embedded web UI, SQLite store, job engine; CGO-free, static | `ghcr.io/neurekadev/dockyard-manager:edge` (linux/amd64, linux/arm64; provenance and SBOM) |
-| `dockyard-agent` executable | Docker/Compose adapter, files, backups; CGO-free, static; no web UI, no listener | `ghcr.io/neurekadev/dockyard-agent:edge` (linux/amd64, linux/arm64; provenance and SBOM) |
+| `dockyard-manager` executable | API, embedded web UI, SQLite store, job engine; CGO-free, static | `code.neureka.dev/dockyard/dockyard-manager:edge` (linux/amd64, linux/arm64; provenance and SBOM) |
+| `dockyard-agent` executable | Docker/Compose adapter, files, backups; CGO-free, static; no web UI, no listener | `code.neureka.dev/dockyard/dockyard-agent:edge` (linux/amd64, linux/arm64; provenance and SBOM) |
 | restic | 0.19.1, SHA-256 verified per architecture (`deploy/docker/*.Dockerfile`), in both images | inside the images only |
 
 Only the rolling `:edge` tag is published from `main`; there are no git
-tags, GitHub Releases or semver images in this build (#25). Neither image
+tags, releases or semver images in this build (#25). The images are
+built and pushed by the `images` job of `.github/workflows/ci.yaml` on
+Forgejo Actions; GitHub artifact attestations do not exist on Forgejo, so
+the BuildKit provenance and SBOM attestations are the only ones. Neither image
 contains a Docker, Compose or buildx CLI, Node or a shell toolchain; both
 are based on `gcr.io/distroless/static-debian12` pinned by digest
 (`scripts/ci/image-contents.sh` checks each image).

@@ -1,5 +1,5 @@
 # Overrides deploy/caddy/compose.yaml for the deploy smoke test with the
-# images under test (edge from GHCR, or locally built). Used by
+# images under test (edge from code.neureka.dev, or locally built). Used by
 # scripts/smoke/deploy-smoke.sh only.
 services:
   dockyard-manager:

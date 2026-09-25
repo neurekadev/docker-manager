@@ -9,11 +9,12 @@ from one place.
 
 ## Status
 
-v1 is in release acceptance (#12; the roadmap in #1 tracks what is still
-open). There are no versioned releases yet: `main` publishes the rolling
+v1 is in release acceptance (neurekadev/dockyard#12; the roadmap in
+neurekadev/dockyard#1 tracks what is still open). The code lives at
+<https://code.neureka.dev/dockyard/dockyard>. There are no versioned releases yet: `main` publishes the rolling
 `edge` images
-`ghcr.io/neurekadev/dockyard-manager:edge` and
-`ghcr.io/neurekadev/dockyard-agent:edge` (linux/amd64 and linux/arm64).
+`code.neureka.dev/dockyard/dockyard-manager:edge` and
+`code.neureka.dev/dockyard/dockyard-agent:edge` (linux/amd64 and linux/arm64).
 
 ## Quick start
 
@@ -21,8 +22,8 @@ On a Linux host with Docker Engine 25.0+ and the Compose plugin, with a DNS
 name pointing at it:
 
 ```bash
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin   # packages are private
-git clone https://github.com/neurekadev/dockyard.git && cd dockyard/deploy/caddy
+echo "$FORGEJO_TOKEN" | docker login code.neureka.dev -u <forgejo-user> --password-stdin   # packages are private
+git clone https://code.neureka.dev/dockyard/dockyard.git && cd dockyard/deploy/caddy
 cp .env.example .env        # set DOCKYARD_HOST=docker.example.com (and DOCKYARD_TLS)
 docker compose up -d        # manager + co-located agent + Caddy, from the :edge images
 ```

@@ -10,7 +10,8 @@
 | bash | Git Bash on Windows, any bash on Linux/macOS | All gates are bash scripts; there is no Makefile. |
 
 Docker is **not** required locally. Everything that needs a Docker Engine
-(image builds, Engine/Compose integration tests, E2E) runs in GitHub Actions.
+(image builds, Engine/Compose integration tests, E2E) runs in Forgejo Actions
+(`.github/workflows/`, runner on `code.neureka.dev`).
 Keep such tests behind the `integration` or `e2e` build tags (or under
 `test/`) so `go test ./...` stays Docker-free.
 

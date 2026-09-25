@@ -3,8 +3,8 @@
 This guide is for the people who install and run DockYard. It walks
 through the tasks in order and links to the reference documents for
 details. DockYard has no semver releases yet: `main` publishes the
-rolling `:edge` images `ghcr.io/neurekadev/dockyard-manager:edge` and
-`ghcr.io/neurekadev/dockyard-agent:edge`.
+rolling `:edge` images `code.neureka.dev/dockyard/dockyard-manager:edge` and
+`code.neureka.dev/dockyard/dockyard-agent:edge`.
 
 | Task | Page |
 | --- | --- |

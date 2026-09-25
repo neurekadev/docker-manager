@@ -107,7 +107,7 @@ func main() {
 		fmt.Println(string(mustJSON(out)))
 		return
 	}
-	var input json.RawMessage = mustJSON(protocol.StackJobInput{StackID: name, Stack: ref, Services: os.Args[3:],
+	input := mustJSON(protocol.StackJobInput{StackID: name, Stack: ref, Services: os.Args[3:],
 		Build: os.Getenv("STACKJOBS_BUILD") == "1", NoCache: os.Getenv("STACKJOBS_NO_CACHE") == "1"})
 	if v := os.Getenv("STACKJOBS_INPUT"); v != "" {
 		input = json.RawMessage(v)

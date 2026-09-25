@@ -740,4 +740,9 @@ Guides: `docs/design/README.md` (tokens, components, copy, a11y),
 
 - LF line endings only; no LICENSE file; never commit the UI mockup (#22).
 - Branches `feat/<issue>-<slug>`, conventional commits, squash merges.
-- No git tags, GitHub Releases or semver images; `main` publishes `:edge`.
+- No git tags, releases or semver images; `main` publishes `:edge` to
+  `code.neureka.dev/dockyard/dockyard-{manager,agent}` (Forgejo registry).
+- Code, PRs and CI live on Forgejo (`https://code.neureka.dev/dockyard/dockyard`,
+  Forgejo Actions); the GitHub issues stay the written record: cite them as
+  `neurekadev/dockyard#N`. Artifact steps use the Forgejo forks of
+  upload/download-artifact (v4 inputs only).

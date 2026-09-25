@@ -354,12 +354,12 @@ func addDockYard(h *homelabHost) {
 	for _, v := range []string{"data", "agent", "stacks"} {
 		fe.AddVolume("dockyard_"+v, map[string]string{protocol.ComposeProjectLabel: "dockyard", "com.docker.compose.volume": v})
 	}
-	fe.AddContainer(engine.ContainerSpec{Name: "dockyard-manager", Image: "ghcr.io/neurekadev/dockyard-manager:edge",
+	fe.AddContainer(engine.ContainerSpec{Name: "dockyard-manager", Image: "code.neureka.dev/dockyard/dockyard-manager:edge",
 		RestartPolicy: "unless-stopped", NetworkMode: "dockyard_default", NetworkAliases: []string{"dockyard-manager"},
 		Labels: project("dockyard-manager", map[string]string{protocol.LabelRole: "manager"}),
 		Ports:  []engine.PortBinding{{ContainerPort: 8080, HostPort: 8080, HostIP: "127.0.0.1"}},
 		Mounts: []engine.MountSpec{{Type: "volume", Source: "dockyard_data", Target: "/var/lib/dockyard"}}}, true)
-	h.selfContainer = fe.AddContainer(engine.ContainerSpec{Name: "dockyard-agent", Image: "ghcr.io/neurekadev/dockyard-agent:edge",
+	h.selfContainer = fe.AddContainer(engine.ContainerSpec{Name: "dockyard-agent", Image: "code.neureka.dev/dockyard/dockyard-agent:edge",
 		RestartPolicy: "unless-stopped", NetworkMode: "dockyard_default", NetworkAliases: []string{"dockyard-agent"},
 		Labels: project("dockyard-agent", map[string]string{protocol.LabelRole: "agent"}),
 		Mounts: []engine.MountSpec{{Type: "volume", Source: "dockyard_agent", Target: "/var/lib/dockyard-agent"},
@@ -368,7 +368,7 @@ func addDockYard(h *homelabHost) {
 	// A one-off container left behind by `docker compose run dockyard-manager
 	// snapshots list` (#34): exited, part of DockYard's project, so a prune
 	// preview lists it as protected (#32) instead of removing it.
-	exited(h.engine, engine.ContainerSpec{Name: "dockyard-dockyard-manager-run-4f2a9c", Image: "ghcr.io/neurekadev/dockyard-manager:edge",
+	exited(h.engine, engine.ContainerSpec{Name: "dockyard-dockyard-manager-run-4f2a9c", Image: "code.neureka.dev/dockyard/dockyard-manager:edge",
 		Labels: project("dockyard-manager", map[string]string{protocol.LabelRole: "manager", "com.docker.compose.oneoff": "True"}),
 		Mounts: []engine.MountSpec{{Type: "volume", Source: "dockyard_data", Target: "/var/lib/dockyard"}}})
 	h.usage["dockyard-manager"] = usage{1.2, 96 * mib}

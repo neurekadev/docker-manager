@@ -75,7 +75,7 @@ func TestProxyExamplesTopology(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			c := load(t, "deploy/"+dir+"/compose.yaml")
 			m, a, p := c.Services["dockyard-manager"], c.Services["dockyard-agent"], c.Services[proxy]
-			if m.Image != "ghcr.io/neurekadev/dockyard-manager:edge" || a.Image != "ghcr.io/neurekadev/dockyard-agent:edge" {
+			if m.Image != "code.neureka.dev/dockyard/dockyard-manager:edge" || a.Image != "code.neureka.dev/dockyard/dockyard-agent:edge" {
 				t.Errorf("DockYard images %q %q", m.Image, a.Image)
 			}
 			if !pinnedRE.MatchString(p.Image) {
@@ -304,7 +304,7 @@ func TestExampleVariablesAreKnown(t *testing.T) {
 					}
 					continue
 				}
-				if svc.Image != "ghcr.io/neurekadev/"+name+":edge" {
+				if svc.Image != "code.neureka.dev/dockyard/"+name+":edge" {
 					t.Errorf("%s image %q, want the published edge image", name, svc.Image)
 				}
 				for k := range svc.Environment {

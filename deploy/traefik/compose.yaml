@@ -12,7 +12,7 @@ name: dockyard
 
 services:
   dockyard-manager:
-    image: ghcr.io/neurekadev/dockyard-manager:edge
+    image: code.neureka.dev/dockyard/dockyard-manager:edge
     restart: unless-stopped
     environment:
       DOCKYARD_PUBLIC_URL: https://${DOCKYARD_HOST:-localhost}
@@ -26,7 +26,7 @@ services:
       - dockyard
 
   dockyard-agent:
-    image: ghcr.io/neurekadev/dockyard-agent:edge
+    image: code.neureka.dev/dockyard/dockyard-agent:edge
     restart: unless-stopped
     depends_on:
       - dockyard-manager

@@ -81,9 +81,12 @@ the layout, conventions and gates every later workstream builds on.
 11. **CI:** `ci.yaml` (PR + main) runs the same scripts as the local gate;
     third-party actions pinned by commit SHA. Only pushes to `main` publish,
     and only the `edge` tag, with BuildKit provenance (`mode=max`) and SBOM.
-    `actions/attest-build-provenance` runs with `continue-on-error` because
-    GitHub artifact attestations are unavailable for private user-owned
-    repositories on the current plan; its outcome is shown in the job summary.
+    *Update (2026-09-25):* the repository and CI moved to Forgejo
+    (`code.neureka.dev/dockyard/dockyard`, Forgejo Actions); images publish
+    to the Forgejo registry (`code.neureka.dev/dockyard/dockyard-*:edge`).
+    GitHub artifact attestations (`actions/attest-build-provenance`) do not
+    exist there and were dropped; the BuildKit provenance and SBOM
+    attestations remain attached to the images.
     `extended.yaml` hosts slow suites as separate jobs gated by a `suites`
     input.
 12. **License policy:** shipped Go modules and production npm packages must
