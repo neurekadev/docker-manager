@@ -271,7 +271,7 @@ step_owner_setup() {
 }
 
 step_enroll_agent() {
-	pending enroll-agent "#3" "create an enrollment token, restart the agent with it, wait for the Environment to be online" 'enroll'
+	pending enroll-agent "#3" "create an enrollment token, restart the agent with it, wait for the Environment to be online" 'agent-enrollment'
 }
 
 step_deploy_stack() {
