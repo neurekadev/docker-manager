@@ -17,8 +17,11 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/uptrace/bun"
 
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
 	"github.com/neurekadev/dockyard/internal/db/migrations"
@@ -39,6 +42,10 @@ const (
 	envState    = "FT_STATE"
 	envEffects  = "FT_EFFECTS"
 	envScenario = "FT_SCENARIO"
+	// envHoldTail makes the manager hold the engine goroutine that
+	// committed a job's terminal state until the parent hung up (see
+	// tailGate), forcing the interleaving of TestManagerDrainsJobTail.
+	envHoldTail = "FT_HOLD_TAIL"
 
 	roleManager = "manager"
 	roleAgent   = "agent"
@@ -154,8 +161,54 @@ func readLines(fn func(envelope)) {
 	}
 }
 
+// callerCtx marks contexts of managerMain's own calls (Recover, Run,
+// HandleAgentFrame, Enqueue) so tailGate only holds commits made on the
+// engine's internal lifetime context, i.e. by manager-local job goroutines.
+type callerCtx struct{}
+
+// tailGate is a bun query hook forcing the interleaving of the flaky #26
+// extended run 36075563917: it holds the manager-local job goroutine right
+// after the COMMIT that made its job terminal, before the goroutine signals
+// subscribers and reaches engine.manager_job.committed, until the parent
+// closed stdin. The done watcher waits for held, so the parent always sees
+// "done" and hangs up while the goroutine's tail is still pending.
+//
+// SQLite runs on one connection, so every query between an engine-internal
+// BEGIN and its COMMIT belongs to that transaction; a terminal state in one
+// of its jobs UPDATEs marks the terminal commit without reading the DB.
+type tailGate struct {
+	out      *lineWriter
+	terminal atomic.Bool // the open engine-internal transaction finishes a job
+	fired    atomic.Bool
+	held     chan struct{} // closed once the goroutine is held
+	released <-chan struct{}
+}
+
+func (g *tailGate) BeforeQuery(ctx context.Context, _ *bun.QueryEvent) context.Context { return ctx }
+
+func (g *tailGate) AfterQuery(ctx context.Context, ev *bun.QueryEvent) {
+	if ctx.Value(callerCtx{}) != nil || ev.Err != nil || g.fired.Load() {
+		return
+	}
+	switch q := ev.Query; {
+	case q == "BEGIN" || q == "ROLLBACK":
+		g.terminal.Store(false)
+	case strings.HasPrefix(q, `UPDATE "jobs"`):
+		for _, s := range domain.JobStates() {
+			if s.Terminal() && strings.Contains(q, `"state" = '`+string(s)+`'`) {
+				g.terminal.Store(true)
+			}
+		}
+	case q == "COMMIT" && g.terminal.Load():
+		g.fired.Store(true)
+		_ = g.out.write(envelope{Ctl: "tail_held"})
+		close(g.held)
+		<-g.released
+	}
+}
+
 func managerMain() int {
-	ctx := context.Background()
+	ctx := context.WithValue(context.Background(), callerCtx{}, true)
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})).With("role", roleManager)
 	sc := scenarioByName(os.Getenv(envScenario))
 	dbPath := os.Getenv(envDB)
@@ -170,6 +223,12 @@ func managerMain() int {
 		return 3
 	}
 	out := &lineWriter{}
+	stdinClosed := make(chan struct{})
+	var gate *tailGate
+	if os.Getenv(envHoldTail) != "" {
+		gate = &tailGate{out: out, held: make(chan struct{}), released: stdinClosed}
+		db.AddQueryHook(gate)
+	}
 	disp := &stdioDispatcher{out: out}
 	eng, err := jobs.New(jobs.Options{DB: db, Logger: log, Dispatcher: disp, PollInterval: 50 * time.Millisecond})
 	if err != nil {
@@ -187,8 +246,13 @@ func managerMain() int {
 		log.Error("recover", "error", err)
 		return 3
 	}
-	go func() { _ = eng.Run(ctx) }()
-	stdinClosed := make(chan struct{})
+	runCtx, stopRun := context.WithCancel(ctx)
+	defer stopRun()
+	runDone := make(chan struct{})
+	go func() {
+		defer close(runDone)
+		_ = eng.Run(runCtx)
+	}()
 	connected := make(chan struct{})
 	var connectOnce sync.Once
 	go func() {
@@ -241,6 +305,9 @@ func managerMain() int {
 	go func() {
 		for {
 			if j, err := eng.Get(ctx, job.ID); err == nil && j.State.Terminal() {
+				if gate != nil {
+					<-gate.held
+				}
 				_ = out.write(envelope{Ctl: "done"})
 				close(done)
 				return
@@ -259,6 +326,15 @@ func managerMain() int {
 	// Keep handling frames until the parent hangs up, so stage boundaries
 	// after the terminal commit (e.g. engine.result.committed) are reached.
 	<-stdinClosed
+	// A manager-local job commits its outcome in its own goroutine, which
+	// reaches engine.manager_job.committed only after that commit (and
+	// after the done watcher may already have seen it). Stop dispatching
+	// and let that goroutine finish before exiting, like the manager's
+	// shutdown (Engine.Close) does, so the point is reached on every run
+	// (extended run 36075563917, TestManagerDrainsJobTail).
+	stopRun()
+	<-runDone
+	eng.Wait()
 	return 0
 }
 
@@ -413,14 +489,18 @@ func (h *harness) dumpLogs() string {
 
 type outcome struct {
 	crashed bool
-	job     domain.Job
-	locks   int
-	effects []string
+	// tailHeld: the manager held a job goroutine after its terminal commit
+	// until the parent hung up (FT_HOLD_TAIL).
+	tailHeld bool
+	job      domain.Job
+	locks    int
+	effects  []string
 }
 
 // run executes the scenario. faultRole/point arm one crash in the first
-// process of that role; trace records every point reached.
-func run(t *testing.T, sc scenario, faultRole, point string, trace bool) outcome {
+// process of that role; trace records every point reached; managerEnv is
+// added to the first manager process.
+func run(t *testing.T, sc scenario, faultRole, point string, trace bool, managerEnv ...string) outcome {
 	t.Helper()
 	h := &harness{t: t, sc: sc, dir: t.TempDir(), events: make(chan event, 10000), procs: map[string]*proc{}, gens: map[string]int{}}
 	firstEnv := func(role string) []string {
@@ -433,7 +513,7 @@ func run(t *testing.T, sc scenario, faultRole, point string, trace bool) outcome
 		}
 		return env
 	}
-	h.start(roleManager, firstEnv(roleManager)...)
+	h.start(roleManager, append(firstEnv(roleManager), managerEnv...)...)
 	h.start(roleAgent, firstEnv(roleAgent)...)
 
 	var res outcome
@@ -479,6 +559,8 @@ loop:
 				continue
 			}
 			switch {
+			case ev.role == roleManager && e.Ctl == "tail_held":
+				res.tailHeld = true
 			case ev.role == roleManager && e.Ctl == "done":
 				done = true
 				for _, p := range h.procs {
@@ -627,6 +709,33 @@ func TestKillAtEveryStage(t *testing.T) {
 						t.Logf("%s killed at %s: job %s (%s) attempt %d", role, p, res.job.State, res.job.ErrorClass, res.job.Attempt)
 					})
 				}
+			}
+		})
+	}
+}
+
+// TestManagerDrainsJobTail is the regression test for extended run
+// 36075563917 (TestKillAtEveryStage/manager_backup failed with "fault point
+// engine.manager_job.committed was not reached"). That point sits in the
+// manager-local job goroutine after the terminal commit; the manager child
+// used to return as soon as the parent hung up after "done", so when the
+// goroutine was descheduled between commit and point the process exited 0
+// first. The gate forces exactly that interleaving: the manager must still
+// let the goroutine finish its tail (and crash there) before exiting.
+func TestManagerDrainsJobTail(t *testing.T) {
+	for _, name := range []string{"manager_backup", "retention"} {
+		t.Run(name, func(t *testing.T) {
+			sc := scenarioByName(name)
+			res := run(t, sc, roleManager, jobs.PointManagerJobCommitted, false, envHoldTail+"=1")
+			if !res.tailHeld {
+				t.Fatal("the job goroutine's tail was not held; the interleaving was not forced")
+			}
+			if !res.crashed {
+				t.Fatalf("fault point %s was not reached: the manager exited before its job goroutine finished", jobs.PointManagerJobCommitted)
+			}
+			checkInvariants(t, sc, res)
+			if res.job.State != domain.JobSucceeded {
+				t.Fatalf("job %s (%s), want succeeded: the crash came after the terminal commit", res.job.State, res.job.ErrorClass)
 			}
 		})
 	}

@@ -274,9 +274,10 @@ step_owner_setup() {
 
 step_enroll_agent() {
 	local out token
-	# Headless path (the UI and owner account arrive with #16/#22): create a
-	# one-use token inside the manager container. The token stays in shell
-	# variables only; it is never written to the artifacts.
+	# Headless operator path (the enrollment UI arrives with #22; the owner
+	# API from #16 is not needed for it): create a one-use token with the
+	# manager CLI inside its container. The token stays in shell variables
+	# only; it is never written to the artifacts.
 	out="$("${compose[@]}" exec -T dockyard-manager dockyard-manager enrollment create -name smoke -json 2>"${SMOKE_ARTIFACTS}/enrollment-create.err")" ||
 		fail enroll-agent "dockyard-manager enrollment create failed: $(tail -5 "${SMOKE_ARTIFACTS}/enrollment-create.err")"
 	token="$(jq -r '.token // empty' <<<"$out")"

@@ -235,9 +235,9 @@ current edge against a given commit). If `:edge` has already moved on to a
 newer `main` commit that contains the run's commit, that newer image is
 tested instead of waiting (GitHub compare API). Steps: fresh start (healthy,
 UID 0, Docker socket only on the agent) → readiness, UI shell and OpenAPI
-through the Caddy TLS proxy with a verified CA → owner setup (pending #16)
-→ agent enrollment (pending #3) → deploy `test/smoke/sample-stack` (pending
-#7). Pending steps print `::warning::` and are listed in the job summary;
+through the Caddy TLS proxy with a verified CA → owner setup over HTTPS
+(#16) → agent enrollment of the co-located agent with a CLI-issued token
+(#3) → deploy `test/smoke/sample-stack` (pending #7). Pending steps print `::warning::` and are listed in the job summary;
 the warning changes once matching operations appear in the served OpenAPI.
 
 ## Time and clocks

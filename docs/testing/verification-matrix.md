@@ -39,7 +39,7 @@ Legend for "where": PR = `ci.yaml` PR suite; X:`job` = `extended.yaml` job.
 | V14 | Factor recovery (TOTP/passkey) | #16 | Playwright with `totp()` and `addVirtualAuthenticator()` (helpers implemented, `helpers.spec.ts`) | X:`e2e` | planned |
 | V15 | CSRF | #3, #16 | API tests: state-changing requests without the CSRF token/origin check fail | PR | planned |
 | V16 | Throttling / rate limiting | #3, #16, #27 | `/agent/v1` per-client-IP limiter: `TestAgentRateLimitPerClientIP` (fake clock, spoofed XFF, IPv6 /64, fail-closed table); login, enrollment and API rate-limit tests follow with #16/#3 | PR | partial |
-| V17 | Owner bootstrap, concurrent first-owner setup | #16 | Race test: N concurrent setup requests → exactly one owner; smoke `owner-setup` step (pending) | PR, X:`race`, X:`smoke` | planned |
+| V17 | Owner bootstrap, concurrent first-owner setup | #16 | `TestConcurrentFirstRunSetupCreatesOneOwner` (N concurrent setup requests → exactly one owner); smoke `owner-setup` step (owner over HTTPS through Caddy, second setup refused) | PR, X:`race`, X:`smoke` | implemented |
 | V18 | Invite redemption (one-use) and revocation | #16 | API tests incl. concurrent redemption | PR, X:`race` | planned |
 | V19 | Restricted default group; no-access new user | #17 | Permission decision corpus | PR | planned |
 | V20 | Scoped capabilities, group/user override precedence and boundaries | #17 | Decision corpus (table-driven, every capability × scope × override) | PR | planned |
@@ -119,7 +119,7 @@ Legend for "where": PR = `ci.yaml` PR suite; X:`job` = `extended.yaml` job.
 | V73 | Identical-path storage layout | #28 | Agent startup check tests on DinD Engines; smoke stack with relative bind | X:`engine-matrix`, X:`smoke` | planned |
 | V74 | Stack and volume migration between environments | #35 | Two Engines (`StartEngines`) | X:`engine-matrix` | planned |
 | V75 | Version compatibility and environment removal | #34 | Old/new agent builds against the manager; removal leaves Engine resources intact | X:`engine-matrix` | planned |
-| V76 | First agent enrolled from the PWA UI; stack deployed | #3, #7 | Smoke `enroll-agent`, `deploy-stack` (pending steps, enabled by #3/#7); Playwright enrollment flow | X:`smoke`, X:`e2e` | planned |
+| V76 | First agent enrolled from the PWA UI; stack deployed | #3, #7, #22 | Smoke `enroll-agent` (implemented: CLI-issued token, co-located agent online, reused token refused); smoke `deploy-stack` (pending #7); Playwright enrollment flow (pending UI #22) | X:`smoke`, X:`e2e` | partial |
 
 ## Contract and documentation
 
