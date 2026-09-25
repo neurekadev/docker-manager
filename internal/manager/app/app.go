@@ -87,6 +87,9 @@ type Options struct {
 	Listen func(network, address string) (net.Listener, error)
 	// OnListening is called with the bound address before serving.
 	OnListening func(net.Addr)
+	// OnStarted is called with every started manager (Run starts a new one
+	// after a controlled restart; tests).
+	OnStarted func(*Manager)
 	// PasswordParams overrides the Argon2id parameters (tests only; the
 	// production set is password.Current).
 	PasswordParams *password.Params
@@ -145,6 +148,32 @@ type Manager struct {
 	migrations *envmigrations.Service
 	updates    *updates.Service
 	backups    *backups.Service
+	// restart is signaled when the manager must restart in process (a
+	// staged manager-state restore, #24); Serve returns ErrRestart.
+	restart chan struct{}
+}
+
+// ErrRestart is returned by Serve when a controlled restart was requested
+// (Run starts the manager again).
+var ErrRestart = errors.New("manager restart requested")
+
+// RequestRestart asks Serve to stop gracefully and return ErrRestart.
+func (m *Manager) RequestRestart() {
+	select {
+	case m.restart <- struct{}{}:
+	default:
+	}
+}
+
+// RestartRequested reports (and consumes) a pending restart request
+// (tests that restart by hand).
+func (m *Manager) RestartRequested() bool {
+	select {
+	case <-m.restart:
+		return true
+	default:
+		return false
+	}
 }
 
 // ErrSecretKeyMissing means the database belongs to an existing installation
@@ -165,11 +194,21 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	if err := os.MkdirAll(cfg.DataDir, 0o700); err != nil {
 		return nil, fmt.Errorf("create data directory: %w", err)
 	}
+	// A manager-state restore staged by a backup import (#24) replaces the
+	// database and the secret key before anything opens them.
+	applied, err := backups.ApplyPendingRestore(cfg.DataDir, cfg.DatabasePath(), cfg.SecretKeyFile, opts.Clock.Now())
+	if err != nil {
+		return nil, fmt.Errorf("apply the staged manager restore: %w", err)
+	}
+	if applied != nil {
+		log.Warn("applied a staged manager-state restore; the previous database and key are kept",
+			"set_id", applied.SetID, "kept_in", applied.PreRestoreDir)
+	}
 	db, err := store.Open(ctx, cfg.DatabasePath())
 	if err != nil {
 		return nil, err
 	}
-	m := &Manager{opts: opts, db: db}
+	m := &Manager{opts: opts, db: db, restart: make(chan struct{}, 1)}
 	ok := false
 	defer func() {
 		if !ok {
@@ -413,6 +452,13 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return nil, fmt.Errorf("recover jobs: %w", err)
 	}
 	m.agents.AttachJobs(m.jobs)
+	// A manager-state restore (#24) applied above is finished before
+	// anything is served: sessions, API tokens and agents are revoked,
+	// the repository and index are brought up to date.
+	if err := m.finishRestore(ctx); err != nil {
+		m.jobs.Close()
+		return nil, fmt.Errorf("finish the manager restore: %w", err)
+	}
 	// The scoped file manager (#15): stack scopes resolve through the stack
 	// service (#7), which records a revision when a definition file changes.
 	m.files = files.New(files.Options{Agents: m.agents.Hub(), Jobs: m.jobs, Logger: log.With("component", "files")})
@@ -794,8 +840,7 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 	srv := server.HTTPServer(m.handler, m.opts.Logger)
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve(ln) }()
-	select {
-	case <-ctx.Done():
+	shutdown := func() error {
 		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ShutdownGrace)
 		defer cancel()
 		// Hijacked agent WebSockets are not closed by srv.Shutdown: close
@@ -806,6 +851,16 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		err := srv.Shutdown(shutdownCtx)
 		<-errCh
 		return err
+	}
+	select {
+	case <-ctx.Done():
+		return shutdown()
+	case <-m.restart:
+		m.opts.Logger.Warn("restarting the manager (controlled restart)")
+		if err := shutdown(); err != nil {
+			return err
+		}
+		return ErrRestart
 	case err := <-errCh:
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
@@ -839,6 +894,9 @@ func (m *Manager) Close() error {
 
 // Run starts the manager, binds the listener and serves until ctx ends.
 func Run(ctx context.Context, opts Options) error {
+	if opts.Clock == nil {
+		opts.Clock = clock.Real()
+	}
 	cfg, log := opts.Config, opts.Logger
 	info := buildinfo.Get()
 	log.Info("starting dockyard-manager", "version", info.Version, "commit", info.Commit,
@@ -850,6 +908,22 @@ func Run(ctx context.Context, opts Options) error {
 		log.Warn("serving the placeholder UI; this binary was built without the SvelteKit assets")
 	}
 
+	// A controlled restart (a staged manager-state restore, #24) starts the
+	// manager again in this process.
+	for {
+		err := runOnce(ctx, opts)
+		if !errors.Is(err, ErrRestart) {
+			return err
+		}
+		if ctx.Err() != nil {
+			return nil
+		}
+	}
+}
+
+// runOnce starts, serves and closes one manager instance.
+func runOnce(ctx context.Context, opts Options) error {
+	cfg, log := opts.Config, opts.Logger
 	m, err := Start(ctx, opts)
 	if err != nil {
 		return err
@@ -865,6 +939,9 @@ func Run(ctx context.Context, opts Options) error {
 		return fmt.Errorf("listen on %s: %w", cfg.ListenAddr, err)
 	}
 	log.Info("listening", "addr", ln.Addr().String(), "instance_id", m.Instance().ID)
+	if opts.OnStarted != nil {
+		opts.OnStarted(m)
+	}
 	if opts.OnListening != nil {
 		opts.OnListening(ln.Addr())
 	}

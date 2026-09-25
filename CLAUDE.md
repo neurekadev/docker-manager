@@ -505,6 +505,11 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   manager state owner-only).
 - Features that remove environments (#34) or migrate data (#35) must keep
   backup repositories, sets and snapshots (instance history).
+- Manager-state restores happen only in a fresh manager (setup import,
+  `backup.import`, then `app.Run`'s controlled restart applying
+  `<data>/restore-pending`); never swap the database of a running manager.
+  Anything new that must not survive a restore (sessions, tokens, agent
+  credentials) is revoked in `app.(*Manager).finishRestore`.
 
 ## Adding a migration
 

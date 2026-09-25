@@ -9,7 +9,11 @@ import (
 	"github.com/neurekadev/dockyard/internal/domain"
 )
 
-type identityAPI struct{ svc IdentityService }
+type identityAPI struct {
+	svc IdentityService
+	// backups reports a running backup import in the setup status (#24).
+	backups BackupService
+}
 
 func (h *identityAPI) service() (IdentityService, error) {
 	if h.svc == nil {
@@ -29,7 +33,7 @@ type emptyOutput struct{}
 var errsSignIn = []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity, http.StatusTooManyRequests}
 
 func registerIdentity(a huma.API, deps Deps) {
-	h := &identityAPI{svc: deps.Identity}
+	h := &identityAPI{svc: deps.Identity, backups: deps.Backups}
 	registerSetup(a, h)
 	registerSignIn(a, h)
 	registerFactors(a, h)
@@ -57,6 +61,12 @@ func registerSetup(a huma.API, h *identityAPI) {
 		}
 		out := &setupStatusOutput{}
 		out.Body.SetupComplete, out.Body.SecureOrigin, out.Body.Explanation = st.Complete, st.SecureOrigin, st.Explanation
+		if !st.Complete && h.backups != nil {
+			if imp, err := h.backups.LatestImport(ctx); err == nil && imp != nil {
+				out.Body.BackupImport = &SetupBackupImport{JobID: imp.JobID, State: string(imp.State), ErrorCode: imp.ErrorClass,
+					Recovery: imp.Message, RestartPending: imp.RestartPending}
+			}
+		}
 		return out, nil
 	})
 

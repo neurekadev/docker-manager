@@ -29,6 +29,9 @@ const (
 	// AuditSessionDenied: a session upgrade or handshake was refused
 	// (invalid credential, identity or Engine mismatch, version).
 	AuditSessionDenied = "agent.session_refused"
+	// AuditRestoreRevoke: a manager restore (#24) revoked the agent's
+	// restored credential; the environment awaits a re-attach.
+	AuditRestoreRevoke = "agent.restore_revoke"
 )
 
 // AuditLog is the audit trail as the service uses it (*audit.Log).

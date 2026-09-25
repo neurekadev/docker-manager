@@ -124,6 +124,10 @@ manager, e.g. `app.Manager.Audit()`):
 - #19/#33: each use of a registry or Git credential (`registry.credential_used`
   with the credential ID as target — never the value).
 - #13 and other scheduled work: `Actor: audit.ServiceActor()`.
+- #24 (manager restore, at the first start after a backup import):
+  `system.restore` (actor `service`, the set as target, counts of deleted
+  sessions, revoked API tokens and agents, relocation and reconciliation),
+  `agent.restore_revoke` per revoked agent, and `api_token.revoke_all`.
 
 Inside a database transaction (single-connection SQLite), use
 `RecordTx(ctx, tx, ev)`; calling `Record` while holding a transaction

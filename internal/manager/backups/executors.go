@@ -70,6 +70,7 @@ func (s *Service) executors() []jobexec.Executor {
 		{Kind: jobspec.ManagerVerify, Steps: map[string]jobexec.StepFunc{
 			"check": s.stepManagerCheck,
 		}},
+		s.importExecutor(),
 	}
 }
 

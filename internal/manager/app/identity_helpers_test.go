@@ -73,7 +73,7 @@ func newEnv(t *testing.T, with ...func(*Options)) *env {
 	e.srv = httptest.NewServer(m.Handler())
 	t.Cleanup(func() {
 		e.srv.Close()
-		_ = m.Close()
+		_ = e.m.Close() // the current manager (tests may restart it)
 	})
 	return e
 }

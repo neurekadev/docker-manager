@@ -32,6 +32,7 @@ func (s *Service) registerHooks() {
 	e.OnFinish(jobspec.BackupVerify, s.onVerify)
 	e.OnFinish(jobspec.ManagerVerify, s.onVerify)
 	e.OnFinish(jobspec.RestoreRun, s.onRestore)
+	e.OnFinish(jobspec.BackupImport, s.onImport)
 }
 
 func jobClass(j domain.Job) string {

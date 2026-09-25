@@ -119,6 +119,59 @@ func (s *Service) RemoveAgent(ctx context.Context, id string, expectRevision int
 	return a, nil
 }
 
+// RevokeAllAgents revokes every agent and its credentials and detaches it
+// from its environment (the environments stay, detached, ready for
+// `reattach:<environmentId>` enrollments, #34). A restored manager (#24)
+// calls it at startup: credentials from a snapshot are never trusted
+// silently. It returns the number of agents revoked.
+func (s *Service) RevokeAllAgents(ctx context.Context, reason string) (int, error) {
+	var revoked []domain.Agent
+	err := s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		all, err := store.ListAgents(ctx, tx, domain.AgentFilter{})
+		if err != nil {
+			return err
+		}
+		now := s.now()
+		for i := range all {
+			a := all[i]
+			if a.Status == domain.AgentRevoked {
+				continue
+			}
+			if err := s.revokeAgentTx(ctx, tx, &a, reason, now); err != nil {
+				return err
+			}
+			env, err := store.GetEnvironment(ctx, tx, a.EnvironmentID)
+			if err != nil && !errors.Is(err, domain.ErrEnvironmentNotFound) {
+				return err
+			}
+			if err == nil && env.AgentID == a.ID {
+				env.AgentID, env.UpdatedAt = "", now
+				if env.Online {
+					env.Online, env.ConnectionChangedAt = false, &now
+				}
+				env.Revision++
+				if err := store.UpdateEnvironment(ctx, tx, &env, 0); err != nil {
+					return err
+				}
+			}
+			if err := s.recordTx(ctx, tx, domain.AuditEvent{Action: AuditRestoreRevoke, Actor: audit.ServiceActor(),
+				EnvironmentID: a.EnvironmentID, Outcome: domain.AuditSuccess, Targets: agentTargets(a.ID, a.EnvironmentID),
+				Details: map[string]any{"reason": reason}}); err != nil {
+				return err
+			}
+			revoked = append(revoked, a)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	for _, a := range revoked {
+		s.hub.kick(a.ID, protocol.CloseRevoked, "agent revoked")
+	}
+	return len(revoked), nil
+}
+
 // RotationTimeout bounds the wait for the agent's confirmation.
 const RotationTimeout = 30 * time.Second
 

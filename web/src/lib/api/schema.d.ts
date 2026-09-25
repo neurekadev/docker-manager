@@ -2816,6 +2816,66 @@ export interface paths {
         patch: operations["update-security-settings"];
         trace?: never;
     };
+    "/api/v1/setup/backup-imports/connection-tests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test a backup import source (first-run setup)
+         * @description Before an owner exists only (then 409 setup_complete). Checks S3 access, whether the Recovery Key opens the manager repository (dockyard-manager) and which host repositories the manifests name or the destination holds. Problems explain key loss, missing repositories, damaged manifests and partially rotated keys. Nothing is stored.
+         */
+        post: operations["create-setup-backup-import-connection-test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/setup/backup-imports/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview the backup sets of an import source (first-run setup)
+         * @description Lists the newest backup sets from the portable manifests in the repositories (not from any database): completeness, where each member's snapshot is (found, missing, unverified, not_backed_up), the DockYard version and whether this build can run the set's database. With setId the set's secret-key bundle is opened too. Sets known only from host repositories are listed but cannot be imported.
+         */
+        post: operations["create-setup-backup-import-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/setup/backup-imports/restores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a backup set's manager state (first-run setup)
+         * @description Queues backup.import (202 + job): the set's manager-state snapshot is restored into a staging directory, its secret-key bundle is opened with the Recovery Key and the database is checked; then the manager restarts and applies it. Follow the progress with GET /api/v1/setup/status (backupImport). After the restart the owner signs in with the restored account: no session is revived, every API token is revoked, every agent must re-attach (enrollment intent reattach:<environmentId>), and the repository uses the destination and S3 credentials supplied here.
+         */
+        post: operations["create-setup-backup-import-restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/setup/owner": {
         parameters: {
             query?: never;
@@ -4085,6 +4145,143 @@ export interface components {
             volume?: string;
             volumes?: string[];
         };
+        BackupImportConnectionTest: {
+            canDelete?: boolean;
+            canRead?: boolean;
+            canWrite?: boolean;
+            /**
+             * @description Fingerprint of the supplied Recovery Key (compare with the one you saved).
+             * @example rk_3f2a9c1d0b7e4a55
+             */
+            keyFingerprint: string;
+            /** @description Host repositories named by the manifests or found at the destination. */
+            locations: components["schemas"]["BackupImportLocation"][];
+            manager: components["schemas"]["BackupImportLocation"];
+            objectLock?: boolean;
+            ok: boolean;
+            /** @description What prevents or limits the import, with what to do. */
+            problems: string[];
+            /**
+             * Format: int64
+             * @description Backup sets found in the manager repository (newest 20).
+             */
+            sets: number;
+        };
+        BackupImportLocation: {
+            engineId?: string;
+            environmentId?: string;
+            environmentName?: string;
+            /** @example repository_not_found */
+            errorClass?: string;
+            found: boolean;
+            /**
+             * @description Which supplied Recovery Key opened it; previous means the rotation has not reached it (partially rotated keys).
+             * @enum {string}
+             */
+            key?: "current" | "previous";
+            /** @description Why it is not reachable yet and what makes it available. */
+            note?: string;
+            /** @description This manager can open it with the supplied destination and credentials. */
+            reachable: boolean;
+            /** @description The restic repository (no credentials). */
+            repository: string;
+            repositoryId?: string;
+            repositoryName?: string;
+            resticRepositoryId?: string;
+            /**
+             * @description manager or env:<environmentId>.
+             * @example manager
+             */
+            scope: string;
+        };
+        BackupImportMember: {
+            environmentId?: string;
+            environmentName?: string;
+            errorClass?: string;
+            /** @example stack/0190a6e0-0000-7000-8000-000000000001 */
+            item: string;
+            /** @enum {string} */
+            kind: "manager_state" | "stack" | "volume";
+            /**
+             * @description found: listed in its repository; missing: its repository was read and the snapshot is not there; unverified: its repository is not reachable from this manager yet; not_backed_up: no snapshot was written.
+             * @enum {string}
+             */
+            located: "found" | "missing" | "unverified" | "not_backed_up";
+            scope: string;
+            snapshotId?: string;
+            /** Format: date-time */
+            snapshotTime?: string;
+            stackId?: string;
+            stackName?: string;
+            /** @enum {string} */
+            state: "complete" | "partial" | "failed" | "pending" | "missing";
+            volume?: string;
+        };
+        BackupImportPreview: {
+            keyFingerprint: string;
+            locations: components["schemas"]["BackupImportLocation"][];
+            manager: components["schemas"]["BackupImportLocation"];
+            problems: string[];
+            /** @description Newest first (at most 20). */
+            sets: components["schemas"]["BackupImportSet"][];
+        };
+        BackupImportSet: {
+            appVersion?: string;
+            /** @description The error code an import of this set answers. */
+            blockerCode?: string;
+            /** @enum {string} */
+            completeness?: "complete" | "partial" | "failed" | "pending";
+            /** Format: date-time */
+            createdAt?: string;
+            /** @description Known only from host repositories (no manager-state manifest). */
+            hostOnly: boolean;
+            importable: boolean;
+            instanceId?: string;
+            /**
+             * @description The selected set only: whether a supplied Recovery Key opens its secret-key bundle.
+             * @enum {string}
+             */
+            keyBundle?: "ok" | "previous_key" | "mismatch" | "corrupt" | "missing";
+            managerSnapshotId?: string;
+            /** Format: date-time */
+            managerSnapshotTime?: string;
+            members: components["schemas"]["BackupImportMember"][];
+            policyName?: string;
+            problems: string[];
+            schemaCompatible: boolean;
+            /** @description Newest migration of the set's manager database. */
+            schemaLatest?: string;
+            setId: string;
+        };
+        BackupImportSource: {
+            /** @description S3: the key pair to use now (it may be newly issued); the restored repository keeps it. */
+            accessKeyId?: string;
+            bucket?: string;
+            /** @description Restores: must be true (this manager's empty state is replaced and the manager restarts). */
+            confirm?: boolean;
+            /** @example https://s3.eu-central-1.amazonaws.com */
+            endpoint?: string;
+            /** @enum {string} */
+            kind: "local" | "s3";
+            /**
+             * @description Local destinations: the directory on this manager (below DOCKYARD_BACKUP_LOCAL_ROOTS); it may be a new mount path.
+             * @example /backups/dockyard
+             */
+            path?: string;
+            /** @description Path-style bucket addressing (MinIO and most self-hosted S3). */
+            pathStyle?: boolean;
+            /** @example dockyard */
+            prefix?: string;
+            /** @description Only after a rotation that has not reached every repository, or to import a set saved before it: the previous key. */
+            previousRecoveryKey?: string;
+            /** @description The saved Recovery Key (the newest one after a rotation). Never returned, logged, stored or audited. */
+            recoveryKey: string;
+            region?: string;
+            /** @description Write-only: never returned, logged or audited. */
+            secretAccessKey?: string;
+            /** @description Previews: also open this set's secret-key bundle (the final check). Restores: the set to import (required). */
+            setId?: string;
+        };
         BackupLocationHealth: {
             /** Format: int64 */
             keyGeneration: number;
@@ -4252,6 +4449,8 @@ export interface components {
             errorClass?: string;
             exists: boolean;
             keyAccepted: boolean;
+            /** @description Only the previous Recovery Key opens it: the rotation has not reached it yet. */
+            previousKey?: boolean;
             resticRepositoryId?: string;
             /**
              * @description manager or env:<environmentId>.
@@ -7646,6 +7845,16 @@ export interface components {
             /** @description The signed-in account (enrollment_required and authenticated). */
             user?: components["schemas"]["Account"];
         };
+        SetupBackupImport: {
+            errorCode?: string;
+            jobId: string;
+            /** @description What to do after a failure. */
+            recovery?: string;
+            /** @description The manager state is staged; the manager restarts to apply it. Sign in afterwards with the restored owner account. */
+            restartPending: boolean;
+            /** @enum {string} */
+            state: "queued" | "waiting" | "running" | "succeeded" | "failed" | "cancelled" | "interrupted";
+        };
         SetupOwnerInputBody: {
             displayName?: string;
             email?: string;
@@ -7655,6 +7864,8 @@ export interface components {
             username: string;
         };
         SetupStatusOutputBody: {
+            /** @description The newest backup import (#24) while setup is open. */
+            backupImport?: components["schemas"]["SetupBackupImport"];
             /** @description Why setup cannot complete over this request, and how to fix it. */
             explanation?: string;
             /** @description This request reached DockYard over HTTPS on its public URL, so setup can complete. */
@@ -22955,6 +23166,214 @@ export interface operations {
             };
             /** @description Precondition Required */
             428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-setup-backup-import-connection-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupImportSource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupImportConnectionTest"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-setup-backup-import-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupImportSource"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupImportPreview"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-setup-backup-import-restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupImportSource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -150,7 +150,10 @@ same change.
 | `nothing_to_retry` | 409 | no | Every member of the backup set completed; there is nothing to retry. | #10 |
 | `backup_repository_error` | 409 | no | The backup repository could not be read (missing, Recovery Key rejected, storage refused access, locked or damaged); the message names the class and what to do. | #10 |
 | `backup_not_a_file` | 409 | no | Only regular files can be downloaded from a backup (not directories, links or special files). | #10 |
-| `manager_restore_required` | 409 | no | Manager-state backups are not restored like stack or volume data: the instance owner uses the manager restore procedure (controlled restart). | #10 |
+| `manager_restore_required` | 409 | no | Manager-state backups are not restored like stack or volume data: import them into a fresh manager (first-run setup, backup import), which replaces the whole manager state. | #10 |
+| `backup_import_schema_incompatible` | 409 | no | The backup set was written by a newer DockYard whose database this build cannot run; install at least that version and import again. | #24 |
+| `backup_import_state_missing` | 409 | no | The backup set has no readable manager state (missing manager repository or snapshot, damaged secret-key bundle or database); choose another set. Host-only recovery is documented. | #24 |
+| `backup_import_in_progress` | 409 | no | A backup import is already running on this manager; follow it in the setup status. | #24 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `length_required` | 411 | no | Uploads need a `Content-Length` header. | #15 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |
@@ -161,6 +164,11 @@ same change.
 | `validation_failed` | 422 | no | One or more inputs are invalid; `details` lists each field. | #2 |
 | `recreate_required` | 422 | no | The requested container settings cannot change in place; create a new container (or use a Compose stack). `details` lists the fields. | #6 |
 | `content_digest_mismatch` | 422 | no | The uploaded bytes do not match `X-DockYard-Content-SHA256`; nothing was written. | #15 |
+| `backup_import_key_rejected` | 422 | no | The Recovery Key does not open the manager repository. Check it for typos; after a rotation also enter the previous key. A lost Recovery Key cannot be recovered: nobody can decrypt the backups. | #24 |
+| `backup_import_not_found` | 422 | no | No DockYard repository (or no such backup set) at the import destination; check endpoint, bucket, prefix or the mounted path. | #24 |
+| `backup_import_manifest_corrupt` | 422 | no | The portable manifest of the backup set is damaged (truncated or checksum mismatch); choose another set or check the repository. | #24 |
+| `backup_import_key_rotated` | 422 | no | The set's manager state is sealed under another Recovery Key (a rotation happened after it); enter the newest key and the previous one. | #24 |
+| `backup_import_unreachable` | 422 | no | The import destination could not be read (storage refused access, unreachable, locked or damaged); the message names the class and what to do. | #24 |
 | `invalid_definition` | 422 | no | The Compose definition does not validate (syntax, paths or unsupported features); `details` lists each finding. | #7 |
 | `definition_too_large` | 422 | no | The Compose definition exceeds its bounds (256 KiB per file, 512 KiB and 32 files in total). | #7 |
 | `recovery_key_mismatch` | 422 | no | The re-entered Recovery Key is well-formed but is not the instance's (pending or current) key. | #10 |
