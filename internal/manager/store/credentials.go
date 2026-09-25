@@ -90,6 +90,18 @@ func UpdatePasskeyUse(ctx context.Context, db bun.IDB, id string, credential []b
 	return nil
 }
 
+// RenamePasskey changes the label of one of the user's passkeys.
+func RenamePasskey(ctx context.Context, db bun.IDB, userID, id, name string) error {
+	res, err := db.NewUpdate().Model((*passkeyRow)(nil)).Set("name = ?", name).Where("id = ? AND user_id = ?", id, userID).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("store: rename passkey: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return domain.ErrPasskeyNotFound
+	}
+	return nil
+}
+
 // DeletePasskey deletes one of the user's passkeys.
 func DeletePasskey(ctx context.Context, db bun.IDB, userID, id string) error {
 	res, err := db.NewDelete().Model((*passkeyRow)(nil)).Where("id = ? AND user_id = ?", id, userID).Exec(ctx)

@@ -2529,7 +2529,11 @@ export interface paths {
         delete: operations["delete-my-passkey"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Rename one of my passkeys
+         * @description Changes only the label shown in the passkey list; the credential is unchanged (no step-up, no session ends). Available to limited enrollment sessions.
+         */
+        patch: operations["update-my-passkey"];
         trace?: never;
     };
     "/api/v1/me/password": {
@@ -7134,6 +7138,10 @@ export interface components {
         PasskeyRegistrationOutputBody: {
             passkey: components["schemas"]["Passkey"];
             session: components["schemas"]["Session"];
+        };
+        PasskeyRenameInputBody: {
+            /** @description Label shown in the passkey list. */
+            name: string;
         };
         PasswordResetRedemptionInputBody: {
             /** @description Password-reset or owner-recovery code. */
@@ -22256,6 +22264,78 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-my-passkey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Passkey ID (from GET /api/v1/me/passkeys). */
+                credentialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyRenameInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Passkey"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

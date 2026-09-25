@@ -576,6 +576,21 @@ func TestPasskeyPolicyAndWebAuthn(t *testing.T) {
 	if len(pks.Items) != 1 || pks.Items[0].Name != "laptop" {
 		t.Fatalf("passkeys %+v", pks)
 	}
+	// Renaming changes the label only (no step-up, no session ends).
+	var renamed struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	b.must(http.StatusOK, http.MethodPatch, "/api/v1/me/passkeys/"+out.Passkey.ID, map[string]any{"name": "work laptop"}).json(t, &renamed)
+	if renamed.ID != out.Passkey.ID || renamed.Name != "work laptop" {
+		t.Fatalf("renamed passkey %+v", renamed)
+	}
+	b.must(http.StatusOK, http.MethodGet, "/api/v1/me/passkeys", nil).json(t, &pks)
+	if len(pks.Items) != 1 || pks.Items[0].Name != "work laptop" {
+		t.Fatalf("passkeys after rename %+v", pks)
+	}
+	b.fail(http.StatusNotFound, "not_found", http.MethodPatch, "/api/v1/me/passkeys/nope", map[string]any{"name": "x"})
+	b.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPatch, "/api/v1/me/passkeys/"+out.Passkey.ID, map[string]any{"name": ""})
 	// A second passkey makes the first removable.
 	if reg := b.registerPasskey(newDevice(publicOrigin, publicHost), "phone"); reg.status != http.StatusCreated {
 		t.Fatalf("second passkey %d %s", reg.status, reg.body)

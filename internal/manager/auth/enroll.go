@@ -450,6 +450,33 @@ func (s *Service) ListMyPasskeys(ctx context.Context) ([]domain.Passkey, error) 
 	return store.ListPasskeys(ctx, s.db, cur.user.ID)
 }
 
+// RenameMyPasskey changes the label of one of the caller's passkeys (an
+// empty name becomes "Passkey", as at registration). Renaming changes no
+// credential, so it needs no step-up and ends no session.
+func (s *Service) RenameMyPasskey(ctx context.Context, id, name string) (domain.Passkey, error) {
+	cur, err := s.session(ctx, true)
+	if err != nil {
+		return domain.Passkey{}, err
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "Passkey"
+	}
+	if err := store.RenamePasskey(ctx, s.db, cur.user.ID, id, name); err != nil {
+		return domain.Passkey{}, err
+	}
+	pks, err := store.ListPasskeys(ctx, s.db, cur.user.ID)
+	if err != nil {
+		return domain.Passkey{}, err
+	}
+	for _, p := range pks {
+		if p.ID == id {
+			return p, nil
+		}
+	}
+	return domain.Passkey{}, domain.ErrPasskeyNotFound
+}
+
 // DeleteMyPasskey revokes one of the caller's passkeys (recent
 // authentication; refused when the policy would become unsatisfiable).
 // Other sessions end.

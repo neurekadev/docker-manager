@@ -280,6 +280,16 @@ routes:
     kind: json
     status: implemented
     sessionOnly: true
+  - method: PATCH
+    path: "/api/v1/me/passkeys/{credentialId}"
+    operationId: update-my-passkey
+    capability: authenticated
+    scope: none
+    owner: 16
+    kind: json
+    status: implemented
+    sessionOnly: true
+    notes: Renames the passkey (label only); no step-up.
   - method: DELETE
     path: "/api/v1/me/passkeys/{credentialId}"
     operationId: delete-my-passkey
