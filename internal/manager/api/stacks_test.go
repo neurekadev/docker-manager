@@ -193,7 +193,15 @@ func stacksAPIFor(t *testing.T, pol *authztest.Policy) (http.Handler, *fakeStack
 
 func stackRoutes(t *testing.T) []authztest.Call {
 	t.Helper()
-	all := authztest.Routes(t, map[string]string{"stackId": "st-1", "environmentId": "env-1", "revisionId": "rev-3"},
+	return stackRoutesFor(t, "st-1")
+}
+
+// stackRoutesFor are every implemented stack route (#7, #33) of stack
+// stackID in env-1 with valid bodies and headers (the schema is checked
+// before authorization); the stack file routes are #15's.
+func stackRoutesFor(t *testing.T, stackID string) []authztest.Call {
+	t.Helper()
+	all := authztest.Routes(t, map[string]string{"stackId": stackID, "environmentId": "env-1", "revisionId": "rev-3"},
 		"/api/v1/stacks", "/api/v1/environments/{environmentId}/stacks")
 	var calls []authztest.Call
 	for _, c := range all {

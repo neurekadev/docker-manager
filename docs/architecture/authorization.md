@@ -89,7 +89,16 @@ plain-language reason (previews, effective permissions).
 
 The decision corpus (`internal/manager/authz/policy/testdata/corpus.yaml`,
 `TestDecisionCorpus`) and the exhaustive capability × scope × override matrix
-(`TestEveryCapabilityScopeAndOverride`) pin these rules.
+(`TestEveryCapabilityScopeAndOverride`) pin these rules. Through the
+routes, the grant-scenario matrices in `internal/manager/api`
+(`docker_test.go`, `authz_matrix_test.go`) run every Docker (#6), stack
+(#7, #33) and container log/terminal (#8) route of an environment for
+Restricted, metrics-only, restart-only (by container and by stack),
+`stack.read` vs `stack.definition.read`, logs-only and exec-only users:
+each opens exactly its capability's routes plus the minimal views it
+reaches (a capability inside a stack shows the stack minimally), and
+everything else answers 403/404 or an empty page. Logs and terminals are
+never opened by metrics, restart, details or stack grants.
 
 ## Resource graph (Locators)
 

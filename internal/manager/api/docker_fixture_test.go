@@ -214,6 +214,10 @@ type dockerFixture struct {
 	svc     *resources.Service
 	h       http.Handler
 	stacks  stackIDs
+	// The stack routes (#7) and container logs/terminals (#8) are served
+	// too, so the #17 matrices cover them (authz_matrix_test.go).
+	stackSvc *fakeStacks
+	io       *fakeContainerIO
 }
 
 func newDockerFixture(t *testing.T, pol *authztest.Policy) *dockerFixture {
@@ -267,9 +271,15 @@ func newDockerFixture(t *testing.T, pol *authztest.Policy) *dockerFixture {
 	}
 	t.Cleanup(f.svc.Close)
 	f.observe = &fakeObserve{}
+	f.stackSvc = newFakeStacks()
+	shop := f.stackSvc.stacks["st-1"]
+	shop.ID = "stack-shop"
+	delete(f.stackSvc.stacks, "st-1")
+	f.stackSvc.stacks[shop.ID] = shop
+	f.io = &fakeContainerIO{}
 	mux := http.NewServeMux()
 	New(mux, Deps{Agents: agentsSvc, Docker: f.svc, Observe: f.observe, Authorizer: pol, Clock: testutil.FakeClock(), Idempotency: &memIdempotency{},
-		InstanceID: "instance-1"})
+		InstanceID: "instance-1", Stacks: f.stackSvc, ContainerIO: f.io})
 	f.h = authztest.Authenticate(withTestContext(t, mux, ""))
 	return f
 }
@@ -310,14 +320,15 @@ func (f *dockerFixture) imageID(env, tag string) string {
 	return ""
 }
 
-// dockerRoutes are every implemented Docker route of env-1 with web, the
-// nginx image, the scratch volume and the spare network as the objects,
-// with valid bodies for the create routes (the schema is checked before
+// dockerRoutesFor are every implemented Docker route of env-1 (including
+// container logs and exec sessions, #8) with the container, the nginx
+// image, the scratch volume and the spare network as the objects, with
+// valid bodies for the create routes (the schema is checked before
 // authorization).
-func (f *dockerFixture) dockerRoutes() []authztest.Call {
+func (f *dockerFixture) dockerRoutesFor(container string) []authztest.Call {
 	f.t.Helper()
-	params := map[string]string{"environmentId": "env-1", "containerId": "web", "imageId": f.imageID("env-1", "nginx:1.27"),
-		"volumeId": "scratch", "networkId": "spare"}
+	params := map[string]string{"environmentId": "env-1", "containerId": container, "imageId": f.imageID("env-1", "nginx:1.27"),
+		"volumeId": "scratch", "networkId": "spare", "sessionId": "sess-1"}
 	bodies := map[string]any{
 		"create-container":   map[string]any{"name": "new", "image": "nginx:1.27"},
 		"create-image-pull":  map[string]any{"reference": "alpine:3.22"},
