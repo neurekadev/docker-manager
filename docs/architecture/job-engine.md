@@ -238,6 +238,14 @@ lists.
 The `Job` schema includes `origin`, `attempt`, `blockedBy`, `locks`,
 `locksHeld`, `progress`, `items` and `error {class, message, recovery}`.
 
+## Audit
+
+Every kind emits audit records (#30) from the engine itself, in the same
+transaction as the state change: `job.queued` (Enqueue), `job.started`
+(each attempt), `job.cancel_requested` (Cancel) and `job.finished` (every
+terminal state, with the error class and the item list). Executors do not
+record lifecycle events. See [audit](audit.md).
+
 ## Retention
 
 Finished jobs and their events are deleted after

@@ -77,6 +77,7 @@ Every operation carries DockYard extensions (checked by
 | `x-dockyard-capability-values` | list of keys | for a selector: the concrete capabilities; the request body picks one (e.g. `action: restart` needs `stack.restart`) |
 | `x-dockyard-scope` | `none`, `instance`, `environment`, `resource` | where the capability is evaluated: nowhere (public/authenticated), manager-wide, on the environment in the path or body, or on the individual resource (and, for lists, per item) |
 | `x-dockyard-idempotency` | `stored`, `job` | the operation honours `Idempotency-Key` ([conventions](conventions.md#retries-and-idempotency-keys)) |
+| `x-dockyard-audit` | an action key such as `stack.deploy` or `invitation.create` | every call is recorded in the audit trail under this action (every non-GET operation, and GET operations such as downloads and exports; #30, [audit](../architecture/audit.md)) |
 
 Capability keys come from the permission catalog (`GET
 /api/v1/permission-catalog`, #17). A client can show or hide actions from

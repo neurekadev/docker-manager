@@ -1,8 +1,9 @@
 // Package app wires the manager together and owns its startup order:
 //
 //	config → data dir → open DB → (snapshot) → migrate → secret key /
-//	instance → auth primitives → job engine recovery → HTTP handler →
-//	listener → serve (+ job engine loop, auth housekeeping)
+//	instance → auth primitives → audit trail → job engine recovery →
+//	HTTP handler → listener → serve (+ job engine loop, auth housekeeping,
+//	audit retention)
 //
 // Migrations always finish before any listener or background worker starts;
 // a migration failure aborts startup with the database unchanged.
@@ -28,6 +29,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/manager/api"
+	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/auth"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/config"
@@ -66,6 +68,7 @@ type Manager struct {
 	auth     *auth.Kit
 	jobs     *jobs.Engine
 	idem     *idempotency.Store
+	audit    *audit.Log
 	handler  http.Handler
 }
 
@@ -124,12 +127,25 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return nil, err
 	}
 
+	// The audit trail (#30) records every mutating API operation and every
+	// job's lifecycle; its retention purge runs with the job engine.
+	auditOpts := audit.Options{
+		DB: db, Clock: opts.Clock, Logger: log.With("component", "audit"),
+		Retention: cfg.Audit.Retention(), MaxBytes: cfg.Audit.MaxBytes,
+	}
+	if cfg.Audit.LogMirror {
+		auditOpts.Mirror = log.With("component", "audit_mirror")
+	}
+	if m.audit, err = audit.New(auditOpts); err != nil {
+		return nil, err
+	}
+
 	// Authorization fails closed until #16/#17 provide principals and
 	// grants; agents are unreachable until the #3 transport exists.
 	authorizer := authz.DenyAll{}
 	m.jobs, err = jobs.New(jobs.Options{
 		DB: db, Clock: opts.Clock, Logger: log.With("component", "jobs"),
-		Dispatcher: jobs.NoAgents{}, Authorizer: authorizer,
+		Dispatcher: jobs.NoAgents{}, Authorizer: authorizer, Audit: m.audit,
 		Limits: jobs.Limits{
 			ConcurrencyCaps: map[string]int{jobspec.ClassPull: cfg.Jobs.MaxConcurrentPulls, jobspec.ClassBuild: cfg.Jobs.MaxConcurrentBuilds},
 			HistoryMaxAge:   cfg.Jobs.HistoryRetention,
@@ -162,6 +178,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Authorizer:   authorizer,
 			Clock:        opts.Clock,
 			Idempotency:  m.idem,
+			Audit:        m.audit,
 			SSEHeartbeat: cfg.StreamHeartbeat,
 		},
 		TrustedProxies:   cfg.TrustedProxies,
@@ -242,13 +259,17 @@ func (m *Manager) Jobs() *jobs.Engine { return m.jobs }
 // Auth returns the authentication primitives (#16, #18).
 func (m *Manager) Auth() *auth.Kit { return m.auth }
 
+// Audit returns the audit trail (Record for non-HTTP events, Verify for
+// diagnostics, #34).
+func (m *Manager) Audit() *audit.Log { return m.audit }
+
 // Idempotency returns the Idempotency-Key response store (its Forget is
 // called when a principal's sessions, token or permissions change).
 func (m *Manager) Idempotency() *idempotency.Store { return m.idem }
 
-// Serve serves HTTP on ln and runs the job engine and auth housekeeping
-// (expired-session sweeping) until ctx is canceled,
-// then shuts down gracefully.
+// Serve serves HTTP on ln and runs the job engine, auth housekeeping
+// (expired-session sweeping) and the audit retention purge until ctx is
+// canceled, then shuts down gracefully.
 func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 	engineCtx, stopEngine := context.WithCancel(ctx)
 	engineDone := make(chan struct{})
@@ -261,10 +282,16 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		defer close(authDone)
 		m.auth.RunHousekeeping(engineCtx)
 	}()
+	auditDone := make(chan struct{})
+	go func() {
+		defer close(auditDone)
+		_ = m.audit.Run(engineCtx)
+	}()
 	defer func() {
 		stopEngine()
 		<-engineDone
 		<-authDone
+		<-auditDone
 	}()
 	srv := server.HTTPServer(m.handler, m.opts.Logger)
 	errCh := make(chan error, 1)

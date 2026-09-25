@@ -18,7 +18,12 @@ import (
 	"github.com/uptrace/bun/migrate"
 
 	"github.com/neurekadev/dockyard/internal/db/migrations"
+	"github.com/neurekadev/dockyard/internal/domain"
+	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/manager/audit"
+	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/config"
+	"github.com/neurekadev/dockyard/internal/manager/jobs"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 	"github.com/neurekadev/dockyard/internal/testutil"
 	"github.com/neurekadev/dockyard/internal/testutil/migrationtest"
@@ -215,5 +220,34 @@ func TestMissingKeyForExistingInstallFailsClosed(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dataDir, config.SecretKeyFileName)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("a replacement key was generated")
+	}
+}
+
+func TestAuditTrailWired(t *testing.T) {
+	ctx := testutil.Context(t)
+	cfg := testConfig(filepath.Join(t.TempDir(), "data"))
+	cfg.Audit = config.AuditConfig{RetentionDays: 30, MaxBytes: 64 << 20, LogMirror: true}
+	logger, logs := testutil.CaptureLogger()
+	m, err := Start(ctx, Options{Config: cfg, Logger: logger, UI: testUI, Clock: testutil.FakeClock()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = m.Close() }()
+	// The job engine records into the manager's audit trail.
+	j, _, err := m.Jobs().Enqueue(ctx, jobs.Request{Kind: jobspec.ContainerRestart, Principal: authz.Service(), EnvironmentID: "env-1",
+		Targets: []domain.JobTarget{{Type: domain.TargetContainer, ID: "web"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recs, err := m.Audit().Records(ctx, domain.AuditFilter{JobID: j.ID})
+	if err != nil || len(recs) != 1 || recs[0].Action != audit.ActionJobQueued || recs[0].Actor != audit.ServiceActor() {
+		t.Fatalf("records %+v %v", recs, err)
+	}
+	if rep, err := m.Audit().Verify(ctx); err != nil || !rep.OK || rep.Checked != 1 {
+		t.Fatalf("verify %+v %v", rep, err)
+	}
+	// DOCKYARD_AUDIT_LOG_MIRROR mirrors records to the structured log.
+	if !strings.Contains(logs.String(), `"component":"audit_mirror"`) || !strings.Contains(logs.String(), `"action":"job.queued"`) {
+		t.Fatalf("mirror missing: %s", logs)
 	}
 }

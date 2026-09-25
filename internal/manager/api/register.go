@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/neurekadev/dockyard/internal/manager/audit"
 )
 
 // OpenAPI extension keys carrying DockYard's contract metadata. They are
@@ -24,6 +26,8 @@ const (
 	ExtScope = "x-dockyard-scope"
 	// ExtIdempotency says how an Idempotency-Key is honored (stored|job).
 	ExtIdempotency = "x-dockyard-idempotency"
+	// ExtAudit is the action key an audited operation records (#30).
+	ExtAudit = "x-dockyard-audit"
 )
 
 // Security scheme names declared in components.securitySchemes.
@@ -99,6 +103,45 @@ type Operation struct {
 	// Idempotency declares how the Idempotency-Key header is honored. It
 	// must be set exactly when the input embeds IdempotencyKeyParam.
 	Idempotency IdempotencyMode
+	// Audit decides whether calls are recorded in the audit trail (#30).
+	// Every non-GET operation is audited by construction (there is no
+	// opt-out); GET operations opt in with AuditAlways (downloads, exports).
+	Audit AuditMode
+	// AuditAction overrides the recorded action key. Default: Capability
+	// when it is a dotted key; for pseudo-capabilities (public,
+	// authenticated, owner) and selectors a key derived from the operation
+	// ID (audit.ActionForOperation: create-invitation -> invitation.create).
+	// Handlers of selector operations record the concrete key they
+	// authorized with audit.SetAction.
+	AuditAction string
+}
+
+// AuditMode says when an operation is audited.
+type AuditMode string
+
+// Audit modes.
+const (
+	// AuditDefault: audited unless the method is GET.
+	AuditDefault AuditMode = ""
+	// AuditAlways: audited also for GET (downloads, exports, other reads
+	// that must be accountable).
+	AuditAlways AuditMode = "always"
+)
+
+// Audited reports whether calls of op are recorded in the audit trail.
+func (op Operation) Audited() bool {
+	return op.Method != http.MethodGet || op.Audit == AuditAlways
+}
+
+// AuditActionKey is the action recorded for op.
+func (op Operation) AuditActionKey() string {
+	if op.AuditAction != "" {
+		return op.AuditAction
+	}
+	if IsCapabilityKey(string(op.Capability)) {
+		return string(op.Capability)
+	}
+	return audit.ActionForOperation(op.OperationID)
 }
 
 // Validate checks the DockYard metadata rules.
@@ -119,6 +162,19 @@ func (op Operation) Validate() error {
 	}
 	if op.Summary == "" {
 		return fmt.Errorf("api: operation %s: Summary is required", op.OperationID)
+	}
+	switch op.Audit {
+	case AuditDefault, AuditAlways:
+	default:
+		return fmt.Errorf("api: operation %s: unknown audit mode %q", op.OperationID, op.Audit)
+	}
+	if op.AuditAction != "" {
+		if !op.Audited() {
+			return fmt.Errorf("api: operation %s: AuditAction is set but GET operations are audited only with Audit: AuditAlways", op.OperationID)
+		}
+		if !IsCapabilityKey(op.AuditAction) {
+			return fmt.Errorf("api: operation %s: AuditAction %q must be a dotted key like invitation.create", op.OperationID, op.AuditAction)
+		}
 	}
 	return nil
 }
@@ -225,7 +281,12 @@ func embeds(t, want reflect.Type) bool {
 //   - 202 Accepted is used exactly by operations returning JobAccepted;
 //   - non-public operations get the cookie and bearer security
 //     requirements and a documented 401 (declare 403 explicitly where the
-//     route answers it; routes that hide existence answer 404, lists filter).
+//     route answers it; routes that hide existence answer 404, lists filter);
+//   - every non-GET operation (and every GET declaring AuditAlways) is
+//     audited (#30): one record per call with the action, actor, client IP,
+//     user agent, path-parameter targets, outcome and error class, request
+//     ID and job ID (audit_http.go). Handlers enrich it via the audit
+//     package's context helpers.
 //
 // Authorization enforcement against the declared capability arrives with #17.
 func Register[I, O any](a huma.API, op Operation, handler func(context.Context, *I) (*O, error)) {
@@ -273,6 +334,13 @@ func Register[I, O any](a huma.API, op Operation, handler func(context.Context, 
 	if op.Idempotency == IdempotencyStored {
 		hop.Errors = withStatus(hop.Errors, http.StatusConflict)
 		hop.Middlewares = append(slices.Clone(hop.Middlewares), idempotencyMiddleware(hop.OperationID, hop.MaxBodyBytes))
+	}
+	if op.Audited() {
+		// Outermost operation middleware: it sees the final status of
+		// everything below it (validation, idempotency replays, panics).
+		ext[ExtAudit] = op.AuditActionKey()
+		hop.Middlewares = append(huma.Middlewares{auditMiddleware(op)}, hop.Middlewares...)
+		handler = auditHandler(handler)
 	}
 	huma.Register(a, hop, handler)
 }

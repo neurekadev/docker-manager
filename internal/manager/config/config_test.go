@@ -150,6 +150,31 @@ func TestJobLimits(t *testing.T) {
 	}
 }
 
+func TestAuditConfig(t *testing.T) {
+	cfg, err := load(t, map[string]string{EnvPublicURL: "https://d.example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (AuditConfig{RetentionDays: 365, MaxBytes: 1024 << 20}); cfg.Audit != want || cfg.Audit.Retention().Hours() != 365*24 {
+		t.Fatalf("defaults %+v", cfg.Audit)
+	}
+	cfg, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvAuditRetentionDays: "30",
+		EnvAuditMaxSizeMB: "64", EnvAuditLogMirror: "true"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (AuditConfig{RetentionDays: 30, MaxBytes: 64 << 20, LogMirror: true}); cfg.Audit != want {
+		t.Fatalf("custom %+v", cfg.Audit)
+	}
+	_, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvAuditRetentionDays: "0",
+		EnvAuditMaxSizeMB: "1", EnvAuditLogMirror: "maybe"})
+	for _, name := range []string{EnvAuditRetentionDays, EnvAuditMaxSizeMB, EnvAuditLogMirror} {
+		if err == nil || !strings.Contains(err.Error(), name) {
+			t.Fatalf("invalid %s not reported: %v", name, err)
+		}
+	}
+}
+
 func TestStreamHeartbeat(t *testing.T) {
 	cfg, err := load(t, map[string]string{EnvPublicURL: "https://docker.example.com"})
 	if err != nil || cfg.StreamHeartbeat != 15*time.Second {

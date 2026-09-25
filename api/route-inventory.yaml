@@ -504,7 +504,7 @@ routes:
     scope: instance
     owner: 30
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: /api/v1/audit/exports
     operationId: export-audit-events
@@ -512,7 +512,7 @@ routes:
     scope: instance
     owner: 30
     kind: stream
-    status: planned
+    status: implemented
     notes: Streamed NDJSON or CSV.
   - method: GET
     path: /api/v1/me/api-tokens

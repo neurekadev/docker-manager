@@ -37,6 +37,10 @@ const (
 	EnvJobEventsMax          = "DOCKYARD_JOB_EVENTS_MAX"
 	EnvJobMaxConcurrentPulls = "DOCKYARD_JOB_MAX_CONCURRENT_PULLS"
 	EnvJobMaxConcurrentBuild = "DOCKYARD_JOB_MAX_CONCURRENT_BUILDS"
+
+	EnvAuditRetentionDays = "DOCKYARD_AUDIT_RETENTION_DAYS"
+	EnvAuditMaxSizeMB     = "DOCKYARD_AUDIT_MAX_SIZE_MB"
+	EnvAuditLogMirror     = "DOCKYARD_AUDIT_LOG_MIRROR"
 )
 
 // Defaults.
@@ -56,6 +60,9 @@ const (
 	// Browser session limits (#16): NIST SP 800-63B AAL2 reauthentication.
 	DefaultSessionIdleTimeout = time.Hour
 	DefaultSessionLifetime    = 24 * time.Hour
+
+	DefaultAuditRetentionDays = 365
+	DefaultAuditMaxSizeMB     = 1024
 )
 
 // SessionsConfig bounds browser sessions (#16).
@@ -64,6 +71,21 @@ type SessionsConfig struct {
 	IdleTimeout time.Duration
 	// Lifetime ends a session this long after sign-in, whatever the activity.
 	Lifetime time.Duration
+}
+
+// AuditConfig bounds the audit trail (#30).
+type AuditConfig struct {
+	// RetentionDays deletes audit records older than this many days.
+	RetentionDays int
+	// MaxBytes caps the retained records' size; the oldest are purged first.
+	MaxBytes int64
+	// LogMirror also writes every audit record to the structured log.
+	LogMirror bool
+}
+
+// Retention is RetentionDays as a duration.
+func (a AuditConfig) Retention() time.Duration {
+	return time.Duration(a.RetentionDays) * 24 * time.Hour
 }
 
 // JobsConfig bounds the job engine (#26). Job history retention is
@@ -99,6 +121,7 @@ type Config struct {
 	StreamHeartbeat time.Duration
 	Jobs            JobsConfig
 	Sessions        SessionsConfig
+	Audit           AuditConfig
 }
 
 // DatabasePath is the SQLite database file inside the data directory.
@@ -165,6 +188,11 @@ func Load(src envconfig.Source) (Config, error) {
 		errs = append(errs, err)
 	}
 
+	cfg.Audit, err = loadAudit(src)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	if len(errs) > 0 {
 		return Config{}, errors.Join(errs...)
 	}
@@ -194,6 +222,16 @@ func loadSessions(src envconfig.Source) (SessionsConfig, error) {
 		return c, fmt.Errorf("%s (%s) must not exceed %s (%s)", EnvSessionIdleTimeout, c.IdleTimeout, EnvSessionLifetime, c.Lifetime)
 	}
 	return c, nil
+}
+
+func loadAudit(src envconfig.Source) (AuditConfig, error) {
+	var c AuditConfig
+	var errs [3]error
+	c.RetentionDays, errs[0] = src.Int(EnvAuditRetentionDays, DefaultAuditRetentionDays, 1, 36500)
+	mb, err := src.Int(EnvAuditMaxSizeMB, DefaultAuditMaxSizeMB, 16, 1<<20)
+	c.MaxBytes, errs[1] = int64(mb)<<20, err
+	c.LogMirror, errs[2] = src.Bool(EnvAuditLogMirror, false)
+	return c, errors.Join(errs[:]...)
 }
 
 // ParsePublicURL validates DOCKYARD_PUBLIC_URL. It must be an absolute origin

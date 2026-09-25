@@ -61,6 +61,11 @@ type Deps struct {
 	// Idempotency stores responses of IdempotencyStored operations; nil
 	// answers keyed requests to those operations with 503.
 	Idempotency IdempotencyStore
+	// Audit is the audit trail (#30): every audited operation records into
+	// it, and the audit routes read it. The manager always sets it; nil
+	// (spec generation, focused tests) records nothing and answers the
+	// audit routes with 503.
+	Audit AuditService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -107,6 +112,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	a.UseMiddleware(withDeps(deps))
 	registerSystem(a, deps)
 	registerJobs(a, deps)
+	registerAudit(a, deps)
 	return a
 }
 
