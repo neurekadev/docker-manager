@@ -122,6 +122,9 @@ type Deps struct {
 	// Maintenance serves prune policies, previews, runs and the suggested
 	// default rules (#14); nil answers those routes with 503.
 	Maintenance MaintenanceService
+	// Migrations moves stacks and volumes between environments (#35); nil
+	// answers those routes with 503 (after authorization).
+	Migrations MigrationService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -181,6 +184,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerContainerMetrics(a, deps)
 	registerImages(a, deps)
 	registerVolumes(a, deps)
+	registerMigrations(a, deps)
 	registerNetworks(a, deps)
 	registerFiles(a, deps)
 	registerGitCredentials(a, deps)

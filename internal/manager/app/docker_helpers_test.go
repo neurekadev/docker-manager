@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 	"testing"
@@ -24,6 +25,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/state"
 	"github.com/neurekadev/dockyard/internal/buildinfo"
 	"github.com/neurekadev/dockyard/internal/domain"
+	"github.com/neurekadev/dockyard/internal/jobexec"
 	"github.com/neurekadev/dockyard/internal/manager/events"
 	"github.com/neurekadev/dockyard/internal/protocol"
 	"github.com/neurekadev/dockyard/internal/testutil"
@@ -71,8 +73,26 @@ func (e *env) connectObservedAgent(name string, fe *enginefake.Engine) *testAgen
 }
 
 func (e *env) connectAgentWith(name string, fe *enginefake.Engine, guard *protect.Guard, relay bool) *testAgent {
+	e.t.Helper()
+	return e.connectAgentParts(name, fe, agentParts{guard: guard, relay: relay})
+}
+
+// agentParts extends a test agent: the self-protection guard, the Docker
+// event relay and extra request handlers, stream handlers and executors
+// (e.g. migrations, #35).
+type agentParts struct {
+	guard     *protect.Guard
+	relay     bool
+	requests  map[string]session.RequestHandler
+	streams   map[string]session.StreamHandler
+	executors []jobexec.Executor
+}
+
+// connectAgentParts is connectAgent with extra parts.
+func (e *env) connectAgentParts(name string, fe *enginefake.Engine, parts agentParts) *testAgent {
 	t := e.t
 	t.Helper()
+	guard, relay := parts.guard, parts.relay
 	ctx := testutil.Context(t)
 	sub := e.m.Events().Subscribe(256, func(ev events.Event) bool { return ev.Type == events.EnvironmentOnline })
 	defer sub.Close()
@@ -115,7 +135,7 @@ func (e *env) connectAgentWith(name string, fe *enginefake.Engine, guard *protec
 	// Prune policies (#14), as the runtime wires them.
 	pr := agentprune.New(agentprune.Options{Engine: func() engine.Engine { return fe }, Guard: guard, Clock: e.clk, Logger: testutil.Logger(t),
 		ManagedStackDir: func(dir string) bool { return strings.HasPrefix(dir, stacksRoot+"/") }})
-	execs := append(res.Executors(), pr.Executor())
+	execs := append(append(res.Executors(), pr.Executor()), parts.executors...)
 	// Container logs and exec sessions (#8), as the runtime wires them.
 	cio := agentio.New(agentio.Options{Engine: func() agentio.Engine { return fe }, Clock: e.clk, Logger: testutil.Logger(t)})
 	requests := res.Requests()
@@ -125,6 +145,9 @@ func (e *env) connectAgentWith(name string, fe *enginefake.Engine, guard *protec
 	for k, v := range pr.Requests() {
 		requests[k] = v
 	}
+	maps.Copy(requests, parts.requests)
+	streams := cio.Streams()
+	maps.Copy(streams, parts.streams)
 	a := &testAgent{env: er.EnvironmentID, engine: fe, done: make(chan error, 1)}
 	client := session.New(session.Options{
 		State: st, Clock: e.clk, Logger: testutil.Logger(t), URL: "ws" + strings.TrimPrefix(e.srv.URL, "http") + protocol.SessionPath,
@@ -142,7 +165,7 @@ func (e *env) connectAgentWith(name string, fe *enginefake.Engine, guard *protec
 				Transport: protocol.TransportInfo{ManagerURL: e.srv.URL, PlainHTTP: true}}, true
 		},
 		Requests: requests,
-		Streams:  cio.Streams(),
+		Streams:  streams,
 		Backoff:  session.Backoff{Min: time.Second, Max: time.Minute, ResetAfter: time.Minute, Rand: func() float64 { return 0 }},
 	})
 	runCtx, cancel := context.WithCancel(context.Background())

@@ -260,6 +260,10 @@ func UpdateStack(ctx context.Context, db bun.IDB, s *domain.Stack) error {
 	r := fromStack(s)
 	res, err := db.NewUpdate().Model(&r).WherePK().Exec(ctx)
 	if err != nil {
+		// A stack moved to another environment (#35) may collide there.
+		if errors.Is(stackConflict(err), domain.ErrStackNameTaken) {
+			return domain.ErrStackNameTaken
+		}
 		return fmt.Errorf("store: update stack: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {

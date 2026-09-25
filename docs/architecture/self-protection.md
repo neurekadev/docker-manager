@@ -62,7 +62,10 @@ enqueued past the API is refused by the agent, `TestSelfProtectionOnTwoHosts`).
   containers (`protection.Filter`); the backup repository mount becomes a
   protected `dockyard_volume` once it is mounted into the agent.
 - **Bulk selections and migrations (#35):** `protection.Filter` and show the
-  excluded items with their reason.
+  excluded items with their reason. Migrations (wired): the source agent's
+  preview marks DockYard's own project, images and volumes (a blocker, or
+  an excluded volume with its reason), and `migration.send/stop` and
+  `stack.remove_source` refuse them on the agent.
 - **Stacks (#7):** wired — `stacks.Service` calls `ProjectProtection` before
   deploy, stop, restart, down and removal (`TestDockYardProjectIsProtected`);
   the agent's stack executors are wrapped by `Guard.GuardStacks`

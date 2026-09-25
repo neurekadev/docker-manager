@@ -124,6 +124,38 @@ type Spec struct {
 	Compensations    []Compensation
 	// OnManagerRestart applies to manager-executed kinds.
 	OnManagerRestart RestartPolicy
+	// LockOnly marks targets that only contribute locks: the engine checks
+	// the kind's capabilities on every other target, never on these.
+	// Migrations lock a stack's volumes and the destination's new
+	// resources; their executor checks the destination's own capabilities
+	// (#35).
+	LockOnly LockOnlyRule
+}
+
+// LockOnlyRule selects lock-only targets.
+type LockOnlyRule struct {
+	// Types are target types that only take locks.
+	Types []domain.TargetType
+	// OtherEnvironments: targets naming another environment than the job's
+	// only take locks.
+	OtherEnvironments bool
+}
+
+// AuthorizationTargets returns the targets the engine authorizes the
+// kind's capabilities on (and job visibility is evaluated against): all
+// targets except the LockOnly ones.
+func (s Spec) AuthorizationTargets(targets []domain.JobTarget) []domain.JobTarget {
+	if len(s.LockOnly.Types) == 0 && !s.LockOnly.OtherEnvironments {
+		return targets
+	}
+	out := make([]domain.JobTarget, 0, len(targets))
+	for _, t := range targets {
+		if slices.Contains(s.LockOnly.Types, t.Type) || (s.LockOnly.OtherEnvironments && t.EnvironmentID != "") {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
 }
 
 // Step returns the named step.

@@ -16,6 +16,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/envconfig"
 	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/manager/server/sse"
+	"github.com/neurekadev/dockyard/internal/transfer"
 )
 
 // Environment variable names.
@@ -49,6 +50,8 @@ const (
 	EnvMetricsMaxSeries        = "DOCKYARD_METRICS_MAX_SERIES"
 
 	EnvFilesMaxUploadMB = "DOCKYARD_FILES_MAX_UPLOAD_MB"
+
+	EnvMigrationBandwidthLimit = "DOCKYARD_MIGRATION_BANDWIDTH_LIMIT"
 )
 
 // Defaults.
@@ -159,6 +162,9 @@ type Config struct {
 	// FilesMaxUpload bounds one file-manager upload in bytes (#15); the
 	// reverse proxy's body limit must allow it (#27).
 	FilesMaxUpload int64
+	// MigrationBandwidthLimit caps the data environment migrations relay
+	// through the manager, in bytes per second (#35; 0: unlimited).
+	MigrationBandwidthLimit int64
 }
 
 // DatabasePath is the SQLite database file inside the data directory.
@@ -243,6 +249,10 @@ func Load(src envconfig.Source) (Config, error) {
 		errs = append(errs, err)
 	}
 	cfg.FilesMaxUpload = int64(uploadMB) << 20
+
+	if cfg.MigrationBandwidthLimit, err = transfer.ParseRate(src.String(EnvMigrationBandwidthLimit, "0")); err != nil {
+		errs = append(errs, fmt.Errorf("%s: %w", EnvMigrationBandwidthLimit, err))
+	}
 
 	if len(errs) > 0 {
 		return Config{}, errors.Join(errs...)

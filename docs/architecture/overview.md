@@ -58,6 +58,9 @@ in GitHub issues #1 (roadmap) and #25 (decision register).
 | `internal/agent/protect` | Identifies DockYard's own resources on the agent's Engine (#32) | `engine`, `session`, `protection`, `protocol` |
 | `internal/protection` | Self-protection decisions and exclusion helpers shared by manager and agent (#32) | `protocol` |
 | `internal/selfid` | ID of the container the process runs in (#32) | stdlib |
+| `internal/manager/migrations` | Environment migration (#35): previews, the `stack.migrate`/`volume.migrate` executors relaying data between agents, source removals | `jobs`, `store`, `authz`, `permissions`, `registries`, `transfer`, `protocol` |
+| `internal/agent/migration` | Agent side of migrations (#35): contained tar archive/extract, send/receive streams, stop/start/commit/cleanup requests, `stack.remove_source` | `engine`, `compose`, `lifecycle`, `protect`, `storage`, `transfer`, `protocol` |
+| `internal/transfer` | Checksummed chunk framing and bandwidth limiter of migration data (shared) | `clock` |
 | `internal/faultinject` | Named fault points, no-op unless built with `-tags faultinject` | stdlib |
 | `internal/db/migrations` | Versioned Bun migrations (one file each) | `bun` |
 | `internal/agent/config`, `internal/agent/runtime` | Agent configuration and main loop | `protocol`, shared |

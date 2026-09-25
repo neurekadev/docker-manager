@@ -205,7 +205,8 @@ func stackRoutesFor(t *testing.T, stackID string) []authztest.Call {
 		"/api/v1/stacks", "/api/v1/environments/{environmentId}/stacks")
 	var calls []authztest.Call
 	for _, c := range all {
-		if !strings.Contains(c.OperationID, "-file") { // the stack file scope is #15's (tested there)
+		// The stack file scope is #15's and migrations are #35's (tested there).
+		if !strings.Contains(c.OperationID, "-file") && !strings.Contains(c.OperationID, "-migration") {
 			calls = append(calls, c)
 		}
 	}

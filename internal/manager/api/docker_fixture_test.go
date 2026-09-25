@@ -222,6 +222,12 @@ type dockerFixture struct {
 
 func newDockerFixture(t *testing.T, pol *authztest.Policy) *dockerFixture {
 	t.Helper()
+	return newDockerFixtureWith(t, pol, nil)
+}
+
+// newDockerFixtureWith lets a test add dependencies (e.g. migrations, #35).
+func newDockerFixtureWith(t *testing.T, pol *authztest.Policy, with func(d *Deps)) *dockerFixture {
+	t.Helper()
 	f := &dockerFixture{t: t, pol: pol, engines: map[string]*enginefake.Engine{}, stacks: stackIDs{"env-1": {}}}
 	f.req = &fakeRequester{agents: map[string]*agentres.Service{}, offline: map[string]bool{}}
 	for _, env := range []string{"env-1", "env-2"} {
@@ -278,8 +284,12 @@ func newDockerFixture(t *testing.T, pol *authztest.Policy) *dockerFixture {
 	f.stackSvc.stacks[shop.ID] = shop
 	f.io = &fakeContainerIO{}
 	mux := http.NewServeMux()
-	New(mux, Deps{Agents: agentsSvc, Docker: f.svc, Observe: f.observe, Authorizer: pol, Clock: testutil.FakeClock(), Idempotency: &memIdempotency{},
-		InstanceID: "instance-1", Stacks: f.stackSvc, ContainerIO: f.io})
+	deps := Deps{Agents: agentsSvc, Docker: f.svc, Observe: f.observe, Authorizer: pol, Clock: testutil.FakeClock(), Idempotency: &memIdempotency{},
+		InstanceID: "instance-1", Stacks: f.stackSvc, ContainerIO: f.io}
+	if with != nil {
+		with(&deps)
+	}
+	New(mux, deps)
 	f.h = authztest.Authenticate(withTestContext(t, mux, ""))
 	return f
 }
