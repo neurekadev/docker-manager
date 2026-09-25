@@ -40,6 +40,14 @@ const (
 	ScopeVolume = "volume"
 )
 
+// IsAbsHostPath reports whether p, a slash-separated host path reported by
+// an agent, is absolute on the agent's platform: a Linux path in
+// production (exactly path.IsAbs there), also a drive path (C:/...) when
+// tests or the Docker-free devstack run the agent on Windows.
+func IsAbsHostPath(p string) bool {
+	return path.IsAbs(p) || filepath.IsAbs(filepath.FromSlash(p))
+}
+
 // FileScope names the root every path of an operation is relative to.
 type FileScope struct {
 	// Kind is stack or volume.

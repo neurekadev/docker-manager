@@ -73,7 +73,7 @@ func (s *Service) stacksDir(ctx context.Context, environmentID string) (string, 
 		return "", errNoStacksRoot
 	}
 	for _, r := range caps.Roots {
-		if r.Kind == protocol.RootStacks && path.IsAbs(r.Path) {
+		if r.Kind == protocol.RootStacks && protocol.IsAbsHostPath(r.Path) {
 			return path.Clean(r.Path), nil
 		}
 	}

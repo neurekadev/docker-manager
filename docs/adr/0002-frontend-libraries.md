@@ -29,13 +29,18 @@ committed). Shipped code is in `dependencies`; build tools are
 | `codemirror` + `@codemirror/lang-yaml` | 6.0.2 / 6.1.3 (`@codemirror/*`, `@lezer/*`, `crelt`, `style-mod`, `w3c-keyname`: MIT) | MIT | stack/volume file editor (#7, #15) | lazy (`import()`) |
 | `echarts` | 6.1.0 (+ `zrender` 6.1.0 BSD-3-Clause, `tslib` 0BSD) | Apache-2.0 | host/container time series (#5) | lazy (`import()`), tree-shaken |
 | `@xterm/xterm` | 6.0.0 | MIT | container exec terminal (#19) | lazy (`import()`, incl. its CSS) |
+| `@codemirror/lang-json`, `@codemirror/legacy-modes`, `@codemirror/search` | 6.0.2 / 6.5.4 / 6.7.2 (+ `@lezer/json`: MIT) | MIT | the file editor's languages (JSON; shell, Dockerfile, nginx, properties, TOML, XML stream modes, each its own chunk) and the search/replace panel (#15) | lazy (`import()`) |
+| `@xterm/addon-fit` | 0.11.0 | MIT | sizes the terminal grid to its element (full-height terminals, resize messages, #8) | lazy (`import()`) |
+| `yaml` | 2.9.1 | ISC | the editor's Format button for YAML (comments kept, #15) | lazy (`import()`, checked by `verify-build.mjs`) |
 | `@vite-pwa/sveltekit` (dev) | 1.1.0 (vite-plugin-pwa 1.3.0, workbox-build 7.4.1) | MIT | **build time only**: writes `manifest.webmanifest`, injects the precache list into the service worker | not shipped |
 
 Not added:
 
 - **`@tanstack/svelte-virtual`**: deferred. Add it (MIT) only when profiling
   a real directory or list view (#15) shows a need, and record the
-  measurement here.
+  measurement here. The file list and the log viewer (#22 track B3) window
+  their fixed-height rows with the Table's `virtualWindow`; a 1 200-entry
+  directory and 5 000 log lines render without it.
 - **Workbox runtime, `workbox-window`, `virtual:pwa-register`**: not used.
   The service worker is hand-written (below) and registration is ~100 lines
   of our own code, so no Workbox code ships.

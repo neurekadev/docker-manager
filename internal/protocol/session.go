@@ -566,14 +566,14 @@ func (p CapabilitiesPayload) Validate() error {
 		}
 	}
 	for _, r := range p.Roots {
-		if !slices.Contains([]string{"stacks", "volumes", "bind"}, r.Kind) || !path.IsAbs(r.Path) ||
+		if !slices.Contains([]string{"stacks", "volumes", "bind"}, r.Kind) || !IsAbsHostPath(r.Path) ||
 			!slices.Contains([]string{"inotify", "poll", "none"}, r.Watch) {
 			return invalid("root %+v is malformed", r)
 		}
 	}
 	for _, d := range p.Diagnostics {
 		if (d.Area != DiagnosticEngine && d.Area != DiagnosticStorage) || !diagCodeRE.MatchString(d.Code) ||
-			d.Message == "" || len(d.Message) > MaxDiagnosticMessage || (d.Path != "" && !path.IsAbs(d.Path)) {
+			d.Message == "" || len(d.Message) > MaxDiagnosticMessage || (d.Path != "" && !IsAbsHostPath(d.Path)) {
 			return invalid("diagnostic %q is malformed", d.Code)
 		}
 	}

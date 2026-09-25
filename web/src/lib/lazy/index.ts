@@ -7,6 +7,8 @@
 // CodeEditor, Sparkline, TerminalView), never the libraries. Every mount
 // applies DockYard's theme (#22): ./codemirror-theme.ts, ./echarts-theme.ts,
 // TERMINAL_THEME in ./palette.ts.
+import type { StreamParser } from '@codemirror/language';
+import type { Extension } from '@codemirror/state';
 import { CHART_COLORS, TERMINAL_THEME, EDITOR_COLORS } from './palette';
 
 export interface Mounted {
@@ -34,31 +36,152 @@ export async function mountYamlEditor(
 	doc: string,
 	opts: EditorOptions = {}
 ): Promise<YamlEditor> {
-	const [{ EditorView, basicSetup }, { yaml }, { EditorState }, { dockyardEditorTheme }] =
+	return mountCodeEditor(parent, doc, { ...opts, language: 'yaml' });
+}
+
+/**
+ * Languages of the file editor (#15). Everything but YAML and JSON uses a
+ * CodeMirror legacy stream mode; `markdown` and `text` are plain text.
+ */
+export const EDITOR_LANGUAGES = [
+	'yaml',
+	'json',
+	'shell',
+	'dockerfile',
+	'nginx',
+	'properties',
+	'toml',
+	'xml',
+	'markdown',
+	'text'
+] as const;
+export type EditorLanguage = (typeof EDITOR_LANGUAGES)[number];
+
+export interface CodeEditorOptions extends EditorOptions {
+	language?: EditorLanguage;
+}
+
+export interface CodeEditorHandle extends YamlEditor {
+	/** Switches the syntax highlighting (keeps text and undo history). */
+	setLanguage(language: EditorLanguage): Promise<void>;
+	setReadOnly(readOnly: boolean): void;
+	/** Opens CodeMirror's search and replace panel. */
+	openSearch(): void;
+}
+
+async function languageSupport(language: EditorLanguage): Promise<Extension> {
+	const legacy = async (load: () => Promise<StreamParser<unknown>>) => {
+		const [{ StreamLanguage }, parser] = await Promise.all([
+			import('@codemirror/language'),
+			load()
+		]);
+		return StreamLanguage.define(parser);
+	};
+	switch (language) {
+		case 'yaml':
+			return (await import('@codemirror/lang-yaml')).yaml();
+		case 'json':
+			return (await import('@codemirror/lang-json')).json();
+		case 'shell':
+			return legacy(async () => (await import('@codemirror/legacy-modes/mode/shell')).shell);
+		case 'dockerfile':
+			return legacy(
+				async () => (await import('@codemirror/legacy-modes/mode/dockerfile')).dockerFile
+			);
+		case 'nginx':
+			return legacy(async () => (await import('@codemirror/legacy-modes/mode/nginx')).nginx);
+		case 'properties':
+			return legacy(
+				async () => (await import('@codemirror/legacy-modes/mode/properties')).properties
+			);
+		case 'toml':
+			return legacy(async () => (await import('@codemirror/legacy-modes/mode/toml')).toml);
+		case 'xml':
+			return legacy(async () => (await import('@codemirror/legacy-modes/mode/xml')).xml);
+		default:
+			return [];
+	}
+}
+
+/**
+ * CodeMirror 6 for the file editor (#15): line numbers, undo/redo, search
+ * and replace (Mod-f, or openSearch()), bracket matching, the language's
+ * highlighting, DockYard's theme. Tab keeps moving focus (no tab trap).
+ */
+export async function mountCodeEditor(
+	parent: HTMLElement,
+	doc: string,
+	opts: CodeEditorOptions = {}
+): Promise<CodeEditorHandle> {
+	const [{ EditorView, basicSetup }, { EditorState, Compartment }, search, theme, lang] =
 		await Promise.all([
 			import('codemirror'),
-			import('@codemirror/lang-yaml'),
 			import('@codemirror/state'),
-			import('./codemirror-theme')
+			import('@codemirror/search'),
+			import('./codemirror-theme'),
+			languageSupport(opts.language ?? 'text')
 		]);
+	const language = new Compartment();
+	const readOnly = new Compartment();
 	const extensions = [
 		basicSetup,
-		yaml(),
-		dockyardEditorTheme,
-		EditorState.readOnly.of(!!opts.readOnly),
+		language.of(lang),
+		theme.dockyardEditorTheme,
+		readOnly.of(EditorState.readOnly.of(!!opts.readOnly)),
 		EditorView.contentAttributes.of({ 'aria-label': opts.label ?? 'Editor' }),
 		EditorView.updateListener.of((u) => {
 			if (u.docChanged) opts.onChange?.(u.state.doc.toString());
 		})
 	];
 	const view = new EditorView({ doc, extensions, parent });
+	let version = 0;
 	return {
 		destroy: () => view.destroy(),
 		text: () => view.state.doc.toString(),
 		setText: (text) =>
 			view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } }),
-		focus: () => view.focus()
+		focus: () => view.focus(),
+		setLanguage: async (l) => {
+			const mine = ++version;
+			const ext = await languageSupport(l);
+			if (mine === version) view.dispatch({ effects: language.reconfigure(ext) });
+		},
+		setReadOnly: (ro) =>
+			view.dispatch({ effects: readOnly.reconfigure(EditorState.readOnly.of(ro)) }),
+		openSearch: () => {
+			search.openSearchPanel(view);
+		}
 	};
+}
+
+/**
+ * Reformats YAML (comments kept, 2-space indentation) or JSON (2 spaces)
+ * for the editor's Format button. Throws an Error naming the line when the
+ * text does not parse.
+ */
+export async function formatDocument(text: string, language: 'yaml' | 'json'): Promise<string> {
+	if (language === 'json') {
+		try {
+			return JSON.stringify(JSON.parse(text), null, 2) + '\n';
+		} catch (e) {
+			throw new Error(`This isn't valid JSON: ${e instanceof Error ? e.message : e}`, {
+				cause: e
+			});
+		}
+	}
+	const { parseAllDocuments } = await import('yaml');
+	const docs = parseAllDocuments(text, { prettyErrors: true });
+	const list = Array.isArray(docs) ? docs : [docs];
+	for (const d of list) {
+		const err = d.errors[0];
+		if (err) {
+			const line = err.linePos?.[0]?.line;
+			throw new Error(
+				`This isn't valid YAML${line ? ` (line ${line})` : ''}: ${err.message.split('\n')[0]}`
+			);
+		}
+	}
+	return list.map((d) => d.toString({ indent: 2, lineWidth: 0 })).join('');
 }
 
 export interface SeriesPoint {
@@ -244,10 +367,19 @@ export async function mountSparkline(
 }
 
 export interface TerminalHandle extends Mounted {
-	write(data: string): void;
+	write(data: string | Uint8Array): void;
 	/** Keystrokes typed by the user (for an exec session, #8). */
 	onData(cb: (data: string) => void): void;
+	/** Size changes of the terminal grid (after fit()). */
+	onResize(cb: (size: { cols: number; rows: number }) => void): void;
+	/**
+	 * With `fit` (TerminalOptions) resizes the grid to the element and
+	 * returns the new size; otherwise returns the current size.
+	 */
 	fit(): { cols: number; rows: number };
+	clear(): void;
+	/** Turns keyboard input on or off (a closed session is read-only). */
+	setInputEnabled(enabled: boolean): void;
 	focus(): void;
 }
 
@@ -255,6 +387,13 @@ export interface TerminalOptions {
 	/** Read-only output (e.g. build logs) when true. */
 	readOnly?: boolean;
 	rows?: number;
+	/** Size the grid to the element (@xterm/addon-fit): full-height terminals. */
+	fit?: boolean;
+	/**
+	 * Keep "\n" as a line feed only (a TTY's output already carries "\r\n").
+	 * Default false: "\n" also returns the carriage (plain output, logs).
+	 */
+	rawNewlines?: boolean;
 }
 
 /** xterm.js terminal (container exec, #8), themed with the tokens. */
@@ -262,12 +401,13 @@ export async function mountTerminal(
 	el: HTMLElement,
 	opts: TerminalOptions = {}
 ): Promise<TerminalHandle> {
-	const [{ Terminal }] = await Promise.all([
+	const [{ Terminal }, fitAddon] = await Promise.all([
 		import('@xterm/xterm'),
+		opts.fit ? import('@xterm/addon-fit') : Promise.resolve(null),
 		import('@xterm/xterm/css/xterm.css')
 	]);
 	const term = new Terminal({
-		convertEol: true,
+		convertEol: !opts.rawNewlines,
 		disableStdin: !!opts.readOnly,
 		rows: opts.rows ?? 8,
 		fontFamily: EDITOR_COLORS.fontMono,
@@ -276,12 +416,27 @@ export async function mountTerminal(
 		cursorBlink: !opts.readOnly,
 		theme: { ...TERMINAL_THEME }
 	});
+	const fitter = fitAddon ? new fitAddon.FitAddon() : null;
+	if (fitter) term.loadAddon(fitter);
 	term.open(el);
 	return {
 		destroy: () => term.dispose(),
 		write: (d) => term.write(d),
 		onData: (cb) => void term.onData(cb),
-		fit: () => ({ cols: term.cols, rows: term.rows }),
+		onResize: (cb) => void term.onResize(cb),
+		fit: () => {
+			try {
+				fitter?.fit();
+			} catch {
+				// Not laid out yet (hidden element): keep the current size.
+			}
+			return { cols: term.cols, rows: term.rows };
+		},
+		clear: () => term.clear(),
+		setInputEnabled: (on) => {
+			term.options.disableStdin = !on;
+			term.options.cursorBlink = on;
+		},
 		focus: () => term.focus()
 	};
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -19,8 +20,8 @@ import (
 // volume, which the fake Engine cannot: host and container metrics
 // (host.metrics, a 10 s sampler with a pre-filled 30 min buffer), the
 // Engine inventory (engine.info) and the Compose projects of the homelab
-// (compose.read from in-memory files, compose.services from the fake
-// Engine's containers).
+// (compose.read from the project directories on disk, files.go;
+// compose.services from the fake Engine's containers).
 type simulation struct {
 	host *homelabHost
 	clk  clock.Clock
@@ -175,11 +176,14 @@ func (s *simulation) composeRead(_ context.Context, raw json.RawMessage) (any, e
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return nil, &session.HandlerError{Code: protocol.CodeInvalidArgument, Message: err.Error()}
 	}
-	p, ok := s.host.projects[in.Stack.ProjectName]
-	if !ok {
-		return protocol.ComposeReadOutput{Missing: true, Snapshot: protocol.SourceSnapshot{Files: []protocol.SourceFile{}}}, nil
+	if err := in.Stack.Validate(); err != nil || in.Stack.Root != protocol.RootStacks {
+		return nil, &session.HandlerError{Code: protocol.CodeInvalidArgument, Message: "the devstack serves stacks in the stacks volume only"}
 	}
-	return protocol.ComposeReadOutput{Snapshot: p.snapshot()}, nil
+	snap, ok := readProject(filepath.Join(filepath.FromSlash(s.host.stacksDir), filepath.FromSlash(in.Stack.Dir)))
+	if !ok {
+		return protocol.ComposeReadOutput{Missing: true, Snapshot: snap}, nil
+	}
+	return protocol.ComposeReadOutput{Snapshot: snap}, nil
 }
 
 func (s *simulation) composeServices(ctx context.Context, raw json.RawMessage) (any, error) {

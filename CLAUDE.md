@@ -643,6 +643,14 @@ Guides: `docs/design/README.md` (tokens, components, copy, a11y),
 - **Search:** `GET /api/v1/search` (`internal/manager/api/search.go`) feeds
   the ⌘K palette; new searchable resource types go there, filtered with the
   resource's own `ViewOf` and identity/status fields only.
+- **Files, logs, terminals** (`docs/web.md`): reuse
+  `$lib/features/files/FileManager.svelte` (stack or volume scope),
+  `$lib/features/logs/LogPanel.svelte` (stack or container; `LogDock` as a
+  bottom drawer) and `$lib/features/terminal/TerminalPanel.svelte`; link to
+  them with `routes.stack(id, 'files' | 'logs' | 'terminal')`,
+  `routes.volumeFiles`, `routes.containerLogs`, `routes.containerTerminal`.
+  Log viewers stream at most one container over HTTP/1.1 (six connections
+  per host for all tabs) and poll the rest.
 
 ## Adding a migration
 

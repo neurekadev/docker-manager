@@ -9,6 +9,8 @@
 //   /builds, /registries, /backups, /updates, /maintenance, /jobs[/{jobId}], /schedules
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
 //   /access (users, groups, invitations), /settings[/security|/tokens|/audit]
+//   /volumes/{env}/{volume}/files, /containers/{env}/{id}/logs|terminal,
+//   /popout/logs?stack=|environment=&container= (files, logs, terminals)
 //   /setup, /sign-in, /enroll, /invitation, /password-reset (public)
 //
 // IDs are path-encoded; environment-scoped Docker objects live under their
@@ -58,7 +60,23 @@ export const routes = {
 		const s = q.toString();
 		return `/sign-in${s ? `?${s}` : ''}`;
 	},
-	enroll: () => '/enroll'
+	enroll: () => '/enroll',
+	// Files, logs and terminals (#15, #8; track B3). The stack tabs are
+	// routes.stack(id, 'files' | 'logs' | 'terminal').
+	volumeFiles: (env: string, name: string) => `/volumes/${e(env)}/${e(name)}/files`,
+	containerLogs: (env: string, id: string) => `/containers/${e(env)}/${e(id)}/logs`,
+	containerTerminal: (env: string, id: string) => `/containers/${e(env)}/${e(id)}/terminal`,
+	/** The log viewer in its own window (no app shell). */
+	logsWindow: (target: { stackId: string } | { environmentId: string; containerId: string }) => {
+		const q =
+			'stackId' in target
+				? new URLSearchParams({ stack: target.stackId })
+				: new URLSearchParams({
+						environment: target.environmentId,
+						container: target.containerId
+					});
+		return `/popout/logs?${q}`;
+	}
 };
 
 /** A safe in-app redirect target from ?next= (never another origin). */

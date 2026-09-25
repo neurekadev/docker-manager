@@ -4,11 +4,11 @@
 // and its save is refused (412 with the current ETag) until resolved; two
 // browser sessions converge on the same events.
 //
-// The file browser and editor screens are built with #22; until then the
-// spec drives the same contract the screens use, inside the page: the live
-// EventSource and the scoped file API with the session cookie. When the
-// screens exist, extend it to assert the rendered listing and the
-// external-change conflict notice.
+// This spec drives the contract the screens use, inside the page: the live
+// EventSource and the scoped file API with the session cookie. The rendered
+// listing and the external-change conflict notice of the file manager
+// screens (#22) are asserted by tests/ui-files.spec.ts (host-side edit test,
+// same E2E_*_STACK_DIR idea).
 //
 // Needs a signed-in user, a managed stack with a connected agent, and write
 // access for the test runner to the stack's project directory on the
