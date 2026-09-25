@@ -46,6 +46,9 @@ type Store struct {
 	// OnBackup runs at the start of every Backup (tests use it to observe
 	// container state while "restic" runs); an error fails the backup.
 	OnBackup func(req restic.BackupRequest) error
+	// persistPath, when set (Persist), receives the state after every
+	// operation that holds the lock to its end.
+	persistPath string
 }
 
 type repoState struct {
@@ -87,7 +90,7 @@ func New(now func() time.Time) *Store {
 // set only there. A nil err removes the injection.
 func (s *Store) Fail(op, repository string, err error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	k := op
 	if repository != "" {
 		k += "@" + repository
@@ -103,7 +106,7 @@ func (s *Store) Fail(op, repository string, err error) {
 // restic.CodeRepositoryDamaged), like a truncated pack file.
 func (s *Store) Damage(repository string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	if r := s.repos[repository]; r != nil {
 		r.damaged = true
 	}
@@ -112,7 +115,7 @@ func (s *Store) Damage(repository string) {
 // Delete removes a repository entirely (a lost location).
 func (s *Store) Delete(repository string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	delete(s.repos, repository)
 }
 
@@ -120,7 +123,7 @@ func (s *Store) Delete(repository string) {
 // new path, or copied to another bucket).
 func (s *Store) Move(from, to string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	if r := s.repos[from]; r != nil {
 		s.repos[to] = r
 		delete(s.repos, from)
@@ -130,14 +133,14 @@ func (s *Store) Move(from, to string) {
 // Exists reports whether a repository exists.
 func (s *Store) Exists(repository string) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	return s.repos[repository] != nil
 }
 
 // Repositories lists the repositories.
 func (s *Store) Repositories() []string {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	var out []string
 	for k := range s.repos {
 		out = append(out, k)
@@ -149,7 +152,7 @@ func (s *Store) Repositories() []string {
 // Snapshots returns a repository's snapshots (no password needed).
 func (s *Store) Snapshots(repository string) []restic.Snapshot {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	r := s.repos[repository]
 	if r == nil {
 		return nil
@@ -164,7 +167,7 @@ func (s *Store) Snapshots(repository string) []restic.Snapshot {
 // Passwords returns a repository's key passwords (tests of rotation).
 func (s *Store) Passwords(repository string) []string {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	r := s.repos[repository]
 	if r == nil {
 		return nil
@@ -179,7 +182,7 @@ func (s *Store) Passwords(repository string) []string {
 // Calls returns the recorded calls.
 func (s *Store) Calls() []Call {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	return slices.Clone(s.calls)
 }
 
@@ -228,7 +231,7 @@ func (p *repo) begin(ctx context.Context, op string, needRepo bool, args ...stri
 
 func (p *repo) Init(ctx context.Context) (string, error) {
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	r, err := p.begin(ctx, "init", false)
 	if err != nil {
 		return "", err
@@ -243,7 +246,7 @@ func (p *repo) Init(ctx context.Context) (string, error) {
 
 func (p *repo) Config(ctx context.Context) (restic.Config, error) {
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	r, err := p.begin(ctx, "config", true)
 	if err != nil {
 		return restic.Config{}, err
@@ -352,7 +355,7 @@ func (p *repo) Backup(ctx context.Context, req restic.BackupRequest) (restic.Bac
 		}
 	}
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	r, err := p.begin(ctx, "backup", true, append(append([]string{}, req.Tags...), paths...)...)
 	if err != nil {
 		return restic.BackupSummary{}, err
@@ -386,7 +389,7 @@ func (p *repo) find(r *repoState, op, id string) (*snap, error) {
 
 func (p *repo) Snapshots(ctx context.Context, f restic.SnapshotFilter) ([]restic.Snapshot, error) {
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	r, err := p.begin(ctx, "snapshots", true, f.Tags...)
 	if err != nil {
 		return nil, err
@@ -411,7 +414,7 @@ func (p *repo) Snapshots(ctx context.Context, f restic.SnapshotFilter) ([]restic
 
 func (p *repo) Ls(ctx context.Context, snapshotID, dir string, recursive bool, limit int) (restic.Listing, error) {
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	r, err := p.begin(ctx, "ls", true, snapshotID, dir)
 	if err != nil {
 		return restic.Listing{}, err
@@ -617,7 +620,7 @@ func (p *repo) Restore(ctx context.Context, req restic.RestoreRequest) (restic.R
 
 func (p *repo) Forget(ctx context.Context, ids []string) error {
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	r, err := p.begin(ctx, "forget", true, ids...)
 	if err != nil {
 		return err
@@ -633,14 +636,14 @@ func (p *repo) Forget(ctx context.Context, ids []string) error {
 
 func (p *repo) Prune(ctx context.Context) error {
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	_, err := p.begin(ctx, "prune", true)
 	return err
 }
 
 func (p *repo) Stats(ctx context.Context) (restic.Stats, error) {
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	r, err := p.begin(ctx, "stats", true)
 	if err != nil {
 		return restic.Stats{}, err
@@ -658,7 +661,7 @@ func (p *repo) Stats(ctx context.Context) (restic.Stats, error) {
 
 func (p *repo) Check(ctx context.Context, req restic.CheckRequest) (restic.CheckResult, error) {
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	r, err := p.begin(ctx, "check", true, req.ReadDataSubset)
 	if err != nil {
 		return restic.CheckResult{}, err
@@ -672,7 +675,7 @@ func (p *repo) Check(ctx context.Context, req restic.CheckRequest) (restic.Check
 
 func (p *repo) Keys(ctx context.Context) ([]restic.Key, error) {
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	r, err := p.begin(ctx, "key list", true)
 	if err != nil {
 		return nil, err
@@ -686,7 +689,7 @@ func (p *repo) Keys(ctx context.Context) ([]restic.Key, error) {
 
 func (p *repo) AddKey(ctx context.Context, newPassword string) error {
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	r, err := p.begin(ctx, "key add", true)
 	if err != nil {
 		return err
@@ -700,7 +703,7 @@ func (p *repo) AddKey(ctx context.Context, newPassword string) error {
 
 func (p *repo) RemoveKey(ctx context.Context, id string) error {
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	r, err := p.begin(ctx, "key remove", true, id)
 	if err != nil {
 		return err
@@ -719,7 +722,7 @@ func (p *repo) RemoveKey(ctx context.Context, id string) error {
 
 func (p *repo) Unlock(ctx context.Context) error {
 	p.s.mu.Lock()
-	defer p.s.mu.Unlock()
+	defer p.s.unlock()
 	_, err := p.begin(ctx, "unlock", true)
 	return err
 }
@@ -727,7 +730,7 @@ func (p *repo) Unlock(ctx context.Context) error {
 // SnapshotFiles returns the stored paths of a snapshot (tests).
 func (s *Store) SnapshotFiles(repository, id string) []string {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	r := s.repos[repository]
 	if r == nil {
 		return nil

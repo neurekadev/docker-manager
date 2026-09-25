@@ -53,6 +53,9 @@ func (d dbJournal) Save(ctx context.Context, st *jobexec.State) error {
 		}
 		j.CurrentStep, j.StepInFlight = st.CurrentStep, st.StepInFlight
 		j.CompletedSteps = slices.Clone(st.Completed)
+		// The output is journaled with the attempt (jobexec.SetOutput): a
+		// resumed attempt continues from it (stateFromJob).
+		j.ResumeOutput = slices.Clone(st.Output)
 		j.Compensations = j.Compensations[:0]
 		for _, c := range st.Compensations {
 			j.Compensations = append(j.Compensations, domain.JobCompensation{Name: c.Name, Args: c.Args, Released: c.Released, Done: c.Done, Error: c.Error})
@@ -72,7 +75,8 @@ func (d dbJournal) Save(ctx context.Context, st *jobexec.State) error {
 
 func stateFromJob(j *domain.Job) jobexec.State {
 	st := jobexec.State{JobID: j.ID, Attempt: uint32(j.Attempt), Kind: j.Kind, Input: j.Input, //nolint:gosec // attempts are small
-		CurrentStep: j.CurrentStep, StepInFlight: j.StepInFlight, Completed: slices.Clone(j.CompletedSteps)}
+		CurrentStep: j.CurrentStep, StepInFlight: j.StepInFlight, Completed: slices.Clone(j.CompletedSteps),
+		Output: slices.Clone(j.ResumeOutput)}
 	for _, c := range j.Compensations {
 		st.Compensations = append(st.Compensations, jobexec.Compensation{Name: c.Name, Args: c.Args, Released: c.Released, Done: c.Done, Error: c.Error})
 	}

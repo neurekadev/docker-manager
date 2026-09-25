@@ -56,6 +56,9 @@ type Engine struct {
 	// when they start (SetStartHealth).
 	remote      map[string]string
 	startHealth map[string]string
+	// persistPath, when set (Persist), receives the state after every
+	// operation.
+	persistPath string
 }
 
 // ExecInstance is an exec instance created with CreateExec (the fake
@@ -118,7 +121,7 @@ func (e *Engine) newID(seed string) string {
 // their own.
 func (e *Engine) SetVolumeRoot(root string) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	e.volumeRoot = strings.TrimSuffix(root, "/")
 }
 
@@ -135,7 +138,7 @@ func (e *Engine) volumeDir(name string) string {
 // return err; several calls queue several failures.
 func (e *Engine) Fail(op string, err error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	e.failures[op] = append(e.failures[op], err)
 }
 
@@ -147,7 +150,7 @@ func Err(op string, code engine.Code, format string, args ...any) error {
 // Calls returns the operations called so far, in order.
 func (e *Engine) Calls() []string {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	return slices.Clone(e.calls)
 }
 
@@ -164,7 +167,7 @@ func (e *Engine) call(op string) error {
 // AddImage adds an image with the given tags and returns its ID.
 func (e *Engine) AddImage(tags ...string) string {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	return e.addImage(tags, nil)
 }
 
@@ -173,7 +176,7 @@ func (e *Engine) AddImage(tags ...string) string {
 // returns its ID (generated when d.ID is empty).
 func (e *Engine) AddImageDetails(d engine.ImageDetails) string {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if d.ID == "" {
 		d.ID = "sha256:" + e.newID("img-"+strings.Join(d.RepoTags, ","))
 	}
@@ -190,14 +193,14 @@ func (e *Engine) AddImageDetails(d engine.ImageDetails) string {
 // SetPlatform changes the Engine's reported OS and architecture.
 func (e *Engine) SetPlatform(os, arch string) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	e.identity.OS, e.identity.Arch = os, arch
 }
 
 // AddLabeledImage adds an image with labels.
 func (e *Engine) AddLabeledImage(labels map[string]string, tags ...string) string {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	return e.addImage(tags, labels)
 }
 
@@ -218,7 +221,7 @@ func (e *Engine) addImage(tags []string, labels map[string]string) string {
 // another tool) and returns its ID. The image is added when missing.
 func (e *Engine) AddContainer(spec engine.ContainerSpec, running bool) string {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if _, ok := e.findImage(spec.Image); !ok {
 		e.addImage([]string{normalizeRef(spec.Image)}, nil)
 	}
@@ -236,7 +239,7 @@ func (e *Engine) AddContainer(spec engine.ContainerSpec, running bool) string {
 // Container returns a copy of a container by ID or name.
 func (e *Engine) Container(idOrName string) (Container, bool) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	c, ok := e.findContainer(idOrName)
 	if !ok {
 		return Container{}, false
@@ -248,14 +251,14 @@ func (e *Engine) Container(idOrName string) (Container, bool) {
 // (nil for anonymous pulls), in order.
 func (e *Engine) PullAuths() []*engine.RegistryAuth {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	return slices.Clone(e.pullAuths)
 }
 
 // Images returns every image's tags keyed by ID.
 func (e *Engine) Images() map[string][]string {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	out := map[string][]string{}
 	for id, im := range e.images {
 		out[id] = slices.Clone(im.RepoTags)
@@ -266,7 +269,7 @@ func (e *Engine) Images() map[string][]string {
 // Identity implements engine.Engine.
 func (e *Engine) Identity() engine.Identity {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	return e.identity
 }
 
@@ -276,7 +279,7 @@ func (e *Engine) Refresh(context.Context) (engine.Identity, error) { return e.Id
 // Ping implements engine.Engine.
 func (e *Engine) Ping(context.Context) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	return e.call("ping")
 }
 
@@ -377,7 +380,7 @@ func (e *Engine) summary(c *Container) engine.Container {
 // ListContainers implements engine.Engine.
 func (e *Engine) ListContainers(_ context.Context, f engine.ContainerFilter) ([]engine.Container, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("container.list"); err != nil {
 		return nil, err
 	}
@@ -415,7 +418,7 @@ func matchLabels(have map[string]string, want []string) bool {
 // InspectContainer implements engine.Engine.
 func (e *Engine) InspectContainer(_ context.Context, id string) (engine.ContainerDetails, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("container.inspect"); err != nil {
 		return engine.ContainerDetails{}, err
 	}
@@ -432,7 +435,7 @@ func (e *Engine) InspectContainer(_ context.Context, id string) (engine.Containe
 // CreateContainer implements engine.Engine.
 func (e *Engine) CreateContainer(_ context.Context, spec engine.ContainerSpec) (string, []string, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("container.create"); err != nil {
 		return "", nil, err
 	}
@@ -527,7 +530,7 @@ func (e *Engine) create(spec engine.ContainerSpec) (string, error) {
 
 func (e *Engine) mutate(op, id string, fn func(c *Container) error) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call(op); err != nil {
 		return err
 	}
@@ -663,7 +666,7 @@ func (e *Engine) WaitContainer(context.Context, string) (int64, error) {
 // ListImages implements engine.Engine.
 func (e *Engine) ListImages(_ context.Context, _ bool) ([]engine.Image, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("image.list"); err != nil {
 		return nil, err
 	}
@@ -685,7 +688,7 @@ func (e *Engine) ListImages(_ context.Context, _ bool) ([]engine.Image, error) {
 // InspectImage implements engine.Engine.
 func (e *Engine) InspectImage(_ context.Context, ref string) (engine.ImageDetails, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("image.inspect"); err != nil {
 		return engine.ImageDetails{}, err
 	}
@@ -702,7 +705,7 @@ func (e *Engine) InspectImage(_ context.Context, ref string) (engine.ImageDetail
 func (e *Engine) PullImage(_ context.Context, ref string, o engine.PullOptions) (engine.PullResult, error) {
 	e.mu.Lock()
 	if err := e.call("image.pull"); err != nil {
-		e.mu.Unlock()
+		e.unlock()
 		return engine.PullResult{}, err
 	}
 	if o.Auth != nil {
@@ -727,7 +730,7 @@ func (e *Engine) PullImage(_ context.Context, ref string, o engine.PullOptions) 
 		_, digest, _ = strings.Cut(d[0], "@")
 	}
 	e.emit("image", "pull", tag, map[string]string{"name": tag})
-	e.mu.Unlock()
+	e.unlock()
 	if o.Progress != nil {
 		o.Progress(engine.Progress{ID: "layer1", Status: "Downloading", Current: 512, Total: 1024})
 		o.Progress(engine.Progress{ID: "layer1", Status: "Download complete", Current: 1024, Total: 1024})
@@ -742,7 +745,7 @@ func (e *Engine) PullImage(_ context.Context, ref string, o engine.PullOptions) 
 // image keeps its ID and digest.
 func (e *Engine) Publish(ref, digest string) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	e.remote[normalizeRef(ref)] = digest
 }
 
@@ -750,7 +753,7 @@ func (e *Engine) Publish(ref, digest string) {
 // health status when they start ("healthy", "unhealthy", "starting").
 func (e *Engine) SetStartHealth(image, status string) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if im, ok := e.findImage(image); ok {
 		e.startHealth[im.ID] = status
 	}
@@ -759,7 +762,7 @@ func (e *Engine) SetStartHealth(image, status string) {
 // ImageDigests returns the repository digests of an image (ID or reference).
 func (e *Engine) ImageDigests(image string) []string {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if im, ok := e.findImage(image); ok {
 		return slices.Clone(im.RepoDigests)
 	}
@@ -804,7 +807,7 @@ func (e *Engine) pullRemote(tag, digest string) string {
 // TagImage implements engine.Engine.
 func (e *Engine) TagImage(_ context.Context, source, target string) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("image.tag"); err != nil {
 		return err
 	}
@@ -827,7 +830,7 @@ func (e *Engine) TagImage(_ context.Context, source, target string) error {
 func (e *Engine) RemoveImage(_ context.Context, ref string, force, _ bool) ([]engine.DeletedImage, error) {
 	const op = "image.remove"
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call(op); err != nil {
 		return nil, err
 	}
@@ -875,7 +878,7 @@ func shortID(id string) string {
 func (e *Engine) SaveImage(_ context.Context, refs []string) (io.ReadCloser, error) {
 	const op = "image.save"
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call(op); err != nil {
 		return nil, err
 	}
@@ -910,7 +913,7 @@ func (e *Engine) LoadImage(_ context.Context, r io.Reader) error {
 		return err
 	}
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call(op); err != nil {
 		return err
 	}
@@ -944,7 +947,7 @@ func (e *Engine) volumeUsed(name string) bool {
 // ListVolumes implements engine.Engine.
 func (e *Engine) ListVolumes(_ context.Context, labels ...string) ([]engine.Volume, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("volume.list"); err != nil {
 		return nil, err
 	}
@@ -963,7 +966,7 @@ func (e *Engine) ListVolumes(_ context.Context, labels ...string) ([]engine.Volu
 // InspectVolume implements engine.Engine.
 func (e *Engine) InspectVolume(_ context.Context, name string) (engine.Volume, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("volume.inspect"); err != nil {
 		return engine.Volume{}, err
 	}
@@ -980,7 +983,7 @@ func (e *Engine) InspectVolume(_ context.Context, name string) (engine.Volume, e
 // existing volume with the same name is returned).
 func (e *Engine) CreateVolume(_ context.Context, spec engine.VolumeSpec) (engine.Volume, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("volume.create"); err != nil {
 		return engine.Volume{}, err
 	}
@@ -1005,7 +1008,7 @@ func (e *Engine) CreateVolume(_ context.Context, spec engine.VolumeSpec) (engine
 // a temporary directory) and updates the containers mounting it.
 func (e *Engine) SetVolumeMountpoint(name, mountpoint string) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if v, ok := e.volumes[name]; ok {
 		v.Mountpoint = mountpoint
 	}
@@ -1027,7 +1030,7 @@ func (e *Engine) AddVolume(name string, labels map[string]string) {
 func (e *Engine) RemoveVolume(_ context.Context, name string, _ bool) error {
 	const op = "volume.remove"
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call(op); err != nil {
 		return err
 	}
@@ -1060,7 +1063,7 @@ func (e *Engine) networkCopy(n *engine.Network, withContainers bool) engine.Netw
 // ListNetworks implements engine.Engine.
 func (e *Engine) ListNetworks(_ context.Context, labels ...string) ([]engine.Network, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("network.list"); err != nil {
 		return nil, err
 	}
@@ -1077,7 +1080,7 @@ func (e *Engine) ListNetworks(_ context.Context, labels ...string) ([]engine.Net
 // InspectNetwork implements engine.Engine.
 func (e *Engine) InspectNetwork(_ context.Context, idOrName string) (engine.Network, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("network.inspect"); err != nil {
 		return engine.Network{}, err
 	}
@@ -1092,7 +1095,7 @@ func (e *Engine) InspectNetwork(_ context.Context, idOrName string) (engine.Netw
 func (e *Engine) CreateNetwork(_ context.Context, spec engine.NetworkSpec) (string, error) {
 	const op = "network.create"
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call(op); err != nil {
 		return "", err
 	}
@@ -1127,7 +1130,7 @@ func (e *Engine) AddNetwork(name string, labels map[string]string) string {
 func (e *Engine) RemoveNetwork(_ context.Context, idOrName string) error {
 	const op = "network.remove"
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call(op); err != nil {
 		return err
 	}
@@ -1152,7 +1155,7 @@ func (e *Engine) RemoveNetwork(_ context.Context, idOrName string) error {
 func (e *Engine) ConnectNetwork(_ context.Context, netID, containerID string, aliases ...string) error {
 	const op = "network.connect"
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call(op); err != nil {
 		return err
 	}
@@ -1179,7 +1182,7 @@ func (e *Engine) ConnectNetwork(_ context.Context, netID, containerID string, al
 func (e *Engine) DisconnectNetwork(_ context.Context, netID, containerID string, _ bool) error {
 	const op = "network.disconnect"
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call(op); err != nil {
 		return err
 	}
@@ -1214,7 +1217,7 @@ func (e *Engine) containerEvent(c *Container, action string) {
 // EmittedEvents returns the Engine events of the operations so far.
 func (e *Engine) EmittedEvents() []engine.Event {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	return slices.Clone(e.events)
 }
 
@@ -1269,7 +1272,7 @@ func (e *Engine) Stats(context.Context, string, bool, func(engine.Stats) error) 
 // running container (see Execs); attaching is not supported.
 func (e *Engine) CreateExec(_ context.Context, id string, spec engine.ExecSpec) (string, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	c, ok := e.findContainer(id)
 	if !ok {
 		return "", Err("exec.create", engine.CodeNotFound, "no such container: %s", id)
@@ -1286,7 +1289,7 @@ func (e *Engine) CreateExec(_ context.Context, id string, spec engine.ExecSpec) 
 // Execs returns the exec instances created so far.
 func (e *Engine) Execs() []ExecInstance {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	return append([]ExecInstance(nil), e.execs...)
 }
 

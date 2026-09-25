@@ -270,6 +270,10 @@ func (r *Runner) handleCommand(ctx context.Context, f *protocol.Frame) error {
 	}
 	st := jobexec.State{JobID: f.JobID, Attempt: f.Attempt, FencingToken: f.FencingToken, Kind: exec.Kind,
 		Input: p.Input, Completed: p.CompletedSteps, RequestID: f.RequestID}
+	if len(p.CompletedSteps) > 0 {
+		// Resumed: continue from the output the earlier attempts reported.
+		st.Output = p.Output
+	}
 	// The journal stores a clone, which never carries the secrets; only
 	// the running attempt below holds them (in memory).
 	if err := r.journal.Accept(&st); err != nil {

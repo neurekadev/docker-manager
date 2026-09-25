@@ -392,9 +392,12 @@ announced it (#34). Upgrade procedure: `docs/operations/upgrades.md`.
 Defined in `internal/protocol/jobs.go` and
 [job-engine.md](../architecture/job-engine.md#dispatch-fencing-and-agent-recovery):
 
-- `command {kind, input, completedSteps, secrets}` with `jobId`, `attempt`,
-  `fencingToken` (per-environment, persisted, strictly increasing) and
-  `deadline` (latest start).
+- `command {kind, input, completedSteps, output, secrets}` with `jobId`,
+  `attempt`, `fencingToken` (per-environment, persisted, strictly
+  increasing) and `deadline` (latest start). A resumed attempt carries the
+  steps earlier attempts completed and the `output` they reported: it
+  skips those steps and continues from that output (later steps read what
+  the completed ones recorded, e.g. a prune's collected candidates).
 - `secrets {registries: [{connectionId, host, serverAddress, username,
   secret}], git: [{credentialId, host, username, secret, plainHttp}]}` (optional) are
   the credentials of this attempt only (#19, #33). The manager resolves them

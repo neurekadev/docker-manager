@@ -180,7 +180,7 @@ executor checks the destination's capabilities).
 - Dispatch allocates a token from the environment's persisted counter
   (`job_fencing`) in the acquisition transaction and sends a `command` frame
   with job ID, attempt, fencing token, deadline and `{kind, input,
-  completedSteps}` through `AgentDispatcher.Send`. Commands of one
+  completedSteps, output}` through `AgentDispatcher.Send`. Commands of one
   environment leave in token order.
 - The agent persists the highest token it accepted (journal high-water mark)
   and rejects any command whose token is not above it (`ack`
@@ -199,7 +199,7 @@ executor checks the destination's capabilities).
   | Agent report | Manager action |
   | --- | --- |
   | finished `succeeded`/`failed`/`partial`/`cancelled` | apply the outcome, tell the agent to forget it |
-  | finished `interrupted`, resumable (the in-flight step, if any, is idempotent and no compensation ran) | new attempt with a new fencing token, skipping completed steps (bounded by `MaxResumes`, default 3); cancelled instead if cancellation was requested |
+  | finished `interrupted`, resumable (the in-flight step, if any, is idempotent and no compensation ran) | new attempt with a new fencing token, skipping completed steps and continuing from the output the interrupted attempt reported (the command's `output`; later steps read what the completed ones recorded), bounded by `MaxResumes` (default 3); cancelled instead if cancellation was requested |
   | finished `interrupted`, not resumable (non-idempotent step with unknown outcome) | `interrupted` with the step's recovery guidance — **never retried automatically** |
   | running | keep running (re-send a pending cancellation); the agent serializes the report with its "attempt finished" transition, so the attempt's `result` is always sent **after** this report (never before it and lost with the old session) |
   | job missing, never acknowledged | the command never arrived: new attempt with a new token (or `cancelled` if cancellation was requested) |
@@ -214,7 +214,8 @@ executor checks the destination's capabilities).
 - **Manager restart:** `Engine.Recover` runs at startup (after migrations,
   before the listener). Agent jobs keep their state and locks and are
   reconciled on reconnect. Manager-local jobs run their compensations and
-  then resume (kinds with `resume` policy whose in-flight step is idempotent)
+  then resume (kinds with `resume` policy whose in-flight step is idempotent;
+  the output the attempt journaled with the job row carries over)
   or become `interrupted` (`interrupt` policy or non-idempotent step).
 - **Cancellation** (`POST /jobs/{id}/cancellations`): waiting jobs are
   cancelled immediately; active jobs move to `cancelling` and stop only at
@@ -294,8 +295,22 @@ Stage boundaries carry `faultinject.Point` calls: `engine.enqueue.committed`,
 them; `DOCKYARD_FAULTPOINT_TRACE=<file>` records the points reached.
 `internal/manager/jobs/faulttest` runs the manager engine and an agent as
 subprocesses and kills each at every traced point of a simulated deploy, a
-backup with container shutdown and a prune (`go test -tags faultinject
-./internal/manager/jobs/faulttest/`).
+backup with container shutdown and a prune (`TestKillAtEveryStage`), and of
+the **real** executors (`TestKillRealExecutorsAtEveryStage`, `real_test.go`):
+`stack.deploy` (#7), `backup.run` with container shutdown (#10) and
+`prune.run` (#14) over the in-memory Engine (`enginefake.Persist`) and
+restic (`restictest.Persist`), both backed by a file so they outlive every
+killed agent like a real Engine and repository do. Besides the job
+invariants (explicit terminal state with recovery guidance, no held locks,
+non-idempotent steps at most once, stopped containers started again) each
+real scenario checks the world it left: containers created at most once and
+running after a finished deploy, the backed-up stack running again in every
+outcome with at most one snapshot, protected and used objects never pruned
+and every candidate gone after a finished prune (`go test -tags faultinject
+./internal/manager/jobs/faulttest/`; it needs no Docker). The real harness
+found that a resumed attempt lost the output of its completed steps (a
+resumed `prune.run` succeeded without removing anything): commands now
+carry it (`Job.ResumeOutput`, persisted).
 
 ## For feature workstreams
 
