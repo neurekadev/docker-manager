@@ -101,6 +101,49 @@ func TestManagerRestartRecovery(t *testing.T) {
 	h.noLocksHeld()
 }
 
+// TestManagerLocalResumeKeepsOutput (#26): a manager-local job resumed
+// after a manager restart continues from the output its completed steps
+// journaled (the jobs row), like a resumed agent attempt.
+func TestManagerLocalResumeKeepsOutput(t *testing.T) {
+	h := newHarness(t)
+	entered := make(chan struct{})
+	first := jobexec.Executor{Kind: jobspec.ManagerRetention, Steps: map[string]jobexec.StepFunc{
+		"forget": func(ctx context.Context, sc *jobexec.StepContext) error {
+			return sc.SetOutput(ctx, map[string]int{"forgotten": 3})
+		},
+		"prune_repository": func(ctx context.Context, _ *jobexec.StepContext) error {
+			close(entered)
+			<-ctx.Done() // the manager stops mid-step
+			return ctx.Err()
+		},
+	}}
+	register(t, h.eng, first)
+	j := h.enqueue(jobs.Request{Kind: jobspec.ManagerRetention, Principal: authz.Service(), Targets: []domain.JobTarget{repo("r1")}})
+	h.dispatch()
+	<-entered
+	h.eng.Close()
+
+	h.eng = h.newEngine()
+	var seen string
+	register(t, h.eng, jobexec.Executor{Kind: jobspec.ManagerRetention, Steps: map[string]jobexec.StepFunc{
+		"forget": func(context.Context, *jobexec.StepContext) error { t.Error("the completed step ran again"); return nil },
+		"prune_repository": func(_ context.Context, sc *jobexec.StepContext) error {
+			seen = string(sc.Output())
+			return nil
+		},
+	}})
+	if err := h.eng.Recover(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	h.eng.Wait()
+	if rj := h.wantState(j.ID, domain.JobSucceeded); rj.Attempt != 2 {
+		t.Fatalf("attempt %d", rj.Attempt)
+	}
+	if seen != `{"forgotten":3}` {
+		t.Fatalf("the resumed step saw output %q", seen)
+	}
+}
+
 func TestManagerJobLifecycle(t *testing.T) {
 	h := newHarness(t)
 	fx := &jobstest.Effects{}

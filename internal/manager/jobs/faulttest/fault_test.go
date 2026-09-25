@@ -58,24 +58,35 @@ type scenario struct {
 	name    string
 	kind    domain.JobKind
 	targets []domain.JobTarget
+
+	// Real-executor scenarios (real_test.go): seed prepares the persistent
+	// world before the processes start, input is the job input, secrets
+	// what the manager resolves at every dispatch, executors builds the
+	// agent's real executors over the world, and check asserts the world
+	// the job left behind. Without executors the simulated steps run.
+	seed      func(t *testing.T, w world)
+	input     func(w world) any
+	secrets   *protocol.CommandSecrets
+	executors func(w world, log *slog.Logger) ([]jobexec.Executor, error)
+	check     func(t *testing.T, w world, res outcome)
 }
 
 // The simulated step sequences mirror the real features: deploy (resolve,
 // pull, build, apply), backup with container shutdown (stop containers with
 // a restart compensation, non-idempotent snapshot) and prune.
 var scenarios = []scenario{
-	{"deploy", jobspec.StackDeploy, []domain.JobTarget{{Type: domain.TargetStack, ID: "web"}}},
-	{"backup_with_shutdown", jobspec.BackupRun, []domain.JobTarget{{Type: domain.TargetStack, ID: "web"},
+	{name: "deploy", kind: jobspec.StackDeploy, targets: []domain.JobTarget{{Type: domain.TargetStack, ID: "web"}}},
+	{name: "backup_with_shutdown", kind: jobspec.BackupRun, targets: []domain.JobTarget{{Type: domain.TargetStack, ID: "web"},
 		{Type: domain.TargetVolume, ID: "data"}, {Type: domain.TargetRepository, ID: "repo-1"}}},
-	{"prune", jobspec.PruneRun, nil},
+	{name: "prune", kind: jobspec.PruneRun},
 	// Manager-local kinds: resume (retention) and interrupt (manager backup)
 	// restart policies.
-	{"retention", jobspec.ManagerRetention, []domain.JobTarget{{Type: domain.TargetRepository, ID: "repo-1"}}},
-	{"manager_backup", jobspec.ManagerBackup, []domain.JobTarget{{Type: domain.TargetRepository, ID: "repo-1"}}},
+	{name: "retention", kind: jobspec.ManagerRetention, targets: []domain.JobTarget{{Type: domain.TargetRepository, ID: "repo-1"}}},
+	{name: "manager_backup", kind: jobspec.ManagerBackup, targets: []domain.JobTarget{{Type: domain.TargetRepository, ID: "repo-1"}}},
 }
 
 func scenarioByName(name string) scenario {
-	for _, s := range scenarios {
+	for _, s := range append(slices.Clone(scenarios), realScenarios...) {
 		if s.name == name {
 			return s
 		}
@@ -233,7 +244,16 @@ func managerMain() int {
 		db.AddQueryHook(gate)
 	}
 	disp := &stdioDispatcher{out: out}
-	eng, err := jobs.New(jobs.Options{DB: db, Logger: log, Dispatcher: disp, PollInterval: 50 * time.Millisecond})
+	// Credentials an agent command carries are resolved at every dispatch
+	// (never journaled), like the backup service's Recovery Key.
+	secrets := func(context.Context, *domain.Job) (*protocol.CommandSecrets, error) {
+		if sc.secrets == nil {
+			return nil, nil
+		}
+		s := *sc.secrets
+		return &s, nil
+	}
+	eng, err := jobs.New(jobs.Options{DB: db, Logger: log, Dispatcher: disp, PollInterval: 50 * time.Millisecond, CommandSecrets: secrets})
 	if err != nil {
 		log.Error("engine", "error", err)
 		return 3
@@ -297,8 +317,12 @@ func managerMain() int {
 	case <-stdinClosed:
 		return 4
 	}
+	var input any
+	if sc.input != nil {
+		input = sc.input(world{base: filepath.Dir(dbPath)})
+	}
 	job, _, err := eng.Enqueue(ctx, jobs.Request{Kind: sc.kind, Principal: authz.Service(), EnvironmentID: environmentID,
-		Targets: sc.targets, IdempotencyKey: idemKey})
+		Targets: sc.targets, Input: input, IdempotencyKey: idemKey})
 	if err != nil {
 		log.Error("enqueue", "error", err)
 		return 3
@@ -359,7 +383,16 @@ func agentMain() int {
 	fx := &jobstest.Effects{File: os.Getenv(envEffects)}
 	out := &lineWriter{}
 	var execs []jobexec.Executor
-	if spec, _ := jobspec.Lookup(sc.kind); spec.Executor == domain.ExecutorAgent {
+	switch spec, _ := jobspec.Lookup(sc.kind); {
+	case sc.executors != nil:
+		// The feature's real executors over the persistent world.
+		real, err := sc.executors(world{base: filepath.Dir(os.Getenv(envState))}, log)
+		if err != nil || len(real) == 0 {
+			log.Error("executors", "error", err)
+			return 3
+		}
+		execs = withEffects(real, fx)
+	case spec.Executor == domain.ExecutorAgent:
 		execs = append(execs, jobstest.SimExecutor(sc.kind, jobstest.SimOptions{Effects: fx}))
 	}
 	r, err := agentjobs.New(ctx, agentjobs.Options{StateDir: os.Getenv(envState), Logger: log, Sender: out, Executors: execs})
@@ -508,6 +541,8 @@ type outcome struct {
 	job      domain.Job
 	locks    int
 	effects  []string
+	// dir holds the run's database, agent state and world.
+	dir string
 }
 
 // run executes the scenario. faultRole/point arm one crash in the first
@@ -533,10 +568,13 @@ func run(t *testing.T, sc scenario, faultRole, point string, trace bool, manager
 		}
 		return env
 	}
+	if sc.seed != nil {
+		sc.seed(t, world{base: h.dir})
+	}
 	h.start(roleManager, append(firstEnv(roleManager), managerEnv...)...)
 	h.start(roleAgent, firstEnv(roleAgent)...)
 
-	var res outcome
+	res := outcome{dir: h.dir}
 	alive := map[string]bool{roleManager: true, roleAgent: true}
 	linked, done := false, false
 	timeout := time.NewTimer(120 * time.Second)
@@ -659,7 +697,9 @@ func checkInvariants(t *testing.T, sc scenario, res outcome) {
 	var order []string
 	for _, e := range res.effects {
 		jobID, what, ok := strings.Cut(e, ":")
-		if !ok || jobID != j.ID {
+		// "*": a real executor's compensation (it does not know its job;
+		// every run has exactly one).
+		if !ok || (jobID != j.ID && jobID != "*") {
 			t.Fatalf("effect %q of an unknown job", e)
 		}
 		count[what]++

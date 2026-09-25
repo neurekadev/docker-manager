@@ -14,4 +14,9 @@
 // and the test asserts: the job ends in an explicit terminal state (with
 // recovery guidance unless it succeeded), no locks remain, no
 // non-idempotent step ran twice, and stopped containers were started again.
+//
+// TestKillRealExecutorsAtEveryStage (real_test.go) does the same with the
+// features' real executors (stack.deploy, backup.run with container
+// shutdown, prune.run) over a file-backed in-memory Engine and restic, and
+// checks the world each run left behind.
 package faulttest

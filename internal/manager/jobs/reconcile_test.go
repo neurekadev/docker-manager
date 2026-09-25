@@ -1,6 +1,7 @@
 package jobs_test
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
@@ -122,12 +123,23 @@ func TestReconcileEachReportedOutcome(t *testing.T) {
 				}
 			}},
 		"interrupted resumable": {acked: true, entry: finished(protocol.ResultPayload{Outcome: "interrupted", Resumable: true,
-			CompletedSteps: []string{"prepare", "stop_containers"}}),
+			CompletedSteps: []string{"prepare", "stop_containers"}, Output: json.RawMessage(`{"members":[{"item":"stack/web"}]}`)}),
 			wantState: domain.JobDispatched, wantForget: true, wantResend: true,
 			check: func(t *testing.T, j domain.Job, frames []*protocol.Frame) {
 				p, _ := protocol.DecodePayload[protocol.CommandPayload](frames[0])
 				if j.Attempt != 2 || !slices.Equal(p.CompletedSteps, []string{"prepare", "stop_containers"}) || frames[0].Attempt != 2 {
 					t.Fatalf("job attempt %d payload %+v", j.Attempt, p)
+				}
+				// The resumed attempt continues from what the completed
+				// steps recorded (found by the #26 real-executor harness:
+				// a resumed prune.run lost its collected candidates).
+				if string(p.Output) != `{"members":[{"item":"stack/web"}]}` {
+					t.Fatalf("resumed command output %s", p.Output)
+				}
+				// Persisted with the job: a command re-sent after a
+				// manager restart carries it too.
+				if string(j.ResumeOutput) != string(p.Output) {
+					t.Fatalf("stored resume output %s", j.ResumeOutput)
 				}
 			}},
 		"interrupted resumable but cancelled": {acked: true, cancel: true, entry: finished(protocol.ResultPayload{Outcome: "interrupted", Resumable: true}),
@@ -304,7 +316,8 @@ func TestResumedAttemptLostAgainIsResentNotLost(t *testing.T) {
 	h.disp.Attach("e1")
 	h.report("e1", protocol.JobReportPayload{HighWater: cmd.FencingToken, Jobs: []protocol.JobReportEntry{{JobID: j.ID, Attempt: 1,
 		FencingToken: cmd.FencingToken, Status: protocol.ReportFinished,
-		Result: &protocol.ResultPayload{Outcome: "interrupted", Resumable: true, CompletedSteps: []string{"collect_candidates"}}}}})
+		Result: &protocol.ResultPayload{Outcome: "interrupted", Resumable: true, CompletedSteps: []string{"collect_candidates"},
+			Output: json.RawMessage(`{"items":[{"name":"img"}]}`)}}}})
 	if rj := h.wantState(j.ID, domain.JobDispatched); rj.Attempt != 2 || rj.StartedAt != nil {
 		t.Fatalf("resumed job %+v", rj)
 	}
@@ -319,6 +332,11 @@ func TestResumedAttemptLostAgainIsResentNotLost(t *testing.T) {
 	p, _ := protocol.DecodePayload[protocol.CommandPayload](cmds[0])
 	if !slices.Equal(p.CompletedSteps, []string{"collect_candidates"}) {
 		t.Fatalf("completed steps %v", p.CompletedSteps)
+	}
+	// The command re-built from the stored job keeps the collected
+	// candidates (a resumed prune without them removed nothing, #26).
+	if string(p.Output) != `{"items":[{"name":"img"}]}` {
+		t.Fatalf("re-sent command output %s", p.Output)
 	}
 	h.ack("e1", cmds[0], protocol.AckPayload{Accepted: true})
 	h.result("e1", cmds[0], protocol.ResultPayload{Outcome: "partial", Message: strings.Repeat("x", 10000),

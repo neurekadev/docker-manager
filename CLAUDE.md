@@ -575,6 +575,14 @@ wiring `internal/manager/app/operability.go`.
 - Helpers: `testutil.Logger(t)`, `testutil.CaptureLogger()`,
   `testutil.Context(t)`, `migrationtest.WithFailing(...)`.
 - Fuzz targets (`FuzzXxx`) keep a meaningful seed corpus via `f.Add`.
+- Crash tests (#26, `-tags faultinject`, Docker-free, run locally):
+  `internal/manager/jobs/faulttest` kills the manager or the agent at every
+  fault point; `TestKillRealExecutorsAtEveryStage` runs real executors
+  over `enginefake.Persist` / `restictest.Persist` (state files that outlive
+  the killed process). A job kind whose steps change the world should get a
+  real scenario there (seed, input, executors, check). Steps that need what
+  a completed step recorded read it from `sc.Output()`; a resumed attempt
+  gets it back (`Job.ResumeOutput`).
 
 ## Logging
 

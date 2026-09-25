@@ -82,6 +82,11 @@ type CommandPayload struct {
 	// CompletedSteps lists steps completed by earlier attempts; a resumed
 	// attempt skips them.
 	CompletedSteps []string `json:"completedSteps,omitempty"`
+	// Output is the result output the earlier attempts reported (set with
+	// CompletedSteps): the resumed attempt continues from it, so its steps
+	// see what the completed ones recorded (e.g. prune.run's collected
+	// candidates, backup.run's planned members).
+	Output json.RawMessage `json:"output,omitempty"`
 	// Secrets are the credentials this attempt may use (#19, #33). The
 	// manager resolves them at every dispatch from the connection IDs in
 	// the job's input, so they are never part of the stored job. The agent

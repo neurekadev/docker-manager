@@ -53,6 +53,7 @@ type jobRow struct {
 	CompletedSteps   string     `bun:"completed_steps,notnull"`
 	Compensations    string     `bun:"compensations,notnull"`
 	Resumes          int        `bun:"resumes,notnull"`
+	ResumeOutput     string     `bun:"resume_output,notnull"`
 	LastEventSeq     int64      `bun:"last_event_seq,notnull"`
 	CreatedAt        time.Time  `bun:"created_at,notnull"`
 	UpdatedAt        time.Time  `bun:"updated_at,notnull"`
@@ -151,10 +152,17 @@ func fromJob(j *domain.Job) jobRow {
 		BlockedBy: j.BlockedBy, BlockedReason: j.BlockedReason, Locks: mustJSON(locks),
 		FencingToken: int64(j.FencingToken), CancelRequested: b2i(j.CancelRequested), //nolint:gosec // tokens stay far below 2^63
 		CurrentStep: j.CurrentStep, StepInFlight: b2i(j.StepInFlight), CompletedSteps: mustJSON(completed),
-		Compensations: mustJSON(comps), Resumes: j.Resumes, LastEventSeq: j.LastEventSeq,
+		Compensations: mustJSON(comps), Resumes: j.Resumes, ResumeOutput: string(j.ResumeOutput), LastEventSeq: j.LastEventSeq,
 		CreatedAt: j.CreatedAt.UTC(), UpdatedAt: j.UpdatedAt.UTC(),
 		DispatchedAt: utcPtr(j.DispatchedAt), StartedAt: utcPtr(j.StartedAt), FinishedAt: utcPtr(j.FinishedAt),
 	}
+}
+
+func nilIfEmpty(s string) []byte {
+	if s == "" {
+		return nil
+	}
+	return []byte(s)
 }
 
 // idempotencyScope keys idempotency per initiating principal (or the
@@ -181,6 +189,7 @@ func (r *jobRow) toDomain() (domain.Job, error) {
 		CancelRequested: r.CancelRequested == 1, CurrentStep: r.CurrentStep, StepInFlight: r.StepInFlight == 1,
 		Resumes: r.Resumes, LastEventSeq: r.LastEventSeq,
 		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
+		ResumeOutput: nilIfEmpty(r.ResumeOutput),
 		DispatchedAt: utcPtr(r.DispatchedAt), StartedAt: utcPtr(r.StartedAt), FinishedAt: utcPtr(r.FinishedAt),
 	}
 	var targets []targetJSON
@@ -286,7 +295,7 @@ func UpdateJob(ctx context.Context, db bun.IDB, j *domain.Job) error {
 	res, err := db.NewUpdate().Model(&row).
 		Column("attempt", "state", "progress_percent", "progress_step", "progress_message", "items",
 			"error_class", "error_message", "recovery", "blocked_by", "blocked_reason", "locks", "fencing_token",
-			"cancel_requested", "current_step", "step_in_flight", "completed_steps", "compensations", "resumes",
+			"cancel_requested", "current_step", "step_in_flight", "completed_steps", "compensations", "resumes", "resume_output",
 			"updated_at", "dispatched_at", "started_at", "finished_at").
 		WherePK().Exec(ctx)
 	if err != nil {

@@ -335,6 +335,10 @@ func (e *Engine) applyResult(ctx context.Context, tx bun.IDB, j *domain.Job, res
 				return false, e.finish(ctx, tx, j, domain.JobInterrupted, domain.ErrorResumeLimit,
 					fmt.Sprintf("interrupted %d times; not resumed again", j.Resumes+1), "")
 			case j.Executor == domain.ExecutorAgent:
+				// The resumed attempt continues from what the completed
+				// steps recorded (persisted: the command may be re-sent
+				// after a manager restart).
+				j.ResumeOutput = res.Output
 				return true, e.redispatch(ctx, tx, j, res.CompletedSteps, "resuming after the agent restarted: "+res.Message)
 			}
 		}

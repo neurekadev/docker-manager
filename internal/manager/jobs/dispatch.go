@@ -355,8 +355,13 @@ func (e *Engine) sendCommand(ctx context.Context, j *domain.Job, spec jobspec.Sp
 		}
 		secrets = s
 	}
-	f, err := protocol.NewCommandFrame(ref, e.now().Add(spec.OfflineDeadline),
-		protocol.CommandPayload{Kind: string(j.Kind), Input: j.Input, CompletedSteps: j.CompletedSteps, Secrets: secrets})
+	cmd := protocol.CommandPayload{Kind: string(j.Kind), Input: j.Input, CompletedSteps: j.CompletedSteps, Secrets: secrets}
+	if len(j.CompletedSteps) > 0 {
+		// A resumed attempt continues from the output the earlier attempts
+		// reported: later steps read what the completed ones recorded.
+		cmd.Output = j.ResumeOutput
+	}
+	f, err := protocol.NewCommandFrame(ref, e.now().Add(spec.OfflineDeadline), cmd)
 	if err != nil {
 		e.opts.Logger.Error("could not build job command", "job_id", j.ID, "error", err)
 		return

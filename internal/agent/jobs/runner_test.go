@@ -179,6 +179,52 @@ func TestCommandRunsJournalsAndReports(t *testing.T) {
 	}
 }
 
+// TestResumedAttemptContinuesFromEarlierOutput (#26): a resumed attempt
+// skips the completed steps and its remaining steps read the output those
+// steps recorded (the command carries it); a first attempt starts empty.
+func TestResumedAttemptContinuesFromEarlierOutput(t *testing.T) {
+	ctx := testutil.Context(t)
+	seen := map[uint32]string{}
+	var mu sync.Mutex
+	exec := jobexec.Executor{Kind: jobspec.PruneRun, Steps: map[string]jobexec.StepFunc{
+		"collect_candidates": func(ctx context.Context, sc *jobexec.StepContext) error {
+			return sc.SetOutput(ctx, map[string]any{"items": []string{"collected-" + string(rune('0'+sc.Attempt))}})
+		},
+		"delete_candidates": func(_ context.Context, sc *jobexec.StepContext) error {
+			mu.Lock()
+			defer mu.Unlock()
+			seen[sc.Attempt] = string(sc.Output())
+			return nil
+		},
+	}}
+	r, s := newRunner(t, ctx, t.TempDir(), exec)
+	f, err := protocol.NewCommandFrame(protocol.JobRef{JobID: "job-1", Attempt: 2, FencingToken: 7}, testutil.Epoch.Add(time.Hour),
+		protocol.CommandPayload{Kind: string(jobspec.PruneRun), Input: json.RawMessage(`{}`), CompletedSteps: []string{"collect_candidates"},
+			Output: json.RawMessage(`{"items":["collected-1"]}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.HandleFrame(ctx, f); err != nil {
+		t.Fatal(err)
+	}
+	r.Wait()
+	if err := r.HandleFrame(ctx, command(t, "job-2", 1, 8, jobspec.PruneRun)); err != nil {
+		t.Fatal(err)
+	}
+	r.Wait()
+	mu.Lock()
+	defer mu.Unlock()
+	if seen[2] != `{"items":["collected-1"]}` {
+		t.Fatalf("the resumed attempt saw %q, want the earlier attempt's output", seen[2])
+	}
+	if seen[1] != `{"items":["collected-1"]}` { // job-2 attempt 1 collected its own
+		t.Fatalf("a first attempt saw %q", seen[1])
+	}
+	if res := s.of(protocol.TypeResult); len(res) != 2 {
+		t.Fatalf("results %d", len(res))
+	}
+}
+
 // TestFencingRejectsStaleAndReplayedCommands: a command replayed after a
 // reconnect (older token, superseded attempt) is rejected by its token, also
 // after an agent restart; an exact duplicate is acknowledged but not re-run.

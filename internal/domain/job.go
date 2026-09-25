@@ -312,6 +312,11 @@ type Job struct {
 	// it to the kind's finish hooks in the finishing transaction (nil when
 	// the job ended without an executor result).
 	ResultOutput []byte
+	// ResumeOutput is the output the completed steps of earlier attempts
+	// recorded (an interrupted agent attempt's reported output, a
+	// manager-local attempt's journaled output). It is persisted and a
+	// resumed attempt continues from it (#26).
+	ResumeOutput []byte
 }
 
 // JobCompensation is a compensating action registered by a step (e.g.

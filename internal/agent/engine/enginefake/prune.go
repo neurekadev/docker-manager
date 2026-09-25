@@ -16,7 +16,7 @@ import (
 // not zero, the time it stopped.
 func (e *Engine) SetContainerTimes(idOrName string, created, finished time.Time) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	c, ok := e.findContainer(idOrName)
 	if !ok {
 		panic("enginefake: no container " + idOrName)
@@ -31,7 +31,7 @@ func (e *Engine) SetContainerTimes(idOrName string, created, finished time.Time)
 // "running", "paused", "restarting").
 func (e *Engine) SetContainerState(idOrName, status string) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	c, ok := e.findContainer(idOrName)
 	if !ok {
 		panic("enginefake: no container " + idOrName)
@@ -48,7 +48,7 @@ func (e *Engine) SetContainerState(idOrName, status string) {
 // SetContainerSize sets a container's writable layer size.
 func (e *Engine) SetContainerSize(idOrName string, n int64) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	c, ok := e.findContainer(idOrName)
 	if !ok {
 		panic("enginefake: no container " + idOrName)
@@ -59,7 +59,7 @@ func (e *Engine) SetContainerSize(idOrName string, n int64) {
 // SetImageCreated sets an image's creation time.
 func (e *Engine) SetImageCreated(ref string, t time.Time) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	im, ok := e.findImage(ref)
 	if !ok {
 		panic("enginefake: no image " + ref)
@@ -70,7 +70,7 @@ func (e *Engine) SetImageCreated(ref string, t time.Time) {
 // SetImageSize sets an image's size.
 func (e *Engine) SetImageSize(ref string, n int64) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	im, ok := e.findImage(ref)
 	if !ok {
 		panic("enginefake: no image " + ref)
@@ -81,7 +81,7 @@ func (e *Engine) SetImageSize(ref string, n int64) {
 // SetVolumeCreated sets a volume's creation time.
 func (e *Engine) SetVolumeCreated(name string, t time.Time) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	v, ok := e.volumes[name]
 	if !ok {
 		panic("enginefake: no volume " + name)
@@ -92,14 +92,14 @@ func (e *Engine) SetVolumeCreated(name string, t time.Time) {
 // SetVolumeSize sets the size VolumeUsage reports for a volume.
 func (e *Engine) SetVolumeSize(name string, n int64) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	e.volumeSizes[name] = n
 }
 
 // SetNetworkCreated sets a network's creation time.
 func (e *Engine) SetNetworkCreated(idOrName string, t time.Time) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	n, ok := e.findNetwork(idOrName)
 	if !ok {
 		panic("enginefake: no network " + idOrName)
@@ -110,7 +110,7 @@ func (e *Engine) SetNetworkCreated(idOrName string, t time.Time) {
 // AddBuildCache adds a build cache record.
 func (e *Engine) AddBuildCache(r engine.BuildCacheRecord) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	c := r
 	c.Parents = slices.Clone(r.Parents)
 	e.buildCache[r.ID] = &c
@@ -119,7 +119,7 @@ func (e *Engine) AddBuildCache(r engine.BuildCacheRecord) {
 // SetBuildCacheInUse marks a build cache record as used by a build.
 func (e *Engine) SetBuildCacheInUse(id string, inUse bool) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if r, ok := e.buildCache[id]; ok {
 		r.InUse = inUse
 	}
@@ -128,7 +128,7 @@ func (e *Engine) SetBuildCacheInUse(id string, inUse bool) {
 // BuildCacheIDs returns the IDs of the build cache records, sorted.
 func (e *Engine) BuildCacheIDs() []string {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	out := make([]string, 0, len(e.buildCache))
 	for id := range e.buildCache {
 		out = append(out, id)
@@ -140,7 +140,7 @@ func (e *Engine) BuildCacheIDs() []string {
 // VolumeNames returns the volume names, sorted.
 func (e *Engine) VolumeNames() []string {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	out := make([]string, 0, len(e.volumes))
 	for n := range e.volumes {
 		out = append(out, n)
@@ -152,7 +152,7 @@ func (e *Engine) VolumeNames() []string {
 // NetworkNames returns the network names, sorted.
 func (e *Engine) NetworkNames() []string {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	out := make([]string, 0, len(e.networks))
 	for _, n := range e.networks {
 		out = append(out, n.Name)
@@ -164,7 +164,7 @@ func (e *Engine) NetworkNames() []string {
 // ContainerNames returns the container names, sorted.
 func (e *Engine) ContainerNames() []string {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	out := make([]string, 0, len(e.containers))
 	for _, c := range e.containers {
 		out = append(out, c.Details.Name)
@@ -176,7 +176,7 @@ func (e *Engine) ContainerNames() []string {
 // VolumeUsage implements engine.Engine.
 func (e *Engine) VolumeUsage(context.Context) (map[string]engine.VolumeUsage, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("volume.usage"); err != nil {
 		return nil, err
 	}
@@ -202,7 +202,7 @@ func (e *Engine) VolumeUsage(context.Context) (map[string]engine.VolumeUsage, er
 // ListBuildCache implements engine.Engine.
 func (e *Engine) ListBuildCache(context.Context) ([]engine.BuildCacheRecord, error) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call("buildcache.list"); err != nil {
 		return nil, err
 	}
@@ -231,7 +231,7 @@ func (e *Engine) hasChild(id string) bool {
 func (e *Engine) RemoveBuildCache(_ context.Context, id string, all bool) (engine.BuildCachePruneResult, error) {
 	const op = "buildcache.remove"
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	defer e.unlock()
 	if err := e.call(op); err != nil {
 		return engine.BuildCachePruneResult{}, err
 	}

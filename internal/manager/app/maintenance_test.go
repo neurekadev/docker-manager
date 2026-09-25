@@ -238,16 +238,25 @@ func TestMaintenancePolicyLifecycle(t *testing.T) {
 	// Scheduled runs: the manager's service identity, never the policy
 	// creator, always a background job; they wait for an offline agent up
 	// to the offline deadline and fail without touching anything.
-	owner.must(http.StatusOK, http.MethodPatch, base, map[string]any{"schedule": map[string]any{"cron": "0 * * * *", "timeZone": "UTC", "enabled": true}},
-		etag(pol.Revision)).json(t, &pol)
+	// The test clock starts at the wall clock: the hourly run is due two
+	// minutes ahead (not at the next full hour, up to an hour away, which
+	// outlived the owner's idle session when the test ran just after a
+	// full hour).
+	minute := (e.clk.Now().Minute() + 2) % 60
+	owner.must(http.StatusOK, http.MethodPatch, base, map[string]any{"schedule": map[string]any{"cron": itoa(minute) + " * * * *", "timeZone": "UTC",
+		"enabled": true}}, etag(pol.Revision)).json(t, &pol)
 	sched := e.m.Scheduler()
 	if err := sched.Tick(ctx); err != nil {
 		t.Fatal(err)
 	}
-	// One minute after the next full hour: the run is on time (a run
+	// One minute after the next due instant: the run is on time (a run
 	// missed while the manager was down would be skipped: CatchUp skip).
 	now := e.clk.Now()
-	e.clk.Advance(now.Truncate(time.Hour).Add(time.Hour + time.Minute).Sub(now))
+	due := now.Truncate(time.Hour).Add(time.Duration(minute) * time.Minute)
+	for !due.After(now) {
+		due = due.Add(time.Hour)
+	}
+	e.clk.Advance(due.Add(time.Minute).Sub(now))
 	if err := sched.Tick(ctx); err != nil {
 		t.Fatal(err)
 	}
