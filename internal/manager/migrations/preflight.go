@@ -384,7 +384,9 @@ func evaluateStack(p *Plan, in PreflightInput) {
 	// Binds and devices.
 	for _, b := range src.Binds {
 		if b.External {
-			f := p.warn(FindingExternalBind, "service %s binds %s from outside the project directory: it is not migrated and must exist on the destination", b.Service, b.Source)
+			// The path comes from the definition (#7: stack.definition.read);
+			// the API shows Resource only to callers holding it.
+			f := p.warn(FindingExternalBind, "service %s binds a host path outside the project directory: it is not migrated and must exist on the destination", b.Service)
 			f.Service, f.Resource = b.Service, b.Source
 		}
 	}

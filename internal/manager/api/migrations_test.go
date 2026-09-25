@@ -37,7 +37,8 @@ func (f *fakeMigrations) record(call string, owner bool) {
 
 func plan(kind domain.MigrationKind) migrations.Plan {
 	return migrations.Plan{Kind: kind, SourceEnvironmentID: "env-1", TargetEnvironmentID: "env-2", ProjectName: "shop", TargetDir: "shop",
-		Warnings: []migrations.Finding{{Code: migrations.FindingPlainHTTP, Message: "plain"}},
+		Warnings: []migrations.Finding{{Code: migrations.FindingPlainHTTP, Message: "plain"},
+			{Code: migrations.FindingExternalBind, Message: "binds a host path", Service: "web", Resource: "/srv/secret-bind"}},
 		Services: []migrations.ServicePlan{{Name: "web", Image: "nginx:1.27", Action: migrations.ImagePull}},
 		Volumes:  []migrations.VolumePlan{{Source: "shop_data", Target: "shop_data", Action: migrations.VolumeCopy, Bytes: 10}},
 		Access: migrations.AccessPreview{Complete: true, Changes: []permissions.AccessChange{{UserID: "u1", Username: "ann",
@@ -114,10 +115,12 @@ func TestStackMigrationNeedsBothEnds(t *testing.T) {
 
 	r := authztest.Do(t, h, "mover", preview)
 	var p MigrationPreview
-	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &p) != nil || p.Kind != "stack" || !p.Allowed || len(p.Warnings) != 1 ||
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &p) != nil || p.Kind != "stack" || !p.Allowed || len(p.Warnings) != 2 ||
 		p.Volumes[0].Action != "copy" || p.Access.Changes[0].Username != "ann" {
 		t.Fatalf("preview %d %s", r.Status, r.Body)
 	}
+	// Bind sources come from the definition: stack.definition.read only.
+	authztest.AssertAbsent(t, "preview without stack.definition.read", r.Body, "/srv/secret-bind")
 	if r := authztest.Do(t, h, "mover", start); r.Status != http.StatusAccepted || r.Header.Get("Location") != "/api/v1/jobs/job-mig" {
 		t.Fatalf("start %d %s", r.Status, r.Body)
 	}
@@ -150,9 +153,9 @@ func TestStackMigrationNeedsBothEnds(t *testing.T) {
 	if len(mig.calls) != 3 {
 		t.Fatalf("a refused request reached the service: %v", mig.calls)
 	}
-	// The owner sees every affected user.
-	if r := authztest.Do(t, h, "olga", preview); r.Status != http.StatusOK || !mig.owner[len(mig.owner)-1] {
-		t.Fatalf("owner preview %d", r.Status)
+	// The owner sees every affected user (and the bind sources).
+	if r := authztest.Do(t, h, "olga", preview); r.Status != http.StatusOK || !mig.owner[len(mig.owner)-1] || !strings.Contains(string(r.Body), "/srv/secret-bind") {
+		t.Fatalf("owner preview %d %s", r.Status, r.Body)
 	}
 	// The destination is required (validated after authorization).
 	if r := authztest.Do(t, h, "mover", authztest.Call{Method: http.MethodPost, Path: preview.Path, Body: map[string]any{}}); r.Status != http.StatusUnprocessableEntity {

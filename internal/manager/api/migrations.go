@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -147,7 +148,17 @@ func findings(in []migrations.Finding) []MigrationFinding {
 	return out
 }
 
-func newMigrationPreview(p migrations.Plan) MigrationPreview {
+// newMigrationPreview converts a plan; bind sources (from the Compose
+// definition) are shown only with stack.definition.read (#7).
+func newMigrationPreview(p migrations.Plan, definition bool) MigrationPreview {
+	if !definition {
+		p.Warnings = slices.Clone(p.Warnings)
+		for i := range p.Warnings {
+			if p.Warnings[i].Code == migrations.FindingExternalBind {
+				p.Warnings[i].Resource = ""
+			}
+		}
+	}
 	out := MigrationPreview{Kind: string(p.Kind), StackID: p.StackID, SourceEnvironmentID: p.SourceEnvironmentID,
 		TargetEnvironmentID: p.TargetEnvironmentID, ProjectName: p.ProjectName, TargetDirectory: p.TargetDir, Allowed: p.Allowed(),
 		Blockers: findings(p.Blockers), Warnings: findings(p.Warnings), Services: []MigrationServicePlan{}, Volumes: []MigrationVolumePlan{},
@@ -304,7 +315,7 @@ func migrationErr(err error) error {
 }
 
 func (h *migrationsAPI) previewStack(ctx context.Context, in *stackMigrationPreviewInput) (*migrationPreviewOutput, error) {
-	c, p, st, _, err := h.stacks.requireStack(ctx, in.StackID, CapStackMigrate)
+	c, p, st, v, err := h.stacks.requireStack(ctx, in.StackID, CapStackMigrate)
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +332,7 @@ func (h *migrationsAPI) previewStack(ctx context.Context, in *stackMigrationPrev
 	if err != nil {
 		return nil, migrationErr(err)
 	}
-	return &migrationPreviewOutput{Body: newMigrationPreview(plan)}, nil
+	return &migrationPreviewOutput{Body: newMigrationPreview(plan, v.Has(string(CapStackDefinitionRead)))}, nil
 }
 
 func (h *migrationsAPI) migrateStack(ctx context.Context, in *stackMigrationInput) (*JobAccepted, error) {
@@ -401,7 +412,7 @@ func (h *migrationsAPI) previewVolume(ctx context.Context, in *volumeMigrationPr
 	if err != nil {
 		return nil, migrationErr(err)
 	}
-	return &migrationPreviewOutput{Body: newMigrationPreview(plan)}, nil
+	return &migrationPreviewOutput{Body: newMigrationPreview(plan, false)}, nil
 }
 
 func (h *migrationsAPI) migrateVolume(ctx context.Context, in *volumeMigrationInput) (*JobAccepted, error) {
