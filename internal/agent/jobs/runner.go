@@ -253,6 +253,8 @@ func (r *Runner) handleCommand(ctx context.Context, f *protocol.Frame) error {
 	}
 	st := jobexec.State{JobID: f.JobID, Attempt: f.Attempt, FencingToken: f.FencingToken, Kind: exec.Kind,
 		Input: p.Input, Completed: p.CompletedSteps}
+	// The journal stores a clone, which never carries the secrets; only
+	// the running attempt below holds them (in memory).
 	if err := r.journal.Accept(&st); err != nil {
 		r.mu.Unlock()
 		log.Error("could not journal job command", "error", err)
@@ -261,6 +263,8 @@ func (r *Runner) handleCommand(ctx context.Context, f *protocol.Frame) error {
 	a := &attempt{attempt: f.Attempt}
 	r.running[f.JobID] = a
 	r.mu.Unlock()
+	st.Secrets = p.Secrets
+	p.Secrets = nil
 
 	skipAck := faultinject.Point(ctx, PointCommandJournaled) != nil // simulate a lost ack
 	if !skipAck {
@@ -292,6 +296,7 @@ func (r *Runner) execute(exec jobexec.Executor, st jobexec.State, a *attempt) {
 	ref := protocol.JobRef{JobID: st.JobID, Attempt: st.Attempt, FencingToken: st.FencingToken}
 	_, err := jobexec.Run(r.ctx, exec, &st, jobexec.Options{Journal: r.journal, Reporter: reporter{r, ref},
 		CancelRequested: a.cancel.Load, FaultPrefix: "agent"})
+	st.Secrets = nil // the attempt is over; drop the credentials
 	// Leaving the running set and sending the result happen as one step
 	// relative to SendReport (see reportSeq).
 	r.reportSeq <- struct{}{}

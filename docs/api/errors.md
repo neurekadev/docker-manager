@@ -99,6 +99,9 @@ same change.
 | `group_name_taken` | 409 | no | Another permission group already uses this name. | #17 |
 | `default_group_protected` | 409 | no | The default group cannot be deleted; make another group the default first. | #17 |
 | `group_not_empty` | 409 | no | The group still has members; move them to another group first (users are never moved implicitly). | #17 |
+| `registry_connection_name_taken` | 409 | no | Another registry connection already uses this name. | #19 |
+| `ambiguous_registry_connection` | 409 | no | Several registry connections match the image equally well (same host, repository matcher specificity, binding and priority); name one explicitly (`registryId`). | #19 |
+| `registry_connection_revoked` | 409 | no | The registry connection selected for the image is revoked; DockYard never falls back to anonymous access. Rotate a new credential into it or select another connection. | #19 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |
 | `payload_too_large` | 413 | no | The request body exceeds the route's documented limit. | #2 |
@@ -124,6 +127,7 @@ The job's outcome is in the `Job` resource: `state` plus `error {class,
 message, recovery}` with stable classes `agent_offline`,
 `authorization_revoked`, `step_failed`, `unknown_outcome`, `journal_lost`,
 `resume_limit`, `rejected`, `compensation_failed`, `executor_restarted`,
+`credential_unavailable`,
 `cancelled`, `internal` (see [job-engine.md](../architecture/job-engine.md)).
 
 ## Client handling guide

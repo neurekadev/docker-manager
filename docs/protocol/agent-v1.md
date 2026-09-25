@@ -388,9 +388,16 @@ fields, so an addition is used only after both sides announce it (`features`).
 Defined in `internal/protocol/jobs.go` and
 [job-engine.md](../architecture/job-engine.md#dispatch-fencing-and-agent-recovery):
 
-- `command {kind, input, completedSteps}` with `jobId`, `attempt`,
+- `command {kind, input, completedSteps, secrets}` with `jobId`, `attempt`,
   `fencingToken` (per-environment, persisted, strictly increasing) and
   `deadline` (latest start).
+- `secrets {registries: [{connectionId, host, serverAddress, username,
+  secret}], git: [{credentialId, host, username, secret}]}` (optional) are
+  the credentials of this attempt only (#19, #33). The manager resolves them
+  at every dispatch from the connection IDs named in the job input (never
+  stored with the job); the agent keeps them in memory for the attempt and
+  never journals, logs or writes them to a Docker config. A resumed attempt
+  receives them again (after a rotation: the new credential).
 - The agent journals (fsync) before it acks: `ack {accepted, code, message,
   highWater}`; rejection codes `duplicate`, `stale_fencing_token`,
   `unsupported_kind`, `invalid_command`, `attempt_in_progress`,

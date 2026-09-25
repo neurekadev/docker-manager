@@ -86,6 +86,9 @@ type Deps struct {
 	Observe ObserveService
 	// StreamMaxAge overrides DefaultStreamMaxAge (tests).
 	StreamMaxAge time.Duration
+	// Registries serves registry connections (#19); nil answers those
+	// routes with 503.
+	Registries RegistryService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -139,6 +142,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerPermissions(a, deps)
 	registerAPITokens(a, deps)
 	registerObserve(a, deps)
+	registerRegistries(a, deps)
 	return a
 }
 

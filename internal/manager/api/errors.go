@@ -160,6 +160,11 @@ const (
 	// API tokens (#31).
 	CodeAPITokenNotAllowed = "api_token_not_allowed" //nolint:gosec // G101: an error code, not a credential
 	CodeAPITokensDisabled  = "api_tokens_disabled"   //nolint:gosec // G101: an error code, not a credential
+
+	// Registry connections (#19).
+	CodeRegistryNameTaken           = "registry_connection_name_taken"
+	CodeAmbiguousRegistryConnection = "ambiguous_registry_connection"
+	CodeRegistryConnectionRevoked   = "registry_connection_revoked"
 )
 
 // CodeForStatus returns the default code for an HTTP status.

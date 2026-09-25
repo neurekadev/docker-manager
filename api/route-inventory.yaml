@@ -1938,7 +1938,7 @@ routes:
     scope: resource
     owner: 19
     kind: json
-    status: planned
+    status: implemented
     notes: Metadata only; credential values are write-only.
   - method: POST
     path: /api/v1/registries
@@ -1947,7 +1947,7 @@ routes:
     scope: instance
     owner: 19
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/registries/{registryId}"
     operationId: get-registry
@@ -1955,7 +1955,7 @@ routes:
     scope: resource
     owner: 19
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/registries/{registryId}"
     operationId: update-registry
@@ -1963,7 +1963,7 @@ routes:
     scope: instance
     owner: 19
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match.
   - method: DELETE
     path: "/api/v1/registries/{registryId}"
@@ -1972,7 +1972,7 @@ routes:
     scope: instance
     owner: 19
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/registries/{registryId}/connection-tests"
     operationId: create-registry-connection-test
@@ -1980,7 +1980,7 @@ routes:
     scope: instance
     owner: 19
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/registries/{registryId}/credential-rotations"
     operationId: create-registry-credential-rotation
@@ -1988,7 +1988,7 @@ routes:
     scope: instance
     owner: 19
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/registries/matches
     operationId: create-registry-match
@@ -1996,7 +1996,7 @@ routes:
     scope: instance
     owner: 19
     kind: json
-    status: planned
+    status: implemented
     notes: "Image reference -> selected connection; metadata only."
   - method: GET
     path: /api/v1/git-credentials

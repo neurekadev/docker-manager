@@ -336,8 +336,17 @@ func (e *Engine) expireUnacknowledged(ctx context.Context) error {
 // Callers hold dispatchMu (token order == send order).
 func (e *Engine) sendCommand(ctx context.Context, j *domain.Job, spec jobspec.Spec) {
 	ref := protocol.JobRef{JobID: j.ID, Attempt: uint32(j.Attempt), FencingToken: j.FencingToken} //nolint:gosec // attempts are small
+	var secrets *protocol.CommandSecrets
+	if e.opts.CommandSecrets != nil {
+		s, err := e.opts.CommandSecrets(ctx, j)
+		if err != nil {
+			e.failUnsent(ctx, j, err)
+			return
+		}
+		secrets = s
+	}
 	f, err := protocol.NewCommandFrame(ref, e.now().Add(spec.OfflineDeadline),
-		protocol.CommandPayload{Kind: string(j.Kind), Input: j.Input, CompletedSteps: j.CompletedSteps})
+		protocol.CommandPayload{Kind: string(j.Kind), Input: j.Input, CompletedSteps: j.CompletedSteps, Secrets: secrets})
 	if err != nil {
 		e.opts.Logger.Error("could not build job command", "job_id", j.ID, "error", err)
 		return
@@ -346,6 +355,25 @@ func (e *Engine) sendCommand(ctx context.Context, j *domain.Job, spec jobspec.Sp
 		e.opts.Logger.Warn("could not deliver job command; it is reconciled when the agent reconnects",
 			"job_id", j.ID, "environment_id", j.EnvironmentID, "error", err)
 	}
+}
+
+// failUnsent fails a dispatched attempt whose command could not be built
+// because a credential it needs is unavailable; the agent never saw it.
+func (e *Engine) failUnsent(ctx context.Context, j *domain.Job, cause error) {
+	err := e.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		cur, err := store.GetJob(ctx, tx, j.ID)
+		if err != nil || cur.State != domain.JobDispatched || cur.Attempt != j.Attempt {
+			return err
+		}
+		return e.finish(ctx, tx, &cur, domain.JobFailed, domain.ErrorCredentialUnavailable,
+			"a credential this job needs is unavailable: "+cause.Error()+"; nothing was sent to the agent",
+			"Ask the instance owner to restore or re-select the registry connection or Git credential, then run the job again.")
+	})
+	if err != nil {
+		e.opts.Logger.Error("could not fail a job whose credential is unavailable", "job_id", j.ID, "error", err)
+		return
+	}
+	e.notify(j.ID)
 }
 
 // sendCancel asks the agent to cancel the job at its next safe point.

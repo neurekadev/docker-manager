@@ -240,6 +240,10 @@ const (
 	ErrorExecutorRestarted = "executor_restarted"
 	// ErrorCancelled: the job was cancelled.
 	ErrorCancelled = "cancelled"
+	// ErrorCredentialUnavailable: a registry connection or Git credential
+	// the job needs was deleted or revoked (or cannot be decrypted) when
+	// the job was dispatched; nothing was sent to the agent (#19, #33).
+	ErrorCredentialUnavailable = "credential_unavailable" //nolint:gosec // G101: an error class, not a credential
 	// ErrorInternal: an engine bug or database failure.
 	ErrorInternal = "internal"
 )

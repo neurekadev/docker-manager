@@ -1102,6 +1102,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/registries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List registry connections
+         * @description Registry connections in creation order, filtered per item (#17): registry.read shows a connection in full, any other capability on it only its id, name, host and status. Credentials are write-only and never returned.
+         */
+        get: operations["list-registries"];
+        put?: never;
+        /**
+         * Add a registry connection
+         * @description Stores a registry credential (username plus password or access token; least-privilege pull tokens recommended) sealed with the manager's secret-protection key. The secret is write-only: the response carries only its fingerprint. 409 registry_connection_name_taken. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-registry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registries/matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview the registry connection of an image
+         * @description Shows which connection an image reference uses (deterministic: host incl. Docker Hub aliases, repository matcher, environment/stack binding, then priority; a tie is ambiguous and needs explicit selection) and every candidate. Metadata only, never a secret; candidates are shaped per registry.read. Needs registry.read on the instance.
+         */
+        post: operations["create-registry-match"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registries/{registryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a registry connection
+         * @description Full with registry.read, minimal (id, name, host, status) with any other capability on it, 404 otherwise. Never contains the credential.
+         */
+        get: operations["get-registry"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a registry connection
+         * @description Removes the connection and its credential. Queued jobs that name it fail at dispatch with credential_unavailable. Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        delete: operations["delete-registry"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a registry connection
+         * @description Edits the name, repository matcher, binding, priority or plain-HTTP flag, or revokes the credential (status revoked erases it; the connection keeps matching so jobs fail instead of pulling anonymously). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        patch: operations["update-registry"];
+        trace?: never;
+    };
+    "/api/v1/registries/{registryId}/connection-tests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test a registry connection
+         * @description Resolves the digest of a supplied image reference with the connection's credential (a manifest HEAD request from the manager, no pull, no cache) and records the result as the connection's last check. A registry failure is reported in the body (ok false, errorClass unauthorized|forbidden|not_found|rate_limited|registry_unavailable|...). The reference must be on the connection's host and match its repository matcher (422). 409 registry_connection_revoked. Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-registry-connection-test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registries/{registryId}/credential-rotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate a registry credential
+         * @description Replaces the credential (and optionally the username or credential type) and re-activates a revoked connection. Jobs dispatched afterwards (including resumed attempts) use the new credential. Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-registry-credential-rotation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/security": {
         parameters: {
             query?: never;
@@ -1701,6 +1813,30 @@ export interface components {
             invitation: components["schemas"]["Invitation"];
             /** @description Link on the public origin that redeems the code (the code is in the URL fragment). */
             url: string;
+        };
+        CreateRegistryInputBody: {
+            /**
+             * @default token
+             * @enum {string}
+             */
+            credentialType: "password" | "token";
+            environmentId?: string;
+            /**
+             * @description Registry host (host or host:port); Docker Hub aliases (docker.io, index.docker.io, registry-1.docker.io) are normalized to docker.io.
+             * @example ghcr.io
+             */
+            host: string;
+            /** @example GHCR (acme pull token) */
+            name: string;
+            plainHttp?: boolean;
+            /** Format: int64 */
+            priority?: number;
+            /** @example acme/* */
+            repositoryPattern?: string;
+            /** @description Password or access token. Write-only: never returned, logged or audited. */
+            secret: string;
+            stackId?: string;
+            username: string;
         };
         CreateSessionInputBody: {
             password?: string;
@@ -2423,6 +2559,17 @@ export interface components {
              */
             total?: number;
         };
+        PageRegistryConnection: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["RegistryConnection"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         Passkey: {
             /** @description Authenticator model identifier, when the provider reports one. */
             aaguid?: string;
@@ -2601,6 +2748,167 @@ export interface components {
             password?: string;
             username: string;
         };
+        RegistryCandidate: {
+            /** @enum {string} */
+            binding: "stack" | "environment" | "none";
+            connection: components["schemas"]["RegistryConnection"];
+            /**
+             * Format: int64
+             * @description 0 for a connection without repository matcher; higher is more specific.
+             */
+            repositorySpecificity: number;
+        };
+        RegistryCheck: {
+            /** Format: date-time */
+            at: string;
+            /**
+             * @description ok, or an error class: unauthorized, forbidden, not_found, rate_limited, registry_unavailable, platform_not_found, invalid_response.
+             * @example ok
+             */
+            result: string;
+        };
+        RegistryConnection: {
+            actions: string[];
+            /** Format: date-time */
+            createdAt?: string;
+            /**
+             * @description Full view. Least-privilege pull tokens are recommended.
+             * @enum {string}
+             */
+            credentialType?: "password" | "token";
+            /** @description Bound to this environment (full view). */
+            environmentId?: string;
+            /**
+             * @description Normalized registry host: docker.io for every Docker Hub alias, host:port for self-hosted registries.
+             * @example ghcr.io
+             */
+            host: string;
+            id: string;
+            /** @description Last test or use (full view). */
+            lastCheck?: components["schemas"]["RegistryCheck"];
+            /**
+             * Format: date-time
+             * @description Last successful use (full view).
+             */
+            lastUsedAt?: string;
+            /** @example GHCR (acme pull token) */
+            name: string;
+            /** @description Manager-side checks use plain HTTP (self-hosted registries only; full view). */
+            plainHttp?: boolean;
+            /**
+             * Format: int64
+             * @description Tie-breaker between equally specific connections, higher wins (full view).
+             */
+            priority?: number;
+            /**
+             * @description Exact repository or namespace/* (full view); empty matches every repository on the host.
+             * @example acme/*
+             */
+            repositoryPattern?: string;
+            /**
+             * Format: int64
+             * @description Edit revision (the ETag; full view).
+             */
+            revision?: number;
+            /** Format: date-time */
+            revokedAt?: string;
+            /** @description Full view. */
+            secret?: components["schemas"]["RegistrySecret"];
+            /** @description Bound to this stack (full view). */
+            stackId?: string;
+            /**
+             * @description A revoked connection has no credential; it still matches its images so jobs fail visibly instead of pulling anonymously.
+             * @enum {string}
+             */
+            status: "active" | "revoked";
+            /** Format: date-time */
+            updatedAt?: string;
+            /** @description Full view. */
+            username?: string;
+            /** @enum {string} */
+            view: "minimal" | "full";
+        };
+        RegistryConnectionTest: {
+            /** Format: date-time */
+            checkedAt: string;
+            /** @description Digest of the manifest (or index) the reference names. */
+            digest?: string;
+            /** @enum {string} */
+            errorClass?: "unauthorized" | "forbidden" | "not_found" | "rate_limited" | "registry_unavailable" | "platform_not_found" | "invalid_response";
+            mediaType?: string;
+            /** @description Explanation of the failure (never contains credentials). */
+            message?: string;
+            ok: boolean;
+            /** @description Digest of the requested platform's manifest. */
+            platformDigest?: string;
+            /** @example ghcr.io/acme/app:1.4.2 */
+            reference: string;
+            /**
+             * Format: int64
+             * @description The registry's retry guidance for rate limits.
+             */
+            retryAfterSeconds?: number;
+        };
+        RegistryMatch: {
+            /** @description Every matching connection, best first. */
+            candidates: components["schemas"]["RegistryCandidate"][];
+            explicit: boolean;
+            /** @example docker.io */
+            host: string;
+            /**
+             * @description The normalized reference.
+             * @example docker.io/acme/app:1.4.2
+             */
+            reference: string;
+            /** @example acme/app */
+            repository: string;
+            selected?: components["schemas"]["RegistryConnection"];
+            /**
+             * @description connection: Selected is used; anonymous: no connection matches (public access); ambiguous: several candidates tie and a request must name one; revoked: the selected connection is revoked and jobs fail (no anonymous fallback).
+             * @enum {string}
+             */
+            selection: "connection" | "anonymous" | "ambiguous" | "revoked";
+            /** @description IDs of the tied candidates (ambiguous). */
+            tied?: string[];
+        };
+        RegistryMatchInputBody: {
+            /** @description Match in this environment (environment-bound connections). */
+            environmentId?: string;
+            /** @example acme/app:1.4.2 */
+            imageReference: string;
+            /** @description Explicit selection; must be a candidate. */
+            registryId?: string;
+            /** @description Match for this stack (stack-bound connections). */
+            stackId?: string;
+        };
+        RegistrySecret: {
+            /**
+             * @description Keyed fingerprint of the secret: changes when the secret changes, cannot be reversed or brute-forced without the manager's key.
+             * @example fp_3f2a9c0d1e4b5a67
+             */
+            fingerprint?: string;
+            /** @description A credential is stored (false once revoked). */
+            set: boolean;
+            /** Format: date-time */
+            updatedAt: string;
+            /**
+             * Format: int64
+             * @description Increases with every rotation.
+             */
+            version: number;
+        };
+        RegistryTestInputBody: {
+            /**
+             * @description An image on the connection's host matching its repository matcher.
+             * @example ghcr.io/acme/app:1.4.2
+             */
+            imageReference: string;
+            /**
+             * @description Also select this platform's manifest from a multi-platform index.
+             * @example linux/amd64
+             */
+            platform?: string;
+        };
         RenameAPITokenInputBody: {
             name: string;
         };
@@ -2628,6 +2936,13 @@ export interface components {
         RevokeTokensBody: {
             /** @description Also revoke every API token of the account (#31), for example when the account may be compromised. */
             revokeApiTokens?: boolean;
+        };
+        RotateRegistryInputBody: {
+            /** @enum {string} */
+            credentialType?: "password" | "token";
+            /** @description The new password or access token (write-only). */
+            secret: string;
+            username?: string;
         };
         SecuritySettings: {
             /**
@@ -2829,6 +3144,23 @@ export interface components {
         };
         UpdateGroupInputBody: {
             name?: string;
+        };
+        UpdateRegistryInputBody: {
+            /** @description Empty removes the binding. */
+            environmentId?: string;
+            name?: string;
+            plainHttp?: boolean;
+            /** Format: int64 */
+            priority?: number;
+            /** @description Empty matches every repository on the host. */
+            repositoryPattern?: string;
+            /** @description Empty removes the binding. */
+            stackId?: string;
+            /**
+             * @description revoked erases the stored credential; rotate a new one to re-activate the connection.
+             * @enum {string}
+             */
+            status?: "revoked";
         };
         VisibleEnvironment: {
             /** @description Granted environment capabilities. */
@@ -7322,6 +7654,631 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-registries": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageRegistryConnection"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRegistryInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistryConnection"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-registry-match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegistryMatchInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistryMatch"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Registry connection ID. */
+                registryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistryConnection"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-registry": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Registry connection ID. */
+                registryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-registry": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Registry connection ID. */
+                registryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRegistryInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistryConnection"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-registry-connection-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Registry connection ID. */
+                registryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegistryTestInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistryConnectionTest"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-registry-credential-rotation": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Registry connection ID. */
+                registryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RotateRegistryInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistryConnection"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };

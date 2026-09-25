@@ -37,6 +37,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/store"
+	"github.com/neurekadev/dockyard/internal/protocol"
 )
 
 // Defaults.
@@ -103,6 +104,14 @@ type Options struct {
 	// Audit records job lifecycle events (#30) inside the engine's
 	// transactions; the manager always sets it (audit.go).
 	Audit audit.TxRecorder
+	// CommandSecrets resolves the credentials an agent command carries
+	// (#19 registry connections, #33 Git credentials) at every dispatch,
+	// including re-dispatches after a resume, so a rotated credential is
+	// used by every later attempt and no credential is stored with the job.
+	// nil: commands carry none. An error fails the dispatched job with
+	// class credential_unavailable (the error's message must not contain
+	// secrets) and nothing is sent.
+	CommandSecrets func(ctx context.Context, j *domain.Job) (*protocol.CommandSecrets, error)
 }
 
 // Engine is the job engine. Create it with New.

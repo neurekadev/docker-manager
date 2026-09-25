@@ -92,6 +92,9 @@ integration-tested against the registry fixture's fault proxy.
 
 ### Registry credentials (#19)
 
+- Credentials come from the manager's registry connections inside one job
+  command (`protocol.CommandSecrets`, [registries.md](registries.md));
+  executors convert them with `internal/agent/regauth`.
 - Pulls: `PullOptions.Auth` is encoded to `X-Registry-Auth` for that one
   request (base64 JSON in memory only). `RegistryAuth.Password` and
   `IdentityToken` are `logging.Secret`, so they redact in logs.
