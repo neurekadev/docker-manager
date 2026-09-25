@@ -178,6 +178,7 @@ type callerCtx struct{}
 // of its jobs UPDATEs marks the terminal commit without reading the DB.
 type tailGate struct {
 	out      *lineWriter
+	log      *slog.Logger
 	terminal atomic.Bool // the open engine-internal transaction finishes a job
 	fired    atomic.Bool
 	held     chan struct{} // closed once the goroutine is held
@@ -201,9 +202,11 @@ func (g *tailGate) AfterQuery(ctx context.Context, ev *bun.QueryEvent) {
 		}
 	case q == "COMMIT" && g.terminal.Load():
 		g.fired.Store(true)
+		g.log.Debug("holding the job goroutine after its terminal commit")
 		_ = g.out.write(envelope{Ctl: "tail_held"})
 		close(g.held)
 		<-g.released
+		g.log.Debug("released the job goroutine")
 	}
 }
 
@@ -226,7 +229,7 @@ func managerMain() int {
 	stdinClosed := make(chan struct{})
 	var gate *tailGate
 	if os.Getenv(envHoldTail) != "" {
-		gate = &tailGate{out: out, held: make(chan struct{}), released: stdinClosed}
+		gate = &tailGate{out: out, log: log, held: make(chan struct{}), released: stdinClosed}
 		db.AddQueryHook(gate)
 	}
 	disp := &stdioDispatcher{out: out}
@@ -332,9 +335,11 @@ func managerMain() int {
 	// and let that goroutine finish before exiting, like the manager's
 	// shutdown (Engine.Close) does, so the point is reached on every run
 	// (extended run 36075563917, TestManagerDrainsJobTail).
+	log.Debug("parent hung up; draining the engine")
 	stopRun()
 	<-runDone
 	eng.Wait()
+	log.Debug("engine drained")
 	return 0
 }
 
@@ -503,6 +508,13 @@ type outcome struct {
 func run(t *testing.T, sc scenario, faultRole, point string, trace bool, managerEnv ...string) outcome {
 	t.Helper()
 	h := &harness{t: t, sc: sc, dir: t.TempDir(), events: make(chan event, 10000), procs: map[string]*proc{}, gens: map[string]int{}}
+	// Dump the children's logs whenever the test fails, also on checks
+	// made after run returned.
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Log(h.dumpLogs())
+		}
+	})
 	firstEnv := func(role string) []string {
 		var env []string
 		if role == faultRole {
@@ -529,6 +541,7 @@ loop:
 				continue // output of a process generation that was replaced
 			}
 			if ev.exit {
+				t.Logf("%s process %d exited with %d (done=%v)", ev.role, ev.gen, ev.code, done)
 				alive[ev.role] = false
 				if done {
 					if ev.code == faultinject.ExitCode && ev.role == faultRole {
@@ -613,9 +626,6 @@ loop:
 				}
 			}
 		}
-	}
-	if t.Failed() {
-		t.Log(h.dumpLogs())
 	}
 	return res
 }
