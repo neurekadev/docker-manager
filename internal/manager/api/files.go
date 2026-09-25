@@ -489,6 +489,9 @@ type fileCtx struct {
 	c    authz.Checker
 	p    authz.Principal
 	kind string
+	// unavailable: no file service (checked after authorization, so
+	// callers without the grant still get 403/404).
+	unavailable bool
 }
 
 // cap returns the root's capability key for a verb (stack.files.read).
@@ -503,6 +506,9 @@ func (f *fileCtx) require(verbs ...string) error {
 		if !f.can(v) {
 			return Forbidden("not permitted: " + f.capKey(v))
 		}
+	}
+	if f.unavailable {
+		return Unavailable(CodeUnavailable, "the file service is not available")
 	}
 	return nil
 }
@@ -529,10 +535,7 @@ func (h *filesAPI) open(ctx context.Context, ref fileScopeRef) (*fileCtx, error)
 	if err != nil {
 		return nil, err
 	}
-	if h.svc == nil {
-		return nil, Unavailable(CodeUnavailable, "the file service is not available")
-	}
-	f := &fileCtx{c: c, p: p, kind: ref.kind}
+	f := &fileCtx{c: c, p: p, kind: ref.kind, unavailable: h.svc == nil}
 	switch ref.kind {
 	case protocol.ScopeVolume:
 		if !protocol.ValidVolumeName(ref.id) {
@@ -541,6 +544,9 @@ func (h *filesAPI) open(ctx context.Context, ref fileScopeRef) (*fileCtx, error)
 		f.root = FileRoot{Scope: protocol.FileScope{Kind: protocol.ScopeVolume, ID: ref.id}, EnvironmentID: ref.env}
 		f.res = authz.Resource{Type: catalog.TypeVolume, ID: ref.id, EnvironmentID: ref.env}
 	case protocol.ScopeStack:
+		if h.svc == nil {
+			return nil, NotFound("stack not found")
+		}
 		r, err := h.svc.StackRoot(ctx, ref.id)
 		if errors.Is(err, domain.ErrFileScopeNotFound) {
 			return nil, NotFound("stack not found")
