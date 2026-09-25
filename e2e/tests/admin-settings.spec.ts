@@ -90,8 +90,11 @@ test.describe('settings', () => {
 	test('sign-in policy lists the consequences before saving', async ({ page }) => {
 		await signIn(page);
 		await page.goto('/settings/sign-in');
-		await page.getByLabel('Invitations expire after (hours)').fill('100');
-		await page.getByLabel('Invitations expire after (hours)').blur();
+		const lifetime = page.getByLabel('Invitations expire after (hours)');
+		await expect(lifetime).not.toHaveValue('');
+		// Pick a value that differs from the saved one so the test can run again.
+		await lifetime.fill((await lifetime.inputValue()) === '100' ? '101' : '100');
+		await lifetime.blur();
 		await page.getByRole('button', { name: 'Save sign-in policy' }).click();
 		const dialog = page.getByRole('alertdialog', { name: 'Save the sign-in policy?' });
 		await expect(dialog).toContainText('Invitation lifetime (hours):');
