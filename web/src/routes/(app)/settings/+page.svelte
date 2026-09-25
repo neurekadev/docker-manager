@@ -154,7 +154,7 @@
 			onsave={rename}
 		/>
 	{:else if can(access, 'settings.read') && !instance.isError}
-		<Card title="This DockYard"><Skeleton lines={3} /></Card>
+		<Card title="About this DockYard"><Skeleton lines={3} /></Card>
 	{:else if can(access, 'settings.read')}
 		<ErrorState
 			error={instance.error}

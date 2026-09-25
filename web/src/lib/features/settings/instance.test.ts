@@ -28,7 +28,7 @@ const setup = () => userEvent.setup({ pointerEventsCheck: 0 });
 describe('InstanceCard (#4)', () => {
 	it('shows the name, version and the read-only deployment settings', () => {
 		render(InstanceCard, { props: { settings, version: 'edge (build abc)', onsave: vi.fn() } });
-		expect(screen.getByRole('heading', { name: 'This DockYard' })).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'About this DockYard' })).toBeInTheDocument();
 		expect(screen.getByText('DockYard')).toBeInTheDocument();
 		expect(screen.getByText('https://docker.example.com')).toBeInTheDocument();
 		expect(screen.getByText('1 address range')).toBeInTheDocument();

@@ -1,5 +1,5 @@
 <script lang="ts">
-	// "This DockYard" on the settings overview (#4 GET/PATCH /settings): the
+	// "About this DockYard" on the settings overview (#4 GET/PATCH /settings): the
 	// display name (renamed in place with settings.manage), the version and
 	// the read-only deployment configuration from the manager's environment
 	// variables.
@@ -60,7 +60,7 @@
 	}
 </script>
 
-<Card title="This DockYard" id="instance">
+<Card title="About this DockYard" id="instance">
 	{#snippet actions()}
 		{#if canEdit && !editing}
 			<Button size="sm" variant="ghost" icon={Pencil} onclick={start}>Rename</Button>

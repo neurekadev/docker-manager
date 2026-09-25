@@ -45,6 +45,26 @@ test.describe('settings', () => {
 			await expect(tabs.getByRole('link', { name })).toBeVisible();
 	});
 
+	test('this DockYard: rename it, deployment settings read-only (#4)', async ({ page, baseURL }) => {
+		await signIn(page);
+		await page.goto('/settings');
+		const card = page.getByRole('region', { name: 'About this DockYard' });
+		await expect(card).toContainText(new URL(baseURL ?? page.url()).origin);
+		await expect(card).toContainText('Stream heartbeat');
+		const name = `E2E instance ${Date.now() % 100000}`;
+		await card.getByRole('button', { name: 'Rename' }).click();
+		await card.getByLabel('Name').fill('   ');
+		await card.getByRole('button', { name: 'Rename DockYard' }).click();
+		await expect(card).toContainText('Enter a name.');
+		await card.getByLabel('Name').fill(`  ${name}  `);
+		await card.getByRole('button', { name: 'Rename DockYard' }).click();
+		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(`Renamed DockYard to ${name}`);
+		await expect(card).toContainText(name);
+		const settings = await (await page.request.get('/api/v1/settings')).json();
+		expect(settings.name).toBe(name);
+		await shot(page, 'overview');
+	});
+
 	test('API token: grants from the tree, shown once, then revoked', async ({ page }) => {
 		await signIn(page);
 		const name = `E2E script ${Date.now() % 100000}`;
