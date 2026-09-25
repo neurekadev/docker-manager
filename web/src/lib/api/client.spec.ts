@@ -42,6 +42,20 @@ describe('unwrap', () => {
 		expect(f.calls[0].headers.get('Accept')).toBe('application/json');
 	});
 
+	it('resolves 204 No Content to undefined', async () => {
+		const client = createApiClient(
+			(async () => new Response(null, { status: 204 })) as typeof fetch,
+			base
+		);
+		await expect(
+			unwrap(
+				client.DELETE('/api/v1/registries/{registryId}', {
+					params: { path: { registryId: 'r1' }, header: { 'If-Match': '"1"' } }
+				})
+			)
+		).resolves.toBeUndefined();
+	});
+
 	it('throws the DockYard error shape', async () => {
 		const f = fakeFetch(503, apiError, 'application/problem+json');
 		const err = await unwrap(createApiClient(f.impl, base).GET('/api/v1/health')).catch(

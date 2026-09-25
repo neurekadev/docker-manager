@@ -84,6 +84,9 @@ describe('navigation filter (#17)', () => {
 		expect(activeNav('/environments/e1')?.id).toBe('environments');
 		expect(activeNav('/environments/e1/containers/c9')?.id).toBe('containers');
 		expect(activeNav('/environments/e1/volumes/data')?.id).toBe('volumes');
+		expect(activeNav('/containers/e1/web/logs')?.id).toBe('containers');
+		expect(activeNav('/volumes/e1/data/files')?.id).toBe('volumes');
+		expect(activeNav('/builds/e1/b1')?.id).toBe('builds');
 		expect(activeNav('/settings/tokens')?.id).toBe('settings');
 		expect(activeNav('/nowhere')).toBeUndefined();
 	});
@@ -252,18 +255,19 @@ describe('command palette model', () => {
 		expect(
 			hrefForHit(hit({ type: 'service', id: 's1/silo-db', name: 'silo-db', stackId: 's1' }))
 		).toBe('/stacks/s1?service=silo-db');
-		expect(hrefForHit(hit({ type: 'container', id: 'c/1', environmentId: 'e1' }))).toBe(
-			'/environments/e1/containers/c%2F1'
-		);
+		// Containers and networks open by name (their #17/#23 identity).
+		expect(
+			hrefForHit(hit({ type: 'container', id: 'c0ffee', name: 'we b', environmentId: 'e1' }))
+		).toBe('/containers/e1/we%20b');
 		expect(hrefForHit(hit({ type: 'image', id: 'sha256:ab', environmentId: 'e1' }))).toBe(
-			'/environments/e1/images/sha256%3Aab'
+			'/images/e1/sha256%3Aab'
 		);
 		expect(hrefForHit(hit({ type: 'volume', id: 'data', environmentId: 'e1' }))).toBe(
-			'/environments/e1/volumes/data'
+			'/volumes/e1/data'
 		);
-		expect(hrefForHit(hit({ type: 'network', id: 'n1', environmentId: 'e1' }))).toBe(
-			'/environments/e1/networks/n1'
-		);
+		expect(
+			hrefForHit(hit({ type: 'network', id: 'n1', name: 'backend', environmentId: 'e1' }))
+		).toBe('/networks/e1/backend');
 	});
 
 	it('groups pages and hits in order', () => {

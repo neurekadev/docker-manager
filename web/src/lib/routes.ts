@@ -5,8 +5,12 @@
 //   /environments[/{id}]                environments and environment detail
 //   /stacks[/{stackId}[/files|logs|terminal|revisions|policies|activity]]
 //   /containers, /images, /volumes, /networks   lists (all or the selected environment)
-//   /environments/{id}/containers/{containerId} and images/volumes/networks details
-//   /builds, /registries, /jobs[/{jobId}], /schedules
+//   /containers/new, /containers/{env}/{name}[/logs|terminal]   create; detail tabs
+//   /images/{env}/{imageId}, /networks/{env}/{name}
+//   /volumes/{env}/{name}[/files|migrate]       volume detail, file manager, migration
+//   /builds[/new|/definitions], /builds/{env}/{buildId}
+//   /registries[/git|/matches]          registry connections, Git credentials, match preview
+//   /jobs[/{jobId}], /schedules
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
 //   /backups[/{backupId}[/restore]|/policies[/new|/{id}]|/repositories[/new|/{id}]]
 //   /updates[/new|/{policyId}[/edit]], /maintenance[/new|/defaults|/{policyId}[/edit]]
@@ -16,8 +20,10 @@
 //   /popout/logs?stack=|environment=&container= (files, logs, terminals)
 //   /setup, /sign-in, /enroll, /invitation, /password-reset (public)
 //
-// IDs are path-encoded; environment-scoped Docker objects live under their
-// environment because their IDs are only unique within one Engine.
+// IDs are path-encoded; environment-scoped Docker objects carry their
+// environment in the path because their names are only unique within one
+// Engine. Containers, volumes and networks are addressed by name (the #17
+// permission and #23 live-key identity), images by ID.
 
 const e = encodeURIComponent;
 
@@ -35,15 +41,35 @@ export const routes = {
 		tab?: 'files' | 'logs' | 'terminal' | 'revisions' | 'policies' | 'activity'
 	) => `/stacks/${e(id)}${tab ? `/${tab}` : ''}`,
 	containers: () => '/containers',
-	container: (env: string, id: string) => `/environments/${e(env)}/containers/${e(id)}`,
+	newContainer: (env?: string, image?: string) => {
+		const q = new URLSearchParams();
+		if (env) q.set('environment', env);
+		if (image) q.set('image', image);
+		const s = q.toString();
+		return `/containers/new${s ? `?${s}` : ''}`;
+	},
+	container: (env: string, name: string, tab?: 'logs' | 'terminal') =>
+		`/containers/${e(env)}/${e(name)}${tab ? `/${tab}` : ''}`,
 	images: () => '/images',
-	image: (env: string, id: string) => `/environments/${e(env)}/images/${e(id)}`,
+	image: (env: string, id: string) => `/images/${e(env)}/${e(id)}`,
 	volumes: () => '/volumes',
-	volume: (env: string, name: string) => `/environments/${e(env)}/volumes/${e(name)}`,
+	volume: (env: string, name: string, tab?: 'files' | 'migrate') =>
+		`/volumes/${e(env)}/${e(name)}${tab ? `/${tab}` : ''}`,
 	networks: () => '/networks',
-	network: (env: string, id: string) => `/environments/${e(env)}/networks/${e(id)}`,
+	network: (env: string, name: string) => `/networks/${e(env)}/${e(name)}`,
 	builds: () => '/builds',
+	buildDefinitions: () => '/builds/definitions',
+	newBuild: (env?: string, definition?: string) => {
+		const q = new URLSearchParams();
+		if (env) q.set('environment', env);
+		if (definition) q.set('definition', definition);
+		const s = q.toString();
+		return `/builds/new${s ? `?${s}` : ''}`;
+	},
+	build: (env: string, id: string) => `/builds/${e(env)}/${e(id)}`,
 	registries: () => '/registries',
+	gitCredentials: () => '/registries/git',
+	registryMatches: () => '/registries/matches',
 	backups: () => '/backups',
 	backup: (id: string) => `/backups/${e(id)}`,
 	backupRestore: (id: string) => `/backups/${e(id)}/restore`,

@@ -14,6 +14,7 @@ import {
 	type QueryKey
 } from '@tanstack/svelte-query';
 import { liveKeys } from '$lib/live/keys';
+import { acrossEnvironments, allPages, type EnvList, type EnvTarget } from './multi-env';
 import {
 	api,
 	ApiRequestError,
@@ -21,6 +22,7 @@ import {
 	type Agent,
 	type AgentEnrollment,
 	type ApiClient,
+	type Schema,
 	type Environment,
 	type EnvironmentCapacity,
 	type EnvironmentMetrics,
@@ -58,6 +60,41 @@ export const queryKeys = {
 	jobs: {
 		all: ['jobs'] as const,
 		detail: (id: string) => liveKeys.item('jobs', id)
+	},
+	containers: {
+		all: ['containers'] as const,
+		list: (envIds: string[]) => liveKeys.list('containers', envIds.join(',')),
+		detail: (env: string, name: string) => liveKeys.item('containers', env, name)
+	},
+	containerMetrics: (env: string, name: string, rangeSeconds: number) =>
+		liveKeys.metrics(env, 'container', name, rangeSeconds),
+	images: {
+		all: ['images'] as const,
+		list: (envIds: string[]) => liveKeys.list('images', envIds.join(',')),
+		detail: (env: string, id: string) => liveKeys.item('images', env, id),
+		// Builds and build definitions are published on the images topic (#23).
+		builds: (envIds: string[]) => liveKeys.list('images', 'builds', envIds.join(',')),
+		build: (env: string, id: string) => liveKeys.item('images', env, id),
+		definitions: (envIds: string[]) => liveKeys.list('images', 'definitions', envIds.join(',')),
+		definition: (env: string, id: string) => liveKeys.item('images', env, id)
+	},
+	volumes: {
+		all: ['volumes'] as const,
+		list: (envIds: string[]) => liveKeys.list('volumes', envIds.join(',')),
+		detail: (env: string, name: string) => liveKeys.item('volumes', env, name)
+	},
+	networks: {
+		all: ['networks'] as const,
+		list: (envIds: string[]) => liveKeys.list('networks', envIds.join(',')),
+		detail: (env: string, name: string) => liveKeys.item('networks', env, name)
+	},
+	// Registry connections and Git credentials share the registries topic.
+	registries: {
+		all: ['registries'] as const,
+		list: () => liveKeys.list('registries'),
+		gitList: () => liveKeys.list('registries', 'git'),
+		match: (ref: string, env: string, stack: string, registryId: string) =>
+			['registries', 'match', ref, env, stack, registryId] as const
 	},
 	search: (q: string, environmentId: string | null) =>
 		['search', q, environmentId ?? ''] as const,
@@ -452,6 +489,353 @@ export function schedulePreviewQuery(
 			),
 		enabled: cron.trim().length > 0,
 		staleTime: 60_000,
+		retry: false
+	});
+}
+
+// Docker resources (#6), builds (#33) and credentials (#19). Lists read the
+// selected environment or every visible one (acrossEnvironments), all
+// pages, and the views filter them; offline environments are reported in
+// `unavailable`, not as errors.
+
+export type Container = Schema<'Container'>;
+export type Image = Schema<'Image'>;
+export type Volume = Schema<'Volume'>;
+export type Network = Schema<'Network'>;
+export type ImageBuild = Schema<'ImageBuild'>;
+export type BuildDefinition = Schema<'BuildDefinition'>;
+export type RegistryConnection = Schema<'RegistryConnection'>;
+export type GitCredential = Schema<'GitCredential'>;
+export type ContainerMetrics = Schema<'ContainerMetrics'>;
+export type RegistryMatch = Schema<'RegistryMatch'>;
+
+const LIST_LIMIT = 200;
+const envIds = (targets: EnvTarget[]) => targets.map((t) => t.id);
+
+/** Containers of the target environments (every state). */
+export function containersQuery(targets: EnvTarget[], client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.containers.list(envIds(targets)),
+		queryFn: ({ signal }): Promise<EnvList<Container>> =>
+			acrossEnvironments(targets, (env) =>
+				allPages((cursor) =>
+					unwrap(
+						client.GET('/api/v1/environments/{environmentId}/containers', {
+							params: {
+								path: { environmentId: env.id },
+								query: { limit: LIST_LIMIT, cursor }
+							},
+							signal
+						})
+					)
+				)
+			),
+		staleTime: 10_000
+	});
+}
+
+/** GET a container (full view with details, or minimal). */
+export function containerQuery(env: string, name: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.containers.detail(env, name),
+		queryFn: ({ signal }): Promise<Container> =>
+			unwrap(
+				client.GET('/api/v1/environments/{environmentId}/containers/{containerId}', {
+					params: { path: { environmentId: env, containerId: name } },
+					signal
+				})
+			),
+		staleTime: 10_000
+	});
+}
+
+/** CPU and memory of a container over the last rangeSeconds (#5 units). */
+export function containerMetricsQuery(
+	env: string,
+	name: string,
+	rangeSeconds: number,
+	client: ApiClient = api
+) {
+	return queryOptions({
+		queryKey: queryKeys.containerMetrics(env, name, rangeSeconds),
+		queryFn: ({ signal }): Promise<ContainerMetrics> =>
+			unwrap(
+				client.GET(
+					'/api/v1/environments/{environmentId}/containers/{containerId}/metrics',
+					{
+						params: {
+							path: { environmentId: env, containerId: name },
+							query: {
+								from: new Date(Date.now() - rangeSeconds * 1000).toISOString()
+							}
+						},
+						signal
+					}
+				)
+			),
+		staleTime: 10_000,
+		retry: false
+	});
+}
+
+/** Images of the target environments. */
+export function imagesQuery(targets: EnvTarget[], client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.images.list(envIds(targets)),
+		queryFn: ({ signal }): Promise<EnvList<Image>> =>
+			acrossEnvironments(targets, (env) =>
+				allPages((cursor) =>
+					unwrap(
+						client.GET('/api/v1/environments/{environmentId}/images', {
+							params: {
+								path: { environmentId: env.id },
+								query: { limit: LIST_LIMIT, cursor }
+							},
+							signal
+						})
+					)
+				)
+			),
+		staleTime: 10_000
+	});
+}
+
+export function imageQuery(env: string, id: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.images.detail(env, id),
+		queryFn: ({ signal }): Promise<Image> =>
+			unwrap(
+				client.GET('/api/v1/environments/{environmentId}/images/{imageId}', {
+					params: { path: { environmentId: env, imageId: id } },
+					signal
+				})
+			),
+		staleTime: 10_000
+	});
+}
+
+/** Volumes of the target environments. */
+export function volumesQuery(targets: EnvTarget[], client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.volumes.list(envIds(targets)),
+		queryFn: ({ signal }): Promise<EnvList<Volume>> =>
+			acrossEnvironments(targets, (env) =>
+				allPages((cursor) =>
+					unwrap(
+						client.GET('/api/v1/environments/{environmentId}/volumes', {
+							params: {
+								path: { environmentId: env.id },
+								query: { limit: LIST_LIMIT, cursor }
+							},
+							signal
+						})
+					)
+				)
+			),
+		staleTime: 10_000
+	});
+}
+
+export function volumeQuery(env: string, name: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.volumes.detail(env, name),
+		queryFn: ({ signal }): Promise<Volume> =>
+			unwrap(
+				client.GET('/api/v1/environments/{environmentId}/volumes/{volumeId}', {
+					params: { path: { environmentId: env, volumeId: name } },
+					signal
+				})
+			),
+		staleTime: 10_000
+	});
+}
+
+/** Networks of the target environments. */
+export function networksQuery(targets: EnvTarget[], client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.networks.list(envIds(targets)),
+		queryFn: ({ signal }): Promise<EnvList<Network>> =>
+			acrossEnvironments(targets, (env) =>
+				allPages((cursor) =>
+					unwrap(
+						client.GET('/api/v1/environments/{environmentId}/networks', {
+							params: {
+								path: { environmentId: env.id },
+								query: { limit: LIST_LIMIT, cursor }
+							},
+							signal
+						})
+					)
+				)
+			),
+		staleTime: 10_000
+	});
+}
+
+export function networkQuery(env: string, name: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.networks.detail(env, name),
+		queryFn: ({ signal }): Promise<Network> =>
+			unwrap(
+				client.GET('/api/v1/environments/{environmentId}/networks/{networkId}', {
+					params: { path: { environmentId: env, networkId: name } },
+					signal
+				})
+			),
+		staleTime: 10_000
+	});
+}
+
+/**
+ * The newest build records of the target environments (one page each),
+ * newest first. Builds are manager records: offline environments answer too.
+ */
+export function imageBuildsQuery(targets: EnvTarget[], client: ApiClient = api) {
+	const all = targets.map((t) => ({ ...t, online: true }));
+	return queryOptions({
+		queryKey: queryKeys.images.builds(envIds(targets)),
+		queryFn: async ({ signal }): Promise<EnvList<ImageBuild>> => {
+			const out = await acrossEnvironments(all, (env) =>
+				allPages(
+					(cursor) =>
+						unwrap(
+							client.GET('/api/v1/environments/{environmentId}/image-builds', {
+								params: {
+									path: { environmentId: env.id },
+									query: { limit: LIST_LIMIT, cursor }
+								},
+								signal
+							})
+						),
+					1
+				)
+			);
+			out.items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+			return out;
+		},
+		staleTime: 10_000
+	});
+}
+
+export function imageBuildQuery(env: string, id: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.images.build(env, id),
+		queryFn: ({ signal }): Promise<ImageBuild> =>
+			unwrap(
+				client.GET('/api/v1/environments/{environmentId}/image-builds/{buildId}', {
+					params: { path: { environmentId: env, buildId: id } },
+					signal
+				})
+			),
+		staleTime: 10_000
+	});
+}
+
+/** Saved build definitions of the target environments (manager records). */
+export function buildDefinitionsQuery(targets: EnvTarget[], client: ApiClient = api) {
+	const all = targets.map((t) => ({ ...t, online: true }));
+	return queryOptions({
+		queryKey: queryKeys.images.definitions(envIds(targets)),
+		queryFn: ({ signal }): Promise<EnvList<BuildDefinition>> =>
+			acrossEnvironments(all, (env) =>
+				allPages((cursor) =>
+					unwrap(
+						client.GET('/api/v1/environments/{environmentId}/build-definitions', {
+							params: {
+								path: { environmentId: env.id },
+								query: { limit: LIST_LIMIT, cursor }
+							},
+							signal
+						})
+					)
+				)
+			),
+		staleTime: 10_000
+	});
+}
+
+export function buildDefinitionQuery(env: string, id: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.images.definition(env, id),
+		queryFn: ({ signal }): Promise<BuildDefinition> =>
+			unwrap(
+				client.GET(
+					'/api/v1/environments/{environmentId}/build-definitions/{definitionId}',
+					{
+						params: { path: { environmentId: env, definitionId: id } },
+						signal
+					}
+				)
+			),
+		staleTime: 10_000
+	});
+}
+
+/** Registry connections (#19; owner-administered, secrets never returned). */
+export function registriesQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.registries.list(),
+		queryFn: ({ signal }): Promise<RegistryConnection[]> =>
+			allPages((cursor) =>
+				unwrap(
+					client.GET('/api/v1/registries', {
+						params: { query: { limit: LIST_LIMIT, cursor } },
+						signal
+					})
+				)
+			),
+		staleTime: 15_000
+	});
+}
+
+/** Git credentials (#33; they mirror registry connections). */
+export function gitCredentialsQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.registries.gitList(),
+		queryFn: ({ signal }): Promise<GitCredential[]> =>
+			allPages((cursor) =>
+				unwrap(
+					client.GET('/api/v1/git-credentials', {
+						params: { query: { limit: LIST_LIMIT, cursor } },
+						signal
+					})
+				)
+			),
+		staleTime: 15_000
+	});
+}
+
+/**
+ * Which registry connection an image reference uses. POST /registries/matches
+ * is a read: no secret, no side effect.
+ */
+export function registryMatchQuery(
+	imageReference: string,
+	opts: { environmentId?: string; stackId?: string; registryId?: string } = {},
+	client: ApiClient = api
+) {
+	const ref = imageReference.trim();
+	return queryOptions({
+		queryKey: queryKeys.registries.match(
+			ref,
+			opts.environmentId ?? '',
+			opts.stackId ?? '',
+			opts.registryId ?? ''
+		),
+		queryFn: ({ signal }): Promise<RegistryMatch> =>
+			unwrap(
+				client.POST('/api/v1/registries/matches', {
+					body: {
+						imageReference: ref,
+						environmentId: opts.environmentId || undefined,
+						stackId: opts.stackId || undefined,
+						registryId: opts.registryId || undefined
+					},
+					signal
+				})
+			),
+		enabled: ref.length > 0,
+		staleTime: 15_000,
 		retry: false
 	});
 }

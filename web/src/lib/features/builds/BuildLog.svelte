@@ -1,0 +1,131 @@
+<script lang="ts">
+	// A build's log (#33): the BuildKit progress lines of the image.build
+	// job, streamed from the job's event stream (the server keeps the newest
+	// 500 events; replayed when the page opens). Follows the end while the
+	// user doesn't scroll up. Credentials never appear here: the agent
+	// scrubs the output before it leaves the host.
+	import { onDestroy, tick, untrack } from 'svelte';
+	import { ApiRequestError } from '$lib/api/client';
+	import { JobWatcher } from '$lib/api/jobs.svelte';
+	import type { Job } from '$lib/api/client';
+	import { Switch, errorMessage } from '$lib/ui';
+
+	interface Props {
+		jobId: string;
+		onfinish?: (job: Job) => void;
+		/** Receives the watcher (status, cancel state) for the page. */
+		onwatcher?: (w: JobWatcher) => void;
+	}
+
+	let { jobId, onfinish, onwatcher }: Props = $props();
+
+	const w = untrack(() => new JobWatcher(jobId, { maxLog: 500, onfinish: (j) => onfinish?.(j) }));
+	untrack(() => onwatcher?.(w));
+	const stop = w.start();
+	onDestroy(stop);
+
+	let follow = $state(true);
+	let box = $state<HTMLElement>();
+	$effect(() => {
+		void w.log.length;
+		if (!follow || !box) return;
+		void tick().then(() => box && (box.scrollTop = box.scrollHeight));
+	});
+
+	function onscroll() {
+		if (!box) return;
+		const atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+		if (!atEnd && follow) follow = false;
+	}
+
+	const gone = $derived(w.error instanceof ApiRequestError && w.error.status === 404 && !w.job);
+	const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour12: false });
+</script>
+
+{#if w.log.length}
+	<div class="log-head">
+		<span class="count muted num"
+			>{w.log.length} lines{w.log.length >= 500 ? ' (the newest 500)' : ''}</span
+		>
+		<Switch label="Follow" bind:checked={follow} />
+	</div>
+{/if}
+{#if gone}
+	<p class="empty muted">
+		The log of this build is no longer kept (old job records are cleaned up). Its result and
+		commit are above.
+	</p>
+{:else if w.error && !w.job}
+	<p class="empty muted">The log could not be loaded: {errorMessage(w.error)}</p>
+{:else if w.log.length === 0}
+	<p class="empty muted">
+		{w.terminal ? 'This build wrote no log lines.' : 'Waiting for the first lines…'}
+	</p>
+{:else}
+	<!-- A scrollable region must be focusable so keyboard users can scroll it. -->
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+	<div
+		class="log mono"
+		bind:this={box}
+		{onscroll}
+		role="log"
+		aria-label="Build log"
+		aria-live="off"
+		tabindex="0"
+	>
+		{#each w.log as line (line.seq)}
+			<div class="line" class:warning={line.warning}>
+				<span class="at">{time(line.at)}</span><span class="text">{line.message}</span>
+			</div>
+		{/each}
+	</div>
+{/if}
+
+<style>
+	.log-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		margin-bottom: var(--space-3);
+	}
+
+	.count {
+		font-size: var(--text-caption);
+	}
+
+	.log {
+		max-height: 480px;
+		overflow: auto;
+		padding: var(--space-3);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+		background: var(--code-bg);
+		font-size: 12.5px;
+		line-height: 20px;
+	}
+
+	.line {
+		display: grid;
+		grid-template-columns: 76px 1fr;
+		gap: var(--space-3);
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+
+	.at {
+		color: var(--text-muted);
+	}
+
+	.text {
+		color: var(--text-default);
+	}
+
+	.warning .text {
+		color: var(--warn);
+	}
+
+	.empty {
+		padding: var(--space-4) 0;
+	}
+</style>

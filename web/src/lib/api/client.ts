@@ -96,6 +96,9 @@ function isApiError(v: unknown): v is ApiError {
  * Svelte Query, whose queryFn must throw on failure.
  *
  *   queryFn: ({ signal }) => unwrap(api.GET('/api/v1/health', { signal }))
+ *
+ * A 204 No Content (e.g. DELETE of a registry connection) resolves to
+ * undefined: the request succeeded and there is no body.
  */
 export async function unwrap<T>(
 	call: Promise<{ data?: T; error?: unknown; response: Response }>
@@ -109,7 +112,7 @@ export async function unwrap<T>(
 		throw new ApiRequestError(message, null, undefined, { cause: e });
 	}
 	const { data, error, response } = result;
-	if (response.ok && data !== undefined) return data;
+	if (response.ok && (data !== undefined || response.status === 204)) return data as T;
 	const apiError = isApiError(error) ? error : undefined;
 	throw new ApiRequestError(
 		apiError?.message ?? `HTTP ${response.status}`,

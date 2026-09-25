@@ -20,6 +20,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
 	"github.com/neurekadev/dockyard/internal/agent/observe"
+	"github.com/neurekadev/dockyard/internal/agent/protect"
 	agentprune "github.com/neurekadev/dockyard/internal/agent/prune"
 	agentres "github.com/neurekadev/dockyard/internal/agent/resources"
 	"github.com/neurekadev/dockyard/internal/agent/session"
@@ -86,8 +87,12 @@ func connectAgent(ctx context.Context, m *app.Manager, base, stateDir string, h 
 	clk := clock.Real()
 	alog := log.With("agent", h.name)
 	managed := func(dir string) bool { return strings.HasPrefix(dir, h.stacksDir+"/") }
-	res := agentres.New(agentres.Options{Engine: func() engine.Engine { return fe }, Logger: alog, ManagedStackDir: managed})
-	pr := agentprune.New(agentprune.Options{Engine: func() engine.Engine { return fe }, Clock: clk, Logger: alog, ManagedStackDir: managed})
+	// The guard knows the agent's own container and the stacks volume, as
+	// the runtime's self-inspection would (#32).
+	guard := protect.New(protect.Options{SelfContainerID: h.selfContainer, StacksVolume: h.stacksVolume, Logger: alog})
+	res := agentres.New(agentres.Options{Engine: func() engine.Engine { return fe }, Logger: alog, ManagedStackDir: managed, Guard: guard})
+	pr := agentprune.New(agentprune.Options{Engine: func() engine.Engine { return fe }, Clock: clk, Logger: alog, ManagedStackDir: managed,
+		Guard: guard})
 	cio := agentio.New(agentio.Options{Engine: func() agentio.Engine { return fe }, Clock: clk, Logger: alog})
 	sim := newSimulation(h, clk)
 	var sessionClient atomic.Pointer[session.Client]
