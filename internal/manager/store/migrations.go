@@ -137,6 +137,20 @@ func PartialMigrations(ctx context.Context, db bun.IDB, targetEnvironmentID stri
 	return migrationsOf(rows)
 }
 
+// RetainedMigrationSources returns the stack migrations whose stopped
+// source in an environment DockYard keeps (the migration runs or completed
+// and the user has not confirmed the source removal), oldest first.
+func RetainedMigrationSources(ctx context.Context, db bun.IDB, sourceEnvironmentID string) ([]domain.Migration, error) {
+	var rows []migrationRow
+	err := db.NewSelect().Model(&rows).Where("kind = ? AND source_environment_id = ? AND state IN (?)", string(domain.MigrationKindStack),
+		sourceEnvironmentID, bun.List([]string{string(domain.MigrationRunning), string(domain.MigrationCompleted)})).
+		Order("created_at", "id").Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("store: retained migration sources: %w", err)
+	}
+	return migrationsOf(rows)
+}
+
 func migrationsOf(rows []migrationRow) ([]domain.Migration, error) {
 	out := make([]domain.Migration, 0, len(rows))
 	for _, r := range rows {

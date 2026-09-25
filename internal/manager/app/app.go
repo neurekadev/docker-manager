@@ -584,6 +584,25 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	m.stacks.SetProtection(m.resources)
 	// Prune runs protect what saved container specifications reference (#14).
 	m.maint.SetSpecs(m.resources)
+	// The stopped source of a migrated stack is no longer a DockYard stack:
+	// until the user confirms its removal, prune runs keep its project
+	// and volumes and the Docker resource routes refuse to remove them (#35).
+	m.resources.SetRetainedProjects(m.migrations.RetainedProjects)
+	m.maint.AddReferences(func(ctx context.Context, environmentID string) ([]maintenance.Reference, error) {
+		rs, err := m.migrations.RetainedSources(ctx, environmentID)
+		if err != nil {
+			return nil, err
+		}
+		var out []maintenance.Reference
+		for _, r := range rs {
+			out = append(out, maintenance.Reference{Kind: "project", Name: r.Project, Reason: r.Reason})
+			for _, v := range r.Volumes {
+				out = append(out, maintenance.Reference{Kind: "volume", Name: v,
+					Reason: fmt.Sprintf("volume of the stopped source of migrated stack %q, kept until its removal is confirmed", r.Project)})
+			}
+		}
+		return out, nil
+	})
 	// Container update policies read containers, saved recreate
 	// specifications and protection through the resource service (#6, #32).
 	m.updates.SetResources(m.resources)

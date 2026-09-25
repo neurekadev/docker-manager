@@ -20,7 +20,8 @@ import (
 // protections collects what the manager knows must survive a prune of an
 // environment: DockYard stacks (their Compose projects and images), the
 // images, volumes and networks of saved container specifications, and the
-// objects backups rely on.
+// objects backups rely on, and what AddReferences sources keep (the stopped
+// sources of migrated stacks, #35).
 func (s *Service) protections(ctx context.Context, env string) (protocol.PruneProtection, error) {
 	var p protocol.PruneProtection
 	seen := map[string]bool{}
@@ -88,6 +89,24 @@ func (s *Service) protections(ctx context.Context, env string) (protocol.PrunePr
 				add(&p.Volumes, "volume", r.Name, reason)
 			case "network":
 				add(&p.Networks, "network", r.Name, reason)
+			}
+		}
+	}
+	for _, fn := range s.refs {
+		refs, err := fn(ctx, env)
+		if err != nil {
+			return p, err
+		}
+		for _, r := range refs {
+			switch r.Kind {
+			case "project":
+				add(&p.Projects, "project", r.Name, r.Reason)
+			case "volume":
+				add(&p.Volumes, "volume", r.Name, r.Reason)
+			case "network":
+				add(&p.Networks, "network", r.Name, r.Reason)
+			default:
+				return p, fmt.Errorf("maintenance: unknown reference kind %q", r.Kind)
 			}
 		}
 	}

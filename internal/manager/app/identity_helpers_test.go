@@ -50,7 +50,9 @@ type env struct {
 func newEnv(t *testing.T, with ...func(*Options)) *env {
 	t.Helper()
 	dataDir := t.TempDir()
-	e := &env{t: t, clk: clock.NewFake(time.Now().UTC().Truncate(time.Second)), secrets: canary.New()}
+	// A fixed start instant: nothing a test checks may depend on the wall
+	// clock (session idle/absolute expiry, hourly schedules, token TTLs).
+	e := &env{t: t, clk: testutil.FakeClock(), secrets: canary.New()}
 	cfg := config.Config{
 		PublicURL:      &url.URL{Scheme: "https", Host: publicHost},
 		ListenAddr:     "127.0.0.1:0",

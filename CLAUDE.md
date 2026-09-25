@@ -470,6 +470,14 @@ Guide: `docs/architecture/migrations.md`. Manager
   the engine authorizes the capability on `Spec.AuthorizationTargets`.
 - A manager step that loses a party mid-way returns an error wrapping
   `jobexec.ErrStepInterrupted` (job ends interrupted, compensations run).
+- The engine refuses at dispatch any job whose stack target is no longer
+  in the job's environment (`target_moved`); a kind that must act on a
+  stack's former environment sets `jobspec.Spec.FormerStackLocation`.
+- A migrated stack's stopped source is held until its removal is
+  confirmed (`Migrations().RetainedSources`): prune keeps it
+  (`maintenance.Service.AddReferences`) and resource removals refuse it
+  (`resources.Service.StackManaged` includes it). New destructive or bulk
+  features must consult the same hold.
 ## Digest-driven updates (#20)
 
 Guide: `docs/architecture/updates.md`. Manager `internal/manager/updates`

@@ -90,6 +90,15 @@ func (e *Engine) DispatchPending(ctx context.Context) error {
 				"This manager version does not know the job kind; it cannot run."))
 			continue
 		}
+		if moved, err := e.movedStack(ctx, j, spec); err != nil {
+			reserved = append(reserved, waiting{j.ID, j.Locks})
+			errs = append(errs, fmt.Errorf("revalidate the stack location of job %s: %w", j.ID, err))
+			continue
+		} else if moved != "" {
+			errs = append(errs, e.failWaiting(ctx, j, domain.ErrorTargetMoved, moved,
+				"Run it again on the stack in its current environment. Scheduled runs are enqueued against the stack's new environment at their next run."))
+			continue
+		}
 		if spec.Executor == domain.ExecutorAgent && !e.opts.Dispatcher.Online(j.EnvironmentID) {
 			if !now.Before(j.CreatedAt.Add(spec.OfflineDeadline)) {
 				errs = append(errs, e.failWaiting(ctx, j, domain.ErrorAgentOffline,
@@ -170,6 +179,43 @@ func (e *Engine) DispatchPending(ctx context.Context) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// movedStack revalidates, right before dispatch, that every stack the job
+// targets is still in the environment the job was queued against. A
+// migration (#35) holds the stack lock while it runs and moves the stack
+// record at cut-over, so a job queued against the source meanwhile (a
+// scheduled update run, a backup) would otherwise act on the stopped
+// source project. Stacks that no longer exist are left to the executor.
+// It returns the failure message ("" when the job may run).
+func (e *Engine) movedStack(ctx context.Context, j *domain.Job, spec jobspec.Spec) (string, error) {
+	if spec.FormerStackLocation {
+		return "", nil
+	}
+	for _, t := range j.Targets {
+		if t.Type != domain.TargetStack {
+			continue
+		}
+		want := t.EnvironmentID
+		if want == "" {
+			want = j.EnvironmentID
+		}
+		if want == "" {
+			continue // manager-only kind: no environment to compare
+		}
+		st, err := store.GetStack(ctx, e.db, t.ID)
+		if errors.Is(err, domain.ErrStackNotFound) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		if st.EnvironmentID != want {
+			return fmt.Sprintf("stack %s moved to environment %s after this job was queued against environment %s; nothing was changed",
+				st.Name, st.EnvironmentID, want), nil
+		}
+	}
+	return "", nil
 }
 
 func firstHeldConflict(j *domain.Job, held []store.HeldLock) (int, int, bool) {

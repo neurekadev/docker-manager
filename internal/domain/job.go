@@ -254,6 +254,10 @@ const (
 	// it was dispatched (policy disabled or deleted, target gone, #13);
 	// nothing was sent to the executor.
 	ErrorPolicyRejected = "policy_rejected"
+	// ErrorTargetMoved: a stack the job targets moved to another
+	// environment (#35 migration cut-over) after the job was queued against
+	// its former one; nothing was sent to the executor.
+	ErrorTargetMoved = "target_moved"
 	// ErrorInternal: an engine bug or database failure.
 	ErrorInternal = "internal"
 )

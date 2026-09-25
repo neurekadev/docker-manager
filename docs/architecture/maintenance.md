@@ -74,6 +74,12 @@ A candidate is never removed when it is:
   `maintenance.Service.SetBackupReferences` (volumes/networks by name;
   local repository volumes mounted into DockYard containers are also
   DockYard's own);
+- part of the stopped source of a migrated stack (#35) until the user
+  confirms its removal: after the cut-over the source project is no
+  longer a DockYard stack, so `app` installs
+  `maintenance.Service.AddReferences` with
+  `migrations.Service.RetainedSources` (the Compose project and the
+  migration's source volumes, while the migration runs or completed);
 - a predefined (`bridge`, `host`, `none`) or swarm-scoped network.
 
 Previews show these as `protected` with the reason; objects the rule

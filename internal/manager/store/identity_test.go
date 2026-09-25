@@ -3,7 +3,6 @@ package store_test
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/ids"
@@ -55,7 +54,7 @@ func TestOneOwnerAndUniqueUsernames(t *testing.T) {
 	db := storetest.Migrated(t)
 	ctx := testutil.Context(t)
 	group, _ := store.DefaultGroupID(ctx, db)
-	now := time.Now()
+	now := testutil.Epoch
 	mk := func(name string, owner bool) error {
 		_, err := store.CreateUser(ctx, db, domain.NewUser{ID: ids.New(), Username: name, Owner: owner, GroupID: group,
 			WebAuthnHandle: []byte(ids.New()), CreatedAt: now})

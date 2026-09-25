@@ -89,6 +89,18 @@ type BackupRef struct {
 // destinations are never prune candidates.
 type BackupReferences func(ctx context.Context, environmentID string) ([]BackupRef, error)
 
+// Reference is an object another feature keeps: Kind "project" (a Compose
+// project: its containers, networks and volumes), "volume" or "network".
+type Reference struct {
+	Kind   string
+	Name   string
+	Reason string
+}
+
+// References reports the objects of an environment a feature keeps
+// (#35 installs the stopped sources of migrated stacks with AddReferences).
+type References func(ctx context.Context, environmentID string) ([]Reference, error)
+
 // Options configures the service.
 type Options struct {
 	DB           *bun.DB
@@ -113,6 +125,7 @@ type Service struct {
 	log    *slog.Logger
 	specs  Specs
 	backup BackupReferences
+	refs   []References
 }
 
 // New returns a Service and registers its finish hook on the job engine
@@ -140,6 +153,10 @@ func (s *Service) SetSpecs(sp Specs) { s.specs = sp }
 
 // SetBackupReferences installs the backup protection hook (#10).
 func (s *Service) SetBackupReferences(fn BackupReferences) { s.backup = fn }
+
+// AddReferences installs another source of objects prune runs keep (call
+// while wiring, before the service is used).
+func (s *Service) AddReferences(fn References) { s.refs = append(s.refs, fn) }
 
 func (s *Service) now() time.Time { return s.clk.Now().UTC().Truncate(time.Microsecond) }
 

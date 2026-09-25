@@ -95,6 +95,22 @@ starts `stack.remove_source` on the source: containers and networks of the
 project, the migrated volumes, then the project directory; exact
 permission rules naming them are deleted.
 
+Until then the stopped source is **held** (`migrations.Service.RetainedSources`:
+stack migrations of the environment that run or completed): prune runs
+(#14) keep its Compose project (containers, networks, volumes carrying the
+label) and the migration's source volumes, and the Docker resource routes
+(#6) refuse to remove its containers, volumes and networks with
+`stack_managed` (`resources.Service.SetRetainedProjects`). Nothing but
+`stack.remove_source` deletes the project directory. The hold ends when
+the removal succeeds (`source_removed`); importing the project as a stack
+again protects it as that stack.
+
+**Jobs queued before the cut-over** — a job queued against the source
+while the migration held the stack lock (a scheduled update run, a
+backup, a manual stop) is refused at dispatch with `target_moved` instead
+of acting on the stopped source; the policies that moved with the stack
+enqueue their next scheduled run against the destination.
+
 **Stopping before completion** — a failure, cancellation or crash runs
 `start_source`: the stack record is put back on the source (when it had
 moved; a running destination deploy is cancelled) and the services that

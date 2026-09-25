@@ -241,6 +241,8 @@ func catalogSpecs() []Spec {
 			OfflineDeadline: deadlineLong,
 			Steps:           []Step{idem("down"), idem("remove_volumes"), step("remove_files", true, false, "")},
 			LockOnly:        LockOnlyRule{Types: []domain.TargetType{domain.TargetVolume}},
+			// The stack lives in the destination now; the job acts on its source.
+			FormerStackLocation: true,
 		},
 
 		// Volumes and networks.

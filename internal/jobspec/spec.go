@@ -130,6 +130,11 @@ type Spec struct {
 	// resources; their executor checks the destination's own capabilities
 	// (#35).
 	LockOnly LockOnlyRule
+	// FormerStackLocation: the kind acts on the environment a stack moved
+	// away from (stack.remove_source, #35). Every other kind's stack
+	// targets must still be in the job's environment when it is dispatched
+	// (class target_moved otherwise).
+	FormerStackLocation bool
 }
 
 // LockOnlyRule selects lock-only targets.
