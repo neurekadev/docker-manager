@@ -73,7 +73,8 @@ the layout, conventions and gates every later workstream builds on.
    `dockyard-agent healthcheck` (max age 60 s).
 10. **Images:** multi-stage, all builder stages on `$BUILDPLATFORM`, final
     stage `gcr.io/distroless/static-debian12` (root variant) with no `RUN`,
-    so arm64 needs no QEMU. restic 0.19.1 is downloaded per `TARGETARCH` and
+    so arm64 needs no QEMU (images are linux/amd64 only since 2026-09-25, see
+    "Later changes"). restic 0.19.1 is downloaded per `TARGETARCH` and
     verified against SHA-256 values from the release's GPG-signed
     `SHA256SUMS` (key `CF8F18F2844575973F79D4E191A6868BD3F7A907`). No
     `VOLUME` instruction: persistence is explicit via named volumes. All
@@ -85,11 +86,12 @@ the layout, conventions and gates every later workstream builds on.
     GitHub artifact attestations are unavailable for private user-owned
     repositories on the current plan; its outcome is shown in the job summary.
     `extended.yaml` hosts slow suites as separate jobs gated by a `suites`
-    input.
+    input. (Superseded on 2026-09-25, see "Later changes".)
 12. **License policy:** shipped Go modules and production npm packages must
     use permissive licenses or MPL-2.0 (allowlist in
     `scripts/license-check.sh`); anything else, including unknown licenses,
     fails CI until reviewed. The project itself has no license file (#25).
+    (Since 2026-09-25 the license check is a manual review, not a CI job.)
 13. **Injectable time:** production code takes `clock.Clock`; tests use
     `clock.Fake` and never sleep to wait for behavior.
 14. **IDs:** DockYard-owned records use UUIDv7 strings (`ids.New()`).
@@ -100,3 +102,22 @@ Later workstreams add operations via `api.Register`, migrations as new
 timestamped files, and extend `scripts/policy-check.sh` and `extended.yaml`
 rather than inventing parallel mechanisms. Changing any decision above needs
 a new ADR.
+
+## Later changes
+
+- **2026-09-25, CI and tests (supersedes decision 11 and the
+  `extended.yaml` part of the consequences).** The code moved from GitHub
+  to Forgejo (`https://code.neureka.dev/dockyard/dockyard`); the GitHub
+  issues stay the written record. The owner reduced the automated checks to
+  format/lint, isolated deterministic unit tests and a test-free build:
+  `.github/workflows/CI.yaml` (Forgejo Actions) runs on pushes to `main`
+  and manual dispatch only, mirrors `bash scripts/check.sh`
+  (`lint`, `unit-tests`, `build`), builds linux/amd64 images and publishes
+  `code.neureka.dev/dockyard/dockyard-{manager,agent}:edge` from `main` with
+  BuildKit provenance and SBOM attestations. `ci.yaml`, `extended.yaml`,
+  `api-contract.yaml`, the Docker-backed, browser, fuzz, race and crash
+  suites and the test harness (#29) were removed; the license check,
+  govulncheck and `npm audit` are manual. linux/arm64 images are blocked
+  until a native arm64 runner exists (no QEMU); the arm64 binaries are
+  still built. What is no longer verified automatically is listed in
+  [support-matrix.md](../support-matrix.md#verification-status).

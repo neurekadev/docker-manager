@@ -21,7 +21,7 @@ func (e *Engine) Deploy(withManager bool) Deployment {
 		project = "dockyard"
 	}
 	d := Deployment{Stacks: "dockyard_stacks", AgentState: project + "_dockyard_agent_state", Network: project + "_default"}
-	d.AgentImage = e.AddImage("ghcr.io/neurekadev/dockyard-agent:edge")
+	d.AgentImage = e.AddImage("code.neureka.dev/dockyard/dockyard-agent:edge")
 	e.AddNetwork(d.Network, map[string]string{"com.docker.compose.project": project})
 	labels := func(service, role string) map[string]string {
 		l := map[string]string{"com.docker.compose.project": project, "com.docker.compose.service": service,
@@ -31,7 +31,7 @@ func (e *Engine) Deploy(withManager bool) Deployment {
 		}
 		return l
 	}
-	d.AgentID = e.AddContainer(engine.ContainerSpec{Name: project + "-dockyard-agent-1", Image: "ghcr.io/neurekadev/dockyard-agent:edge",
+	d.AgentID = e.AddContainer(engine.ContainerSpec{Name: project + "-dockyard-agent-1", Image: "code.neureka.dev/dockyard/dockyard-agent:edge",
 		NetworkMode: d.Network, Labels: labels("dockyard-agent", "agent"), Mounts: []engine.MountSpec{
 			{Type: "bind", Source: "/var/run/docker.sock", Target: "/var/run/docker.sock"},
 			{Type: "bind", Source: "/var/lib/docker/volumes", Target: "/var/lib/docker/volumes"},
@@ -42,9 +42,9 @@ func (e *Engine) Deploy(withManager bool) Deployment {
 		return d
 	}
 	d.ManagerData, d.ProxyData = project+"_dockyard_data", project+"_caddy_data"
-	d.ManagerImage = e.AddImage("ghcr.io/neurekadev/dockyard-manager:edge")
+	d.ManagerImage = e.AddImage("code.neureka.dev/dockyard/dockyard-manager:edge")
 	d.ProxyImage = e.AddImage("caddy:2.11.4-alpine")
-	d.ManagerID = e.AddContainer(engine.ContainerSpec{Name: project + "-dockyard-manager-1", Image: "ghcr.io/neurekadev/dockyard-manager:edge",
+	d.ManagerID = e.AddContainer(engine.ContainerSpec{Name: project + "-dockyard-manager-1", Image: "code.neureka.dev/dockyard/dockyard-manager:edge",
 		NetworkMode: d.Network, Labels: labels("dockyard-manager", "manager"),
 		Mounts: []engine.MountSpec{{Type: "volume", Source: d.ManagerData, Target: "/var/lib/dockyard"}}}, true)
 	d.ProxyID = e.AddContainer(engine.ContainerSpec{Name: project + "-caddy-1", Image: "caddy:2.11.4-alpine", NetworkMode: d.Network,

@@ -1022,7 +1022,7 @@ The manager maps them to public errors: `not_found` → 404,
 
 | part | where | status |
 | --- | --- | --- |
-| envelope, strict decode, size limit, frame types, payload types and validation, allowlists, limits, close codes, version window | `internal/protocol` | implemented (#4, #26) with unit and fuzz tests |
+| envelope, strict decode, size limit, frame types, payload types and validation, allowlists, limits, close codes, version window | `internal/protocol` | implemented (#4, #26) with unit tests |
 | job command semantics, fencing, journal, reconciliation | `internal/protocol/jobs.go`, `internal/manager/jobs`, `internal/agent/jobs` | implemented (#26) |
 | `/agent/v1/enroll`, `/agent/v1/session`, handshake, heartbeats, close codes, requests, rotation, event/invalidation relay with sequence numbers | `internal/manager/agents` (manager), `internal/agent/{enroll,session,state,runtime}` (agent) | implemented (#3) |
 | job dispatch over the session (`jobs.AgentDispatcher`) and job frame routing, reconcile-before-online | `internal/manager/agents` (`Hub`), `internal/agent/session` + `internal/agent/jobs` | implemented (#3) |

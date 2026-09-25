@@ -355,7 +355,7 @@ func TestCorruptedPartIsRejected(t *testing.T) {
 func TestSendRefusesDockYardVolumes(t *testing.T) {
 	src := env(t, "src")
 	src.AddVolume("dockyard_data", nil)
-	src.Engine.AddContainer(engine.ContainerSpec{Name: "dockyard-manager-1", Image: "ghcr.io/neurekadev/dockyard-manager:edge",
+	src.Engine.AddContainer(engine.ContainerSpec{Name: "dockyard-manager-1", Image: "code.neureka.dev/dockyard/dockyard-manager:edge",
 		Labels: map[string]string{protocol.LabelRole: "manager"}, Mounts: []engine.MountSpec{{Type: "volume", Source: "dockyard_data", Target: "/var/lib/dockyard"}}}, true)
 	p := pipe(t, src)
 	st, err := p.Open(testutil.Context(t), protocol.StreamMigrationSend, protocol.MigrationSendInput{MigrationID: migID, Part: protocol.PartVolume,

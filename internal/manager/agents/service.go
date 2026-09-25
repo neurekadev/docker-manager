@@ -51,7 +51,7 @@ const (
 )
 
 // DefaultAgentImage is the agent image used in generated install commands.
-const DefaultAgentImage = "ghcr.io/neurekadev/dockyard-agent:edge"
+const DefaultAgentImage = "code.neureka.dev/dockyard/dockyard-agent:edge"
 
 // Options configures a Service.
 type Options struct {

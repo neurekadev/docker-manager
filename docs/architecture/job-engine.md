@@ -15,7 +15,6 @@ features never run their own serialization or recovery.
 | `internal/protocol` (`jobs.go`) | Command/ack/progress/result/cancel/`job_report` frames. |
 | `internal/manager/authz` | `Authorizer` (the #17 permission service), principals, job targets (`TargetResources`, `JobResource`). |
 | `internal/manager/api` (`jobs.go`) | `/api/v1/jobs` routes, `Job` schema, SSE stream, `JobErrorFor`, `Accepted`. |
-| `internal/faultinject` | Named fault points (no-op unless built with `-tags faultinject`). |
 
 ## Job model
 
@@ -285,38 +284,25 @@ Finished jobs and their events are deleted after
 newest `DOCKYARD_JOB_EVENTS_MAX` (default 500) events. Unfinished jobs are
 never deleted. This is independent of audit retention (#30).
 
-## Fault injection
+## Crash recovery tests
 
-Stage boundaries carry `faultinject.Point` calls: `engine.enqueue.committed`,
-`engine.dispatch.locked`, `engine.dispatch.committed`, `engine.dispatch.sent`,
-`engine.ack.before_commit`, `engine.progress.committed`,
-`engine.result.before_commit`, `engine.result.committed`,
-`engine.reconcile.before_commit`, `engine.reconcile.committed`,
-`engine.manager_job.started`, `engine.manager_job.committed`,
-`agent.command.received`, `agent.command.journaled`, `agent.command.acked`,
-`agent.result.before_send`, `agent.result.sent`, and per step
-`<agent|manager>.step.{before,started,ran,after}.<step>` and
-`<agent|manager>.compensation.before.<name>`. Built with
-`-tags faultinject`, `DOCKYARD_FAULTPOINT=<name>:crash|error|block` arms
-them; `DOCKYARD_FAULTPOINT_TRACE=<file>` records the points reached.
-`internal/manager/jobs/faulttest` runs the manager engine and an agent as
-subprocesses and kills each at every traced point of a simulated deploy, a
-backup with container shutdown and a prune (`TestKillAtEveryStage`), and of
-the **real** executors (`TestKillRealExecutorsAtEveryStage`, `real_test.go`):
-`stack.deploy` (#7), `backup.run` with container shutdown (#10) and
-`prune.run` (#14) over the in-memory Engine (`enginefake.Persist`) and
-restic (`restictest.Persist`), both backed by a file so they outlive every
-killed agent like a real Engine and repository do. Besides the job
-invariants (explicit terminal state with recovery guidance, no held locks,
-non-idempotent steps at most once, stopped containers started again) each
-real scenario checks the world it left: containers created at most once and
-running after a finished deploy, the backed-up stack running again in every
-outcome with at most one snapshot, protected and used objects never pruned
-and every candidate gone after a finished prune (`go test -tags faultinject
-./internal/manager/jobs/faulttest/`; it needs no Docker). The real harness
-found that a resumed attempt lost the output of its completed steps (a
-resumed `prune.run` succeeded without removing anything): commands now
-carry it (`Job.ResumeOutput`, persisted).
+Crash recovery is covered by unit tests of the journal replay and recovery
+paths, not by killing processes: `TestManagerRestartRecovery`
+(`internal/manager/jobs`), `TestAgentCrashMidStepEndToEnd` and
+`TestResumedAttemptLostAgainIsResentNotLost` (reconciliation after an agent
+loses an attempt), `TestRestartRecoversInFlightAttempt`
+(`internal/agent/jobs`), and per-kind tests such as
+`TestBackupRunRecoversAfterAgentCrash` (`internal/agent/backups`). A resumed
+attempt gets the output of its completed steps back
+(`Job.ResumeOutput`, persisted), so later steps can read it from
+`sc.Output()`.
+
+The former fault-injection harness (named fault points in production code,
+`-tags faultinject`, and `internal/manager/jobs/faulttest`, which killed the
+manager and an agent at every stage of simulated and real `stack.deploy`,
+`backup.run` and `prune.run` jobs) was removed on 2026-09-25: recovery
+from a process killed mid-job is **not verified by automated tests** any
+more.
 
 ## For feature workstreams
 

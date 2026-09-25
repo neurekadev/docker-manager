@@ -377,16 +377,14 @@ repository, so its manifest usually carries their results.
 
 - `internal/restic`: runner tests against the test binary acting as restic
   (secrets never in arguments, environment or logs, JSON parsing, exit
-  classes, cancellation); `integration_test.go` (`TestStorage*`) against the
-  real restic, local and MinIO.
-- `internal/backup`: manifest round trip, corruption/truncation (fuzzed),
+  classes, cancellation).
+- `internal/backup`: manifest round trip, corruption/truncation,
   completeness and merge, retention rules, floor and time zones.
 - `internal/agent/backups`: the scope corpus (relative binds, opt-ins,
   allowlist, anonymous volumes, exclusions, symlink escapes, nested
   repositories, DockYard's volumes), shutdown order, restart after failure,
   cancellation and agent crash, key rotation per location, damage
-  detection, retention scope; `integration_test.go` (`TestBackup*`) with the
-  real restic, local and MinIO, including a truncated pack.
+  detection, retention scope.
 - `internal/manager/app/backups_test.go`: the API end to end with a real
   agent session (Recovery Key once, confirmation challenge, rotation across
   locations, runs, contents, downloads, manifests, authorization, API token
@@ -395,8 +393,10 @@ repository, so its manifest usually carries their results.
   recovery proof (a clean manager imports a set across the manager and two
   host repositories with a new S3 secret, every import error, partially
   rotated keys, revocations, re-attach and a restore; a local repository at
-  a new mount path; the key is never stored and a restart loses it);
-  `backup_import_integration_test.go` (`TestBackupImport*`): the same with
-  the real restic, local and MinIO with stack, volume and file restores.
+  a new mount path; the key is never stored and a restart loses it).
 - `internal/manager/backups/restoreapply_test.go`: applying a staged
   restore is repeatable after a crash and keeps the replaced files.
+- All of these use the in-memory restic (`restic/restictest`) or the fake
+  restic binary. The former tests against the real restic with local and
+  MinIO repositories were removed on 2026-09-25: restic against real local,
+  MinIO or S3 repositories is **not verified by automated tests**.

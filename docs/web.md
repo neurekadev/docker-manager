@@ -5,8 +5,8 @@ with `@sveltejs/adapter-static` and embedded into `dockyard-manager`
 (`web/embed.go`). It is an installable PWA. Library choices, licenses and
 bundle sizes: [ADR 0002](adr/0002-frontend-libraries.md). Visual design,
 tokens and the component library: [design/README.md](design/README.md) (#22;
-live gallery at `/design`). Docker-free local stack for UI work:
-[development.md](development.md#ui-devstack-no-docker).
+live gallery at `/design`). Running the manager locally for UI work:
+[development.md](development.md#running-locally).
 
 ```
 web/src/
@@ -47,22 +47,27 @@ web/scripts/verify-build.mjs  post-build checks and bundle-size table
 ## Commands
 
 ```bash
-bash scripts/web-check.sh           # npm ci (if needed), lint, svelte-check, vitest, build, verify-build
+bash scripts/check.sh lint          # includes Prettier (format:check) and ESLint (lint)
+bash scripts/check.sh unit-tests    # includes vitest
+bash scripts/check.sh build         # includes the web build and verify-build
+npm --prefix web run check          # svelte-check / TypeScript (by hand; not in the gate or CI)
 npm --prefix web run dev            # dev server; proxies /api to 127.0.0.1:8080
 npm --prefix web run build          # web/build/app (embedded by the next go build)
 node web/scripts/verify-build.mjs --markdown   # bundle table for ADR 0002
 bash scripts/generate.sh            # regenerate api/openapi.json + schema.d.ts
 ```
 
-The service worker is not registered under `vite dev`; test PWA behaviour
-against a built manager (below) or the E2E stack.
+The service worker is not registered under `vite dev`; try PWA behaviour
+against a built manager (below).
 
 ## Generated client workflow
 
 1. Add or change the Go operation (`internal/manager/api`, see CLAUDE.md).
 2. `bash scripts/generate.sh` regenerates `api/openapi.json` and
-   `web/src/lib/api/schema.d.ts` (openapi-typescript). Commit both; the PR
-   gate (`generate.sh --check`) fails when they are stale.
+   `web/src/lib/api/schema.d.ts` (openapi-typescript). Commit both.
+   `TestOpenAPISnapshot` (`go test ./...`) fails when `api/openapi.json` is
+   stale; `schema.d.ts` is only compared by `bash scripts/generate.sh
+   --check`, which no gate runs, so regenerate after every API change.
 3. Call it through the typed client. Paths, parameters, bodies and responses
    are checked by TypeScript against the schema:
 
@@ -212,12 +217,11 @@ npm --prefix web run build
 go build -o /tmp/dockyard-manager ./cmd/dockyard-manager
 DOCKYARD_PUBLIC_URL=http://localhost:8080 DOCKYARD_LISTEN_ADDR=127.0.0.1:8080 \
   DOCKYARD_DATA_DIR=/tmp/dockyard-data /tmp/dockyard-manager
-E2E_BASE_URL=http://localhost:8080 npm --prefix e2e test -- tests/pwa.spec.ts
 ```
 
-The HTTPS-only assertions (and the stream helper tests, which need the echo
-fixture) fail in this mode; CI runs everything behind Caddy
-([testing/harness.md](testing/harness.md#browser-e2e)).
+Then check the manifest, service worker, deep-link reloads and the offline
+shell by hand in the browser's developer tools. Behaviour behind an HTTPS
+proxy and installation on devices are not verified by automated tests.
 
 ## Live data (#23)
 
@@ -272,7 +276,8 @@ be behind; keep showing it, say so). Only the live client writes it.
 
 Tests: `client.spec.ts` (cursor resume, gap and environment resets,
 dedupe, revocation clearing, polling, throttling), `keys.spec.ts`
-(invalidation map, critical work); end to end `e2e/tests/live.spec.ts`.
+(invalidation map, critical work). Live updates in open screens across
+real browser sessions are not verified by automated tests.
 
 ## Files, logs and terminals (#15, #8)
 
@@ -336,9 +341,7 @@ icon: `import X from '@lucide/svelte/icons/x'`).
   icon sizes after the build.
 - Go: `internal/manager/server` (`TestPWAAssets`, deep links, caching),
   `web` (`TestAssetsHaveIndex` checks PWA files in a real build).
-- Playwright (`e2e/tests/pwa.spec.ts`, `ui.spec.ts`, extended workflow job
-  `e2e`): manifest, service worker under the TLS proxy, deep-link reloads,
-  API responses absent from Cache Storage, offline shell, lazy loading (on
-  `/design`); first-run setup, sign-in and sign-out, shell navigation,
-  environment switcher and the Restricted user's denied state. Locally
-  against the devstack: [development.md](development.md#playwright-against-the-devstack).
+- There are no browser or end-to-end tests (the Playwright suite was
+  removed on 2026-09-25): the service worker in a real browser, the
+  proxied origin, accessibility (axe), offline behaviour and full user
+  flows are checked by hand only.

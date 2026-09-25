@@ -258,17 +258,15 @@ Target (#5): 25 environments, 1 000 containers in total and 20 concurrent UI
 sessions on a 2 vCPU / 2 GB manager, with 10 s samples for 24 h, 1 min
 rollups for 7 d and 15 min rollups for 90 d.
 
-Benchmarks in `internal/manager/metrics/bench_test.go` (also run by the
-`metrics-budget` job of `extended.yaml`) with `GOMAXPROCS=2`:
-
-```
-go test -run '^TestScaleBudget$' -bench . -benchtime 10x -benchmem -cpu 2 ./internal/manager/metrics/
-```
+**Historical measurement, not re-verified.** The numbers below come from
+the scale-budget test and benchmarks (`TestScaleBudget`, `Benchmark*` in
+the former `internal/manager/metrics/bench_test.go`), which were removed on
+2026-09-25 with the move to a lint-and-unit-test CI. Nothing checks the
+budget automatically any more; treat the table as the last known result.
 
 Measured 2026-09-25 on an AMD Ryzen 9 9950X with `GOMAXPROCS=2` (Windows,
 pure-Go SQLite). A 2 vCPU cloud VM is slower per core; allow a factor of
-2–4. The `metrics-budget` CI job records the same numbers on a GitHub
-runner in its step summary.
+2–4.
 
 | Benchmark | What one operation is | Result | Share of the 10 s budget |
 | --- | --- | --- | --- |

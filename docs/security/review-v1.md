@@ -3,10 +3,19 @@
 A review of the whole codebase against the #12 security checklist, done
 on 2026-09-25 on `main` at the start of track R3 (after the #22 UI tracks
 merged). For each item: what was read, the tests that hold it in place,
-the finding, and what remains. The tests are mapped in
-[testing/verification-matrix.md](../testing/verification-matrix.md) (V12–V32)
-with their honest run status; Docker-dependent ones have not run since
-GitHub Actions became unavailable on 2026-09-25.
+the finding, and what remains.
+
+> **Update 2026-09-25.** After this review the code moved to Forgejo
+> (`https://code.neureka.dev/dockyard/dockyard`) and the owner reduced the
+> automated checks to format/lint, isolated unit tests and a test-free
+> build. The release verification map, the Playwright browser and proxy
+> specs, the deploy smoke test, the Docker-backed suites (Engine matrix,
+> proxy agent sessions, `TestEngineSelfProtection`), fuzzing and the race
+> detector were removed. Tests named below that still exist are unit tests
+> and run on every push to `main`; evidence that came only from the removed
+> suites is marked **(removed)** and is no longer verified by automated
+> tests. The canary unit tests (secrets in logs, audit, storage, job output,
+> API responses and the support bundle) remain.
 
 Threat model in one paragraph: the manager holds credentials for, and
 through its agents controls, every enrolled Docker Engine. Docker socket
@@ -23,7 +32,7 @@ behind the operator's reverse proxy.
 | F1 | Capability boundaries | `stack.create` was marked **normal** risk although creating a stack writes a whole Compose definition that, once deployed, can bind host paths or the Docker socket and run privileged containers, i.e. host root. `stack.definition.write` was already high risk. The risk mark drives the permission editor's high-risk labels and previews, so an owner could delegate host-root power without a warning. | medium | fixed: `stack.create` is high risk with a description saying so; `TestHostAccessCapabilitiesAreHighRisk` pins every capability that grants code execution or host paths (stack create/definition/files, container create/exec, volume file writes, restores, agent enrollment, repositories) |
 | F2 | Invite redemption | One-use redemption was tested sequentially only. Reviewed `auth.RedeemInvitation`: the invitation is consumed and the account created in one transaction with a conditional consume, so concurrent redemptions cannot both succeed. No bug. | none | added `TestConcurrentInvitationRedemptionIsOneUse` (six simultaneous redemptions: exactly one account, the invitation ends redeemed) |
 | F3 | Jobs and sessions | #12 asks for in-flight recovery after the requester signs out; no test covered it. Jobs carry their principal and are re-authorized at dispatch against the user's permissions, not the session, so a sign-out does not orphan or fail them. No bug. | none | added `TestJobOutlivesTheRequestersSession` |
-| F4 | Dependencies | govulncheck v1.8.0: no reachable vulnerability; GO-2026-5932 (`golang.org/x/crypto/openpgp`, unmaintained) is in a required module but not imported. `npm audit --omit=dev`: 5 low (`cookie` < 0.7.0 via `@sveltejs/kit`); the UI ships as a static SPA (adapter-static), so SvelteKit's server-side cookie parsing never runs. | low | accepted; re-check with every dependency update (`vuln` job) |
+| F4 | Dependencies | govulncheck v1.8.0: no reachable vulnerability; GO-2026-5932 (`golang.org/x/crypto/openpgp`, unmaintained) is in a required module but not imported. `npm audit --omit=dev`: 5 low (`cookie` < 0.7.0 via `@sveltejs/kit`); the UI ships as a static SPA (adapter-static), so SvelteKit's server-side cookie parsing never runs. | low | accepted; re-check by hand (govulncheck, `npm audit`) with every dependency update; no CI job runs them any more |
 
 No other defects were found. The remaining items below record what was
 checked.
@@ -36,8 +45,9 @@ checked.
 - Setup needs HTTPS on the public origin as seen through a trusted proxy,
   is rate limited per IP, and the database admits exactly one owner:
   `TestConcurrentFirstRunSetupCreatesOneOwner`, `TestSetupRefusesInsecureOrigin`,
-  `TestOneOwnerAndUniqueUsernames`, `TestOwnerIsProtected`; in the browser
-  `ui.spec.ts` (devstack) and `smoke:owner-setup` (published images).
+  `TestOneOwnerAndUniqueUsernames`, `TestOwnerIsProtected`. The browser
+  flow (`ui.spec.ts`) and the check against the published images
+  (`smoke:owner-setup`) were **(removed)**.
 - Limitation: there is no setup token (#25 decision): whoever reaches the
   origin first after the first start becomes the owner. Until then the
   public setup import routes also let an anonymous client make the manager
@@ -89,9 +99,9 @@ checked.
   `TestPasskeyPolicyAndWebAuthn`, `TestBothFactorsPolicy`,
   `TestSkewWindowAndReplay`, `TestCounterAndChallengeReplay`,
   `TestUserVerificationRequired`, `TestOwnerRecovery`,
-  `TestAPITokensNeverSatisfyFactorPolicy`; in a real browser
+  `TestAPITokensNeverSatisfyFactorPolicy`. The real-browser check
   `auth-factors.spec.ts` (TOTP set-up and sign-in, one-use recovery code,
-  virtual-authenticator passkey sign-in).
+  virtual-authenticator passkey sign-in) was **(removed)**.
 - Limitation: a user without TOTP or passkey steps up with the password
   alone. Passkeys break when the public host name changes (documented).
 
@@ -112,7 +122,8 @@ checked.
   permissions on every check, session-only routes refuse them, expiry and
   revocation close their streams: `TestAPITokenActsOnlyWithinItsScope`,
   `TestAPITokenNarrowedByGrantChanges`, `TestOwnerAndSessionRoutesRefuseAPITokens`,
-  `TestExpiredTokenStreamSwept`, `smoke:api-token`.
+  `TestExpiredTokenStreamSwept` (`smoke:api-token` against the published
+  images was **(removed)**).
 
 ## Secret storage
 
@@ -152,13 +163,16 @@ checked.
 ## Docker socket exposure
 
 - Only the agent mounts the socket; the manager has no Docker access at
-  all and the agent listens on nothing (`TestAgentNeverListens`,
-  `smoke:fresh-start`). Standalone containers created through DockYard may
+  all and the agent listens on nothing (`TestAgentNeverListens`; the
+  deploy examples' mounts are checked statically by `test/deploy`, the
+  running images by `smoke:fresh-start` **(removed)**). Standalone
+  containers created through DockYard may
   not bind the socket, a directory containing it or the Docker data root
   (`TestDockerSocketBindsRefused`, agent-side data-root check); Compose
   `use_api_socket`, `provider` and `models` are rejected; DockYard's own
   containers, volumes and images are protected for everyone
-  (`TestCheckMatrix`, `TestEngineSelfProtection`).
+  (`TestCheckMatrix`; against a real Engine `TestEngineSelfProtection`
+  **(removed)**).
 - Limitation (by design): a Compose stack may bind any host path,
   including the socket, and run privileged containers, like `docker compose`
   itself. Who may create or edit stacks may therefore act as root on that
@@ -171,11 +185,14 @@ checked.
   walks never follow symlinks; multiply-linked files are refused; archives
   are extracted entry by entry with slip, special-file and bomb checks;
   migrations and restores write through the same kind of root.
-- `TestTraversalCorpusStaysInsideRoot` (the `test/corpora/fs` corpus),
+- `TestTraversalCorpusStaysInsideRoot` (the hostile path corpus of
+  `internal/testutil/fscorpus`, generated in memory),
   `TestArchiveSlipAndSpecialEntries`, `TestDecompressionBombs`,
   `TestHardlinkToOutsideIsRefused`, `TestExtractRefusesUnsafeMembers`; the
-  symlink escape tree and TOCTOU race tests run on Linux only
-  (`TestEscapeTreeIsRefused`, `TestTOCTOUDirectorySwap`: pending, CI).
+  symlink escape tree and TOCTOU race tests (`TestEscapeTreeIsRefused`,
+  `TestTOCTOUDirectorySwap`) need Linux, so they run in CI's `Unit Tests`
+  job, not on a Windows development host. Fuzzing of the path and archive
+  code was **(removed)**.
 
 ## CSRF
 
@@ -195,10 +212,10 @@ checked.
   in a bounded pre-auth phase.
 - `TestAcceptRejectsPlainHTTPAndForeignOrigins`, `TestExecAuthorizationBoundaries`,
   `TestExecSessionEndToEnd`, `TestAuthorizeExecNeedsExplicitTokenGrant`,
-  `TestSessionUpgradeRefusals`, `TestHandshakeRefusals`; through each
-  proxy `TestTLSProxyAgentSessions` (exec WebSocket and agent sessions,
-  pending, e2e job) and against a real Engine `terminal.spec.ts` (pending,
-  smoke job).
+  `TestSessionUpgradeRefusals`, `TestHandshakeRefusals`. The checks through
+  each proxy (`TestTLSProxyAgentSessions`: exec WebSocket and agent
+  sessions) and against a real Engine (`terminal.spec.ts`) were
+  **(removed)** before they ever ran on the current `main`.
 
 ## Rate limiting
 
@@ -233,10 +250,12 @@ checked.
 
 ## Dependency vulnerabilities
 
-- `vuln` job run locally on 2026-09-25: govulncheck v1.8.0 over `./...`
-  and `npm audit --omit=dev` in `web/`; licenses checked by
-  `scripts/license-check.sh`. Result: finding F4. Pinned Go modules,
-  npm lockfiles, base images by digest and GitHub Actions by commit SHA.
+- Run locally on 2026-09-25: govulncheck v1.8.0 over `./...` and
+  `npm audit --omit=dev` in `web/`; licenses checked by
+  `scripts/license-check.sh`. Result: finding F4. None of these runs in CI
+  any more; repeat them by hand when dependencies change. Pinned Go
+  modules, npm lockfiles, base images by digest and workflow actions by
+  commit SHA.
 
 ## Residual limitations
 
@@ -253,14 +272,15 @@ checked.
    separately; the Recovery Key is all-or-nothing for backups.
 5. Audit tamper evidence is local; use the mirror for off-host retention.
 6. Rate limits are in memory and reset on restart.
-7. Real agent sessions through each example proxy
-   (`TestTLSProxyAgentSessions`, #27) run with a scripted Engine; a real
-   Engine behind a proxy-connected agent is only exercised by the smoke
-   test's co-located agent, which uses the internal URL.
-8. Not yet executed because GitHub Actions is unavailable since
-   2026-09-25: the Docker-dependent suites (Engine matrix, Compose
-   fixtures, MinIO, TLS proxies, smoke against the published images) and
-   the Linux-only filesystem tests. Their pass status is pending, not
-   assumed (#12 closing comment).
-9. Firefox, Safari and mobile PWA installation are manual checks (V09,
-   V09m).
+7. Agent sessions through the example proxies, a real Engine behind a
+   proxy-connected agent and the published images are not verified by
+   automated tests: the proxy sessions test (`TestTLSProxyAgentSessions`,
+   #27) and the deploy smoke test were removed on 2026-09-25.
+8. Not verified by automated tests since 2026-09-25 (suites removed with
+   the move to Forgejo): the Docker-dependent suites (Engine matrix,
+   Compose fixtures, MinIO/S3 restic, TLS proxies, smoke against the
+   published images), browser flows and accessibility, fuzzing, race
+   detection and crash/kill recovery. Their pass status is unknown, not
+   assumed (see [support-matrix.md](../support-matrix.md#verification-status)).
+9. All browsers (Chromium included), mobile PWA installation and
+   accessibility of whole pages are manual checks.

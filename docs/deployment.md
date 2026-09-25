@@ -80,12 +80,12 @@ timeouts must be comfortably longer; 60 s (nginx's default) is fine.
 - Load balancers in front of the proxy (cloud LBs, CDNs) need an idle
   timeout above the heartbeat as well.
 
-The Playwright suite verifies this through each example proxy: an SSE
-stream and a WebSocket stay open through 70 s of silence (heartbeats and
-pings only), and heartbeats arrive as they are sent (no buffering).
-`TestTLSProxyAgentSessions` adds a terminal (exec WebSocket) idle for 70 s,
-agent sessions that reconnect after a cut connection or an agent restart,
-and a live stream resumed with `Last-Event-ID`, through each proxy.
+These settings are not verified end to end by automated tests any more:
+the former Playwright proxy specs and `TestTLSProxyAgentSessions` (SSE,
+WebSocket, terminal and agent sessions idle for 70 s through each example
+proxy, reconnects, `Last-Event-ID` resumes) were removed on 2026-09-25.
+`test/deploy` still checks the example files statically. After changing a
+proxy configuration, check an idle log stream and terminal by hand.
 
 ### Optional: restrict `/agent/v1` by IP
 

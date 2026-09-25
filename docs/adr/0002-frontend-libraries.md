@@ -137,7 +137,8 @@ Implications:
 - Heavy libraries are only reachable through `import()` in
   `src/lib/lazy/index.ts` (`mountYamlEditor`, `mountLineChart`,
   `mountTerminal`). Views import these helpers, never the libraries.
-  `verify-build.mjs` (part of `scripts/web-check.sh`) fails if a CodeMirror,
+  `verify-build.mjs` (part of `scripts/web-check.sh`; since 2026-09-25 the
+  `build` class of `scripts/check.sh`) fails if a CodeMirror,
   ECharts or xterm.js module lands in a chunk that any entry imports
   statically.
 - More CodeMirror languages (`.env`, JSON, Dockerfile, ...) are added as
@@ -145,7 +146,9 @@ Implications:
 - Route-level code splitting (SvelteKit nodes) covers mid-size libraries
   such as Bits UI. The #11 `/lazy-proof` page was replaced by the design
   gallery `/design` (#22), which keeps the same lazy-loading controls for
-  `e2e/tests/pwa.spec.ts`.
+  `e2e/tests/pwa.spec.ts`. (Note, 2026-09-25: the Playwright suite was
+  removed; lazy loading in a real browser is no longer verified
+  automatically, only by `verify-build.mjs` on the build output.)
 
 ### Generated client and Svelte Query
 

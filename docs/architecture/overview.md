@@ -1,8 +1,10 @@
 # Architecture overview
 
 DockYard is a centralized manager with a web UI that controls Docker Engines
-on several machines through enrolled agents. The roadmap and decisions live
-in GitHub issues #1 (roadmap) and #25 (decision register).
+on several machines through enrolled agents. The code lives at
+`https://code.neureka.dev/dockyard/dockyard`; the roadmap and decisions are
+recorded in the GitHub issues of `neurekadev/dockyard`, #1 (roadmap) and
+#25 (decision register).
 
 ## Components
 
@@ -30,7 +32,7 @@ in GitHub issues #1 (roadmap) and #25 (decision register).
   directory mounted at its identical host path (#28).
 - **Images** — separate manager and agent images from `deploy/docker/`, each
   with its static binary and a pinned, checksum-verified restic. Published as
-  rolling `ghcr.io/neurekadev/dockyard-{manager,agent}:edge` from `main`.
+  rolling `code.neureka.dev/dockyard/dockyard-{manager,agent}:edge` from `main`.
 
 ## Package boundaries
 
@@ -51,7 +53,7 @@ in GitHub issues #1 (roadmap) and #25 (decision register).
 | `internal/manager/observe` | Observation (#5): metrics collector over the agent session, Engine inventory cache, per-environment event journal for `stream-environment-events` | `metrics`, `events`, `protocol`, `domain` |
 | `internal/agent/observe` | Agent telemetry (#5): procfs host sampler, container stats via the Engine adapter, bounded sample ring, `engine.info`, Docker event relay | `agent/engine`, `agent/session`, `protocol` |
 | `internal/jobspec` | Job kind catalog and lock definitions (shared by manager and agent) | `domain` |
-| `internal/jobexec` | Journaled step runner (shared by manager and agent) | `jobspec`, `protocol`, `faultinject` |
+| `internal/jobexec` | Journaled step runner (shared by manager and agent) | `jobspec`, `protocol` |
 | `internal/agent/jobs` | Agent job runner: fencing, fsync'd journal, reconnect report | `jobexec`, `protocol` |
 | `internal/agent/resources` | Docker resource requests and job executors (#6) over the Engine adapter | `engine`, `session`, `jobexec`, `protocol` |
 | `internal/manager/resources` | Docker resources of every environment (#6): agent requests, job requests, recreate specifications, Locators, self-protection checks (#32) | `store`, `jobs`, `authz`, `permissions`, `protection`, `protocol` |
@@ -61,13 +63,12 @@ in GitHub issues #1 (roadmap) and #25 (decision register).
 | `internal/manager/migrations` | Environment migration (#35): previews, the `stack.migrate`/`volume.migrate` executors relaying data between agents, source removals | `jobs`, `store`, `authz`, `permissions`, `registries`, `transfer`, `protocol` |
 | `internal/agent/migration` | Agent side of migrations (#35): contained tar archive/extract, send/receive streams, stop/start/commit/cleanup requests, `stack.remove_source` | `engine`, `compose`, `lifecycle`, `protect`, `storage`, `transfer`, `protocol` |
 | `internal/transfer` | Checksummed chunk framing and bandwidth limiter of migration data (shared) | `clock` |
-| `internal/faultinject` | Named fault points, no-op unless built with `-tags faultinject` | stdlib |
 | `internal/db/migrations` | Versioned Bun migrations (one file each) | `bun` |
 | `internal/agent/config`, `internal/agent/runtime` | Agent configuration and main loop | `protocol`, shared |
 | `internal/protocol` | Manager↔agent frame envelope (`dockyard.agent/v1`) | stdlib, websocket |
 | `internal/domain` | Shared domain types, no HTTP/DB/Docker concerns | stdlib |
 | `internal/clock`, `internal/logging`, `internal/envconfig`, `internal/ids`, `internal/buildinfo` | Small shared utilities | stdlib |
-| `internal/testutil` | Test-only helpers | anything |
+| `internal/testutil` | Test-only helpers (canaries, in-memory hostile path corpus `fscorpus`) | anything |
 | `web/` | SvelteKit app, generated API client, `embed.go` | — |
 
 Rules: the agent never imports `internal/manager/...` (enforced by

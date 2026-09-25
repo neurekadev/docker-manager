@@ -9,23 +9,50 @@
 | golangci-lint | v2.13.2 | `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2` |
 | bash | Git Bash on Windows, any bash on Linux/macOS | All gates are bash scripts; there is no Makefile. |
 
-Docker is **not** required locally. Everything that needs a Docker Engine
-(image builds, Engine/Compose integration tests, E2E) runs in GitHub Actions.
-Keep such tests behind the `integration` or `e2e` build tags (or under
-`test/`) so `go test ./...` stays Docker-free.
+Docker is **not** required locally, and no automated check needs it: the
+tests are isolated unit tests with in-memory fakes. Only the image builds
+need Docker; they run in CI.
 
-## Everyday commands
+The code lives at `https://code.neureka.dev/dockyard/dockyard` (Forgejo);
+the GitHub issues of `neurekadev/dockyard` stay the written record of the
+roadmap and decisions.
+
+## Local gate and CI
+
+`bash scripts/check.sh` must pass before every push. It mirrors the `Lint`,
+`Unit Tests` and `Build` jobs of `.github/workflows/CI.yaml` and fails fast
+with a summary. Run one or more classes with
+`bash scripts/check.sh lint|unit-tests|build`:
+
+| class | what runs |
+| --- | --- |
+| `lint` | gofmt on the tracked Go files; `npm --prefix web run format:check` (Prettier); golangci-lint v2.13.2, also with `GOOS=linux` on non-Linux hosts (govet runs inside golangci-lint); `scripts/policy-check.sh` (legacy Docker imports, CLI execution, CRLF, LICENSE, mockup); `npm --prefix web run lint` (ESLint) |
+| `unit-tests` | `go test ./...` (`CGO_ENABLED=0`); `npm --prefix web run test` (Vitest: `*.spec.ts` in Node, `*.test.ts` in jsdom) |
+| `build` | `npm --prefix web run build` + `node web/scripts/verify-build.mjs`; `go build ./...`; `bash scripts/build-static.sh` (static linux/amd64 and linux/arm64 binaries into `DIST_DIR`, default `dist/`) |
+
+CI (Forgejo Actions on code.neureka.dev) runs on pushes to `main` and on
+manual dispatch only; there is no pull-request trigger. Besides the three
+classes above it builds the linux/amd64 manager and agent images with
+BuildKit and, on `main`, publishes them as `:edge` with BuildKit provenance
+and SBOM attestations ([deploy/README.md](../deploy/README.md)); the
+`Build` job uploads the release
+binaries as the artifact `release-binaries-linux`. linux/arm64 images are
+blocked until a native arm64 runner exists; the arm64 binaries are built
+but not run.
+
+Not part of the gate or CI any more (run them by hand when relevant):
 
 ```bash
-bash scripts/check.sh          # the full local gate (run before every push)
-bash scripts/go-check.sh       # gofmt, go vet, golangci-lint, go test
-bash scripts/web-check.sh      # npm ci (if needed), lint, svelte-check, vitest, build
-bash scripts/policy-check.sh   # repository policy (legacy Docker imports, CRLF, LICENSE, mockup)
-bash scripts/generate.sh       # regenerate api/openapi.json + web/src/lib/api/schema.d.ts
+npm --prefix web run check     # svelte-check / TypeScript
+bash scripts/generate.sh       # regenerate api/openapi.json, schema.d.ts, the job-engine lock table
 bash scripts/generate.sh --check
-bash scripts/build-static.sh   # linux amd64/arm64 static binaries into dist/
 bash scripts/license-check.sh  # dependency license allowlist (Go + npm production)
+govulncheck ./...              # when adding or bumping dependencies
 ```
+
+Race detection, fuzzing, coverage, the API breaking-change check and all
+Docker-, browser- or proxy-backed suites were removed on 2026-09-25 with
+the move to Forgejo.
 
 ## Running locally
 
@@ -45,178 +72,24 @@ writes `web/build/app`, which `web/embed.go` picks up automatically).
 The agent refuses to run as non-root and targets Linux; run it in its
 container (see `deploy/`) rather than on a Windows host.
 
-## UI devstack (no Docker)
-
-`test/devstack` runs a real manager on localhost plus in-process agents over
-in-memory fake Docker Engines (`internal/agent/engine/enginefake`), seeded
-with a small homelab, so UI work and Playwright need no Docker Engine:
-
-```bash
-npm --prefix web run build            # the devstack serves web/build/app from disk
-go run ./test/devstack                # http://localhost:8080, seeded, owner signed up
-go run ./test/devstack -setup         # first-run setup still open (no accounts, no jobs)
-go run ./test/devstack -addr 127.0.0.1:8090 -keep -log-level info
-go run ./test/devstack -control 127.0.0.1:8081   # tests may change the Engines directly
-```
-
-`-control` (loopback only, off by default) serves
-`POST /engines/{environment}/containers/{container}/stop|start`: it changes
-the fake Engine directly, bypassing DockYard, the way `docker stop` on the
-host would, so the Docker event reaches the UI through the production relay
-(`e2e/tests/live-ui.spec.ts`, `E2E_DEVSTACK_CONTROL`).
-
-It prints the environments and credentials:
-
-| account | password | access |
-| --- | --- | --- |
-| `admin` (owner) | `dockyard-devstack-owner` | everything |
-| `guest` | `dockyard-devstack-guest` | Restricted (the denied state) |
-
-Seeded data:
-
-- **homelab** (online, service address `192.168.1.10`): the stack **Silo**
-  (services `silo-web`, `silo-api`, `silo-db`, `silo-redis`, `silo-worker`
-  with the #22 display metadata; descriptions and icons are DockYard
-  metadata, not images), the stack **Media** (`jellyfin`), standalone
-  `homeassistant`, `pihole` and an exited `backup-runner`, volumes,
-  networks and images; DockYard itself as the co-located Compose project
-  `dockyard` (`dockyard-manager`, and `dockyard-agent`, which the agent's
-  guard knows as its own container) with its data, agent state and stacks
-  volumes, and an exited one-off `docker compose run` container of the
-  manager, all protected (#32): a prune preview lists the one-off as
-  protected, and the agents serve the production backup scope preview, so a
-  policy that selects `dockyard_data` shows it excluded with the reason.
-  Silo has a revision history: the owner deployed it (a `stack.deploy`
-  job, revision 2), then `compose.yaml` was edited on the host (revision
-  3: **Undeployed changes**). A Compose project `grafana` runs unmanaged
-  with its files in the stacks volume (adoptable in place).
-- **nas** (online): `syncthing`, `samba` and stopped leftovers for prune;
-  the volumes `media_archive` (NFS-backed) and `offsite_backups` (plugin
-  driver), which DockYard lists read-only; an unmanaged Compose project
-  `paperless` whose files are outside any stack root (import with a
-  source).
-- **edge** (arm64): enrolled, then disconnected, so it is **offline**; its
-  stack **Sensors** shows the read-only last known state.
-- Metrics: a 30-minute history and a live 10 s sampler per host and
-  container (smooth, deterministic curves); `engine.info` inventories.
-  Each agent's history is collected (through the production collector)
-  before the devstack reports ready, so the dashboard has usage from the
-  first load and **edge** keeps its last known values; its offline time
-  shows as a growing gap in its charts.
-- Jobs: a container restart (succeeded), a container start that fails, and
-  a prune run with one failed removal (**partial**).
-- Schedules: the prune policy (disabled) and an update policy for Silo whose
-  check runs Sundays at 02:30 Europe/Berlin (enabled; its fifth next run
-  falls on the repeated hour of the October DST change).
-- Container logs: a few lines per service, followed every 4 s.
-- Files (#15, #23): each host has a real "Docker volume directory" at
-  `<data>/hosts/<host>/volumes` (default data: `<tmp>/dockyard-devstack`)
-  with the volumes' `_data` folders and the stacks volume
-  (`dockyard_stacks/_data/<stack>`: Silo's project with `config/`,
-  `data/thumbnails/` of 1 200 files, `README.md`, …). The agents serve them
-  with the production file service and watcher: the file manager, uploads,
-  archives and jobs work, and editing a file there with any editor shows up
-  in an open listing (and as an editor conflict) within seconds.
-- Automation (#20, #14): the update policy **Silo images** with the result
-  of an earlier digest check (an update on a `latest` tag, a quarantined
-  digest with history, an up-to-date, an excluded and a failed service; the
-  devstack has no registry, so a new check reports its errors) and the
-  maintenance policy **Weekly cleanup** on homelab.
-- Backups (#10): an in-memory restic (`restictest`, persisted to
-  `<-backups>/restic-state.json`) behind local repositories below
-  `-backups` (default `<tmp>/dockyard-devstack-backups`): **Manager disk**
-  (Recovery Key generated, confirmed and printed), **Homelab disk** and
-  **NAS disk** (awaiting its key confirmation); the policies **Manager
-  state** (a complete set) and **Nightly** (partial: the devstack agents run
-  no restic, so the Silo member fails).
-- Import (#24): a seeded run starts `-backups` fresh; a later `-setup` run
-  keeps it, so setup's **Import from backup** can restore it (directory
-  `<-backups>/manager`, the printed Recovery Key).
-- Credentials and builds: registry connections (GHCR for `silo/*`, Docker
-  Hub bound to homelab, a revoked mirror), a Git credential, the build
-  definition `silo-web` and two past builds (records only: the devstack
-  cannot run BuildKit, so their logs are absent). The secrets are
-  placeholders; connection tests fail against the real registries.
-
-What is simulated: the Docker Engines, host metrics, container logs and
-the Compose side of the agent (`test/devstack/stacks.go`): `compose.read`,
-`compose.validate` and `compose.write` work on the project directories on disk
-(validation parses services, ports, depends_on and volumes and warns about
-`version:` and bind paths outside the project); stack deploys, downs,
-removals and builds are simulated steps that create, start and remove the
-fake Engine's containers with Compose's labels; `migration.preview` answers
-both ends from the fake Engines. `compose.discover` and stack
-start/stop/restart are the production handlers and executors
-(`internal/agent/stacks` over `internal/agent/lifecycle`). Everything
-between the public API and the agent is production code, so the
-migration preflight is the real one; the migration's data transfer is
-refused, so a started migration fails after stopping the source and the
-manager's compensation starts it again. Not available: exec terminals,
-real Compose semantics (recreation rules, healthcheck timing, builds) and
-completed migrations (use the CI suites). The
-devstack is a test tool under `test/`: it is never part of the images or
-`scripts/build-static.sh`, refuses non-loopback addresses and prints
-credentials, so never expose it.
-
-Rebuild the UI and restart the devstack to see UI changes (the manager
-reads the UI files at start). For hot reload, run `npm --prefix web run dev`
-and point its proxy at the devstack (`vite.config.ts` proxies `/api` to
-`127.0.0.1:8080`).
-
-### Playwright against the devstack
-
-`bash scripts/ci/e2e-devstack.sh` runs every UI spec, each against a fresh
-devstack on port 8090, exactly as the extended `e2e-devstack` job does
-(`bash scripts/ci/e2e-devstack.sh stacks live` for some groups;
-[testing/harness.md](testing/harness.md#playwright-against-the-devstack)).
-By hand:
-
-```bash
-cd e2e && npm ci && npx playwright install chromium
-go run ./test/devstack -setup               # fresh manager for the setup flow (other terminal)
-E2E_BASE_URL=http://localhost:8080 npx playwright test tests/ui.spec.ts
-# a seeded devstack (setup done): tell the spec who the owner is
-E2E_BASE_URL=http://localhost:8080 E2E_UI_OWNER=admin E2E_UI_PASSWORD=dockyard-devstack-owner \
-  npx playwright test tests/ui.spec.ts
-# review screenshots at 1440x900 and 390x844 (keep them outside the repo)
-E2E_SCREENSHOTS_DIR=/tmp/dockyard-shots E2E_BASE_URL=http://localhost:8080 npx playwright test tests/ui.spec.ts
-# the stack pages (#22 track B2) need the seeded devstack; deploys and
-# deletes change it, so restart the devstack before running them again
-E2E_BASE_URL=http://localhost:8080 E2E_UI_OWNER=admin E2E_UI_PASSWORD=dockyard-devstack-owner \
-  npx playwright test tests/stacks.spec.ts
-```
-
-The file manager and log viewer specs use the seeded Silo stack; the
-host-side edit test writes into its project directory:
-
-```bash
-E2E_BASE_URL=http://localhost:8080 E2E_UI_OWNER=admin E2E_UI_PASSWORD=dockyard-devstack-owner \
-  E2E_FILES_STACK_DIR=/tmp/dockyard-devstack/hosts/homelab/volumes/dockyard_stacks/_data/silo \
-  npx playwright test tests/ui-files.spec.ts tests/ui-logs.spec.ts
-```
-
-Accessibility (axe on every main route, keyboard-only checks) and live
-convergence in the real screens (start the devstack with `-control`):
-
-```bash
-E2E_BASE_URL=http://localhost:8080 E2E_UI_OWNER=admin E2E_UI_PASSWORD=dockyard-devstack-owner \
-  E2E_DEVSTACK_CONTROL=http://127.0.0.1:8081 \
-  npx playwright test tests/a11y.spec.ts tests/live-ui.spec.ts
-```
-
-`tests/ui-terminal.spec.ts` needs exec on a real Engine (CI, `E2E_TERMINAL_*`).
-`tests/pwa.spec.ts` and `tests/smoke.spec.ts` also run against the devstack;
-only their final HTTPS assertions fail on plain `http://localhost` (CI runs
-them behind the TLS proxies of `e2e/compose.yaml`). Design review rules:
-[design/README.md](design/README.md#tests-and-screenshot-review).
+Without an agent the manager has no environments: setup, sign-in, users,
+groups, settings, API tokens and the empty states work, but every Docker
+screen needs an agent connected to a real Docker Engine. For the full stack
+run the images with one of the `deploy/` examples on a Linux host with
+Docker ([deployment.md](deployment.md)); the Docker-free development stack
+with fake Engines (`test/devstack`) was removed on 2026-09-25. Design
+review rules: [design/README.md](design/README.md#tests-and-screenshot-review).
 
 ## Generated artifacts
 
 `api/openapi.json` and `web/src/lib/api/schema.d.ts` are generated and
 committed. After changing any Huma operation or DTO run
-`bash scripts/generate.sh` and commit both files.
-`TestOpenAPISnapshot` and `generate.sh --check` (CI `policy` job) fail when
-they are stale.
+`bash scripts/generate.sh` and commit both files. `TestOpenAPISnapshot`
+(part of `go test ./...`) fails when `api/openapi.json` is stale;
+`generate.sh --check` also compares `schema.d.ts` and the job-engine lock
+table but no longer runs in the gate or CI, so run it by hand. Breaking
+API changes are reviewed in the `api/openapi.json` diff
+([api/versioning.md](api/versioning.md)).
 
 ## Web UI embedding
 
@@ -236,25 +109,28 @@ Web UI structure, the generated-client workflow and PWA behaviour:
 
 ## Tests
 
+The standard suite is format/lint plus isolated unit tests (owner decision,
+2026-09-25).
+
 - Unit tests live next to the code (`foo_test.go`) and must be Docker-free,
-  deterministic and fast. Use `internal/clock` (`clock.NewFake`,
-  `testutil.FakeClock()`) instead of sleeping; `testutil.Logger(t)` and
-  `testutil.CaptureLogger()` for logs.
-- Build tags: `integration` (needs a Docker Engine; CI extended workflow),
-  `e2e` (browser/proxy end-to-end). Tagged tests go in `test/` or next to the
-  code with `//go:build integration`.
-- Fuzz targets (`FuzzXxx`) run their seed corpus in `go test`; the extended
-  workflow runs real fuzzing.
-- `extended.yaml` runs the slower suites (race, fuzz, Engine matrix,
-  Compose fixtures, storage, filesystem security, fault injection, secret
-  canaries, Playwright E2E, deploy smoke) on `main`, nightly and on demand:
-  `gh workflow run extended.yaml --ref <branch> -f suites=race,fuzz`.
-- Shared test infrastructure: `internal/testharness` (DinD Engines from
-  `test/matrix/engines.json`, registry with fault proxy, Git server, MinIO,
-  restic, TLS proxy), `internal/testutil/canary` (secret canaries),
-  `internal/testutil/fscorpus` (traversal/archive/TOCTOU corpora), `e2e/`
-  (Playwright). See [docs/testing/harness.md](testing/harness.md) and the
-  release map [docs/testing/verification-matrix.md](testing/verification-matrix.md).
+  deterministic and fast; `go test ./...` runs all of them. They may use
+  in-process fakes (`enginefake`, `restictest`, `regclient/regtest`,
+  `streammux/muxtest`, `migrationtest`, `containerio/ciotest`), `httptest`
+  servers, temporary directories and SQLite files under `t.TempDir()`; they
+  never start containers, a Docker Engine, browsers, real registries or
+  restic (the restic runner's test re-executes the test binary as a fake
+  restic).
+- Use `internal/clock` (`clock.NewFake`, `testutil.FakeClock()`) instead of
+  sleeping; `testutil.Logger(t)` and `testutil.CaptureLogger()` for logs.
+- Shared test infrastructure: `internal/testutil/canary` (secret canaries),
+  `internal/testutil/fscorpus` (hostile path and archive corpus, generated
+  in memory), `test/deploy` (static checks of the `deploy/` example files:
+  topology, pinning, volumes, proxy settings, known variables).
+- Web: Vitest, `*.spec.ts` for Node logic and `*.test.ts` for jsdom
+  component tests ([web.md](web.md#tests)).
+- There are no build-tagged (`integration`, `e2e`, `faultinject`), fuzz,
+  race, benchmark, smoke or browser suites any more. What that leaves
+  unverified is listed in [support-matrix.md](support-matrix.md#verification-status).
 
 ## Line endings
 

@@ -2,11 +2,13 @@
 
 DockYard ships two images, published from `main` as the rolling `edge` tag:
 
-- `ghcr.io/neurekadev/dockyard-manager:edge` — UI, API, agent endpoint, SQLite
-- `ghcr.io/neurekadev/dockyard-agent:edge` — one per Docker Engine, outbound only
+- `code.neureka.dev/dockyard/dockyard-manager:edge` — UI, API, agent endpoint, SQLite
+- `code.neureka.dev/dockyard/dockyard-agent:edge` — one per Docker Engine, outbound only
 
-Both run as root (UID 0); running them as a non-root user is not supported.
-There are no semver releases yet.
+Both are published for linux/amd64 only (arm64 images are blocked until a
+native arm64 build runner exists) and carry BuildKit provenance and SBOM
+attestations. Both run as root (UID 0); running them as a non-root user is
+not supported. There are no semver releases yet.
 
 DockYard runs behind your TLS-terminating reverse proxy on one public origin
 (#27). Pick an example; each runs the manager, a co-located agent on the
@@ -22,21 +24,23 @@ internal URL and the proxy. Agents on other hosts use `remote-agent/`.
 Proxy requirements, timeouts, body sizes, trusted proxies, the optional IP
 allowlist for `/agent/v1`, first-run HTTPS and a complete two-environment
 walkthrough: [`docs/deployment.md`](../docs/deployment.md). Every variable:
-[`docs/configuration.md`](../docs/configuration.md). The Playwright suite
-runs these proxy configurations unchanged (`e2e/compose.yaml`).
+[`docs/configuration.md`](../docs/configuration.md). `test/deploy` checks
+these files statically (topology, pinning, volumes, proxy settings, known
+variables); the proxies themselves are not exercised by automated tests.
 
 ## Quick start: manager + local agent behind Caddy
 
-Requirements: a Linux host (amd64 or arm64) with Docker Engine 25.0 or
+Requirements: a Linux amd64 host with Docker Engine 25.0 or
 later and the Compose plugin, using the default data root
 (`/var/lib/docker`). Rootless Engines, Docker Desktop and NAS vendor Engines
 are not supported; see [../docs/support-matrix.md](../docs/support-matrix.md).
 
-The packages are private, so log in to GHCR first with a GitHub personal
-access token that has `read:packages`:
+The registry is private, so log in to `code.neureka.dev` first with your
+Forgejo username and a Forgejo access token that has the `read:package`
+scope:
 
 ```bash
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
+echo "$FORGEJO_TOKEN" | docker login code.neureka.dev -u <forgejo-user> --password-stdin
 
 cd deploy/caddy
 cp .env.example .env        # set DOCKYARD_HOST to your DNS name (default: localhost)

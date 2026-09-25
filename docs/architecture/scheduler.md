@@ -39,7 +39,8 @@ local time falls into a DST gap and can run a repeated local time twice
 after clocks fall back. DockYard promises the two rules below, so
 `internal/cron` computes candidate *civil* (wall-clock) minutes without
 zone arithmetic and maps each to an instant explicitly. It is ~300 lines,
-has no dependency and is fuzzed (`FuzzParse`).
+has no dependency and is covered by unit tests (the former fuzz target
+`FuzzParse` was removed on 2026-09-25).
 
 ### Daylight saving time
 
