@@ -8363,6 +8363,8 @@ export interface components {
         StackLocation: {
             /** @description Project directory relative to the root. */
             dir: string;
+            /** @description The project directory's host path (GET of one stack with stack.definition.read, when the agent reported its stacks root). */
+            hostPath?: string;
             /**
              * @description stacks: the environment's stacks volume; bind: a registered stack root (#28).
              * @enum {string}

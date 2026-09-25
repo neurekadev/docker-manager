@@ -28,10 +28,22 @@
 		// The first tab is the base path; others match by prefix.
 		return href === items[0]?.href ? current === href : current.startsWith(href);
 	}
+
+	// On narrow screens the tabs scroll sideways: keep the current one in
+	// view (deep links to a later tab would otherwise hide it).
+	let nav = $state<HTMLElement>();
+	$effect(() => {
+		void current;
+		const el = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+		if (!nav || !el) return;
+		const left = el.offsetLeft - nav.offsetLeft;
+		if (left < nav.scrollLeft || left + el.offsetWidth > nav.scrollLeft + nav.clientWidth)
+			nav.scrollLeft = Math.max(0, left - 16);
+	});
 </script>
 
 <div class="tabnav">
-	<nav aria-label={label}>
+	<nav aria-label={label} bind:this={nav}>
 		<ul role="list">
 			{#each items as item (item.href)}
 				<li>
@@ -117,5 +129,21 @@
 
 	.after {
 		flex-shrink: 0;
+	}
+
+	@media (max-width: 767px) {
+		/* The chip gets its own line instead of pushing tabs out of view. */
+		.tabnav {
+			flex-wrap: wrap;
+			row-gap: var(--space-2);
+		}
+
+		nav {
+			flex: 1 1 100%;
+		}
+
+		.after {
+			order: -1;
+		}
 	}
 </style>

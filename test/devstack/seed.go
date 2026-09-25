@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -301,10 +302,50 @@ func (s *seeder) seedAccountsAndJobs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := s.seedSiloHistory(ctx, owner); err != nil {
+		return err
+	}
 	if err := s.seedAdmin(ctx, owner); err != nil {
 		return err
 	}
 	return s.seedCredentialsAndBuilds(ctx, owner)
+}
+
+// seedSiloHistory gives Silo a revision history (#7, #22 Revisions tab):
+// the owner deploys it (a simulated stack.deploy job, revision 2), then
+// compose.yaml is edited on the host (revision 3, "Undeployed changes").
+func (s *seeder) seedSiloHistory(ctx context.Context, owner *apiClient) error {
+	id := s.stacks["silo"]
+	if id == "" {
+		return nil
+	}
+	type jobRef struct {
+		ID string `json:"id"`
+	}
+	var j jobRef
+	if _, err := owner.do(ctx, http.MethodPost, "/api/v1/stacks/"+id+"/deployments", map[string]any{}, &j, "Idempotency-Key", "devstack-deploy-silo"); err != nil {
+		return err
+	}
+	s.jobs = append(s.jobs, j.ID)
+	if err := s.waitJob(ctx, owner, j.ID); err != nil {
+		return err
+	}
+	projectsMu.Lock()
+	root, err := os.OpenRoot(filepath.FromSlash(s.hosts[0].stacksDir))
+	if err == nil {
+		var b []byte
+		if b, err = root.ReadFile("silo/compose.yaml"); err == nil {
+			err = root.WriteFile("silo/compose.yaml", []byte(strings.Replace(string(b), "    image: ghcr.io/silo/worker:latest\n",
+				"    image: ghcr.io/silo/worker:latest\n    environment:\n      - QUEUE_CONCURRENCY=4\n", 1)), 0o644)
+		}
+		_ = root.Close()
+	}
+	projectsMu.Unlock()
+	if err != nil {
+		return err
+	}
+	_, err = s.m.Stacks().RecordObserved(ctx, id, domain.RevisionExternal, authz.Service())
+	return err
 }
 
 func (s *seeder) waitJob(ctx context.Context, c *apiClient, id string) error {

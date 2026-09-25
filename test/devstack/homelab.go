@@ -162,6 +162,57 @@ volumes:
   config:
 `
 
+const sensorsCompose = `services:
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:1.40
+    restart: unless-stopped
+    ports:
+      - "8088:8080"
+`
+
+const grafanaCompose = `services:
+  grafana:
+    image: grafana/grafana:11.2.0
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  grafana-data:
+`
+
+// unmanagedProject is a Compose project started outside DockYard (the
+// discovery/import page's material, #7): its containers carry Compose's
+// labels with workingDir; its files exist only when dir is in the stacks
+// volume.
+type unmanagedProject struct {
+	name, workingDir string
+	services         []serviceSeed
+}
+
+func addUnmanaged(fe *devEngine, p unmanagedProject) {
+	network := p.name + "_default"
+	fe.AddNetwork(network, map[string]string{protocol.ComposeProjectLabel: p.name, "com.docker.compose.network": "default"})
+	for _, svc := range p.services {
+		labels := map[string]string{protocol.ComposeProjectLabel: p.name, protocol.ComposeServiceLabel: svc.name,
+			protocol.ComposeWorkingDirLabel: p.workingDir, "com.docker.compose.container-number": "1",
+			"com.docker.compose.project.config_files": p.workingDir + "/compose.yaml"}
+		spec := engine.ContainerSpec{Name: p.name + "-" + svc.name + "-1", Image: svc.image, NetworkMode: network, Labels: labels,
+			RestartPolicy: "unless-stopped", Ports: svc.ports, NetworkAliases: []string{svc.name}}
+		if svc.volume != "" {
+			name, target, _ := cut(svc.volume)
+			fe.AddVolume(name, map[string]string{protocol.ComposeProjectLabel: p.name, "com.docker.compose.volume": name})
+			spec.Mounts = []engine.MountSpec{{Type: "volume", Source: name, Target: target}}
+		}
+		id := fe.AddContainer(spec, false)
+		if svc.running {
+			_ = fe.StartContainer(context.Background(), id)
+		}
+	}
+}
+
 func newHomelab(dataDir string) []*homelabHost {
 	homelab := &homelabHost{name: "homelab", hostname: "homelab", os: "Debian GNU/Linux 12 (bookworm)", kernel: "6.1.0-25-amd64",
 		serviceAddress: "192.168.1.10", cpus: 4, memory: 8 * gib, baseMemory: 520 * mib, baseCPU: 3,
@@ -238,6 +289,11 @@ func newHomelab(dataDir string) []*homelabHost {
 	fe.AddImage("alpine:3.20")
 	fe.AddImage("postgres:15")
 	addDockYard(homelab)
+	homelab.projects["grafana"] = &project{files: map[string]string{"compose.yaml": grafanaCompose}}
+	addUnmanaged(fe, unmanagedProject{name: "grafana", workingDir: homelab.stacksDir + "/grafana", services: []serviceSeed{
+		{name: "grafana", image: "grafana/grafana:11.2.0", running: true, volume: "grafana_grafana-data:/var/lib/grafana",
+			ports: []engine.PortBinding{{ContainerPort: 3000, HostPort: 3000}}},
+	}})
 
 	// nas: file services and stopped leftovers (the prune run's candidates).
 	fe = nas.engine
@@ -254,10 +310,26 @@ func newHomelab(dataDir string) []*homelabHost {
 	_, _ = fe.CreateVolume(context.Background(), engine.VolumeSpec{Name: "media_archive",
 		DriverOpts: map[string]string{"type": "nfs", "o": "addr=192.168.1.20,rw,nfsvers=4", "device": ":/export/media"}})
 	_, _ = fe.CreateVolume(context.Background(), engine.VolumeSpec{Name: "offsite_backups", Driver: "rclone"})
+	addUnmanaged(fe, unmanagedProject{name: "paperless", workingDir: "/srv/compose/paperless", services: []serviceSeed{
+		{name: "webserver", image: "ghcr.io/paperless-ngx/paperless-ngx:2.12", running: true,
+			ports: []engine.PortBinding{{ContainerPort: 8000, HostPort: 8000}}},
+		{name: "broker", image: "redis:7-alpine", running: true},
+	}})
 
 	// edge: one broker, disconnected after seeding.
 	edge.engine.AddContainer(engine.ContainerSpec{Name: "mqtt-broker", Image: "emqx/emqx:5.8", RestartPolicy: "unless-stopped",
 		Ports: []engine.PortBinding{{ContainerPort: 1883, HostPort: 1883}}}, true)
+	// A stack on edge: read-only with its last known state once edge is
+	// offline (#7, #22 offline state).
+	edge.projects["sensors"] = &project{files: map[string]string{"compose.yaml": sensorsCompose}}
+	edge.stacks = []stackSeed{{name: "sensors", displayName: "Sensors", description: "Zigbee and MQTT bridge", icon: "zap",
+		deployedAgo: 3 * 24 * time.Hour, services: []serviceSeed{
+			{name: "zigbee2mqtt", image: "koenkk/zigbee2mqtt:1.40", description: "Zigbee bridge", running: true,
+				ports: []engine.PortBinding{{ContainerPort: 8080, HostPort: 8088}}},
+		}}}
+	for _, st := range edge.stacks {
+		addStack(edge.engine, edge.stacksDir, st)
+	}
 	return []*homelabHost{homelab, nas, edge}
 }
 

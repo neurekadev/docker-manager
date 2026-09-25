@@ -7,6 +7,8 @@
 		/** Full value on hover (e.g. the real host path of a stack). */
 		title?: string;
 		mono?: boolean;
+		/** A value to copy with a button after the item (e.g. the host path). */
+		copy?: { value: string; what: string };
 	}
 </script>
 
@@ -16,6 +18,7 @@
 	// an icon-led meta row with thin dividers, and the page actions.
 	import type { Snippet } from 'svelte';
 	import type { TileColor } from '$lib/design/hue';
+	import CopyButton from './CopyButton.svelte';
 	import IconTile from './IconTile.svelte';
 
 	interface Props {
@@ -46,6 +49,7 @@
 					<li title={m.title}>
 						{#if Icon}<Icon size={16} strokeWidth={1.75} aria-hidden="true" />{/if}
 						<span class:mono={m.mono}>{m.label}</span>
+						{#if m.copy}<CopyButton value={m.copy.value} what={m.copy.what} />{/if}
 					</li>
 				{/each}
 			</ul>

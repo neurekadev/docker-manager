@@ -17,6 +17,10 @@
 		tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
 		badge?: number;
 		ref?: HTMLButtonElement | null;
+		/** Render a link with the button's look (e.g. "Open silo-web"). */
+		href?: string;
+		/** With href: open in a new tab (external service links). */
+		external?: boolean;
 	}
 
 	let {
@@ -28,6 +32,8 @@
 		tooltip = true,
 		tooltipSide = 'top',
 		badge,
+		href,
+		external = false,
 		type = 'button',
 		ref = $bindable(null),
 		class: cls = '',
@@ -41,6 +47,19 @@
 			(rest as Record<string, unknown>)['aria-expanded'] === 'true'
 	);
 </script>
+
+{#snippet link(props: Record<string, unknown>)}
+	<a
+		{...props}
+		{href}
+		class="icon-btn {variant} {size} {cls}"
+		aria-label={label}
+		target={external ? '_blank' : undefined}
+		rel={external ? 'noopener noreferrer' : undefined}
+	>
+		<Icon size={size === 'sm' ? 16 : 18} strokeWidth={1.75} aria-hidden="true" />
+	</a>
+{/snippet}
 
 {#snippet button(props: Record<string, unknown>)}
 	<button
@@ -58,7 +77,13 @@
 	</button>
 {/snippet}
 
-{#if tooltip}
+{#if href}
+	{#if tooltip}
+		<Tooltip text={label} side={tooltipSide} trigger={link} />
+	{:else}
+		{@render link({})}
+	{/if}
+{:else if tooltip}
 	<Tooltip text={label} side={tooltipSide} trigger={button} disabled={popupOpen} />
 {:else}
 	{@render button({})}
@@ -85,6 +110,10 @@
 		width: var(--control-height-sm);
 		height: var(--control-height-sm);
 		border-radius: var(--radius-sm);
+	}
+
+	a.icon-btn {
+		text-decoration: none;
 	}
 
 	.icon-btn:hover:not(:disabled),

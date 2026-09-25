@@ -136,6 +136,15 @@ type StackEngineState struct {
 type StackLocation struct {
 	Root string `json:"root" enum:"stacks,bind" doc:"stacks: the environment's stacks volume; bind: a registered stack root (#28)."`
 	Dir  string `json:"dir" doc:"Project directory relative to the root."`
+	// HostPath is only set on GET /stacks/{stackId} with
+	// stack.definition.read (host paths follow the binds' rule).
+	HostPath string `json:"hostPath,omitempty" doc:"The project directory's host path (GET of one stack with stack.definition.read, when the agent reported its stacks root)."`
+}
+
+// stackHostPaths resolves a stack's project directory on the host
+// (implemented by internal/manager/stacks.Service).
+type stackHostPaths interface {
+	HostPath(ctx context.Context, stackID string) (string, error)
 }
 
 // StackJobRef names the stack's latest job.
@@ -587,7 +596,14 @@ func (h *stacksAPI) get(ctx context.Context, in *stackIDInput) (*stackOutput, er
 	if err != nil {
 		return nil, err
 	}
-	return h.stackOut(ctx, st, v), nil
+	out := h.stackOut(ctx, st, v)
+	if hp, ok := h.svc.(stackHostPaths); ok && out.Body.Location != nil && v.Has(string(CapStackDefinitionRead)) {
+		// Best effort: unknown while the agent has not reported its roots.
+		if p, err := hp.HostPath(ctx, st.ID); err == nil {
+			out.Body.Location.HostPath = p
+		}
+	}
+	return out, nil
 }
 
 type createStackInput struct {

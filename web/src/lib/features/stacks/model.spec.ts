@@ -1,0 +1,336 @@
+import { describe, expect, it } from 'vitest';
+import type { MyPermissions } from '$lib/api/client';
+import {
+	auditActionLabel,
+	canAnywhere,
+	canInEnvironment,
+	candidateStatus,
+	compareRevisions,
+	dependencyOrder,
+	downtimeText,
+	findingTitle,
+	jobKindLabel,
+	nameError,
+	openTarget,
+	revisionLabel,
+	revisionSource,
+	runningOf,
+	serviceCounts,
+	servicePorts,
+	serviceUrl,
+	serviceUsage,
+	shortDigest,
+	shortHash,
+	spaceCheck,
+	stackIcon,
+	stackStatus,
+	stackTitle,
+	stackUsage,
+	statusSummary,
+	upSince,
+	updateAvailable
+} from './model';
+import type { ContainerMetrics, Stack, StackContainer, StackServiceStatus } from './queries';
+
+const engine = (state: string, services: [string, number, number][]) => ({
+	state: state as NonNullable<Stack['engine']>['state'],
+	services: services.map(([service, containers, running]) => ({ service, containers, running }))
+});
+
+const ctr = (over: Partial<StackContainer>): StackContainer =>
+	({ state: 'running', view: 'full', ...over }) as StackContainer;
+
+const svc = (name: string, containers: StackContainer[]): StackServiceStatus =>
+	({
+		name,
+		containers,
+		build: false,
+		dependsOn: [],
+		drift: [],
+		status: 'running'
+	}) as StackServiceStatus;
+
+describe('stack status and counts', () => {
+	it('names and icons the stack from its display metadata', () => {
+		expect(stackTitle({ name: 'silo', displayName: 'Silo' })).toBe('Silo');
+		expect(stackTitle({ name: 'silo', displayName: '  ' })).toBe('silo');
+		expect(stackIcon({ icon: 'database' })).toEqual({ icon: 'database', color: 'teal' });
+		expect(stackIcon({ icon: 'not-an-icon' })).toEqual({ icon: 'layers', color: 'blue' });
+		expect(stackIcon({})).toEqual({ icon: 'layers', color: 'blue' });
+	});
+
+	it('prefers what DockYard did for failed, down and undeployed stacks, else the Engine state', () => {
+		expect(stackStatus({ status: 'failed', engine: engine('running', []) })).toBe('failed');
+		expect(stackStatus({ status: 'down' })).toBe('down');
+		expect(stackStatus({ status: 'undeployed' })).toBe('undeployed');
+		expect(stackStatus({ status: 'deployed', engine: engine('partial', []) })).toBe('partial');
+		expect(stackStatus({ status: 'deployed', engine: engine('unknown', []) })).toBe('deployed');
+		expect(stackStatus({ status: 'stopped' })).toBe('stopped');
+	});
+
+	it('counts services and containers, including services only the Engine knows', () => {
+		const s = {
+			services: [{ name: 'web' }, { name: 'db' }] as Stack['services'],
+			engine: engine('partial', [
+				['web', 2, 2],
+				['db', 1, 0],
+				['stray', 1, 1]
+			])
+		};
+		expect(serviceCounts(s)).toEqual({
+			servicesRunning: 2,
+			services: 3,
+			containersRunning: 3,
+			containers: 4
+		});
+		expect(statusSummary({ status: 'deployed', ...s })).toBe('1 of 3 services not running');
+		expect(
+			statusSummary({
+				status: 'deployed',
+				services: s.services,
+				engine: engine('running', [
+					['web', 1, 1],
+					['db', 1, 1]
+				])
+			})
+		).toBe('All services running');
+		expect(statusSummary({ status: 'failed' })).toBe('The last deploy failed');
+	});
+});
+
+describe('ports and links', () => {
+	const containers = [
+		ctr({
+			ports: [
+				{ privatePort: 80, publicPort: 8080, protocol: 'tcp' },
+				{ privatePort: 443, protocol: 'tcp' }
+			]
+		}),
+		ctr({
+			ports: [
+				{ privatePort: 80, publicPort: 8080, protocol: 'tcp' },
+				{ privatePort: 53, publicPort: 53, protocol: 'udp' }
+			]
+		})
+	];
+
+	it('lists published ports once and links TCP ports only with a service address', () => {
+		expect(servicePorts(containers)).toEqual([{ label: '8080:80' }, { label: '53:53/udp' }]);
+		expect(servicePorts(containers, '192.168.1.10')).toEqual([
+			{ label: '8080:80', href: 'http://192.168.1.10:8080' },
+			{ label: '53:53/udp', href: undefined }
+		]);
+	});
+
+	it('opens the first web port, and nothing without an address or a published TCP port', () => {
+		expect(openTarget(containers, 'nas.lan')).toBe('http://nas.lan:8080');
+		expect(openTarget(containers)).toBeUndefined();
+		expect(
+			openTarget([ctr({ ports: [{ privatePort: 80, protocol: 'tcp' }] })], 'nas.lan')
+		).toBeUndefined();
+	});
+
+	it('brackets IPv6 addresses', () => {
+		expect(serviceUrl('fd00::10', 8080)).toBe('http://[fd00::10]:8080');
+		expect(serviceUrl('[fd00::10]', 8080)).toBe('http://[fd00::10]:8080');
+	});
+
+	it('counts running containers and finds the oldest start', () => {
+		const s = [
+			svc('web', [
+				ctr({ startedAt: '2026-09-10T00:00:00Z' }),
+				ctr({ state: 'exited', startedAt: '2026-01-01T00:00:00Z' })
+			]),
+			svc('db', [ctr({ startedAt: '2026-09-01T05:00:00Z' })])
+		];
+		expect(runningOf(s[0])).toEqual({ running: 1, total: 2 });
+		expect(upSince(s)).toBe('2026-09-01T05:00:00Z');
+		expect(upSince([svc('x', [ctr({ state: 'exited' })])])).toBeUndefined();
+	});
+});
+
+describe('usage', () => {
+	const metrics = (
+		container: string,
+		cpu: (number | null)[],
+		mem: (number | null)[]
+	): ContainerMetrics =>
+		({
+			container,
+			timestamps: cpu.map((_, i) => `2026-09-25T10:0${i}:00Z`),
+			series: [
+				{ key: 'cpu.percent', unit: 'percent', values: cpu },
+				{ key: 'memory.used_bytes', unit: 'bytes', values: mem }
+			]
+		}) as ContainerMetrics;
+
+	it('sums CPU per timestamp, keeps gaps as null and takes the latest values', () => {
+		const u = stackUsage([
+			metrics('a', [1, null, 2], [100, 200, null]),
+			metrics('b', [null, null, 3], [50, null, 70])
+		]);
+		expect(u.cpu).toEqual([1, null, 5]);
+		expect(u.cpuNow).toBe(5);
+		expect(u.memoryNow).toBe(270);
+		expect(u.containers).toEqual({ a: { cpu: 2, memory: 200 }, b: { cpu: 3, memory: 70 } });
+		expect(serviceUsage(svc('web', [ctr({ name: 'a' }), ctr({ name: 'b' })]), u)).toEqual({
+			cpu: 5,
+			memory: 270
+		});
+		expect(serviceUsage(svc('x', [ctr({ name: 'z' })]), u)).toEqual({
+			cpu: null,
+			memory: null
+		});
+	});
+
+	it('has no values without samples (never zero)', () => {
+		const u = stackUsage([]);
+		expect(u.cpuNow).toBeNull();
+		expect(u.memoryNow).toBeNull();
+	});
+});
+
+describe('revisions', () => {
+	const f = (path: string, content: string, sha = content) => ({
+		path,
+		content,
+		sha256: sha,
+		size: content.length,
+		encoding: 'utf-8' as const
+	});
+
+	it('labels revisions and their sources', () => {
+		expect(shortHash('sha256:0c712efabc')).toBe('0c712ef');
+		expect(revisionLabel({ seq: 3, hash: '0c712efabc' })).toBe('Revision 3 (0c712ef)');
+		expect(revisionSource('file_manager')).toBe('File manager');
+		expect(revisionSource('external')).toBe('Edited on disk');
+	});
+
+	it('compares the files of two revisions in path order', () => {
+		const a = { files: [f('compose.yaml', 'a\n'), f('.env', 'X=1\n'), f('old.yaml', 'o\n')] };
+		const b = {
+			files: [
+				f('compose.yaml', 'b\n'),
+				f('.env', 'X=1\n'),
+				f('compose.override.yaml', 'n\n'),
+				{
+					path: 'logo.png',
+					sha256: 'p',
+					size: 3,
+					content: 'AAA',
+					encoding: 'base64' as const
+				}
+			]
+		};
+		expect(compareRevisions(a, b).map((c) => [c.path, c.status])).toEqual([
+			['.env', 'same'],
+			['compose.override.yaml', 'added'],
+			['compose.yaml', 'changed'],
+			['logo.png', 'binary'],
+			['old.yaml', 'removed']
+		]);
+	});
+});
+
+describe('forms and permissions', () => {
+	it('validates Compose project names', () => {
+		expect(nameError('silo')).toBeUndefined();
+		expect(nameError('my_stack-2')).toBeUndefined();
+		expect(nameError('')).toBe('Enter a name.');
+		expect(nameError('Silo')).toMatch(/lower-case/);
+		expect(nameError('-silo')).toMatch(/starting with/);
+		expect(nameError('a'.repeat(64))).toMatch(/63/);
+	});
+
+	const perms = (
+		entries: { capability: string; allowed: boolean; kind: string; env?: string }[],
+		owner = false
+	) =>
+		({
+			owner,
+			catalogVersion: 1,
+			environments: [],
+			entries: entries.map((e) => ({
+				capability: e.capability,
+				allowed: e.allowed,
+				reason: '',
+				source: 'group_rule',
+				scope: { kind: e.kind, environmentId: e.env }
+			}))
+		}) as unknown as MyPermissions;
+
+	it('decides environment capabilities with the environment rule before the instance rule', () => {
+		const p = perms([
+			{ capability: 'stack.create', allowed: true, kind: 'instance' },
+			{ capability: 'stack.create', allowed: false, kind: 'environment', env: 'edge' }
+		]);
+		expect(canInEnvironment(p, 'stack.create', 'homelab')).toBe(true);
+		expect(canInEnvironment(p, 'stack.create', 'edge')).toBe(false);
+		expect(canInEnvironment(p, 'stack.import', 'homelab')).toBe(false);
+		expect(canInEnvironment(perms([], true), 'stack.import', 'x')).toBe(true);
+		expect(canInEnvironment(undefined, 'stack.create', 'x')).toBe(false);
+		expect(canAnywhere(p, 'stack.create')).toBe(true);
+		expect(canAnywhere(p, 'audit.read')).toBe(false);
+	});
+});
+
+describe('migration, updates and jobs', () => {
+	it('orders services dependencies first and survives cycles', () => {
+		expect(
+			dependencyOrder([
+				{ name: 'web', dependsOn: [{ service: 'api' }] },
+				{ name: 'api', dependsOn: [{ service: 'db' }, { service: 'cache' }] },
+				{ name: 'db' },
+				{ name: 'cache' }
+			])
+		).toEqual(['db', 'cache', 'api', 'web']);
+		expect(
+			dependencyOrder([
+				{ name: 'a', dependsOn: [{ service: 'b' }] },
+				{ name: 'b', dependsOn: [{ service: 'a' }] }
+			])
+		).toEqual(['b', 'a']);
+	});
+
+	it('compares data size with the free space on the destination', () => {
+		const d = {
+			projectBytes: 10,
+			volumeBytes: 90,
+			imageBytes: 0,
+			totalBytes: 100,
+			destinationStacksFree: 1000,
+			destinationVolumesFree: 100
+		};
+		expect(spaceCheck(d)).toBe('ok');
+		expect(spaceCheck({ ...d, destinationVolumesFree: 99 })).toBe('short');
+		expect(spaceCheck({ ...d, destinationStacksFree: -1 })).toBe('unknown');
+	});
+
+	it('says downtime and findings in words', () => {
+		expect(downtimeText(0)).toBe('No downtime expected');
+		expect(downtimeText(40)).toBe('About 40 s');
+		expect(downtimeText(185)).toBe('About 3 min');
+		expect(downtimeText(3 * 3600)).toBe('About 3 h');
+		expect(findingTitle('port_conflict')).toBe('Port already in use');
+		expect(findingTitle('some_new_code')).toBe('Some new code');
+	});
+
+	it('shortens digests and names update states', () => {
+		expect(shortDigest('redis@sha256:91b0a4c2d3e4f5a6b7')).toBe('91b0a4c2d3e4');
+		expect(shortDigest('sha256:858f009f9709ce57aa')).toBe('858f009f9709');
+		expect(shortDigest(undefined)).toBe('—');
+		expect(candidateStatus('update_available')).toBe('Update available');
+		expect(
+			updateAvailable([{ update: 'up_to_date' }, { update: 'update_available' }] as never)
+		).toBe(true);
+		expect(updateAvailable([])).toBe(false);
+	});
+
+	it('names job kinds and audit actions', () => {
+		expect(jobKindLabel('stack.deploy')).toBe('Deploy');
+		expect(jobKindLabel('volume.migrate')).toBe('Volume migrate');
+		expect(auditActionLabel('stack.definition.read')).toBe('Opened the definition');
+		expect(auditActionLabel('stack.restart')).toBe('Restart');
+		expect(auditActionLabel('stack.files.write')).toBe('Stack files write');
+	});
+});

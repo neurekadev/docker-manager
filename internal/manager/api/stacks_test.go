@@ -175,7 +175,23 @@ func (f *fakeStacks) Import(_ context.Context, _ authz.Principal, r domain.Stack
 	return domain.Stack{ID: "st-imp", EnvironmentID: r.EnvironmentID, Name: r.ProjectName, Status: domain.StackDeployed, Revision: 1}, nil
 }
 
-var _ StackService = (*fakeStacks)(nil)
+// fakeStacksRoot is the stacks volume's host path in the fake (#22 header).
+const fakeStacksRoot = "/var/lib/docker/volumes/dockyard_stacks/_data"
+
+func (f *fakeStacks) HostPath(_ context.Context, id string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	st, ok := f.stacks[id]
+	if !ok {
+		return "", domain.ErrStackNotFound
+	}
+	return fakeStacksRoot + "/" + st.Dir, nil
+}
+
+var (
+	_ StackService   = (*fakeStacks)(nil)
+	_ stackHostPaths = (*fakeStacks)(nil)
+)
 
 func stacksAPIFor(t *testing.T, pol *authztest.Policy) (http.Handler, *fakeStacks) {
 	t.Helper()
@@ -245,8 +261,12 @@ func TestStackReadDoesNotOpenTheDefinition(t *testing.T) {
 		st.Engine == nil || st.Engine.State != "running" || len(st.Services) != 1 || st.Services[0].Icon != "globe" {
 		t.Errorf("full view %+v", st)
 	}
-	// Bind sources come from the Compose definition: stack.definition.read only.
-	authztest.AssertAbsent(t, "stack.read view", r.Body, secretBind)
+	// Bind sources come from the Compose definition, and host paths follow
+	// the same rule: stack.definition.read only.
+	authztest.AssertAbsent(t, "stack.read view", r.Body, secretBind, fakeStacksRoot)
+	if st.Location == nil || st.Location.Dir != "shop" || st.Location.HostPath != "" {
+		t.Errorf("location %+v", st.Location)
+	}
 	if r.Header.Get("ETag") != `"4"` {
 		t.Errorf("ETag %q", r.Header.Get("ETag"))
 	}
@@ -272,6 +292,13 @@ func TestDefinitionReadOpensRevisionsAndBinds(t *testing.T) {
 	if !strings.Contains(string(r.Body), secretBind) {
 		t.Errorf("binds missing with stack.definition.read: %s", r.Body)
 	}
+	var full Stack
+	if json.Unmarshal(r.Body, &full) != nil || full.Location == nil || full.Location.HostPath != fakeStacksRoot+"/shop" {
+		t.Errorf("host path missing with stack.definition.read: %s", r.Body)
+	}
+	// Lists never carry host paths (one agent lookup per stack).
+	r = authztest.Do(t, h, "dana", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks"})
+	authztest.AssertAbsent(t, "stack list", r.Body, fakeStacksRoot)
 	r = authztest.Do(t, h, "dana", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1/revisions/rev-3"})
 	var rev StackRevision
 	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &rev) != nil || len(rev.Files) != 2 {

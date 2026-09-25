@@ -48,6 +48,9 @@
 		return all.map((z) => ({ value: z, label: z }));
 	});
 
+	const uid = $props.id();
+	const previewId = `${uid}-preview`;
+
 	// Debounced copy of the inputs that drives the preview query.
 	let settled = $state({ cron: '', timeZone: '' });
 	$effect(() => {

@@ -185,7 +185,7 @@ Import from `$lib/ui` (one barrel). Snippet props (`trigger`, `children`,
 | component | key props | notes |
 | --- | --- | --- |
 | `Button` | `variant: primary \| secondary \| ghost \| danger \| danger-soft`, `size: sm \| md`, `icon`, `iconEnd`, `loading`, `href`, `block`, `ref` | Labels name the result ("Deploy", "Save changes"). `loading` keeps the label, sets `aria-busy`, disables. `href` renders a link. |
-| `IconButton` | **`label` (required)**, `icon`, `variant: ghost \| secondary \| danger-soft`, `size`, `pressed`, `badge`, `tooltip`, `tooltipSide` | `label` is the accessible name and the tooltip; spread menu/popover trigger props onto it. No tooltip while its popup is open. |
+| `IconButton` | **`label` (required)**, `icon`, `variant: ghost \| secondary \| danger-soft`, `size`, `pressed`, `badge`, `tooltip`, `tooltipSide`, `href`, `external` | `label` is the accessible name and the tooltip; spread menu/popover trigger props onto it. No tooltip while its popup is open. With `href` it renders a link with the button's look (row actions such as "Open silo-web"; `external` opens a new tab with `noopener`). |
 | `SplitButton` | `label`, `icon`, `onclick`, `items: MenuEntry[]`, **`menuLabel`**, `variant`, `loading` | The stack header's Deploy. |
 | `Menu` | `items: MenuEntry[]`, `trigger` snippet `(props)`, `label`, `align`, `side`, `open` | Bits UI DropdownMenu: keyboard, typeahead, focus return. |
 | `ContextMenu` | `items`, `label`, `children` snippet `(props)` | Right-click / long-press; always duplicate its items in a visible Menu. |
@@ -204,10 +204,11 @@ Import from `$lib/ui` (one barrel). Snippet props (`trigger`, `children`,
 | `KpiCard` | `label`, `value`, `unit`, `secondary`, `icon`, `color`, `tone`, `sparkline` / `bar` snippets, `changed` | Row of KPI cards: `grid-template-columns: repeat(auto-fit, minmax(210px, 1fr))`. |
 | `IconTile` | `icon`, `color: TileColor`, `size: sm \| md \| lg` | Decorative (the adjacent text names the thing). |
 | `Meter` | `value`, `max`, `label`, `valueText`, `warnAt`, `dangerAt` | `role="meter"`. |
-| `PageHeader` | `title` (h1), `description`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` snippets | Icon-led meta items with thin dividers (not middle dots). |
+| `PageHeader` | `title` (h1), `description`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` snippets | Icon-led meta items with thin dividers (not middle dots). `MetaItem.title` is the full value on hover, `MetaItem.copy` adds a copy button (the stack's host path). |
 | `Table` | `rows`, `columns: Column<T>[]`, `rowKey`, **`label`**, `sort` (bindable), `manualSort` + `onsort`, `selectable` + `selected` (bindable) + `rowLabel`, `changed`, `maxHeight`, `virtualizeAfter` (500), `rowHeight`, `layout`, `empty` | Sortable headers with `aria-sort`, sticky header inside `maxHeight`, stacked cards < 768 px (`Column.stack`: title, status, meta, actions, hidden), windowed rendering past 500 rows (`virtualWindow`, `aria-rowcount`/`aria-rowindex`). |
 | `Tabs` | `items: TabItem[]`, `value` (bindable), **`label`**, `panel` snippet `(id)` | In-page tabs (Bits UI). |
-| `TabNav` | `items: TabLink[]`, `current` (path), **`label`**, `after` snippet | Route tabs (stack detail); the URL is the state. |
+| `TabNav` | `items: TabLink[]`, `current` (path), **`label`**, `after` snippet | Route tabs (stack detail); the URL is the state. Below 768 px the tabs scroll sideways with the current one kept in view, and `after` gets its own line. |
+| `DiffView` | `title` (file), `before`, `after`, `beforeLabel`, `afterLabel`, `context` | Unified line diff (`diff.ts`, Myers) with old/new line numbers, `+`/`−` markers and screen-reader "Added:"/"Removed:" (never colour alone); unchanged regions collapse behind "Show N unchanged lines". |
 | `Breadcrumbs` | `items: Crumb[]` | The shell renders them from `usePage`. |
 | `Skeleton`, `Spinner`, `Kbd` | | Loading regions set `aria-busy`. |
 
@@ -255,7 +256,7 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 | `OfflineEnvironment` | "homelab is offline", since when, what it means. |
 | `JobProgress` | `jobId` (follows `/api/v1/jobs/{id}/events/stream` via `JobWatcher`, polling fallback) or a `watcher`; `inline` or `panel`; per-item results, partial failure summary, recovery advice, completion announced; `onfinish`. |
 | `SecretReveal` | One-time secrets: copy, download, fingerprint, "I stored it" gate; dropped from the page after Continue. |
-| `StepWizard` | Numbered steps, `onnext` validation (throw or return false), focus to the step heading, `onfinish`. |
+| `StepWizard` | Numbered steps, `onnext` validation (throw or return false), focus to the step heading, `onfinish`; `canGoBack={false}` hides Back once the wizard started a job. |
 
 ### Lazy surfaces
 

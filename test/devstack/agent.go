@@ -24,6 +24,7 @@ import (
 	agentprune "github.com/neurekadev/dockyard/internal/agent/prune"
 	agentres "github.com/neurekadev/dockyard/internal/agent/resources"
 	"github.com/neurekadev/dockyard/internal/agent/session"
+	agentstacks "github.com/neurekadev/dockyard/internal/agent/stacks"
 	"github.com/neurekadev/dockyard/internal/agent/state"
 	"github.com/neurekadev/dockyard/internal/buildinfo"
 	"github.com/neurekadev/dockyard/internal/clock"
@@ -97,9 +98,11 @@ func connectAgent(ctx context.Context, m *app.Manager, base, stateDir string, h 
 	sim := newSimulation(h, clk)
 	var sessionClient atomic.Pointer[session.Client]
 	fs := newFileServing(h, clk, alog, &sessionClient)
+	stackSim := newStackSim(h, agentstacks.New(agentstacks.Options{Deps: devStackDeps{h}, Clock: clk, Logger: alog}))
 
 	execs := append(res.Executors(), pr.Executor())
 	execs = append(execs, fs.executors()...)
+	execs = append(execs, stackSim.executors()...)
 	requests := res.Requests()
 	maps.Copy(requests, pr.Requests())
 	maps.Copy(requests, cio.Requests())
@@ -107,6 +110,8 @@ func connectAgent(ctx context.Context, m *app.Manager, base, stateDir string, h 
 	maps.Copy(requests, fs.requests())
 	streams := cio.Streams()
 	maps.Copy(streams, fs.streams())
+	maps.Copy(requests, stackSim.requests())
+	maps.Copy(streams, stackSim.streams())
 
 	a := &devAgent{name: h.name, env: er.EnvironmentID, engine: fe, done: make(chan struct{})}
 	client := session.New(session.Options{

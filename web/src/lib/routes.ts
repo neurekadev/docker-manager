@@ -3,7 +3,8 @@
 //
 //   /                                   Dashboard
 //   /environments[/{id}]                environments and environment detail
-//   /stacks[/{stackId}[/files|logs|terminal|revisions|policies|activity]]
+//   /stacks[/{stackId}[/files|logs|terminal|revisions|policies|activity|migrate]]
+//   /stacks/new, /stacks/discovered (create; discovery and import)
 //   /containers, /images, /volumes, /networks   lists (all or the selected environment)
 //   /containers/new, /containers/{env}/{name}[/logs|terminal]   create; detail tabs
 //   /images/{env}/{imageId}, /networks/{env}/{name}
@@ -38,8 +39,15 @@ export const routes = {
 	stacks: () => '/stacks',
 	stack: (
 		id: string,
-		tab?: 'files' | 'logs' | 'terminal' | 'revisions' | 'policies' | 'activity'
+		tab?: 'files' | 'logs' | 'terminal' | 'revisions' | 'policies' | 'activity' | 'migrate'
 	) => `/stacks/${e(id)}${tab ? `/${tab}` : ''}`,
+	/** The stack's terminal with a service preselected (#8, track B3). */
+	stackTerminal: (id: string, service?: string) =>
+		`/stacks/${e(id)}/terminal${service ? `?service=${e(service)}` : ''}`,
+	newStack: (environmentId?: string | null) =>
+		`/stacks/new${environmentId ? `?environment=${e(environmentId)}` : ''}`,
+	discoveredStacks: (environmentId?: string | null) =>
+		`/stacks/discovered${environmentId ? `?environment=${e(environmentId)}` : ''}`,
 	containers: () => '/containers',
 	newContainer: (env?: string, image?: string) => {
 		const q = new URLSearchParams();

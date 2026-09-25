@@ -76,10 +76,17 @@ Seeded data:
   `dockyard` (`dockyard-manager`, and `dockyard-agent`, which the agent's
   guard knows as its own container) with its data, agent state and stacks
   volumes, all protected (#32).
+  Silo has a revision history: the owner deployed it (a `stack.deploy`
+  job, revision 2), then `compose.yaml` was edited on the host (revision
+  3: **Undeployed changes**). A Compose project `grafana` runs unmanaged
+  with its files in the stacks volume (adoptable in place).
 - **nas** (online): `syncthing`, `samba` and stopped leftovers for prune;
   the volumes `media_archive` (NFS-backed) and `offsite_backups` (plugin
-  driver), which DockYard lists read-only.
-- **edge** (arm64): enrolled, then disconnected, so it is **offline**.
+  driver), which DockYard lists read-only; an unmanaged Compose project
+  `paperless` whose files are outside any stack root (import with a
+  source).
+- **edge** (arm64): enrolled, then disconnected, so it is **offline**; its
+  stack **Sensors** shows the read-only last known state.
 - Metrics: a 30-minute history and a live 10 s sampler per host and
   container (smooth, deterministic curves); `engine.info` inventories.
   Each agent's history is collected (through the production collector)
@@ -121,12 +128,22 @@ Seeded data:
   cannot run BuildKit, so their logs are absent). The secrets are
   placeholders; connection tests fail against the real registries.
 
-What is simulated: the Docker Engines, host metrics, Compose reads
-(`compose.read` from the project directories on disk, `compose.services`
-from the fake Engine) and container logs. Everything between the public
-API and the Engine adapter is production code. Not available: exec
-terminals, Compose deploys and builds (they need a real Engine; use the CI
-suites). The
+What is simulated: the Docker Engines, host metrics, container logs and
+the Compose side of the agent (`test/devstack/stacks.go`): `compose.read`,
+`compose.validate` and `compose.write` work on the project directories on disk
+(validation parses services, ports, depends_on and volumes and warns about
+`version:` and bind paths outside the project); stack deploys, downs,
+removals and builds are simulated steps that create, start and remove the
+fake Engine's containers with Compose's labels; `migration.preview` answers
+both ends from the fake Engines. `compose.discover` and stack
+start/stop/restart are the production handlers and executors
+(`internal/agent/stacks` over `internal/agent/lifecycle`). Everything
+between the public API and the agent is production code, so the
+migration preflight is the real one; the migration's data transfer is
+refused, so a started migration fails after stopping the source and the
+manager's compensation starts it again. Not available: exec terminals,
+real Compose semantics (recreation rules, healthcheck timing, builds) and
+completed migrations (use the CI suites). The
 devstack is a test tool under `test/`: it is never part of the images or
 `scripts/build-static.sh`, refuses non-loopback addresses and prints
 credentials, so never expose it.
@@ -147,6 +164,10 @@ E2E_BASE_URL=http://localhost:8080 E2E_UI_OWNER=admin E2E_UI_PASSWORD=dockyard-d
   npx playwright test tests/ui.spec.ts
 # review screenshots at 1440x900 and 390x844 (keep them outside the repo)
 E2E_SCREENSHOTS_DIR=/tmp/dockyard-shots E2E_BASE_URL=http://localhost:8080 npx playwright test tests/ui.spec.ts
+# the stack pages (#22 track B2) need the seeded devstack; deploys and
+# deletes change it, so restart the devstack before running them again
+E2E_BASE_URL=http://localhost:8080 E2E_UI_OWNER=admin E2E_UI_PASSWORD=dockyard-devstack-owner \
+  npx playwright test tests/stacks.spec.ts
 ```
 
 The file manager and log viewer specs use the seeded Silo stack; the

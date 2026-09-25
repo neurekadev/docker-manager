@@ -46,6 +46,13 @@ func TestFileManagerHooks(t *testing.T) {
 	if _, err := svc.StackFileRoot(h.ctx, "nope"); !errors.Is(err, domain.ErrFileScopeNotFound) {
 		t.Errorf("unknown stack: %v", err)
 	}
+	// The stack header's host path (#22) is the same directory.
+	if p, err := svc.HostPath(h.ctx, st.ID); err != nil || p != root.Dir {
+		t.Errorf("host path %q %v", p, err)
+	}
+	if _, err := h.svc.HostPath(h.ctx, st.ID); stackErrCode(err) != domain.StackErrRootUnavailable {
+		t.Errorf("host path without systems: %v", err)
+	}
 	// Without reported capabilities the root is unavailable.
 	if _, err := h.svc.StackFileRoot(h.ctx, st.ID); stackErrCode(err) != domain.StackErrRootUnavailable {
 		t.Errorf("no systems: %v", err)

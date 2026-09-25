@@ -26,6 +26,8 @@
 		onnext?: (step: WizardStep) => boolean | void | Promise<boolean | void>;
 		onfinish?: () => unknown;
 		canAdvance?: boolean;
+		/** false hides Back (e.g. once a job the wizard started is running). */
+		canGoBack?: boolean;
 		nextLabel?: string;
 		finishLabel?: string;
 		label: string;
@@ -38,6 +40,7 @@
 		onnext,
 		onfinish,
 		canAdvance = true,
+		canGoBack = true,
 		nextLabel = 'Next',
 		finishLabel = 'Finish',
 		label
@@ -99,7 +102,7 @@
 	</section>
 
 	<footer class="foot">
-		{#if current > 0}
+		{#if current > 0 && canGoBack}
 			<Button variant="ghost" icon={ArrowLeft} disabled={busy} onclick={() => go(current - 1)}
 				>Back</Button
 			>

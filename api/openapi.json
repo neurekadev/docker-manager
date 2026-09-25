@@ -12604,6 +12604,10 @@
             "description": "Project directory relative to the root.",
             "type": "string"
           },
+          "hostPath": {
+            "description": "The project directory's host path (GET of one stack with stack.definition.read, when the agent reported its stacks root).",
+            "type": "string"
+          },
           "root": {
             "description": "stacks: the environment's stacks volume; bind: a registered stack root (#28).",
             "enum": [
