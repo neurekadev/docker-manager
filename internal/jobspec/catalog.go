@@ -32,6 +32,7 @@ const (
 	StackStop    domain.JobKind = "stack.stop"
 	StackRestart domain.JobKind = "stack.restart"
 	StackDown    domain.JobKind = "stack.down"
+	StackRemove  domain.JobKind = "stack.remove"
 	StackBuild   domain.JobKind = "stack.build"
 	StackUpdate  domain.JobKind = "stack.update"
 	StackMigrate domain.JobKind = "stack.migrate"
@@ -193,6 +194,9 @@ func catalogSpecs() []Spec {
 		stackKind(StackStop, "Stop a stack", deadlineInteractive, idem("stop")),
 		stackKind(StackRestart, "Restart a stack", deadlineInteractive, idem("restart")),
 		stackKind(StackDown, "Stop and remove a stack's containers and networks", deadlineInteractive, idem("down")),
+		// Deleting a stack takes it down (volumes and the project directory
+		// are kept) and then forgets it in the manager (finish hook, #7).
+		stackKind(StackRemove, "Take a stack down and remove it from DockYard (volumes and files are kept)", deadlineInteractive, idem("down")),
 		func() Spec {
 			s := stackKind(StackBuild, "Build a stack's images", deadlineLong, idem("fetch_sources"), idem("build_images"))
 			s.ConcurrencyClass = ClassBuild

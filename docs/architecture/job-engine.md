@@ -147,6 +147,7 @@ S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
 | `stack.deploy` | agent | `stack.deploy` | `host` S (each environment)<br>`stack` **X** (stack targets) | `resolve_sources` (i,c) → `pull_images` (i,c) → `build_images` (i,c) → `apply` (i,c) | 30m | — | — | — |
 | `stack.down` | agent | `stack.down` | `host` S (each environment)<br>`stack` **X** (stack targets) | `down` (i,c) | 10m | — | — | — |
 | `stack.migrate` | manager | `stack.migrate` | `host` S (each environment)<br>`stack` **X** (stack targets)<br>`volume` **X** (volume targets, optional) | `prepare` (i,c) → `stop_source` (i,c) → `transfer` (i,c) → `deploy_destination` (i,c) → `finalize` | — | — | `start_source` | interrupt |
+| `stack.remove` | agent | `stack.remove` | `host` S (each environment)<br>`stack` **X** (stack targets) | `down` (i,c) | 10m | — | — | — |
 | `stack.restart` | agent | `stack.restart` | `host` S (each environment)<br>`stack` **X** (stack targets) | `restart` (i,c) | 10m | — | — | — |
 | `stack.start` | agent | `stack.start` | `host` S (each environment)<br>`stack` **X** (stack targets) | `start` (i,c) | 10m | — | — | — |
 | `stack.stop` | agent | `stack.stop` | `host` S (each environment)<br>`stack` **X** (stack targets) | `stop` (i,c) | 10m | — | — | — |
@@ -331,6 +332,28 @@ jobexec.Executor{
 	},
 }
 ```
+
+**Result output.** A step may record result data with
+`sc.SetOutput(ctx, v)` (a JSON object of at most 128 KiB, journaled before
+it returns, `sc.Output()` reads it back). It is sent with **every** outcome
+in `result.output` (and in `job_report` entries, at most 512 KiB of outputs
+per report) — e.g. `stack.deploy` reports the exact definition bytes it
+deployed and the Engine state before and after (#7).
+
+**React to outcomes** on the manager with a finish hook, registered before
+`Run`:
+
+```go
+engine.OnFinish(jobspec.StackDeploy, func(ctx context.Context, db bun.IDB, j domain.Job) error {
+	// j.State is terminal; j.ResultOutput is the executor's output (nil
+	// when the job ended without one, e.g. cancelled while queued).
+	// Write with db: it is the transaction that finishes the job.
+})
+```
+
+Hooks run inside `transition()` for every terminal state; a hook error
+aborts the transaction (the agent's result is delivered again later), so
+hooks must tolerate malformed output (log and record what they can).
 
 Manager-local kinds register the same structure with
 `engine.RegisterManagerExecutor` before `Recover`. Steps must honor `ctx`;

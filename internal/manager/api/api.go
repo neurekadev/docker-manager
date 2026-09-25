@@ -20,6 +20,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/buildinfo"
 	"github.com/neurekadev/dockyard/internal/clock"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"github.com/neurekadev/dockyard/internal/manager/events"
 )
 
 // Contract constants.
@@ -77,6 +78,12 @@ type Deps struct {
 	// permissions and previews (#17); nil answers those routes with 503.
 	// The manager also sets Authorizer to it.
 	Permissions PermissionService
+	// Stacks is the Compose stack service (#7); nil answers its routes
+	// with 503.
+	Stacks StackService
+	// Events is the in-process event bus (stack event streams); nil
+	// answers those streams with 503.
+	Events *events.Bus
 	// APITokens serves the API token routes (#31); nil answers them with
 	// 503. The identity middleware authenticates bearer tokens.
 	APITokens APITokenService
@@ -156,6 +163,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerAgents(a, deps)
 	registerEnvironments(a, deps)
 	registerPermissions(a, deps)
+	registerStacks(a, deps)
 	registerAPITokens(a, deps)
 	registerObserve(a, deps)
 	registerRegistries(a, deps)

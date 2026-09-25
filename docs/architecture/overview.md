@@ -92,6 +92,11 @@ domain types (`domain`) are separate and converted explicitly.
   manager's engine (`internal/manager/jobs`), with one lock matrix, fencing
   tokens and reconnect reconciliation; see
   [job-engine.md](job-engine.md).
+- **Compose stacks (#7):** the on-disk definition is the source of truth;
+  the manager records immutable revisions, the applied revision and images
+  and the observed Engine state; deploys and operations are `stack.*` jobs
+  run by the agent with the shared dependency-aware lifecycle; see
+  [stacks.md](stacks.md).
 - **Secrets at rest:** sensitive settings are sealed with
   `secrets.Keyring.Seal(value, context)` into `dy1.<keyID>.<ciphertext>`
   envelopes bound to their field context.

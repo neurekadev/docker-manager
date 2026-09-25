@@ -88,6 +88,12 @@ func inventoryVisible(c Checker, e events.Event) bool {
 	return e.EnvironmentID != "" && (c.Can("environment.system.read", env).Allowed || c.Can("environment.metrics.read", env).Allowed)
 }
 
+// stackVisible: stack events carry identity and status (minimal fields),
+// so they reach everyone who sees the stack at least minimally.
+func stackVisible(c Checker, e events.Event) bool {
+	return ViewOf(c, Resource{Type: catalog.TypeStack, ID: e.ResourceID, EnvironmentID: e.EnvironmentID, Parents: []ResourceRef{}}).Visible()
+}
+
 var eventRules = map[string]eventRule{
 	events.EnvironmentCreated:      envVisible,
 	events.EnvironmentUpdated:      envVisible,
@@ -109,6 +115,10 @@ var eventRules = map[string]eventRule{
 	events.FilesInvalidated:        filesVisible,
 	events.MetricsSampled:          metricsVisible,
 	events.InventoryUpdated:        inventoryVisible,
+	events.StackCreated:            stackVisible,
+	events.StackUpdated:            stackVisible,
+	events.StackRemoved:            stackVisible,
+	events.StackRevisionRecorded:   stackVisible,
 }
 
 // HasEventRule reports whether an event type has a visibility rule.

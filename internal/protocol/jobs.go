@@ -190,7 +190,14 @@ type ResultPayload struct {
 	// (the in-flight step, if any, is idempotent and no compensation ran).
 	Resumable     bool                  `json:"resumable,omitempty"`
 	Compensations []CompensationPayload `json:"compensations,omitempty"`
+	// Output is the kind's result data (a JSON object, at most
+	// MaxResultOutput bytes), e.g. the sources and images a stack.deploy
+	// applied (StackJobOutput). Sent for every outcome.
+	Output json.RawMessage `json:"output,omitempty"`
 }
+
+// MaxResultOutput bounds ResultPayload.Output.
+const MaxResultOutput = 128 << 10
 
 // JobReportEntry is one journaled job in a job_report.
 type JobReportEntry struct {

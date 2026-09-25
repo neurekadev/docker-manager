@@ -1094,7 +1094,7 @@ routes:
     scope: environment
     owner: 7
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/environments/{environmentId}/stacks/imports"
     operationId: create-stack-import
@@ -1102,7 +1102,7 @@ routes:
     scope: environment
     owner: 7
     kind: json
-    status: planned
+    status: implemented
     notes: "Adopts in place under the stacks volume or a registered root (#28); otherwise needs an explicit Compose source."
   - method: GET
     path: /api/v1/stacks
@@ -1111,7 +1111,7 @@ routes:
     scope: resource
     owner: 7
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/stacks
     operationId: create-stack
@@ -1119,7 +1119,7 @@ routes:
     scope: environment
     owner: 7
     kind: json
-    status: planned
+    status: implemented
     notes: Body names the environment.
   - method: GET
     path: "/api/v1/stacks/{stackId}"
@@ -1128,7 +1128,7 @@ routes:
     scope: resource
     owner: 7
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/stacks/{stackId}"
     operationId: update-stack
@@ -1136,7 +1136,7 @@ routes:
     scope: resource
     owner: 7
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match.
   - method: DELETE
     path: "/api/v1/stacks/{stackId}"
@@ -1145,7 +1145,7 @@ routes:
     scope: resource
     owner: 7
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: POST
     path: /api/v1/stacks/validations
@@ -1154,7 +1154,7 @@ routes:
     scope: environment
     owner: 7
     kind: json
-    status: planned
+    status: implemented
     notes: Body names the environment; no side effects.
   - method: GET
     path: "/api/v1/stacks/{stackId}/revisions"
@@ -1163,7 +1163,7 @@ routes:
     scope: resource
     owner: 7
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/stacks/{stackId}/revisions/{revisionId}"
     operationId: get-stack-revision
@@ -1171,7 +1171,7 @@ routes:
     scope: resource
     owner: 7
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/stacks/{stackId}/deployments"
     operationId: create-stack-deployment
@@ -1179,7 +1179,7 @@ routes:
     scope: resource
     owner: 7
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job; Idempotency-Key.
   - method: POST
     path: "/api/v1/stacks/{stackId}/operations"
@@ -1189,7 +1189,7 @@ routes:
     scope: resource
     owner: 7
     kind: json
-    status: planned
+    status: implemented
     notes: "202 + job; the body's action selects the capability."
   - method: POST
     path: "/api/v1/stacks/{stackId}/revision-restores"
@@ -1198,7 +1198,7 @@ routes:
     scope: resource
     owner: 7
     kind: json
-    status: planned
+    status: implemented
     notes: "Writes the revision's bytes to disk, then offers a deploy (#25)."
   - method: GET
     path: "/api/v1/stacks/{stackId}/services"
@@ -1207,7 +1207,7 @@ routes:
     scope: resource
     owner: 7
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/stacks/{stackId}/image-status"
     operationId: get-stack-image-status
@@ -1215,7 +1215,7 @@ routes:
     scope: resource
     owner: 20
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/stacks/{stackId}/events/stream"
     operationId: stream-stack-events
@@ -1223,7 +1223,7 @@ routes:
     scope: resource
     owner: 7
     kind: stream
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/stacks/{stackId}/builds"
     operationId: create-stack-build

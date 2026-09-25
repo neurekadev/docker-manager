@@ -60,6 +60,9 @@ const (
 	ReqNetworkInspect          = "network.inspect"
 	ReqComposeDiscover         = "compose.discover"
 	ReqComposeValidate         = "compose.validate"
+	ReqComposeRead             = "compose.read"
+	ReqComposeWrite            = "compose.write"
+	ReqComposeServices         = "compose.services"
 	ReqFilesList               = "files.list"
 	ReqFilesStat               = "files.stat"
 	ReqFilesRead               = "files.read"
@@ -102,6 +105,7 @@ var requestNames = []string{
 	ReqContainerStats, ReqContainerLogs, ReqContainerExecCreate, ReqContainerExecResize,
 	ReqContainerExecDelete, ReqImageList, ReqImageInspect, ReqImageTag, ReqVolumeList,
 	ReqVolumeInspect, ReqNetworkList, ReqNetworkInspect, ReqComposeDiscover, ReqComposeValidate,
+	ReqComposeRead, ReqComposeWrite, ReqComposeServices,
 	ReqFilesList, ReqFilesStat, ReqFilesRead, ReqFilesWrite, ReqFilesMkdir, ReqFilesConflictPreview,
 	ReqBackupSnapshots, ReqBackupContents, ReqBackupScopePreview, ReqRestorePreview,
 	ReqMaintenancePreview, ReqMigrationPreview, ReqImageLocalDigests, ReqAgentCredentialRotate,
@@ -111,7 +115,7 @@ var requestNames = []string{
 // mutatingRequests change state on the agent or Engine.
 var mutatingRequests = []string{
 	ReqContainerExecCreate, ReqContainerExecResize, ReqContainerExecDelete, ReqImageTag,
-	ReqFilesWrite, ReqFilesMkdir, ReqAgentCredentialRotate,
+	ReqFilesWrite, ReqFilesMkdir, ReqAgentCredentialRotate, ReqComposeWrite,
 }
 
 var streamKinds = map[string]string{

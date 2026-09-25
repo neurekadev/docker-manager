@@ -101,6 +101,16 @@ v5.5.1 (`internal/agent/compose`). Verified by `TestCompose*`
 | `provider` services, `models` | **rejected**: they execute external plugins / Docker Model Runner |
 | `develop` / watch | ignored by deploy (DockYard's own watcher is #23) |
 
+### Stack operations (#7)
+
+| operation | how | evidence |
+| --- | --- | --- |
+| deploy (`stack.deploy`) | Compose SDK `up` from the on-disk bytes the job reports as the applied revision; missing images pulled/built, `pull: always` / `build: true` on request | `TestComposeStackDeployUpdateAndLifecycle` (written, runs in `compose-fixtures`), unit `internal/agent/stacks` |
+| update (redeploy of a changed definition) | only changed services are recreated | same |
+| start / stop / restart (`stack.*`) | the shared lifecycle over the deployed containers: dependencies first with condition waits (2 min per dependency), dependents first on stop, `restart: true` propagation | same; unit `internal/agent/lifecycle` |
+| down (`stack.down`, stack deletion) | Compose SDK `down` by project name; volumes and files are kept | same |
+| unhealthy dependency / failed one-shot | deploy fails with `dependency_failed`; the dependent is not started; the last applied revision is kept | `TestComposeStackDeployUnhealthyDependency` (written) |
+
 ### Build keys (#33)
 
 Build sections are built by the agent through the Engine's BuildKit before

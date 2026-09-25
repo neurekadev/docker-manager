@@ -15,7 +15,12 @@
 #                  environment, is refused elsewhere and on owner routes, the
 #                  cookie is ignored on bearer requests, revocation gives a
 #                  generic 401 and the value is in no log (#31)
-#   deploy-stack   pending (#7): test/smoke/sample-stack/compose.yaml
+#   deploy-stack   the owner creates a stack from test/smoke/sample-stack/compose.yaml
+#                  (its html/ bind directory is copied next to it), deploys it
+#                  through the API and waits for the job and a healthy web
+#                  container; the applied revision equals the on-disk source and
+#                  the compose.yaml bytes are unchanged; deleting the stack
+#                  removes its containers (#7)
 #
 # Pending steps print ::warning:: and are listed in the summary; they never
 # count as passed. Enable a step by implementing its function below once
@@ -86,8 +91,13 @@ summary() {
 	} | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
 }
 
+SAMPLE_PROJECT=dockyard-smoke-sample
+
 cleanup() {
 	local code=$?
+	# Containers the agent created for the sample stack are not part of the
+	# smoke compose project.
+	docker ps -aq --filter "label=com.docker.compose.project=${SAMPLE_PROJECT}" | xargs -r docker rm -f >/dev/null 2>&1 || true
 	"${compose[@]}" ps -a >"${SMOKE_ARTIFACTS}/compose-ps.txt" 2>&1 || true
 	"${compose[@]}" logs --no-color --timestamps >"${SMOKE_ARTIFACTS}/compose-logs.txt" 2>&1 || true
 	if [ "${SMOKE_KEEP:-0}" != "1" ]; then
@@ -370,8 +380,90 @@ step_api_token() {
 	record api-token PASSED "scoped token (one environment) read and renamed it via curl; system info and owner routes refused (403); revoked -> 401; not in logs"
 }
 
+# wait_job polls a job until it is terminal and prints its state.
+wait_job() {
+	local jar="$1" id="$2" deadline state
+	deadline=$((SECONDS + 300))
+	while [ "$SECONDS" -lt "$deadline" ]; do
+		state="$(curl -sS --fail --cacert "$CA" -b "$jar" "${BASE_URL}/api/v1/jobs/${id}" | jq -r .state)"
+		case "$state" in succeeded | failed | partial | cancelled | interrupted)
+			echo "$state"
+			return 0
+			;;
+		esac
+		sleep 3
+	done
+	echo "timeout"
+}
+
 step_deploy_stack() {
-	pending deploy-stack "#7" "deploy test/smoke/sample-stack/compose.yaml and wait until web is healthy" 'stack'
+	local jar out code env_id body stack_id job_id state health applied source
+	jar="$(mktemp)"
+	out="${SMOKE_ARTIFACTS}/deploy-stack.json"
+	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" -c "$jar" -H 'Content-Type: application/json' \
+		-d "$(jq -nc --arg p "$OWNER_PW" '{username: "smoke-owner", password: $p}')" "${BASE_URL}/api/v1/auth/session" || true)"
+	[ "$code" = 200 ] || fail deploy-stack "owner sign-in: HTTP ${code}"
+	env_id="$(curl -sS --fail --cacert "$CA" -b "$jar" "${BASE_URL}/api/v1/environments" | jq -r '.items[0].id // empty')"
+	[ -n "$env_id" ] || fail deploy-stack "no environment listed for the owner"
+
+	# Create: the manager validates on the agent and writes compose.yaml into
+	# a new project directory of the stacks volume.
+	body="$(jq -nc --arg e "$env_id" --arg n "$SAMPLE_PROJECT" --rawfile c test/smoke/sample-stack/compose.yaml \
+		'{environmentId: $e, name: $n, compose: $c, description: "deploy smoke sample"}')"
+	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" -b "$jar" -H 'Content-Type: application/json' -d "$body" \
+		"${BASE_URL}/api/v1/stacks" || true)"
+	[ "$code" = 201 ] || fail deploy-stack "create stack: HTTP ${code} $(jq -c '{code, message, details}' "$out" 2>/dev/null)"
+	stack_id="$(jq -r '.stack.id' "$out")"
+	jq -e '.stack.status == "undeployed" and .stack.undeployedChanges == true and .validation.valid == true' "$out" >/dev/null ||
+		fail deploy-stack "unexpected new stack: $(jq -c '{status: .stack.status, v: .validation.valid}' "$out")"
+	# The relative bind source (./html) lives next to compose.yaml.
+	"${compose[@]}" cp test/smoke/sample-stack/html \
+		"dockyard-agent:/var/lib/docker/volumes/dockyard_stacks/_data/${SAMPLE_PROJECT}/html" >/dev/null ||
+		fail deploy-stack "could not copy html/ into the project directory"
+
+	# Deploy (202 + job) and wait for it.
+	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" -b "$jar" -H 'Content-Type: application/json' \
+		-H "Idempotency-Key: smoke-deploy-1" -d '{}' "${BASE_URL}/api/v1/stacks/${stack_id}/deployments" || true)"
+	[ "$code" = 202 ] || fail deploy-stack "deploy: HTTP ${code} $(jq -c '{code, message}' "$out" 2>/dev/null)"
+	job_id="$(jq -r .id "$out")"
+	state="$(wait_job "$jar" "$job_id")"
+	[ "$state" = succeeded ] || fail deploy-stack "deploy job ${state}: $(curl -sS --cacert "$CA" -b "$jar" "${BASE_URL}/api/v1/jobs/${job_id}" | jq -c .error)"
+	local deadline=$((SECONDS + 120))
+	health=""
+	while [ "$SECONDS" -lt "$deadline" ]; do
+		health="$(docker inspect --format '{{.State.Health.Status}}' "${SAMPLE_PROJECT}-web-1" 2>/dev/null || true)"
+		[ "$health" = healthy ] && break
+		sleep 3
+	done
+	[ "$health" = healthy ] || fail deploy-stack "web is ${health:-missing}, want healthy"
+
+	# The applied revision is the on-disk source: no undeployed changes, and
+	# the deployed compose.yaml bytes are the ones submitted.
+	curl -sS --fail --cacert "$CA" -b "$jar" "${BASE_URL}/api/v1/stacks/${stack_id}" >"$out" ||
+		fail deploy-stack "GET stack failed"
+	applied="$(jq -r '.appliedRevision.id // empty' "$out")"
+	source="$(jq -r '.sourceRevision.hash // empty' "$out")"
+	jq -e '.status == "deployed" and .undeployedChanges != true and .appliedRevision.hash == .sourceRevision.hash and .engine.state == "running"' "$out" >/dev/null ||
+		fail deploy-stack "stack after deploy: $(jq -c '{status, undeployedChanges, appliedRevision, sourceRevision, engine}' "$out")"
+	curl -sS --fail --cacert "$CA" -b "$jar" "${BASE_URL}/api/v1/stacks/${stack_id}/revisions/${applied}" |
+		jq -r '.files[] | select(.path == "compose.yaml") | .content' >"${SMOKE_ARTIFACTS}/applied-compose.yaml" ||
+		fail deploy-stack "could not read the applied revision"
+	cmp -s <(printf '%s\n' "$(cat "${SMOKE_ARTIFACTS}/applied-compose.yaml")") <(printf '%s\n' "$(cat test/smoke/sample-stack/compose.yaml)") ||
+		fail deploy-stack "the applied compose.yaml differs from the submitted one"
+	[ -n "$source" ] || fail deploy-stack "no source revision"
+
+	# Delete: stack.remove takes it down and forgets it.
+	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" -b "$jar" -X DELETE -H "Idempotency-Key: smoke-delete-1" \
+		"${BASE_URL}/api/v1/stacks/${stack_id}" || true)"
+	[ "$code" = 202 ] || fail deploy-stack "delete: HTTP ${code}"
+	state="$(wait_job "$jar" "$(jq -r .id "$out")")"
+	[ "$state" = succeeded ] || fail deploy-stack "delete job ${state}"
+	[ -z "$(docker ps -aq --filter "label=com.docker.compose.project=${SAMPLE_PROJECT}")" ] ||
+		fail deploy-stack "containers left after deleting the stack"
+	code="$(curl -sS -o /dev/null -w '%{http_code}' --cacert "$CA" -b "$jar" "${BASE_URL}/api/v1/stacks/${stack_id}" || true)"
+	[ "$code" = 404 ] || fail deploy-stack "deleted stack answers HTTP ${code}"
+	rm -f "$jar"
+	record deploy-stack PASSED "created, deployed (web healthy), applied revision == on-disk source, compose.yaml unchanged, deleted"
 }
 
 trap cleanup EXIT

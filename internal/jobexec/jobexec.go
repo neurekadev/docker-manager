@@ -98,17 +98,20 @@ type Compensation struct {
 
 // State is the durable record of one attempt (a journal entry).
 type State struct {
-	JobID         string                  `json:"jobId"`
-	Attempt       uint32                  `json:"attempt"`
-	FencingToken  uint64                  `json:"fencingToken"`
-	Kind          domain.JobKind          `json:"kind"`
-	Input         json.RawMessage         `json:"input,omitempty"`
-	CurrentStep   string                  `json:"currentStep,omitempty"`
-	StepInFlight  bool                    `json:"stepInFlight,omitempty"`
-	Completed     []string                `json:"completed,omitempty"`
-	Compensations []Compensation          `json:"compensations,omitempty"`
-	Items         []protocol.ItemPayload  `json:"items,omitempty"`
-	Outcome       *protocol.ResultPayload `json:"outcome,omitempty"`
+	JobID         string                 `json:"jobId"`
+	Attempt       uint32                 `json:"attempt"`
+	FencingToken  uint64                 `json:"fencingToken"`
+	Kind          domain.JobKind         `json:"kind"`
+	Input         json.RawMessage        `json:"input,omitempty"`
+	CurrentStep   string                 `json:"currentStep,omitempty"`
+	StepInFlight  bool                   `json:"stepInFlight,omitempty"`
+	Completed     []string               `json:"completed,omitempty"`
+	Compensations []Compensation         `json:"compensations,omitempty"`
+	Items         []protocol.ItemPayload `json:"items,omitempty"`
+	// Output is the kind's result data set by steps (SetOutput); it is
+	// journaled with the attempt and sent with every outcome.
+	Output  json.RawMessage         `json:"output,omitempty"`
+	Outcome *protocol.ResultPayload `json:"outcome,omitempty"`
 	// Secrets are the attempt's credentials (#19, #33). They are never
 	// serialized and never cloned, so a journal (file or database) cannot
 	// hold them; only the running attempt sees them.
@@ -123,8 +126,10 @@ func (s *State) Clone() State {
 	c.Completed = slices.Clone(s.Completed)
 	c.Compensations = slices.Clone(s.Compensations)
 	c.Items = slices.Clone(s.Items)
+	c.Output = slices.Clone(s.Output)
 	if s.Outcome != nil {
 		o := *s.Outcome
+		o.Output = slices.Clone(s.Outcome.Output)
 		c.Outcome = &o
 	}
 	return c
@@ -229,6 +234,30 @@ func (sc *StepContext) ReleaseCompensation(ctx context.Context, name string) err
 	}
 	return sc.opts.Journal.Save(ctx, sc.st)
 }
+
+// ErrOutputTooLarge is returned by SetOutput for outputs above
+// protocol.MaxResultOutput.
+var ErrOutputTooLarge = errors.New("jobexec: result output too large")
+
+// SetOutput replaces the attempt's result output (a JSON object sent with
+// the outcome, protocol.ResultPayload.Output) and journals it before
+// returning, so the output of completed work (e.g. the state captured
+// before a deploy changed anything) survives a crash. Later steps of the
+// same attempt, and of a resumed attempt, see it in Output.
+func (sc *StepContext) SetOutput(ctx context.Context, v any) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	if len(b) > protocol.MaxResultOutput {
+		return fmt.Errorf("%w: %d bytes (max %d)", ErrOutputTooLarge, len(b), protocol.MaxResultOutput)
+	}
+	sc.st.Output = b
+	return sc.opts.Journal.Save(ctx, sc.st)
+}
+
+// Output returns the output set so far (nil when none).
+func (sc *StepContext) Output() json.RawMessage { return slices.Clone(sc.st.Output) }
 
 // CancelRequested reports whether cancellation was requested. Steps may use
 // it for information; cancellation only takes effect at safe points.
@@ -410,6 +439,7 @@ func compensate(ctx context.Context, funcs map[string]CompensationFunc, st *Stat
 func finish(ctx context.Context, st *State, o Options, res protocol.ResultPayload) (protocol.ResultPayload, error) {
 	res.CompletedSteps = slices.Clone(st.Completed)
 	res.Items = slices.Clone(st.Items)
+	res.Output = slices.Clone(st.Output)
 	st.Outcome = &res
 	st.CurrentStep, st.StepInFlight = "", false
 	if err := o.Journal.Save(ctx, st); err != nil {

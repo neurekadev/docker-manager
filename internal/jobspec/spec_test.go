@@ -163,7 +163,7 @@ func TestCatalogCoversV1Kinds(t *testing.T) {
 		"image.pull", "image.build", "image.remove",
 		"container.create", "container.start", "container.stop", "container.restart", "container.pause",
 		"container.unpause", "container.remove", "container.update",
-		"stack.deploy", "stack.start", "stack.stop", "stack.restart", "stack.down", "stack.build", "stack.update",
+		"stack.deploy", "stack.start", "stack.stop", "stack.restart", "stack.down", "stack.remove", "stack.build", "stack.update",
 		"stack.migrate", "volume.migrate", "volume.create", "volume.remove", "network.create", "network.remove",
 		"update.check", "update.run", "prune.run", "backup.run", "restore.run", "backup.retention", "backup.verify",
 		"backup.import", "files.archive", "files.extract", "files.metadata", "files.copy", "files.move", "files.delete",

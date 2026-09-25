@@ -224,6 +224,9 @@ func sanitizeResult(res protocol.ResultPayload) protocol.ResultPayload {
 	if len(res.Items) > maxResultItems {
 		res.Items = res.Items[:maxResultItems]
 	}
+	if len(res.Output) > protocol.MaxResultOutput {
+		res.Output = nil
+	}
 	return res
 }
 
@@ -295,6 +298,7 @@ func (e *Engine) lateOutcome(ctx context.Context, tx bun.IDB, j *domain.Job, ref
 // re-dispatched (resume) and its command must be sent.
 func (e *Engine) applyResult(ctx context.Context, tx bun.IDB, j *domain.Job, res protocol.ResultPayload) (bool, error) {
 	res = sanitizeResult(res)
+	j.ResultOutput = res.Output
 	if len(res.Items) > 0 {
 		j.Items = j.Items[:0]
 		for _, it := range res.Items {
