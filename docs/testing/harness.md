@@ -30,10 +30,11 @@ Integration tests are selected by name, so name new ones accordingly:
 
 | job | `-run` filter |
 | --- | --- |
-| `engine-matrix` | `^TestEngine` (runs once per Engine × architecture) |
+| `engine-matrix` | `^TestEngine` (runs once per Engine × architecture); `KilledMidTransfer$` with `-tags integration,faultinject` in `internal/manager/migrations` |
 | `compose-fixtures` | `^Test(Registry\|Git\|Compose)` |
 | `storage` | `^Test(MinIO\|Restic\|Storage\|Backup\|Restore)` |
-| `e2e` | `^TestTLSProxy` (all packages), `^TestE2E` with `-tags e2e`, plus Playwright |
+| `e2e` | `^TestTLSProxy` (all packages), `^TestE2E` with `-tags e2e`, plus Playwright through the three proxies |
+| `e2e-devstack` | Playwright UI specs against the devstack (`scripts/ci/e2e-devstack.sh`) |
 | `fault-injection` | all tests with `-tags faultinject`; subprocess kill suites `^Test(Kill\|Crash)` in `test/fault` |
 | `fs-security` | `internal/testutil/fscorpus` plus every package importing it |
 | `secret-canary` | `internal/testutil/canary` plus every package importing it |
@@ -66,12 +67,15 @@ On a machine with Docker:
 | fault-injection | `go test -tags faultinject ./...` |
 | secret-canary | `go test ./internal/testutil/canary/...` (+ consumers) |
 | e2e | see [Browser E2E](#browser-e2e) |
+| e2e-devstack | `bash scripts/ci/e2e-devstack.sh` (no Docker needed; see [Playwright against the devstack](#playwright-against-the-devstack)) |
 | smoke | `SMOKE_IMAGES=local bash scripts/smoke/deploy-smoke.sh` after building `dockyard-manager:smoke` / `dockyard-agent:smoke` with `REVISION=$(git rev-parse HEAD)` |
 
-Suites whose product features do not exist yet run their fixture
-self-tests and every real test that exists, and print a `::notice::` with
-the pending checks (also in the job summary). A pending check is never
-reported as passed.
+Every tagged test is selected by one of these jobs
+(`TestExtendedWorkflowRunsEveryTaggedTest`). Where a check stays manual
+(real mobile browsers, Docker Hub accounts, previous release images), the
+job summary says so and the [verification matrix](verification-matrix.md)
+documents the procedure; a manual or pending check is never reported as
+passed.
 
 ## Environment variables
 
@@ -253,9 +257,63 @@ newer `main` commit that contains the run's commit, that newer image is
 tested instead of waiting (GitHub compare API). Steps: fresh start (healthy,
 UID 0, Docker socket only on the agent) → readiness, UI shell and OpenAPI
 through the Caddy TLS proxy with a verified CA → owner setup over HTTPS
-(#16) → agent enrollment of the co-located agent with a CLI-issued token
-(#3) → deploy `test/smoke/sample-stack` (pending #7). Pending steps print `::warning::` and are listed in the job summary;
-the warning changes once matching operations appear in the served OpenAPI.
+(#16) → `enroll-agent`: the owner creates the enrollment token through the
+same API request as the UI's *Add environment* screen, the co-located
+agent enrolls with it on stdin and comes online, the used token is refused,
+and a CLI-issued token is revoked through the API (#3) → `api-token` (#31)
+→ `deploy-stack`: `test/smoke/sample-stack` with its relative `./html`
+bind is created, deployed (healthy), checked against the on-disk bytes and
+deleted (#7) → with `SMOKE_E2E_ENV`, `e2e-fixture` deploys the sample
+again and keeps the deployment running. Every step is real; a step that
+cannot run fails the job.
+
+The `smoke` job then runs the Playwright terminal specs
+(`tests/terminal.spec.ts`, `tests/ui-terminal.spec.ts`: logs SSE, exec
+WebSocket with the ticket subprotocol, resize, exit and the 4422 close,
+#8) through Caddy against that real Engine, trusting Caddy's root
+certificate, with the owner password generated and masked by the workflow
+(`SMOKE_OWNER_PASSWORD`), and finally tears the deployment down
+(`deploy-smoke.sh teardown`).
+
+## Playwright against the devstack
+
+`scripts/ci/e2e-devstack.sh` (job `e2e-devstack`, also runnable on a
+development machine without Docker) builds the UI and `test/devstack`, then
+runs each UI spec against a **fresh** devstack (a real manager with
+in-process agents over fake Engines and a seeded homelab), because the
+specs deploy, delete and edit seeded data. Groups: `ui-setup` (first-run
+setup in the browser on a `-setup` devstack), `ui`, `b1-environments`,
+`stacks`, `resources`, `ui-files` (with the host directory of the stack
+for external edits), `ui-logs`, `admin-access`, `admin-automation`,
+`admin-settings`, `auth-factors` (TOTP set-up and sign-in, one-use
+recovery code, passkey with Chromium's virtual authenticator; skipped
+elsewhere unless `E2E_FACTORS=1`), `live` (two browser sessions, an
+external edit, a refused stale save) and `import` (a `-setup` devstack
+imports the seeded run's backups with its printed Recovery Key). The
+proxy-only stack of the `e2e` job has no agents, so these specs skip their
+seeded steps there.
+
+```bash
+npm ci --prefix web && npm ci --prefix e2e && (cd e2e && npx playwright install chromium)
+bash scripts/ci/e2e-devstack.sh                  # every group
+bash scripts/ci/e2e-devstack.sh stacks live      # some groups
+```
+
+## Verification map checks
+
+`test/verification` (plain `go test ./...`, PR suite) keeps the release map
+honest: `TestVerificationMatrix` parses
+[verification-matrix.md](verification-matrix.md) and fails when a #12 item
+is missing, a row has no evidence or manual procedure with a reason, a
+named Go test, Playwright/Vitest file or title, smoke step, devstack group,
+job or path does not exist, or a row claims "ran locally" for a test that
+needs Docker, Linux or the published images.
+`TestExtendedWorkflowRunsEveryTaggedTest` fails when a test that only
+builds with the `integration`, `e2e` or `faultinject` tag is not compiled
+and selected by any `go test` invocation of `extended.yaml` (its `-tags`,
+`-run` and packages). `TestGuideCoversEveryTopic` and
+`TestSecurityReviewCoversChecklist` cover the user guide and the security
+review.
 
 ## Time and clocks
 

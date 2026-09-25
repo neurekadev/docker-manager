@@ -155,6 +155,12 @@ and point its proxy at the devstack (`vite.config.ts` proxies `/api` to
 
 ### Playwright against the devstack
 
+`bash scripts/ci/e2e-devstack.sh` runs every UI spec, each against a fresh
+devstack on port 8090, exactly as the extended `e2e-devstack` job does
+(`bash scripts/ci/e2e-devstack.sh stacks live` for some groups;
+[testing/harness.md](testing/harness.md#playwright-against-the-devstack)).
+By hand:
+
 ```bash
 cd e2e && npm ci && npx playwright install chromium
 go run ./test/devstack -setup               # fresh manager for the setup flow (other terminal)

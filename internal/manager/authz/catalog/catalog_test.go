@@ -48,6 +48,36 @@ func TestFileJobsUseRootScopedKeys(t *testing.T) {
 	}
 }
 
+// TestHostAccessCapabilitiesAreHighRisk (#12 security review): every
+// capability that lets its holder run code in containers, write what a
+// container runs with, or give a container host paths is marked high risk,
+// so editors and previews show it distinctly. Docker socket access on the
+// host is equivalent to root there.
+func TestHostAccessCapabilitiesAreHighRisk(t *testing.T) {
+	cat := catalog.Default()
+	for _, key := range []string{
+		"stack.create",             // writes a whole Compose definition (binds, privileged)
+		"stack.definition.write",   // edits it
+		"stack.files.write",        // writes files next to it (bind sources, env files)
+		"stack.files.extract",      // unpacks archives there
+		"container.create",         // standalone containers with bind mounts
+		"container.exec",           // a shell inside a container
+		"volume.files.write",       // data other containers run with
+		"backup.restore",           // overwrites stacks and volumes
+		"agent.enroll",             // adds hosts
+		"backup_repository.manage", // destinations the Recovery Key opens
+	} {
+		cp, ok := cat.Lookup(key)
+		if !ok {
+			t.Errorf("%s is not in the catalog", key)
+			continue
+		}
+		if cp.Risk != catalog.RiskHigh {
+			t.Errorf("%s has risk %q, want high", key, cp.Risk)
+		}
+	}
+}
+
 func TestAuditCapabilitiesMatchCatalog(t *testing.T) {
 	cat := catalog.Default()
 	for _, a := range audit.Capabilities() {
