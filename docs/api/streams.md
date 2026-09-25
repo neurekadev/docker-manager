@@ -4,24 +4,24 @@ OpenAPI documents how each stream is **opened** (path, parameters, auth,
 the HTTP errors returned before the stream starts). This document specifies
 what happens on the wire afterwards (#4, #23, #27). Every streaming route of
 the [route inventory](../../api/route-inventory.yaml) is listed here
-(`TestStreamRoutesDocumented`).
+(`TestStreamRoutesDocumented`); all of them are implemented.
 
 | route | operation | transport | owner |
 | --- | --- | --- | --- |
-| `GET /live/stream` | `stream-live-events` | SSE | #23 (implemented) |
-| `GET /jobs/{jobId}/events/stream` | `stream-job-events` | SSE | #26 (implemented) |
-| `GET /environments/{environmentId}/events/stream` | `stream-environment-events` | SSE | #5 (implemented) |
-| `GET /stacks/{stackId}/events/stream` | `stream-stack-events` | SSE | #7 (implemented) |
+| `GET /live/stream` | `stream-live-events` | SSE | #23 |
+| `GET /jobs/{jobId}/events/stream` | `stream-job-events` | SSE | #26 |
+| `GET /environments/{environmentId}/events/stream` | `stream-environment-events` | SSE | #5 |
+| `GET /stacks/{stackId}/events/stream` | `stream-stack-events` | SSE | #7 |
 | `GET /environments/{environmentId}/containers/{containerId}/logs/stream` | `stream-container-logs` | SSE | #8 |
 | `GET /environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}/stream` | `stream-container-exec-session` | WebSocket | #8 |
-| `GET /stacks/{stackId}/files/downloads` | `download-stack-files` | binary response | #15 (implemented) |
-| `GET /environments/{environmentId}/volumes/{volumeId}/files/downloads` | `download-volume-files` | binary response | #15 (implemented) |
-| `POST /stacks/{stackId}/files/uploads` | `upload-stack-files` | binary request | #15 (implemented) |
-| `POST /environments/{environmentId}/volumes/{volumeId}/files/uploads` | `upload-volume-files` | binary request | #15 (implemented) |
+| `GET /stacks/{stackId}/files/downloads` | `download-stack-files` | binary response | #15 |
+| `GET /environments/{environmentId}/volumes/{volumeId}/files/downloads` | `download-volume-files` | binary response | #15 |
+| `POST /stacks/{stackId}/files/uploads` | `upload-stack-files` | binary request | #15 |
+| `POST /environments/{environmentId}/volumes/{volumeId}/files/uploads` | `upload-volume-files` | binary request | #15 |
 | `GET /backups/{backupId}/contents/download` | `download-backup-content` | binary response | #10 |
 | `GET /audit/exports` | `export-audit-events` | NDJSON/CSV response | #30 |
-| `GET /system/metrics` | `get-system-metrics` | Prometheus text response | #34 (implemented) |
-| `GET /support-bundle` | `get-support-bundle` | zip response | #34 (implemented) |
+| `GET /system/metrics` | `get-system-metrics` | Prometheus text response | #34 |
+| `GET /support-bundle` | `get-support-bundle` | zip response | #34 |
 
 Paths are relative to `/api/v1`.
 
@@ -53,10 +53,12 @@ Paths are relative to `/api/v1`.
 - **Max age:** the server ends SSE streams after 1 h (`event: close`,
   reason `max_age`) so long-lived connections re-authenticate; clients
   reconnect immediately with `Last-Event-ID`.
-- **Concurrency limits** (per principal): 8 live streams, 32 SSE streams in
-  total, 4 exec sessions (8 per container). Excess opens get `429
-  rate_limited`. Browsers should use one live stream per tab and HTTP/2 via
-  the proxy (#27).
+- **Concurrency limits:** 8 live streams per user or API token and 4 exec
+  sessions per user or token (8 per container); excess opens get `429
+  rate_limited`. Job, environment, stack and log streams have no count
+  limit of their own: each is bounded by its queue, the max age and the
+  permission re-checks. Browsers should use one live stream per tab and
+  HTTP/2 via the proxy (#27).
 - **Backpressure:** every subscriber has a bounded queue. The manager never
   blocks producers (agents, the job engine) on a slow client: SSE
   invalidation streams drop the queue and send `reset` (reason `overflow`);

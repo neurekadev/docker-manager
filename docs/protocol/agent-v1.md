@@ -1036,4 +1036,8 @@ The manager maps them to public errors: `not_found` → 404,
 | `stack.build` executor (input `noCache`, `pullBase`, `buildTimeoutSeconds`; output `built`) | `internal/agent/stacks`, `internal/agent/buildrun` | implemented (#33) |
 | container logs (`container.logs` request and stream) and exec (`container.exec.create/resize/delete`, `container.exec` stream) | `internal/agent/containerio`, `internal/manager/containerio` | implemented (#8) |
 | `maintenance.preview` request and `prune.run` executor | `internal/protocol/maintenance.go`, `internal/agent/prune` | implemented (#14) |
-| other request/stream executors | agent adapter | #10, #21, #35 |
+| backups and restores (`backup.snapshots/contents/scope_preview`, `restore.preview` requests, `backup.file` stream, backup/restore/verification executors) | `internal/protocol/backup.go`, `internal/agent/backups`, `internal/restic` | implemented (#10, #24, #28) |
+| environment migration (`migration.preview/stop/start/commit/cleanup` requests, `migration.send`/`migration.receive` streams relayed by the manager) | `internal/protocol/migration.go`, `internal/agent/migration`, `internal/manager/migrations` | implemented (#35) |
+| digest-driven updates (`update.run` executor) | `internal/protocol/updates.go`, `internal/agent/stacks/update.go` | implemented (#20) |
+| self-protection (`manager.identity` request) | `internal/agent/protect` | implemented (#32) |
+| Engine access for all of the above | `internal/agent/engine` (Moby adapter), `internal/agent/compose` | implemented (#21) |

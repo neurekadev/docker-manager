@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { detailPairs, diffRows, localToRFC3339 } from './audit';
-import { FACTOR_POLICY, factorChangeConsequences, settingsChanges } from './model';
+import {
+	deploymentFacts,
+	FACTOR_POLICY,
+	factorChangeConsequences,
+	instanceNameProblem,
+	settingsChanges
+} from './model';
 import { auditExportHref, cleanFilter, type SecuritySettings } from './queries';
 
 describe('audit viewer (#30)', () => {
@@ -91,5 +97,43 @@ describe('sign-in policy (#16)', () => {
 		expect(c.join(' ')).toMatch(/for 48 hours/);
 		expect(c.join(' ')).toMatch(/owner has no deadline/);
 		expect(Object.keys(FACTOR_POLICY)).toEqual(['none', 'totp', 'passkey', 'either', 'both']);
+	});
+});
+
+describe('instance settings (#4)', () => {
+	it('validates the display name like the server', () => {
+		expect(instanceNameProblem('Homelab')).toBeNull();
+		expect(instanceNameProblem('  Lab 2  ')).toBeNull();
+		expect(instanceNameProblem('é'.repeat(64))).toBeNull();
+		expect(instanceNameProblem('')).toBe('Enter a name.');
+		expect(instanceNameProblem('   ')).toBe('Enter a name.');
+		expect(instanceNameProblem('x'.repeat(65))).toBe('Use at most 64 characters.');
+		expect(instanceNameProblem('a\nb')).toBe('Remove line breaks and control characters.');
+		expect(instanceNameProblem('a\u0085b')).toBe('Remove line breaks and control characters.');
+	});
+
+	it('describes the read-only deployment configuration', () => {
+		const facts = deploymentFacts({
+			name: 'DockYard',
+			instanceId: 'i',
+			revision: 1,
+			updatedAt: '2026-09-25T12:00:00Z',
+			deployment: {
+				publicUrl: 'http://localhost:8080',
+				localDevelopment: true,
+				trustedProxyCount: 0,
+				streamHeartbeatSeconds: 15,
+				filesMaxUploadBytes: 512 * 1024 ** 2,
+				metricsEndpoint: true
+			}
+		});
+		expect(Object.fromEntries(facts.map((f) => [f.label, f.value]))).toEqual({
+			'Public URL': 'http://localhost:8080',
+			Mode: 'Local development over plain HTTP',
+			'Trusted proxies': 'None: forwarded headers are ignored',
+			'Stream heartbeat': 'Every 15 s',
+			'Largest upload': '512 MB',
+			'Metrics endpoint': 'On'
+		});
 	});
 });

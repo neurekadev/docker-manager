@@ -8,8 +8,9 @@ Compatibility: [versioning.md](versioning.md).
 The contract is code-first: Huma operations in `internal/manager/api`
 generate OpenAPI 3.1, served at `/api/v1/openapi.json` and
 `/api/v1/openapi.yaml` and committed as `api/openapi.json`. The web client
-types are generated from that file. Every route of the #4 catalog, built or
-not, is listed in `api/route-inventory.yaml`.
+types are generated from that file. Every route of the #4 catalog is listed
+in `api/route-inventory.yaml` with its operation ID, capability, scope,
+owning issue and status; every v1 route is served (`TestV1CatalogIsServed`).
 
 ## Paths and operation metadata
 
@@ -50,6 +51,21 @@ not, is listed in `api/route-inventory.yaml`.
   `TestRouteInventory` reconciles it with the inventory;
   `TestEveryCatalogedMutatingRouteIsAudited` proves every mutating catalog
   route records an audit event.
+
+## Examples in the OpenAPI document
+
+- Every JSON request body and every `2xx` JSON response has a complete
+  media-type `example`. It is assembled from the field examples the DTOs
+  declare (`example:"…"` struct tags), then `const`/`default`/`enum`
+  values, then neutral values that satisfy the field's constraints. Request
+  examples contain the required members plus the optional ones that declare
+  an example.
+- Every documented error response (`4xx`/`5xx`, `application/problem+json`)
+  references `#/components/examples/Error<status>` (for example `Error412`),
+  an [`Error`](errors.md) with the generic code of that status.
+- `TestEveryBodyHasAnExample` validates each example against its schema and
+  fails when a body declares no field example of its own: a new DTO needs
+  at least one `example` tag.
 
 ## JSON
 
@@ -189,4 +205,5 @@ by operations returning `api.JobAccepted` (`api.Accepted(job)`).
 | --- | --- | --- |
 | `GET /api/v1/health` | `get-health` | Liveness: `status`, `version`, `commit`. |
 | `GET /api/v1/health/ready` | `get-health-ready` | Readiness: DB reachable and migrations applied; 503 `not_ready` otherwise. |
-| `GET /api/v1/capabilities` | `get-capabilities` | Manager version, API version, agent protocol version, feature flags. |
+| `GET /api/v1/capabilities` | `get-capabilities` | Manager version, API version, agent protocol version, feature flags (none in v1). |
+| `GET`/`PATCH /api/v1/settings` | `get-settings`, `update-settings` | Instance settings (`settings.read` / `settings.manage`): the editable display name, plus the read-only deployment configuration (public URL, trusted proxy count, stream heartbeat, upload limit, metrics endpoint). The sign-in policy (`/settings/security`, owner), schedule defaults (`/schedule-defaults`) and maintenance defaults (`/maintenance-defaults`) are separate revisioned resources. |
