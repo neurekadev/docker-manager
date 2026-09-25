@@ -38,6 +38,8 @@ const (
 	EnvBackupLocalRoots        = "DOCKYARD_BACKUP_LOCAL_ROOTS"
 	EnvBackupExternalAllowlist = "DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST"
 	EnvResticBinary            = "DOCKYARD_RESTIC_BINARY"
+	// EnvWatchMax is the file watcher's kernel watch budget (#23).
+	EnvWatchMax = "DOCKYARD_WATCH_MAX"
 )
 
 // Defaults.
@@ -91,6 +93,9 @@ type Config struct {
 	BackupExternalAllowlist []string
 	// ResticBinary is the pinned restic executable.
 	ResticBinary string
+	// WatchMax is the file watcher's kernel watch budget (0: half the
+	// kernel's fs.inotify.max_user_watches, #23).
+	WatchMax int
 }
 
 // Load reads and validates the configuration, reporting all problems at once.
@@ -155,6 +160,10 @@ func Load(src envconfig.Source) (Config, error) {
 	cfg.ResticBinary = src.String(EnvResticBinary, DefaultResticBinary)
 	if !path.IsAbs(cfg.ResticBinary) {
 		errs = append(errs, fmt.Errorf("%s: %q must be an absolute path", EnvResticBinary, cfg.ResticBinary))
+	}
+
+	if cfg.WatchMax, err = src.Int(EnvWatchMax, 0, 0, 4_194_304); err != nil {
+		errs = append(errs, err)
 	}
 
 	if cfg.LogLevel, err = logging.ParseLevel(src.String(EnvLogLevel, "info")); err != nil {

@@ -431,8 +431,8 @@ func (k *conn) handle(f *protocol.Frame) error {
 		k.serveRequest(f)
 		return nil
 	case protocol.TypeRescan:
-		// Scoped file rescans arrive with the watcher (#15, #23).
-		return ignoreClosed(k.reply(f.ID, nil, &HandlerError{Code: protocol.CodeUnsupportedRequest, Message: "rescan is not supported by this agent yet"}))
+		k.serveRescan(f)
+		return nil
 	case protocol.TypeStreamOpen:
 		k.serveStream(f)
 		return nil
@@ -470,6 +470,25 @@ func (k *conn) serveRequest(f *protocol.Frame) {
 		_ = k.reply(f.ID, nil, &HandlerError{Code: protocol.CodeUnsupportedRequest, Message: p.Name + " is not served by this agent"})
 		return
 	}
+	k.run(f, p.Name, func(ctx context.Context) (any, error) { return h(ctx, p.Input) })
+}
+
+// serveRescan answers a rescan frame (#23) like a request: bounded
+// concurrency, the frame's deadline, response or error.
+func (k *conn) serveRescan(f *protocol.Frame) {
+	h := k.c.opts.Rescan
+	if h == nil {
+		_ = k.reply(f.ID, nil, &HandlerError{Code: protocol.CodeUnsupportedRequest, Message: "this agent watches no file scopes"})
+		return
+	}
+	p, _ := protocol.DecodePayload[protocol.RescanPayload](f)
+	k.run(f, "rescan", func(ctx context.Context) (any, error) { return h(ctx, p) })
+}
+
+// run serves a request-like frame on its own goroutine (at most 16 at once
+// per session) and answers response or error.
+func (k *conn) run(f *protocol.Frame, name string, h func(ctx context.Context) (any, error)) {
+	c := k.c
 	if f.Deadline != nil && !c.opts.Clock.Now().Before(*f.Deadline) {
 		_ = k.reply(f.ID, nil, &HandlerError{Code: protocol.CodeDeadlineExceeded, Message: "the request deadline passed before it arrived"})
 		return
@@ -484,7 +503,7 @@ func (k *conn) serveRequest(f *protocol.Frame) {
 	go func() {
 		defer k.wg.Done()
 		defer func() { <-k.requestSlots }()
-		ctx, cancel := context.WithCancel(requestContext(k.ctx, c.log, f.RequestID, "request", p.Name))
+		ctx, cancel := context.WithCancel(requestContext(k.ctx, c.log, f.RequestID, "request", name))
 		defer cancel()
 		var timer interface{ Stop() bool }
 		if f.Deadline != nil {
@@ -498,7 +517,7 @@ func (k *conn) serveRequest(f *protocol.Frame) {
 				}
 			}()
 		}
-		out, err := h(ctx, p.Input)
+		out, err := h(ctx)
 		if timer != nil {
 			timer.Stop()
 		}

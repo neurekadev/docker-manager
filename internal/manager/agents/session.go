@@ -226,6 +226,36 @@ func (s *Session) Request(ctx context.Context, name string, input any, timeout t
 	deadline := s.hub.svc.clk.Now().Add(timeout).UTC()
 	f := &protocol.Frame{Type: protocol.TypeRequest, ID: s.frameID("q"), Deadline: &deadline, Payload: b,
 		RequestID: protocol.RequestIDOrEmpty(logging.RequestID(ctx))}
+	return s.roundTrip(ctx, f, timeout)
+}
+
+// Rescan asks the agent for a bounded reconciliation of one watched file
+// scope (docs/protocol/agent-v1.md, "fs_invalidation and rescan"). Errors
+// are those of Request (unsupported_request from agents without a
+// watcher, not_found for scopes it does not watch).
+func (s *Session) Rescan(ctx context.Context, p protocol.RescanPayload, timeout time.Duration) (protocol.RescanResult, error) {
+	if timeout <= 0 {
+		timeout = s.hub.opts.RequestTimeout
+	}
+	b, err := json.Marshal(p)
+	if err != nil {
+		return protocol.RescanResult{}, err
+	}
+	deadline := s.hub.svc.clk.Now().Add(timeout).UTC()
+	f := &protocol.Frame{Type: protocol.TypeRescan, ID: s.frameID("rs"), Deadline: &deadline, Payload: b}
+	out, err := s.roundTrip(ctx, f, timeout)
+	if err != nil {
+		return protocol.RescanResult{}, err
+	}
+	var res protocol.RescanResult
+	if err := json.Unmarshal(out, &res); err != nil {
+		return protocol.RescanResult{}, fmt.Errorf("agents: decode rescan result: %w", err)
+	}
+	return res, nil
+}
+
+// roundTrip sends a request-like frame and waits for its response or error.
+func (s *Session) roundTrip(ctx context.Context, f *protocol.Frame, timeout time.Duration) (json.RawMessage, error) {
 	if err := f.Validate(); err != nil {
 		return nil, err
 	}

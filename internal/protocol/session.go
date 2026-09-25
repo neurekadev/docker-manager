@@ -69,6 +69,7 @@ const (
 	ReqFilesWrite              = "files.write"
 	ReqFilesMkdir              = "files.mkdir"
 	ReqFilesConflictPreview    = "files.conflict_preview"
+	ReqFilesWatch              = "files.watch" // the watched file scopes (#23)
 	ReqBackupSnapshots         = "backup.snapshots"
 	ReqBackupContents          = "backup.contents"
 	ReqBackupScopePreview      = "backup.scope_preview"
@@ -120,7 +121,7 @@ var requestNames = []string{
 	ReqContainerExecDelete, ReqImageList, ReqImageInspect, ReqImageTag, ReqVolumeList,
 	ReqVolumeInspect, ReqNetworkList, ReqNetworkInspect, ReqComposeDiscover, ReqComposeValidate,
 	ReqComposeRead, ReqComposeWrite, ReqComposeServices,
-	ReqFilesList, ReqFilesStat, ReqFilesRead, ReqFilesWrite, ReqFilesMkdir, ReqFilesConflictPreview,
+	ReqFilesList, ReqFilesStat, ReqFilesRead, ReqFilesWrite, ReqFilesMkdir, ReqFilesConflictPreview, ReqFilesWatch,
 	ReqBackupSnapshots, ReqBackupContents, ReqBackupScopePreview, ReqRestorePreview,
 	ReqMaintenancePreview, ReqMigrationPreview, ReqMigrationStop, ReqMigrationStart, ReqMigrationCommit,
 	ReqMigrationCleanup, ReqImageLocalDigests, ReqAgentCredentialRotate,

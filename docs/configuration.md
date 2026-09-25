@@ -105,6 +105,7 @@ Manager-state backups (#10) leave it out by default.
 | `DOCKYARD_BACKUP_LOCAL_ROOTS` | empty | Comma-separated absolute directories (mounted into the agent) that local backup repositories of this environment may live in (#10). A location outside them, or overlapping a stack root or Docker's data root (backup sources), is refused (`path_not_allowed`, `repository_inside_source`). |
 | `DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST` | empty | Comma-separated host paths outside stack project directories that backup policies may opt into (for example bind sources like `../data` or `/srv/shared`, #10). A path is backed up only when the policy opts in **and** it lies below an entry here; it must be mounted into the agent at the same path. System paths (`/`, `/proc`, `/sys`, `/dev`, `/run`, `/boot`) and Docker's data root are never allowed. |
 | `DOCKYARD_RESTIC_BINARY` | `/usr/local/bin/restic` | As for the manager; restic's cache and temporary files live in `<state dir>/restic-cache` and `<state dir>/tmp`. |
+| `DOCKYARD_WATCH_MAX` | half of `fs.inotify.max_user_watches` (1 024 – 524 288) | Kernel watch budget of the file watcher (#23): one watch per directory of every watched stack project and open volume view. Scopes beyond it are polled every 30 s instead. The kernel limit is per user and shared with every root process on the host; raise `fs.inotify.max_user_watches` on the host for large trees. See "File watching" in `docs/support-matrix.md`. |
 | `DOCKYARD_LOG_LEVEL` | `info` | As for the manager. |
 | `DOCKYARD_LOG_FORMAT` | `json` | As for the manager. |
 

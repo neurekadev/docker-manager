@@ -559,3 +559,48 @@ func TestAgentVersionWindow(t *testing.T) {
 		}
 	}
 }
+
+// TestRescanRoundTrip (#3, #23): the manager's rescan frame carries a
+// deadline and is answered like a request: the agent's RescanResult, or an
+// error frame (agents without a watcher answer unsupported_request).
+func TestRescanRoundTrip(t *testing.T) {
+	f := newFixture(t)
+	r, hello := f.enrolledRaw("ENG-A")
+	s := f.raw(r.Credential)
+	s.handshake(hello)
+	f.waitOnline(r.EnvironmentID)
+	type result struct {
+		res protocol.RescanResult
+		err error
+	}
+	done := make(chan result, 1)
+	ask := protocol.RescanPayload{Scope: protocol.ScopeRef{Kind: "stack", ID: "shop"}, Path: ".", MaxEntries: 100, Reason: "sequence_gap"}
+	go func() {
+		res, err := f.svc.Hub().RescanEnvironment(f.ctx, r.EnvironmentID, ask, 0)
+		done <- result{res, err}
+	}()
+	q, err := s.read()
+	if err != nil || q.Type != protocol.TypeRescan || q.Deadline == nil {
+		t.Fatalf("rescan frame %+v %v", q, err)
+	}
+	if p, _ := protocol.DecodePayload[protocol.RescanPayload](q); p != ask {
+		t.Fatalf("rescan payload %+v", p)
+	}
+	s.send(protocol.TypeResponse, q.ID, protocol.ResponsePayload{Output: json.RawMessage(`{"scope":{"kind":"stack","id":"shop"},"path":".","entries":3,"truncated":false,"changed":["config"]}`)})
+	if got := <-done; got.err != nil || got.res.Entries != 3 || len(got.res.Changed) != 1 || got.res.Changed[0] != "config" {
+		t.Fatalf("rescan result %+v %v", got.res, got.err)
+	}
+	go func() {
+		res, err := f.svc.Hub().RescanEnvironment(f.ctx, r.EnvironmentID, ask, 0)
+		done <- result{res, err}
+	}()
+	q, _ = s.read()
+	s.send(protocol.TypeError, q.ID, protocol.ErrorPayload{Code: protocol.CodeUnsupportedRequest, Message: "this agent watches no file scopes"})
+	var re *RequestError
+	if got := <-done; !errors.As(got.err, &re) || re.Code != protocol.CodeUnsupportedRequest {
+		t.Fatalf("unsupported rescan %v", got.err)
+	}
+	if _, err := f.svc.Hub().RescanEnvironment(f.ctx, "0190a6e0-0000-7000-8000-000000000999", ask, 0); !errors.Is(err, jobs.ErrAgentOffline) {
+		t.Fatalf("offline rescan %v", err)
+	}
+}

@@ -488,21 +488,56 @@ re-reads inventory instead of trusting the event history.
   "overflow": false, "at": "2026-09-24T12:00:00Z", "seq": 44 }
 ```
 
-- The agent watches only authorized roots (the stacks volume project
+- **Watch set.** The manager declares the complete set of scopes an
+  agent watches with the `files.watch` request (`FilesWatchInput {scopes:
+  [FileScope]}`, at most 4 096; `internal/protocol/watch.go`): every
+  stack of the environment (so external edits of `compose.yaml`,
+  overrides and `.env` become revisions, #25 Q1) plus the volumes with an
+  open file view (live stream `volume` filters and recent `files.*`
+  requests, leased for 5 minutes). It re-sends the set after every
+  (re)connect and whenever it changes; scopes not listed stop being
+  watched. Each scope is resolved exactly like a file operation (a stack
+  directory inside a verified stack root, a supported local volume,
+  symlink-free) and the answer `FilesWatchOutput {scopes: [{scope, mode,
+  watches, entries, reason}], watchLimit, watchesUsed}` reports how it is
+  watched: `inotify`, `poll` (`watch_limit`, `remote_filesystem`,
+  `notify_unavailable`) or `unavailable` (`not_found`,
+  `unsupported_volume`, `forbidden_path`; retried every 30 s).
+- The agent watches only these roots (the stacks volume project
   directories and named-volume roots at their identical host paths, #28),
-  recursively with inotify where available (debounce 200 ms, coalesced per
-  path), and reconciles unsupported or remote filesystems at least every
-  60 s (#25 decision 5).
+  recursively with inotify where available: one kernel watch per
+  directory, added before the directory is read, new directories added as
+  they appear, renamed or removed ones released; symlinks are never
+  followed and a directory swapped for a symlink is not watched. Changes
+  are debounced 200 ms and coalesced per path. Every scope's watches
+  count against one budget (`DOCKYARD_WATCH_MAX`, default half of
+  `fs.inotify.max_user_watches`); a scope that does not fit, a remote
+  filesystem (NFS, SMB/CIFS, FUSE, Ceph, …) or an agent without kernel
+  notifications is polled: bounded reconciliation scans every 30 s
+  (at least every 60 s, #25 decision 5) compare a per-directory hash of
+  names, sizes, modification times and modes and report the directories
+  that changed. inotify scopes are reconciled too, every 10 minutes and at
+  once after a kernel queue overflow. Budgets: docs/support-matrix.md
+  ("File watching").
 - `paths` are root-relative, cleaned, slash-separated and never escape the
   root (`ValidRelativePath`); at most 256 per frame, otherwise `overflow:
   true`. File contents are never sent. Symlinks are not followed out of a root.
 - The manager turns invalidations into permission-filtered live events
   ([streams.md](../api/streams.md#file-changes)); names reach only users with
   the matching files-read capability.
-- `rescan {scope, path, maxEntries, reason}` (after reconnect, overflow or a
-  `seq` gap) makes the agent walk at most `maxEntries` entries and answer
+- `rescan {scope, path, maxEntries, reason}` (the frame carries a
+  `deadline` like a request; the manager sends it after an fs `seq` gap for
+  every watched stack scope) makes the agent walk at most `maxEntries`
+  entries (≤ 200 000) of the subtree without following symlinks and answer
   `response {output: RescanResult {scope, path, entries, truncated,
-  changed}}`; `truncated` makes the manager invalidate the whole scope.
+  changed}}`: `changed` are the directories whose listing differs from the
+  agent's last scan (its baseline is updated); `truncated` (or no baseline
+  yet) makes the manager invalidate the whole scope. A scope the agent does
+  not watch answers `error not_found`; an agent without the watcher
+  `unsupported_request`.
+- Paths in `fs_invalidation` name changed entries (inotify) or directories
+  whose listing changed (reconciliation): consumers refresh the listing of
+  a path's directory and of the path itself.
 
 ### Streams
 
@@ -836,6 +871,7 @@ on a new session with a new frame ID.
 | `files.write` | request | `stack.files.write` / `volume.files.write` (≤ 512 KiB, expected revision) | yes | #15 |
 | `files.mkdir` | request | `stack.files.write` / `volume.files.write` | yes | #15 |
 | `files.conflict_preview` | request | `stack.files.read` / `volume.files.read` | no | #15 |
+| `files.watch` | request | manager service: the watch set (every stack of the environment, volumes with open file views) | no | #23 |
 | `backup.snapshots` | request | `backup.read` | no | #10 |
 | `backup.contents` | request | `backup.contents.read` | no | #10 |
 | `backup.scope_preview` | request | `backup_policy.read` | no | #10 |
@@ -994,7 +1030,8 @@ The manager maps them to public errors: `not_found` → 404,
 | scoped files: `files.*` requests, `files.download` / `files.upload` streams, `files.*` job executors | `internal/agent/files`, `internal/manager/files` | implemented (#15) |
 | `engine.info`, `host.metrics`, Docker event relay (coalescing, rate bound) | `internal/agent/observe`, `internal/manager/observe` | implemented (#5) |
 | Docker resource requests (`container.list/inspect`, `image.list/inspect/tag`, `volume.list/inspect`, `network.list/inspect`) and executors (`container.*`, `image.pull/remove`, `volume.*`, `network.*`) | `internal/protocol/docker.go` (inputs/outputs), `internal/agent/resources` | implemented (#6) |
-| `rescan` (agent answers `unsupported_request`), agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stubs | #23 (rescan, watcher) |
+| `files.watch` watch set, scoped filesystem watcher (inotify, debounce, rename handling, watch-limit accounting, bounded reconciliation), `rescan` | `internal/agent/watch`, `internal/manager/files` (`Watcher`), `agents.Session.Rescan` | implemented (#23) |
+| agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stub | not needed in v1 |
 | `compose.discover/validate/read/write/services` requests, `stack.deploy/start/stop/restart/down/remove` executors, result `output` | `internal/agent/stacks`, `internal/jobexec`, `internal/manager/stacks` | implemented (#7) |
 | `stack.build` executor (input `noCache`, `pullBase`, `buildTimeoutSeconds`; output `built`) | `internal/agent/stacks`, `internal/agent/buildrun` | implemented (#33) |
 | container logs (`container.logs` request and stream) and exec (`container.exec.create/resize/delete`, `container.exec` stream) | `internal/agent/containerio`, `internal/manager/containerio` | implemented (#8) |
