@@ -40,8 +40,9 @@ and with what result, for every security-relevant and mutating action.
   `my_passkey.delete`) unless they declare `Operation.AuditAction`.
 - Lifecycle keys that are not requests: `job.queued`, `job.started`,
   `job.cancel_requested`, `job.finished`, `audit.purge`. Features add their
-  own non-request keys (for example `auth.sign_in_failed`, `agent.enroll`,
-  `registry.credential_used`) with `audit.Record`.
+  own non-request keys (for example `auth.sign_in_failed`,
+  `agent.enrollment_exchange`, `registry.credential_used`) with
+  `audit.Record`.
 
 ## Recording
 
@@ -110,9 +111,16 @@ manager, e.g. `app.Manager.Audit()`):
 - #16: sign-in failures outside the session route, lockouts, owner-recovery
   CLI (actor `service` or the recovered user), session revocations by the
   system.
-- #3: agent enrollment, credential rotation and revocation on `/agent/v1`
-  (`audit.AgentActor(agentID)`; set `ClientIP`/`UserAgent`/`RequestID` from the
-  request, the context has them when called from a server handler).
+- #3 (implemented in `internal/manager/agents/audit.go`):
+  `agent.enrollment_exchange` for `POST /agent/v1/enroll` (actor
+  `audit.AgentActor(newAgentID)` on success, recorded in the enrollment
+  transaction with the replaced agent as a target; `anonymous` with outcome
+  `denied`/`failure` and the error code for invalid tokens, refusals and
+  versions), `agent.credential_rotate` when the agent completes a rotation,
+  `agent.session_refused` for refused session upgrades and handshakes, and
+  `agent.enroll` (actor `service`, detail `via: cli`) for
+  `dockyard-manager enrollment create`. Revocation and archive go through
+  the API and are audited by construction.
 - #19/#33: each use of a registry or Git credential (`registry.credential_used`
   with the credential ID as target — never the value).
 - #13 and other scheduled work: `Actor: audit.ServiceActor()`.

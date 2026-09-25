@@ -74,8 +74,8 @@ Sampled metrics will live in a separate database file (#5).
 | `DOCKYARD_MANAGER_URL` | — (required) | Manager origin the agent dials, e.g. `https://docker.example.com`. Remote agents use the public HTTPS origin; an agent on the manager's Docker network may use `http://dockyard-manager:8080` with the opt-in below. |
 | `DOCKYARD_MANAGER_ALLOW_HTTP` | `false` | Must be `true` to accept an `http://` manager URL. Only for an internal network; tokens and credentials otherwise require HTTPS (#27). A plain-HTTP agent is reported as flagged in its capabilities and shown as a warning on its host page. |
 | `DOCKYARD_MANAGER_CA_FILE` | empty | Optional PEM bundle of extra CA certificates trusted for the manager's HTTPS origin (private PKI), in addition to the system roots. Validated at startup (certificates only). Certificate verification is never disabled; redirects from the manager are never followed. |
-| `DOCKYARD_ENROLLMENT_TOKEN` / `_FILE` | empty | One-use enrollment token created in the UI (#3). Never logged. Remove it after enrollment. |
-| `DOCKYARD_AGENT_STATE_DIR` | `/var/lib/dockyard-agent` | Agent state (credentials after #3, health file, job journal `jobs/journal.json` with the fencing high-water mark, #26). Mount a named volume; losing it makes in-flight jobs end as `journal_lost`. |
+| `DOCKYARD_ENROLLMENT_TOKEN` / `_FILE` | empty | One-use enrollment token (`dye_…`, #3) used while the agent is not enrolled. Never logged; a used or refused token is remembered and never sent again, so leaving it configured is harmless, but remove it after enrollment. Alternatively hand a token to the running agent with `dockyard-agent enroll` (stdin). |
+| `DOCKYARD_AGENT_STATE_DIR` | `/var/lib/dockyard-agent` | Agent state: `install-id`, the agent credential `credential.json` (0600), handed-over tokens and enrollment status, the health file and the job journal `jobs/journal.json` with the fencing high-water mark (#26). Mount a named volume; losing it means enrolling again (intent `replace`) and in-flight jobs end as `journal_lost`. |
 | `DOCKER_HOST` | `unix:///var/run/docker.sock` | Docker Engine endpoint (`unix://`, or plain `tcp://`; TLS to a remote Engine is not supported because one agent runs next to each Engine). See "Docker Engine" below. |
 | `DOCKYARD_ENVIRONMENT_NAME` | empty | Optional initial display name of this Environment (≤ 63 characters). |
 | `DOCKYARD_STACKS_VOLUME` | `dockyard_stacks` | Local named volume holding one directory per stack (#28). Must be mounted into the agent at its identical path (see "Host storage layout" in `docs/deployment.md`). |
@@ -85,7 +85,17 @@ Sampled metrics will live in a separate database file (#5).
 
 The agent must run as root (UID 0) and refuses to start otherwise (#28). It
 opens no listening socket. Its container health check verifies that
-`<state dir>/health.json` was updated within the last 60 seconds.
+`<state dir>/health.json` was updated within the last 60 seconds; the file's
+`status` is the connection state (`not_enrolled`, `enrolling`,
+`enrollment_failed`, `connecting`, `connected`, `online`, `disconnected`,
+`unauthorized`, `replaced`, `version_unsupported`).
+
+### Commands
+
+| Command | Purpose |
+| --- | --- |
+| `dockyard-agent enroll [-token-file F] [-wait 90s]` | Hand an enrollment token (stdin) to the running agent through its state directory and wait until it enrolled and its environment is online. Exit 0 online, 1 refused, 2 usage, 3 timeout. |
+| `dockyard-manager enrollment create [-name N] [-intent new\|replace:<agentId>\|reattach:<environmentId>] [-ttl 1h] [-allow-duplicate-engine-id] [-json]` | Create a one-use enrollment token in the manager's database and print it with the install commands (run inside the manager container; for installations without the UI/owner account yet, #16). |
 
 ### Docker Engine
 

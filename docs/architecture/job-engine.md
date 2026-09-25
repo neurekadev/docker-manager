@@ -325,9 +325,13 @@ Manager-local kinds register the same structure with
 `engine.RegisterManagerExecutor` before `Recover`. Steps must honor `ctx`;
 cancellation takes effect only at declared safe points.
 
-**Transport (#3)** implements `jobs.AgentDispatcher` (ordered `Send`,
+**Transport (#3)**: `internal/manager/agents.Hub` implements
+`jobs.AgentDispatcher` (ordered `Send` through one writer per session,
 `Online`), feeds `job_report`/`ack`/`progress`/`result` frames to
-`Engine.HandleAgentFrame` and returns its replies on the session, calls
-`agentjobs.Runner.SendReport` on every agent (re)connect and
-`Runner.HandleFrame` for inbound command/cancel/ack frames. Report the
-environment online only after its `job_report` was reconciled.
+`Engine.HandleAgentFrame` and returns its replies on the session, and
+reports the environment online only after its `job_report` was reconciled
+(and the registered reconcilers ran), then wakes the engine. On the agent,
+`internal/agent/session` sends the job report built from
+`agentjobs.Runner.Report` on every (re)connect (ordered against result
+sends) and passes inbound command/cancel/ack frames to `Runner.HandleFrame`;
+the client is the runner's `Sender`.

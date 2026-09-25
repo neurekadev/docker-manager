@@ -142,6 +142,15 @@ const (
 	CodeTOTPAlreadyEnabled     = "totp_already_enabled"
 	CodeInvitationRedeemed     = "invitation_redeemed"
 	CodeNoPendingFlow          = "no_pending_flow"
+	// Agents, enrollment and environments (#3).
+	CodeVersionUnsupported          = "version_unsupported"
+	CodeEngineAlreadyEnrolled       = "engine_already_enrolled"
+	CodeEngineIdentityConflict      = "engine_identity_conflict"
+	CodeEnvironmentArchived         = "environment_archived"
+	CodeEnvironmentDetached         = "environment_detached"
+	CodeEngineMismatch              = "engine_mismatch"
+	CodeEnrollmentTargetUnavailable = "enrollment_target_unavailable"
+	CodeAgentRevoked                = "agent_revoked"
 )
 
 // CodeForStatus returns the default code for an HTTP status.

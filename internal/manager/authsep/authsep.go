@@ -18,17 +18,22 @@ package authsep
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
 	"net/http"
 	"strings"
+
+	"github.com/neurekadev/dockyard/internal/protocol"
 )
 
 // Credential prefixes. Never reuse them for other token types.
 const (
 	// AgentCredentialPrefix marks an agent's long-lived session credential.
-	AgentCredentialPrefix = "dya_"
+	AgentCredentialPrefix = protocol.CredentialPrefix
 	// EnrollmentTokenPrefix marks a one-use agent enrollment token.
-	EnrollmentTokenPrefix = "dye_"
+	EnrollmentTokenPrefix = protocol.EnrollmentTokenPrefix
 )
 
 // secretBytes is the entropy of generated agent secrets.
@@ -95,4 +100,101 @@ func newSecret(prefix string) (string, error) {
 		return "", err
 	}
 	return prefix + base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// Minted is a freshly generated agent secret with an embedded record ID:
+// "<prefix><id>_<secret>". The manager stores only Verifier (SHA-256 of the
+// secret part) and looks the record up by ID, then compares verifiers in
+// constant time (docs/protocol/agent-v1.md).
+type Minted struct {
+	// Token is shown (enrollment) or sent (credential) exactly once.
+	Token string
+	// ID is the record ID embedded in Token.
+	ID string
+	// Verifier is the hex SHA-256 of the secret part; the only stored form.
+	Verifier string
+}
+
+// MintAgentCredential returns a new agent credential for record id.
+func MintAgentCredential(id string) (Minted, error) { return mint(AgentCredentialPrefix, id) }
+
+// MintEnrollmentToken returns a new enrollment token for record id.
+func MintEnrollmentToken(id string) (Minted, error) { return mint(EnrollmentTokenPrefix, id) }
+
+func mint(prefix, id string) (Minted, error) {
+	if !validRecordID(id) {
+		return Minted{}, errInvalidID
+	}
+	b := make([]byte, secretBytes)
+	if _, err := rand.Read(b); err != nil {
+		return Minted{}, err
+	}
+	secret := base64.RawURLEncoding.EncodeToString(b)
+	return Minted{Token: prefix + id + "_" + secret, ID: id, Verifier: Verifier(secret)}, nil
+}
+
+type idError string
+
+func (e idError) Error() string { return string(e) }
+
+const errInvalidID = idError("authsep: record IDs must be 1-64 characters of [A-Za-z0-9-]")
+
+func validRecordID(id string) bool {
+	if id == "" || len(id) > 64 {
+		return false
+	}
+	for _, r := range id {
+		ok := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-'
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// ParseAgentCredential splits an agent credential into its record ID and
+// secret. ok is false for anything that is not a well-formed credential.
+func ParseAgentCredential(token string) (id, secret string, ok bool) {
+	return parse(AgentCredentialPrefix, token)
+}
+
+// ParseEnrollmentToken splits an enrollment token into its record ID and
+// secret.
+func ParseEnrollmentToken(token string) (id, secret string, ok bool) {
+	return parse(EnrollmentTokenPrefix, token)
+}
+
+// maxTokenLen bounds a parsed token (prefix, 64-byte ID, separator and a
+// 43-character secret fit comfortably).
+const maxTokenLen = 256
+
+func parse(prefix, token string) (id, secret string, ok bool) {
+	if len(token) > maxTokenLen {
+		return "", "", false
+	}
+	rest, found := strings.CutPrefix(token, prefix)
+	if !found {
+		return "", "", false
+	}
+	id, secret, found = strings.Cut(rest, "_")
+	if !found || !validRecordID(id) || len(secret) != base64.RawURLEncoding.EncodedLen(secretBytes) {
+		return "", "", false
+	}
+	if _, err := base64.RawURLEncoding.DecodeString(secret); err != nil {
+		return "", "", false
+	}
+	return id, secret, true
+}
+
+// Verifier returns the stored form of a secret: hex SHA-256. The secrets
+// carry 256 random bits, so a fast hash is sufficient.
+func Verifier(secret string) string {
+	sum := sha256.Sum256([]byte(secret))
+	return hex.EncodeToString(sum[:])
+}
+
+// VerifierMatches compares secret with a stored verifier in constant time.
+func VerifierMatches(stored, secret string) bool {
+	got := Verifier(secret)
+	return len(stored) == len(got) && subtle.ConstantTimeCompare([]byte(stored), []byte(got)) == 1
 }

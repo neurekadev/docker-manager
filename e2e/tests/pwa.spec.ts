@@ -125,7 +125,9 @@ test.describe('PWA shell', () => {
 			}
 			return out;
 		});
-		expect(statuses).toEqual([200, 200, 404, 405, 404]);
+		// The agent session route refuses the browser (no agent credential;
+		// cookies never authenticate /agent/v1, #27) with a generic 401.
+		expect(statuses).toEqual([200, 200, 404, 405, 401]);
 
 		expect(api.length).toBeGreaterThan(0);
 		for (const r of api) {

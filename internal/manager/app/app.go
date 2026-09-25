@@ -1,9 +1,9 @@
 // Package app wires the manager together and owns its startup order:
 //
 //	config → data dir → open DB → (snapshot) → migrate → secret key /
-//	instance → auth primitives → audit trail → job engine recovery →
-//	HTTP handler → listener → serve (+ job engine loop, auth housekeeping,
-//	audit retention)
+//	instance → auth primitives → audit trail → agents (all environments
+//	offline) → job engine recovery → HTTP handler → listener → serve (+ job
+//	engine loop, auth housekeeping, audit retention)
 //
 // Migrations always finish before any listener or background worker starts;
 // a migration failure aborts startup with the database unchanged.
@@ -28,11 +28,13 @@ import (
 	"github.com/neurekadev/dockyard/internal/db/migrations"
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/manager/agents"
 	"github.com/neurekadev/dockyard/internal/manager/api"
 	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/auth"
 	"github.com/neurekadev/dockyard/internal/manager/auth/password"
 	"github.com/neurekadev/dockyard/internal/manager/config"
+	"github.com/neurekadev/dockyard/internal/manager/events"
 	"github.com/neurekadev/dockyard/internal/manager/idempotency"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
@@ -77,6 +79,8 @@ type Manager struct {
 	jobs     *jobs.Engine
 	idem     *idempotency.Store
 	audit    *audit.Log
+	events   *events.Bus
+	agents   *agents.Service
 	handler  http.Handler
 }
 
@@ -172,10 +176,22 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	}
 	authorizer := m.identity.Authorizer()
 
-	// Agents are unreachable until the #3 transport exists.
+	m.events = events.New(opts.Clock)
+	m.agents, err = agents.New(agents.Options{
+		DB: db, Clock: opts.Clock, Logger: log.With("component", "agents"), Keyring: m.keyring, Bus: m.events,
+		ManagerVersion: buildinfo.Get().Version, PublicURL: cfg.PublicURL, Audit: m.audit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// No session survives a restart: environments come back online only
+	// after their agent reconnected and its jobs were reconciled.
+	if err := m.agents.ResetOnline(ctx); err != nil {
+		return nil, fmt.Errorf("reset environment connection state: %w", err)
+	}
 	m.jobs, err = jobs.New(jobs.Options{
 		DB: db, Clock: opts.Clock, Logger: log.With("component", "jobs"),
-		Dispatcher: jobs.NoAgents{}, Authorizer: authorizer, Audit: m.audit,
+		Dispatcher: m.agents.Hub(), Authorizer: authorizer, Audit: m.audit,
 		Limits: jobs.Limits{
 			ConcurrencyCaps: map[string]int{jobspec.ClassPull: cfg.Jobs.MaxConcurrentPulls, jobspec.ClassBuild: cfg.Jobs.MaxConcurrentBuilds},
 			HistoryMaxAge:   cfg.Jobs.HistoryRetention,
@@ -190,6 +206,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		m.jobs.Close()
 		return nil, fmt.Errorf("recover jobs: %w", err)
 	}
+	m.agents.AttachJobs(m.jobs)
 
 	srv, err := server.New(server.Options{
 		Logger: log,
@@ -205,7 +222,9 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Audit:        m.audit,
 			SSEHeartbeat: cfg.StreamHeartbeat,
 			Identity:     m.identity,
+			Agents:       m.agents,
 		},
+		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
 		PublicURL:        cfg.PublicURL,
 		LocalDevelopment: cfg.LocalDevelopment,
@@ -292,6 +311,12 @@ func (m *Manager) Audit() *audit.Log { return m.audit }
 // Identity returns the identity service (#16).
 func (m *Manager) Identity() *auth.Service { return m.identity }
 
+// Agents returns the agent/environment service and session hub (#3).
+func (m *Manager) Agents() *agents.Service { return m.agents }
+
+// Events returns the internal event bus.
+func (m *Manager) Events() *events.Bus { return m.events }
+
 // Idempotency returns the Idempotency-Key response store (its Forget is
 // called when a principal's sessions, token or permissions change).
 func (m *Manager) Idempotency() *idempotency.Store { return m.idem }
@@ -335,6 +360,9 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ShutdownGrace)
 		defer cancel()
+		// Hijacked agent WebSockets are not closed by srv.Shutdown: close
+		// them with 1001 (going away) so agents reconnect with backoff.
+		m.agents.Hub().Shutdown(shutdownCtx)
 		err := srv.Shutdown(shutdownCtx)
 		<-errCh
 		return err

@@ -68,10 +68,16 @@ What the example sets up (`caddy/compose.yaml`):
   of the `dockyard` network (`DOCKYARD_SUBNET`; change both if the subnet
   overlaps one of your networks).
 
-Enrollment (#3) is not implemented yet: the agent logs that it is not
-enrolled and stays healthy. When enrollment lands, create a token in the UI,
-put it in `.env` as `DOCKYARD_ENROLLMENT_TOKEN`, run `docker compose up -d`,
-and remove it again after the agent has enrolled.
+Enroll the co-located agent (#3) by handing it a one-use token on stdin:
+
+```bash
+docker compose exec -T dockyard-manager dockyard-manager enrollment create -name "$(hostname)"
+printf '%s\n' "$TOKEN" | docker compose exec -T dockyard-agent dockyard-agent enroll
+```
+
+(or put the token in `.env` as `DOCKYARD_ENROLLMENT_TOKEN`, run `docker
+compose up -d`, and remove it again after the agent has enrolled). Agents on
+other hosts use `remote-agent/`. See `docs/deployment.md`.
 
 ## Backups of DockYard itself
 

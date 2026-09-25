@@ -35,8 +35,10 @@ document and the code disagree.
 | `GET /agent/v1/session` | WebSocket upgrade to the session | agent credential |
 
 Both are publicly reachable on the shared origin, so they are rate limited
-per client IP (via `DOCKYARD_TRUSTED_PROXIES`, #27) and per token/credential,
-answer failures generically, and bound request sizes and pre-auth time.
+per client IP (via `DOCKYARD_TRUSTED_PROXIES`, #27: 1 request/s, burst 30)
+and per token/credential (enrollment 6/min, burst 5 per enrollment ID;
+session upgrades 10/min, burst 10 per credential ID), answer failures
+generically, and bound request sizes (64 KiB) and pre-auth time (10 s).
 Responses carry `Cache-Control: no-store`. Browser cookies never
 authenticate `/agent/v1`, agent credentials never authenticate `/api/v1`,
 and requests carrying an `Origin` header (every browser request does) are
@@ -47,9 +49,20 @@ hijacking. HTTP errors on these routes use the public error shape
 ## Enrollment
 
 The owner (or a user with `agent.enroll`) creates an enrollment with `POST
-/api/v1/agent-enrollments`. The manager returns, **once**, a token and an
-install command containing the manager URL and the token (as an environment
-variable or secret file, never in a URL). The enrollment records its intent:
+/api/v1/agent-enrollments` — or, before the UI and accounts exist (#16),
+inside the manager container with `dockyard-manager enrollment create
+[-name N] [-intent …] [-ttl 1h] [-json]`. The manager returns, **once**, a
+token and install commands containing the manager URL
+(`DOCKYARD_PUBLIC_URL`) and the token — on stdin, in an environment variable
+or a `.env` file, never in a URL:
+
+| variant | how the token reaches the agent |
+| --- | --- |
+| `colocated` | `printf '%s\n' "$TOKEN" \| docker compose exec -T dockyard-agent dockyard-agent enroll` next to the manager's compose file (the agent already runs on the internal URL) |
+| `remote` | `docker run -d … dockyard-agent` with the public origin, then the same `dockyard-agent enroll` on stdin |
+| `remote_compose` | `DOCKYARD_ENROLLMENT_TOKEN=` in `deploy/remote-agent/.env`, then `docker compose up -d` |
+
+The enrollment records its intent:
 
 | intent | meaning |
 | --- | --- |
@@ -57,17 +70,19 @@ variable or secret file, never in a URL). The enrollment records its intent:
 | `replace:<agentId>` | the new agent replaces the given agent for the same Engine; the old credential is revoked when enrollment succeeds |
 | `reattach:<environmentId>` | re-attach an archived environment (#34) — the owner's confirmation is given when creating the token |
 
-Enrollment tokens: format `dyenroll_<enrollmentId>_<secret>` (secret: 32
-random bytes, base64url), single use, expire after a lifetime chosen at
-creation (default 1 h, max 24 h), stored only as SHA-256 of the secret,
-revocable (`DELETE /api/v1/agent-enrollments/{id}`), consumed atomically by
-the first successful enrollment, and never logged.
+Enrollment tokens: format `dye_<enrollmentId>_<secret>` (secret: 32 random
+bytes, base64url; the `dye_` prefix lets the manager refuse them on
+`/api/v1`, #27), single use, expire after a lifetime chosen at creation
+(default 1 h, 1 min to 24 h), stored only as SHA-256 of the secret (compared
+in constant time), revocable (`DELETE /api/v1/agent-enrollments/{id}`),
+consumed atomically by the first successful enrollment, and never logged.
+Expired enrollments are deleted a week after they expired.
 
 ### `POST /agent/v1/enroll`
 
 ```http
 POST /agent/v1/enroll HTTP/1.1
-Authorization: Bearer dyenroll_0190a6e0..._q2V1c...
+Authorization: Bearer dye_0190a6e0-..._q2V1c...
 Content-Type: application/json
 User-Agent: dockyard-agent/1.4.0
 
@@ -93,7 +108,7 @@ Success, `201 Created`:
   "agentId": "0190a6e0-2222-7000-8000-000000000002",
   "environmentId": "0190a6e0-3333-7000-8000-000000000003",
   "environmentName": "NAS",
-  "credential": "dyagent_0190a6e0-4444-7000-8000-000000000004_Zm9vYmFy...",
+  "credential": "dya_0190a6e0-4444-7000-8000-000000000004_Zm9vYmFy...",
   "sessionPath": "/agent/v1/session",
   "reattached": false
 }
@@ -108,29 +123,63 @@ Failures (bodies use the standard error shape):
 
 | status | code | meaning |
 | --- | --- | --- |
-| 401 | `unauthenticated` | token unknown, expired, revoked or already used — deliberately indistinguishable |
-| 409 | `engine_already_enrolled` | an active agent already controls this Engine; create an enrollment with intent `replace` |
-| 409 | `environment_archived` | this Engine belongs to an archived environment; create an enrollment with intent `reattach` |
-| 409 | `engine_identity_conflict` | the Engine ID is known with a different install ID (cloned VM); the owner resolves it in the UI |
+| 401 | `unauthenticated` | token unknown, wrong secret, expired, revoked or already used — deliberately indistinguishable |
+| 403 | `forbidden` | the request carries an `Origin` header (browsers never enroll) |
+| 409 | `engine_already_enrolled` | an active agent already controls this Engine (same install ID, or the same host name with a new install ID); create an enrollment with intent `replace:<agentId>` (the message names it) |
+| 409 | `engine_identity_conflict` | the Engine ID is enrolled from another host with another install ID (cloned VM): replace the agent if it is the same Engine, regenerate the clone's Engine ID (`/var/lib/docker/engine-id`), or create an enrollment with `allowDuplicateEngineId` |
+| 409 | `environment_archived` | this Engine belongs to an archived environment; create an enrollment with intent `reattach:<environmentId>` |
+| 409 | `environment_detached` | this Engine belongs to an environment whose agent was removed; create an enrollment with intent `reattach:<environmentId>` |
+| 409 | `engine_mismatch` | a `replace` or `reattach` enrollment was used for another Engine than its target's |
+| 409 | `enrollment_target_unavailable` | the agent to replace is no longer active, or the environment to re-attach no longer archived/detached |
 | 413 | `payload_too_large` | body over 64 KiB |
 | 422 | `validation_failed` | malformed body |
-| 426 | `version_unsupported` | protocol or agent version outside the window (see below); message says what to upgrade |
+| 426 | `version_unsupported` | protocol or agent version outside the window (see below); message says what to upgrade. Checked before the token, so an outdated agent learns it even with a valid token |
 | 429 | `rate_limited` | honour `Retry-After` |
+
+A 409 does **not** consume the token; the manager records the refused
+attempt on the enrollment (`lastRejection`: code, Engine ID, install ID,
+host name and the conflicting agent/environment) so the owner can resolve
+it. One active agent per Engine is enforced in the enrollment transaction
+(and by a unique index of one active agent per environment).
+
+### Agent side
+
+The agent enrolls once it knows its Engine identity (the Engine is
+reachable). Token sources, in order: a token handed over by `dockyard-agent
+enroll` (read from stdin or `-token-file`, written 0600 to
+`<state dir>/enrollment-token`, picked up within 2 s, deleted once used; also
+while enrolled — the new token wins, e.g. to replace or re-attach), then
+`DOCKYARD_ENROLLMENT_TOKEN(_FILE)` while not enrolled. `dockyard-agent
+enroll` waits (`-wait 90s`) for the outcome
+(`<state dir>/enrollment-status.json`) and for the session to come online,
+and exits 0 (online), 1 (refused, with the manager's code), 2 (usage) or 3
+(timeout). Tokens that were used or refused are remembered as SHA-256
+(`enrollment-used.json`) and never sent again; a 426 is not remembered (an
+upgraded agent may retry). Network failures, 429 and 5xx are retried with
+the session backoff. The state directory also holds `install-id` (generated
+once) and `credential.json` (0600, atomic write). When the manager refuses
+the credential (401 at the upgrade, close 4401/4403) the agent deletes it,
+reports `unauthorized` in `health.json` and waits for a new token.
 
 ### Credential
 
-- Format `dyagent_<credentialId>_<secret>`; the manager looks the credential
+- Format `dya_<credentialId>_<secret>`; the manager looks the credential
   up by ID and compares SHA-256(secret) in constant time. Only the hash is
   stored. It is a bearer secret presented on the session upgrade, not mTLS,
   because TLS terminates at the proxy (#27).
 - Never logged, never in URLs, never sent to browsers, never stored outside
   the agent's secret mount.
 - **Rotation** (`POST /api/v1/agents/{agentId}/credential-rotations`): the
-  manager creates a new credential and sends the request
-  `agent.credential.rotate` on the live session (queued until the agent is
-  online). The agent persists it atomically and answers `response`; only then
-  does the manager revoke the old credential. If the agent never confirms,
-  the old credential stays valid and the rotation shows as pending.
+  manager creates a new credential (kept sealed with the secret-protection
+  key while pending) and sends the request `agent.credential.rotate {credential}`
+  on the live session. The agent persists it atomically and answers
+  `response {persisted: true}`; only then does the manager make it the only
+  valid credential and revoke the old one — the session keeps running
+  (`state: completed`). If the agent is offline or does not confirm within
+  30 s the rotation is `pending`: the old credential stays valid and the new
+  one is delivered when the agent's next session comes online. An agent that
+  persisted a pending credential whose confirmation was lost presents it on
+  its next upgrade, which completes the rotation the same way.
 - **Revocation** (agent removed, `DELETE /api/v1/agents/{agentId}`, or
   replaced): the credential stops working immediately and a live session is
   closed with `4403`.
@@ -142,7 +191,7 @@ Failures (bodies use the standard error shape):
 ```http
 GET /agent/v1/session HTTP/1.1
 Upgrade: websocket
-Authorization: Bearer dyagent_0190a6e0-4444-..._Zm9vYmFy...
+Authorization: Bearer dya_0190a6e0-4444-..._Zm9vYmFy...
 Sec-WebSocket-Protocol: dockyard.agent/v1
 User-Agent: dockyard-agent/1.4.0
 ```
@@ -168,10 +217,21 @@ agent                                   manager
                                             environment is online; full resync (#23)
 ```
 
-- The manager closes any older session of the same agent with `4409`.
+- The hello must match the credential: another agent or install ID closes
+  with `4401`; another Engine ID than the enrolled one closes with `4403`
+  (enroll the agent again). `capabilities` must follow `welcome`, then
+  exactly one `job_report`; anything else before it closes with `4400`.
+- The manager closes any older session of the same agent with `4409`, and a
+  session of a replaced agent for the same environment with `4403`.
 - The environment is reported **online only after** `job_report` was
-  reconciled and the manager has re-read inventory (containers, stacks) with
-  requests, so live views never claim stale state is current (#23).
+  reconciled and every registered reconciler (inventory owners re-read what
+  changed while the agent was away, `agents.Hub.AddReconciler`) returned, so
+  live views never claim stale state is current (#23). The online/offline
+  transition is persisted on the environment (`online`,
+  `connectionChangedAt`) and published on the manager's event bus
+  (`environment.online` / `environment.offline`), followed by
+  `environment.resync` (reason `reconnect`). A manager restart marks every
+  environment offline until its agent is back.
 - Reconnect: exponential backoff with full jitter from 1 s to 60 s, reset
   after 60 s of healthy session; never reconnect after `4401`, `4403`, `4409`
   or `4426` (`protocol.ReconnectAllowed`).
@@ -359,6 +419,22 @@ does not serve fail with `unsupported_request`. The request's `input` and
 `output` schemas are owned by the feature issue named in the table and
 documented next to its code; this document fixes the names, capabilities and
 bounds.
+
+### Sequence numbers and gaps
+
+`event` and `fs_invalidation` frames carry `seq`: two independent counters
+per session, starting at 1 and increasing by one per frame. The agent relays
+them from bounded queues; when a queue is congested it drops the frame **but
+still consumes its number** (it never blocks the session, and it never
+renumbers). The manager tracks each counter (`protocol.SeqTracker`): a
+number at or below the last one is a duplicate and dropped; a jump is a gap.
+After a gap, and after every (re)connect, the manager stops trusting the
+history: for events it publishes `environment.resync` (reason `event_gap`
+or `reconnect`) so consumers re-read the environment's inventory; for file
+invalidations it publishes a whole-environment `files.invalidated` with
+overflow (reason `sequence_gap`), so open file views rescan (#23). An
+invalidation with more than 256 paths is sent as `overflow` of its scope
+without paths.
 
 ### event
 
@@ -625,5 +701,7 @@ The manager maps them to public errors: `not_found` → 404,
 | --- | --- | --- |
 | envelope, strict decode, size limit, frame types, payload types and validation, allowlists, limits, close codes, version window | `internal/protocol` | implemented (#4, #26) with unit and fuzz tests |
 | job command semantics, fencing, journal, reconciliation | `internal/protocol/jobs.go`, `internal/manager/jobs`, `internal/agent/jobs` | implemented (#26) |
-| `/agent/v1/enroll`, `/agent/v1/session`, handshake, heartbeats, stream relay | manager and agent transport | #3 (the manager answers 404 until then) |
+| `/agent/v1/enroll`, `/agent/v1/session`, handshake, heartbeats, close codes, requests, rotation, event/invalidation relay with sequence numbers | `internal/manager/agents` (manager), `internal/agent/{enroll,session,state,runtime}` (agent) | implemented (#3) |
+| job dispatch over the session (`jobs.AgentDispatcher`) and job frame routing, reconcile-before-online | `internal/manager/agents` (`Hub`), `internal/agent/session` + `internal/agent/jobs` | implemented (#3) |
+| `rescan` (agent answers `unsupported_request`), agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stubs | #15, #23 (rescan), #8, #15, #35 (streams) |
 | request/stream executors | agent adapter | #5, #6, #7, #8, #10, #14, #15, #21, #35 |
