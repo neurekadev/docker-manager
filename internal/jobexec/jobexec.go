@@ -160,6 +160,12 @@ const (
 	OutcomeInterrupted = string(domain.JobInterrupted)
 )
 
+// ErrStepCancelled is returned (wrapped) by a step that stopped early
+// because cancellation was requested (sc.CancelRequested) and whose
+// interruption is safe, e.g. an aborted image build. The attempt then ends
+// cancelled instead of failed; compensations run as for any cancellation.
+var ErrStepCancelled = errors.New("jobexec: step cancelled on request")
+
 // ErrAbandoned is returned by Run when ctx ended mid-attempt (process
 // shutdown). The journal keeps the in-flight state; Recover handles it on
 // the next start.
@@ -286,6 +292,11 @@ func Run(ctx context.Context, exec Executor, st *State, o Options) (protocol.Res
 				return protocol.ResultPayload{}, ErrAbandoned
 			}
 			st.StepInFlight = false
+			if errors.Is(err, ErrStepCancelled) {
+				res = &protocol.ResultPayload{Outcome: OutcomeCancelled, ErrorClass: domain.ErrorCancelled,
+					Message: "cancelled during step " + step.Name}
+				break
+			}
 			res = stepFailure(step, err)
 			break
 		}

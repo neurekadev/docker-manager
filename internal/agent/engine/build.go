@@ -3,6 +3,7 @@ package engine
 import (
 	"archive/tar"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -16,12 +17,15 @@ import (
 
 	controlapi "github.com/moby/buildkit/api/services/control"
 	"github.com/moby/buildkit/session"
+	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/moby/go-archive"
 	buildtypes "github.com/moby/moby/api/types/build"
 	"github.com/moby/moby/client"
 	"github.com/moby/patternmatcher"
 	"github.com/moby/patternmatcher/ignorefile"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
+	"github.com/neurekadev/dockyard/internal/logging"
 )
 
 // BuildSpec describes an image build. Exactly one of ContextDir and
@@ -54,8 +58,22 @@ type BuildSpec struct {
 	// served to BuildKit over a session on the Engine connection, from
 	// memory only.
 	RegistryAuth []RegistryAuth
+	// GitAuth authenticates the Engine's BuildKit when it fetches a
+	// private Git context over HTTPS (#33): served from memory as the
+	// session secret GIT_AUTH_HEADER.<host> (an HTTP basic Authorization
+	// value), which BuildKit's Git source sends as an extra header. Never
+	// put credentials into RemoteContext.
+	GitAuth []GitAuth
 	// Progress receives BuildKit progress (may be nil).
 	Progress func(BuildEvent)
+}
+
+// GitAuth is the HTTPS credential of one Git host for a build.
+type GitAuth struct {
+	// Host is host[:port] exactly as in the Git URL.
+	Host     string
+	Username string
+	Token    logging.Secret
 }
 
 // BuildEvent is one BuildKit progress update.
@@ -128,8 +146,8 @@ func (c *Client) Build(ctx context.Context, spec BuildSpec) (BuildResult, error)
 		opts.Dockerfile = dockerfile
 	}
 
-	if len(spec.RegistryAuth) > 0 {
-		sess, err := c.startSession(ctx, spec.RegistryAuth)
+	if len(spec.RegistryAuth) > 0 || len(spec.GitAuth) > 0 {
+		sess, err := c.startSession(ctx, spec.RegistryAuth, spec.GitAuth)
 		if err != nil {
 			return BuildResult{}, err
 		}
@@ -328,14 +346,17 @@ func readDockerignore(dir string) ([]string, error) {
 }
 
 // startSession opens a BuildKit session over the Engine connection that
-// answers registry credential requests from memory.
-func (c *Client) startSession(ctx context.Context, auths []RegistryAuth) (*session.Session, error) {
+// answers registry credential and Git secret requests from memory.
+func (c *Client) startSession(ctx context.Context, auths []RegistryAuth, git []GitAuth) (*session.Session, error) {
 	const op = "image.build.session"
 	sess, err := session.NewSession(ctx, "dockyard")
 	if err != nil {
 		return nil, wrap(op, err)
 	}
 	sess.Allow(newAuthProvider(auths))
+	if len(git) > 0 {
+		sess.Allow(secretsprovider.FromMap(gitSecrets(git)))
+	}
 	go func() {
 		err := sess.Run(ctx, func(ctx context.Context, proto string, meta map[string][]string) (net.Conn, error) {
 			return c.api.DialHijack(ctx, "/session", proto, meta)
@@ -345,4 +366,15 @@ func (c *Client) startSession(ctx context.Context, auths []RegistryAuth) (*sessi
 		}
 	}()
 	return sess, nil
+}
+
+// gitSecrets maps each Git host to the session secret BuildKit's Git
+// source looks up first: GIT_AUTH_HEADER.<host> = "basic <base64(user:token)>".
+func gitSecrets(git []GitAuth) map[string][]byte {
+	m := make(map[string][]byte, len(git))
+	for _, g := range git {
+		v := "basic " + base64.StdEncoding.EncodeToString([]byte(g.Username+":"+string(g.Token)))
+		m["GIT_AUTH_HEADER."+strings.ToLower(g.Host)] = []byte(v)
+	}
+	return m
 }

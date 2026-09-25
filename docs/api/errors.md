@@ -101,6 +101,10 @@ same change.
 | `group_not_empty` | 409 | no | The group still has members; move them to another group first (users are never moved implicitly). | #17 |
 | `registry_connection_name_taken` | 409 | no | Another registry connection already uses this name. | #19 |
 | `ambiguous_registry_connection` | 409 | no | Several registry connections match the image equally well (same host, repository matcher specificity, binding and priority); name one explicitly (`registryId`). | #19 |
+| `git_credential_name_taken` | 409 | no | Another Git credential already uses this name. | #33 |
+| `ambiguous_git_credential` | 409 | no | Several Git credentials match the repository equally well (same host and path prefix length); name one explicitly (`gitCredentialId`). | #33 |
+| `git_credential_revoked` | 409 | no | The Git credential selected for the repository is revoked; DockYard never falls back to anonymous access. Set a new token or select another credential. | #33 |
+| `build_definition_name_taken` | 409 | no | Another build definition in this environment already uses this name. | #33 |
 | `registry_connection_revoked` | 409 | no | The registry connection selected for the image is revoked; DockYard never falls back to anonymous access. Rotate a new credential into it or select another connection. | #19 |
 | `stack_managed` | 409 | no | The container, volume or network belongs to a DockYard-managed stack: change the stack's Compose definition (or use the stack's operations) instead of editing or removing it directly. | #6 |
 | `container_running` | 409 | no | The container is running; stop it first or remove it with `force=true`. | #6 |

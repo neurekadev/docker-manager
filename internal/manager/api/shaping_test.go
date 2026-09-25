@@ -30,7 +30,7 @@ func shapingAPI(t *testing.T, pol *authztest.Policy) http.Handler {
 		return policy.Location{}
 	})
 	mux := http.NewServeMux()
-	New(mux, Deps{Agents: svc, Authorizer: pol, Clock: testutil.FakeClock(), Idempotency: &memIdempotency{}})
+	New(mux, Deps{Agents: svc, Authorizer: pol, Clock: testutil.FakeClock(), Idempotency: &memIdempotency{}, Builds: emptyBuilds{}})
 	return authztest.Authenticate(withTestContext(t, mux, ""))
 }
 
@@ -47,6 +47,9 @@ func agentRoutes(t *testing.T) []authztest.Call {
 	}
 	for i := range calls {
 		calls[i].Headers = map[string]string{"If-Match": "*", "Idempotency-Key": "k-" + calls[i].OperationID}
+		if b, ok := sampleBodies[calls[i].OperationID]; ok {
+			calls[i].Body = b
+		}
 	}
 	if len(calls) < 14 {
 		t.Fatalf("only %d environment/agent routes", len(calls))

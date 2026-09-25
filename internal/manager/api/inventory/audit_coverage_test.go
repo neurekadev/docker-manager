@@ -55,11 +55,12 @@ var pathParam = regexp.MustCompile(`\{([A-Za-z][A-Za-z0-9]*)\}`)
 // api.TestEveryServedMutatingOperationIsAudited.
 func TestEveryCatalogedMutatingRouteIsAudited(t *testing.T) {
 	inv := load(t)
-	checked := 0
+	checked, planned := 0, 0
 	for _, r := range inv.Routes {
 		if r.Method == http.MethodGet || r.Status == StatusImplemented {
 			continue // implemented ones: api.TestEveryServedMutatingOperationIsAudited
 		}
+		planned++
 		rec := &memAudit{}
 		mux := http.NewServeMux()
 		a := api.New(mux, api.Deps{Audit: rec})
@@ -156,8 +157,11 @@ func TestEveryCatalogedMutatingRouteIsAudited(t *testing.T) {
 		}
 		checked++
 	}
-	if checked < 50 { // implemented routes are checked by api.TestEveryServedMutatingOperationIsAudited
-		t.Fatalf("only %d mutating routes checked", checked)
+	// Every planned mutating route must pass (failures are reported above);
+	// implemented routes are checked by api.TestEveryServedMutatingOperationIsAudited,
+	// so the planned set shrinks as features ship.
+	if planned == 0 || checked != planned {
+		t.Fatalf("%d of %d planned mutating routes checked", checked, planned)
 	}
 	t.Logf("%d mutating catalog routes emit audit records", checked)
 }

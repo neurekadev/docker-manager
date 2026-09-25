@@ -100,6 +100,11 @@ type Deps struct {
 	// DOCKYARD_FILES_MAX_UPLOAD).
 	Files          FilesService
 	FilesMaxUpload int64
+	// GitCredentials serves Git credentials (#33); nil answers with 503.
+	GitCredentials GitCredentialService
+	// Builds serves image builds and build definitions (#33); nil
+	// answers with 503.
+	Builds BuildService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -160,6 +165,8 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerVolumes(a, deps)
 	registerNetworks(a, deps)
 	registerFiles(a, deps)
+	registerGitCredentials(a, deps)
+	registerBuilds(a, deps)
 	return a
 }
 

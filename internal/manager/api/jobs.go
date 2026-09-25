@@ -41,8 +41,8 @@ const DefaultSSEHeartbeat = sse.DefaultHeartbeat
 
 // JobTarget is a resource a job acts on.
 type JobTarget struct {
-	Type          string `json:"type" enum:"stack,container,volume,image,network,repository,path,destination_path" doc:"Target resource type."`
-	ID            string `json:"id" doc:"Resource identifier within its environment (stack ID, container, volume or network name, image reference, repository ID, absolute path)."`
+	Type          string `json:"type" enum:"stack,container,volume,image,network,repository,path,destination_path,build_definition" doc:"Target resource type."`
+	ID            string `json:"id" doc:"Resource identifier within its environment (stack ID, container, volume or network name, image reference, repository ID, absolute path, build definition ID)."`
 	EnvironmentID string `json:"environmentId,omitempty" doc:"Environment of the target when it differs from the job's (migrations)."`
 }
 

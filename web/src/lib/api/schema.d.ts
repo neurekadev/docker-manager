@@ -509,6 +509,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/build-definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List build definitions
+         * @description Saved builds of the environment, filtered per item (#17).
+         */
+        get: operations["list-build-definitions"];
+        put?: never;
+        /**
+         * Save a build definition
+         * @description Saves a build (source, tags, options) to re-run on demand; scheduled rebuilds are not in v1. 409 build_definition_name_taken.
+         */
+        post: operations["create-build-definition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/build-definitions/{definitionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a build definition */
+        get: operations["get-build-definition"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a build definition
+         * @description Its build records stay. Requires If-Match.
+         */
+        delete: operations["delete-build-definition"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a build definition
+         * @description Requires If-Match.
+         */
+        patch: operations["update-build-definition"];
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/build-definitions/{definitionId}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a build definition
+         * @description Starts a build of the definition (like POST .../images/builds); image.build on the definition suffices for the images it tags.
+         */
+        post: operations["create-build-definition-run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/capacity": {
         parameters: {
             query?: never;
@@ -721,6 +790,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/image-builds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List image builds
+         * @description Build records of the environment, newest first, with their outcome (resolved commit, image ID, duration).
+         */
+        get: operations["list-image-builds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/image-builds/{buildId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an image build
+         * @description The build record; its log is the job's event stream (GET /api/v1/jobs/{buildId}/events/stream).
+         */
+        get: operations["get-image-build"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/images": {
         parameters: {
             query?: never;
@@ -735,6 +844,26 @@ export interface paths {
         get: operations["list-images"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/images/builds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build an image from a Git repository
+         * @description Starts an image.build job on the environment's agent: the ref is resolved to a commit (in-process ls-remote with the matching Git credential), then the Engine's BuildKit builds exactly that commit (remote Git context; no docker or buildx CLI) with private base images authenticated by registry connections (#19). Progress and the BuildKit log stream as job events; builds per environment are limited by DOCKYARD_JOB_MAX_CONCURRENT_BUILDS; cancel with POST /jobs/{id}/cancellations. The build record is GET .../image-builds/{jobId}. Build argument values are never audited. 409 ambiguous_git_credential, git_credential_revoked, registry_connection_revoked.
+         */
+        post: operations["create-image-build"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1179,6 +1308,78 @@ export interface paths {
          * @description Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-DockYard-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKYARD_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
          */
         post: operations["upload-volume-files"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/git-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Git credentials
+         * @description Git credentials in creation order, filtered per item (#17): git_credential.read shows one in full, other capabilities on it only id, name, host and status. Tokens are write-only and never returned.
+         */
+        get: operations["list-git-credentials"];
+        put?: never;
+        /**
+         * Add a Git credential
+         * @description Stores an HTTPS Git credential (username + access token) for private build contexts, sealed with the manager's secret-protection key; the token is write-only (fingerprint only). Builds send it to the agent for that job only, as a BuildKit session secret. 409 git_credential_name_taken. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-git-credential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/git-credentials/{credentialId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a Git credential
+         * @description Never contains the token.
+         */
+        get: operations["get-git-credential"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a Git credential
+         * @description Queued builds that name it fail at dispatch with credential_unavailable. Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        delete: operations["delete-git-credential"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a Git credential
+         * @description Edits the name, path prefix, username or plain-HTTP flag, rotates the token (secret) or revokes it (status revoked). Jobs dispatched afterwards use the new token. Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        patch: operations["update-git-credential"];
+        trace?: never;
+    };
+    "/api/v1/git-credentials/{credentialId}/connection-tests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test a Git credential
+         * @description Lists the refs of a repository with the credential from the manager (an in-process git ls-remote over HTTP(S), no git CLI) and resolves a ref. A failure is reported in the body (ok false, errorClass). The repository must be on the credential's host and path prefix (422). 409 git_credential_revoked. Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-git-credential-connection-test"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2526,6 +2727,76 @@ export interface components {
              */
             type: string;
         };
+        BuildDefinition: {
+            actions: string[];
+            /** Format: date-time */
+            createdAt?: string;
+            description?: string;
+            environmentId: string;
+            id: string;
+            lastBuildId?: string;
+            name: string;
+            /** Format: int64 */
+            revision?: number;
+            /** @description Full view. */
+            source?: components["schemas"]["BuildSource"];
+            /** Format: date-time */
+            updatedAt?: string;
+            /** @enum {string} */
+            view: "minimal" | "full";
+        };
+        BuildSource: {
+            /** @description Build arguments. Warning: values end up in the image history; never pass secrets. Never recorded in the audit trail. */
+            buildArgs?: {
+                [key: string]: string;
+            };
+            /**
+             * @description Build context directory inside the repository.
+             * @example services/api
+             */
+            contextPath?: string;
+            /**
+             * @description Relative to the context (default Dockerfile).
+             * @example Dockerfile
+             */
+            dockerfile?: string;
+            /** @description Git credential to use (default: the matching one; ambiguous matches need this). */
+            gitCredentialId?: string;
+            /**
+             * @description http(s) repository URL without credentials (SSH is not supported in v1).
+             * @example https://github.com/acme/app.git
+             */
+            gitUrl: string;
+            noCache?: boolean;
+            /**
+             * @description Default: the host platform.
+             * @example linux/amd64
+             */
+            platform?: string;
+            /** @description Always pull newer base images. */
+            pull?: boolean;
+            /**
+             * @description Branch, tag, full ref or commit (default: the repository's HEAD). Resolved to a commit before the build; exactly that commit is built and recorded.
+             * @example main
+             */
+            ref?: string;
+            /** @description Registry connections for private base images (default: every host-wide connection that applies in the environment). */
+            registryIds?: string[];
+            /**
+             * @description Image names to produce (name:tag).
+             * @example [
+             *       "registry.example.com/acme/app:1.4.2"
+             *     ]
+             */
+            tags: string[];
+            /** @description Build stage. */
+            target?: string;
+            /**
+             * Format: int64
+             * @description Build timeout (default 3600).
+             */
+            timeoutSeconds?: number;
+        };
         CapabilitiesBody: {
             /** @example dockyard.agent/v1 */
             agentProtocolVersion: string;
@@ -2918,6 +3189,11 @@ export interface components {
             /** @description The token value (dy_...). Shown only in this response; DockYard stores a verifier. Send it as Authorization: Bearer <token>. */
             token: string;
         };
+        CreateDefinitionInputBody: {
+            description?: string;
+            name: string;
+            source: components["schemas"]["BuildSource"];
+        };
         CreateEnrollmentInputBody: {
             /** @description Only with intent new: the enrolling host is a different machine that reports the same Docker Engine ID as an enrolled one (a cloned VM). Prefer regenerating the clone's Engine ID. */
             allowDuplicateEngineId?: boolean;
@@ -2937,6 +3213,21 @@ export interface components {
              * @example new
              */
             intent?: string;
+        };
+        CreateGitCredentialInputBody: {
+            /**
+             * @description host or host:port.
+             * @example github.com
+             */
+            host: string;
+            name: string;
+            /** @example acme */
+            pathPrefix?: string;
+            plainHttp?: boolean;
+            /** @description Access token (read-only repository scope recommended). Write-only. */
+            secret: string;
+            /** @description For GitHub/GitLab tokens any non-empty name works (e.g. x-access-token, oauth2). */
+            username: string;
         };
         CreateGroupInputBody: {
             /** @example Operators */
@@ -3494,6 +3785,67 @@ export interface components {
             /** @description conflict=skip and the name existed: nothing was written. */
             skipped: boolean;
         };
+        GitCredential: {
+            actions: string[];
+            /** Format: date-time */
+            createdAt?: string;
+            /**
+             * @description host[:port] the credential is sent to.
+             * @example github.com
+             */
+            host: string;
+            id: string;
+            lastCheck?: components["schemas"]["RegistryCheck"];
+            /** Format: date-time */
+            lastUsedAt?: string;
+            /** @example GitHub (acme builds) */
+            name: string;
+            /**
+             * @description Only repositories below this path (full view); empty: every repository on the host.
+             * @example acme
+             */
+            pathPrefix?: string;
+            /** @description May be sent to http:// repositories (full view). */
+            plainHttp?: boolean;
+            /** Format: int64 */
+            revision?: number;
+            /** Format: date-time */
+            revokedAt?: string;
+            /** @description Token metadata (full view); the token itself is never returned. */
+            secret?: components["schemas"]["RegistrySecret"];
+            /** @enum {string} */
+            status: "active" | "revoked";
+            /** Format: date-time */
+            updatedAt?: string;
+            /** @description Full view. */
+            username?: string;
+            /** @enum {string} */
+            view: "minimal" | "full";
+        };
+        GitCredentialTest: {
+            /** Format: date-time */
+            checkedAt: string;
+            /** @description The commit the ref (or HEAD) points to. */
+            commit?: string;
+            /** @enum {string} */
+            errorClass?: "unauthorized" | "forbidden" | "not_found" | "rate_limited" | "git_unavailable" | "invalid_response" | "ref_not_found" | "invalid_git_url";
+            /** @example refs/heads/main */
+            head?: string;
+            /** @description Explanation of the failure (never contains credentials). */
+            message?: string;
+            ok: boolean;
+            /** @description The full ref resolved. */
+            ref?: string;
+            /** Format: int64 */
+            refCount: number;
+            repository: string;
+        };
+        GitCredentialTestInputBody: {
+            /** @description Also resolve this branch, tag or ref (default HEAD). */
+            ref?: string;
+            /** @example https://github.com/acme/app.git */
+            repositoryUrl: string;
+        };
         Group: {
             /** Format: date-time */
             createdAt: string;
@@ -3566,6 +3918,46 @@ export interface components {
             usedBy?: components["schemas"]["ContainerRef"][];
             /** @enum {string} */
             view: "minimal" | "full";
+        };
+        ImageBuild: {
+            /** @description Names of the build arguments (values are not shown here). */
+            buildArgNames: string[];
+            contextPath?: string;
+            /** Format: date-time */
+            createdAt: string;
+            definitionId?: string;
+            dockerfile?: string;
+            /**
+             * Format: int64
+             * @description Build duration once finished.
+             */
+            durationMs?: number;
+            environmentId: string;
+            errorClass?: string;
+            errorMessage?: string;
+            /** Format: date-time */
+            finishedAt?: string;
+            gitCredentialId?: string;
+            gitUrl: string;
+            /** @description Build ID (equal to its job ID). */
+            id: string;
+            /** @description The built image's ID (config digest). */
+            imageId?: string;
+            jobId: string;
+            noCache: boolean;
+            platform?: string;
+            pull: boolean;
+            ref?: string;
+            registryIds: string[];
+            /** @description The exact commit built. */
+            resolvedCommit?: string;
+            resolvedRef?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "succeeded" | "failed" | "cancelled" | "interrupted";
+            tags: string[];
+            target?: string;
         };
         ImageDetails: {
             architecture?: string;
@@ -3737,13 +4129,13 @@ export interface components {
         JobTarget: {
             /** @description Environment of the target when it differs from the job's (migrations). */
             environmentId?: string;
-            /** @description Resource identifier within its environment (stack ID, container, volume or network name, image reference, repository ID, absolute path). */
+            /** @description Resource identifier within its environment (stack ID, container, volume or network name, image reference, repository ID, absolute path, build definition ID). */
             id: string;
             /**
              * @description Target resource type.
              * @enum {string}
              */
-            type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path";
+            type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path" | "build_definition";
         };
         MetadataStackInputBody: {
             /** @description Needs <root>.files.chmod. */
@@ -3934,6 +4326,17 @@ export interface components {
              */
             total?: number;
         };
+        PageBuildDefinition: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["BuildDefinition"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageContainer: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Container"][];
@@ -3956,9 +4359,31 @@ export interface components {
              */
             total?: number;
         };
+        PageGitCredential: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["GitCredential"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageImage: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Image"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageImageBuild: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["ImageBuild"][];
             /** @description Opaque cursor for the next page; absent on the last page. */
             nextCursor?: string;
             /**
@@ -4697,6 +5122,12 @@ export interface components {
             /** @description Operator note; empty clears it. */
             label?: string;
         };
+        UpdateDefinitionInputBody: {
+            description?: string;
+            name?: string;
+            /** @description Replaces the whole source. */
+            source?: components["schemas"]["BuildSource"];
+        };
         UpdateEnvironmentInputBody: {
             /**
              * @description Server/display name.
@@ -4708,6 +5139,19 @@ export interface components {
              * @example nas.lan
              */
             serviceAddress?: string;
+        };
+        UpdateGitCredentialInputBody: {
+            name?: string;
+            pathPrefix?: string;
+            plainHttp?: boolean;
+            /** @description A new token (rotation; re-activates a revoked credential). Write-only. */
+            secret?: string;
+            /**
+             * @description revoked erases the stored token.
+             * @enum {string}
+             */
+            status?: "revoked";
+            username?: string;
         };
         UpdateGroupInputBody: {
             name?: string;
@@ -6888,6 +7332,500 @@ export interface operations {
             };
         };
     };
+    "list-build-definitions": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageBuildDefinition"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-build-definition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDefinitionInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildDefinition"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-build-definition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Build definition ID. */
+                definitionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildDefinition"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-build-definition": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Build definition ID. */
+                definitionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-build-definition": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Build definition ID. */
+                definitionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDefinitionInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildDefinition"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-build-definition-run": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Build definition ID. */
+                definitionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "get-environment-capacity": {
         parameters: {
             query?: never;
@@ -8221,6 +9159,151 @@ export interface operations {
             };
         };
     };
+    "list-image-builds": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Only runs of this build definition. */
+                definitionId?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageImageBuild"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-image-build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Build ID (the job ID). */
+                buildId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageBuild"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-images": {
         parameters: {
             query?: {
@@ -8309,6 +9392,100 @@ export interface operations {
             };
             /** @description Gateway Timeout */
             504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-image-build": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildSource"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11300,6 +12477,459 @@ export interface operations {
             };
             /** @description Gateway Timeout */
             504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-git-credentials": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageGitCredential"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-git-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGitCredentialInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitCredential"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-git-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Git credential ID. */
+                credentialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitCredential"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-git-credential": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Git credential ID. */
+                credentialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-git-credential": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Git credential ID. */
+                credentialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateGitCredentialInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitCredential"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-git-credential-connection-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Git credential ID. */
+                credentialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitCredentialTestInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitCredentialTest"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

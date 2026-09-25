@@ -34,6 +34,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/neurekadev/dockyard/internal/agent/builds"
 	"github.com/neurekadev/dockyard/internal/agent/compose"
 	"github.com/neurekadev/dockyard/internal/agent/config"
 	"github.com/neurekadev/dockyard/internal/agent/engine"
@@ -49,6 +50,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/clock"
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobexec"
+	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
 
@@ -231,6 +233,12 @@ func New(opts Options) (*Agent, error) {
 		opts.TokenPoll = DefaultTokenPoll
 	}
 	a := &Agent{opts: opts, log: opts.Logger, status: StatusNotEnrolled, engineReady: make(chan struct{})}
+	// Image builds from Git (#33) run on every agent unless a test
+	// supplies its own image.build executor.
+	if !slices.ContainsFunc(opts.Executors, func(e jobexec.Executor) bool { return e.Kind == jobspec.ImageBuild }) {
+		a.opts.Executors = append(slices.Clone(opts.Executors), builds.Executor(builds.Options{
+			Engine: a.Engine, Clock: opts.Clock, Logger: opts.Logger.With("component", "builds")}))
+	}
 	if opts.Observe {
 		a.sampler = observe.New(observe.Options{Clock: opts.Clock, Logger: opts.Logger, ProcRoot: opts.Config.HostProc,
 			Engine: a.observedEngine, Roots: a.observedRoots})

@@ -148,19 +148,27 @@ func targetType(t domain.TargetType) string {
 // TargetResources are the resources a job with these targets is authorized
 // on (the operation's full effect, #17): every target, except that file
 // paths inside a stack or volume root are covered by that root (the file
-// service enforces containment). Repository targets are instance
-// resources. A job without targets is authorized on its environment (or
-// the instance).
+// service enforces containment) and the images a build definition run
+// tags are covered by the definition (its tags are part of the definition,
+// managed with build_definition.manage, #33). Repository targets are
+// instance resources. A job without targets is authorized on its
+// environment (or the instance).
 func TargetResources(environmentID string, targets []domain.JobTarget) []Resource {
-	hasRoot := false
+	hasRoot, hasDefinition := false, false
 	for _, t := range targets {
 		if t.Type == domain.TargetStack || t.Type == domain.TargetVolume {
 			hasRoot = true
+		}
+		if t.Type == domain.TargetBuildDefinition {
+			hasDefinition = true
 		}
 	}
 	var out []Resource
 	for _, t := range targets {
 		if hasRoot && (t.Type == domain.TargetPath || t.Type == domain.TargetDestinationPath) {
+			continue
+		}
+		if hasDefinition && t.Type == domain.TargetImage {
 			continue
 		}
 		env := t.EnvironmentID

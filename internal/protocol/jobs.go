@@ -116,6 +116,8 @@ type GitCredential struct {
 	Host     string `json:"host"`
 	Username string `json:"username"`
 	Secret   string `json:"secret"`
+	// PlainHTTP allows sending the credential to an http:// repository.
+	PlainHTTP bool `json:"plainHttp,omitempty"`
 }
 
 // String hides the secret values (fmt %v / %s).

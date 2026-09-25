@@ -201,6 +201,17 @@ registry credentials (`internal/manager/registries`, `app.Manager.Registries()`)
 - Tests: fake registry `regclient/regtest`; register secrets as
   `canary.RegistryCredential`.
 
+## Image builds (#33)
+
+Guide: `docs/architecture/builds.md`. Git credentials
+(`internal/manager/gitcreds`) mirror registry connections; builds
+(`internal/manager/builds`) enqueue `image.build` jobs whose input
+(`jobspec.ImageBuildInput`) names credentials by ID only; the build record
+ID is the job ID. Git refs are resolved in process (`internal/gitremote`,
+never a git CLI) and BuildKit builds the exact commit. Steps that can stop
+safely mid-way on cancellation return `jobexec.ErrStepCancelled`.
+Job target `build_definition` covers the images of a definition run.
+
 ## Agent transport (#3)
 
 Manager side: `internal/manager/agents` (`Service`: enrollment, agents,
