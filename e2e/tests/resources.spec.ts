@@ -362,7 +362,7 @@ test.describe('Registries (#19)', () => {
 		await expect(stepUp.or(toast.getByText(`Added ${name}`))).toBeVisible();
 		if (await stepUp.isVisible()) {
 			await stepUp.getByLabel('Password', { exact: true }).fill(password);
-			await stepUp.getByRole('button', { name: 'Confirm' }).click();
+			await stepUp.getByRole('button', { name: 'Confirm with password' }).click();
 		}
 		await expect(toast).toContainText(`Added ${name}`);
 		const row = page.getByRole('row', { name: new RegExp(name) });
