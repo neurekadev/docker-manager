@@ -173,6 +173,9 @@ type importPreview struct {
 func TestBackupImportIntoAFreshManager(t *testing.T) {
 	old := newBackupEnv(t)
 	owner, password := old.setupOwner()
+	// An encrypted setting that must decrypt after the import: the owner's
+	// TOTP seed (sealed with the secret-protection key).
+	seed, _ := owner.enrollTOTP()
 	hostDir := func(name, kind string) string { return filepath.Join(old.root, name, kind) }
 	prod := old.connectHost(hostOpts{name: "prod", stacks: hostDir("prod", "stacks"), volumes: hostDir("prod", "volumes")})
 	edge := old.connectHost(hostOpts{name: "edge", stacks: hostDir("edge", "stacks"), volumes: hostDir("edge", "volumes")})
@@ -201,7 +204,7 @@ func TestBackupImportIntoAFreshManager(t *testing.T) {
 	// only: the host repositories still use key1 (partially rotated), and
 	// the set's secret-key bundle is sealed under key1.
 	old.clk.Advance(11 * time.Minute)
-	owner.stepUp()
+	owner.must(http.StatusOK, http.MethodPost, "/api/v1/auth/step-ups", map[string]string{"password": password, "totpCode": old.totpCode(seed)})
 	var rot struct {
 		RecoveryKey struct {
 			Key string `json:"key"`
@@ -427,9 +430,15 @@ func TestBackupImportIntoAFreshManager(t *testing.T) {
 	fresh.secrets.Register(canary.APIToken, "old token", token)
 	fresh.bot(token).refused("a restored API token")
 	fresh.secrets.Register(canary.Password, "owner password", password)
+	fresh.secrets.Register(canary.TOTPSeed, "owner totp seed", seed)
+	fresh.clk.Advance(time.Hour) // past the TOTP steps the old manager used
 	restored := fresh.client()
-	if s := restored.signIn("owner", password); s.State != "authenticated" || s.User == nil || !s.User.Owner {
+	if s := restored.signIn("owner", password); s.State != "second_factor_required" {
 		t.Fatalf("owner sign-in after the import %+v", s)
+	}
+	s := restored.must(http.StatusOK, http.MethodPost, "/api/v1/auth/session", map[string]string{"totpCode": fresh.totpCode(seed)}).session(t)
+	if s.State != "authenticated" || s.User == nil || !s.User.Owner {
+		t.Fatalf("owner second factor after the import %+v", s)
 	}
 
 	// Agents were revoked: both environments wait for a re-attach.
