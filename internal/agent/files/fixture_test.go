@@ -151,6 +151,23 @@ func (f *fixture) write(rel, content string) {
 	}
 }
 
+// resetRoots empties the volume and stack roots (never following links:
+// os.RemoveAll unlinks symlinks, not their targets).
+func (f *fixture) resetRoots() {
+	f.t.Helper()
+	for _, dir := range []string{f.root, f.stack} {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		for _, e := range entries {
+			if err := os.RemoveAll(filepath.Join(dir, e.Name())); err != nil {
+				f.t.Fatal(err)
+			}
+		}
+	}
+}
+
 // symlink creates a symlink inside the volume root, skipping the test
 // where the platform cannot create symlinks.
 func (f *fixture) symlink(target, rel string) {

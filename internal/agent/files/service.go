@@ -475,9 +475,12 @@ func computeETag(contentSHA []byte, size int64, mod time.Time) string {
 	return "f1-" + hex.EncodeToString(h.Sum(nil)[:16])
 }
 
-// fileETag hashes an opened regular file (read from its start).
+// fileETag hashes an opened regular file (read from its start). Files
+// with several hard links get none: the tag is derived from the content,
+// which is not served for them (another name may lie outside the root), so
+// a tag would confirm guesses of that content. If-Match on them conflicts.
 func fileETag(ctx context.Context, f *os.File, fi fs.FileInfo) (string, error) {
-	if fi.Size() > protocol.MaxETagSize {
+	if fi.Size() > protocol.MaxETagSize || openLinks(f, fi) > 1 {
 		return "", nil
 	}
 	if _, err := f.Seek(0, io.SeekStart); err != nil {

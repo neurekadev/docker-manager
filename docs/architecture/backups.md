@@ -104,6 +104,11 @@ secret of the call. Exit codes map to stable classes (`repository_not_found`,
 `storage_unreachable`, `repository_damaged`, `snapshot_not_found`,
 `restic_unavailable`, `restic_failed`), which are job error classes.
 Cancellation sends SIGINT (restic releases its locks), then kills.
+restic retries every backend error its S3 backend does not deem permanent
+for 15 minutes, with no option to shorten that (a wrong secret key,
+`SignatureDoesNotMatch`, is retried); the runner reads restic's retry
+notices and stops the run at the first one that no retry can fix (access
+denied, unknown key ID, clock skew, missing bucket) with its class.
 
 ## Scope (agent)
 

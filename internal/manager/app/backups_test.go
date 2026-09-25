@@ -79,17 +79,18 @@ func newBackupEnvWith(t *testing.T, store *restictest.Store, s3 *s3probetest.Ser
 }
 
 // newBackupEnvOn starts a manager whose restic is opener (store may be
-// nil for the real restic; s3 nil for a real S3 endpoint).
-func newBackupEnvOn(t *testing.T, opener restic.Opener, store *restictest.Store, s3 *s3probetest.Server) *backupEnv {
+// nil for the real restic; s3 nil for a real S3 endpoint) and further
+// options.
+func newBackupEnvOn(t *testing.T, opener restic.Opener, store *restictest.Store, s3 *s3probetest.Server, with ...func(*Options)) *backupEnv {
 	t.Helper()
 	root := t.TempDir()
-	e := newEnv(t, func(o *Options) {
+	e := newEnv(t, append([]func(*Options){func(o *Options) {
 		o.Restic = opener
 		if s3 != nil {
 			o.BackupHTTPClient = s3.Client()
 		}
 		o.Config.BackupLocalRoots = []string{filepath.ToSlash(filepath.Join(root, "manager-backups"))}
-	})
+	}}, with...)...)
 	b := &backupEnv{env: e, store: store, opener: opener, s3: s3, root: root, stacks: filepath.Join(root, "stacks"), volumes: filepath.Join(root, "volumes")}
 	t.Cleanup(func() { scanDatabase(t, e) })
 	return b

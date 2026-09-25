@@ -53,7 +53,7 @@ Agent side: [agent-v1.md](../protocol/agent-v1.md#scoped-files-15).
 `size`, `mode` (octal string, host semantics, e.g. `"0644"`), numeric `uid`
 and `gid`, `modifiedAt`, `links` (hard link count), `linkTarget` and
 `linkStatus` (`inside`, `outside`, `dangling`, `loop`) for symlinks, and
-`etag` for regular files up to 256 MiB.
+`etag` for regular files up to 256 MiB with a single hard link.
 
 The **ETag** is the file's content revision: SHA-256 over the content, the
 size and the modification time. Any change — through DockYard, a container
@@ -176,8 +176,10 @@ state), so a file grant can never reach DockYard's database or credentials.
   follow symlinks; a directory is descended only through a handle confirmed
   to be the directory that was checked.
 - Content of regular files with more than one hard link is never read,
-  copied, archived or chmod/chown'ed (another name of the inode may lie
-  outside the root); deleting or renaming such a name is allowed.
+  copied, archived, hashed into an ETag or chmod/chown'ed (another name of
+  the inode may lie outside the root); deleting or renaming such a name is
+  allowed, and replacing it (`If-Match: *`, an overwriting upload or copy)
+  renames a new file over that name: the other names keep the old content.
 - Writes go to a temporary file in the target directory, are synced and
   renamed into place after the precondition is re-checked; no-clobber
   creates use a hard link so an existing name is never replaced.

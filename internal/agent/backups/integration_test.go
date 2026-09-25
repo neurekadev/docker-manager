@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -45,7 +46,7 @@ func runRealBackup(t *testing.T, e *env, ref protocol.BackupRepositoryRef, key s
 	t.Helper()
 	in := e.runInput(true, stackItem(protocol.BackupRules{}), protocol.BackupItem{Kind: backup.MemberVolume, Volume: "uploads"})
 	in.Repository = ref
-	res, _, err := e.run(testutil.Context(t), jobspec.BackupRun, in, secrets, nil)
+	res, _, err := e.run(testutil.ContextWithin(t, 5*time.Minute), jobspec.BackupRun, in, secrets, nil)
 	if err != nil || res.Outcome != jobexec.OutcomeSucceeded {
 		t.Fatalf("backup: %+v %v", res, err)
 	}
@@ -67,7 +68,8 @@ func TestBackupRunWithRealResticLocal(t *testing.T) {
 	out := runRealBackup(t, e, ref, key, e.credential(key))
 	loc := ref.Destination.Location(ref.Scope, backup.S3Credentials{})
 	repo := r.Open(loc, key)
-	ctx := testutil.Context(t)
+	// Many restic runs share this context.
+	ctx := testutil.ContextWithin(t, 5*time.Minute)
 	snaps, err := repo.Snapshots(ctx, restic.SnapshotFilter{Tags: []string{backup.SetTag("set-1")}})
 	if err != nil || len(snaps) != 3 {
 		t.Fatalf("snapshots %+v %v", snaps, err)
@@ -144,7 +146,8 @@ func TestRestoreWithRealRestic(t *testing.T) {
 	for _, m := range out.Members {
 		members[m.Item] = m
 	}
-	ctx := testutil.Context(t)
+	// Many restic runs share this context.
+	ctx := testutil.ContextWithin(t, 5*time.Minute)
 	up := filepath.Join(e.volumes, "uploads", "_data")
 	write(t, filepath.Join(up, "a.jpg"), "changed")
 	write(t, filepath.Join(up, "junk"), "junk")
@@ -190,12 +193,18 @@ func TestBackupRunWithRealResticMinIO(t *testing.T) {
 	if err != nil || len(keys) == 0 {
 		t.Fatalf("objects: %v %v", keys, err)
 	}
+	// Only restic's own layout (config, keys/, index/, data/xx/, snapshots/,
+	// locks/ with hex object names) reaches the bucket: no file name of
+	// the backed-up tree (e.g. html/index.html) appears in plain text.
+	layout := regexp.MustCompile(`^site-a/` + regexp.QuoteMeta(backup.ScopeDir(ref.Scope)) +
+		`/(config|(keys|index|snapshots|locks)/[0-9a-f]{64}|data/[0-9a-f]{2}/[0-9a-f]{64})$`)
 	for _, k := range keys {
-		if strings.Contains(k, "html") || strings.Contains(k, "index") {
-			t.Errorf("plaintext file name in the bucket: %s", k)
+		if !layout.MatchString(k) || strings.Contains(k, "html") {
+			t.Errorf("object outside restic's encrypted layout: %s", k)
 		}
 	}
-	// Missing S3 credentials are an explicit failure.
+	// Wrong S3 credentials are an explicit failure, reported at once
+	// (Context's 30 s, not restic's 15 minutes of retries).
 	bad := &protocol.CommandSecrets{Repositories: []protocol.RepositoryCredential{{RepositoryID: ref.RepositoryID, Password: key,
 		AccessKeyID: m.AccessKey, SecretAccessKey: "wrong-secret-access-key-000"}}}
 	in := e.runInput(false, stackItem(protocol.BackupRules{}))

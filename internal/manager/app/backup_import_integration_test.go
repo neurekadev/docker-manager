@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/neurekadev/dockyard/internal/clock"
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/restic"
 	"github.com/neurekadev/dockyard/internal/testharness"
@@ -37,6 +38,14 @@ func realResticRunner(t *testing.T) *restic.Runner {
 	tmp := t.TempDir()
 	return &restic.Runner{Binary: bin, TempDir: tmp, CacheDir: filepath.Join(tmp, "cache"), Logger: testutil.Logger(t), RetryLock: 10 * time.Second}
 }
+
+// withWallClockStart starts the manager's fake clock at the wall-clock
+// time. Tests against a real S3 server need it: the manager signs S3
+// requests (s3probe, SigV4) with its clock, and the server refuses
+// signatures more than 15 minutes off its own time (403
+// RequestTimeTooSkewed). The fake clock still only moves when a test
+// advances it.
+func withWallClockStart(o *Options) { o.Clock = clock.NewFake(time.Now().UTC().Truncate(time.Second)) }
 
 // importThroughSetup runs the setup import of the newest importable set
 // and restarts the manager; it returns the imported set ID.
@@ -124,7 +133,7 @@ func TestBackupImportWithRealResticLocal(t *testing.T) {
 func TestBackupImportWithRealResticMinIO(t *testing.T) {
 	r := realResticRunner(t)
 	m := testharness.StartMinIO(t, testharness.MinIOOptions{Buckets: []string{"dockyard"}})
-	old := newBackupEnvOn(t, r, nil, nil)
+	old := newBackupEnvOn(t, r, nil, nil, withWallClockStart)
 	old.secrets.Register(canary.S3SecretKey, "minio secret", m.SecretKey)
 	owner, password := old.setupOwner()
 	hostDir := func(name, kind string) string { return filepath.Join(old.root, name, kind) }
@@ -156,7 +165,7 @@ func TestBackupImportWithRealResticMinIO(t *testing.T) {
 
 	// A clean manager with only the bucket, the S3 key pair entered anew and
 	// the Recovery Key.
-	fresh := newBackupEnvOn(t, r, nil, nil)
+	fresh := newBackupEnvOn(t, r, nil, nil, withWallClockStart)
 	fresh.secrets.Register(canary.RecoveryKey, "recovery key", key)
 	fresh.secrets.Register(canary.S3SecretKey, "minio secret", m.SecretKey)
 	src := map[string]any{"kind": "s3", "endpoint": m.Endpoint, "bucket": "dockyard", "prefix": "site", "region": m.Region, "pathStyle": true,

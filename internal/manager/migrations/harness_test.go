@@ -320,15 +320,18 @@ func (f *fakeStacks) Deploy(_ context.Context, p authz.Principal, st domain.Stac
 	f.jobs.mu.Unlock()
 	j := domain.Job{ID: id, Kind: jobspec.StackDeploy, EnvironmentID: st.EnvironmentID, State: domain.JobRunning, IdempotencyKey: r.IdempotencyKey}
 	f.jobs.put(j)
+	// The goroutine finishes its own copy: the returned value must not be
+	// written concurrently with the caller reading it.
+	done := j
 	go func() {
 		if hook != nil {
 			hook(st)
 		}
-		j.State = outcome
+		done.State = outcome
 		if outcome != domain.JobSucceeded {
-			j.ErrorClass = "dependency_failed"
+			done.ErrorClass = "dependency_failed"
 		}
-		f.jobs.put(j)
+		f.jobs.put(done)
 	}()
 	return j, nil
 }

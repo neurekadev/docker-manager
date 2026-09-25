@@ -101,11 +101,11 @@ func fakeRestic(repo string) int {
 	if !ok {
 		a = answers["*"]
 	}
+	fmt.Fprint(os.Stdout, a.Stdout)
+	fmt.Fprint(os.Stderr, a.Stderr)
 	if a.Hang {
 		time.Sleep(time.Minute)
 	}
-	fmt.Fprint(os.Stdout, a.Stdout)
-	fmt.Fprint(os.Stderr, a.Stderr)
 	return a.Exit
 }
 
@@ -342,6 +342,55 @@ func TestRunnerCancellation(t *testing.T) {
 		}
 	case <-time.After(30 * time.Second):
 		t.Fatal("cancelled restic did not stop")
+	}
+}
+
+// TestRunnerFailsFastOnPermanentRetries: restic retries S3 errors it does
+// not consider permanent for 15 minutes (a wrong secret key, an unknown key
+// ID, a missing bucket); the runner ends restic at the first such retry
+// notice and classifies it. Transient retries are left to restic.
+func TestRunnerFailsFastOnPermanentRetries(t *testing.T) {
+	const load = "Load(<config/0000000000>, 0, 0) returned error, retrying after 1.176s: "
+	for _, tc := range []struct {
+		name, cause, code string
+	}{
+		{"wrong secret key", "The request signature we calculated does not match the signature you provided. Check your key and signing method.", CodeAccessDenied},
+		{"unknown key id", "The Access Key Id you provided does not exist in our records.", CodeAccessDenied},
+		{"clock skew", "The difference between the request time and the server's time is too large.", CodeAccessDenied},
+		{"missing bucket", "The specified bucket does not exist", CodeRepositoryNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// After the notice restic would retry for 15 minutes (the
+			// fake hangs for one).
+			f := newFake(t, map[string]fakeAnswer{"cat": {Stderr: "subprocess ssh: ignored line\n" + load + tc.cause + "\n", Hang: true}})
+			_, err := f.r.Open(Location{Repository: f.dir}, "password-123456").Config(testutil.Context(t))
+			var e *Error
+			if !errors.As(err, &e) || e.Code != tc.code || !strings.Contains(e.Message, "returned error, retrying") {
+				t.Fatalf("error = %#v, want %s", err, tc.code)
+			}
+		})
+	}
+	// A transient error (here a timeout) is retried by restic: the run
+	// ends with restic's own result.
+	f := newFake(t, map[string]fakeAnswer{"cat": {Stdout: `{"version":2,"id":"repo-id-1","chunker_polynomial":"3a"}`,
+		Stderr: load + "Get \"https://s3.example/\": net/http: timeout awaiting response headers\nLoad(<config/0000000000>, 0, 0) operation successful after 1 retries\n"}})
+	if cfg, err := f.r.Open(Location{Repository: f.dir}, "password-123456").Config(testutil.Context(t)); err != nil || cfg.ID != "repo-id-1" {
+		t.Fatalf("config = %+v, %v", cfg, err)
+	}
+}
+
+// TestRetryWatchSplitsLines: notices split across writes are recognized
+// once, later output is still kept for the error message.
+func TestRetryWatchSplitsLines(t *testing.T) {
+	aborted := 0
+	w := &retryWatch{tail: &tailBuffer{max: maxStderrTail}, abort: func() { aborted++ }}
+	for _, p := range []string{"Save(<data/ab>) returned error, retr", "ying after 2s: Access Denied.", "\nFatal: x\n", "Load(<a>) returned error, retrying after 1s: Access Denied.\n"} {
+		if n, err := w.Write([]byte(p)); err != nil || n != len(p) {
+			t.Fatal(n, err)
+		}
+	}
+	if w.code != CodeAccessDenied || aborted != 1 || !strings.HasSuffix(w.tail.String(), "Access Denied.\n") {
+		t.Fatalf("code %q, aborted %d, tail %q", w.code, aborted, w.tail.String())
 	}
 }
 

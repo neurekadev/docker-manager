@@ -163,6 +163,7 @@ func (s stackRoots) StackFileRoot(_ context.Context, id string) (files.StackRoot
 type observer struct {
 	mu      sync.Mutex
 	changes [][]string
+	signal  chan struct{} // closed and replaced on every call
 }
 
 func (o *observer) StackSourcesChanged(_ context.Context, id string, paths []string) {
@@ -170,6 +171,34 @@ func (o *observer) StackSourcesChanged(_ context.Context, id string, paths []str
 	defer o.mu.Unlock()
 	if id == stackID {
 		o.changes = append(o.changes, paths)
+	}
+	if o.signal != nil {
+		close(o.signal)
+	}
+	o.signal = make(chan struct{})
+}
+
+// waitFor returns the calls once there are at least n (or when ctx ends).
+// The service tells the observer from a watcher goroutine once a job has
+// ended, which may be after the job's HTTP response was written.
+func (o *observer) waitFor(ctx context.Context, n int) [][]string {
+	for {
+		o.mu.Lock()
+		if len(o.changes) >= n {
+			got := slices.Clone(o.changes)
+			o.mu.Unlock()
+			return got
+		}
+		if o.signal == nil {
+			o.signal = make(chan struct{})
+		}
+		ch := o.signal
+		o.mu.Unlock()
+		select {
+		case <-ch:
+		case <-ctx.Done():
+			return o.all()
+		}
 	}
 }
 
@@ -657,8 +686,9 @@ func TestStackFilesDefinitionGatingAndRevisionHook(t *testing.T) {
 		"If-Match", r.header.Get("ETag")), 200)
 	must(t, e.do("dev", http.MethodPost, e.stkURL+"/uploads?name=compose.override.yaml", []byte("services: {}\n"), "If-None-Match", "*"), 201)
 	must(t, e.do("dev", http.MethodPost, e.stkURL+"/deletions", map[string]any{"paths": []string{".env"}}), 202)
-	got := e.obs.all()
+	// The deletion is a job: its watcher reports once the job has ended.
 	want := [][]string{{"compose.yaml"}, {"compose.override.yaml"}, {".env"}}
+	got := e.obs.waitFor(e.ctx, len(want))
 	if len(got) != len(want) {
 		t.Fatalf("revision hook calls %v, want %v", got, want)
 	}

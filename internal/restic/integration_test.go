@@ -33,7 +33,8 @@ func realRunner(t *testing.T) *Runner {
 }
 
 func exerciseRepository(t *testing.T, r *Runner, loc Location) {
-	ctx := testutil.Context(t)
+	// About twenty restic runs share this context.
+	ctx := testutil.ContextWithin(t, 5*time.Minute)
 	const key = "DYRK-TEST-AAAA-BBBB-CCCC-DDDD"
 	repo := r.Open(loc, key)
 	id, err := repo.Init(ctx)
@@ -148,6 +149,8 @@ func TestStorageResticRunnerMinIO(t *testing.T) {
 	exerciseRepository(t, r, loc)
 	bad := loc
 	bad.S3 = &S3{AccessKeyID: m.AccessKey, SecretAccessKey: "wrong-secret-key-000000", Region: m.Region, PathStyle: true}
+	// Context's 30 s on purpose: restic would retry this for 15 minutes; the
+	// runner must fail fast (retryWatch).
 	if _, err := r.Open(bad, "DYRK-TEST-AAAA-BBBB-CCCC-DDDD").Config(testutil.Context(t)); !IsCode(err, CodeAccessDenied) {
 		t.Errorf("wrong S3 secret: %v", err)
 	}
