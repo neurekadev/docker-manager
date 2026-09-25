@@ -101,7 +101,9 @@ At most 1000 conflicts are listed and 100 000 entries counted.
 
 **Conflict policy** of copies, moves, extractions, archives and uploads:
 `fail` (default: the item fails and is reported), `overwrite`, `skip`,
-`keep_both` (new name `name (1).ext`). The policy applies to every item of
+`keep_both` (new name `name (1).ext`). Copying an entry into its own
+folder is a duplicate: only `keep_both` does it (any other policy, and any
+move onto itself, fails for that item). The policy applies to every item of
 one request; the UI asks per item (apply-to-all is off by default) and sends
 one request per decision group. Destructive and recursive actions are
 previewed and confirmed in the UI before the request.

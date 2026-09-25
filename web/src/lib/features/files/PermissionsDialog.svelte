@@ -74,8 +74,10 @@
 		if (!open) return;
 		const first = entries[0];
 		const m = first ? parseInt(first.mode.slice(-3), 8) : 0o644;
-		bits = Number.isNaN(m) ? 0o644 : m;
-		octal = '0' + bits.toString(8).padStart(3, '0');
+		// Locals only: reading `bits` here would reset every later change.
+		const initial = Number.isNaN(m) ? 0o644 : m;
+		bits = initial;
+		octal = '0' + initial.toString(8).padStart(3, '0');
 		changeMode = canChmod;
 		changeOwner = !canChmod && canChown;
 		separateDirs = false;

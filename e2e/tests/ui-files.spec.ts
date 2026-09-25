@@ -320,19 +320,102 @@ test.describe.serial('file manager', () => {
 		await page.context().close();
 	});
 
-	test('the same file manager in a volume', async ({ page }) => {
+	test('the same file manager in a volume: create, upload, edit, archive, extract, permissions, delete', async ({ page }) => {
 		const vol = await page.request.get(`/api/v1/environments/${target!.environmentId}/volumes/${volumeName}`);
 		test.skip(!vol.ok(), `no volume ${volumeName}`);
+		const base = `/api/v1/environments/${target!.environmentId}/volumes/${volumeName}/files`;
 		await page.goto(`/volumes/${target!.environmentId}/${volumeName}/files`);
 		await expect(grid(page)).toBeVisible();
 		await page.getByRole('button', { name: 'New folder' }).click();
 		await page.getByLabel('Folder name').fill(`${run}-dir`);
 		await page.getByRole('button', { name: 'Create folder' }).click();
 		await expect(row(page, `${run}-dir`)).toBeVisible();
-		await row(page, `${run}-dir`).click();
+		await row(page, `${run}-dir`).dblclick();
+		await expect(grid(page).getByRole('row', { name: /Parent folder/ })).toBeVisible();
+
+		// Upload into the new folder, then edit and save the file.
+		const tmp = mkdtempSync(join(tmpdir(), 'dy-vol-'));
+		try {
+			const f = join(tmp, 'settings.conf');
+			writeFileSync(f, 'max_connections = 100\n');
+			await page.getByRole('button', { name: 'Upload', exact: true }).click();
+			const chooser = page.waitForEvent('filechooser');
+			await page.getByRole('menuitem', { name: 'Upload files' }).click();
+			await (await chooser).setFiles(f);
+			await expect(row(page, 'settings.conf')).toBeVisible({ timeout: 15_000 });
+		} finally {
+			rmSync(tmp, { recursive: true, force: true });
+		}
+		await row(page, 'settings.conf').click();
+		await page.locator('.cm-content').click();
+		await page.keyboard.press('ControlOrMeta+End');
+		await page.keyboard.type('shared_buffers = 256MB');
+		await page.keyboard.press('ControlOrMeta+s');
+		await expect(page.getByText('Saved settings.conf')).toBeVisible();
+		const saved = await page.request.get(`${base}/content?path=${run}-dir/settings.conf`);
+		expect((await saved.json()).content).toBe('max_connections = 100\nshared_buffers = 256MB');
+
+		// Archive the folder, extract it next to it, change its mode.
+		await grid(page).getByRole('row', { name: /Parent folder/ }).dblclick();
+		await row(page, `${run}-dir`).click({ button: 'right' });
+		await page.getByRole('menuitem', { name: 'Create archive…' }).click();
+		await page.getByRole('radio', { name: /tar\.gz/ }).check();
+		await expect(page.getByLabel('Archive name')).toHaveValue(`${run}-dir.tar.gz`);
+		await page.getByRole('button', { name: 'Create archive' }).click();
+		await expect(row(page, `${run}-dir.tar.gz`)).toBeVisible({ timeout: 20_000 });
+		await row(page, `${run}-dir.tar.gz`).click({ button: 'right' });
+		await page.getByRole('menuitem', { name: 'Extract…' }).click();
+		await page.getByLabel('Folder name').fill(`${run}-copy`);
+		await page.getByRole('button', { name: 'Extract' }).click();
+		await expect(row(page, `${run}-copy`)).toBeVisible({ timeout: 20_000 });
+		await row(page, `${run}-copy`).click({ button: 'right' });
+		await page.getByRole('menuitem', { name: 'Permissions…' }).click();
+		const perms = page.getByRole('dialog', { name: 'Change permissions' });
+		await perms.getByRole('switch', { name: 'Apply to everything inside the selected folders' }).click();
+		await perms.getByRole('checkbox', { name: 'Others read' }).uncheck();
+		await perms.getByRole('button', { name: 'Change permissions' }).click();
+		await expect(page.getByText(new RegExp(`Changed permissions of ${run}-copy`))).toBeVisible({ timeout: 20_000 });
+
+		// Delete what this test made (recursive: type-to-confirm).
+		for (const name of [`${run}-copy`, `${run}-dir`]) {
+			await row(page, name).click();
+			await grid(page).focus();
+			await page.keyboard.press('Delete');
+			const confirm = page.getByRole('alertdialog', { name: new RegExp(`Delete ${name}`) });
+			await confirm.getByLabel(`Type ${name} to confirm`).fill(name);
+			await confirm.getByRole('button', { name: 'Delete' }).click();
+			await expect(row(page, name)).toHaveCount(0, { timeout: 20_000 });
+		}
+		await row(page, `${run}-dir.tar.gz`).click();
 		await grid(page).focus();
 		await page.keyboard.press('Delete');
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
-		await expect(row(page, `${run}-dir`)).toHaveCount(0, { timeout: 20_000 });
+		await expect(row(page, `${run}-dir.tar.gz`)).toHaveCount(0, { timeout: 20_000 });
+	});
+
+	test('change the owner (POSIX hosts)', async ({ page }) => {
+		// Windows cannot change numeric owners: the devstack's agent there
+		// reports it per item. Linux agents (production, CI) apply it.
+		test.skip(process.platform === 'win32', 'chown needs a POSIX host for the agent');
+		const vol = await page.request.get(`/api/v1/environments/${target!.environmentId}/volumes/${volumeName}`);
+		test.skip(!vol.ok(), `no volume ${volumeName}`);
+		await page.goto(`/volumes/${target!.environmentId}/${volumeName}/files`);
+		await page.getByRole('button', { name: 'New folder' }).click();
+		await page.getByLabel('Folder name').fill(`${run}-owned`);
+		await page.getByRole('button', { name: 'Create folder' }).click();
+		await row(page, `${run}-owned`).click({ button: 'right' });
+		await page.getByRole('menuitem', { name: 'Permissions…' }).click();
+		const perms = page.getByRole('dialog', { name: 'Change permissions' });
+		await perms.getByRole('switch', { name: 'Change mode' }).click();
+		await perms.getByRole('switch', { name: 'Change owner' }).click();
+		// The current owner (prefilled): allowed for the agent's own user too.
+		await expect(perms.getByLabel('Owner ID (UID)')).not.toHaveValue('');
+		await perms.getByRole('button', { name: 'Change permissions' }).click();
+		await expect(page.getByText(new RegExp(`Changed permissions of ${run}-owned`))).toBeVisible({ timeout: 20_000 });
+		await row(page, `${run}-owned`).click();
+		await grid(page).focus();
+		await page.keyboard.press('Delete');
+		await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
+		await expect(row(page, `${run}-owned`)).toHaveCount(0, { timeout: 20_000 });
 	});
 });

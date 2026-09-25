@@ -72,11 +72,11 @@ func writeHostFiles(h *homelabHost) error {
 		return err
 	}
 	for _, v := range vols {
-		if err := os.MkdirAll(filepath.FromSlash(v.Mountpoint), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.FromSlash(v.Mountpoint), 0o750); err != nil {
 			return err
 		}
 	}
-	if err := os.MkdirAll(filepath.FromSlash(h.stacksDir), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.FromSlash(h.stacksDir), 0o750); err != nil {
 		return err
 	}
 	for name, p := range h.projects {
@@ -103,7 +103,7 @@ func writeHostFiles(h *homelabHost) error {
 }
 
 func writeFile(path, content string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
 	return os.WriteFile(path, []byte(content), 0o644)

@@ -144,7 +144,7 @@ func (s *Service) destinationFor(r *scopeRoot, src, destDir, name, policy string
 		name = path.Base(src)
 	}
 	dest := join(destDir, name)
-	if dest == src && !(copying && policy == protocol.ConflictKeepBoth) {
+	if dest == src && (!copying || policy != protocol.ConflictKeepBoth) {
 		return "", false, false, fail(protocol.CodeConflict, "the source and the destination are the same")
 	}
 	if strings.HasPrefix(destDir+"/", src+"/") {
