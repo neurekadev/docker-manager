@@ -87,12 +87,21 @@ Seeded data:
   check runs Sundays at 02:30 Europe/Berlin (enabled; its fifth next run
   falls on the repeated hour of the October DST change).
 - Container logs: a few lines per service, followed every 4 s.
+- Files (#15, #23): each host has a real "Docker volume directory" at
+  `<data>/hosts/<host>/volumes` (default data: `<tmp>/dockyard-devstack`)
+  with the volumes' `_data` folders and the stacks volume
+  (`dockyard_stacks/_data/<stack>`: Silo's project with `config/`,
+  `data/thumbnails/` of 1 200 files, `README.md`, …). The agents serve them
+  with the production file service and watcher: the file manager, uploads,
+  archives and jobs work, and editing a file there with any editor shows up
+  in an open listing (and as an editor conflict) within seconds.
 
 What is simulated: the Docker Engines, host metrics, Compose reads
-(`compose.read` from in-memory files, `compose.services` from the fake
-Engine) and container logs. Everything between the public API and the
-Engine adapter is production code. Not available: exec terminals, Compose
-deploys and builds (they need a real Engine; use the CI suites). The
+(`compose.read` from the project directories on disk, `compose.services`
+from the fake Engine) and container logs. Everything between the public
+API and the Engine adapter is production code. Not available: exec
+terminals, Compose deploys and builds (they need a real Engine; use the CI
+suites). The
 devstack is a test tool under `test/`: it is never part of the images or
 `scripts/build-static.sh`, refuses non-loopback addresses and prints
 credentials, so never expose it.
@@ -115,6 +124,16 @@ E2E_BASE_URL=http://localhost:8080 E2E_UI_OWNER=admin E2E_UI_PASSWORD=dockyard-d
 E2E_SCREENSHOTS_DIR=/tmp/dockyard-shots E2E_BASE_URL=http://localhost:8080 npx playwright test tests/ui.spec.ts
 ```
 
+The file manager and log viewer specs use the seeded Silo stack; the
+host-side edit test writes into its project directory:
+
+```bash
+E2E_BASE_URL=http://localhost:8080 E2E_UI_OWNER=admin E2E_UI_PASSWORD=dockyard-devstack-owner \
+  E2E_FILES_STACK_DIR=/tmp/dockyard-devstack/hosts/homelab/volumes/dockyard_stacks/_data/silo \
+  npx playwright test tests/ui-files.spec.ts tests/ui-logs.spec.ts
+```
+
+`tests/ui-terminal.spec.ts` needs exec on a real Engine (CI, `E2E_TERMINAL_*`).
 `tests/pwa.spec.ts` and `tests/smoke.spec.ts` also run against the devstack;
 only their final HTTPS assertions fail on plain `http://localhost` (CI runs
 them behind the TLS proxies of `e2e/compose.yaml`). Design review rules:

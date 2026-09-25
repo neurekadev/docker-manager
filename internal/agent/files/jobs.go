@@ -136,13 +136,15 @@ func (s *Service) jobDelete(ctx context.Context, sc *jobexec.StepContext) error 
 
 // destinationFor resolves the destination of one source in a directory
 // under a conflict policy: the name to use, whether to skip, and whether
-// an existing entry must be removed first (overwrite).
-func (s *Service) destinationFor(r *scopeRoot, src, destDir, name, policy string) (string, bool, bool, error) {
+// an existing entry must be removed first (overwrite). Copying an entry
+// into its own directory is a duplicate: only keep_both (a new name) can do
+// it; every other combination of the same source and destination fails.
+func (s *Service) destinationFor(r *scopeRoot, src, destDir, name, policy string, copying bool) (string, bool, bool, error) {
 	if name == "" {
 		name = path.Base(src)
 	}
 	dest := join(destDir, name)
-	if dest == src {
+	if dest == src && (!copying || policy != protocol.ConflictKeepBoth) {
 		return "", false, false, fail(protocol.CodeConflict, "the source and the destination are the same")
 	}
 	if strings.HasPrefix(destDir+"/", src+"/") {
@@ -198,7 +200,7 @@ func (s *Service) jobMove(ctx context.Context, sc *jobexec.StepContext) error {
 			it.add(src, domain.ItemFailed, "the scope root cannot be moved")
 			continue
 		}
-		dest, skip, replace, err := s.destinationFor(r, src, destDir, in.Name, in.Conflict)
+		dest, skip, replace, err := s.destinationFor(r, src, destDir, in.Name, in.Conflict, false)
 		switch {
 		case err != nil:
 			it.add(src, domain.ItemFailed, codeOf(err))
@@ -252,7 +254,7 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 			it.add(src, domain.ItemFailed, "the scope root cannot be copied")
 			continue
 		}
-		dest, skip, replace, err := s.destinationFor(r, src, destDir, in.Name, in.Conflict)
+		dest, skip, replace, err := s.destinationFor(r, src, destDir, in.Name, in.Conflict, true)
 		switch {
 		case err != nil:
 			it.add(src, domain.ItemFailed, codeOf(err))

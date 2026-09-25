@@ -451,6 +451,20 @@ func TestFileJobs(t *testing.T) {
 	if res.Outcome != "partial" {
 		t.Fatalf("copy into itself: %+v", res)
 	}
+	// Copy into the entry's own directory (the file manager's paste into the
+	// same folder): only keep_both duplicates it; anything else fails.
+	res = f.runJob(jobspec.FilesCopy, protocol.FilesJobInput{Scope: f.vol, Paths: []string{"src/a.txt"}, Destination: "src", Conflict: protocol.ConflictOverwrite})
+	if res.Outcome != "partial" || !f.itemFailed(res, "src/a.txt") || f.readFile("src/a.txt") != "a" {
+		t.Fatalf("overwrite onto itself: %+v", res)
+	}
+	res = f.runJob(jobspec.FilesCopy, protocol.FilesJobInput{Scope: f.vol, Paths: []string{"src/a.txt", "src/deep"}, Destination: "src", Conflict: protocol.ConflictKeepBoth})
+	if res.Outcome != "succeeded" || f.readFile("src/a (1).txt") != "a" || f.readFile("src/deep (1)/b.txt") != "b" || f.readFile("src/a.txt") != "a" {
+		t.Fatalf("duplicate with keep_both: %+v", res)
+	}
+	res = f.runJob(jobspec.FilesMove, protocol.FilesJobInput{Scope: f.vol, Paths: []string{"src/a (1).txt"}, Destination: "src", Conflict: protocol.ConflictKeepBoth})
+	if res.Outcome != "partial" || !f.exists("src/a (1).txt") {
+		t.Fatalf("move onto itself: %+v", res)
+	}
 	// Preview before a move: one conflict, impact counted recursively.
 	pv, err := f.svc.Preview(f.ctx, protocol.FilesPreviewInput{Scope: f.vol, Operation: protocol.FileOpMove, Paths: []string{"src/deep", "src/a.txt"}, Destination: "dst"})
 	if err != nil || len(pv.Conflicts) != 2 || pv.Impact.Files != 2 || pv.Impact.Dirs != 1 {

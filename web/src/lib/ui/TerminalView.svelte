@@ -1,14 +1,19 @@
 <script lang="ts">
 	// Terminal surface (#8, #22): xterm.js loaded lazily with the terminal
 	// theme. The exec session wiring (tickets, WebSocket, resize) belongs to
-	// the feature view; this component only hosts the terminal.
-	import { onDestroy, onMount } from 'svelte';
+	// the feature view; this component only hosts the terminal. With `fit`
+	// the grid follows the element's size (ResizeObserver) and fills it.
+	import { onDestroy, onMount, untrack } from 'svelte';
 	import { mountTerminal, type TerminalHandle } from '$lib/lazy';
 
 	interface Props {
 		label: string;
 		readOnly?: boolean;
 		rows?: number;
+		/** Size the grid to the element (full-height terminals). */
+		fit?: boolean;
+		/** TTY output keeps its own carriage returns. */
+		rawNewlines?: boolean;
 		/** The handle once loaded (write, onData, focus). */
 		terminal?: TerminalHandle | null;
 		onready?: (t: TerminalHandle) => void;
@@ -18,22 +23,40 @@
 		label,
 		readOnly = false,
 		rows = 24,
+		fit = false,
+		rawNewlines = false,
 		terminal = $bindable(null),
 		onready
 	}: Props = $props();
 	let el = $state<HTMLElement>();
+	let observer: ResizeObserver | null = null;
+	let destroyed = false;
 
 	onMount(() => {
 		if (!el) return;
-		void mountTerminal(el, { readOnly, rows }).then((t) => {
+		const o = untrack(() => ({ readOnly, rows, fit, rawNewlines }));
+		void mountTerminal(el, o).then((t) => {
+			if (destroyed) {
+				t.destroy();
+				return;
+			}
 			terminal = t;
+			if (o.fit && el && typeof ResizeObserver !== 'undefined') {
+				t.fit();
+				observer = new ResizeObserver(() => t.fit());
+				observer.observe(el);
+			}
 			onready?.(t);
 		});
 	});
-	onDestroy(() => terminal?.destroy());
+	onDestroy(() => {
+		destroyed = true;
+		observer?.disconnect();
+		terminal?.destroy();
+	});
 </script>
 
-<div class="term" role="region" aria-label={label} bind:this={el}></div>
+<div class="term" class:fill={fit} role="region" aria-label={label} bind:this={el}></div>
 
 <style>
 	.term {
@@ -42,5 +65,11 @@
 		border-radius: var(--radius-md);
 		background: var(--code-bg);
 		min-height: 120px;
+	}
+
+	.term.fill {
+		height: 100%;
+		min-height: 0;
+		overflow: hidden;
 	}
 </style>

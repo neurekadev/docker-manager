@@ -44,7 +44,12 @@ func (s *seeder) stopAgents() {
 func (s *seeder) seed(ctx context.Context, accounts bool) error {
 	s.envs = map[string]string{}
 	s.stacks = map[string]string{}
-	s.hosts = newHomelab()
+	s.hosts = newHomelab(s.dataDir)
+	for _, h := range s.hosts {
+		if err := writeHostFiles(h); err != nil {
+			return fmt.Errorf("files of %s: %w", h.name, err)
+		}
+	}
 	for _, h := range s.hosts {
 		a, err := connectAgent(ctx, s.m, s.base, filepath.Join(s.dataDir, "agents", h.name), h, s.log)
 		if err != nil {
@@ -324,6 +329,8 @@ func (s *seeder) printSummary(w io.Writer, accounts bool) {
 		}
 		_, _ = fmt.Fprintf(w, "  environment %-8s %s (%s)\n", h.name, s.envs[h.name], state)
 	}
+	_, _ = fmt.Fprintf(w, "\n  stack and volume files (edit them to see live updates): %s\n",
+		filepath.Join(s.dataDir, "hosts", "<environment>", "volumes"))
 	if accounts {
 		_, _ = fmt.Fprintf(w, "\n  owner  %s / %s\n  guest  %s / %s (Restricted: no access)\n", ownerUser, ownerPassword, guestUser, guestPassword)
 	} else {

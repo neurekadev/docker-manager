@@ -10,6 +10,7 @@ import (
 	"maps"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -29,9 +30,6 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/app"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
-
-// stacksRoot is the stacks volume at its identical host path (#28).
-const stacksRoot = "/var/lib/docker/volumes/dockyard_stacks/_data"
 
 // devAgent is a real agent (session client, job runner, the production
 // resource, prune and container I/O handlers) over a fake Engine.
@@ -87,18 +85,23 @@ func connectAgent(ctx context.Context, m *app.Manager, base, stateDir string, h 
 
 	clk := clock.Real()
 	alog := log.With("agent", h.name)
-	managed := func(dir string) bool { return strings.HasPrefix(dir, stacksRoot+"/") }
+	managed := func(dir string) bool { return strings.HasPrefix(dir, h.stacksDir+"/") }
 	res := agentres.New(agentres.Options{Engine: func() engine.Engine { return fe }, Logger: alog, ManagedStackDir: managed})
 	pr := agentprune.New(agentprune.Options{Engine: func() engine.Engine { return fe }, Clock: clk, Logger: alog, ManagedStackDir: managed})
 	cio := agentio.New(agentio.Options{Engine: func() agentio.Engine { return fe }, Clock: clk, Logger: alog})
 	sim := newSimulation(h, clk)
+	var sessionClient atomic.Pointer[session.Client]
+	fs := newFileServing(h, clk, alog, &sessionClient)
 
 	execs := append(res.Executors(), pr.Executor())
+	execs = append(execs, fs.executors()...)
 	requests := res.Requests()
 	maps.Copy(requests, pr.Requests())
 	maps.Copy(requests, cio.Requests())
 	maps.Copy(requests, sim.requests())
+	maps.Copy(requests, fs.requests())
 	streams := cio.Streams()
+	maps.Copy(streams, fs.streams())
 
 	a := &devAgent{name: h.name, env: er.EnvironmentID, engine: fe, done: make(chan struct{})}
 	client := session.New(session.Options{
@@ -114,11 +117,12 @@ func connectAgent(ctx context.Context, m *app.Manager, base, stateDir string, h 
 			}
 			return protocol.CapabilitiesPayload{AgentVersion: buildinfo.Get().Version, Protocols: []string{protocol.Version}, OS: "linux",
 				Arch: id.Arch, Engine: info, Commands: cmds, Requests: []string{}, Streams: []string{},
-				Roots:     []protocol.Root{{Kind: protocol.RootStacks, Path: stacksRoot, Watch: "none"}},
+				Roots:     fs.roots,
 				Transport: protocol.TransportInfo{ManagerURL: base, PlainHTTP: true}}, true
 		},
 		Requests: requests,
 		Streams:  streams,
+		Rescan:   fs.watcher.Rescan,
 		Backoff:  session.Backoff{Min: time.Second, Max: 10 * time.Second, ResetAfter: time.Minute, Rand: func() float64 { return 0.5 }},
 	})
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -129,14 +133,17 @@ func connectAgent(ctx context.Context, m *app.Manager, base, stateDir string, h 
 		return nil, err
 	}
 	client.SetRunner(runner)
+	sessionClient.Store(client)
 	relay := observe.NewEventRelay(observe.EventOptions{Engine: func() observe.EngineAPI { return fe }, Publisher: client.Events(),
 		Clock: clk, Logger: alog})
 	go func() {
 		defer close(a.done)
 		go relay.Run(runCtx)
 		go sim.run(runCtx)
+		go fs.watcher.Run(runCtx)
 		_ = client.Run(runCtx)
 		runner.Wait()
+		_ = fs.watcher.Close()
 	}()
 	return a, nil
 }

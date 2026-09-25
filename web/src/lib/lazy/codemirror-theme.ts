@@ -43,6 +43,36 @@ const theme = EditorView.theme(
 			color: c.text
 		},
 		'.cm-panels': { backgroundColor: c.surfaceRaised, color: c.text },
+		'.cm-panels.cm-panels-top': { borderBottom: `1px solid ${c.border}` },
+		'.cm-panels.cm-panels-bottom': { borderTop: `1px solid ${c.border}` },
+		// The search and replace panel (#15): inputs and buttons like the
+		// app's controls.
+		'.cm-panel.cm-search': {
+			padding: '6px 8px',
+			fontFamily: c.fontSans,
+			fontSize: '12px'
+		},
+		'.cm-textfield': {
+			backgroundColor: c.background,
+			border: `1px solid ${c.border}`,
+			borderRadius: '6px',
+			color: c.text,
+			padding: '3px 6px',
+			fontSize: '12px'
+		},
+		'.cm-textfield:focus': { outline: `2px solid ${c.caret}`, outlineOffset: '0' },
+		'.cm-button': {
+			backgroundImage: 'none',
+			backgroundColor: c.background,
+			border: `1px solid ${c.border}`,
+			borderRadius: '6px',
+			color: c.text,
+			padding: '3px 8px',
+			fontSize: '12px'
+		},
+		'.cm-button:focus-visible': { outline: `2px solid ${c.caret}`, outlineOffset: '1px' },
+		'.cm-panel.cm-search label': { color: c.muted, fontSize: '12px' },
+		'.cm-panel.cm-search [name=close]': { color: c.muted, fontSize: '16px' },
 		'.cm-searchMatch': { backgroundColor: 'rgba(245, 181, 68, 0.25)' },
 		'.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(245, 181, 68, 0.45)' },
 		'.cm-matchingBracket, .cm-nonmatchingBracket': {

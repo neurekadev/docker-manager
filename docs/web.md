@@ -233,6 +233,37 @@ Tests: `client.spec.ts` (cursor resume, gap and environment resets,
 dedupe, revocation clearing, polling, throttling), `keys.spec.ts`
 (invalidation map, critical work); end to end `e2e/tests/live.spec.ts`.
 
+## Files, logs and terminals (#15, #8)
+
+Feature code lives in `src/lib/features/{files,logs,terminal}`; the routes
+only wire resources to it:
+
+| screen | route | component |
+| --- | --- | --- |
+| stack files (Files tab) | `(app)/stacks/[stackId]/files` | `FileManager` (+ `LogDock`, the logs as a bottom drawer) |
+| volume files | `(app)/volumes/[environmentId]/[volumeId]/files` | `FileManager` (same component, volume scope) |
+| stack logs (Logs tab), container logs | `…/stacks/[stackId]/logs`, `(app)/containers/[environmentId]/[containerId]/logs` | `LogPanel` → `LogViewer` |
+| logs in their own window | `(popout)/popout/logs?stack=` / `?environment=&container=` | `LogPanel` without the app shell |
+| stack terminal (service picker), container terminal | `…/stacks/[stackId]/terminal[?container=]`, `(app)/containers/[environmentId]/[containerId]/terminal` | `TerminalPanel` |
+
+- **Files:** `FilesApi` (`files/api.ts`) calls the typed client for either
+  root; listings and contents are keyed `liveKeys.files(...)`; the
+  `EditorSession` keeps buffers, ETags and conflicts (never replacing
+  unsaved text); selection, keyboard and conflict grouping are pure modules
+  with Node tests. Details: [api/files.md](api/files.md#ui-22-23).
+- **Logs:** `LogFeed` follows each container's SSE stream with its cursor
+  (Follow off/on resumes with `since`, repeats are skipped) and merges them
+  by time. Over HTTP/1.1 the browser allows six connections per host for all
+  tabs, so a viewer streams one container and polls the others
+  (`GET …/logs?since=`, every 3 s); over HTTP/2 or HTTP/3 it streams up to
+  twelve. Service colours come from `serviceIdentity` (the services table's
+  tile colour).
+- **Terminals:** `ExecTerminal` creates the exec session, opens the
+  WebSocket with the ticket in the subprotocol, frames stdin/stdout,
+  sends `resize` when `TerminalView` (`fit`) changes size, maps close codes
+  to messages (4422: "This image has no /bin/sh — try another command.") and
+  warns after 25 idle minutes.
+
 ## Lazy-loaded libraries
 
 CodeMirror, ECharts and xterm.js are reachable only through

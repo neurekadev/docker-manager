@@ -101,7 +101,9 @@ At most 1000 conflicts are listed and 100 000 entries counted.
 
 **Conflict policy** of copies, moves, extractions, archives and uploads:
 `fail` (default: the item fails and is reported), `overwrite`, `skip`,
-`keep_both` (new name `name (1).ext`). The policy applies to every item of
+`keep_both` (new name `name (1).ext`). Copying an entry into its own
+folder is a duplicate: only `keep_both` does it (any other policy, and any
+move onto itself, fails for that item). The policy applies to every item of
 one request; the UI asks per item (apply-to-all is off by default) and sends
 one request per decision group. Destructive and recursive actions are
 previewed and confirmed in the UI before the request.
@@ -202,9 +204,42 @@ stop at mount points); on Linux `os.Root` uses a per-component `openat`
 walk rather than `openat2(RESOLVE_BENEATH)`; job records of file jobs list
 the paths they touched to everyone allowed to read those jobs.
 
-## UI (Phase 6, #22)
+## UI (#22, #23)
 
-The browser interactions of #15 — breadcrumbs, the `..` row and drop
-target, multi-select, keyboard shortcuts, context menus, drag and drop,
-CodeMirror 6 editing, unsaved-buffer and external-change conflict dialogs,
-progress and cancellation — are built on these routes in #22 and #23.
+`web/src/lib/features/files` (`FileManager.svelte`, one component for both
+roots): the stack's Files tab (`/stacks/{id}/files`) and the volume file
+manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
+
+- **Browsing:** breadcrumbs, sortable columns (name with folders first,
+  size, modified), filter (`q`), hidden files, pages of 200 loaded as the
+  list scrolls, rows windowed past a screenful, the `..` row below the
+  root (opens the parent, accepts drops).
+- **Selection and keyboard** (only while the list has focus, never in the
+  editor or a form): click, Ctrl/Cmd-click, Shift-click, row checkboxes
+  (touch); arrows, Shift+arrows, Space, Home/End, Enter (open),
+  Backspace/Alt+Up (parent), Ctrl/Cmd+A/C/X/V, F2, Delete, Escape,
+  Shift+F10 (context menu). Actions apply to the selection only.
+- **Actions:** the same entries in the context menu, the toolbar, the
+  selection bar and each row's menu (touch). Paste and drag within the
+  list copy/move inside the root only; uploads (files and folders, OS drag
+  and drop, progress, cancel) send `If-None-Match: *` unless the user chose
+  a conflict policy; downloads of several entries or a folder are ZIP
+  archives. Conflicts (`conflict-previews`) are asked per item, "Apply to
+  all" off; one request per decision group, conflict-free items with
+  `fail`. Extraction and archive names ask once (one request). Delete,
+  chmod/chown show the previewed impact; recursive and multi-entry deletes
+  need type-to-confirm. Jobs show `JobProgress` with per-item results and
+  Cancel.
+- **Editor:** tabs, CodeMirror languages by name (select to change),
+  search/replace, Format (YAML with comments, JSON), Save with `If-Match`
+  (Ctrl/Cmd+S), Markdown preview (a safe subset; no HTML from files).
+  Compose sources of a stack say "saving records a new revision; it is not
+  deployed". Large files open read-only (first 512 KiB), binary files as a
+  download (images previewed up to 5 MiB). An external change keeps the
+  unsaved buffer: "<file> changed on disk. Your edits are kept." with
+  Compare (line diff), Reload from disk, Save as… and Overwrite (confirmed,
+  `If-Match` of the version shown); Save stays off until one is chosen.
+  Unsaved buffers, uploads and open terminals are `criticalWork` (#23).
+- **Live:** the open view declares its scope (`liveClient().setScopes`), so
+  changes from other sessions, containers and host tools refresh the
+  listing and open files.

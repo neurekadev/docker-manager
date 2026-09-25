@@ -27,7 +27,9 @@ const byFile = new Map(report.chunks.map((c) => [c.file, c]));
 const LAZY = {
 	codemirror: /node_modules\/(codemirror|@codemirror|@lezer|crelt|style-mod|w3c-keyname)\//,
 	echarts: /node_modules\/(echarts|zrender|tslib)\//,
-	xterm: /node_modules\/@xterm\//
+	xterm: /node_modules\/@xterm\//,
+	// The editor's YAML formatter (#15): loaded by formatDocument() only.
+	yaml: /node_modules\/yaml\//
 };
 const TRACKED = {
 	...LAZY,

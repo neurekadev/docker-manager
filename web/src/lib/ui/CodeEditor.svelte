@@ -2,8 +2,10 @@
 	// Code editor (#15, #22): CodeMirror loaded lazily with DockYard's editor
 	// theme. `value` is the initial text; changes are reported through
 	// onchange (the parent owns dirty state, ETags and conflicts, #15).
-	import { onDestroy, onMount } from 'svelte';
-	import { mountYamlEditor, type YamlEditor } from '$lib/lazy';
+	// `language` and `readOnly` may change while mounted; the handle
+	// (bind:editor) offers setText, openSearch, focus and text.
+	import { onDestroy, onMount, untrack } from 'svelte';
+	import { mountCodeEditor, type CodeEditorHandle, type EditorLanguage } from '$lib/lazy';
 	import Skeleton from './Skeleton.svelte';
 
 	interface Props {
@@ -11,30 +13,57 @@
 		/** Accessible name, e.g. the file path. */
 		label: string;
 		readOnly?: boolean;
+		/** Syntax highlighting (default YAML). */
+		language?: EditorLanguage;
 		onchange?: (text: string) => void;
+		/** CSS height; "100%" fills a sized parent. */
 		height?: string;
-		/** The editor handle once loaded (setText, focus, text). */
-		editor?: YamlEditor | null;
+		/** The editor handle once loaded (setText, focus, text, openSearch). */
+		editor?: CodeEditorHandle | null;
 	}
 
 	let {
 		value,
 		label,
 		readOnly = false,
+		language = 'yaml',
 		onchange,
 		height = '420px',
-		editor = $bindable(null)
+		// No fallback: a parent may bind an entry that is still undefined.
+		editor = $bindable()
 	}: Props = $props();
 	let el = $state<HTMLElement>();
 	let failed = $state(false);
+	let destroyed = false;
 
 	onMount(() => {
 		if (!el) return;
-		mountYamlEditor(el, value, { readOnly, label, onChange: onchange })
-			.then((e) => (editor = e))
+		const initial = untrack(() => ({ value, readOnly, language, label }));
+		mountCodeEditor(el, initial.value, {
+			readOnly: initial.readOnly,
+			label: initial.label,
+			language: initial.language,
+			onChange: (t) => onchange?.(t)
+		})
+			.then((e) => {
+				if (destroyed) e.destroy();
+				else editor = e;
+			})
 			.catch(() => (failed = true));
 	});
-	onDestroy(() => editor?.destroy());
+	onDestroy(() => {
+		destroyed = true;
+		editor?.destroy();
+	});
+
+	$effect(() => {
+		const l = language;
+		void untrack(() => editor)?.setLanguage(l);
+	});
+	$effect(() => {
+		const ro = readOnly;
+		untrack(() => editor)?.setReadOnly(ro);
+	});
 </script>
 
 <div class="editor" style="height: {height}" aria-busy={!editor}>
@@ -54,6 +83,10 @@
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-md);
 		background: var(--code-bg);
+	}
+
+	.editor:focus-within {
+		border-color: var(--border-strong);
 	}
 
 	.mount,

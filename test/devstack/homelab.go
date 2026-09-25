@@ -41,21 +41,16 @@ type homelabHost struct {
 	stacks                     []stackSeed
 	usage                      map[string]usage
 	logLines                   map[string][]string
+	// volumesDir is the host's "Docker volume directory" and stacksDir its
+	// stacks volume inside it: real directories below the data directory
+	// (files.go), so the file manager (#15) and watcher (#23) work.
+	volumesDir, stacksDir string
 }
 
-// project is a Compose project's files as the stacks volume would hold them.
+// project is a Compose project's files as the stacks volume holds them
+// (written to the host's stacks directory at start, files.go).
 type project struct {
 	files map[string]string
-}
-
-func (p *project) snapshot() protocol.SourceSnapshot {
-	var files []protocol.SourceFile
-	for path, content := range p.files {
-		b := []byte(content)
-		files = append(files, protocol.SourceFile{Path: path, Content: b, SHA256: protocol.FileHash(b), Size: int64(len(b))})
-	}
-	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
-	return protocol.SourceSnapshot{Hash: protocol.SourceHash(files), Files: files}
 }
 
 // stackSeed is a DockYard stack with display metadata (#22: descriptions
@@ -164,7 +159,7 @@ volumes:
   config:
 `
 
-func newHomelab() []*homelabHost {
+func newHomelab(dataDir string) []*homelabHost {
 	homelab := &homelabHost{name: "homelab", hostname: "homelab", os: "Debian GNU/Linux 12 (bookworm)", kernel: "6.1.0-25-amd64",
 		serviceAddress: "192.168.1.10", cpus: 4, memory: 8 * gib, baseMemory: 520 * mib, baseCPU: 3,
 		diskUsed: 212 * gib, diskTotal: 480 * gib, uptime: 14 * 24 * time.Hour,
@@ -217,6 +212,11 @@ func newHomelab() []*homelabHost {
 	for i, h := range []*homelabHost{homelab, nas, edge} {
 		fe := enginefake.New([]string{"4f6c:7a1e:homelab", "9b2d:0c3f:nas", "1e8a:55d0:edge"}[i])
 		h.engine = &devEngine{Engine: fe, logs: func(name string) []string { return h.logLines[name] }}
+		h.volumesDir, h.stacksDir = hostDirs(dataDir, h.name)
+		fe.SetVolumeRoot(h.volumesDir)
+	}
+	for rel, content := range siloExtras() {
+		homelab.projects["silo"].files[rel] = content
 	}
 	homelab.engine.SetPlatform("linux", "amd64")
 	nas.engine.SetPlatform("linux", "amd64")
@@ -224,7 +224,7 @@ func newHomelab() []*homelabHost {
 
 	// homelab: the stacks' containers, standalone containers, leftovers.
 	for _, st := range homelab.stacks {
-		addStack(homelab.engine, st)
+		addStack(homelab.engine, homelab.stacksDir, st)
 	}
 	fe := homelab.engine
 	fe.AddContainer(engine.ContainerSpec{Name: "homeassistant", Image: "ghcr.io/home-assistant/home-assistant:2026.9", RestartPolicy: "unless-stopped",
@@ -254,13 +254,13 @@ func newHomelab() []*homelabHost {
 
 // addStack creates a stack's network, volumes and containers with the
 // Compose labels the agent classifies them by.
-func addStack(fe *devEngine, st stackSeed) {
+func addStack(fe *devEngine, stacksDir string, st stackSeed) {
 	network := st.name + "_default"
 	fe.AddNetwork(network, map[string]string{protocol.ComposeProjectLabel: st.name, "com.docker.compose.network": "default"})
 	for _, svc := range st.services {
 		labels := map[string]string{protocol.ComposeProjectLabel: st.name, protocol.ComposeServiceLabel: svc.name,
-			protocol.ComposeWorkingDirLabel: stacksRoot + "/" + st.name, "com.docker.compose.container-number": "1",
-			"com.docker.compose.project.config_files": stacksRoot + "/" + st.name + "/compose.yaml"}
+			protocol.ComposeWorkingDirLabel: stacksDir + "/" + st.name, "com.docker.compose.container-number": "1",
+			"com.docker.compose.project.config_files": stacksDir + "/" + st.name + "/compose.yaml"}
 		spec := engine.ContainerSpec{Name: st.name + "-" + svc.name + "-1", Image: svc.image, NetworkMode: network, Labels: labels,
 			RestartPolicy: "unless-stopped", Ports: svc.ports, NetworkAliases: []string{svc.name}}
 		if svc.volume != "" {

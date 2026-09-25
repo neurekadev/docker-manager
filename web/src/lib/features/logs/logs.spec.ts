@@ -1,0 +1,241 @@
+// Log feed (#8): SSE per container, merge by time, cursor resume with
+// dedupe, dropped counts, end reasons, follow on/off, bounded buffer.
+import { describe, expect, it } from 'vitest';
+import { LogFeed, type EventSourceLike, type RawLine } from './feed.svelte';
+import { formatLogTime, highlight, logText } from './format';
+import { endReason, streamUrl, timeKey, type LogSource } from './stream';
+
+class FakeES implements EventSourceLike {
+	static all: FakeES[] = [];
+	readyState = 0;
+	onerror: ((ev: Event) => void) | null = null;
+	onopen: ((ev: Event) => void) | null = null;
+	closed = false;
+	#listeners = new Map<string, ((ev: MessageEvent) => void)[]>();
+
+	constructor(readonly url: string) {
+		FakeES.all.push(this);
+	}
+	addEventListener(type: string, l: (ev: MessageEvent) => void) {
+		this.#listeners.set(type, [...(this.#listeners.get(type) ?? []), l]);
+	}
+	close() {
+		this.closed = true;
+		this.readyState = 2;
+	}
+	emit(type: string, data: unknown, id = '') {
+		for (const l of this.#listeners.get(type) ?? [])
+			l({ data: JSON.stringify(data), lastEventId: id } as MessageEvent);
+	}
+	line(at: string, line: string, stream = 'stdout') {
+		this.emit('log', { at, stream, line }, at);
+	}
+	fail() {
+		this.readyState = 2;
+		this.onerror?.(new Event('error'));
+	}
+}
+
+const web: LogSource = {
+	key: 'silo-web-1',
+	environmentId: 'e1',
+	containerId: 'silo-web-1',
+	service: 'silo-web',
+	label: 'silo-web'
+};
+const db: LogSource = {
+	key: 'silo-db-1',
+	environmentId: 'e1',
+	containerId: 'silo-db-1',
+	service: 'silo-db',
+	label: 'silo-db'
+};
+
+function feed(sources: LogSource[], extra: Record<string, unknown> = {}) {
+	FakeES.all = [];
+	return new LogFeed(sources, { eventSource: (u) => new FakeES(u), tail: 100, ...extra });
+}
+
+describe('stream helpers', () => {
+	it('orders RFC 3339 timestamps with trimmed fractions', () => {
+		expect(timeKey('2026-09-25T10:00:00Z') < timeKey('2026-09-25T10:00:00.5Z')).toBe(true);
+		expect(timeKey('2026-09-25T10:00:00.1Z') > timeKey('2026-09-25T10:00:00.05Z')).toBe(true);
+		expect(timeKey('2026-09-25T12:00:00+02:00')).toBe('2026-09-25T10:00:00.000000000Z');
+		expect(timeKey('garbage')).toBe('garbage');
+	});
+
+	it('builds the stream URL: tail first, since when resuming', () => {
+		expect(streamUrl(web, 200)).toBe(
+			'/api/v1/environments/e1/containers/silo-web-1/logs/stream?tail=200'
+		);
+		expect(streamUrl(web, 200, '2026-09-25T10:00:00.5Z')).toBe(
+			'/api/v1/environments/e1/containers/silo-web-1/logs/stream?since=2026-09-25T10%3A00%3A00.5Z'
+		);
+		expect(endReason('container_removed')).toMatch(/removed/);
+		expect(endReason('agent_offline')).toMatch(/offline/);
+	});
+
+	it('formats, highlights and exports lines', () => {
+		expect(highlight('GET /health 200', 'health')).toEqual([
+			{ text: 'GET /', match: false },
+			{ text: 'health', match: true },
+			{ text: ' 200', match: false }
+		]);
+		expect(highlight('abc', '')).toEqual([{ text: 'abc', match: false }]);
+		expect(formatLogTime('nope')).toBe('nope');
+		expect(formatLogTime('2026-09-25T10:14:22Z')).toMatch(/^2026-09-2\d \d\d:14:22$/);
+		const text = logText(
+			[{ seq: 1, source: 'k', at: 'T1', key: 'T1', stream: 'stderr', text: 'boom' }],
+			{ timestamps: true, source: () => 'silo-web' }
+		);
+		expect(text).toBe('T1 silo-web stderr boom\n');
+	});
+});
+
+describe('LogFeed', () => {
+	it('merges containers by time and marks sources live', () => {
+		const f = feed([web, db]);
+		f.start();
+		expect(FakeES.all.map((e) => e.url)).toEqual([
+			'/api/v1/environments/e1/containers/silo-web-1/logs/stream?tail=100',
+			'/api/v1/environments/e1/containers/silo-db-1/logs/stream?tail=100'
+		]);
+		const [w, d] = FakeES.all;
+		w.line('2026-09-25T10:00:01Z', 'web one');
+		w.line('2026-09-25T10:00:03Z', 'web two');
+		d.line('2026-09-25T10:00:02Z', 'db one');
+		d.line('2026-09-25T10:00:02.5Z', 'db two', 'stderr');
+		expect(f.lines.map((l) => l.text)).toEqual(['web one', 'db one', 'db two', 'web two']);
+		expect(f.lines[2].stream).toBe('stderr');
+		expect(f.states[web.key]).toEqual({ kind: 'live' });
+		d.emit('dropped', { count: 7 });
+		expect(f.dropped).toBe(7);
+		f.stop();
+		expect(FakeES.all.every((e) => e.closed)).toBe(true);
+	});
+
+	it('resumes at the cursor after Follow is turned back on and skips repeats', () => {
+		const f = feed([web]);
+		f.start();
+		const first = FakeES.all[0];
+		first.line('2026-09-25T10:00:01Z', 'a');
+		first.line('2026-09-25T10:00:02Z', 'b1');
+		first.line('2026-09-25T10:00:02Z', 'b2');
+		f.setFollowing(false);
+		expect(first.closed).toBe(true);
+		expect(f.states[web.key]).toEqual({ kind: 'paused' });
+		f.setFollowing(true);
+		const resumed = FakeES.all[1];
+		expect(resumed.url).toBe(
+			'/api/v1/environments/e1/containers/silo-web-1/logs/stream?since=2026-09-25T10%3A00%3A02Z'
+		);
+		// The resume replays lines of the cursor's second: only new ones count.
+		resumed.line('2026-09-25T10:00:02Z', 'b1');
+		resumed.line('2026-09-25T10:00:02Z', 'b2');
+		resumed.line('2026-09-25T10:00:02Z', 'b3');
+		resumed.line('2026-09-25T10:00:01Z', 'old');
+		resumed.line('2026-09-25T10:00:04Z', 'c');
+		expect(f.lines.map((l) => l.text)).toEqual(['a', 'b1', 'b2', 'b3', 'c']);
+	});
+
+	it('ends on end events, retries offline environments and classifies failures', async () => {
+		const timers: (() => void)[] = [];
+		const f = feed([web, db], {
+			retryMs: 5000,
+			setTimer: (fn: () => void) => timers.push(fn),
+			clearTimer: () => {},
+			probe: async () => ({ status: 403, message: 'You cannot read these logs.' })
+		});
+		f.start();
+		const [w, d] = FakeES.all;
+		w.emit('end', { reason: 'agent_offline' });
+		expect(f.states[web.key]).toEqual({ kind: 'ended', reason: 'agent_offline' });
+		expect(timers).toHaveLength(1);
+		timers[0]();
+		expect(FakeES.all).toHaveLength(3);
+		d.fail();
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(f.states[db.key]).toEqual({
+			kind: 'failed',
+			status: 403,
+			message: 'You cannot read these logs.'
+		});
+		// Denied is final: no retry is scheduled for it.
+		expect(timers).toHaveLength(1);
+		f.retry(db.key);
+		expect(FakeES.all).toHaveLength(4);
+		f.stop();
+	});
+
+	it('polls containers beyond the stream budget with the same cursor and dedupe', async () => {
+		const timers: (() => void)[] = [];
+		const calls: (string | undefined)[] = [];
+		const answers: (RawLine[] | Error)[] = [
+			[{ at: '2026-09-25T10:00:01Z', stream: 'stdout', line: 'p1' }],
+			[
+				{ at: '2026-09-25T10:00:01Z', stream: 'stdout', line: 'p1' },
+				{ at: '2026-09-25T10:00:02Z', stream: 'stderr', line: 'p2' }
+			],
+			Object.assign(new Error('You cannot read these logs.'), { status: 403 })
+		];
+		const f = feed([web, db], {
+			maxStreams: 1,
+			pollMs: 1000,
+			setTimer: (fn: () => void) => timers.push(fn),
+			clearTimer: () => {},
+			poll: async (_s: LogSource, since?: string) => {
+				calls.push(since);
+				const a = answers.shift() ?? [];
+				if (a instanceof Error) throw a;
+				return a;
+			}
+		});
+		const flush = async () => {
+			for (let i = 0; i < 5; i++) await Promise.resolve();
+		};
+		f.start();
+		expect(FakeES.all).toHaveLength(1); // web streams, db is polled
+		expect(f.polled(db.key)).toBe(true);
+		expect(f.polled(web.key)).toBe(false);
+		await flush();
+		expect(f.lines.map((l) => l.text)).toEqual(['p1']);
+		expect(f.states[db.key]).toEqual({ kind: 'live' });
+		timers.shift()!();
+		await flush();
+		expect(calls).toEqual([undefined, '2026-09-25T10:00:01Z']);
+		expect(f.lines.map((l) => l.text)).toEqual(['p1', 'p2']);
+		timers.shift()!();
+		await flush();
+		expect(f.states[db.key]).toEqual({
+			kind: 'failed',
+			status: 403,
+			message: 'You cannot read these logs.'
+		});
+		expect(f.polled(db.key)).toBe(false);
+		expect(timers).toHaveLength(0); // refusals are final
+		f.setFollowing(false);
+		f.setFollowing(true);
+		expect(f.polled(db.key)).toBe(true);
+		f.stop();
+		expect(f.polled(db.key)).toBe(false);
+	});
+
+	it('bounds the buffer, clears the view and follows source changes', () => {
+		const f = feed([web], { max: 3 });
+		f.start();
+		const w = FakeES.all[0];
+		for (let i = 1; i <= 5; i++) w.line(`2026-09-25T10:00:0${i}Z`, `l${i}`);
+		expect(f.lines.map((l) => l.text)).toEqual(['l3', 'l4', 'l5']);
+		expect(f.trimmed).toBe(2);
+		f.clear();
+		expect(f.lines).toEqual([]);
+		w.line('2026-09-25T10:00:09Z', 'after clear');
+		expect(f.lines.map((l) => l.text)).toEqual(['after clear']);
+		f.setSources([db]);
+		expect(w.closed).toBe(true);
+		expect(FakeES.all.at(-1)?.url).toContain('silo-db-1');
+		expect(f.sources).toEqual([db]);
+		f.stop();
+	});
+});
