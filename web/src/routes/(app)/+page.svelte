@@ -169,24 +169,34 @@
 						color="green"
 						secondary="{totals.containers - totals.running} stopped"
 					/>
-					<KpiCard
-						label="Memory in use"
-						value={formatBytes(totals.memUsed)}
-						unit="/ {formatBytes(totals.memTotal)}"
-						icon={MemoryStick}
-						color="indigo"
-					>
-						{#snippet bar()}
-							<Meter
-								value={totals.memUsed}
-								max={totals.memTotal || 1}
-								label="Memory in use"
-								valueText="{formatBytes(totals.memUsed)} of {formatBytes(
-									totals.memTotal
-								)}"
-							/>
-						{/snippet}
-					</KpiCard>
+					{#if totals.memTotal > 0}
+						<KpiCard
+							label="Memory in use"
+							value={formatBytes(totals.memUsed)}
+							unit="/ {formatBytes(totals.memTotal)}"
+							icon={MemoryStick}
+							color="indigo"
+						>
+							{#snippet bar()}
+								<Meter
+									value={totals.memUsed}
+									max={totals.memTotal}
+									label="Memory in use"
+									valueText="{formatBytes(totals.memUsed)} of {formatBytes(
+										totals.memTotal
+									)}"
+								/>
+							{/snippet}
+						</KpiCard>
+					{:else}
+						<KpiCard
+							label="Memory in use"
+							value="—"
+							icon={MemoryStick}
+							color="indigo"
+							secondary="No usage samples yet"
+						/>
+					{/if}
 				{/if}
 			</div>
 

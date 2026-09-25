@@ -110,7 +110,10 @@ export function overviewQuery(client: ApiClient = api) {
 		queryKey: queryKeys.overview,
 		queryFn: ({ signal }): Promise<Overview> =>
 			unwrap(client.GET('/api/v1/overview', { signal })),
-		staleTime: 15_000
+		staleTime: 15_000,
+		// Live events refresh counts and connection state, not usage samples
+		// (metrics events refresh charts only): re-read usage every 30 s.
+		refetchInterval: 30_000
 	});
 }
 
