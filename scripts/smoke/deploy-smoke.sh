@@ -10,6 +10,11 @@
 #   enroll-agent   enrollment token from the manager CLI, handed to the co-located
 #                  agent on stdin; it enrolls through the internal URL and its
 #                  environment comes online (#3)
+#   api-token      curl as a script would: the owner creates an API token scoped
+#                  to one environment; the token reads and renames only that
+#                  environment, is refused elsewhere and on owner routes, the
+#                  cookie is ignored on bearer requests, revocation gives a
+#                  generic 401 and the value is in no log (#31)
 #   deploy-stack   pending (#7): test/smoke/sample-stack/compose.yaml
 #
 # Pending steps print ::warning:: and are listed in the summary; they never
@@ -247,6 +252,7 @@ step_owner_setup() {
 	# Random per run; never printed. (No "tr </dev/urandom | head" here:
 	# under pipefail tr's SIGPIPE would fail the step.)
 	pw="smoke-$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+	OWNER_PW="$pw" # for later steps; shell variable only, never written out
 	local body
 	body="$(jq -nc --arg p "$pw" '{username: "smoke-owner", displayName: "Smoke Owner", password: $p}')"
 	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" -c "$jar" -H 'Content-Type: application/json' \
@@ -309,6 +315,61 @@ step_enroll_agent() {
 	record enroll-agent PASSED "co-located agent enrolled through the internal URL; environment online; reused token refused (401)"
 }
 
+step_api_token() {
+	local jar out code env_id token token_id etag body
+	local -a auth
+	jar="$(mktemp)"
+	out="${SMOKE_ARTIFACTS}/api-token.json"
+	# The owner signs in (a fresh sign-in counts as the step-up creation
+	# needs) and finds the enrolled environment.
+	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" -c "$jar" -H 'Content-Type: application/json' \
+		-d "$(jq -nc --arg p "$OWNER_PW" '{username: "smoke-owner", password: $p}')" "${BASE_URL}/api/v1/auth/session" || true)"
+	[ "$code" = 200 ] || fail api-token "owner sign-in: HTTP ${code}"
+	env_id="$(curl -sS --fail --cacert "$CA" -b "$jar" "${BASE_URL}/api/v1/environments" | jq -r '.items[0].id // empty')"
+	[ -n "$env_id" ] || fail api-token "no environment listed for the owner"
+	body="$(jq -nc --arg e "$env_id" --arg x "$(date -u -d '+1 day' +%Y-%m-%dT%H:%M:%SZ)" '{name: "smoke", expiresAt: $x, scopes: [
+		{capability: "environment.read", scope: {kind: "environment", environmentId: $e}},
+		{capability: "environment.manage", scope: {kind: "environment", environmentId: $e}}]}')"
+	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" -b "$jar" -H 'Content-Type: application/json' -d "$body" \
+		"${BASE_URL}/api/v1/me/api-tokens" || true)"
+	[ "$code" = 201 ] || fail api-token "create token: HTTP ${code} $(jq -c '{code, message}' "$out" 2>/dev/null)"
+	token="$(jq -r '.token // empty' "$out")"
+	token_id="$(jq -r '.apiToken.id // empty' "$out")"
+	rm -f "$out" # the only file that held the value
+	case "$token" in "dy_${token_id}_"*) ;; *) fail api-token "the token value is not dy_<id>_<secret>" ;; esac
+	auth=(-H "Authorization: Bearer ${token}")
+	# Read and rename the one environment, without cookies or browser headers.
+	curl -sS --fail --cacert "$CA" "${auth[@]}" "${BASE_URL}/api/v1/environments" |
+		jq -e --arg e "$env_id" '(.items | length) == 1 and .items[0].id == $e and .items[0].view == "full"' >/dev/null ||
+		fail api-token "the token does not list exactly its environment"
+	etag="$(curl -sS --fail --cacert "$CA" "${auth[@]}" -D - -o /dev/null "${BASE_URL}/api/v1/environments/${env_id}" |
+		tr -d '\r' | awk 'tolower($1) == "etag:" {print $2}')"
+	[ -n "$etag" ] || fail api-token "no ETag for the environment"
+	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" "${auth[@]}" -X PATCH -H 'Content-Type: application/json' \
+		-H "If-Match: ${etag}" -d '{"name": "smoke-renamed"}' "${BASE_URL}/api/v1/environments/${env_id}" || true)"
+	[ "$code" = 200 ] && jq -e '.name == "smoke-renamed"' "$out" >/dev/null || fail api-token "rename with the token: HTTP ${code}"
+	# Outside its scope and on owner routes the token is refused, also
+	# when the owner's session cookie rides along.
+	code="$(curl -sS -o /dev/null -w '%{http_code}' --cacert "$CA" "${auth[@]}" "${BASE_URL}/api/v1/environments/${env_id}/system" || true)"
+	[ "$code" = 403 ] || fail api-token "system information outside the token scope: HTTP ${code}"
+	for path in /api/v1/users /api/v1/settings/security /api/v1/me/api-tokens; do
+		code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" -b "$jar" "${auth[@]}" "${BASE_URL}${path}" || true)"
+		[ "$code" = 403 ] && jq -e '.code == "api_token_not_allowed"' "$out" >/dev/null ||
+			fail api-token "${path} with the token (and the owner cookie): HTTP ${code}, want 403 api_token_not_allowed"
+	done
+	# Revoked: the generic 401.
+	code="$(curl -sS -o /dev/null -w '%{http_code}' --cacert "$CA" -b "$jar" -X DELETE "${BASE_URL}/api/v1/me/api-tokens/${token_id}" || true)"
+	[ "$code" = 204 ] || fail api-token "revoke: HTTP ${code}"
+	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" "${auth[@]}" "${BASE_URL}/api/v1/me" || true)"
+	[ "$code" = 401 ] && jq -e '.code == "unauthenticated"' "$out" >/dev/null || fail api-token "revoked token: HTTP ${code}, want 401"
+	# The value is in no container log.
+	local logs
+	logs="$("${compose[@]}" logs --no-color dockyard-manager 2>&1)"
+	grep -qF "$token" <<<"$logs" && fail api-token "the API token appears in the manager log"
+	rm -f "$jar" "$out"
+	record api-token PASSED "scoped token (one environment) read and renamed it via curl; system info and owner routes refused (403); revoked -> 401; not in logs"
+}
+
 step_deploy_stack() {
 	pending deploy-stack "#7" "deploy test/smoke/sample-stack/compose.yaml and wait until web is healthy" 'stack'
 }
@@ -320,5 +381,6 @@ step_fresh_start
 step_health_ready
 step_owner_setup
 step_enroll_agent
+step_api_token
 step_deploy_stack
 log "done (pending steps are listed in the summary)"

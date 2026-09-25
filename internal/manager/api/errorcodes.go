@@ -33,6 +33,8 @@ func ErrorCodes() []ErrorCode {
 		{CodeStepUpRequired, http.StatusForbidden, false, "The change needs recent authentication; re-authenticate with POST /api/v1/auth/step-ups and retry.", 16},
 		{CodeEnrollmentRequired, http.StatusForbidden, false, "The session may only enroll the sign-in factors the instance policy requires; finish enrollment first.", 16},
 		{CodeEnrollmentExpired, http.StatusForbidden, false, "The grace period to enroll required sign-in factors has passed; ask the instance owner for a factor or password reset.", 16},
+		{CodeAPITokenNotAllowed, http.StatusForbidden, false, "API tokens cannot call this operation: owner administration, sign-in and factor flows, token management and Recovery Key administration need a signed-in browser session.", 31},
+		{CodeAPITokensDisabled, http.StatusForbidden, false, "The instance owner disabled API tokens (security settings); no token can be created or used.", 31},
 		{CodeSignInMethodNotAllowed, http.StatusForbidden, false, "The instance sign-in policy does not accept this sign-in method (for example a passkey when password and TOTP are required).", 16},
 		{CodeNotFound, http.StatusNotFound, false, "The resource or route does not exist, or the caller may not know that it exists.", 2},
 		{CodeMethodNotAllowed, http.StatusMethodNotAllowed, false, "The route exists but not with this method; see the Allow header.", 2},

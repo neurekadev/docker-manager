@@ -77,6 +77,9 @@ type Deps struct {
 	// permissions and previews (#17); nil answers those routes with 503.
 	// The manager also sets Authorizer to it.
 	Permissions PermissionService
+	// APITokens serves the API token routes (#31); nil answers them with
+	// 503. The identity middleware authenticates bearer tokens.
+	APITokens APITokenService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -128,6 +131,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerAgents(a, deps)
 	registerEnvironments(a, deps)
 	registerPermissions(a, deps)
+	registerAPITokens(a, deps)
 	return a
 }
 

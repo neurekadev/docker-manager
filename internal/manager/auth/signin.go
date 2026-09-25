@@ -336,8 +336,9 @@ func (s *Service) checkPassword(set domain.SecuritySettings, field, pw string, c
 
 // ChangePassword sets the caller's password (recent authentication; the
 // current password when one is set). Other sessions end; the caller's
-// session continues with a new token.
-func (s *Service) ChangePassword(ctx context.Context, currentPW, newPW string) error {
+// session continues with a new token. With revokeAPITokens every API token
+// of the account is revoked too (#31).
+func (s *Service) ChangePassword(ctx context.Context, currentPW, newPW string, revokeAPITokens bool) error {
 	cur, err := s.session(ctx, true)
 	if err != nil {
 		return err
@@ -388,6 +389,11 @@ func (s *Service) ChangePassword(ctx context.Context, currentPW, newPW string) e
 	if err := s.rotate(ctx, cur, cur.stage, epoch, cur.proven|fPassword); err != nil {
 		return err
 	}
+	if revokeAPITokens {
+		if err := s.revokeUserTokens(ctx, cur.user.ID, cur.user.ID, domain.RevokedCredentialReset); err != nil {
+			return err
+		}
+	}
 	s.record(ctx, "auth.password_change", OutcomeSuccess, cur.user.ID, "user", cur.user.ID, "")
 	s.forget(ctx, cur.user.ID)
 	s.hub.revoke(cur.user.ID, epoch)
@@ -397,8 +403,9 @@ func (s *Service) ChangePassword(ctx context.Context, currentPW, newPW string) e
 // RedeemPasswordReset sets a new password with an owner-issued reset code
 // or an owner-recovery code (which also clears the owner's TOTP, passkeys
 // and recovery codes). All sessions of the account end; the user then
-// signs in normally.
-func (s *Service) RedeemPasswordReset(ctx context.Context, code, newPW string) error {
+// signs in normally. With revokeAPITokens every API token of the account
+// is revoked too (#31).
+func (s *Service) RedeemPasswordReset(ctx context.Context, code, newPW string, revokeAPITokens bool) error {
 	if err := s.allow(ctx); err != nil {
 		return err
 	}
@@ -448,6 +455,11 @@ func (s *Service) RedeemPasswordReset(ctx context.Context, code, newPW string) e
 		}
 		return err
 	}
+	if revokeAPITokens {
+		if err := s.revokeUserTokens(ctx, user.ID, user.ID, domain.RevokedCredentialReset); err != nil {
+			return err
+		}
+	}
 	s.record(ctx, "auth.password_reset_redeem", OutcomeSuccess, user.ID, "user", user.ID, string(reset.Kind))
 	return s.endSessions(ctx, user.ID, false)
 }
@@ -463,8 +475,12 @@ func clearFactors(ctx context.Context, tx bun.IDB, userID string, now time.Time)
 	return store.DeleteRecoveryCodes(ctx, tx, userID)
 }
 
-// Me returns the caller's account (enrollment sessions included).
+// Me returns the caller's account (enrollment sessions and API tokens
+// included).
 func (s *Service) Me(ctx context.Context) (domain.Account, error) {
+	if a, ok, err := s.tokenAccount(ctx); ok {
+		return a, err
+	}
 	cur, err := s.session(ctx, true)
 	if err != nil {
 		return domain.Account{}, err

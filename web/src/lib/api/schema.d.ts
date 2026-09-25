@@ -113,6 +113,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/api-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List every user's API tokens
+         * @description All tokens of all users, newest first, with their user. Values are never listed. Instance owner only (never delegable, never with an API token).
+         */
+        get: operations["list-api-tokens"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/api-tokens/{tokenId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke any user's API token
+         * @description The token stops working at once and its open streams close. Revocation is final; revoking twice is harmless. Instance owner only (never delegable, never with an API token).
+         */
+        delete: operations["delete-api-token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit": {
         parameters: {
             query?: never;
@@ -786,6 +826,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/api-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my API tokens
+         * @description The caller's tokens (active, expired and revoked), newest first. Values are never listed. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).
+         */
+        get: operations["list-my-api-tokens"];
+        put?: never;
+        /**
+         * Create an API token
+         * @description Creates a token for scripts and integrations and returns its value once (DockYard keeps a verifier). The token carries exactly the listed grants, each of which you must hold now; every request with it is evaluated as these grants intersected with your current permissions, so later permission changes narrow it at once. Owner administration, sign-in and factor flows and token management are never reachable with a token, and a terminal (exec) needs container.exec in the token's own grants. Requires api_tokens.create (the owner always has it), a recent step-up (403 step_up_required) and tokens being enabled (403 api_tokens_disabled). The expiry is required unless the owner allows non-expiring tokens. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).
+         */
+        post: operations["create-my-api-token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/api-tokens/{tokenId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one of my API tokens
+         * @description 404 for other users' tokens. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).
+         */
+        get: operations["get-my-api-token"];
+        put?: never;
+        post?: never;
+        /**
+         * Revoke one of my API tokens
+         * @description The token stops working at once and its open streams close. Revocation is final; revoking twice is harmless. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).
+         */
+        delete: operations["delete-my-api-token"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename one of my API tokens
+         * @description Only the name can change; grants and expiry are fixed at creation (create a new token instead). Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).
+         */
+        patch: operations["update-my-api-token"];
+        trace?: never;
+    };
     "/api/v1/me/passkeys": {
         parameters: {
             query?: never;
@@ -1073,7 +1165,7 @@ export interface paths {
         put?: never;
         /**
          * Reset a user's sign-in factors
-         * @description Removes the account's TOTP, passkeys and recovery codes (for a lost device), ends its sessions and streams, and starts a new enrollment grace period: the user signs in with the password and enrolls again. Passkey-only accounts also need a password reset. Requires a recent step-up; not for the owner (409 owner_protected; the owner uses owner recovery). Instance owner only (never delegable, never with an API token).
+         * @description Removes the account's TOTP, passkeys and recovery codes (for a lost device), ends its sessions and streams, and starts a new enrollment grace period: the user signs in with the password and enrolls again. Passkey-only accounts also need a password reset. Optionally revokes the account's API tokens (revokeApiTokens). Requires a recent step-up; not for the owner (409 owner_protected; the owner uses owner recovery). Instance owner only (never delegable, never with an API token).
          */
         post: operations["create-user-factor-reset"];
         delete?: never;
@@ -1093,7 +1185,7 @@ export interface paths {
         put?: never;
         /**
          * Issue a password reset
-         * @description Returns a one-time password-reset code and link, only in this response; earlier unused codes of the account stop working. The user redeems it with POST /api/v1/auth/password-resets/redemptions, which ends all of their sessions. Requires a recent step-up; not for the owner. Instance owner only (never delegable, never with an API token).
+         * @description Returns a one-time password-reset code and link, only in this response; earlier unused codes of the account stop working. The user redeems it with POST /api/v1/auth/password-resets/redemptions, which ends all of their sessions. revokeApiTokens also revokes the account's API tokens at once. Requires a recent step-up; not for the owner. Instance owner only (never delegable, never with an API token).
          */
         post: operations["create-user-password-reset"];
         delete?: never;
@@ -1150,6 +1242,37 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        APIToken: {
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Absent: the token never expires (only when the owner allows it).
+             */
+            expiresAt?: string;
+            /** @description Token ID; also embedded in the token value (dy_<id>_...), so a leaked value can be matched to its record. */
+            id: string;
+            /**
+             * Format: date-time
+             * @description Recorded at most once a minute.
+             */
+            lastUsedAt?: string;
+            /** @description Client IP of the last recorded use (behind trusted proxies: the forwarded client). */
+            lastUsedIp?: string;
+            name: string;
+            /** Format: date-time */
+            revokedAt?: string;
+            /** @enum {string} */
+            revokedReason?: "user" | "owner" | "user_disabled" | "credential_reset" | "restore";
+            /** @description The grants chosen at creation. Effective access is these grants intersected with the user's current permissions, evaluated on every request. */
+            scopes: components["schemas"]["TokenGrant"][];
+            /** @enum {string} */
+            status: "active" | "expired" | "revoked";
+            /** @description The token's user: it acts with at most this user's current permissions. */
+            userId: string;
+            /** @description Set in the owner's list of all tokens. */
+            username?: string;
+        };
         Account: {
             /** Format: date-time */
             createdAt: string;
@@ -1419,9 +1542,29 @@ export interface components {
             /** @description Required when the account has a password. */
             currentPassword?: string;
             newPassword: string;
+            /** @description Also revoke every API token of the account (#31). */
+            revokeApiTokens?: boolean;
         };
         CodeInputBody: {
             code: string;
+        };
+        CreateAPITokenInputBody: {
+            /**
+             * Format: date-time
+             * @description When the token stops working; required unless neverExpires. At most the instance maximum ahead (security settings, default 90 days).
+             */
+            expiresAt?: string;
+            /** @example backup script */
+            name: string;
+            /** @description A token without expiry; only when the owner allows them (security settings). */
+            neverExpires?: boolean;
+            /** @description The capabilities the token may use and where. Each must be held by you now; the token never exceeds your current permissions. */
+            scopes: components["schemas"]["TokenGrant"][];
+        };
+        CreateAPITokenOutputBody: {
+            apiToken: components["schemas"]["APIToken"];
+            /** @description The token value (dy_...). Shown only in this response; DockYard stores a verifier. Send it as Authorization: Bearer <token>. */
+            token: string;
         };
         CreateEnrollmentInputBody: {
             /** @description Only with intent new: the enrolling host is a different machine that reports the same Docker Engine ID as an enrolled one (a cloned VM). Prefer regenerating the clone's Engine ID. */
@@ -1874,6 +2017,17 @@ export interface components {
             owner: boolean;
             userId?: string;
         };
+        PageAPIToken: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["APIToken"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageAccount: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Account"][];
@@ -2001,8 +2155,19 @@ export interface components {
             /** @description Password-reset or owner-recovery code. */
             code: string;
             newPassword: string;
+            /** @description Also revoke every API token of the account (#31). */
+            revokeApiTokens?: boolean;
         };
         PatchSecuritySettingsInputBody: {
+            /**
+             * Format: int64
+             * @description Applies to tokens created afterwards.
+             */
+            apiTokenMaxLifetimeDays?: number;
+            /** @description false stops every API token at once (and closes their streams). */
+            apiTokensEnabled?: boolean;
+            /** @description Allow new API tokens without expiry. */
+            apiTokensNonExpiring?: boolean;
             /** Format: int64 */
             enrollmentGraceHours?: number;
             /** Format: int64 */
@@ -2129,6 +2294,9 @@ export interface components {
             password?: string;
             username: string;
         };
+        RenameAPITokenInputBody: {
+            name: string;
+        };
         ReplaceDocumentBody: {
             /** @description The complete new rule list. Duplicate rules for the same capability and scope are rejected. */
             rules: components["schemas"]["PermissionRule"][];
@@ -2150,7 +2318,20 @@ export interface components {
             id: string;
             type: string;
         };
+        RevokeTokensBody: {
+            /** @description Also revoke every API token of the account (#31), for example when the account may be compromised. */
+            revokeApiTokens?: boolean;
+        };
         SecuritySettings: {
+            /**
+             * Format: int64
+             * @description Longest lifetime of a new API token (default 90 days).
+             */
+            apiTokenMaxLifetimeDays: number;
+            /** @description API tokens (#31) may be created and used. false: every token stops working at once (they work again when re-enabled; revoke them to end them for good). */
+            apiTokensEnabled: boolean;
+            /** @description API tokens without an expiry may be created (off by default). */
+            apiTokensNonExpiring: boolean;
             /**
              * Format: int64
              * @description How long accounts may sign in to a limited enrollment session to add required factors.
@@ -2272,6 +2453,11 @@ export interface components {
             kind: "stacks" | "volumes" | "bind";
             /** @enum {string} */
             watch: "inotify" | "poll" | "none";
+        };
+        TokenGrant: {
+            /** @example container.restart */
+            capability: string;
+            scope: components["schemas"]["PermissionScope"];
         };
         TotpEnrollmentOutputBody: {
             /**
@@ -2872,6 +3058,133 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-api-tokens": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageAPIToken"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-api-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description API token ID. */
+                tokenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3504,6 +3817,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Error"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
             /** @description Internal Server Error */
             500: {
                 headers: {
@@ -3611,6 +3933,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5626,6 +5957,345 @@ export interface operations {
             };
         };
     };
+    "list-my-api-tokens": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageAPIToken"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-my-api-token": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAPITokenInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAPITokenOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-my-api-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description API token ID. */
+                tokenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIToken"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-my-api-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description API token ID. */
+                tokenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-my-api-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description API token ID. */
+                tokenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameAPITokenInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIToken"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-my-passkeys": {
         parameters: {
             query?: never;
@@ -5646,6 +6316,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5864,6 +6543,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6688,7 +7376,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RevokeTokensBody"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -6768,7 +7460,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RevokeTokensBody"];
+            };
+        };
         responses: {
             /** @description Created */
             201: {

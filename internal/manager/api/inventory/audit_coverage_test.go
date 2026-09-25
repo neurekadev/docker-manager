@@ -65,7 +65,7 @@ func TestEveryCatalogedMutatingRouteIsAudited(t *testing.T) {
 		a := api.New(mux, api.Deps{Audit: rec})
 		op := api.Operation{
 			Operation:  huma.Operation{OperationID: r.OperationID, Method: r.Method, Path: r.Path, Summary: "stub"},
-			Capability: api.Capability(r.Capability), Scope: api.Scope(r.Scope),
+			Capability: api.Capability(r.Capability), Scope: api.Scope(r.Scope), SessionOnly: r.SessionOnly,
 		}
 		for _, v := range r.CapabilityValues {
 			op.CapabilityValues = append(op.CapabilityValues, api.Capability(v))
@@ -73,8 +73,30 @@ func TestEveryCatalogedMutatingRouteIsAudited(t *testing.T) {
 		api.Register(a, op, func(context.Context, *struct{}) (*struct{}, error) { return nil, nil })
 
 		target := pathParam.ReplaceAllString(r.Path, "v-$1")
+		// API tokens where the route accepts them (#31), a browser
+		// session otherwise; a token refused by a session-only route is
+		// audited as denied.
+		caller := authz.Principal{Kind: authz.KindAPIToken, UserID: "u-1", TokenID: "t-1"}
+		wantActor := domain.AuditActor{Kind: domain.AuditActorAPIToken, UserID: "u-1", TokenID: "t-1"}
+		if !r.AcceptsAPITokens() {
+			req := httptest.NewRequest(r.Method, target, nil)
+			ctx, err := authz.WithPrincipal(req.Context(), caller)
+			if err != nil {
+				t.Fatal(err)
+			}
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req.WithContext(ctx))
+			if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), `"api_token_not_allowed"`) ||
+				len(rec.evs) != 1 || rec.evs[0].Outcome != domain.AuditDenied || rec.evs[0].Actor != wantActor {
+				t.Errorf("%s: an API token got %d %s (audit %+v), want 403 api_token_not_allowed, audited as denied", r.Key(), w.Code, w.Body, rec.evs)
+				continue
+			}
+			rec.evs, rec.ctxs = nil, nil
+			caller = authz.Principal{Kind: authz.KindUser, UserID: "u-1"}
+			wantActor = domain.AuditActor{Kind: domain.AuditActorUser, UserID: "u-1"}
+		}
 		req := httptest.NewRequest(r.Method, target, nil)
-		ctx, err := authz.WithPrincipal(req.Context(), authz.Principal{Kind: authz.KindAPIToken, UserID: "u-1", TokenID: "t-1"})
+		ctx, err := authz.WithPrincipal(req.Context(), caller)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -106,7 +128,7 @@ func TestEveryCatalogedMutatingRouteIsAudited(t *testing.T) {
 			hop = spec.Delete
 		}
 		if ev.Action != want || hop == nil || hop.Extensions[api.ExtAudit] != want || ev.OperationID != r.OperationID ||
-			ev.Actor != (domain.AuditActor{Kind: domain.AuditActorAPIToken, UserID: "u-1", TokenID: "t-1"}) ||
+			ev.Actor != wantActor ||
 			ev.Outcome != domain.AuditSuccess || !audit.CategoryFor(ev.Action, ev.OperationID).Valid() {
 			t.Errorf("%s: record %+v, want action %s", r.Key(), ev, want)
 			continue
@@ -134,7 +156,7 @@ func TestEveryCatalogedMutatingRouteIsAudited(t *testing.T) {
 		}
 		checked++
 	}
-	if checked < 100 {
+	if checked < 90 { // implemented routes are checked by api.TestEveryServedMutatingOperationIsAudited
 		t.Fatalf("only %d mutating routes checked", checked)
 	}
 	t.Logf("%d mutating catalog routes emit audit records", checked)

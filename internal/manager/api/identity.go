@@ -38,7 +38,7 @@ type IdentityService interface {
 	SignOut(ctx context.Context) error
 	StepUp(ctx context.Context, req domain.StepUp) (domain.SessionState, error)
 	RedeemRecoveryCode(ctx context.Context, code string) (domain.SessionState, error)
-	RedeemPasswordReset(ctx context.Context, code, newPassword string) error
+	RedeemPasswordReset(ctx context.Context, code, newPassword string, revokeAPITokens bool) error
 
 	BeginTOTPEnrollment(ctx context.Context) (domain.TOTPEnrollment, error)
 	VerifyTOTPEnrollment(ctx context.Context, code string) (domain.SessionState, error)
@@ -52,7 +52,7 @@ type IdentityService interface {
 	DeleteMyPasskey(ctx context.Context, id string) error
 
 	Me(ctx context.Context) (domain.Account, error)
-	ChangePassword(ctx context.Context, currentPassword, newPassword string) error
+	ChangePassword(ctx context.Context, currentPassword, newPassword string, revokeAPITokens bool) error
 	RecoveryCodeStatus(ctx context.Context) (domain.RecoveryCodeStatus, error)
 	RotateRecoveryCodes(ctx context.Context) ([]string, error)
 
@@ -66,8 +66,8 @@ type IdentityService interface {
 	PatchUser(ctx context.Context, id string, revision int64, p domain.UserPatch) (domain.Account, error)
 	DeleteUser(ctx context.Context, id string) error
 	RevokeUserSessions(ctx context.Context, id string) error
-	ResetUserFactors(ctx context.Context, id string) (domain.Account, error)
-	CreatePasswordReset(ctx context.Context, id string) (domain.IssuedCode, error)
+	ResetUserFactors(ctx context.Context, id string, revokeAPITokens bool) (domain.Account, error)
+	CreatePasswordReset(ctx context.Context, id string, revokeAPITokens bool) (domain.IssuedCode, error)
 
 	SecuritySettings(ctx context.Context) (domain.SecuritySettings, error)
 	UpdateSecuritySettings(ctx context.Context, revision int64, p domain.SecuritySettingsPatch) (domain.SecuritySettings, error)
@@ -201,6 +201,9 @@ type SecuritySettings struct {
 	EnrollmentGraceHours  int       `json:"enrollmentGraceHours" minimum:"1" maximum:"720" doc:"How long accounts may sign in to a limited enrollment session to add required factors."`
 	InvitationTTLHours    int       `json:"invitationTtlHours" minimum:"1" maximum:"720"`
 	PasswordResetTTLHours int       `json:"passwordResetTtlHours" minimum:"1" maximum:"168"`
+	APITokensEnabled      bool      `json:"apiTokensEnabled" doc:"API tokens (#31) may be created and used. false: every token stops working at once (they work again when re-enabled; revoke them to end them for good)."`
+	APITokenMaxDays       int       `json:"apiTokenMaxLifetimeDays" minimum:"1" maximum:"3650" doc:"Longest lifetime of a new API token (default 90 days)."`
+	APITokensNonExpiring  bool      `json:"apiTokensNonExpiring" doc:"API tokens without an expiry may be created (off by default)."`
 	Revision              int64     `json:"revision"`
 	UpdatedAt             time.Time `json:"updatedAt"`
 }
@@ -209,6 +212,7 @@ func newSecuritySettings(s domain.SecuritySettings) SecuritySettings {
 	return SecuritySettings{StrictPasswords: s.StrictPasswords, MinPasswordLength: s.MinPasswordLength,
 		RequiredFactors: string(s.RequiredFactors), EnrollmentGraceHours: s.EnrollmentGraceHours,
 		InvitationTTLHours: s.InvitationTTLHours, PasswordResetTTLHours: s.PasswordResetTTLHours,
+		APITokensEnabled: s.APITokensEnabled, APITokenMaxDays: s.APITokenMaxDays, APITokensNonExpiring: s.APITokensNonExpiring,
 		Revision: s.Revision, UpdatedAt: s.UpdatedAt}
 }
 
@@ -331,8 +335,9 @@ type codeInput struct {
 
 type passwordResetRedemptionInput struct {
 	Body struct {
-		Code        string `json:"code" minLength:"1" maxLength:"128" doc:"Password-reset or owner-recovery code."`
-		NewPassword string `json:"newPassword" minLength:"1" maxLength:"1024"`
+		Code            string `json:"code" minLength:"1" maxLength:"128" doc:"Password-reset or owner-recovery code."`
+		NewPassword     string `json:"newPassword" minLength:"1" maxLength:"1024"`
+		RevokeAPITokens bool   `json:"revokeApiTokens,omitempty" doc:"Also revoke every API token of the account (#31)."`
 	}
 }
 
@@ -389,6 +394,7 @@ type changePasswordInput struct {
 	Body struct {
 		CurrentPassword string `json:"currentPassword,omitempty" maxLength:"1024" doc:"Required when the account has a password."`
 		NewPassword     string `json:"newPassword" minLength:"1" maxLength:"1024"`
+		RevokeAPITokens bool   `json:"revokeApiTokens,omitempty" doc:"Also revoke every API token of the account (#31)."`
 	}
 }
 
@@ -463,7 +469,21 @@ type deleteUserInput struct {
 type userPasswordResetInput struct {
 	UserID string `path:"userId" maxLength:"64"`
 	IdempotencyKeyParam
+	Body *revokeTokensBody
 }
+
+// revokeTokensBody offers revoking the account's API tokens (#31) with a
+// credential reset.
+type revokeTokensBody struct {
+	RevokeAPITokens bool `json:"revokeApiTokens,omitempty" doc:"Also revoke every API token of the account (#31), for example when the account may be compromised."`
+}
+
+type userFactorResetInput struct {
+	UserID string `path:"userId" maxLength:"64"`
+	Body   *revokeTokensBody
+}
+
+func (b *revokeTokensBody) revoke() bool { return b != nil && b.RevokeAPITokens }
 
 type issuedCodeOutput struct{ Body IssuedCode }
 
@@ -481,6 +501,9 @@ type patchSecuritySettingsInput struct {
 		EnrollmentGraceHours  *int    `json:"enrollmentGraceHours,omitempty" minimum:"1" maximum:"720"`
 		InvitationTTLHours    *int    `json:"invitationTtlHours,omitempty" minimum:"1" maximum:"720"`
 		PasswordResetTTLHours *int    `json:"passwordResetTtlHours,omitempty" minimum:"1" maximum:"168"`
+		APITokensEnabled      *bool   `json:"apiTokensEnabled,omitempty" doc:"false stops every API token at once (and closes their streams)."`
+		APITokenMaxDays       *int    `json:"apiTokenMaxLifetimeDays,omitempty" minimum:"1" maximum:"3650" doc:"Applies to tokens created afterwards."`
+		APITokensNonExpiring  *bool   `json:"apiTokensNonExpiring,omitempty" doc:"Allow new API tokens without expiry."`
 	}
 }
 

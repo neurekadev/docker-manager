@@ -45,6 +45,20 @@ type Route struct {
 	Kind             string   `yaml:"kind"`
 	Status           string   `yaml:"status"`
 	Notes            string   `yaml:"notes"`
+	// SessionOnly marks routes API tokens can never call (#31): sign-in
+	// and factor flows, token management, Recovery Key administration.
+	// Owner routes and routes with an owner-only catalog capability are
+	// session-only anyway and do not set it.
+	SessionOnly bool `yaml:"sessionOnly"`
+}
+
+// AcceptsAPITokens reports whether an API token may call the route (#31).
+func (r Route) AcceptsAPITokens() bool {
+	op := api.Operation{Capability: api.Capability(r.Capability), SessionOnly: r.SessionOnly}
+	for _, v := range r.CapabilityValues {
+		op.CapabilityValues = append(op.CapabilityValues, api.Capability(v))
+	}
+	return op.AcceptsAPITokens()
 }
 
 // Key is "METHOD path".
@@ -155,6 +169,9 @@ func (inv *Inventory) Validate() []error {
 		if r.Status != StatusPlanned && r.Status != StatusImplemented {
 			fail("%s: status %q must be planned or implemented", where, r.Status)
 		}
+		if r.SessionOnly && (r.Capability == string(api.CapabilityPublic) || r.Capability == string(api.CapabilityOwner)) {
+			fail("%s: sessionOnly is for authenticated or capability routes (owner routes never accept API tokens; public routes need no credential)", where)
+		}
 	}
 	for _, r := range inv.AgentRoutes {
 		if !strings.HasPrefix(r.Path, "/agent/v1/") || !slices.Contains(methods, r.Method) ||
@@ -173,6 +190,18 @@ type specOperation struct {
 	CapabilityValues []string                   `json:"x-dockyard-capability-values"`
 	Scope            string                     `json:"x-dockyard-scope"`
 	Responses        map[string]json.RawMessage `json:"responses"`
+	Security         []map[string][]string      `json:"security"`
+}
+
+// acceptsBearer reports whether the operation documents the API token
+// (bearer) security scheme.
+func (op specOperation) acceptsBearer() bool {
+	for _, alt := range op.Security {
+		if _, ok := alt[api.SecurityBearer]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 type specResponse struct {
@@ -263,6 +292,10 @@ func Reconcile(inv *Inventory, spec []byte, catalog CapabilityCatalog) Report {
 			if k := op.kind(); k != r.Kind {
 				fail("%s: the spec documents a %s route, the inventory says %s", r.Key(), k, r.Kind)
 			}
+			if r.Capability != string(api.CapabilityPublic) && op.acceptsBearer() != r.AcceptsAPITokens() {
+				fail("%s: API tokens (#31) are %s by the spec but %s by the inventory (sessionOnly, owner or owner-only capability)",
+					r.Key(), acceptance(op.acceptsBearer()), acceptance(r.AcceptsAPITokens()))
+			}
 		case StatusPlanned:
 			rep.Planned++
 			rep.PlannedByOwner[r.Owner]++
@@ -324,4 +357,11 @@ func Summary(inv *Inventory) string {
 	}
 	fmt.Fprintf(&sb, "| **total** | **%d** | **%d** |\n", ti, tp)
 	return sb.String()
+}
+
+func acceptance(ok bool) string {
+	if ok {
+		return "accepted"
+	}
+	return "refused"
 }

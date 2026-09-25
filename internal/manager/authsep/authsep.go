@@ -6,6 +6,9 @@
 //   - agent credentials and enrollment tokens (#3) authenticate only
 //     /agent/v1.
 //
+// API tokens are "dy_<id>_<secret>" (MintAPIToken); agent secrets are
+// "dya_..." and "dye_...", so the three never parse as each other.
+//
 // Agent credentials and enrollment tokens are recognizable by their
 // prefixes, so the server can refuse them on /api/v1 before any handler
 // runs, and it strips the Cookie header from every /agent/v1 request so no
@@ -34,6 +37,8 @@ const (
 	AgentCredentialPrefix = protocol.CredentialPrefix
 	// EnrollmentTokenPrefix marks a one-use agent enrollment token.
 	EnrollmentTokenPrefix = protocol.EnrollmentTokenPrefix
+	// APITokenPrefix marks a user's API token (#31, /api/v1 only).
+	APITokenPrefix = "dy_"
 )
 
 // secretBytes is the entropy of generated agent secrets.
@@ -121,6 +126,10 @@ func MintAgentCredential(id string) (Minted, error) { return mint(AgentCredentia
 // MintEnrollmentToken returns a new enrollment token for record id.
 func MintEnrollmentToken(id string) (Minted, error) { return mint(EnrollmentTokenPrefix, id) }
 
+// MintAPIToken returns a new API token (#31) for record id:
+// "dy_<id>_<256-bit secret>". Only Verifier is stored.
+func MintAPIToken(id string) (Minted, error) { return mint(APITokenPrefix, id) }
+
 func mint(prefix, id string) (Minted, error) {
 	if !validRecordID(id) {
 		return Minted{}, errInvalidID
@@ -162,6 +171,11 @@ func ParseAgentCredential(token string) (id, secret string, ok bool) {
 // secret.
 func ParseEnrollmentToken(token string) (id, secret string, ok bool) {
 	return parse(EnrollmentTokenPrefix, token)
+}
+
+// ParseAPIToken splits an API token into its record ID and secret.
+func ParseAPIToken(token string) (id, secret string, ok bool) {
+	return parse(APITokenPrefix, token)
 }
 
 // maxTokenLen bounds a parsed token (prefix, 64-byte ID, separator and a

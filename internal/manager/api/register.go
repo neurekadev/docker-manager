@@ -12,6 +12,8 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/neurekadev/dockyard/internal/manager/audit"
+	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
 )
 
 // OpenAPI extension keys carrying DockYard's contract metadata. They are
@@ -114,6 +116,62 @@ type Operation struct {
 	// Handlers of selector operations record the concrete key they
 	// authorized with audit.SetAction.
 	AuditAction string
+	// SessionOnly marks an operation API tokens (#31) can never call: it
+	// needs an interactive browser session (sign-in and factor flows, token
+	// management, Recovery Key administration). Owner operations and
+	// operations whose capability is owner-only in the #17 catalog are
+	// session-only anyway, as are operations declaring a cookie-only
+	// Security requirement. See AcceptsAPITokens.
+	SessionOnly bool
+}
+
+// AcceptsAPITokens reports whether an API token may call op (#31). Owner
+// operations (users, groups, invitations, security settings, registry
+// and Git credential administration, other users' tokens, ...),
+// operations with an owner-only catalog capability (ownership, manager
+// backup and system restore), SessionOnly operations and operations
+// declaring cookie-only security never accept tokens: Register refuses a
+// token-authenticated call with 403 api_token_not_allowed before any
+// handler runs, and documents cookie-only security in OpenAPI.
+func (op Operation) AcceptsAPITokens() bool {
+	switch {
+	case op.Capability == CapabilityPublic:
+		return true
+	case op.Capability == CapabilityOwner, op.SessionOnly, ownerOnlyCapability(op.Capability, op.CapabilityValues):
+		return false
+	case op.Security != nil:
+		for _, alt := range op.Security {
+			if _, ok := alt[SecurityBearer]; ok {
+				return true
+			}
+		}
+		return false
+	}
+	return true
+}
+
+// ownerOnlyCapability reports whether c (or any value of a selector) is
+// reserved to the instance owner in the permission catalog.
+func ownerOnlyCapability(c Capability, values []Capability) bool {
+	cat := catalog.Default()
+	for _, k := range append([]Capability{c}, values...) {
+		if cp, ok := cat.Lookup(string(k)); ok && cp.OwnerOnly {
+			return true
+		}
+	}
+	return false
+}
+
+// tokenGuard refuses API-token callers of operations that do not accept
+// them (AcceptsAPITokens).
+func tokenGuard(ctx huma.Context, next func(huma.Context)) {
+	if p, ok := authz.PrincipalFrom(ctx.Context()); ok && p.Kind == authz.KindAPIToken {
+		audit.SetErrorClass(ctx.Context(), CodeAPITokenNotAllowed)
+		writeHumaError(ctx, NewError(http.StatusForbidden, CodeAPITokenNotAllowed,
+			"API tokens cannot be used for this operation; it needs a signed-in browser session"))
+		return
+	}
+	next(ctx)
 }
 
 // AuditMode says when an operation is audited.
@@ -326,10 +384,24 @@ func Register[I, O any](a huma.API, op Operation, handler func(context.Context, 
 	hop.Extensions = ext
 
 	if op.Capability != CapabilityPublic {
-		if hop.Security == nil {
+		tokens := op.AcceptsAPITokens()
+		switch {
+		case hop.Security == nil && tokens:
 			hop.Security = []map[string][]string{{SecurityCookie: {}}, {SecurityBearer: {}}}
+		case hop.Security == nil:
+			hop.Security = []map[string][]string{{SecurityCookie: {}}}
+		case !tokens:
+			for _, alt := range hop.Security {
+				if _, ok := alt[SecurityBearer]; ok {
+					panic(fmt.Errorf("api: operation %s: owner, owner-only and session-only operations never accept API tokens; do not declare the bearer scheme", op.OperationID))
+				}
+			}
 		}
 		hop.Errors = withStatus(hop.Errors, http.StatusUnauthorized)
+		if !tokens {
+			hop.Errors = withStatus(hop.Errors, http.StatusForbidden)
+			hop.Middlewares = append(huma.Middlewares{tokenGuard}, hop.Middlewares...)
+		}
 	}
 	if op.Idempotency == IdempotencyStored {
 		hop.Errors = withStatus(hop.Errors, http.StatusConflict)

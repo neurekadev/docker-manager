@@ -48,6 +48,10 @@ type current struct {
 
 type currentKey struct{}
 
+// tokenPrincipalKey carries an authenticated API-token principal from the
+// bearer check to the inner handler.
+type tokenPrincipalKey struct{}
+
 func currentFrom(ctx context.Context) *current {
 	c, _ := ctx.Value(currentKey{}).(*current)
 	return c
@@ -86,10 +90,28 @@ func enrollmentAllowed(path string) bool {
 //     answers 403 enrollment_required for limited enrollment sessions
 //     outside the enrollment routes;
 //   - registers the request context so ending the account's sessions also
-//     ends its in-flight requests and streams.
+//     ends its in-flight requests and streams;
+//   - authenticates "Authorization: Bearer dy_…" API tokens (#31): the
+//     Cookie header is dropped first (a bearer request is never also a
+//     session request), CSRF checks do not apply, any token that does not
+//     authenticate is refused with the same generic 401, and a valid one
+//     sets an api_token principal (the token's user) registered under the
+//     token so revoking it closes its streams.
 func (s *Service) Middleware(next http.Handler) http.Handler {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+		if p, ok := ctx.Value(tokenPrincipalKey{}).(authz.Principal); ok {
+			ctx, cancel := context.WithCancelCause(ctx)
+			defer cancel(nil)
+			defer s.hub.registerToken(p.UserID, p.TokenID, cancel)()
+			ctx, err := authz.WithPrincipal(ctx, p)
+			if err != nil {
+				api.WriteError(w, r, api.Internal(err))
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
 		cur, err := s.resolve(ctx)
 		if err != nil {
 			api.WriteError(w, r, api.Internal(err))
@@ -118,10 +140,22 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 	})
 	loaded := s.kit.Sessions.LoadAndSave(inner)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := authsep.BearerToken(r.Header); ok {
+		if tok, ok := authsep.BearerToken(r.Header); ok {
 			// Bearer requests are never authenticated by cookies (and so
 			// need no CSRF protection).
 			r.Header.Del("Cookie")
+			p, err := s.AuthenticateAPIToken(r.Context(), tok)
+			if errors.Is(err, domain.ErrAPITokenInvalid) {
+				logging.FromContext(r.Context()).Info("API token refused",
+					slog.String("method", r.Method), slog.String("path", r.URL.Path))
+				api.WriteError(w, r, api.Unauthenticated("the API token is not valid").WithHeader("WWW-Authenticate", `Bearer error="invalid_token"`))
+				return
+			}
+			if err != nil {
+				api.WriteError(w, r, api.Internal(err))
+				return
+			}
+			r = r.WithContext(context.WithValue(r.Context(), tokenPrincipalKey{}, p))
 		} else if err := s.kit.CSRF.Check(r); err != nil {
 			logging.FromContext(r.Context()).Warn("cross-origin request rejected",
 				slog.String("method", r.Method), slog.String("path", r.URL.Path))

@@ -256,16 +256,17 @@ func registerAccountAdmin(a huma.API, h *identityAPI) {
 			Summary: "Reset a user's sign-in factors",
 			Description: "Removes the account's TOTP, passkeys and recovery codes (for a lost device), ends its sessions and streams, and starts a " +
 				"new enrollment grace period: the user signs in with the password and enrolls again. Passkey-only accounts also need a password " +
-				"reset. Requires a recent step-up; not for the owner (409 owner_protected; the owner uses owner recovery). " + ownerOnly,
+				"reset. Optionally revokes the account's API tokens (revokeApiTokens). Requires a recent step-up; not for the owner " +
+				"(409 owner_protected; the owner uses owner recovery). " + ownerOnly,
 			Tags: []string{tagUsers}, Security: cookieOnly, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict},
 		},
 		Capability: CapabilityOwner, Scope: ScopeInstance,
-	}, func(ctx context.Context, in *userIDInput) (*accountOutput, error) {
+	}, func(ctx context.Context, in *userFactorResetInput) (*accountOutput, error) {
 		svc, err := h.service()
 		if err != nil {
 			return nil, err
 		}
-		acct, err := svc.ResetUserFactors(ctx, in.UserID)
+		acct, err := svc.ResetUserFactors(ctx, in.UserID, in.Body.revoke())
 		if err != nil {
 			return nil, identityError(err)
 		}
@@ -278,6 +279,7 @@ func registerAccountAdmin(a huma.API, h *identityAPI) {
 			Summary: "Issue a password reset", DefaultStatus: http.StatusCreated,
 			Description: "Returns a one-time password-reset code and link, only in this response; earlier unused codes of the account stop working. " +
 				"The user redeems it with POST /api/v1/auth/password-resets/redemptions, which ends all of their sessions. " +
+				"revokeApiTokens also revokes the account's API tokens at once. " +
 				"Requires a recent step-up; not for the owner. " + ownerOnly,
 			Tags: []string{tagUsers}, Security: cookieOnly, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict},
 		},
@@ -287,7 +289,7 @@ func registerAccountAdmin(a huma.API, h *identityAPI) {
 		if err != nil {
 			return nil, err
 		}
-		code, err := svc.CreatePasswordReset(ctx, in.UserID)
+		code, err := svc.CreatePasswordReset(ctx, in.UserID, in.Body.revoke())
 		if err != nil {
 			return nil, identityError(err)
 		}
@@ -340,7 +342,8 @@ func registerAccountAdmin(a huma.API, h *identityAPI) {
 		p := domain.SecuritySettingsPatch{
 			StrictPasswords: in.Body.StrictPasswords, MinPasswordLength: in.Body.MinPasswordLength,
 			EnrollmentGraceHours: in.Body.EnrollmentGraceHours, InvitationTTLHours: in.Body.InvitationTTLHours,
-			PasswordResetTTLHours: in.Body.PasswordResetTTLHours,
+			PasswordResetTTLHours: in.Body.PasswordResetTTLHours, APITokensEnabled: in.Body.APITokensEnabled,
+			APITokenMaxDays: in.Body.APITokenMaxDays, APITokensNonExpiring: in.Body.APITokensNonExpiring,
 		}
 		if in.Body.RequiredFactors != nil {
 			rf := domain.RequiredFactors(*in.Body.RequiredFactors)

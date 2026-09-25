@@ -1,6 +1,82 @@
 {
   "components": {
     "schemas": {
+      "APIToken": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "Absent: the token never expires (only when the owner allows it).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "Token ID; also embedded in the token value (dy_<id>_...), so a leaked value can be matched to its record.",
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "description": "Recorded at most once a minute.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastUsedIp": {
+            "description": "Client IP of the last recorded use (behind trusted proxies: the forwarded client).",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revokedReason": {
+            "enum": [
+              "user",
+              "owner",
+              "user_disabled",
+              "credential_reset",
+              "restore"
+            ],
+            "type": "string"
+          },
+          "scopes": {
+            "description": "The grants chosen at creation. Effective access is these grants intersected with the user's current permissions, evaluated on every request.",
+            "items": {
+              "$ref": "#/components/schemas/TokenGrant"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "expired",
+              "revoked"
+            ],
+            "type": "string"
+          },
+          "userId": {
+            "description": "The token's user: it acts with at most this user's current permissions.",
+            "type": "string"
+          },
+          "username": {
+            "description": "Set in the owner's list of all tokens.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "userId",
+          "status",
+          "scopes",
+          "createdAt"
+        ],
+        "type": "object"
+      },
       "Account": {
         "additionalProperties": false,
         "properties": {
@@ -671,6 +747,10 @@
             "maxLength": 1024,
             "minLength": 1,
             "type": "string"
+          },
+          "revokeApiTokens": {
+            "description": "Also revoke every API token of the account (#31).",
+            "type": "boolean"
           }
         },
         "required": [
@@ -689,6 +769,59 @@
         },
         "required": [
           "code"
+        ],
+        "type": "object"
+      },
+      "CreateAPITokenInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "expiresAt": {
+            "description": "When the token stops working; required unless neverExpires. At most the instance maximum ahead (security settings, default 90 days).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "backup script"
+            ],
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "neverExpires": {
+            "description": "A token without expiry; only when the owner allows them (security settings).",
+            "type": "boolean"
+          },
+          "scopes": {
+            "description": "The capabilities the token may use and where. Each must be held by you now; the token never exceeds your current permissions.",
+            "items": {
+              "$ref": "#/components/schemas/TokenGrant"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "scopes"
+        ],
+        "type": "object"
+      },
+      "CreateAPITokenOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "apiToken": {
+            "$ref": "#/components/schemas/APIToken"
+          },
+          "token": {
+            "description": "The token value (dy_...). Shown only in this response; DockYard stores a verifier. Send it as Authorization: Bearer <token>.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "apiToken",
+          "token"
         ],
         "type": "object"
       },
@@ -1870,6 +2003,31 @@
         ],
         "type": "object"
       },
+      "PageAPIToken": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Items on this page (possibly empty, also when nextCursor is present).",
+            "items": {
+              "$ref": "#/components/schemas/APIToken"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Opaque cursor for the next page; absent on the last page.",
+            "type": "string"
+          },
+          "total": {
+            "description": "Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "PageAccount": {
         "additionalProperties": false,
         "properties": {
@@ -2181,6 +2339,10 @@
             "maxLength": 1024,
             "minLength": 1,
             "type": "string"
+          },
+          "revokeApiTokens": {
+            "description": "Also revoke every API token of the account (#31).",
+            "type": "boolean"
           }
         },
         "required": [
@@ -2192,6 +2354,21 @@
       "PatchSecuritySettingsInputBody": {
         "additionalProperties": false,
         "properties": {
+          "apiTokenMaxLifetimeDays": {
+            "description": "Applies to tokens created afterwards.",
+            "format": "int64",
+            "maximum": 3650,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "apiTokensEnabled": {
+            "description": "false stops every API token at once (and closes their streams).",
+            "type": "boolean"
+          },
+          "apiTokensNonExpiring": {
+            "description": "Allow new API tokens without expiry.",
+            "type": "boolean"
+          },
           "enrollmentGraceHours": {
             "format": "int64",
             "maximum": 720,
@@ -2609,6 +2786,20 @@
         ],
         "type": "object"
       },
+      "RenameAPITokenInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "ReplaceDocumentBody": {
         "additionalProperties": false,
         "properties": {
@@ -2682,9 +2873,34 @@
         ],
         "type": "object"
       },
+      "RevokeTokensBody": {
+        "additionalProperties": false,
+        "properties": {
+          "revokeApiTokens": {
+            "description": "Also revoke every API token of the account (#31), for example when the account may be compromised.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "SecuritySettings": {
         "additionalProperties": false,
         "properties": {
+          "apiTokenMaxLifetimeDays": {
+            "description": "Longest lifetime of a new API token (default 90 days).",
+            "format": "int64",
+            "maximum": 3650,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "apiTokensEnabled": {
+            "description": "API tokens (#31) may be created and used. false: every token stops working at once (they work again when re-enabled; revoke them to end them for good).",
+            "type": "boolean"
+          },
+          "apiTokensNonExpiring": {
+            "description": "API tokens without an expiry may be created (off by default).",
+            "type": "boolean"
+          },
           "enrollmentGraceHours": {
             "description": "How long accounts may sign in to a limited enrollment session to add required factors.",
             "format": "int64",
@@ -2741,6 +2957,9 @@
           "enrollmentGraceHours",
           "invitationTtlHours",
           "passwordResetTtlHours",
+          "apiTokensEnabled",
+          "apiTokenMaxLifetimeDays",
+          "apiTokensNonExpiring",
           "revision",
           "updatedAt"
         ],
@@ -3044,6 +3263,26 @@
         "required": [
           "kind",
           "watch"
+        ],
+        "type": "object"
+      },
+      "TokenGrant": {
+        "additionalProperties": false,
+        "properties": {
+          "capability": {
+            "examples": [
+              "container.restart"
+            ],
+            "maxLength": 128,
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/PermissionScope"
+          }
+        },
+        "required": [
+          "capability",
+          "scope"
         ],
         "type": "object"
       },
@@ -4053,6 +4292,188 @@
         "x-dockyard-scope": "resource"
       }
     },
+    "/api/v1/api-tokens": {
+      "get": {
+        "description": "All tokens of all users, newest first, with their user. Values are never listed. Instance owner only (never delegable, never with an API token).",
+        "operationId": "list-api-tokens",
+        "parameters": [
+          {
+            "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageAPIToken"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          }
+        ],
+        "summary": "List every user's API tokens",
+        "tags": [
+          "API tokens"
+        ],
+        "x-dockyard-capability": "owner",
+        "x-dockyard-scope": "instance"
+      }
+    },
+    "/api/v1/api-tokens/{tokenId}": {
+      "delete": {
+        "description": "The token stops working at once and its open streams close. Revocation is final; revoking twice is harmless. Instance owner only (never delegable, never with an API token).",
+        "operationId": "delete-api-token",
+        "parameters": [
+          {
+            "description": "API token ID.",
+            "in": "path",
+            "name": "tokenId",
+            "required": true,
+            "schema": {
+              "description": "API token ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          }
+        ],
+        "summary": "Revoke any user's API token",
+        "tags": [
+          "API tokens"
+        ],
+        "x-dockyard-audit": "api_token.revoke",
+        "x-dockyard-capability": "owner",
+        "x-dockyard-scope": "instance"
+      }
+    },
     "/api/v1/audit": {
       "get": {
         "description": "Audit records, newest first, with cursor pagination and filters (repeat a parameter to OR its values). Requires audit.read, an instance-wide, all-or-nothing capability (records can reveal activity on resources the reader cannot otherwise see); records are therefore not filtered per item. total is omitted.",
@@ -5060,6 +5481,16 @@
             },
             "description": "Unauthorized"
           },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
           "500": {
             "content": {
               "application/problem+json": {
@@ -5107,6 +5538,16 @@
               }
             },
             "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
           },
           "500": {
             "content": {
@@ -8098,6 +8539,482 @@
         "x-dockyard-scope": "none"
       }
     },
+    "/api/v1/me/api-tokens": {
+      "get": {
+        "description": "The caller's tokens (active, expired and revoked), newest first. Values are never listed. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).",
+        "operationId": "list-my-api-tokens",
+        "parameters": [
+          {
+            "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageAPIToken"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          }
+        ],
+        "summary": "List my API tokens",
+        "tags": [
+          "API tokens"
+        ],
+        "x-dockyard-capability": "authenticated",
+        "x-dockyard-scope": "none"
+      },
+      "post": {
+        "description": "Creates a token for scripts and integrations and returns its value once (DockYard keeps a verifier). The token carries exactly the listed grants, each of which you must hold now; every request with it is evaluated as these grants intersected with your current permissions, so later permission changes narrow it at once. Owner administration, sign-in and factor flows and token management are never reachable with a token, and a terminal (exec) needs container.exec in the token's own grants. Requires api_tokens.create (the owner always has it), a recent step-up (403 step_up_required) and tokens being enabled (403 api_tokens_disabled). The expiry is required unless the owner allows non-expiring tokens. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).",
+        "operationId": "create-my-api-token",
+        "parameters": [
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAPITokenInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAPITokenOutputBody"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          }
+        ],
+        "summary": "Create an API token",
+        "tags": [
+          "API tokens"
+        ],
+        "x-dockyard-audit": "api_tokens.create",
+        "x-dockyard-capability": "api_tokens.create",
+        "x-dockyard-idempotency": "stored",
+        "x-dockyard-scope": "instance"
+      }
+    },
+    "/api/v1/me/api-tokens/{tokenId}": {
+      "delete": {
+        "description": "The token stops working at once and its open streams close. Revocation is final; revoking twice is harmless. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).",
+        "operationId": "delete-my-api-token",
+        "parameters": [
+          {
+            "description": "API token ID.",
+            "in": "path",
+            "name": "tokenId",
+            "required": true,
+            "schema": {
+              "description": "API token ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          }
+        ],
+        "summary": "Revoke one of my API tokens",
+        "tags": [
+          "API tokens"
+        ],
+        "x-dockyard-audit": "api_token.revoke",
+        "x-dockyard-capability": "authenticated",
+        "x-dockyard-scope": "none"
+      },
+      "get": {
+        "description": "404 for other users' tokens. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).",
+        "operationId": "get-my-api-token",
+        "parameters": [
+          {
+            "description": "API token ID.",
+            "in": "path",
+            "name": "tokenId",
+            "required": true,
+            "schema": {
+              "description": "API token ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIToken"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          }
+        ],
+        "summary": "Get one of my API tokens",
+        "tags": [
+          "API tokens"
+        ],
+        "x-dockyard-capability": "authenticated",
+        "x-dockyard-scope": "none"
+      },
+      "patch": {
+        "description": "Only the name can change; grants and expiry are fixed at creation (create a new token instead). Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).",
+        "operationId": "update-my-api-token",
+        "parameters": [
+          {
+            "description": "API token ID.",
+            "in": "path",
+            "name": "tokenId",
+            "required": true,
+            "schema": {
+              "description": "API token ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameAPITokenInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIToken"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          }
+        ],
+        "summary": "Rename one of my API tokens",
+        "tags": [
+          "API tokens"
+        ],
+        "x-dockyard-audit": "api_token.rename",
+        "x-dockyard-capability": "authenticated",
+        "x-dockyard-scope": "none"
+      }
+    },
     "/api/v1/me/passkeys": {
       "get": {
         "description": "All of the caller's passkeys (a short list; no pagination). Available to limited enrollment sessions.",
@@ -8122,6 +9039,16 @@
               }
             },
             "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
           },
           "500": {
             "content": {
@@ -8402,6 +9329,16 @@
               }
             },
             "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
           },
           "500": {
             "content": {
@@ -9523,7 +10460,7 @@
     },
     "/api/v1/users/{userId}/factor-resets": {
       "post": {
-        "description": "Removes the account's TOTP, passkeys and recovery codes (for a lost device), ends its sessions and streams, and starts a new enrollment grace period: the user signs in with the password and enrolls again. Passkey-only accounts also need a password reset. Requires a recent step-up; not for the owner (409 owner_protected; the owner uses owner recovery). Instance owner only (never delegable, never with an API token).",
+        "description": "Removes the account's TOTP, passkeys and recovery codes (for a lost device), ends its sessions and streams, and starts a new enrollment grace period: the user signs in with the password and enrolls again. Passkey-only accounts also need a password reset. Optionally revokes the account's API tokens (revokeApiTokens). Requires a recent step-up; not for the owner (409 owner_protected; the owner uses owner recovery). Instance owner only (never delegable, never with an API token).",
         "operationId": "create-user-factor-reset",
         "parameters": [
           {
@@ -9536,6 +10473,15 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeTokensBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -9632,7 +10578,7 @@
     },
     "/api/v1/users/{userId}/password-resets": {
       "post": {
-        "description": "Returns a one-time password-reset code and link, only in this response; earlier unused codes of the account stop working. The user redeems it with POST /api/v1/auth/password-resets/redemptions, which ends all of their sessions. Requires a recent step-up; not for the owner. Instance owner only (never delegable, never with an API token).",
+        "description": "Returns a one-time password-reset code and link, only in this response; earlier unused codes of the account stop working. The user redeems it with POST /api/v1/auth/password-resets/redemptions, which ends all of their sessions. revokeApiTokens also revokes the account's API tokens at once. Requires a recent step-up; not for the owner. Instance owner only (never delegable, never with an API token).",
         "operationId": "create-user-password-reset",
         "parameters": [
           {
@@ -9657,6 +10603,15 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeTokensBody"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "content": {

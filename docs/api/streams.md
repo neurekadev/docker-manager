@@ -28,7 +28,9 @@ Paths are relative to `/api/v1`.
 - **Authentication** is the same as for JSON routes: the session cookie
   (browsers; `EventSource` and browser WebSockets send it automatically on the
   same origin) or `Authorization: Bearer <API token>` (other clients). Tokens
-  never go into URLs.
+  never go into URLs. A revoked, expired or disabled token ends its open
+  streams like an ended session (SSE `event: close`, reason
+  `session_expired`), within the sweep interval for expiry.
 - **Authorization** is checked when the stream opens and again whenever the
   caller's permissions, session or token change. A revoked permission ends
   the stream (SSE: `event: close` with reason `permissions_changed`;

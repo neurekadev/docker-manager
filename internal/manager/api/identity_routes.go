@@ -205,7 +205,7 @@ func registerSignIn(a huma.API, h *identityAPI) {
 		if err != nil {
 			return nil, err
 		}
-		if err := svc.RedeemPasswordReset(ctx, in.Body.Code, in.Body.NewPassword); err != nil {
+		if err := svc.RedeemPasswordReset(ctx, in.Body.Code, in.Body.NewPassword, in.Body.RevokeAPITokens); err != nil {
 			return nil, identityError(err)
 		}
 		return &emptyOutput{}, nil
@@ -471,7 +471,7 @@ func registerFactors(a huma.API, h *identityAPI) {
 		if err != nil {
 			return nil, err
 		}
-		if err := svc.ChangePassword(ctx, in.Body.CurrentPassword, in.Body.NewPassword); err != nil {
+		if err := svc.ChangePassword(ctx, in.Body.CurrentPassword, in.Body.NewPassword, in.Body.RevokeAPITokens); err != nil {
 			return nil, identityError(err)
 		}
 		return &emptyOutput{}, nil

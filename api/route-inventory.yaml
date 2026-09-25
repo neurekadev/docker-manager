@@ -19,6 +19,10 @@
 #   owner       issue number of the workstream that implements the route
 #   kind        json | stream (SSE or bounded binary body) | websocket
 #   status      planned | implemented
+#   sessionOnly true for routes API tokens (#31) can never call (sign-in and
+#               factor flows, token management, Recovery Key administration);
+#               owner routes and owner-only capabilities never accept tokens
+#               and do not set it. Checked against the spec's security.
 # The private agent routes are listed under agentRoutes; they are specified
 # in docs/protocol/agent-v1.md, not in the public OpenAPI document.
 version: 1
@@ -109,6 +113,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
     notes: Cookie sessions only.
   - method: DELETE
     path: /api/v1/auth/session
@@ -118,6 +123,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
     notes: Sign-out; cookie sessions only.
   - method: POST
     path: /api/v1/auth/step-ups
@@ -127,6 +133,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
     notes: Re-authentication before sensitive changes; cookie sessions only.
   - method: POST
     path: /api/v1/auth/recovery-codes/redemptions
@@ -154,6 +161,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
   - method: POST
     path: /api/v1/auth/totp/enrollments/verifications
     operationId: create-totp-enrollment-verification
@@ -162,6 +170,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
   - method: DELETE
     path: /api/v1/auth/totp
     operationId: delete-totp
@@ -170,6 +179,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
     notes: Requires step-up.
   - method: POST
     path: /api/v1/auth/passkeys/registration-options
@@ -179,6 +189,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
   - method: POST
     path: /api/v1/auth/passkeys/registration-verifications
     operationId: create-passkey-registration-verification
@@ -187,6 +198,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
   - method: POST
     path: /api/v1/auth/passkeys/authentication-options
     operationId: create-passkey-authentication-options
@@ -219,6 +231,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
     notes: Requires step-up.
   - method: GET
     path: /api/v1/me/recovery-codes
@@ -228,6 +241,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
     notes: Status only (remaining count); codes are shown once at creation.
   - method: POST
     path: /api/v1/me/recovery-codes
@@ -237,6 +251,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
     notes: Rotates the set; requires step-up; stored-idempotent.
   - method: GET
     path: /api/v1/me/passkeys
@@ -246,6 +261,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
   - method: DELETE
     path: "/api/v1/me/passkeys/{credentialId}"
     operationId: delete-my-passkey
@@ -254,6 +270,7 @@ routes:
     owner: 16
     kind: json
     status: implemented
+    sessionOnly: true
     notes: Requires step-up.
   - method: GET
     path: /api/v1/invitations
@@ -522,7 +539,8 @@ routes:
     scope: none
     owner: 31
     kind: json
-    status: planned
+    status: implemented
+    sessionOnly: true
   - method: POST
     path: /api/v1/me/api-tokens
     operationId: create-my-api-token
@@ -530,7 +548,8 @@ routes:
     scope: instance
     owner: 31
     kind: json
-    status: planned
+    status: implemented
+    sessionOnly: true
     notes: "Returns the token secret once; stored-idempotent; scope must be a subset of the caller's permissions."
   - method: GET
     path: "/api/v1/me/api-tokens/{tokenId}"
@@ -539,7 +558,8 @@ routes:
     scope: none
     owner: 31
     kind: json
-    status: planned
+    status: implemented
+    sessionOnly: true
   - method: PATCH
     path: "/api/v1/me/api-tokens/{tokenId}"
     operationId: update-my-api-token
@@ -547,7 +567,8 @@ routes:
     scope: none
     owner: 31
     kind: json
-    status: planned
+    status: implemented
+    sessionOnly: true
     notes: Name only.
   - method: DELETE
     path: "/api/v1/me/api-tokens/{tokenId}"
@@ -556,7 +577,8 @@ routes:
     scope: none
     owner: 31
     kind: json
-    status: planned
+    status: implemented
+    sessionOnly: true
   - method: GET
     path: /api/v1/api-tokens
     operationId: list-api-tokens
@@ -564,7 +586,7 @@ routes:
     scope: instance
     owner: 31
     kind: json
-    status: planned
+    status: implemented
   - method: DELETE
     path: "/api/v1/api-tokens/{tokenId}"
     operationId: delete-api-token
@@ -572,7 +594,7 @@ routes:
     scope: instance
     owner: 31
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: /api/v1/agent-enrollments
     operationId: list-agent-enrollments
@@ -1652,6 +1674,7 @@ routes:
     owner: 10
     kind: json
     status: planned
+    sessionOnly: true
     notes: Recovery Key accepted only in this protected flow; never returned.
   - method: GET
     path: "/api/v1/backup-repositories/{repositoryId}"
@@ -1694,6 +1717,7 @@ routes:
     owner: 10
     kind: json
     status: planned
+    sessionOnly: true
   - method: POST
     path: "/api/v1/backup-repositories/{repositoryId}/key-rotations"
     operationId: create-backup-repository-key-rotation
@@ -1702,6 +1726,7 @@ routes:
     owner: 10
     kind: json
     status: planned
+    sessionOnly: true
     notes: Requires step-up.
   - method: GET
     path: "/api/v1/backup-repositories/{repositoryId}/health"

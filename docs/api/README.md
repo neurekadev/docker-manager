@@ -24,9 +24,11 @@ passkeys, the service worker).
 
 ## Authentication
 
-The OpenAPI document declares two security schemes; every non-public
-operation accepts either (`security: [{cookieSession: []}, {bearerToken: []}]`),
-public operations have none.
+The OpenAPI document declares two security schemes. Non-public operations
+accept either (`security: [{cookieSession: []}, {bearerToken: []}]`) unless
+they are session-only (`security: [{cookieSession: []}]`: owner
+administration, sign-in and factor flows, token management, Recovery Key
+administration); public operations have none.
 
 ### `cookieSession` — browsers (#16)
 
@@ -54,18 +56,36 @@ public operations have none.
 
 ### `bearerToken` — scripts and integrations (#31)
 
-- `Authorization: Bearer <token>`. Tokens are created in the UI or with
-  `POST /api/v1/me/api-tokens`; the value is shown once. Tokens expire, can
-  be revoked, and carry a chosen subset of the owner's capabilities: each
-  request is authorized as *token scope ∩ the owner's current effective
-  permissions*.
-- Bearer requests are not subject to cookie CSRF checks; never send a token
-  from a browser page.
-- Cookie-only routes (`/auth/session`, `/auth/step-ups`, passkey and TOTP
-  enrollment, owner security settings) reject bearer tokens.
+- `Authorization: Bearer dy_<id>_<secret>`. Tokens are created in the UI or
+  with `POST /api/v1/me/api-tokens` (needs `api_tokens.create` — the owner
+  always has it — and a recent step-up); the value is shown once, DockYard
+  keeps a verifier. Each token has a name, an expiry (required; at most the
+  instance maximum, 90 days by default; non-expiring only when the owner
+  allows it) and an explicit list of grants (catalog capabilities at
+  instance, environment or resource scope) that its user held at creation.
+  Every request is authorized as *token grants ∩ the user's current
+  effective permissions*, so group changes, user denies, disabling and
+  deleting the user narrow or end the token at once.
+- The Cookie header is ignored on bearer requests and cookie CSRF checks do
+  not apply; never send a token from a browser page. Any token that does
+  not authenticate — malformed, unknown, expired, revoked, of a disabled or
+  deleted user, of an account missing factors the sign-in policy requires,
+  or while the owner disabled tokens — gets the same `401 unauthenticated`
+  with `WWW-Authenticate: Bearer error="invalid_token"`.
+- Session-only operations answer a token with `403 api_token_not_allowed`:
+  owner administration (users, groups, invitations, security settings,
+  registry/Git credentials, other users' tokens, permission previews),
+  sign-in, step-up and factor flows, token management (`/me/api-tokens`)
+  and Recovery Key administration. Tokens never satisfy an interactive
+  TOTP/passkey requirement. A terminal (exec) needs `container.exec` in the
+  token's own grants.
+- Tokens can start jobs (origin `api_token`, with the token ID and its
+  user), and stream job events, logs and live invalidations like sessions.
+  Revocation (by the user, the owner, disabling the user, a password or
+  factor reset that asks for it, a disaster restore) is final and closes the
+  token's open streams. Last use (time and client IP) is recorded at most
+  once a minute. Details: [api-tokens](../architecture/api-tokens.md).
 
-Sessions are implemented (#16); API tokens arrive with #31 (until then a
-bearer request has no principal and non-public routes answer `401`).
 Authorization (#17, [authorization](../architecture/authorization.md)):
 the instance owner may use every route; everyone else gets exactly what
 their group rules and user overrides grant (`403`/`404`, lists filtered),

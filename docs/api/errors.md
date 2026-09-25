@@ -44,8 +44,8 @@ Rules clients can rely on:
   revision), `Retry-After` whenever the server knows a delay (always on
   `409 idempotency_key_in_flight`; on `429` and `503` when rate limits and
   maintenance windows set one),
-  `Allow` on `405`; bearer-token requests will also get `WWW-Authenticate:
-  Bearer` on `401` once tokens exist (#31).
+  `Allow` on `405`; a bearer token that does not authenticate gets
+  `WWW-Authenticate: Bearer error="invalid_token"` with its `401` (#31).
 - **Validation is exhaustive:** a `422` lists every invalid field it found, not
   only the first.
 - Streams report errors in-band once established; see [streams.md](streams.md).
@@ -72,6 +72,8 @@ same change.
 | `step_up_required` | 403 | no | The change needs recent authentication; re-authenticate with POST /api/v1/auth/step-ups and retry. | #16 |
 | `enrollment_required` | 403 | no | The session may only enroll the sign-in factors the instance policy requires; finish enrollment first. | #16 |
 | `enrollment_expired` | 403 | no | The grace period to enroll required sign-in factors has passed; ask the instance owner for a factor or password reset. | #16 |
+| `api_token_not_allowed` | 403 | no | API tokens cannot call this operation: owner administration, sign-in and factor flows, token management and Recovery Key administration need a signed-in browser session. | #31 |
+| `api_tokens_disabled` | 403 | no | The instance owner disabled API tokens (security settings); no token can be created or used. | #31 |
 | `sign_in_method_not_allowed` | 403 | no | The instance sign-in policy does not accept this sign-in method (for example a passkey when password and TOTP are required). | #16 |
 | `not_found` | 404 | no | The resource or route does not exist, or the caller may not know that it exists. | #2 |
 | `method_not_allowed` | 405 | no | The route exists but not with this method; see the `Allow` header. | #2 |

@@ -48,7 +48,8 @@ ADR 0003 records why this is a small Go evaluator and not Casbin.
 
 1. Inactive (disabled or deleted) account → deny.
 2. API token (#31) → the token scope must cover the request (token scope ∩
-   effective permissions; the owner's tokens too).
+   effective permissions; the owner's tokens too). Tokens:
+   [api-tokens.md](api-tokens.md).
 3. Owner → allow.
 4. Unknown or owner-only capability → deny.
 5. The most specific matching **user** rule decides.
