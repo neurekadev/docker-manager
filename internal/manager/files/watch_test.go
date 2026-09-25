@@ -27,6 +27,12 @@ type watchAgents struct {
 	changed     []string
 }
 
+func (a *watchAgents) EnvironmentServes(_, name string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return !a.offline && !a.unsupported && name == protocol.ReqFilesWatch
+}
+
 func (a *watchAgents) RequestEnvironment(_ context.Context, env, name string, input any, _ time.Duration) (json.RawMessage, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -183,14 +189,23 @@ func TestWatchSetFollowsStacksAndOpenVolumes(t *testing.T) {
 	}
 	n++
 	// Offline agents are retried when they come online; agents without a
-	// watcher are not asked again.
+	// watcher are never sent the request (an older agent would close its
+	// session on an unknown request name).
+	h.agents.mu.Lock()
 	h.agents.unsupported = true
+	h.agents.mu.Unlock()
 	h.w.Handle(online)
 	h.settle()
 	h.w.Handle(events.Event{Type: events.StackUpdated, EnvironmentID: envID})
 	h.settle()
 	if len(h.agents.pushes()) != n+1 {
-		t.Fatal("unsupported agent asked again")
+		t.Fatal("an agent without a watcher was sent files.watch")
+	}
+	// Without a watcher a sequence gap reads each stack's definition.
+	h.w.Handle(events.Event{Type: events.FilesInvalidated, ResourceType: events.ResourceFileScope, ResourceID: "*", EnvironmentID: envID, Overflow: true})
+	h.settle()
+	if got := h.stacks.recorded(); len(got) != 2 || got[0] != "s1:<overflow>" || len(h.agents.rescans) != 0 {
+		t.Fatalf("gap without a watcher: %v, rescans %v", got, h.agents.rescans)
 	}
 }
 

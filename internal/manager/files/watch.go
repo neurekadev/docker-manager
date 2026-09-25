@@ -46,6 +46,7 @@ type WatchedStacks interface {
 
 // WatchAgents is the session hub as the watcher uses it (*agents.Hub).
 type WatchAgents interface {
+	EnvironmentServes(environmentID, name string) bool
 	RequestEnvironment(ctx context.Context, environmentID, name string, input any, timeout time.Duration) (json.RawMessage, error)
 	RescanEnvironment(ctx context.Context, environmentID string, p protocol.RescanPayload, timeout time.Duration) (protocol.RescanResult, error)
 }
@@ -424,6 +425,15 @@ func (w *Watcher) push(ctx context.Context, env string) {
 	if scopes == nil {
 		scopes = []protocol.FileScope{}
 	}
+	if !w.opts.Agents.EnvironmentServes(env, protocol.ReqFilesWatch) {
+		// Offline (pushed again when it comes online), or an agent without
+		// a watcher: an older agent would close the session on an unknown
+		// request.
+		w.mu.Lock()
+		w.pushed[env] = key
+		w.mu.Unlock()
+		return
+	}
 	raw, err := w.opts.Agents.RequestEnvironment(ctx, env, protocol.ReqFilesWatch, protocol.FilesWatchInput{Scopes: scopes}, w.opts.RequestTimeout)
 	var re *agents.RequestError
 	switch {
@@ -481,7 +491,12 @@ func (w *Watcher) rescan(ctx context.Context, env string) {
 	if err != nil {
 		return
 	}
+	watching := w.opts.Agents.EnvironmentServes(env, protocol.ReqFilesWatch)
 	for _, sc := range scopes {
+		if !watching {
+			w.external(ctx, sc.ID, nil, true) // no watcher to ask: read the definition
+			continue
+		}
 		res, err := w.opts.Agents.RescanEnvironment(ctx, env, protocol.RescanPayload{Scope: protocol.ScopeRef{Kind: sc.Kind, ID: sc.ID},
 			Path: ".", MaxEntries: RescanEntries, Reason: "sequence_gap"}, w.opts.RequestTimeout)
 		var re *agents.RequestError
