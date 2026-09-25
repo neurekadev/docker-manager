@@ -630,6 +630,142 @@ func TestBackupAuthorizationAndSessionOnlyKeyAdministration(t *testing.T) {
 	b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil))
 }
 
+// TestRestoresThroughTheAPI: previews and restores of a volume, a stack's
+// definition and one file through the real agent session, with the
+// authorization of every target and the manager-state refusal.
+func TestRestoresThroughTheAPI(t *testing.T) {
+	b := newBackupEnv(t)
+	owner, _ := b.setupOwner()
+	b.connectBackupAgent("prod")
+	repo := b.createS3Repo(owner, "Offsite")
+	id := repo.Repository.ID
+	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-repositories/"+id+"/recovery-confirmations",
+		map[string]any{"recoveryKey": repo.RecoveryKey.Key, "backedUp": true})
+	var pol struct {
+		ID string `json:"id"`
+	}
+	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "All", "repositoryId": id,
+		"includeManagerState": true, "stacks": []map[string]any{{"stackId": b.stackID}},
+		"volumes": []map[string]any{{"environmentId": b.agent.env, "volume": "uploads"}}}).json(t, &pol)
+	b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil))
+	var page struct {
+		Items []struct {
+			ID   string `json:"id"`
+			Kind string `json:"kind"`
+		} `json:"items"`
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backups", nil).json(t, &page)
+	ids := map[string]string{}
+	for _, it := range page.Items {
+		ids[it.Kind] = it.ID
+	}
+
+	// Damage the live data.
+	photo := filepath.Join(b.volumes, "uploads", "_data", "photo.jpg")
+	writeFile(t, photo, "overwritten")
+	writeFile(t, filepath.Join(b.volumes, "uploads", "_data", "junk.tmp"), "junk")
+	index := filepath.Join(b.stacks, "app", "html", "index.html")
+	writeFile(t, index, "<h1>defaced</h1>")
+	dbfile := filepath.Join(b.volumes, "app_dbdata", "_data", "PG_VERSION")
+	writeFile(t, dbfile, "99")
+
+	// Preview a volume restore: counts and the containers of the stack
+	// that mounts... (uploads is standalone: nothing runs on it).
+	var pv struct {
+		Targets []struct {
+			Kind        string `json:"kind"`
+			Overwritten int64  `json:"overwritten"`
+			Removed     int64  `json:"removed"`
+		} `json:"targets"`
+		CanRestore bool `json:"canRestore"`
+	}
+	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backups/"+ids["volume"]+"/restore-previews", map[string]any{"scope": "volume"}).json(t, &pv)
+	if !pv.CanRestore || len(pv.Targets) != 1 || pv.Targets[0].Overwritten != 1 || pv.Targets[0].Removed != 1 {
+		t.Fatalf("volume preview %+v", pv)
+	}
+	owner.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPost, "/api/v1/backups/"+ids["volume"]+"/restores",
+		map[string]any{"scope": "volume"})
+	j := jobOf(t, owner.must(http.StatusAccepted, http.MethodPost, "/api/v1/backups/"+ids["volume"]+"/restores",
+		map[string]any{"scope": "volume", "confirm": true}))
+	if got := b.runJob(j); got.State != domain.JobSucceeded {
+		t.Fatalf("volume restore: %s %s %s", got.State, got.ErrorClass, got.ErrorMessage)
+	}
+	if b, _ := os.ReadFile(photo); string(b) != "jpeg bytes" {
+		t.Errorf("photo after restore %q", b)
+	}
+	if _, err := os.Stat(filepath.Join(b.volumes, "uploads", "_data", "junk.tmp")); err == nil {
+		t.Error("a file created after the backup survived the volume restore")
+	}
+
+	// A stack restore brings the definition and workspace back and leaves
+	// the database volume alone; the running services restart.
+	var spv struct {
+		AffectedContainers []struct {
+			Name    string `json:"name"`
+			Running bool   `json:"running"`
+		} `json:"affectedContainers"`
+		Warnings []string `json:"warnings"`
+	}
+	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backups/"+ids["stack"]+"/restore-previews", map[string]any{"scope": "stack"}).json(t, &spv)
+	if len(spv.AffectedContainers) != 2 || len(spv.Warnings) == 0 {
+		t.Errorf("stack preview %+v", spv)
+	}
+	j = jobOf(t, owner.must(http.StatusAccepted, http.MethodPost, "/api/v1/backups/"+ids["stack"]+"/restores",
+		map[string]any{"scope": "stack", "confirm": true}))
+	if got := b.runJob(j); got.State != domain.JobSucceeded {
+		t.Fatalf("stack restore: %s %s %s", got.State, got.ErrorClass, got.ErrorMessage)
+	}
+	if got, _ := os.ReadFile(index); string(got) != "<h1>backup me</h1>" {
+		t.Errorf("index after restore %q", got)
+	}
+	if got, _ := os.ReadFile(dbfile); string(got) != "99" {
+		t.Error("the stack restore overwrote the database volume")
+	}
+	for _, c := range []string{"app-db-1", "app-web-1"} {
+		if ct, _ := b.fe.Container(c); !ct.Details.State.Running {
+			t.Errorf("%s not restarted", c)
+		}
+	}
+	// The database volume of the stack backup, then one file.
+	j = jobOf(t, owner.must(http.StatusAccepted, http.MethodPost, "/api/v1/backups/"+ids["stack"]+"/restores",
+		map[string]any{"scope": "volume", "volumes": []string{"app_dbdata"}, "confirm": true}))
+	if got := b.runJob(j); got.State != domain.JobSucceeded {
+		t.Fatalf("stack volume restore: %s %s", got.State, got.ErrorMessage)
+	}
+	if got, _ := os.ReadFile(dbfile); string(got) != "16" {
+		t.Errorf("database volume after restore %q", got)
+	}
+	writeFile(t, index, "<h1>again</h1>")
+	var contents struct {
+		Entries []struct {
+			Path string `json:"path"`
+		} `json:"entries"`
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backups/"+ids["stack"]+"/contents?recursive=true", nil).json(t, &contents)
+	var snapIndex string
+	for _, en := range contents.Entries {
+		if strings.HasSuffix(en.Path, "/html/index.html") {
+			snapIndex = en.Path
+		}
+	}
+	j = jobOf(t, owner.must(http.StatusAccepted, http.MethodPost, "/api/v1/backups/"+ids["stack"]+"/restores",
+		map[string]any{"scope": "file", "path": snapIndex, "confirm": true}))
+	if got := b.runJob(j); got.State != domain.JobSucceeded {
+		t.Fatalf("file restore: %s %s", got.State, got.ErrorMessage)
+	}
+	if got, _ := os.ReadFile(index); string(got) != "<h1>backup me</h1>" {
+		t.Errorf("file after restore %q", got)
+	}
+
+	// Manager state: the owner procedure, not a host restore.
+	owner.fail(http.StatusConflict, "manager_restore_required", http.MethodPost, "/api/v1/backups/"+ids["manager_state"]+"/restore-previews",
+		map[string]any{"scope": "volume"})
+	// Restoring needs backup.restore on the stack too.
+	rita, _ := b.opsUser(owner, "allow backup.read @all", "allow backup.restore @backup_repository:"+id)
+	rita.fail(http.StatusForbidden, "forbidden", http.MethodPost, "/api/v1/backups/"+ids["stack"]+"/restores",
+		map[string]any{"scope": "stack", "confirm": true})
+}
+
 // TestBackupPartialSetRetryAndIdempotency: a set with a failed member is
 // partial (never complete); retrying runs only the missing member and
 // completes the same set; a repeated request with the same Idempotency-Key

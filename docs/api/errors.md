@@ -150,6 +150,7 @@ same change.
 | `nothing_to_retry` | 409 | no | Every member of the backup set completed; there is nothing to retry. | #10 |
 | `backup_repository_error` | 409 | no | The backup repository could not be read (missing, Recovery Key rejected, storage refused access, locked or damaged); the message names the class and what to do. | #10 |
 | `backup_not_a_file` | 409 | no | Only regular files can be downloaded from a backup (not directories, links or special files). | #10 |
+| `manager_restore_required` | 409 | no | Manager-state backups are not restored like stack or volume data: the instance owner uses the manager restore procedure (controlled restart). | #10 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `length_required` | 411 | no | Uploads need a `Content-Length` header. | #15 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |

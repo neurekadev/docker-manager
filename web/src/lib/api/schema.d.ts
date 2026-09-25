@@ -762,6 +762,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/backups/{backupId}/restore-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a restore
+         * @description Asks the environment's agent what a restore would write: target paths (current places of the snapshot's project directory, volumes or file), files and bytes, how many files are overwritten, removed and added, the owners the restored files carry, free space, the containers that stop and restart, and what blocks the restore. Needs backup.restore on the backup and on every target. Nothing changes.
+         */
+        post: operations["create-backup-restore-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backups/{backupId}/restores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore from a backup
+         * @description Starts restore.run on the environment holding the data: the containers using it stop (Compose projects in reverse dependency order), the data is restored into a staging directory next to each target and swapped into place (the original is moved back on any failure), and only the previously running containers start again, dependencies first. A stack restore never overwrites volumes and never redeploys: the job output suggests the deploy. Requires confirm: true and backup.restore on the backup and every target. Manager-state backups use the owner's manager restore procedure.
+         */
+        post: operations["create-backup-restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/backups/{backupId}/verifications": {
         parameters: {
             query?: never;
@@ -7231,9 +7271,72 @@ export interface components {
             id: string;
             type: string;
         };
+        RestoreBody: {
+            /** @description file scope: the file's absolute path inside the backup. */
+            path?: string;
+            /**
+             * @description stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place.
+             * @enum {string}
+             */
+            scope: "stack" | "volume" | "file";
+            /** @description Stop the containers using the data while it is restored and start the previously running ones afterwards (default true; with false a restore under running containers is refused). */
+            shutdown?: boolean;
+            /** @description volume scope: which volumes of a stack backup (default: all of them). */
+            volumes?: string[];
+        };
+        RestoreInputBody: {
+            /** @description Must be true: a restore overwrites the current data (preview it first). */
+            confirm: boolean;
+            path?: string;
+            /**
+             * @description As in restore previews.
+             * @enum {string}
+             */
+            scope: "stack" | "volume" | "file";
+            shutdown?: boolean;
+            volumes?: string[];
+        };
+        RestorePreview: {
+            affectedContainers: components["schemas"]["AffectedContainer"][];
+            /** @description Why the restore cannot run as requested (running containers without shutdown, DockYard's own containers, insufficient space, paths that cannot be restored). */
+            blocked?: string[];
+            canRestore: boolean;
+            conflicts?: string[];
+            targets: components["schemas"]["RestoreTarget"][];
+            warnings?: string[];
+        };
         RestoreStackInputBody: {
             /** @description Required: the revision to write back to disk. */
             revisionId?: string;
+        };
+        RestoreTarget: {
+            /** Format: int64 */
+            added: number;
+            /** Format: int64 */
+            bytes: number;
+            /** @description false when a count hit its bound */
+            complete: boolean;
+            create?: boolean;
+            exists: boolean;
+            /** Format: int64 */
+            files: number;
+            /** Format: int64 */
+            filesRestored?: number;
+            /**
+             * Format: int64
+             * @description -1 when unknown
+             */
+            freeBytes: number;
+            kind: string;
+            name?: string;
+            /** Format: int64 */
+            overwritten: number;
+            /** @description uid:gid pairs the restored files carry */
+            owners?: string[];
+            path: string;
+            /** Format: int64 */
+            removed: number;
+            source: string;
         };
         RetentionDecision: {
             item: string;
@@ -11785,6 +11888,181 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-restore-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Backup ID. */
+                backupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestorePreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-restore": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Backup ID. */
+                backupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

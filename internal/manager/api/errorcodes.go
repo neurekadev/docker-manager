@@ -111,6 +111,7 @@ func ErrorCodes() []ErrorCode {
 		{CodeNothingToRetry, http.StatusConflict, false, "Every member of the backup set completed; there is nothing to retry.", 10},
 		{CodeBackupRepositoryError, http.StatusConflict, false, "The backup repository could not be read (missing, Recovery Key rejected, storage refused access, locked or damaged); the message names the class and what to do.", 10},
 		{CodeBackupNotAFile, http.StatusConflict, false, "Only regular files can be downloaded from a backup (not directories, links or special files).", 10},
+		{CodeManagerRestoreRequired, http.StatusConflict, false, "Manager-state backups are not restored like stack or volume data: the instance owner uses the manager restore procedure (controlled restart).", 10},
 		{CodeGone, http.StatusGone, false, "The resource existed but was removed permanently (for example an expired invitation).", 2},
 		{CodeLengthRequired, http.StatusLengthRequired, false, "Uploads need a Content-Length header.", 15},
 		{CodePreconditionFailed, http.StatusPreconditionFailed, false, "If-Match does not name the current revision. The response carries the current ETag; refetch, merge and retry.", 4},

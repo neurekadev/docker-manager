@@ -14,6 +14,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
 	"github.com/neurekadev/dockyard/internal/manager/backups"
+	"github.com/neurekadev/dockyard/internal/protocol"
 )
 
 // Backups (#10): the snapshot index, contents, downloads and
@@ -293,6 +294,130 @@ func (h *backupsAPI) verifyBackup(ctx context.Context, in *verifyBackupInput) (*
 	return Accepted(j), nil
 }
 
+// --- restores ---
+
+type restoreBody struct {
+	Scope    string   `json:"scope" enum:"stack,volume,file" doc:"stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place."`
+	Volumes  []string `json:"volumes,omitempty" maxItems:"64" doc:"volume scope: which volumes of a stack backup (default: all of them)."`
+	Path     string   `json:"path,omitempty" maxLength:"4096" doc:"file scope: the file's absolute path inside the backup."`
+	Shutdown *bool    `json:"shutdown,omitempty" doc:"Stop the containers using the data while it is restored and start the previously running ones afterwards (default true; with false a restore under running containers is refused)."`
+}
+
+func (b restoreBody) request() backups.RestoreRequest {
+	shutdown := true
+	if b.Shutdown != nil {
+		shutdown = *b.Shutdown
+	}
+	return backups.RestoreRequest{Scope: b.Scope, Volumes: b.Volumes, File: b.Path, Shutdown: shutdown}
+}
+
+type restorePreviewInput struct {
+	BackupID string `path:"backupId" maxLength:"64" doc:"Backup ID."`
+	Body     restoreBody
+}
+
+// RestorePreview is what a restore would do. Nothing changes.
+type RestorePreview struct {
+	Targets            []protocol.RestoreTarget     `json:"targets"`
+	AffectedContainers []protocol.AffectedContainer `json:"affectedContainers"`
+	Conflicts          []string                     `json:"conflicts,omitempty"`
+	Warnings           []string                     `json:"warnings,omitempty"`
+	Blocked            []string                     `json:"blocked,omitempty" doc:"Why the restore cannot run as requested (running containers without shutdown, DockYard's own containers, insufficient space, paths that cannot be restored)."`
+	CanRestore         bool                         `json:"canRestore"`
+}
+
+type restorePreviewOutput struct{ Body RestorePreview }
+
+// authorizeRestore checks backup.restore on the backup and on every target
+// the restore overwrites (stack, volumes, repository).
+func (h *backupsAPI) authorizeRestore(ctx context.Context, svc BackupService, c authz.Checker, sn domain.BackupSnapshot, v authz.View,
+	req backups.RestoreRequest) error {
+	if !v.Has(string(CapBackupRestore)) {
+		return Forbidden("not permitted: " + string(CapBackupRestore))
+	}
+	targets, env, err := svc.RestoreTargets(ctx, sn, req)
+	if err != nil {
+		return backupError(err)
+	}
+	for _, t := range targets {
+		var res authz.Resource
+		switch t.Type {
+		case domain.TargetStack:
+			res = authz.Resource{Type: catalog.TypeStack, ID: t.ID, EnvironmentID: env}
+		case domain.TargetVolume:
+			res = authz.Resource{Type: catalog.TypeVolume, ID: t.ID, EnvironmentID: env}
+		case domain.TargetRepository:
+			res = backupRepositoryResource(t.ID)
+		default:
+			continue
+		}
+		if !c.Can(string(CapBackupRestore), res).Allowed {
+			return Forbidden("not permitted: backup.restore on " + string(t.Type) + " " + t.ID)
+		}
+	}
+	return nil
+}
+
+func (h *backupsAPI) previewRestore(ctx context.Context, in *restorePreviewInput) (*restorePreviewOutput, error) {
+	svc, c, _, sn, v, err := h.visibleBackup(ctx, in.BackupID)
+	if err != nil {
+		return nil, err
+	}
+	req := in.Body.request()
+	if err := h.authorizeRestore(ctx, svc, c, sn, v, req); err != nil {
+		return nil, err
+	}
+	pv, _, err := svc.PreviewRestore(ctx, sn, req)
+	if err != nil {
+		return nil, backupError(err)
+	}
+	out := RestorePreview{Targets: pv.Targets, AffectedContainers: pv.Affected, Conflicts: pv.Conflicts, Warnings: pv.Warnings,
+		Blocked: pv.Blocked, CanRestore: len(pv.Blocked) == 0}
+	if out.Targets == nil {
+		out.Targets = []protocol.RestoreTarget{}
+	}
+	if out.AffectedContainers == nil {
+		out.AffectedContainers = []protocol.AffectedContainer{}
+	}
+	return &restorePreviewOutput{Body: out}, nil
+}
+
+type restoreInput struct {
+	BackupID string `path:"backupId" maxLength:"64" doc:"Backup ID."`
+	IdempotencyKeyParam
+	Body struct {
+		Scope    string   `json:"scope" enum:"stack,volume,file" doc:"As in restore previews."`
+		Volumes  []string `json:"volumes,omitempty" maxItems:"64"`
+		Path     string   `json:"path,omitempty" maxLength:"4096"`
+		Shutdown *bool    `json:"shutdown,omitempty"`
+		Confirm  bool     `json:"confirm" doc:"Must be true: a restore overwrites the current data (preview it first)."`
+	}
+}
+
+func (in *restoreInput) body() restoreBody {
+	b := in.Body
+	return restoreBody{Scope: b.Scope, Volumes: b.Volumes, Path: b.Path, Shutdown: b.Shutdown}
+}
+
+func (h *backupsAPI) restore(ctx context.Context, in *restoreInput) (*JobAccepted, error) {
+	svc, c, p, sn, v, err := h.visibleBackup(ctx, in.BackupID)
+	if err != nil {
+		return nil, err
+	}
+	req := in.body().request()
+	if err := h.authorizeRestore(ctx, svc, c, sn, v, req); err != nil {
+		return nil, err
+	}
+	if !in.Body.Confirm {
+		return nil, Invalid("a restore overwrites data: confirm it", Field("body.confirm", "must be true"))
+	}
+	j, err := svc.Restore(ctx, sn, req, p, in.IdempotencyKey)
+	if err != nil {
+		return nil, backupError(err)
+	}
+	return Accepted(j), nil
+}
+
 func registerBackups(a huma.API, deps Deps) {
 	h := &backupsAPI{svc: deps.Backups, authz: authz.OrDenyAll(deps.Authorizer), deps: deps}
 	registerBackupRepositories(a, h)
@@ -350,4 +475,31 @@ func registerBackups(a huma.API, deps Deps) {
 		},
 		Capability: CapBackupVerify, Scope: ScopeResource, Idempotency: IdempotencyJob,
 	}, h.verifyBackup)
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "create-backup-restore-preview", Method: http.MethodPost, Path: BasePath + "/backups/{backupId}/restore-previews",
+			Summary: "Preview a restore",
+			Description: "Asks the environment's agent what a restore would write: target paths (current places of the snapshot's " +
+				"project directory, volumes or file), files and bytes, how many files are overwritten, removed and added, the owners " +
+				"the restored files carry, free space, the containers that stop and restart, and what blocks the restore. Needs " +
+				"backup.restore on the backup and on every target. Nothing changes.",
+			Tags: []string{tagBackups}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity,
+				http.StatusServiceUnavailable},
+		},
+		Capability: CapBackupRestore, Scope: ScopeResource,
+	}, h.previewRestore)
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "create-backup-restore", Method: http.MethodPost, Path: BasePath + "/backups/{backupId}/restores",
+			Summary: "Restore from a backup",
+			Description: "Starts restore.run on the environment holding the data: the containers using it stop (Compose projects in " +
+				"reverse dependency order), the data is restored into a staging directory next to each target and swapped into " +
+				"place (the original is moved back on any failure), and only the previously running containers start again, " +
+				"dependencies first. A stack restore never overwrites volumes and never redeploys: the job output suggests the " +
+				"deploy. Requires confirm: true and backup.restore on the backup and every target. Manager-state backups use the " +
+				"owner's manager restore procedure.",
+			Tags: []string{tagBackups}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity},
+		},
+		Capability: CapBackupRestore, Scope: ScopeResource, Idempotency: IdempotencyJob,
+	}, h.restore)
 }

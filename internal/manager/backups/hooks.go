@@ -31,6 +31,7 @@ func (s *Service) registerHooks() {
 	e.OnFinish(jobspec.ManagerRetention, s.onRetention)
 	e.OnFinish(jobspec.BackupVerify, s.onVerify)
 	e.OnFinish(jobspec.ManagerVerify, s.onVerify)
+	e.OnFinish(jobspec.RestoreRun, s.onRestore)
 }
 
 func jobClass(j domain.Job) string {
@@ -104,7 +105,7 @@ func (s *Service) recordMembers(ctx context.Context, db bun.IDB, j domain.Job, s
 		}
 		sn := domain.BackupSnapshot{ID: ids.New(), SetID: setID, PolicyID: policyID, RepositoryID: repositoryID, Scope: scope,
 			EnvironmentID: env, Kind: m.Kind, Item: m.Item, StackID: m.StackID, StackName: m.StackName, Volume: m.Volume,
-			ResticSnapshotID: m.SnapshotID, SnapshotTime: m.SnapshotTime, Paths: m.Paths, Volumes: m.Volumes, Consistency: m.Consistency,
+			ResticSnapshotID: m.SnapshotID, SnapshotTime: m.SnapshotTime, Paths: m.Paths, Volumes: m.Volumes, ProjectPath: m.ProjectPath, VolumePaths: m.VolumePaths, Consistency: m.Consistency,
 			State: state, ErrorClass: m.ErrorClass, BytesTotal: m.Bytes, JobID: j.ID, CreatedAt: now}
 		if _, err := store.InsertBackupSnapshot(ctx, db, &sn); err != nil {
 			return err
@@ -261,6 +262,7 @@ func (s *Service) indexListing(ctx context.Context, db bun.IDB, repositoryID, sc
 		}
 		if m, ok := members[sn.ID]; ok {
 			rec.StackName, rec.Volumes, rec.Consistency, rec.BytesTotal = m.StackName, m.Volumes, m.Consistency, m.Bytes
+			rec.ProjectPath, rec.VolumePaths = m.ProjectPath, m.VolumePaths
 			if m.State == backup.StatePartial {
 				rec.State = backup.StatePartial
 			}

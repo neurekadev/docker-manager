@@ -670,6 +670,8 @@ type backupSnapshotRow struct {
 	SnapshotTime     time.Time  `bun:"snapshot_time,notnull"`
 	Paths            string     `bun:"paths,notnull"`
 	Volumes          string     `bun:"volumes,notnull"`
+	ProjectPath      string     `bun:"project_path,notnull"`
+	VolumePaths      string     `bun:"volume_paths,notnull"`
 	Consistency      string     `bun:"consistency,notnull"`
 	State            string     `bun:"state,notnull"`
 	ErrorClass       string     `bun:"error_class,notnull"`
@@ -690,6 +692,10 @@ func (r backupSnapshotRow) toDomain() domain.BackupSnapshot {
 		VerifiedAt: utcPtr(r.VerifiedAt), ForgottenAt: utcPtr(r.ForgottenAt), CreatedAt: r.CreatedAt.UTC()}
 	_ = json.Unmarshal([]byte(r.Paths), &s.Paths)
 	_ = json.Unmarshal([]byte(r.Volumes), &s.Volumes)
+	s.ProjectPath = r.ProjectPath
+	if r.VolumePaths != "" && r.VolumePaths != "{}" {
+		_ = json.Unmarshal([]byte(r.VolumePaths), &s.VolumePaths)
+	}
 	return s
 }
 
@@ -704,9 +710,14 @@ func InsertBackupSnapshot(ctx context.Context, db bun.IDB, s *domain.BackupSnaps
 	if volumes == nil {
 		volumes = []string{}
 	}
+	volumePaths := s.VolumePaths
+	if volumePaths == nil {
+		volumePaths = map[string]string{}
+	}
 	row := backupSnapshotRow{ID: s.ID, SetID: s.SetID, PolicyID: s.PolicyID, RepositoryID: s.RepositoryID, Scope: s.Scope,
 		EnvironmentID: s.EnvironmentID, Kind: s.Kind, Item: s.Item, StackID: s.StackID, StackName: s.StackName, Volume: s.Volume,
 		ResticSnapshotID: s.ResticSnapshotID, SnapshotTime: s.SnapshotTime.UTC(), Paths: jsonText(paths), Volumes: jsonText(volumes),
+		ProjectPath: s.ProjectPath, VolumePaths: jsonText(volumePaths),
 		Consistency: s.Consistency, State: s.State, ErrorClass: s.ErrorClass, BytesAdded: s.BytesAdded, BytesTotal: s.BytesTotal,
 		Files: s.Files, JobID: s.JobID, VerifiedAt: utcPtr(s.VerifiedAt), ForgottenAt: utcPtr(s.ForgottenAt), CreatedAt: s.CreatedAt.UTC()}
 	res, err := db.NewInsert().Model(&row).On("CONFLICT (repository_id, scope, restic_snapshot_id) DO NOTHING").Exec(ctx)

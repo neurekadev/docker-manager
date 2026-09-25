@@ -102,6 +102,7 @@ func (s *Service) Requests() map[string]session.RequestHandler {
 		protocol.ReqBackupScopePreview: s.scopePreview,
 		protocol.ReqBackupSnapshots:    s.snapshots,
 		protocol.ReqBackupContents:     s.contents,
+		protocol.ReqRestorePreview:     s.restorePreview,
 	}
 }
 
@@ -119,6 +120,12 @@ func (s *Service) Executors() []jobexec.Executor {
 			"snapshot":         s.stepSnapshot,
 			"start_containers": s.stepStartContainers,
 			"record":           s.stepRecord,
+		}, Compensations: map[string]jobexec.CompensationFunc{jobspec.CompStartContainers: s.compStartContainers}},
+		{Kind: jobspec.RestoreRun, Steps: map[string]jobexec.StepFunc{
+			"prepare":          s.stepRestorePrepare,
+			"stop_containers":  s.stepRestoreStop,
+			"restore_data":     s.stepRestoreData,
+			"start_containers": s.stepRestoreStart,
 		}, Compensations: map[string]jobexec.CompensationFunc{jobspec.CompStartContainers: s.compStartContainers}},
 		{Kind: jobspec.BackupRetention, Steps: map[string]jobexec.StepFunc{
 			"forget":           s.stepForget,

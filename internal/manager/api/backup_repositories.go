@@ -16,6 +16,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
 	"github.com/neurekadev/dockyard/internal/manager/backups"
+	"github.com/neurekadev/dockyard/internal/protocol"
 	"github.com/neurekadev/dockyard/internal/restic"
 )
 
@@ -52,6 +53,7 @@ const (
 	CodeBackupRepositoryError     = "backup_repository_error"
 	CodeBackupNotAFile            = "backup_not_a_file"
 	CodeBackupFileTooLarge        = "backup_file_too_large"
+	CodeManagerRestoreRequired    = "manager_restore_required"
 )
 
 // BackupService is the backup service as seen by the API (implemented by
@@ -88,6 +90,9 @@ type BackupService interface {
 	FileInfo(ctx context.Context, sn domain.BackupSnapshot, file string) (restic.Node, error)
 	Download(ctx context.Context, sn domain.BackupSnapshot, node restic.Node, dst io.Writer) error
 	VerifySnapshot(ctx context.Context, sn domain.BackupSnapshot, principal authz.Principal, subset, idempotencyKey string) (domain.Job, error)
+	RestoreTargets(ctx context.Context, sn domain.BackupSnapshot, req backups.RestoreRequest) ([]domain.JobTarget, string, error)
+	PreviewRestore(ctx context.Context, sn domain.BackupSnapshot, req backups.RestoreRequest) (protocol.RestorePreviewOutput, []domain.JobTarget, error)
+	Restore(ctx context.Context, sn domain.BackupSnapshot, req backups.RestoreRequest, principal authz.Principal, idempotencyKey string) (domain.Job, error)
 }
 
 func backupRepositoryResource(id string) authz.Resource {
@@ -133,6 +138,8 @@ func backupError(err error) error {
 		return Conflict(CodeBackupNotAFile, "only regular files can be downloaded from a backup")
 	case errors.Is(err, backups.ErrFileTooLarge):
 		return NewError(http.StatusRequestEntityTooLarge, CodeBackupFileTooLarge, "the file is larger than the download limit")
+	case errors.Is(err, backups.ErrManagerStateRestore):
+		return Conflict(CodeManagerRestoreRequired, "manager-state backups are restored with the owner's manager restore procedure")
 	case errors.Is(err, backups.ErrContentUnavailable):
 		return Unavailable(CodeUnavailable, "the backup contents cannot be read right now")
 	case errors.As(err, &re):

@@ -280,16 +280,20 @@ type BackupSnapshot struct {
 	SnapshotTime     time.Time
 	Paths            []string
 	Volumes          []string
-	Consistency      string
-	State            string
-	ErrorClass       string
-	BytesAdded       int64
-	BytesTotal       int64
-	Files            int64
-	JobID            string
-	VerifiedAt       *time.Time
-	ForgottenAt      *time.Time
-	CreatedAt        time.Time
+	// ProjectPath / VolumePaths locate the stack's project directory and
+	// each volume's data inside the snapshot ("" / nil when unknown).
+	ProjectPath string
+	VolumePaths map[string]string
+	Consistency string
+	State       string
+	ErrorClass  string
+	BytesAdded  int64
+	BytesTotal  int64
+	Files       int64
+	JobID       string
+	VerifiedAt  *time.Time
+	ForgottenAt *time.Time
+	CreatedAt   time.Time
 }
 
 // BackupSnapshotFilter filters snapshot lists.

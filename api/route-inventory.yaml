@@ -1880,7 +1880,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/backups/{backupId}/restores"
     operationId: create-backup-restore
@@ -1888,7 +1888,7 @@ routes:
     scope: resource
     owner: 10
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job; Idempotency-Key.
   - method: POST
     path: /api/v1/setup/backup-imports/connection-tests

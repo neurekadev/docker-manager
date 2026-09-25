@@ -32,6 +32,8 @@ type itemPlan struct {
 	paths    []string
 	excludes []string
 	volumes  []string
+	// volumePaths maps each included volume to its data directory.
+	volumePaths map[string]string
 	// affected are the containers a shutdown would stop (and their order)
 	// and conflicts what a shutdown cannot cover.
 	affected  []protocol.AffectedContainer
@@ -342,6 +344,10 @@ func (s *Service) includeVolume(ctx context.Context, eng engine.Engine, p *itemP
 	}
 	p.paths = append(p.paths, rp)
 	p.volumes = append(p.volumes, v.Name)
+	if p.volumePaths == nil {
+		p.volumePaths = map[string]string{}
+	}
+	p.volumePaths[v.Name] = snapPath(rp)
 }
 
 func (s *Service) planVolume(ctx context.Context, eng engine.Engine, p *itemPlan) {
