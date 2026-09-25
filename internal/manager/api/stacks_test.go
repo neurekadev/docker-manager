@@ -26,6 +26,7 @@ type fakeStacks struct {
 	jobs    []domain.JobKind
 	online  bool
 	patches int
+	builds  []domain.StackBuildOptions
 }
 
 const secretBind = "/srv/secret-bind-path"
@@ -117,6 +118,13 @@ func (f *fakeStacks) Deploy(_ context.Context, _ authz.Principal, st domain.Stac
 	return f.job("stack.deploy", st)
 }
 
+func (f *fakeStacks) Build(_ context.Context, _ authz.Principal, st domain.Stack, _ domain.StackJobRequest, o domain.StackBuildOptions) (domain.Job, error) {
+	f.mu.Lock()
+	f.builds = append(f.builds, o)
+	f.mu.Unlock()
+	return f.job("stack.build", st)
+}
+
 func (f *fakeStacks) Operate(_ context.Context, _ authz.Principal, st domain.Stack, action string, _ domain.StackJobRequest) (domain.Job, error) {
 	return f.job(domain.JobKind("stack."+action), st)
 }
@@ -206,8 +214,8 @@ func stackRoutes(t *testing.T) []authztest.Call {
 			calls[i].Body = map[string]any{"projectName": "legacy"}
 		}
 	}
-	if len(calls) != 16 {
-		t.Fatalf("%d stack routes, want 16", len(calls))
+	if len(calls) != 17 {
+		t.Fatalf("%d stack routes, want 17", len(calls))
 	}
 	return calls
 }
@@ -283,6 +291,33 @@ func TestDeployOnlyShowsTheMinimalStack(t *testing.T) {
 	r = authztest.Do(t, h, "dev", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/deployments", Body: map[string]any{}})
 	if r.Status != http.StatusAccepted || r.Header.Get("Location") != "/api/v1/jobs/job-1" || len(svc.jobs) != 1 || svc.jobs[0] != "stack.deploy" {
 		t.Errorf("deploy %d %s %v", r.Status, r.Body, svc.jobs)
+	}
+}
+
+func TestStackBuildNeedsItsOwnCapability(t *testing.T) {
+	h, svc := stacksAPIFor(t, authztest.Only("ci", "allow stack.build @stack:st-1"))
+	allowed, denied := authztest.Split(stackRoutes(t), "stack.build")
+	allowed, denied = authztest.Discoverable(allowed, denied, "list-stacks", "get-stack")
+	authztest.AssertOnly(t, h, "ci", allowed, denied)
+	svc.jobs, svc.builds = nil, nil
+	r := authztest.Do(t, h, "ci", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/builds",
+		Body: map[string]any{"services": []string{"web"}, "noCache": true, "pull": true, "timeoutSeconds": 7200, "registryIds": []string{"reg-1"}}})
+	if r.Status != http.StatusAccepted || r.Header.Get("Location") != "/api/v1/jobs/job-1" || len(svc.jobs) != 1 || svc.jobs[0] != "stack.build" {
+		t.Fatalf("build %d %s %v", r.Status, r.Body, svc.jobs)
+	}
+	if b := svc.builds[0]; !b.NoCache || !b.Pull || b.TimeoutSeconds != 7200 || len(b.RegistryIDs) != 1 {
+		t.Errorf("options %+v", b)
+	}
+	// Out-of-range options are refused before the service is called.
+	r = authztest.Do(t, h, "ci", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/builds",
+		Body: map[string]any{"timeoutSeconds": 21601}})
+	if r.Status != http.StatusUnprocessableEntity || len(svc.builds) != 1 {
+		t.Errorf("timeout out of range: %d %s", r.Status, r.Body)
+	}
+	// stack.deploy does not open builds, stack.build does not open deploys.
+	h, _ = stacksAPIFor(t, authztest.Only("dev", "allow stack.deploy @stack:st-1"))
+	if r := authztest.Do(t, h, "dev", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/builds", Body: map[string]any{}}); r.Status != http.StatusForbidden {
+		t.Errorf("build with stack.deploy: %d", r.Status)
 	}
 }
 

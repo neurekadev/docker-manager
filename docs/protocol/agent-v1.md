@@ -896,5 +896,6 @@ The manager maps them to public errors: `not_found` → 404,
 | Docker resource requests (`container.list/inspect`, `image.list/inspect/tag`, `volume.list/inspect`, `network.list/inspect`) and executors (`container.*`, `image.pull/remove`, `volume.*`, `network.*`) | `internal/protocol/docker.go` (inputs/outputs), `internal/agent/resources` | implemented (#6) |
 | `rescan` (agent answers `unsupported_request`), agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stubs | #23 (rescan, watcher) |
 | `compose.discover/validate/read/write/services` requests, `stack.deploy/start/stop/restart/down/remove` executors, result `output` | `internal/agent/stacks`, `internal/jobexec`, `internal/manager/stacks` | implemented (#7) |
+| `stack.build` executor (input `noCache`, `pullBase`, `buildTimeoutSeconds`; output `built`) | `internal/agent/stacks`, `internal/agent/buildrun` | implemented (#33) |
 | container logs (`container.logs` request and stream) and exec (`container.exec.create/resize/delete`, `container.exec` stream) | `internal/agent/containerio`, `internal/manager/containerio` | implemented (#8) |
 | other request/stream executors | agent adapter | #10, #14, #21, #35 |

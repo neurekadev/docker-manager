@@ -9,11 +9,14 @@
 // (outcome, error, output) as one JSON line and exits 0 when the job
 // succeeded, 1 otherwise.
 //
-//	stackjobs KIND NAME [SERVICE...]   KIND: stack.deploy, stack.start, stack.stop, stack.restart, stack.down
+//	stackjobs KIND NAME [SERVICE...]   KIND: stack.deploy, stack.start, stack.stop, stack.restart, stack.down, stack.build
 //	stackjobs read NAME                 print compose.read's output
 //
 // Environment: DOCKER_HOST, DOCKYARD_STACKS_VOLUME, STACKJOBS_BUILD=1
-// (rebuild build sections), STACKJOBS_WAIT_TIMEOUT (dependency waits).
+// (rebuild build sections), STACKJOBS_NO_CACHE=1 (build without cache),
+// STACKJOBS_WAIT_TIMEOUT (dependency waits), STACKJOBS_CANCEL_AFTER
+// (request cancellation of the job after this duration, as a cancel
+// frame from the manager would).
 package main
 
 import (
@@ -100,7 +103,17 @@ func main() {
 		fmt.Println(string(mustJSON(out)))
 		return
 	}
-	in := protocol.StackJobInput{StackID: name, Stack: ref, Services: os.Args[3:], Build: os.Getenv("STACKJOBS_BUILD") == "1"}
+	in := protocol.StackJobInput{StackID: name, Stack: ref, Services: os.Args[3:], Build: os.Getenv("STACKJOBS_BUILD") == "1",
+		NoCache: os.Getenv("STACKJOBS_NO_CACHE") == "1"}
+	cancelRequested := func() bool { return false }
+	if v := os.Getenv("STACKJOBS_CANCEL_AFTER"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			fail("STACKJOBS_CANCEL_AFTER: %v", err)
+		}
+		at := time.Now().Add(d)
+		cancelRequested = func() bool { return time.Now().After(at) }
+	}
 	var exec *jobexec.Executor
 	for _, x := range svc.Executors() {
 		if string(x.Kind) == kind {
@@ -111,7 +124,8 @@ func main() {
 		fail("unknown kind %s", kind)
 	}
 	st := &jobexec.State{JobID: "stackjobs-" + name, Attempt: 1, FencingToken: 1, Kind: domain.JobKind(kind), Input: mustJSON(in)}
-	result, err := jobexec.Run(ctx, *exec, st, jobexec.Options{Journal: journal{}, FaultPrefix: "agent"})
+	result, err := jobexec.Run(ctx, *exec, st, jobexec.Options{Journal: journal{}, FaultPrefix: "agent",
+		CancelRequested: cancelRequested})
 	if err != nil {
 		fail("run: %v", err)
 	}

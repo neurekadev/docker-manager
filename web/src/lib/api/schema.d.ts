@@ -2287,6 +2287,26 @@ export interface paths {
         patch: operations["update-stack"];
         trace?: never;
     };
+    "/api/v1/stacks/{stackId}/builds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build a stack's images
+         * @description Starts a stack.build job (202): the agent rebuilds the images of the stack's Compose build sections (or of the named services) from the definition on disk through the Engine's BuildKit, without deploying them. BuildKit progress and build output stream as the job's events (credentials removed); cancel the job to stop the build (images built before stay, the interrupted one keeps its previous version). Base images authenticate with the named registry connections, or the environment's host-wide connection per registry. Build arguments come from the Compose files, end up in the image history and are never audited. Builds per environment are capped (build class).
+         */
+        post: operations["create-stack-build"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stacks/{stackId}/deployments": {
         parameters: {
             query?: never;
@@ -3169,6 +3189,21 @@ export interface components {
              */
             timeoutSeconds?: number;
         };
+        BuildStackInputBody: {
+            /** @description Build without the build cache. */
+            noCache?: boolean;
+            /** @description Pull newer versions of the base images. */
+            pull?: boolean;
+            /** @description Registry connections for base images; default: the environment's host-wide connection per registry. */
+            registryIds?: string[];
+            /** @description Build only these services (each needs a build section); default: every service with a build section. */
+            services?: string[];
+            /**
+             * Format: int64
+             * @description Stops the build with a failure after this long (default 3600).
+             */
+            timeoutSeconds?: number;
+        };
         CapabilitiesBody: {
             /** @example dockyard.agent/v1 */
             agentProtocolVersion: string;
@@ -3781,6 +3816,11 @@ export interface components {
         DeployStackInputBody: {
             /** @description Rebuild every build section (default: only missing images are built). */
             build?: boolean;
+            /**
+             * Format: int64
+             * @description Bounds the images the deploy builds (default 3600).
+             */
+            buildTimeoutSeconds?: number;
             forceRecreate?: boolean;
             /**
              * @description missing (default): pull only images that are not on the host; always: pull every image first.
@@ -18032,6 +18072,91 @@ export interface operations {
             };
             /** @description Precondition Required */
             428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-build": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["BuildStackInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

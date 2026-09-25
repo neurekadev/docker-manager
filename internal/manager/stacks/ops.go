@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/uptrace/bun"
 
@@ -92,12 +93,73 @@ func (s *Service) Deploy(ctx context.Context, p authz.Principal, st domain.Stack
 	default:
 		return domain.Job{}, &domain.InputError{Field: "pull", Message: "must be missing or always"}
 	}
+	if err := checkBuildTimeout(o.BuildTimeoutSeconds); err != nil {
+		return domain.Job{}, err
+	}
 	regs, err := s.registryConnections(ctx, st)
 	if err != nil {
 		return domain.Job{}, err
 	}
 	return s.enqueue(ctx, p, st, jobspec.StackDeploy, r, protocol.StackJobInput{Pull: o.Pull, Build: o.Build,
-		ForceRecreate: o.ForceRecreate, RemoveOrphans: o.RemoveOrphans, RegistryConnections: regs})
+		ForceRecreate: o.ForceRecreate, RemoveOrphans: o.RemoveOrphans, BuildTimeoutSeconds: o.BuildTimeoutSeconds,
+		RegistryConnections: regs})
+}
+
+func checkBuildTimeout(seconds int) error {
+	if seconds < 0 || time.Duration(seconds)*time.Second > jobspec.MaxBuildTimeout {
+		return &domain.InputError{Field: "buildTimeoutSeconds", Message: fmt.Sprintf("must be between 0 and %d", int(jobspec.MaxBuildTimeout/time.Second))}
+	}
+	return nil
+}
+
+// Build enqueues a stack.build job (#33): the agent rebuilds the images of
+// the stack's build sections (or of the named services) from the
+// definition on disk through the Engine's BuildKit, without deploying.
+// Base images authenticate with the named registry connections, or else
+// with the environment's host-wide connection per registry (#19); build
+// argument values stay in the Compose files and never enter the job input
+// or the audit trail. Builds per environment are capped by the job
+// engine's build class.
+func (s *Service) Build(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest, o domain.StackBuildOptions) (domain.Job, error) {
+	if err := checkBuildTimeout(o.TimeoutSeconds); err != nil {
+		return domain.Job{}, err
+	}
+	var regs []string
+	if s.opts.Registries != nil {
+		if len(o.RegistryIDs) > 0 {
+			if err := s.opts.Registries.Usable(ctx, o.RegistryIDs); err != nil {
+				return domain.Job{}, err
+			}
+			regs = slices.Clone(o.RegistryIDs)
+			slices.Sort(regs)
+			regs = slices.Compact(regs)
+		} else {
+			var err error
+			if regs, err = s.buildCredentials(ctx, st); err != nil {
+				return domain.Job{}, err
+			}
+		}
+	} else if len(o.RegistryIDs) > 0 {
+		return domain.Job{}, &domain.InputError{Field: "registryIds", Message: "registry connections are not available"}
+	}
+	r.TimeoutSeconds = 0 // stop grace periods do not apply to builds
+	return s.enqueue(ctx, p, st, jobspec.StackBuild, r, protocol.StackJobInput{NoCache: o.NoCache, PullBase: o.Pull,
+		BuildTimeoutSeconds: o.TimeoutSeconds, RegistryConnections: regs})
+}
+
+// buildCredentials offers the environment's host-wide registry connection
+// per registry to base-image pulls (base-image references are only known
+// inside BuildKit; narrower connections must be named).
+func (s *Service) buildCredentials(ctx context.Context, st domain.Stack) ([]string, error) {
+	ids, ambiguous, err := s.opts.Registries.BuildCredentials(ctx, st.EnvironmentID)
+	if err != nil {
+		return nil, err
+	}
+	if len(ambiguous) > 0 {
+		s.log.Info("registry hosts with tied connections are not offered to the stack's builds; name them explicitly",
+			"stack_id", st.ID, "hosts", ambiguous)
+	}
+	return ids, nil
 }
 
 // Operate enqueues start, stop, restart or down.
@@ -122,29 +184,40 @@ func (s *Service) Delete(ctx context.Context, p authz.Principal, st domain.Stack
 // registryConnections selects the registry connection of every image the
 // deploy may pull (#19): the images of the definition on disk when the
 // agent can validate it now, otherwise those of the last known definition.
-// Build-only services are skipped (their base images use whatever
-// connections are selected; BuildKit asks per registry host). Ambiguous or
-// revoked selections fail the request; nothing falls back to anonymous.
+// Build services are skipped; when the stack has any, the environment's
+// host-wide connection per registry is added for their base images (as
+// for stack.build; BuildKit asks per registry host). Ambiguous or revoked
+// selections fail the request; nothing falls back to anonymous.
 func (s *Service) registryConnections(ctx context.Context, st domain.Stack) ([]string, error) {
 	if s.opts.Registries == nil {
 		return nil, nil
 	}
 	var images []string
+	builds := false
 	var v protocol.ComposeValidateOutput
 	if err := s.call(ctx, st.EnvironmentID, protocol.ReqComposeValidate, protocol.ComposeValidateInput{Stack: Ref(st)}, &v); err == nil && v.Valid {
 		for _, sv := range v.Services {
 			if !sv.Build {
 				images = append(images, sv.Image)
 			}
+			builds = builds || sv.Build
 		}
 	} else {
 		for _, sv := range st.Services {
 			if !sv.Build {
 				images = append(images, sv.Image)
 			}
+			builds = builds || sv.Build
 		}
 	}
 	var ids []string
+	if builds {
+		b, err := s.buildCredentials(ctx, st)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, b...)
+	}
 	for _, img := range images {
 		sel, err := s.opts.Registries.Select(ctx, domain.RegistrySelectRequest{Reference: img, EnvironmentID: st.EnvironmentID, StackID: st.ID})
 		var fe *domain.FieldError

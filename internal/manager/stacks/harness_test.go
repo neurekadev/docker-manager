@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -56,6 +57,13 @@ type fakeComposer struct {
 	calls []string
 	upErr error
 	eng   *fakeEngine
+	// Builds: the options of every Build call; buildLog lines are emitted
+	// as BuildKit output of each build service; blockBuild makes the build
+	// wait until it is cancelled (started is signaled first).
+	builds     []compose.BuildOptions
+	buildLog   []string
+	blockBuild bool
+	started    chan struct{}
 }
 
 func (f *fakeComposer) Load(ctx context.Context, spec compose.ProjectSpec) (*compose.Project, error) {
@@ -91,8 +99,39 @@ func slashAll(in []string) []string {
 }
 
 func (f *fakeComposer) Pull(context.Context, *compose.Project, compose.RunOptions) error { return nil }
-func (f *fakeComposer) Build(context.Context, *compose.Project, compose.BuildOptions) error {
+func (f *fakeComposer) Build(ctx context.Context, p *compose.Project, o compose.BuildOptions) error {
+	f.mu.Lock()
+	f.calls = append(f.calls, "build:"+p.Name)
+	f.builds = append(f.builds, o)
+	logs, block, started := f.buildLog, f.blockBuild, f.started
+	f.mu.Unlock()
+	for _, s := range p.Services {
+		if !s.Build || (len(o.Services) > 0 && !slices.Contains(o.Services, s.Name)) {
+			continue
+		}
+		if o.BuildEvents != nil {
+			for _, l := range logs {
+				o.BuildEvents(s.Image, engine.BuildEvent{Step: "[2/2] RUN make", Status: "log", Log: []byte(l + "\n")})
+			}
+		}
+		if block {
+			if started != nil {
+				started <- struct{}{}
+			}
+			<-ctx.Done()
+			return engine.Errorf("image.build", engine.CodeCanceled, "context canceled")
+		}
+		if o.Built != nil {
+			o.Built(compose.BuiltImage{Service: s.Name, Image: s.Image, ImageID: "sha256:built-" + s.Name})
+		}
+	}
 	return nil
+}
+
+func (f *fakeComposer) Builds() []compose.BuildOptions {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]compose.BuildOptions(nil), f.builds...)
 }
 
 func (f *fakeComposer) Down(_ context.Context, name string, _ *compose.Project, _ compose.DownOptions) error {
@@ -251,6 +290,23 @@ func (f fakeEnvironments) GetEnvironment(_ context.Context, id string) (domain.E
 type fakeRegistries struct {
 	byHost map[string]string // reference prefix -> connection ID
 	err    error
+	// build: the host-wide connections offered to builds; usable: the
+	// connections that exist and are active.
+	build  []string
+	usable map[string]bool
+}
+
+func (f *fakeRegistries) BuildCredentials(context.Context, string) ([]string, []string, error) {
+	return append([]string(nil), f.build...), nil, nil
+}
+
+func (f *fakeRegistries) Usable(_ context.Context, ids []string) error {
+	for _, id := range ids {
+		if !f.usable[id] {
+			return domain.ErrRegistryConnectionNotFound
+		}
+	}
+	return nil
 }
 
 func (f *fakeRegistries) Select(_ context.Context, req domain.RegistrySelectRequest) (domain.RegistrySelection, error) {

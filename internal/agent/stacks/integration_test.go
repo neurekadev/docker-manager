@@ -353,3 +353,68 @@ func TestComposeStackDeployRefusesUnsupportedFeatures(t *testing.T) {
 		t.Errorf("containers of a refused stack: %+v", list)
 	}
 }
+
+func item(res protocol.ResultPayload, name string) string {
+	for _, it := range res.Items {
+		if it.Name == name {
+			return it.Message
+		}
+	}
+	return ""
+}
+
+// TestComposeStackBuildRebuildAndCancel (#33): a stack with a build section
+// deploys (the deploy builds the missing image through the Engine's
+// BuildKit), rebuilds on request (stack.build, no deploy) and the next
+// deploy runs the rebuilt image; a stack build cancelled mid-build stops
+// BuildKit and tags nothing.
+func TestComposeStackBuildRebuildAndCancel(t *testing.T) {
+	r := newRig(t)
+	r.put("forge", map[string][]byte{
+		"compose.yaml":   []byte("services:\n  app:\n    build: ./app\n    command: [\"serve\"]\n"),
+		"app/Dockerfile": []byte("FROM scratch\nCOPY workload /workload\nENTRYPOINT [\"/workload\"]\n"),
+		"app/workload":   r.bin,
+	}, "app/workload")
+
+	res := r.job("stack.deploy", "forge", nil)
+	if res.Outcome != "succeeded" {
+		t.Fatalf("deploy: %+v", res)
+	}
+	first := item(res, "forge-app")
+	if o := output(t, res); first == "" || len(o.Built) != 1 || o.Built[0].ImageID != first {
+		t.Fatalf("deploy built %q %+v", first, o.Built)
+	}
+	if got := r.inspect("forge-app-1"); got.ImageID != first || !got.State.Running {
+		t.Fatalf("deployed %+v", got)
+	}
+
+	// Rebuild on request: a changed Dockerfile, stack.build without cache.
+	r.put("forge", map[string][]byte{"app/Dockerfile": []byte("FROM scratch\nCOPY workload /workload\nLABEL rev=\"2\"\nENTRYPOINT [\"/workload\"]\n")})
+	res = r.job("stack.build", "forge", []string{"STACKJOBS_NO_CACHE=1"})
+	if res.Outcome != "succeeded" || !slices.Equal(res.CompletedSteps, []string{"fetch_sources", "build_images"}) {
+		t.Fatalf("build: %+v", res)
+	}
+	second := item(res, "forge-app")
+	if img, err := r.eng.InspectImage(t.Context(), "forge-app"); err != nil || second == "" || second == first || img.ID != second {
+		t.Fatalf("rebuilt %q (was %q): %+v %v", second, first, img, err)
+	}
+	if got := r.inspect("forge-app-1"); got.ImageID != first {
+		t.Error("stack.build changed the running container")
+	}
+	if res = r.job("stack.deploy", "forge", nil); res.Outcome != "succeeded" || r.inspect("forge-app-1").ImageID != second {
+		t.Errorf("redeploy: %+v", res)
+	}
+
+	// Cancellation mid-build: a RUN step that never ends.
+	r.put("slow", map[string][]byte{
+		"compose.yaml":    []byte("services:\n  slow:\n    build: ./slow\n    image: dockyard-test/slow:1\n"),
+		"slow/Dockerfile": []byte("FROM " + w + "\nRUN [\"/workload\", \"tick\", \"1000\"]\n"),
+	})
+	res = r.job("stack.build", "slow", []string{"STACKJOBS_CANCEL_AFTER=5s"})
+	if res.Outcome != "cancelled" || res.ErrorClass != "cancelled" {
+		t.Fatalf("cancelled build: %+v", res)
+	}
+	if _, err := r.eng.InspectImage(t.Context(), "dockyard-test/slow:1"); !engine.IsCode(err, engine.CodeNotFound) {
+		t.Errorf("the cancelled build tagged an image: %v", err)
+	}
+}

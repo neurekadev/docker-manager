@@ -109,6 +109,7 @@ v5.5.1 (`internal/agent/compose`). Verified by `TestCompose*`
 | update (redeploy of a changed definition) | only changed services are recreated | same |
 | start / stop / restart (`stack.*`) | the shared lifecycle over the deployed containers: dependencies first with condition waits (2 min per dependency), dependents first on stop, `restart: true` propagation | same; unit `internal/agent/lifecycle` |
 | down (`stack.down`, stack deletion) | Compose SDK `down` by project name; volumes and files are kept | same |
+| build (`stack.build`, and the deploy's `build_images` step) | the build sections through the Engine's BuildKit (not the Compose SDK's build path): every section on request (`noCache`, `pull`), missing images only in a deploy without `build: true`; streamed, credential-scrubbed progress; cancellation stops BuildKit (the interrupted image keeps its previous version); build timeout (default 1 h, at most 6 h); per-environment build cap | `TestComposeStackBuildRebuildAndCancel` (written, runs in `compose-fixtures`), unit `internal/agent/stacks` (`TestStackBuild*`, `TestDeployBuildsMissingImagesThroughTheSamePath`), `internal/manager/stacks` (`TestStackBuild*`) |
 | unhealthy dependency / failed one-shot | deploy fails with `dependency_failed`; the dependent is not started; the last applied revision is kept | `TestComposeStackDeployUnhealthyDependency` (written) |
 
 ### Build keys (#33)
@@ -119,7 +120,7 @@ the SDK runs (`TestComposeBuildLocalContext`, `image.build.*`).
 | key | status |
 | --- | --- |
 | `context` (local directory) | supported; `.dockerignore` honored |
-| `context` (http(s) Git URL, `#ref:subdir`) | supported (fetched by the Engine's BuildKit); SSH Git URLs rejected (SSH Git access is out of v1) |
+| `context` (http(s) Git URL, `#ref:subdir`) | supported for repositories BuildKit can fetch anonymously (fetched by the Engine's BuildKit); Git credentials apply to manual Git builds only in v1; SSH Git URLs rejected (SSH Git access is out of v1) |
 | `dockerfile`, `dockerfile_inline` (local context), `args`, `target`, `labels`, `tags`, `no_cache`, `pull`, `extra_hosts`, `shm_size`, `cache_from` | supported |
 | `network` | `default`, `host`, `none` only |
 | `platforms` | only the Engine's own platform |
@@ -145,7 +146,9 @@ the SDK runs (`TestComposeBuildLocalContext`, `image.build.*`).
   `registry_unavailable`). The registry's `Retry-After` is not passed
   through by the Engine.
 - Private Git repositories for BuildKit Git contexts need credentials in the
-  BuildKit session (`GIT_AUTH_TOKEN`); that is #33's job and untested here.
+  BuildKit session: manual Git builds (#33) serve the Git credential as the
+  session secret `GIT_AUTH_HEADER.<host>`; Compose build sections with Git
+  contexts get no Git credential in v1.
 - Engine-version quirks handled by the adapter: duplicate network names on
   Docker 24 (¹), container list lag after stop before Engine 26 (³).
 

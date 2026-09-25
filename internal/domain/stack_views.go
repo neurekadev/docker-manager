@@ -47,6 +47,21 @@ type StackDeployOptions struct {
 	Build         bool
 	ForceRecreate bool
 	RemoveOrphans bool
+	// BuildTimeoutSeconds bounds the images built by the deploy (0 = the
+	// default build timeout).
+	BuildTimeoutSeconds int
+}
+
+// StackBuildOptions configure an explicit stack build (#33).
+type StackBuildOptions struct {
+	NoCache bool
+	// Pull pulls newer base images.
+	Pull bool
+	// TimeoutSeconds bounds the build (0 = the default build timeout).
+	TimeoutSeconds int
+	// RegistryIDs name the registry connections for base images; empty
+	// offers the environment's host-wide connection per registry.
+	RegistryIDs []string
 }
 
 // StackJobRequest carries the common options of stack jobs.

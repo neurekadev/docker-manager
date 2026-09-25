@@ -59,10 +59,13 @@ type Jobs interface {
 	OnFinish(kind domain.JobKind, h jobs.FinishHook)
 }
 
-// Registries selects the registry connection of an image reference (#19;
+// Registries selects the registry connection of an image reference and the
+// connections offered to builds for their base images (#19, #33;
 // *registries.Service implements it).
 type Registries interface {
 	Select(ctx context.Context, req domain.RegistrySelectRequest) (domain.RegistrySelection, error)
+	BuildCredentials(ctx context.Context, environmentID string) (ids, ambiguous []string, err error)
+	Usable(ctx context.Context, ids []string) error
 }
 
 // DefaultRequestTimeout bounds one agent request.

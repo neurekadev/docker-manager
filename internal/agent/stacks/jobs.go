@@ -37,6 +37,10 @@ func (s *Service) Executors() []jobexec.Executor {
 		{Kind: jobspec.StackRestart, Steps: map[string]jobexec.StepFunc{"restart": classified(s.lifecycleStep(opRestart))}},
 		{Kind: jobspec.StackDown, Steps: map[string]jobexec.StepFunc{"down": classified(s.down)}},
 		{Kind: jobspec.StackRemove, Steps: map[string]jobexec.StepFunc{"down": classified(s.down)}},
+		{Kind: jobspec.StackBuild, Steps: map[string]jobexec.StepFunc{
+			"fetch_sources": classified(s.fetchSources),
+			"build_images":  classified(s.stackBuild),
+		}},
 	}
 }
 
@@ -52,6 +56,9 @@ func input(sc *jobexec.StepContext) (protocol.StackJobInput, error) {
 	case "", "missing", "always":
 	default:
 		return in, fmt.Errorf("unknown pull mode %q", in.Pull)
+	}
+	if in.BuildTimeoutSeconds < 0 || time.Duration(in.BuildTimeoutSeconds)*time.Second > jobspec.MaxBuildTimeout {
+		return in, fmt.Errorf("build timeout must be between 0 and %s", jobspec.MaxBuildTimeout)
 	}
 	return in, nil
 }
@@ -175,17 +182,13 @@ func (s *Service) pullImages(ctx context.Context, sc *jobexec.StepContext) error
 	return c.Pull(ctx, p, compose.RunOptions{Events: s.progress(ctx, sc), Auth: creds})
 }
 
-// buildImages rebuilds every build section when requested; otherwise the
-// apply step builds only images missing on the host (#33).
+// buildImages builds the deploy's images from build sections (#33): every
+// build section when requested, otherwise only the images missing on the
+// host, through the same path as stack.build (streamed, scrubbed progress,
+// cancellation, timeout). Nothing is deployed yet, so a cancelled build
+// leaves the stack as it was.
 func (s *Service) buildImages(ctx context.Context, sc *jobexec.StepContext) error {
 	in, err := input(sc)
-	if err != nil {
-		return err
-	}
-	if !in.Build {
-		return nil
-	}
-	creds, err := auth(sc, in)
 	if err != nil {
 		return err
 	}
@@ -193,9 +196,7 @@ func (s *Service) buildImages(ctx context.Context, sc *jobexec.StepContext) erro
 	if err != nil {
 		return err
 	}
-	c, _ := s.composer()
-	sc.Progress(ctx, 35, "building images")
-	return c.Build(ctx, p, compose.BuildOptions{RunOptions: compose.RunOptions{Events: s.progress(ctx, sc), Auth: creds}, Services: in.Services})
+	return s.runBuild(ctx, sc, in, p, !in.Build)
 }
 
 // apply deploys exactly the bytes it reports: it snapshots the definition,
