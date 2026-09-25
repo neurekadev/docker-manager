@@ -12,7 +12,10 @@ export interface ManifestCheck {
  * checks the installability basics: name, start_url, display, and a
  * 192px and 512px icon. `href` is null when the page links no manifest.
  */
-export async function checkManifest(page: Page, request: APIRequestContext): Promise<ManifestCheck> {
+export async function checkManifest(
+	page: Page,
+	request: APIRequestContext
+): Promise<ManifestCheck> {
 	const href = await page
 		.locator('link[rel="manifest"]')
 		.first()
@@ -29,7 +32,8 @@ export async function checkManifest(page: Page, request: APIRequestContext): Pro
 	}
 	const icons = (manifest.icons as { sizes?: string }[] | undefined) ?? [];
 	for (const size of ['192x192', '512x512']) {
-		if (!icons.some((i) => i.sizes?.split(/\s+/).includes(size))) problems.push(`no ${size} icon`);
+		if (!icons.some((i) => i.sizes?.split(/\s+/).includes(size)))
+			problems.push(`no ${size} icon`);
 	}
 	return { href, manifest, problems };
 }
@@ -42,7 +46,10 @@ export interface ServiceWorkerCheck {
 }
 
 /** Waits (up to timeoutMs) for a service worker registration for the page. */
-export async function checkServiceWorker(page: Page, timeoutMs = 10_000): Promise<ServiceWorkerCheck> {
+export async function checkServiceWorker(
+	page: Page,
+	timeoutMs = 10_000
+): Promise<ServiceWorkerCheck> {
 	return page.evaluate(async (timeoutMs) => {
 		if (!('serviceWorker' in navigator)) {
 			return { registered: false, scope: null, scriptURL: null, controlling: false };

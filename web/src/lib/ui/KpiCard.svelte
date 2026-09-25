@@ -2,6 +2,10 @@
 	// KPI card (#22 stack overview): tile, label, value (20/600, tabular),
 	// secondary line, and optional sparkline or bar slots. `status` renders
 	// the value with a status dot (never colour alone: the value is text).
+	//
+	// The card is a size container: narrow cards (the mockup's six-up row,
+	// about 180-230 px each) switch to a compact layout with a smaller tile
+	// and value, so six fit in one row on a 1440 px wide screen.
 	import type { Snippet } from 'svelte';
 	import type { TileColor } from '$lib/design/hue';
 	import type { IconComponent } from '$lib/design/icons';
@@ -36,36 +40,46 @@
 	}: Props = $props();
 </script>
 
-<div class="kpi" role="group" aria-label={label}>
-	{#if icon}<IconTile {icon} {color} size="lg" />{/if}
-	<div class="text">
-		<span class="label">{label}</span>
-		<span class="value-row">
-			{#if tone}<span class="dot {tone}" aria-hidden="true"></span>{/if}
-			<span class="value num {tone ?? ''}" data-changed={changed || undefined}>{value}</span>
-			{#if unit}<span class="unit num">{unit}</span>{/if}
-		</span>
-		{#if typeof secondary === 'string'}
-			<span class="secondary">{secondary}</span>
-		{:else if secondary}
-			<span class="secondary">{@render secondary()}</span>
-		{/if}
-		{#if bar}<div class="bar">{@render bar()}</div>{/if}
-		{#if sparkline}<div class="spark">{@render sparkline()}</div>{/if}
+<div class="kpi-box" role="group" aria-label={label}>
+	<div class="kpi">
+		{#if icon}<IconTile {icon} {color} size="lg" />{/if}
+		<div class="text">
+			<span class="label">{label}</span>
+			<span class="value-row">
+				<!-- The dot sits inside the value so a wrapped value keeps it. -->
+				<span class="value num {tone ?? ''}" data-changed={changed || undefined}
+					>{#if tone}<span class="dot {tone}" aria-hidden="true"></span>{/if}{value}</span
+				>
+				{#if unit}<span class="unit num">{unit}</span>{/if}
+			</span>
+			{#if typeof secondary === 'string'}
+				<span class="secondary">{secondary}</span>
+			{:else if secondary}
+				<span class="secondary">{@render secondary()}</span>
+			{/if}
+			{#if bar}<div class="bar">{@render bar()}</div>{/if}
+			{#if sparkline}<div class="spark">{@render sparkline()}</div>{/if}
+		</div>
 	</div>
 </div>
 
 <style>
+	.kpi-box {
+		container-type: inline-size;
+		min-width: 0;
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-lg);
+		background: var(--surface-panel);
+	}
+
 	.kpi {
 		display: flex;
 		align-items: center;
 		gap: var(--space-3);
 		min-width: 0;
+		height: 100%;
 		min-height: 96px;
 		padding: var(--space-4);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-lg);
-		background: var(--surface-panel);
 	}
 
 	.text {
@@ -83,8 +97,9 @@
 
 	.value-row {
 		display: flex;
-		align-items: center;
-		gap: 6px;
+		flex-wrap: wrap;
+		align-items: baseline;
+		column-gap: 6px;
 		min-width: 0;
 	}
 
@@ -108,10 +123,12 @@
 	}
 
 	.dot {
+		display: inline-block;
+		vertical-align: 0.05em;
 		width: 10px;
 		height: 10px;
 		border-radius: var(--radius-full);
-		margin-right: 2px;
+		margin-right: 8px;
 	}
 	.dot.ok {
 		background: var(--ok);
@@ -144,5 +161,42 @@
 		max-width: 160px;
 		height: 28px;
 		margin-top: 2px;
+	}
+
+	/* Compact card: the six-up KPI row of the stack overview. The tile
+	   shrinks to 36 px and the value to 18 px; long values wrap instead of
+	   overflowing the card. */
+	@container (max-width: 230px) {
+		.kpi {
+			gap: 10px;
+			padding: 14px;
+		}
+
+		.kpi :global(.tile) {
+			width: 36px;
+			height: 36px;
+		}
+
+		.kpi :global(.tile svg) {
+			width: 20px;
+			height: 20px;
+		}
+
+		.value {
+			font-size: 18px;
+			line-height: 24px;
+			white-space: normal;
+		}
+
+		.label,
+		.secondary,
+		.unit {
+			font-size: var(--text-caption);
+			line-height: var(--leading-caption);
+		}
+
+		.spark {
+			max-width: none;
+		}
 	}
 </style>

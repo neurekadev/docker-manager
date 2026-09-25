@@ -28,8 +28,16 @@ async function signIn(page: Page, user = owner, pass = password) {
 	await expect(page).not.toHaveURL(/\/sign-in/);
 }
 
-async function newSignedInPage(browser: Browser, baseURL: string | undefined, viewport = { width: 1440, height: 900 }) {
-	const ctx = await browser.newContext({ baseURL, viewport, ignoreHTTPSErrors: process.env.E2E_IGNORE_HTTPS_ERRORS === '1' });
+async function newSignedInPage(
+	browser: Browser,
+	baseURL: string | undefined,
+	viewport = { width: 1440, height: 900 }
+) {
+	const ctx = await browser.newContext({
+		baseURL,
+		viewport,
+		ignoreHTTPSErrors: process.env.E2E_IGNORE_HTTPS_ERRORS === '1'
+	});
 	const page = await ctx.newPage();
 	await signIn(page);
 	return page;
@@ -38,14 +46,21 @@ async function newSignedInPage(browser: Browser, baseURL: string | undefined, vi
 test.describe.serial('UI foundation', () => {
 	test('first-run setup creates the owner and signs in', async ({ page, request }) => {
 		const status = await (await request.get('/api/v1/setup/status')).json();
-		test.skip(status.setupComplete, 'setup already completed on this manager (set E2E_UI_OWNER/E2E_UI_PASSWORD)');
+		test.skip(
+			status.setupComplete,
+			'setup already completed on this manager (set E2E_UI_OWNER/E2E_UI_PASSWORD)'
+		);
 
 		await page.goto('/stacks');
 		await expect(page).toHaveURL(/\/setup$/);
-		await expect(page.getByRole('heading', { level: 1, name: 'Set up DockYard' })).toBeVisible();
+		await expect(
+			page.getByRole('heading', { level: 1, name: 'Set up DockYard' })
+		).toBeVisible();
 		if (!status.secureOrigin) {
 			// The insecure-origin explanation is shown and the form is disabled.
-			await expect(page.getByRole('alert').filter({ hasText: "Finish setup on DockYard's public URL" })).toBeVisible();
+			await expect(
+				page.getByRole('alert').filter({ hasText: "Finish setup on DockYard's public URL" })
+			).toBeVisible();
 			await expect(page.getByRole('button', { name: 'Create owner account' })).toBeDisabled();
 			test.skip(true, 'this origin cannot complete setup');
 		}
@@ -59,7 +74,9 @@ test.describe.serial('UI foundation', () => {
 		await page.getByRole('button', { name: 'Create owner account' }).click();
 
 		await expect(page).toHaveURL(/\/$/);
-		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText('Created the owner account');
+		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(
+			'Created the owner account'
+		);
 		await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 		// Setup is closed now.
 		await page.goto('/setup');
@@ -79,7 +96,9 @@ test.describe.serial('UI foundation', () => {
 		await page.getByLabel('Username').fill(owner);
 		await page.getByLabel('Password', { exact: true }).fill('not the password at all');
 		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-		await expect(page.getByRole('alert').filter({ hasText: 'The username or password is not right.' })).toBeVisible();
+		await expect(
+			page.getByRole('alert').filter({ hasText: 'The username or password is not right.' })
+		).toBeVisible();
 		await page.getByLabel('Password', { exact: true }).fill(password);
 		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 		await expect(page).toHaveURL(/\/jobs$/);
@@ -92,17 +111,25 @@ test.describe.serial('UI foundation', () => {
 	test('shell navigation: sidebar, breadcrumbs, command palette, skip link', async ({ page }) => {
 		await signIn(page);
 		const nav = page.getByRole('navigation', { name: 'Main' });
-		await expect(nav.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
+		await expect(nav.getByRole('link', { name: 'Dashboard' })).toHaveAttribute(
+			'aria-current',
+			'page'
+		);
 		await nav.getByRole('link', { name: 'Stacks' }).click();
 		await expect(page).toHaveURL(/\/stacks$/);
 		await expect(page.getByRole('heading', { level: 1, name: 'Stacks' })).toBeVisible();
-		await expect(nav.getByRole('link', { name: 'Stacks' })).toHaveAttribute('aria-current', 'page');
+		await expect(nav.getByRole('link', { name: 'Stacks' })).toHaveAttribute(
+			'aria-current',
+			'page'
+		);
 		await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText('Stacks');
 		await expect(page).toHaveTitle('Stacks · DockYard');
 
 		// ⌘K / Ctrl+K opens the palette; pages are found without typing a query.
 		await page.keyboard.press('ControlOrMeta+k');
-		const input = page.getByRole('combobox', { name: 'Search pages, environments, stacks and containers' });
+		const input = page.getByRole('combobox', {
+			name: 'Search pages, environments, stacks and containers'
+		});
 		await expect(input).toBeFocused();
 		await input.fill('sett');
 		await expect(page.getByRole('option', { name: 'Settings' })).toBeVisible();
@@ -146,8 +173,15 @@ test.describe.serial('UI foundation', () => {
 
 	test('environment switcher: choose, remember, reset', async ({ page, request }) => {
 		await signIn(page);
-		const envs = (await (await page.request.get('/api/v1/environments')).json()).items as { id: string; name: string; online: boolean }[];
-		test.skip(envs.length === 0, 'no environments on this manager (the devstack provides three)');
+		const envs = (await (await page.request.get('/api/v1/environments')).json()).items as {
+			id: string;
+			name: string;
+			online: boolean;
+		}[];
+		test.skip(
+			envs.length === 0,
+			'no environments on this manager (the devstack provides three)'
+		);
 		void request;
 		const trigger = page.getByRole('button', { name: /^Environment: All environments/ });
 		await trigger.click();
@@ -155,24 +189,43 @@ test.describe.serial('UI foundation', () => {
 		await expect(list.getByRole('option')).toHaveCount(envs.length + 1);
 		const target = envs[0];
 		await list.getByRole('option', { name: new RegExp(`^${target.name}`) }).click();
-		await expect(page.getByRole('button', { name: new RegExp(`^Environment: ${target.name},`) })).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: new RegExp(`^Environment: ${target.name},`) })
+		).toBeVisible();
 
 		// Remembered for this user across reloads (only the ID is stored).
 		await page.reload();
-		await expect(page.getByRole('button', { name: new RegExp(`^Environment: ${target.name},`) })).toBeVisible();
-		const stored = await page.evaluate(() => Object.entries(localStorage).filter(([k]) => k.startsWith('dockyard:environment:')));
+		await expect(
+			page.getByRole('button', { name: new RegExp(`^Environment: ${target.name},`) })
+		).toBeVisible();
+		const stored = await page.evaluate(() =>
+			Object.entries(localStorage).filter(([k]) => k.startsWith('dockyard:environment:'))
+		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0][1]).toBe(target.id);
 
 		// Environment-scoped pages show it as the first crumb.
-		await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Stacks' }).click();
+		await page
+			.getByRole('navigation', { name: 'Main' })
+			.getByRole('link', { name: 'Stacks' })
+			.click();
 		const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
-		await expect(crumbs.getByRole('link', { name: target.name })).toHaveAttribute('href', `/environments/${target.id}`);
+		await expect(crumbs.getByRole('link', { name: target.name })).toHaveAttribute(
+			'href',
+			`/environments/${target.id}`
+		);
 		await expect(crumbs.getByText('Stacks')).toHaveAttribute('aria-current', 'page');
 
-		await page.getByRole('button', { name: new RegExp(`^Environment: ${target.name},`) }).click();
-		await page.getByRole('listbox', { name: 'Environments' }).getByRole('option', { name: /^All environments/ }).click();
-		await expect(page.getByRole('button', { name: /^Environment: All environments/ })).toBeVisible();
+		await page
+			.getByRole('button', { name: new RegExp(`^Environment: ${target.name},`) })
+			.click();
+		await page
+			.getByRole('listbox', { name: 'Environments' })
+			.getByRole('option', { name: /^All environments/ })
+			.click();
+		await expect(
+			page.getByRole('button', { name: /^Environment: All environments/ })
+		).toBeVisible();
 	});
 
 	test('an invited Restricted user sees the denied state', async ({ page, browser, baseURL }) => {
@@ -186,7 +239,10 @@ test.describe.serial('UI foundation', () => {
 		const link = new URL(url);
 		expect(link.hash).toMatch(/^#code=dyi_/);
 
-		const ctx = await browser.newContext({ baseURL, ignoreHTTPSErrors: process.env.E2E_IGNORE_HTTPS_ERRORS === '1' });
+		const ctx = await browser.newContext({
+			baseURL,
+			ignoreHTTPSErrors: process.env.E2E_IGNORE_HTTPS_ERRORS === '1'
+		});
 		const guest = await ctx.newPage();
 		await guest.goto(link.pathname + link.hash);
 		// The code is taken from the fragment and removed from the address bar.
@@ -197,8 +253,12 @@ test.describe.serial('UI foundation', () => {
 		await guest.getByLabel('Password', { exact: true }).fill('a long guest passphrase for e2e');
 		await guest.getByRole('button', { name: 'Create account' }).click();
 
-		await expect(guest.getByRole('heading', { level: 1, name: "You don't have access to anything yet." })).toBeVisible();
-		await expect(guest.getByText('Ask the owner of this DockYard to grant access.')).toBeVisible();
+		await expect(
+			guest.getByRole('heading', { level: 1, name: "You don't have access to anything yet." })
+		).toBeVisible();
+		await expect(
+			guest.getByText('Ask the owner of this DockYard to grant access.')
+		).toBeVisible();
 		const links = guest.getByRole('navigation', { name: 'Main' }).getByRole('link');
 		await expect(links).toHaveText(['Dashboard', 'Settings']);
 		// Nothing leaks through search either.

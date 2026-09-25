@@ -12,8 +12,11 @@
 //     applied one is a duplicate and ignored.
 //   - reset: the cursor expired or events were lost: invalidate everything
 //     (or one environment's data) and continue from the new cursor.
-//   - permissions.changed: drop ALL cached data at once (nothing stale and
-//     privileged stays on screen), refetch /me/permissions, reconnect.
+//   - permissions.changed: drop every cached query no view shows and
+//     refetch the open ones at once (nothing stale and privileged stays),
+//     refetch /me/permissions, reconnect.
+//   - The browser's "offline" event drops the stream at once (networkLost):
+//     an idle connection can stay half-open without an error.
 //   - close session_expired: stop; the app signs in again and calls
 //     reconnectNow().
 //   - Three failed connections within 60 s: bounded polling of the open
@@ -67,7 +70,8 @@ export interface QueryClientLike {
 		queryKey?: QueryKey;
 		predicate?: (query: { queryKey: QueryKey }) => boolean;
 	}): Promise<void>;
-	clear(): void;
+	/** Drops cached queries no view uses (`type: 'inactive'`). */
+	removeQueries(filters: { type: 'inactive' }): void;
 }
 
 /** Time and timers (fakeable in tests). */
@@ -182,6 +186,17 @@ export class LiveClient {
 		this.#clearReconnect();
 		this.#closeSource();
 		this.#open();
+	}
+
+	/**
+	 * The browser lost its network (window "offline"). An idle stream can
+	 * stay half-open for minutes without an error, so drop it now: the shell
+	 * shows the connection loss and the backoff keeps retrying until the
+	 * "online" event reconnects at once (resuming from the cursor).
+	 */
+	networkLost(): void {
+		if (!this.#running || this.#es === null) return;
+		this.#fail();
 	}
 
 	/**
@@ -321,11 +336,16 @@ export class LiveClient {
 	}
 
 	async #onPermissionsChanged(): Promise<void> {
-		// Nothing fetched with the old permissions may stay visible.
-		this.#qc.clear();
+		// Nothing fetched with the old permissions may stay: cached data no
+		// view shows is dropped now, and every open view refetches at once,
+		// so its denied, not-found or narrowed result replaces the old data.
+		// Not clear(): mounted views would keep showing what they have. Not a
+		// reset: views would render for a moment with no data at all.
 		this.#cursor = null;
 		this.#epoch = '';
 		this.#seq = -1;
+		this.#qc.removeQueries({ type: 'inactive' });
+		void this.#qc.invalidateQueries();
 		await this.#onPermissions?.();
 	}
 

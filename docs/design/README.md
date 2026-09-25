@@ -201,10 +201,10 @@ Import from `$lib/ui` (one barrel). Snippet props (`trigger`, `children`,
 | `Badge` | `tone: neutral \| accent \| ok \| warn \| danger \| info \| offline`, `dot`, `pulse` | |
 | `StatusBadge` | `status` (API state), `kind: resource \| job`, `label` | Dot **and** text; vocabulary in `status.ts` (`statusInfo`). Job `partial` reads "Partly failed". |
 | `Card` | `title`, `level`, `subtitle`, `actions`, `padding: none \| md`, `id` | Tables use `padding="none"`. |
-| `KpiCard` | `label`, `value`, `unit`, `secondary`, `icon`, `color`, `tone`, `sparkline` / `bar` snippets, `changed` | Row of KPI cards: `grid-template-columns: repeat(auto-fit, minmax(210px, 1fr))`. |
+| `KpiCard` | `label`, `value`, `unit`, `secondary`, `icon`, `color`, `tone`, `sparkline` / `bar` snippets, `changed` | Row of KPI cards: `KpiRow` (`repeat(auto-fit, minmax(210px, 1fr))`, two per row below 768 px). The card is a size container: at 230 px or less it switches to the compact layout (36 px tile, 18 px value that may wrap, 12 px label), so the stack overview keeps the mockup's six cards in one row from about 1120 px of content (1440 px screens) and phones show two per row. |
 | `IconTile` | `icon`, `color: TileColor`, `size: sm \| md \| lg` | Decorative (the adjacent text names the thing). |
 | `Meter` | `value`, `max`, `label`, `valueText`, `warnAt`, `dangerAt` | `role="meter"`. |
-| `PageHeader` | `title` (h1), `description`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` snippets | Icon-led meta items with thin dividers (not middle dots). `MetaItem.title` is the full value on hover, `MetaItem.copy` adds a copy button (the stack's host path). |
+| `PageHeader` | `title` (h1), `description`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` snippets | Icon-led meta items with thin dividers (not middle dots). `MetaItem.title` is the full value on hover, `MetaItem.copy` adds a copy button (the stack's host path). The icon tile marks one object (a stack, container, environment, policy, job): section pages (Containers, Jobs, …) and create forms have none. |
 | `Table` | `rows`, `columns: Column<T>[]`, `rowKey`, **`label`**, `sort` (bindable), `manualSort` + `onsort`, `selectable` + `selected` (bindable) + `rowLabel`, `changed`, `maxHeight`, `virtualizeAfter` (500), `rowHeight`, `layout`, `empty` | Sortable headers with `aria-sort`, sticky header inside `maxHeight`, stacked cards < 768 px (`Column.stack`: title, status, meta, actions, hidden), windowed rendering past 500 rows (`virtualWindow`, `aria-rowcount`/`aria-rowindex`). |
 | `Tabs` | `items: TabItem[]`, `value` (bindable), **`label`**, `panel` snippet `(id)` | In-page tabs (Bits UI). |
 | `TabNav` | `items: TabLink[]`, `current` (path), **`label`**, `after` snippet | Route tabs (stack detail); the URL is the state. Below 768 px the tabs scroll sideways with the current one kept in view, and `after` gets its own line. |
@@ -299,7 +299,10 @@ loading.
 
    `environmentScoped` prepends the selected environment (the switcher).
 3. Build the page from `$lib/ui`: `PageHeader` (h1) → `TabNav` or KPI row →
-   `Card`s with `Table`s. Loading: `Skeleton` in an `aria-busy` region.
+   `Card`s with `Table`s. Headers: section pages have no icon tile, object
+   pages have the object's tile (stacks: the blue stack tile unless the
+   user chose an icon), create pages repeat the button that opens them as
+   their title ("Create update policy", "Build image"). Loading: `Skeleton` in an `aria-busy` region.
    Failure: `ErrorState` with `onretry={() => query.refetch()}`. Nothing
    yet: `EmptyState` with the action. Forbidden: hide the control (the
    server answers 403/404 anyway).
@@ -362,7 +365,15 @@ it; live regions announce job completion, copies and connection changes;
   Bits UI overlays.
 - Playwright: `e2e/tests/ui.spec.ts` (setup, sign-in, shell, switcher,
   denied state) against the devstack locally and behind the TLS proxies in
-  CI.
+  CI; `e2e/tests/a11y.spec.ts` runs axe-core (`@axe-core/playwright`) on
+  every main route (no serious or critical WCAG 2.1 A/AA violation; justified
+  exceptions go in its `EXCEPTIONS` map with the reason) and checks the
+  shell, a table, a dialog and the file manager with the keyboard only, and
+  reduced motion; `e2e/tests/live-ui.spec.ts` proves open views converge
+  (two sessions, direct Docker changes through the devstack's `-control`
+  listener, a network outage, a permission revocation).
+- The e2e specs follow the web app's Prettier style (`scripts/web-check.sh`
+  checks them).
 - Screenshot review: run the devstack (`docs/development.md`, "UI
   devstack"), then look at your page at 1440×900 and 390×844 (e.g.
   `E2E_SCREENSHOTS_DIR=<dir outside the repo> npx playwright test tests/ui.spec.ts`)

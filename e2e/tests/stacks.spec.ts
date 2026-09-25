@@ -30,7 +30,11 @@ async function signIn(page: Page) {
 	await expect(page).not.toHaveURL(/\/sign-in/);
 }
 
-async function signedIn(browser: Browser, baseURL: string | undefined, viewport = { width: 1440, height: 900 }) {
+async function signedIn(
+	browser: Browser,
+	baseURL: string | undefined,
+	viewport = { width: 1440, height: 900 }
+) {
 	const ctx = await browser.newContext({
 		baseURL,
 		viewport,
@@ -60,10 +64,16 @@ async function findStack(page: Page, name: string): Promise<StackRef | undefined
 test.describe.serial('Stacks', () => {
 	test.beforeEach(async ({ request }) => {
 		const status = await (await request.get('/api/v1/setup/status')).json();
-		test.skip(!status.setupComplete, 'first-run setup is not complete (ui.spec.ts creates the owner)');
+		test.skip(
+			!status.setupComplete,
+			'first-run setup is not complete (ui.spec.ts creates the owner)'
+		);
 	});
 
-	test('the stack list, or its empty state inviting to create or import', async ({ browser, baseURL }) => {
+	test('the stack list, or its empty state inviting to create or import', async ({
+		browser,
+		baseURL
+	}) => {
 		const page = await signedIn(browser, baseURL);
 		await page.goto('/stacks');
 		await expect(page.getByRole('heading', { level: 1, name: 'Stacks' })).toBeVisible();
@@ -71,7 +81,9 @@ test.describe.serial('Stacks', () => {
 		await expect(page.getByRole('link', { name: 'Import project' }).first()).toBeVisible();
 		const silo = await findStack(page, 'silo');
 		if (!silo) {
-			await expect(page.getByText('Create a stack or import an existing Compose project.')).toBeVisible();
+			await expect(
+				page.getByText('Create a stack or import an existing Compose project.')
+			).toBeVisible();
 			// Without environments the create page says what to do first.
 			await page.getByRole('link', { name: 'Create stack' }).first().click();
 			await expect(page.getByText(/No environments yet|Environment/).first()).toBeVisible();
@@ -92,27 +104,50 @@ test.describe.serial('Stacks', () => {
 		const silo = await findStack(page, 'silo');
 		test.skip(!silo, 'no seeded stack Silo (run the devstack)');
 		await page.goto('/stacks');
-		await page.getByRole('table', { name: 'Stacks' }).getByRole('link', { name: /Silo/ }).click();
+		await page
+			.getByRole('table', { name: 'Stacks' })
+			.getByRole('link', { name: /Silo/ })
+			.click();
 		await expect(page).toHaveURL(new RegExp(`/stacks/${silo!.id}$`));
 		await expect(page.getByRole('heading', { level: 1, name: 'Silo' })).toBeVisible();
 		await expect(page.getByText('Personal cloud and media platform')).toBeVisible();
 		await expect(page.getByText('homelab · silo')).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Copy host path' })).toBeVisible();
-		for (const kpi of ['Stack status', 'Services', 'CPU usage', 'Memory usage', 'Uptime', 'Last deploy'])
+		for (const kpi of [
+			'Stack status',
+			'Services',
+			'CPU usage',
+			'Memory usage',
+			'Uptime',
+			'Last deploy'
+		])
 			await expect(page.getByRole('group', { name: kpi })).toBeVisible();
 		const services = page.getByRole('table', { name: 'Services of Silo' });
 		await expect(services.getByRole('row')).toHaveCount(6);
-		await expect(services.getByRole('link', { name: '8080:80' })).toHaveAttribute('href', 'http://192.168.1.10:8080');
-		await expect(services.getByRole('link', { name: 'Open a terminal in silo-web' })).toHaveAttribute(
+		await expect(services.getByRole('link', { name: '8080:80' })).toHaveAttribute(
 			'href',
-			`/stacks/${silo!.id}/terminal?container=silo-silo-web-1`
+			'http://192.168.1.10:8080'
 		);
+		await expect(
+			services.getByRole('link', { name: 'Open a terminal in silo-web' })
+		).toHaveAttribute('href', `/stacks/${silo!.id}/terminal?container=silo-silo-web-1`);
 		// silo-worker publishes no port: no open action.
 		await expect(services.getByRole('link', { name: 'Open silo-worker' })).toHaveCount(0);
 		const tabs = page.getByRole('navigation', { name: 'Silo sections' });
-		for (const t of ['Overview', 'Files', 'Logs', 'Terminal', 'Revisions', 'Policies', 'Activity'])
+		for (const t of [
+			'Overview',
+			'Files',
+			'Logs',
+			'Terminal',
+			'Revisions',
+			'Policies',
+			'Activity'
+		])
 			await expect(tabs.getByRole('link', { name: t })).toBeVisible();
-		await expect(tabs.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
+		await expect(tabs.getByRole('link', { name: 'Overview' })).toHaveAttribute(
+			'aria-current',
+			'page'
+		);
 		await shot(page, 'detail-1440');
 
 		// Keyboard: the header actions are reachable and labelled.
@@ -123,7 +158,10 @@ test.describe.serial('Stacks', () => {
 		await expect(page.getByRole('menu')).toHaveCount(0);
 	});
 
-	test('revisions: the undeployed changes against the deployed revision', async ({ browser, baseURL }) => {
+	test('revisions: the undeployed changes against the deployed revision', async ({
+		browser,
+		baseURL
+	}) => {
 		const page = await signedIn(browser, baseURL);
 		const silo = await findStack(page, 'silo');
 		test.skip(!silo, 'no seeded stack Silo (run the devstack)');
@@ -137,11 +175,18 @@ test.describe.serial('Stacks', () => {
 		const diff = page.getByRole('region', { name: 'Changes in compose.yaml' });
 		await expect(diff).toBeVisible();
 		await expect(diff.getByText('Added:').first()).toBeAttached();
-		await expect(page.getByRole('table', { name: 'Revisions of Silo' }).getByText('On disk', { exact: true })).toBeVisible();
+		await expect(
+			page
+				.getByRole('table', { name: 'Revisions of Silo' })
+				.getByText('On disk', { exact: true })
+		).toBeVisible();
 		await shot(page, 'revisions-1440');
 	});
 
-	test('deploy runs as a job with progress and repeats the action in a toast', async ({ browser, baseURL }) => {
+	test('deploy runs as a job with progress and repeats the action in a toast', async ({
+		browser,
+		baseURL
+	}) => {
 		const page = await signedIn(browser, baseURL);
 		const silo = await findStack(page, 'silo');
 		test.skip(!silo, 'no seeded stack Silo (run the devstack)');
@@ -165,14 +210,18 @@ test.describe.serial('Stacks', () => {
 		await page.getByRole('menuitem', { name: 'Edit details' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Edit details of Silo' });
 		await expect(dialog.getByText('Compose files are never changed.')).toBeVisible();
-		await dialog.getByLabel('Description', { exact: true }).fill('Personal cloud, photos and files');
+		await dialog
+			.getByLabel('Description', { exact: true })
+			.fill('Personal cloud, photos and files');
 		await dialog.getByRole('button', { name: 'Save details' }).click();
 		await expect(page.getByText('Saved details of Silo')).toBeVisible();
 		await expect(page.getByText('Personal cloud, photos and files')).toBeVisible();
 		// Put it back.
 		await page.getByRole('button', { name: 'More stack actions' }).click();
 		await page.getByRole('menuitem', { name: 'Edit details' }).click();
-		await dialog.getByLabel('Description', { exact: true }).fill('Personal cloud and media platform');
+		await dialog
+			.getByLabel('Description', { exact: true })
+			.fill('Personal cloud and media platform');
 		await dialog.getByRole('button', { name: 'Save details' }).click();
 		await expect(page.getByText('Personal cloud and media platform')).toBeVisible();
 	});
@@ -185,7 +234,9 @@ test.describe.serial('Stacks', () => {
 		await page.getByRole('button', { name: 'More stack actions' }).click();
 		await page.getByRole('menuitem', { name: 'Migrate' }).click();
 		await expect(page).toHaveURL(/\/migrate$/);
-		await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByText('Migrate')).toBeVisible();
+		await expect(
+			page.getByRole('navigation', { name: 'Breadcrumb' }).getByText('Migrate')
+		).toBeVisible();
 		await page.getByRole('radio', { name: 'nas' }).check();
 		await page.getByRole('button', { name: 'Run preflight' }).click();
 		await expect(page.getByRole('heading', { name: 'Preflight' })).toBeVisible();
@@ -219,7 +270,9 @@ test.describe.serial('Stacks', () => {
 		await page.getByRole('button', { name: 'More stack actions' }).click();
 		await page.getByRole('menuitem', { name: 'Delete' }).click();
 		const dialog = page.getByRole('alertdialog', { name: `Delete ${name}?` });
-		await expect(dialog.getByText('Keeps its volumes and the project directory on the host.')).toBeVisible();
+		await expect(
+			dialog.getByText('Keeps its volumes and the project directory on the host.')
+		).toBeVisible();
 		await expect(dialog.getByRole('button', { name: 'Delete stack' })).toBeDisabled();
 		await dialog.getByRole('textbox').fill(name);
 		await dialog.getByRole('button', { name: 'Delete stack' }).click();
@@ -227,12 +280,17 @@ test.describe.serial('Stacks', () => {
 		await expect(page.getByText(`Deleted ${name}`)).toBeVisible();
 	});
 
-	test('discovery lists unmanaged projects and how they can be imported', async ({ browser, baseURL }) => {
+	test('discovery lists unmanaged projects and how they can be imported', async ({
+		browser,
+		baseURL
+	}) => {
 		const page = await signedIn(browser, baseURL);
 		test.skip(!(await findStack(page, 'silo')), 'no seeded environment (run the devstack)');
 		await page.goto('/stacks');
 		await page.getByRole('link', { name: 'Import project' }).first().click();
-		await expect(page.getByRole('heading', { level: 1, name: 'Import a Compose project' })).toBeVisible();
+		await expect(
+			page.getByRole('heading', { level: 1, name: 'Import a Compose project' })
+		).toBeVisible();
 		await page.getByLabel('Environment', { exact: true }).selectOption({ label: 'homelab' });
 		await expect(page.getByText('Can be adopted in place')).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Adopt in place' })).toBeVisible();
@@ -243,12 +301,17 @@ test.describe.serial('Stacks', () => {
 		await shot(page, 'discovered-1440');
 	});
 
-	test('narrow layout: stacked rows and the current tab in view', async ({ browser, baseURL }) => {
+	test('narrow layout: stacked rows and the current tab in view', async ({
+		browser,
+		baseURL
+	}) => {
 		const page = await signedIn(browser, baseURL, { width: 390, height: 844 });
 		const silo = await findStack(page, 'silo');
 		test.skip(!silo, 'no seeded stack Silo (run the devstack)');
 		await page.goto(`/stacks/${silo!.id}/activity`);
-		const tab = page.getByRole('navigation', { name: 'Silo sections' }).getByRole('link', { name: 'Activity' });
+		const tab = page
+			.getByRole('navigation', { name: 'Silo sections' })
+			.getByRole('link', { name: 'Activity' });
 		await expect(tab).toBeInViewport();
 		await page.goto(`/stacks/${silo!.id}`);
 		await expect(page.getByRole('heading', { level: 1, name: 'Silo' })).toBeVisible();

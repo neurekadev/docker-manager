@@ -123,7 +123,10 @@ export async function sseTimeline(
 			const timer = setTimeout(() => ctrl.abort(new Error('timeout')), timeoutMs);
 			const start = performance.now();
 			const lines: { t: number; line: string }[] = [];
-			const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'text/event-stream' } });
+			const res = await fetch(url, {
+				signal: ctrl.signal,
+				headers: { Accept: 'text/event-stream' }
+			});
 			const out = {
 				status: res.status,
 				contentType: res.headers.get('content-type') ?? '',
@@ -201,10 +204,19 @@ export async function wsIdleRoundTrip(
 					if (!done) {
 						done = true;
 						clearTimeout(timer);
-						reject(new Error(`WebSocket closed early: ${e.code} ${e.reason} after ${JSON.stringify(messages)}`));
+						reject(
+							new Error(
+								`WebSocket closed early: ${e.code} ${e.reason} after ${JSON.stringify(messages)}`
+							)
+						);
 					}
 				};
 			}),
-		{ path, idleMs: opts.idleMs, protocols: opts.protocols ?? [], timeoutMs: opts.timeoutMs ?? opts.idleMs + 30_000 }
+		{
+			path,
+			idleMs: opts.idleMs,
+			protocols: opts.protocols ?? [],
+			timeoutMs: opts.timeoutMs ?? opts.idleMs + 30_000
+		}
 	);
 }

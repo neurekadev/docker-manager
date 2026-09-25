@@ -79,7 +79,7 @@ describe('job labels (#26 catalog)', () => {
 		expect(jobActive('partial')).toBe(false);
 		expect(policyPage('prune.run').href).toBe('/maintenance');
 		expect(policyPage('update.check').href).toBe('/updates');
-		expect(policyPage('backup.run').href).toBe('/backups');
+		expect(policyPage('backup.run').href).toBe('/backups/policies');
 	});
 
 	it('offers state groups that cover every job state', () => {

@@ -7,6 +7,7 @@
 	// recovery codes (shown once).
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
+	import { routes } from '$lib/routes';
 	import Fingerprint from '@lucide/svelte/icons/fingerprint';
 	import Smartphone from '@lucide/svelte/icons/smartphone';
 	import { api, unwrap, type Session } from '$lib/api/client';
@@ -67,7 +68,7 @@
 			await api.DELETE('/api/v1/auth/session');
 		} finally {
 			qc.setQueryData(queryKeys.session, null);
-			await goto('/sign-in', { replaceState: true });
+			await goto(routes.signIn(), { replaceState: true });
 		}
 	}
 

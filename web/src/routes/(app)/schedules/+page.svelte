@@ -180,8 +180,6 @@
 		<PageHeader
 			title="Schedules"
 			description="Every scheduled policy in one place. Times are shown in each policy's own time zone."
-			icon={CalendarClock}
-			color="violet"
 		/>
 
 		<div class="filters" role="group" aria-label="Filter schedules">

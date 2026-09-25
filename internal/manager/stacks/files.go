@@ -65,7 +65,7 @@ func (s *Service) HostPath(ctx context.Context, stackID string) (string, error) 
 // errNoStacksRoot: the environment's agent has not reported a verified
 // stacks volume.
 var errNoStacksRoot = &domain.StackError{Code: domain.StackErrRootUnavailable,
-	Message: "the environment's agent has not reported a verified stacks volume (#28)"}
+	Message: "the environment's agent has not reported a verified stacks volume"}
 
 // stacksDir returns the stacks volume's host path from the environment's
 // agent capabilities.

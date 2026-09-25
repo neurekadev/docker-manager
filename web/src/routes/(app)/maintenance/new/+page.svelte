@@ -13,7 +13,7 @@
 	import PolicyForm from '$lib/features/maintenance/PolicyForm.svelte';
 
 	usePage({
-		title: 'New maintenance policy',
+		title: 'Create maintenance policy',
 		crumbs: [{ label: 'Maintenance', href: routes.maintenance() }, { label: 'New policy' }]
 	});
 	const perms = createQuery(() => myPermissionsQuery());
@@ -21,7 +21,7 @@
 
 <Page narrow>
 	<PageHeader
-		title="New maintenance policy"
+		title="Create maintenance policy"
 		description="Turn on the rules you want. Preview the policy before its first run."
 	/>
 	{#if perms.isPending}

@@ -287,6 +287,9 @@
 								: targetType === 'stack'
 									? 'No stacks in this environment'
 									: 'No DockYard-managed containers here'}
+							description={targetType === 'container'
+								? "DockYard's own containers are never offered: DockYard is upgraded with its own images, not by an update policy."
+								: "DockYard's own Compose project is not a stack and can't be updated this way."}
 							required
 							error={fields['body.target.id'] ?? fields['body.target']}
 						/>

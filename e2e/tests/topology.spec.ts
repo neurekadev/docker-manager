@@ -32,7 +32,8 @@ async function signIn(page: Page) {
 	await expect(page.getByRole('main')).toBeVisible();
 }
 
-test.describe.serial('Topology (#27): passkeys, PWA install and agent enrollment through the proxy', () => {
+test.describe
+	.serial('Topology (#27): passkeys, PWA install and agent enrollment through the proxy', () => {
 	test.beforeAll(async ({ request }) => {
 		// ui.spec.ts completes first-run setup on a fresh manager; wait for it
 		// (or do it here when this file runs alone).
@@ -47,7 +48,10 @@ test.describe.serial('Topology (#27): passkeys, PWA install and agent enrollment
 		expect([200, 201, 409]).toContain(res.status());
 	});
 
-	test('passkey: enroll one in the profile, then sign in with it', async ({ page, baseURL }, testInfo) => {
+	test('passkey: enroll one in the profile, then sign in with it', async ({
+		page,
+		baseURL
+	}, testInfo) => {
 		await page.goto('/sign-in');
 		const auth = await addVirtualAuthenticator(page);
 		await signIn(page);
@@ -58,7 +62,9 @@ test.describe.serial('Topology (#27): passkeys, PWA install and agent enrollment
 		await page.goto('/settings/security');
 		await page.getByLabel('Name of the new passkey').fill(name);
 		await page.getByRole('button', { name: 'Add passkey' }).click();
-		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(`Added the passkey ${name}`);
+		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(
+			`Added the passkey ${name}`
+		);
 		await expect(page.getByRole('table', { name: 'Your passkeys' })).toContainText(name);
 		const creds = await auth.credentials();
 		expect(creds.length).toBeGreaterThan(0);
@@ -90,7 +96,10 @@ test.describe.serial('Topology (#27): passkeys, PWA install and agent enrollment
 		await auth.remove();
 	});
 
-	test('PWA: Chromium finds the app installable on the proxy origin', async ({ page, baseURL }) => {
+	test('PWA: Chromium finds the app installable on the proxy origin', async ({
+		page,
+		baseURL
+	}) => {
 		await page.goto('/sign-in');
 		await waitForServiceWorkerControl(page);
 		const cdp = await page.context().newCDPSession(page);
@@ -107,7 +116,10 @@ test.describe.serial('Topology (#27): passkeys, PWA install and agent enrollment
 		await cdp.detach();
 	});
 
-	test('agent enrollment: the UI hands out a token for the public origin', async ({ page, baseURL }, testInfo) => {
+	test('agent enrollment: the UI hands out a token for the public origin', async ({
+		page,
+		baseURL
+	}, testInfo) => {
 		await signIn(page);
 		const origin = new URL(baseURL ?? page.url()).origin;
 		const environmentName = `e2e-agent-${testInfo.project.name}`;

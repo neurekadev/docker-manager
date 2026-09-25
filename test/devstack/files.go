@@ -185,6 +185,9 @@ type fileServing struct {
 	svc     *agentfiles.Service
 	watcher *watch.Watcher
 	roots   []protocol.Root
+	// storage is the host's verified storage (stacks and volume roots),
+	// shared with the backup scope preview.
+	storage func() *storage.Result
 }
 
 // newFileServing builds the agent's file service over the host's
@@ -215,7 +218,7 @@ func newFileServing(h *homelabHost, clk clock.Clock, log *slog.Logger, client *a
 	if !w.Notifying() {
 		mode = protocol.WatchPoll
 	}
-	return &fileServing{svc: svc, watcher: w, roots: []protocol.Root{
+	return &fileServing{svc: svc, watcher: w, storage: func() *storage.Result { return st }, roots: []protocol.Root{
 		{Kind: protocol.RootStacks, Path: h.stacksDir, Watch: mode},
 		{Kind: storage.KindVolumes, Path: h.volumesDir, Watch: mode}}}
 }

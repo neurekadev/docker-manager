@@ -16,13 +16,20 @@ export function stackTitle(s: Pick<Stack, 'name' | 'displayName'>): string {
 	return s.displayName?.trim() || s.name;
 }
 
-/** The stack's icon (Lucide name) and its category colour. */
+/** The default stack icon (Lucide "layers"). */
+export const STACK_ICON = 'layers';
+
+/**
+ * The stack's icon (Lucide name) and tile colour. Stacks use the blue
+ * "stack" category tile (#22 brief), never a service hue. An icon override
+ * in the display metadata keeps its category colour, except the default
+ * stack icon itself ("layers" is also the cache icon, but on a stack it
+ * means "stack").
+ */
 export function stackIcon(s: Pick<Stack, 'icon'>): { icon: string; color: TileColor } {
-	const icon = s.icon && s.icon in SERVICE_ICON_CATEGORY ? s.icon : 'layers';
-	return {
-		icon,
-		color: s.icon && s.icon in SERVICE_ICON_CATEGORY ? SERVICE_ICON_CATEGORY[icon] : 'blue'
-	};
+	const override = s.icon && s.icon in SERVICE_ICON_CATEGORY ? s.icon : null;
+	if (!override || override === STACK_ICON) return { icon: STACK_ICON, color: 'blue' };
+	return { icon: override, color: SERVICE_ICON_CATEGORY[override] };
 }
 
 /**

@@ -439,7 +439,7 @@ func (s *Service) checkTarget(ctx context.Context, p *domain.UpdatePolicy) error
 		if s.opts.Resources != nil {
 			pr, err := s.opts.Resources.ProjectProtection(ctx, st.EnvironmentID, st.Name)
 			if err == nil && pr != nil {
-				return &domain.UpdateError{Code: domain.UpdateErrTargetIneligible, Message: "DockYard's own Compose project is never updated by a policy (#32): " + pr.Reason}
+				return &domain.UpdateError{Code: domain.UpdateErrTargetIneligible, Message: "DockYard's own Compose project is never updated by a policy: " + pr.Reason}
 			}
 		}
 		return nil
@@ -471,7 +471,7 @@ func (s *Service) checkTarget(ctx context.Context, p *domain.UpdatePolicy) error
 // specification (#6: unmanaged containers are never recreated).
 func (s *Service) containerIneligible(ctx context.Context, env string, d protocol.ContainerDetails) (reason, message string) {
 	if pr := s.opts.Resources.ContainerProtection(d.ContainerSummary); pr != nil {
-		return domain.UpdateReasonProtected, "DockYard's own containers are never updated by a policy (#32): " + pr.Reason
+		return domain.UpdateReasonProtected, "DockYard's own containers are never updated by a policy: " + pr.Reason
 	}
 	if d.Stack != nil {
 		return domain.UpdateReasonStackManaged, "The container belongs to the Compose project " + d.Stack.Project +

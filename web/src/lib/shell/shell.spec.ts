@@ -231,7 +231,7 @@ describe('notices', () => {
 			{ id: 'p2', name: 'Media', summary: { available: 0 } }
 		]);
 		expect(n.items.map((x) => x.title)).toEqual(['2 updates available for Silo images']);
-		expect(n.items[0].href).toBe('/updates');
+		expect(n.items[0].href).toBe('/updates/p1');
 		n.markAllRead();
 		feed([{ id: 'p1', name: 'Silo images', summary: { available: 2 } }]);
 		expect(n.unread).toBe(0); // unchanged: not pushed again

@@ -68,6 +68,23 @@
 	}
 
 	.sep {
+		flex-shrink: 0;
 		color: var(--text-faint);
+	}
+
+	/* Long names shorten with an ellipsis instead of running into the next
+	   crumb. */
+	a,
+	li > span:not(.sep) {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	/* Phones: only the parent and the current page fit the top bar. */
+	@media (max-width: 767px) {
+		li:not(:nth-last-child(-n + 2)) {
+			display: none;
+		}
 	}
 </style>

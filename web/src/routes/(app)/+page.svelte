@@ -312,6 +312,14 @@
 		}
 	}
 
+	/* Phones: two compact KPI cards per row (KpiCard's compact layout). */
+	@media (max-width: 767px) {
+		.kpis {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: var(--space-3);
+		}
+	}
+
 	.kpi-skeleton,
 	.card-skeleton {
 		padding: var(--space-4);

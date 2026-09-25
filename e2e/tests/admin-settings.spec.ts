@@ -32,20 +32,36 @@ async function confirmIdentity(page: Page) {
 
 async function shot(page: Page, name: string) {
 	if (!shots) return;
-	await page.screenshot({ path: `${shots}/b5-${name}-${page.viewportSize()?.width}.png`, fullPage: true });
+	await page.screenshot({
+		path: `${shots}/b5-${name}-${page.viewportSize()?.width}.png`,
+		fullPage: true
+	});
 }
 
 test.describe('settings', () => {
 	test('overview links every area the owner may open', async ({ page }) => {
 		await signIn(page);
-		await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings' }).click();
+		await page
+			.getByRole('navigation', { name: 'Main' })
+			.getByRole('link', { name: 'Settings' })
+			.click();
 		await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
 		const tabs = page.getByRole('navigation', { name: 'Settings sections' });
-		for (const name of ['Profile and security', 'API tokens', 'Sign-in policy', 'Schedule defaults', 'Audit log', 'Diagnostics'])
+		for (const name of [
+			'Profile and security',
+			'API tokens',
+			'Sign-in policy',
+			'Schedule defaults',
+			'Audit log',
+			'Diagnostics'
+		])
 			await expect(tabs.getByRole('link', { name })).toBeVisible();
 	});
 
-	test('this DockYard: rename it, deployment settings read-only (#4)', async ({ page, baseURL }) => {
+	test('this DockYard: rename it, deployment settings read-only (#4)', async ({
+		page,
+		baseURL
+	}) => {
 		await signIn(page);
 		await page.goto('/settings');
 		const card = page.getByRole('region', { name: 'About this DockYard' });
@@ -58,7 +74,9 @@ test.describe('settings', () => {
 		await expect(card).toContainText('Enter a name.');
 		await card.getByLabel('Name').fill(`  ${name}  `);
 		await card.getByRole('button', { name: 'Rename DockYard' }).click();
-		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(`Renamed DockYard to ${name}`);
+		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(
+			`Renamed DockYard to ${name}`
+		);
 		await expect(card).toContainText(name);
 		const settings = await (await page.request.get('/api/v1/settings')).json();
 		expect(settings.name).toBe(name);
@@ -78,7 +96,9 @@ test.describe('settings', () => {
 		const value = await page.getByLabel('API token', { exact: true }).textContent();
 		expect(value).toMatch(/^dy_/);
 		// The token works as a bearer credential for what it was granted.
-		const res = await page.request.get('/api/v1/stacks', { headers: { Authorization: `Bearer ${value!.trim()}` } });
+		const res = await page.request.get('/api/v1/stacks', {
+			headers: { Authorization: `Bearer ${value!.trim()}` }
+		});
 		expect(res.status()).toBe(200);
 		await page.getByRole('checkbox', { name: /I stored the API token/ }).check();
 		await page.getByRole('button', { name: 'Done' }).click();
@@ -89,7 +109,9 @@ test.describe('settings', () => {
 		await row.getByRole('button', { name: 'Revoke' }).click();
 		await page.getByRole('alertdialog').getByRole('button', { name: 'Revoke token' }).click();
 		await expect(page.getByText(`Revoked the API token ${name}`)).toBeVisible();
-		const after = await page.request.get('/api/v1/stacks', { headers: { Authorization: `Bearer ${value!.trim()}` } });
+		const after = await page.request.get('/api/v1/stacks', {
+			headers: { Authorization: `Bearer ${value!.trim()}` }
+		});
 		expect(after.status()).toBe(401);
 	});
 
@@ -103,7 +125,10 @@ test.describe('settings', () => {
 		await table.getByRole('button').first().click();
 		const drawer = page.getByRole('dialog');
 		await expect(drawer.getByText('Chain position')).toBeVisible();
-		await expect(page.getByRole('link', { name: 'Export CSV' })).toHaveAttribute('href', /\/api\/v1\/audit\/exports\?format=csv&category=identity/);
+		await expect(page.getByRole('link', { name: 'Export CSV' })).toHaveAttribute(
+			'href',
+			/\/api\/v1\/audit\/exports\?format=csv&category=identity/
+		);
 		await shot(page, 'audit');
 	});
 
@@ -126,9 +151,14 @@ test.describe('settings', () => {
 	test('profile: recovery codes are shown once', async ({ page }) => {
 		await signIn(page);
 		await page.goto('/settings/security');
-		await expect(page.getByRole('heading', { level: 1, name: 'Profile and security' })).toBeVisible();
+		await expect(
+			page.getByRole('heading', { level: 1, name: 'Profile and security' })
+		).toBeVisible();
 		await page.getByRole('button', { name: 'Generate new codes' }).click();
-		await page.getByRole('alertdialog').getByRole('button', { name: 'Generate new codes' }).click();
+		await page
+			.getByRole('alertdialog')
+			.getByRole('button', { name: 'Generate new codes' })
+			.click();
 		await confirmIdentity(page);
 		const dialog = page.getByRole('dialog', { name: 'Your new recovery codes' });
 		await expect(dialog.getByLabel('recovery codes', { exact: true })).toBeVisible();

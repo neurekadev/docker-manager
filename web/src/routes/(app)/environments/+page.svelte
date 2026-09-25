@@ -221,7 +221,6 @@
 		<PageHeader
 			title="Environments"
 			description="Docker hosts with a connected DockYard agent. Each agent dials out to this DockYard; hosts open no ports."
-			icon={Server}
 		>
 			{#snippet actions()}
 				{#if canEnroll}

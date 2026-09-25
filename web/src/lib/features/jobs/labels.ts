@@ -3,6 +3,7 @@
 // is injectable for tests.
 import type { Job } from '$lib/api/client';
 import { formatDuration } from '$lib/ui/format';
+import { routes } from '$lib/routes';
 
 /** Every job kind of the catalog (docs/architecture/job-engine.md). */
 export const JOB_KIND_LABELS: Record<string, string> = {
@@ -111,11 +112,11 @@ export function jobTitle(job: Pick<Job, 'kind' | 'targets'>, nameOf?: NameOf): s
 
 /** Where the policy that started a job is managed, by job kind. */
 export function policyPage(kind: string): { href: string; label: string } {
-	if (kind.startsWith('prune.')) return { href: '/maintenance', label: 'Prune policy' };
-	if (kind.startsWith('update.')) return { href: '/updates', label: 'Update policy' };
+	if (kind.startsWith('prune.')) return { href: routes.maintenance(), label: 'Prune policy' };
+	if (kind.startsWith('update.')) return { href: routes.updates(), label: 'Update policy' };
 	if (kind.startsWith('backup.') || kind.startsWith('manager.'))
-		return { href: '/backups', label: 'Backup policy' };
-	return { href: '/schedules', label: 'Policy' };
+		return { href: routes.backupPolicies(), label: 'Backup policy' };
+	return { href: routes.schedules(), label: 'Policy' };
 }
 
 /** "container homeassistant" (the noun helps where kinds are mixed). */

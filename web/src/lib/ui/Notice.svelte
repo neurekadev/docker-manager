@@ -39,7 +39,7 @@
 	<Icon size={18} strokeWidth={1.75} aria-hidden="true" class="notice-icon" />
 	<div class="text">
 		<p class="title">{title}</p>
-		{#if children}<div class="body">{@render children()}</div>{/if}
+		{#if children}<div class="body notice-body">{@render children()}</div>{/if}
 	</div>
 	{#if actions}<div class="actions">{@render actions()}</div>{/if}
 </div>
@@ -118,5 +118,17 @@
 		flex-wrap: wrap;
 		gap: var(--space-2);
 		align-self: center;
+	}
+
+	/* Phones: actions move under the text instead of squeezing it. */
+	@media (max-width: 767px) {
+		.notice:not(.bar) {
+			flex-wrap: wrap;
+		}
+
+		.notice:not(.bar) .actions {
+			flex-basis: 100%;
+			padding-left: calc(18px + var(--space-3));
+		}
 	}
 </style>

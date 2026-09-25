@@ -55,9 +55,12 @@ export function formatRelative(iso: string | Date, now: Date = new Date()): stri
 	let unit: Intl.RelativeTimeFormatUnit = 'year';
 	let div = 86400 * 365;
 	for (let i = 0; i < table.length; i++) {
-		if (abs < table[i][0]) {
+		const d = i === 0 ? 1 : table[i - 1][0];
+		// Pick the unit by the rounded value, so 59.6 s reads "1 minute ago"
+		// rather than "60 seconds ago".
+		if (Math.round(abs / d) * d < table[i][0]) {
 			unit = table[i][1];
-			div = i === 0 ? 1 : table[i - 1][0];
+			div = d;
 			break;
 		}
 	}

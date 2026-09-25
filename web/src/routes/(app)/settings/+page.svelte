@@ -73,76 +73,82 @@
 		description="Your profile, sign-in security and API tokens, and the settings of this DockYard."
 	/>
 
-	<section class="grid" aria-label="Your account">
-		<SettingsLink
-			href={routes.security()}
-			icon={UserRound}
-			color="blue"
-			title="Profile and security"
-			text={me
-				? `Signs in with ${factorsText(me.factors).toLowerCase()}`
-				: 'Password, authenticator app, passkeys and recovery codes'}
-		/>
-		<SettingsLink
-			href={routes.apiTokens()}
-			icon={KeyRound}
-			color="violet"
-			title="API tokens"
-			text={tokens.data
-				? `${activeTokens} active ${activeTokens === 1 ? 'token' : 'tokens'}`
-				: 'Tokens for scripts and integrations'}
-		/>
+	<section class="group" aria-labelledby="settings-account">
+		<h2 id="settings-account">Your account</h2>
+		<div class="grid">
+			<SettingsLink
+				href={routes.security()}
+				icon={UserRound}
+				color="blue"
+				title="Profile and security"
+				text={me
+					? `Signs in with ${factorsText(me.factors).toLowerCase()}`
+					: 'Password, authenticator app, passkeys and recovery codes'}
+			/>
+			<SettingsLink
+				href={routes.apiTokens()}
+				icon={KeyRound}
+				color="violet"
+				title="API tokens"
+				text={tokens.data
+					? `${activeTokens} active ${activeTokens === 1 ? 'token' : 'tokens'}`
+					: 'Tokens for scripts and integrations'}
+			/>
+		</div>
 	</section>
 
 	{#if access.owner || can(access, 'settings.read') || can(access, 'audit.read')}
-		<section class="grid" aria-label="This DockYard">
-			{#if access.owner}
-				<SettingsLink
-					href={routes.signInPolicy()}
-					icon={ShieldCheck}
-					color="green"
-					title="Sign-in policy"
-					text={security.data
-						? `${FACTOR_POLICY[security.data.requiredFactors]}; API tokens ${security.data.apiTokensEnabled ? 'on' : 'off'}`
-						: 'Passwords, required factors, invitations and API tokens'}
-				/>
-			{/if}
-			{#if can(access, 'settings.read')}
-				<SettingsLink
-					href={routes.scheduleDefaults()}
-					icon={CalendarClock}
-					color="cyan"
-					title="Schedule defaults"
-					text={defaults.data
-						? `Default time zone ${defaults.data.timeZone}`
-						: 'Defaults of new backup, update and prune schedules'}
-				/>
-				<SettingsLink
-					href={routes.maintenanceDefaults()}
-					icon={Wrench}
-					color="slate"
-					title="Maintenance defaults"
-					text="The prune rules new maintenance policies start with"
-				/>
-			{/if}
-			{#if can(access, 'audit.read')}
-				<SettingsLink
-					href={routes.audit()}
-					icon={ScrollText}
-					color="indigo"
-					title="Audit log"
-					text="Who did what, when, and the result"
-				/>
-			{/if}
-			{#if access.owner}
-				<SettingsLink
-					href={routes.diagnostics()}
-					icon={LifeBuoy}
-					color="rose"
-					title="Diagnostics"
-					text="Support bundle and internal metrics"
-				/>
-			{/if}
+		<section class="group" aria-labelledby="settings-instance">
+			<h2 id="settings-instance">This DockYard</h2>
+			<div class="grid">
+				{#if access.owner}
+					<SettingsLink
+						href={routes.signInPolicy()}
+						icon={ShieldCheck}
+						color="green"
+						title="Sign-in policy"
+						text={security.data
+							? `${FACTOR_POLICY[security.data.requiredFactors]}; API tokens ${security.data.apiTokensEnabled ? 'on' : 'off'}`
+							: 'Passwords, required factors, invitations and API tokens'}
+					/>
+				{/if}
+				{#if can(access, 'settings.read')}
+					<SettingsLink
+						href={routes.scheduleDefaults()}
+						icon={CalendarClock}
+						color="cyan"
+						title="Schedule defaults"
+						text={defaults.data
+							? `Default time zone ${defaults.data.timeZone}`
+							: 'Defaults of new backup, update and prune schedules'}
+					/>
+					<SettingsLink
+						href={routes.maintenanceDefaults()}
+						icon={Wrench}
+						color="slate"
+						title="Maintenance defaults"
+						text="The prune rules new maintenance policies start with"
+					/>
+				{/if}
+				{#if can(access, 'audit.read')}
+					<SettingsLink
+						href={routes.audit()}
+						icon={ScrollText}
+						color="indigo"
+						title="Audit log"
+						text="Who did what, when, and the result"
+					/>
+				{/if}
+				{#if access.owner}
+					<SettingsLink
+						href={routes.diagnostics()}
+						icon={LifeBuoy}
+						color="rose"
+						title="Diagnostics"
+						text="Support bundle and internal metrics"
+					/>
+				{/if}
+			</div>
 		</section>
 	{/if}
 
@@ -180,6 +186,21 @@
 </Page>
 
 <style>
+	/* Two groups (your own account, instance-wide settings), each titled so
+	   the grid's short rows read as groups rather than gaps. */
+	.group {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+
+	h2 {
+		font-size: var(--text-section);
+		line-height: var(--leading-section);
+		font-weight: var(--weight-semibold);
+		color: var(--text-strong);
+	}
+
 	.grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));

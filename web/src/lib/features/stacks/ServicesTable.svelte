@@ -5,6 +5,7 @@
 	// memory, and the row actions: open (only with a web port and an
 	// address), terminal (track B3's route with the service preselected) and
 	// a menu with the service's own start/stop/restart and logs.
+	import Box from '@lucide/svelte/icons/box';
 	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import FileText from '@lucide/svelte/icons/file-text';
@@ -78,14 +79,23 @@
 					onSelect: () => onoperate(s.name, 'stop')
 				});
 		}
-		if (can('container.logs.read')) {
+		const named = s.containers.filter((c) => c.name);
+		if (can('container.logs.read') || (can('container.details.read') && named.length)) {
 			if (items.length) items.push({ separator: true });
+		}
+		if (can('container.logs.read'))
 			items.push({
 				label: 'View logs',
 				icon: FileText,
 				href: routes.stack(stack.id, 'logs')
 			});
-		}
+		if (can('container.details.read'))
+			for (const c of named)
+				items.push({
+					label: named.length === 1 ? 'Container details' : `Container ${c.name}`,
+					icon: Box,
+					href: routes.container(stack.environmentId, c.name!)
+				});
 		return items;
 	}
 

@@ -4,7 +4,6 @@
 	// the signed-in layout).
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
-	import Archive from '@lucide/svelte/icons/archive';
 	import { routes } from '$lib/routes';
 	import { DeniedState, PageHeader, TabNav } from '$lib/ui';
 	import Page from '$lib/features/resources/Page.svelte';
@@ -26,8 +25,6 @@
 		<PageHeader
 			title="Registries"
 			description="Credentials DockYard uses to pull private images and build from private repositories. Secrets are entered once and never shown again."
-			icon={Archive}
-			color="slate"
 		/>
 		<TabNav
 			label="Registry sections"

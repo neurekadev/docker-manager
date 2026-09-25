@@ -227,7 +227,7 @@ func (s *Service) openStacks() (FS, string, error) {
 		return nil, "", err
 	}
 	if !res.StacksOK() {
-		return nil, "", fail(protocol.CodeForbiddenPath, "the stacks volume did not pass the storage check (#28)")
+		return nil, "", fail(protocol.CodeForbiddenPath, "the stacks volume did not pass the storage check")
 	}
 	rfs, err := s.opts.Open(res.StacksDir)
 	if err != nil {

@@ -5,6 +5,7 @@
 //	go run ./test/devstack               # seeded, owner "admin" signed up
 //	go run ./test/devstack -setup        # first-run setup still open
 //	go run ./test/devstack -addr 127.0.0.1:8090 -keep
+//	go run ./test/devstack -control 127.0.0.1:8081   # tests change Engines directly
 //
 // It is a test tool: it lives under test/, is never built into images or
 // the build-static release binaries, and must never be exposed beyond
@@ -53,6 +54,7 @@ type options struct {
 	setup    bool
 	logLevel string
 	backups  string
+	control  string
 }
 
 func main() {
@@ -65,6 +67,8 @@ func main() {
 	flag.StringVar(&o.logLevel, "log-level", "warn", "manager log level (debug, info, warn, error)")
 	flag.StringVar(&o.backups, "backups", filepath.Join(os.TempDir(), "dockyard-devstack-backups"),
 		"local backup root and simulated restic state; a seeded run starts it fresh, -setup keeps it (import it from setup)")
+	flag.StringVar(&o.control, "control", "",
+		"loopback address of the control listener that changes the fake Engines directly, bypassing DockYard (control.go; off when empty)")
 	flag.Parse()
 	if err := run(o); err != nil {
 		fmt.Fprintln(os.Stderr, "devstack:", err)
@@ -142,6 +146,13 @@ func run(o options) error {
 		stop()
 		<-errCh
 		return fmt.Errorf("seed: %w", err)
+	}
+	if o.control != "" && !o.setup {
+		if err := s.serveControl(ctx, o.control); err != nil {
+			stop()
+			<-errCh
+			return fmt.Errorf("control: %w", err)
+		}
 	}
 	s.printSummary(os.Stdout, !o.setup)
 	err = <-errCh

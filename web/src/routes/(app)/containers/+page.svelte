@@ -205,8 +205,6 @@
 			description="Every container on {scope.single
 				? scope.targets[0]?.name
 				: 'your environments'}, running or not."
-			icon={ContainerIcon}
-			color="blue"
 		>
 			{#snippet actions()}
 				{#if creatable.length}

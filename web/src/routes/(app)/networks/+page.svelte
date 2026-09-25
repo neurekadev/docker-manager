@@ -193,8 +193,6 @@
 			description="How containers on {scope.single
 				? scope.targets[0]?.name
 				: 'your environments'} reach each other."
-			icon={Network}
-			color="indigo"
 		>
 			{#snippet actions()}
 				{#if creatable.length}

@@ -38,13 +38,19 @@ test.describe('one HTTPS origin', () => {
 		expect(page.url()).toMatch(/^https:\/\//);
 		await expect(page.getByRole('heading', { name: 'DockYard' })).toBeVisible();
 		const protocol = await page.evaluate(
-			() => (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming).nextHopProtocol
+			() =>
+				(performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming)
+					.nextHopProtocol
 		);
 		expect(protocol).toBe('h2');
 
 		const api = await page.evaluate(async () => {
 			const r = await fetch('/api/v1/health');
-			return { status: r.status, cacheControl: r.headers.get('cache-control'), body: await r.json() };
+			return {
+				status: r.status,
+				cacheControl: r.headers.get('cache-control'),
+				body: await r.json()
+			};
 		});
 		expect(api.status).toBe(200);
 		expect(api.cacheControl).toBe('no-store');
@@ -52,7 +58,9 @@ test.describe('one HTTPS origin', () => {
 
 		// The manager sees the public origin: https via a trusted proxy, the
 		// browser's host, so first-run setup would be allowed (#16).
-		const info = await page.evaluate(async () => (await fetch('/api/v1/__e2e/request-info')).json());
+		const info = await page.evaluate(async () =>
+			(await fetch('/api/v1/__e2e/request-info')).json()
+		);
 		expect(info).toMatchObject({
 			trustedPeer: true,
 			scheme: 'https',
@@ -65,7 +73,9 @@ test.describe('one HTTPS origin', () => {
 
 test.describe('forwarded headers', () => {
 	test('spoofed X-Forwarded-* from the client are ignored', async ({ request, baseURL }) => {
-		const plain = (await (await request.get('/api/v1/__e2e/request-info')).json()) as RequestInfo;
+		const plain = (await (
+			await request.get('/api/v1/__e2e/request-info')
+		).json()) as RequestInfo;
 		expect(plain.trustedPeer).toBe(true);
 		expect(plain.scheme).toBe('https');
 		expect(plain.clientIp).not.toBe(plain.peer); // the client, not the proxy
@@ -87,7 +97,9 @@ test.describe('forwarded headers', () => {
 		expect(spoofed.forwardedHeaders).toEqual([]);
 	});
 
-	test('an untrusted peer cannot claim HTTPS or another client IP', async ({ request }, testInfo) => {
+	test('an untrusted peer cannot claim HTTPS or another client IP', async ({
+		request
+	}, testInfo) => {
 		const direct = DIRECT_URL[testInfo.project.name];
 		test.skip(!direct, 'E2E_BASE_URL runs have no direct manager port');
 		const res = await request.get(`${direct}/api/v1/__e2e/request-info`, {
@@ -114,14 +126,19 @@ test.describe('forwarded headers', () => {
 test.describe('credential separation', () => {
 	test('agent credentials cannot call the public API', async ({ request }) => {
 		for (const token of ['dya_e2e-fake-agent-credential', 'dye_e2e-fake-enrollment-token']) {
-			const res = await request.get('/api/v1/health', { headers: { Authorization: `Bearer ${token}` } });
+			const res = await request.get('/api/v1/health', {
+				headers: { Authorization: `Bearer ${token}` }
+			});
 			expect(res.status()).toBe(401);
 			expect(((await res.json()) as { code: string }).code).toBe('unauthenticated');
 		}
 		expect((await request.get('/api/v1/health')).status()).toBe(200);
 	});
 
-	test('browser cookies never reach agent routes; other bearer tokens are refused', async ({ page, request }) => {
+	test('browser cookies never reach agent routes; other bearer tokens are refused', async ({
+		page,
+		request
+	}) => {
 		await page.goto('/');
 		await page.evaluate(() => {
 			document.cookie = 'dockyard_session=e2e-fake-session; Path=/; Secure; SameSite=Strict';
@@ -137,18 +154,27 @@ test.describe('credential separation', () => {
 			headers: { Authorization: 'Bearer dyt_e2e-fake-api-token' }
 		});
 		expect(res.status()).toBe(401);
-		expect(await res.json()).toMatchObject({ code: 'unauthenticated', message: 'agent authentication failed' });
+		expect(await res.json()).toMatchObject({
+			code: 'unauthenticated',
+			message: 'agent authentication failed'
+		});
 	});
 });
 
 test.describe('streams stay open through the proxy', () => {
-	test('SSE survives idle beyond the proxy timeout, unbuffered, with heartbeats', async ({ page }) => {
+	test('SSE survives idle beyond the proxy timeout, unbuffered, with heartbeats', async ({
+		page
+	}) => {
 		test.setTimeout(IDLE_MS + 60_000);
 		await page.goto('/');
-		const r = await sseTimeline(page, `/api/v1/__e2e/sse?idle_ms=${IDLE_MS}&n=2&interval_ms=100`, {
-			until: 'done',
-			timeoutMs: IDLE_MS + 40_000
-		});
+		const r = await sseTimeline(
+			page,
+			`/api/v1/__e2e/sse?idle_ms=${IDLE_MS}&n=2&interval_ms=100`,
+			{
+				until: 'done',
+				timeoutMs: IDLE_MS + 40_000
+			}
+		);
 		expect(r.status).toBe(200);
 		expect(r.contentType).toBe('text/event-stream');
 		expect(r.cacheControl).toBe('no-store');

@@ -228,8 +228,6 @@
 			description="Persistent data on {scope.single
 				? scope.targets[0]?.name
 				: 'your environments'}, and the containers that use it."
-			icon={HardDrive}
-			color="teal"
 		>
 			{#snippet actions()}
 				{#if creatable.length}

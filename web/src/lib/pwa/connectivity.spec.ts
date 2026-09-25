@@ -77,7 +77,7 @@ describe('web app manifest', () => {
 		);
 	});
 
-	it('app.html links the manifest and repeats the placeholder theme colour', () => {
+	it('app.html links the manifest and repeats the token theme colour', () => {
 		expect(appHtml).toContain('<link rel="manifest" href="/manifest.webmanifest" />');
 		expect(appHtml).toContain(`<meta name="theme-color" content="${THEME_COLOR}" />`);
 		expect(webManifest.theme_color).toBe(THEME_COLOR);

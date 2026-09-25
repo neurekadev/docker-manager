@@ -40,7 +40,7 @@
 	}));
 </script>
 
-<Page narrow>
+<Page>
 	<SettingsHeader
 		title="Diagnostics"
 		description="Material for troubleshooting and monitoring DockYard itself."

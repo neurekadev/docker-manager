@@ -63,9 +63,16 @@ async function onlineEnvironments(page: Page): Promise<Env[]> {
 }
 
 /** The first object of a list route (in any online environment) matching pred. */
-async function findIn<T extends Named>(page: Page, kind: string, pred: (x: T) => boolean): Promise<T | undefined> {
+async function findIn<T extends Named>(
+	page: Page,
+	kind: string,
+	pred: (x: T) => boolean
+): Promise<T | undefined> {
 	for (const env of await onlineEnvironments(page)) {
-		const list = await apiGet<{ items: T[] }>(page, `/api/v1/environments/${env.id}/${kind}?limit=200`);
+		const list = await apiGet<{ items: T[] }>(
+			page,
+			`/api/v1/environments/${env.id}/${kind}?limit=200`
+		);
 		const hit = list.items.find(pred);
 		if (hit) return hit;
 	}
@@ -74,14 +81,24 @@ async function findIn<T extends Named>(page: Page, kind: string, pred: (x: T) =>
 
 test.beforeEach(async ({ request }) => {
 	const status = await (await request.get('/api/v1/setup/status')).json();
-	test.skip(!status.setupComplete, 'first-run setup is not complete on this manager (ui.spec.ts does it)');
+	test.skip(
+		!status.setupComplete,
+		'first-run setup is not complete on this manager (ui.spec.ts does it)'
+	);
 });
 
 test.describe('DockYard protects itself in the UI (#32)', () => {
-	test("stopping and removing the connected agent fail with the reason", async ({ page }) => {
+	test('stopping and removing the connected agent fail with the reason', async ({ page }) => {
 		await signIn(page);
-		const agent = await findIn<Named>(page, 'containers', (c) => c.protection?.role === 'agent' && c.protection.self);
-		test.skip(!agent, "no connected agent runs in a container here (the devstack seeds one on homelab)");
+		const agent = await findIn<Named>(
+			page,
+			'containers',
+			(c) => c.protection?.role === 'agent' && c.protection.self
+		);
+		test.skip(
+			!agent,
+			'no connected agent runs in a container here (the devstack seeds one on homelab)'
+		);
 		await page.goto(`/containers/${agent!.environmentId}/${encodeURIComponent(agent!.name)}`);
 		await expect(page.getByRole('heading', { level: 1, name: agent!.name })).toBeVisible();
 		await expect(page.getByText('DockYard system').first()).toBeVisible();
@@ -91,7 +108,9 @@ test.describe('DockYard protects itself in the UI (#32)', () => {
 		await page.getByRole('button', { name: 'Stop', exact: true }).click();
 		const stop = page.getByRole('alertdialog', { name: `Stop ${agent!.name}?` });
 		await stop.getByRole('button', { name: 'Stop container' }).click();
-		await expect(stop.getByRole('alert')).toContainText("DockYard's own agent can't be stopped from DockYard.");
+		await expect(stop.getByRole('alert')).toContainText(
+			"DockYard's own agent can't be stopped from DockYard."
+		);
 		await expect(stop.getByRole('alert')).toContainText('cuts DockYard off from this host');
 		await stop.getByRole('button', { name: 'Cancel' }).click();
 		await expect(stop).toBeHidden();
@@ -108,10 +127,16 @@ test.describe('DockYard protects itself in the UI (#32)', () => {
 		await remove.getByRole('button', { name: 'Close' }).click();
 
 		// The API refuses too (the UI never relies on hiding): a direct DELETE answers 409 protected.
-		const res = await page.evaluate(async (path) => {
-			const r = await fetch(path, { method: 'DELETE', headers: { Accept: 'application/json', 'Idempotency-Key': crypto.randomUUID() } });
-			return { status: r.status, body: await r.json() };
-		}, `/api/v1/environments/${agent!.environmentId}/containers/${encodeURIComponent(agent!.name)}?force=true`);
+		const res = await page.evaluate(
+			async (path) => {
+				const r = await fetch(path, {
+					method: 'DELETE',
+					headers: { Accept: 'application/json', 'Idempotency-Key': crypto.randomUUID() }
+				});
+				return { status: r.status, body: await r.json() };
+			},
+			`/api/v1/environments/${agent!.environmentId}/containers/${encodeURIComponent(agent!.name)}?force=true`
+		);
 		expect(res.status).toBe(409);
 		expect(res.body.code).toBe('protected');
 	});
@@ -137,7 +162,10 @@ test.describe('DockYard protects itself in the UI (#32)', () => {
 		await expect(page.getByRole('link', { name: 'Migrate' })).toHaveCount(0);
 
 		const res = await page.evaluate(async (path) => {
-			const r = await fetch(path, { method: 'DELETE', headers: { Accept: 'application/json', 'Idempotency-Key': crypto.randomUUID() } });
+			const r = await fetch(path, {
+				method: 'DELETE',
+				headers: { Accept: 'application/json', 'Idempotency-Key': crypto.randomUUID() }
+			});
 			return { status: r.status, body: await r.json() };
 		}, `/api/v1/environments/${stacks!.environmentId}/volumes/${stacks!.name}`);
 		expect(res.status).toBe(409);
@@ -146,7 +174,9 @@ test.describe('DockYard protects itself in the UI (#32)', () => {
 });
 
 test.describe('Docker resources (#6)', () => {
-	test('containers: filters, detail tabs and keyboard access to row actions', async ({ page }) => {
+	test('containers: filters, detail tabs and keyboard access to row actions', async ({
+		page
+	}) => {
 		await signIn(page);
 		test.skip((await onlineEnvironments(page)).length === 0, 'needs a connected environment');
 		await page.goto('/containers');
@@ -156,10 +186,15 @@ test.describe('Docker resources (#6)', () => {
 		const total = await table.getByRole('row').count();
 
 		await page.getByLabel('State').selectOption('exited');
-		for (const status of await table.getByRole('row').locator('td:nth-child(2)').allInnerTexts())
+		for (const status of await table
+			.getByRole('row')
+			.locator('td:nth-child(2)')
+			.allInnerTexts())
 			expect(status).toContain('Exited');
 		await page.getByLabel('State').selectOption('');
-		await page.getByRole('searchbox', { name: 'Search containers' }).fill('zzz-no-such-container');
+		await page
+			.getByRole('searchbox', { name: 'Search containers' })
+			.fill('zzz-no-such-container');
 		await expect(page.getByText('No containers match these filters.')).toBeVisible();
 		await page.getByRole('button', { name: 'Clear filters' }).click();
 		await expect(table.getByRole('row')).toHaveCount(total);
@@ -174,10 +209,11 @@ test.describe('Docker resources (#6)', () => {
 		await expect(menuButton).toBeFocused();
 
 		await first.getByRole('link').first().click();
-		await expect(page.getByRole('navigation', { name: 'Container sections' }).getByRole('link', { name: 'Overview' })).toHaveAttribute(
-			'aria-current',
-			'page'
-		);
+		await expect(
+			page
+				.getByRole('navigation', { name: 'Container sections' })
+				.getByRole('link', { name: 'Overview' })
+		).toHaveAttribute('aria-current', 'page');
 		await expect(page.getByRole('heading', { name: 'Configuration' })).toBeVisible();
 		if (shots) {
 			await page.screenshot({ path: `${shots}/b4-container-1440.png`, fullPage: true });
@@ -195,27 +231,42 @@ test.describe('Docker resources (#6)', () => {
 		for (const kind of ['volume', 'network'] as const) {
 			const name = `b4-e2e-${kind}-${suffix}`;
 			await page.goto(`/${kind}s`);
-			await page.getByRole('button', { name: `Create ${kind}` }).first().click();
+			await page
+				.getByRole('button', { name: `Create ${kind}` })
+				.first()
+				.click();
 			const dialog = page.getByRole('dialog', { name: `Create a ${kind}` });
 			if (envs.length > 1) await dialog.getByLabel('Environment').selectOption(envs[0].id);
 			await dialog.getByLabel('Name').fill(name);
 			await dialog.getByRole('button', { name: `Create ${kind}` }).click();
-			await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(`Created ${name}`);
+			await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(
+				`Created ${name}`
+			);
 			const row = page.getByRole('row', { name: new RegExp(name) });
 			await expect(row).toBeVisible();
 
 			await row.getByRole('button', { name: `Actions for ${name}` }).click();
 			await page.getByRole('menuitem', { name: 'Remove…' }).click();
 			const confirm = page.getByRole('alertdialog', { name: `Remove ${name}?` });
-			await expect(confirm).toContainText(kind === 'volume' ? 'deleted permanently' : 'The network is deleted');
+			await expect(confirm).toContainText(
+				kind === 'volume' ? 'deleted permanently' : 'The network is deleted'
+			);
 			await confirm.getByLabel(`Type ${name} to confirm`).fill(name);
-			await confirm.getByRole('button', { name: kind === 'volume' ? 'Remove volume and its data' : 'Remove network' }).click();
-			await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(`Removed ${name}`);
+			await confirm
+				.getByRole('button', {
+					name: kind === 'volume' ? 'Remove volume and its data' : 'Remove network'
+				})
+				.click();
+			await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(
+				`Removed ${name}`
+			);
 			await expect(page.getByRole('row', { name: new RegExp(name) })).toHaveCount(0);
 		}
 	});
 
-	test('pull an image, create a container from it, remove it (#19 match preview, #25 no implicit pull)', async ({ page }) => {
+	test('pull an image, create a container from it, remove it (#19 match preview, #25 no implicit pull)', async ({
+		page
+	}) => {
 		await signIn(page);
 		const envs = await onlineEnvironments(page);
 		test.skip(envs.length === 0, 'needs a connected environment');
@@ -234,8 +285,12 @@ test.describe('Docker resources (#6)', () => {
 		// The match preview names the connection (or anonymous access) before anything runs.
 		await expect(pull.getByText(/^Uses |^Pulls anonymously/)).toBeVisible();
 		await pull.getByRole('button', { name: 'Pull image' }).click();
-		await expect(pull.getByText('Succeeded', { exact: true }).first()).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(`Pulled ${image}`);
+		await expect(pull.getByText('Succeeded', { exact: true }).first()).toBeVisible({
+			timeout: 20_000
+		});
+		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(
+			`Pulled ${image}`
+		);
 		await pull.getByRole('button', { name: 'Done' }).click();
 		await expect(page.getByText(`${image} is not on ${env.name}`)).toBeHidden();
 
@@ -244,8 +299,12 @@ test.describe('Docker resources (#6)', () => {
 		await page.getByRole('button', { name: 'Add port' }).click();
 		await page.getByLabel('Container port').fill('8080');
 		await page.getByRole('button', { name: 'Create container' }).click();
-		await expect(page).toHaveURL(new RegExp(`/containers/${env.id}/${name}$`), { timeout: 20_000 });
-		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(`Created ${name}`);
+		await expect(page).toHaveURL(new RegExp(`/containers/${env.id}/${name}$`), {
+			timeout: 20_000
+		});
+		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(
+			`Created ${name}`
+		);
 		// Environment variables: names only.
 		await expect(page.getByText('GREETING')).toBeVisible();
 		await expect(page.getByText('hello')).toHaveCount(0);
@@ -259,11 +318,17 @@ test.describe('Docker resources (#6)', () => {
 		await expect(page.getByRole('row', { name: new RegExp(name) })).toHaveCount(0);
 	});
 
-	test('volume migration shows the preflight before anything is copied (#35)', async ({ page }) => {
+	test('volume migration shows the preflight before anything is copied (#35)', async ({
+		page
+	}) => {
 		await signIn(page);
 		const envs = await onlineEnvironments(page);
 		test.skip(envs.length < 2, 'needs two connected environments');
-		const vol = await findIn<Named & { inUse: boolean }>(page, 'volumes', (v) => !v.protection && v.inUse);
+		const vol = await findIn<Named & { inUse: boolean }>(
+			page,
+			'volumes',
+			(v) => !v.protection && v.inUse
+		);
 		test.skip(!vol, 'needs an unprotected volume in use');
 		await page.goto(`/volumes/${vol!.environmentId}/${vol!.name}/migrate`);
 		await expect(page.getByRole('heading', { name: 'Destination' })).toBeVisible();
@@ -272,12 +337,17 @@ test.describe('Docker resources (#6)', () => {
 		await expect(page.getByRole('heading', { name: 'Check' })).toBeVisible();
 		// Nothing was copied: the source is intact and the start waits for the preflight.
 		const blocked = page.getByText("The migration can't start yet");
-		if (await blocked.isVisible()) await expect(page.getByRole('button', { name: 'Migrate volume' })).toBeDisabled();
+		if (await blocked.isVisible())
+			await expect(page.getByRole('button', { name: 'Migrate volume' })).toBeDisabled();
 		else await expect(page.getByText('Expected time')).toBeVisible();
 	});
 
 	test('narrow layout: stacked rows and full-screen dialogs', async ({ browser, baseURL }) => {
-		const ctx = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, ignoreHTTPSErrors: process.env.E2E_IGNORE_HTTPS_ERRORS === '1' });
+		const ctx = await browser.newContext({
+			baseURL,
+			viewport: { width: 390, height: 844 },
+			ignoreHTTPSErrors: process.env.E2E_IGNORE_HTTPS_ERRORS === '1'
+		});
 		const page = await ctx.newPage();
 		await signIn(page);
 		test.skip((await onlineEnvironments(page)).length === 0, 'needs a connected environment');
@@ -285,9 +355,15 @@ test.describe('Docker resources (#6)', () => {
 			await page.goto(path);
 			await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 			// No horizontal scrolling on a phone.
-			const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+			const overflow = await page.evaluate(
+				() => document.documentElement.scrollWidth - document.documentElement.clientWidth
+			);
 			expect(overflow, path).toBeLessThanOrEqual(1);
-			if (shots) await page.screenshot({ path: `${shots}/b4${path.replace('/', '-')}-390.png`, fullPage: true });
+			if (shots)
+				await page.screenshot({
+					path: `${shots}/b4${path.replace('/', '-')}-390.png`,
+					fullPage: true
+				});
 		}
 		await ctx.close();
 	});
@@ -297,13 +373,23 @@ test.describe('Access (#17)', () => {
 	test('a user without grants gets the denied state, not an empty list', async ({ page }) => {
 		const guest = process.env.E2E_UI_GUEST ?? '';
 		const guestPassword = process.env.E2E_UI_GUEST_PASSWORD ?? '';
-		test.skip(!guest || !guestPassword, 'set E2E_UI_GUEST / E2E_UI_GUEST_PASSWORD (the devstack has guest)');
+		test.skip(
+			!guest || !guestPassword,
+			'set E2E_UI_GUEST / E2E_UI_GUEST_PASSWORD (the devstack has guest)'
+		);
 		await page.goto('/sign-in');
 		await page.getByLabel('Username').fill(guest);
 		await page.getByLabel('Password', { exact: true }).fill(guestPassword);
 		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 		await expect(page).not.toHaveURL(/\/sign-in/);
-		for (const path of ['/containers', '/images', '/volumes', '/networks', '/builds', '/registries']) {
+		for (const path of [
+			'/containers',
+			'/images',
+			'/volumes',
+			'/networks',
+			'/builds',
+			'/registries'
+		]) {
 			await page.goto(path);
 			await expect(page.getByTestId('denied-state'), path).toBeVisible();
 		}
@@ -311,10 +397,16 @@ test.describe('Access (#17)', () => {
 });
 
 test.describe('Builds (#33)', () => {
-	test('save, list and delete a build definition; build arguments carry the history warning', async ({ page }) => {
+	test('save, list and delete a build definition; build arguments carry the history warning', async ({
+		page
+	}) => {
 		await signIn(page);
 		const envs = await apiGet<{ items: Env[] }>(page, '/api/v1/environments?limit=200');
-		test.skip(envs.items.length === 0 || !(await apiGet<{ owner: boolean }>(page, '/api/v1/me/permissions')).owner, 'needs an environment and the owner');
+		test.skip(
+			envs.items.length === 0 ||
+				!(await apiGet<{ owner: boolean }>(page, '/api/v1/me/permissions')).owner,
+			'needs an environment and the owner'
+		);
 		const name = `b4-e2e-${Date.now().toString(36)}`;
 		await page.goto('/builds/definitions');
 		await page.getByRole('button', { name: 'New definition' }).first().click();
@@ -325,23 +417,37 @@ test.describe('Builds (#33)', () => {
 		await dialog.getByLabel('Repository URL').fill('https://github.com/acme/app.git');
 		await dialog.getByLabel('Image names').fill('registry.example.com/acme/app:e2e');
 		await dialog.getByLabel('Build arguments').fill('NODE_VERSION=22');
-		await expect(dialog.getByText('Build arguments are visible in the image history')).toBeVisible();
+		await expect(
+			dialog.getByText('Build arguments are visible in the image history')
+		).toBeVisible();
 		await dialog.getByRole('button', { name: 'Save definition' }).click();
-		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(`Saved the build definition ${name}`);
+		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(
+			`Saved the build definition ${name}`
+		);
 		const row = page.getByRole('row', { name: new RegExp(name) });
 		await expect(row).toContainText('github.com/acme/app');
 		await row.getByRole('button', { name: `Actions for ${name}` }).click();
 		await page.getByRole('menuitem', { name: 'Delete…' }).click();
-		await page.getByRole('alertdialog', { name: `Delete ${name}?` }).getByRole('button', { name: 'Delete definition' }).click();
-		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(`Deleted ${name}`);
+		await page
+			.getByRole('alertdialog', { name: `Delete ${name}?` })
+			.getByRole('button', { name: 'Delete definition' })
+			.click();
+		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(
+			`Deleted ${name}`
+		);
 		await expect(page.getByRole('row', { name: new RegExp(name) })).toHaveCount(0);
 	});
 });
 
 test.describe('Registries (#19)', () => {
-	test('the owner adds a connection after a step-up; the secret is never shown again', async ({ page }) => {
+	test('the owner adds a connection after a step-up; the secret is never shown again', async ({
+		page
+	}) => {
 		await signIn(page);
-		test.skip(!(await apiGet<{ owner: boolean }>(page, '/api/v1/me/permissions')).owner, `${owner} is not the owner`);
+		test.skip(
+			!(await apiGet<{ owner: boolean }>(page, '/api/v1/me/permissions')).owner,
+			`${owner} is not the owner`
+		);
 		const run = Date.now().toString(36);
 		const name = `B4 e2e ${run}`;
 		const host = `registry-${run}.e2e.invalid:5000`;
@@ -377,7 +483,10 @@ test.describe('Registries (#19)', () => {
 
 		// Delete it again (type-to-confirm).
 		await page.getByRole('link', { name: 'Registry connections' }).click();
-		await page.getByRole('row', { name: new RegExp(name) }).getByRole('button', { name: `Actions for ${name}` }).click();
+		await page
+			.getByRole('row', { name: new RegExp(name) })
+			.getByRole('button', { name: `Actions for ${name}` })
+			.click();
 		await page.getByRole('menuitem', { name: 'Delete…' }).click();
 		const del = page.getByRole('alertdialog', { name: `Delete ${name}?` });
 		await del.getByLabel(`Type ${name} to confirm`).fill(name);

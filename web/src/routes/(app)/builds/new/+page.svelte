@@ -7,7 +7,6 @@
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import Hammer from '@lucide/svelte/icons/hammer';
 	import Play from '@lucide/svelte/icons/play';
 	import { api, unwrap } from '$lib/api/client';
 	import { queryKeys } from '$lib/api/queries';
@@ -41,8 +40,8 @@
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
 	usePage({
-		title: 'Build an image',
-		crumbs: [{ label: 'Builds', href: routes.builds() }, { label: 'Build an image' }],
+		title: 'Build image',
+		crumbs: [{ label: 'Builds', href: routes.builds() }, { label: 'Build image' }],
 		environmentScoped: true
 	});
 
@@ -140,10 +139,8 @@
 {:else}
 	<Page>
 		<PageHeader
-			title="Build an image"
+			title="Build image"
 			description="From a Git repository, on the environment's own Docker Engine."
-			icon={Hammer}
-			color="violet"
 		/>
 		<form
 			class="form"

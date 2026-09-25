@@ -30,7 +30,11 @@ export default defineConfig({
 	workers: process.env.CI ? 6 : undefined,
 	timeout: 30_000,
 	reporter: process.env.CI
-		? [['list'], ['html', { open: 'never' }], ['junit', { outputFile: 'test-results/junit.xml' }]]
+		? [
+				['list'],
+				['html', { open: 'never' }],
+				['junit', { outputFile: 'test-results/junit.xml' }]
+			]
 		: [['list'], ['html', { open: 'never' }]],
 	use: {
 		ignoreHTTPSErrors: process.env.E2E_IGNORE_HTTPS_ERRORS === '1',

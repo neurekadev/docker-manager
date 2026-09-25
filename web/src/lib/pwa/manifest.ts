@@ -3,8 +3,9 @@
 //
 // Colours are the design tokens (#22): the shell surface as theme colour
 // (browser chrome matches the top bar) and the canvas as splash background.
-// The icons are still the #11 placeholder artwork generated from
-// static/icons/icon.svg (see docs/web.md).
+// The icons are the #22 app icon (the shell's cube mark on the shell tile),
+// generated from static/icons/icon.svg and scripts/icon-maskable.svg
+// (docs/web.md, "Icons").
 import type { ManifestOptions } from 'vite-plugin-pwa';
 
 /** --surface-shell and --surface-canvas (src/lib/design/tokens.css). */

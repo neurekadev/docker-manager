@@ -35,7 +35,7 @@ class FakeSource implements EventSourceLike {
 /** Records invalidations; `queries` are the cached keys predicates run on. */
 class FakeQueryClient implements QueryClientLike {
 	calls: string[] = [];
-	cleared = 0;
+	removed: string[] = [];
 	queries: QueryKey[] = [];
 	async invalidateQueries(f?: {
 		queryKey?: QueryKey;
@@ -48,8 +48,8 @@ class FakeQueryClient implements QueryClientLike {
 			this.calls.push('pred:' + hit.map((k) => JSON.stringify(k)).join('|'));
 		}
 	}
-	clear() {
-		this.cleared++;
+	removeQueries(f: { type: 'inactive' }) {
+		this.removed.push(f.type);
 	}
 	take(): string[] {
 		const c = this.calls;
@@ -245,12 +245,38 @@ describe('LiveClient', () => {
 		last().emit('invalidate', container('web'), 'ep.2');
 		last().emit('permissions.changed', { at: '' });
 		await Promise.resolve();
-		expect(qc.cleared).toBe(1);
+		// Off-screen data is dropped and every open view refetches at once.
+		expect(qc.removed).toEqual(['inactive']);
+		expect(qc.take()).toContain('*');
 		expect(permissionRefetches()).toBe(1);
 		expect(client.cursor).toBeNull();
 		last().emit('close', { reason: 'permissions_changed' });
 		expect(sources).toHaveLength(2);
 		expect(last().url).toBe(LIVE_URL); // no cursor: a fresh, re-filtered snapshot
+	});
+
+	it('drops a half-open stream when the browser goes offline and resumes when back', () => {
+		const { client, clock, sources, last, status } = setup();
+		client.start();
+		last().emit('hello', hello('ep.1'));
+		last().emit('invalidate', container('web'), 'ep.2');
+		expect(status.state).toBe('live');
+		// No error event arrives on a silently dead connection: the offline
+		// event alone must show the loss.
+		client.networkLost();
+		expect(sources[0].closed).toBe(true);
+		expect(status.state).toBe('reconnecting');
+		// Back online: reconnect at once from the cursor, not after backoff.
+		client.reconnectNow();
+		expect(sources).toHaveLength(2);
+		expect(last().url).toBe(`${LIVE_URL}?cursor=ep.2`);
+		last().emit('hello', hello('ep.2', true));
+		expect(status.state).toBe('live');
+		// Without an open stream (stopped, or already down) it does nothing.
+		client.stop();
+		client.networkLost();
+		clock.advance(60_000);
+		expect(sources).toHaveLength(2);
 	});
 
 	it('stops on session_expired until reconnectNow', () => {
