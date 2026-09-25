@@ -57,7 +57,7 @@ old finished jobs).
 Stable error classes: `agent_offline`, `authorization_revoked`,
 `step_failed`, `unknown_outcome`, `journal_lost`, `resume_limit`,
 `rejected`, `compensation_failed`, `executor_restarted`,
-`credential_unavailable`, `cancelled`,
+`credential_unavailable`, `policy_rejected`, `cancelled`,
 `internal`. A step may fail with its own class instead of `step_failed` by
 returning a `jobexec.ClassedError` (class plus recovery guidance), e.g. the
 Engine and registry codes and refusals of the Docker resource kinds
@@ -228,7 +228,10 @@ keys such as `stack.files.copy`; `files.metadata` selects
 (`authz.TargetResources`: file paths are covered by their stack or volume
 root) and **rechecked at dispatch** while still queued (lost grant →
 `failed`/`authorization_revoked`). Scheduled jobs run as the manager service
-identity (`authz.Service()`, never derivable from a request). Running jobs
+identity (`authz.Service()`, never derivable from a request); at dispatch
+the scheduler's `ScheduledCheck` (`Engine.SetScheduledCheck`, #13)
+revalidates their policy (disabled/deleted policy or vanished target →
+`failed`/`policy_rejected`, nothing sent; see [scheduler](scheduler.md)). Running jobs
 finish or recover after the initiator loses access. Job visibility and
 cancellation are checked with `job.read` / `job.cancel` against
 `authz.JobResource(job)`: allowed when the caller holds the capability — or

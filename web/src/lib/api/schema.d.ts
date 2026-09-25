@@ -2151,6 +2151,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/schedule-defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the schedule defaults
+         * @description The default IANA time zone and, per schedule kind, the default cron expression new policies start with (and DockYard's suggestion). Defaults only prefill new policies; existing policies keep their saved expression and zone.
+         */
+        get: operations["get-schedule-defaults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the schedule defaults
+         * @description Changes the default time zone and/or default expressions by kind. Requires If-Match. Affects only policies created afterwards; existing policies keep their saved schedule.
+         */
+        patch: operations["update-schedule-defaults"];
+        trace?: never;
+    };
+    "/api/v1/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List schedules
+         * @description Cross-policy view of every scheduled policy (backups, verification, update checks and runs, prune): expression, zone, enabled state, next run and recent run history (missed, skipped, rejected and enqueued runs with their jobs' states). An entry is listed only when the caller holds schedule.read and the policy's own read capability (e.g. maintenance_policy.read) on it. Ordered by ID; no total.
+         */
+        get: operations["list-schedules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedules/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a schedule
+         * @description Validates a five-field cron expression and IANA time zone and returns the next runs with their local times and DST annotations, plus how missed runs, restarts, overlaps and offline environments behave. Nothing is saved or run. Invalid input is a 422 whose details name body.cron (or the failing field of the expression) and body.timeZone.
+         */
+        post: operations["create-schedule-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/security": {
         parameters: {
             query?: never;
@@ -5014,6 +5078,17 @@ export interface components {
              */
             total?: number;
         };
+        PageSchedule: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["Schedule"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageStack: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Stack"][];
@@ -5088,6 +5163,17 @@ export interface components {
             newPassword: string;
             /** @description Also revoke every API token of the account (#31). */
             revokeApiTokens?: boolean;
+        };
+        PatchScheduleDefaultsInputBody: {
+            /** @description New default expressions by kind (e.g. {"backup": "0 1 * * *"}); send the suggested value to go back to it. */
+            crons?: {
+                [key: string]: string;
+            };
+            /**
+             * @description New default IANA time zone.
+             * @example Europe/Berlin
+             */
+            timeZone?: string;
         };
         PatchSecuritySettingsInputBody: {
             /**
@@ -5496,6 +5582,152 @@ export interface components {
             /** @description The new password or access token (write-only). */
             secret: string;
             username?: string;
+        };
+        Schedule: {
+            /** @enum {string} */
+            catchUp: "once" | "skip";
+            /** @example 0 3 * * 0 */
+            cron: string;
+            enabled: boolean;
+            environmentId?: string;
+            id: string;
+            /** @description Why the saved expression or zone cannot run (the schedule never runs until the policy is fixed). */
+            invalidReason?: string;
+            /** @example prune */
+            kind: string;
+            /** @example Docker prune */
+            kindLabel: string;
+            nextRun?: components["schemas"]["ScheduleRunTime"];
+            policyId: string;
+            policyName: string;
+            /** @description Newest first (at most 10): enqueued, missed, skipped, rejected and failed runs. */
+            recentRuns: components["schemas"]["ScheduleRun"][];
+            /** @example Europe/Berlin */
+            timeZone: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ScheduleDefaults: {
+            kinds: components["schemas"]["ScheduleKindDefault"][];
+            /** Format: int64 */
+            revision: number;
+            /**
+             * @description Default IANA time zone of new policies.
+             * @example Europe/Berlin
+             */
+            timeZone: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ScheduleKindDefault: {
+            /**
+             * @description Missed runs after manager downtime: once = one catch-up run, skip = recorded, not run.
+             * @enum {string}
+             */
+            catchUp: "once" | "skip";
+            /**
+             * @description Default five-field expression new policies of this kind start with.
+             * @example 0 2 * * *
+             */
+            cron: string;
+            /**
+             * @description Schedule kind (backup, update_check, update_run, prune, backup_verification, ...).
+             * @example backup
+             */
+            kind: string;
+            /** @example Backups */
+            label: string;
+            /**
+             * @description DockYard's shipped suggestion.
+             * @example 0 2 * * *
+             */
+            suggested: string;
+        };
+        SchedulePreview: {
+            /** @enum {string} */
+            catchUp?: "once" | "skip";
+            /** @description The normalized expression. */
+            cron: string;
+            /** Format: date-time */
+            from: string;
+            kind?: string;
+            /** @description How DST transitions, missed runs, manager restarts, overlaps and offline environments affect this schedule. */
+            notes: string[];
+            runs: components["schemas"]["ScheduleRunTime"][];
+            timeZone: string;
+        };
+        SchedulePreviewInputBody: {
+            /**
+             * Format: int64
+             * @description Number of runs.
+             * @default 5
+             */
+            count: number;
+            /**
+             * @description Five-field cron expression (minute hour day-of-month month day-of-week).
+             * @example 0 2 * * *
+             */
+            cron: string;
+            /**
+             * Format: date-time
+             * @description Evaluate runs after this instant (default: now).
+             */
+            from?: string;
+            /**
+             * @description Schedule kind, to explain its missed-run behavior.
+             * @example prune
+             */
+            kind?: string;
+            /**
+             * @description IANA time zone; default: the instance's default time zone.
+             * @example Europe/Berlin
+             */
+            timeZone?: string;
+        };
+        ScheduleRun: {
+            /** @description A late run replacing runs missed while the manager was not running. */
+            catchUp?: boolean;
+            /** @description missed, previous_run_active, nothing_to_run, policy_not_found, policy_disabled, target_not_found, job_kind_unavailable, invalid_job, internal, ... */
+            errorClass?: string;
+            jobs: components["schemas"]["ScheduleRunJob"][];
+            /** Format: int64 */
+            missedCount?: number;
+            /** Format: date-time */
+            missedFrom?: string;
+            /** @enum {string} */
+            outcome: "pending" | "enqueued" | "missed" | "skipped" | "rejected" | "failed";
+            reason?: string;
+            /** @description The outcome for runs without jobs; for enqueued runs active while a job is not finished, otherwise the (worst) job state. */
+            result: string;
+            /** Format: date-time */
+            scheduledFor: string;
+        };
+        ScheduleRunJob: {
+            blockedReason?: string;
+            errorClass?: string;
+            jobId: string;
+            kind: string;
+            state: string;
+        };
+        ScheduleRunTime: {
+            /**
+             * Format: date-time
+             * @description Instant of the run, with the time zone's offset.
+             */
+            at: string;
+            /**
+             * @description gap: the local time does not exist (runs at the first instant after the gap); repeated: it occurs twice (runs once, at the first occurrence).
+             * @enum {string}
+             */
+            dst: "none" | "gap" | "repeated";
+            dstNote?: string;
+            /**
+             * @description The local wall-clock time the expression selected (differs from at's clock only in a DST gap).
+             * @example 2026-03-08T02:30
+             */
+            local: string;
+            /** Format: date-time */
+            utc: string;
         };
         SecuritySettings: {
             /**
@@ -17334,6 +17566,244 @@ export interface operations {
             };
             /** @description Precondition Required */
             428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-schedule-defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleDefaults"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-schedule-defaults": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchScheduleDefaultsInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleDefaults"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-schedules": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Only this schedule kind. */
+                kind?: string;
+                environmentId?: string;
+                /** @description Only enabled (true) or disabled (false) schedules. */
+                enabled?: "true" | "false";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageSchedule"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-schedule-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SchedulePreviewInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SchedulePreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

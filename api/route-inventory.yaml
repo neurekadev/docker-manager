@@ -1498,7 +1498,7 @@ routes:
     scope: instance
     owner: 13
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: /api/v1/schedule-defaults
     operationId: update-schedule-defaults
@@ -1506,7 +1506,7 @@ routes:
     scope: instance
     owner: 13
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match.
   - method: POST
     path: /api/v1/schedules/previews
@@ -1515,7 +1515,7 @@ routes:
     scope: none
     owner: 13
     kind: json
-    status: planned
+    status: implemented
     notes: Pure cron + time-zone evaluation.
   - method: GET
     path: /api/v1/schedules
@@ -1524,7 +1524,7 @@ routes:
     scope: resource
     owner: 13
     kind: json
-    status: planned
+    status: implemented
     notes: "Cross-policy view; each entry filtered by its policy's read capability."
   - method: GET
     path: /api/v1/update-policies

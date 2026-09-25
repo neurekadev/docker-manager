@@ -115,6 +115,10 @@ type Deps struct {
 	// ContainerIO serves container logs and exec terminals (#8); nil
 	// answers those routes with 503 (after authorization).
 	ContainerIO ContainerIOService
+	// Schedules is the shared cron scheduler (#13): schedule defaults,
+	// previews and the cross-policy schedule view; nil answers those
+	// routes with 503 (after authorization).
+	Schedules ScheduleService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -179,6 +183,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerGitCredentials(a, deps)
 	registerBuilds(a, deps)
 	registerContainerIO(a, deps)
+	registerSchedules(a, deps)
 	return a
 }
 

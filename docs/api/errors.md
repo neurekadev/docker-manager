@@ -163,7 +163,7 @@ The job's outcome is in the `Job` resource: `state` plus `error {class,
 message, recovery}` with stable classes `agent_offline`,
 `authorization_revoked`, `step_failed`, `unknown_outcome`, `journal_lost`,
 `resume_limit`, `rejected`, `compensation_failed`, `executor_restarted`,
-`credential_unavailable`,
+`credential_unavailable`, `policy_rejected`,
 `cancelled`, `internal` (see [job-engine.md](../architecture/job-engine.md)).
 
 ## Client handling guide
