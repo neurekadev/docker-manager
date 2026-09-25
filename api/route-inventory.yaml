@@ -1266,7 +1266,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: "Directory listing; ?path= is a root-relative path."
   - method: GET
     path: "/api/v1/stacks/{stackId}/files/content"
@@ -1275,7 +1275,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: Returns the ETag used by PUT.
   - method: PUT
     path: "/api/v1/stacks/{stackId}/files/content"
@@ -1284,7 +1284,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match required; 412 on external change.
   - method: GET
     path: "/api/v1/stacks/{stackId}/files/downloads"
@@ -1293,7 +1293,7 @@ routes:
     scope: resource
     owner: 15
     kind: stream
-    status: planned
+    status: implemented
     notes: Bounded binary download (file or streamed archive).
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/entries"
@@ -1302,7 +1302,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/uploads"
     operationId: upload-stack-files
@@ -1310,7 +1310,7 @@ routes:
     scope: resource
     owner: 15
     kind: stream
-    status: planned
+    status: implemented
     notes: Bounded binary upload.
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/conflict-previews"
@@ -1319,7 +1319,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/copies"
     operationId: create-stack-file-copy
@@ -1327,7 +1327,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job for recursive or large operations.
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/moves"
@@ -1336,7 +1336,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job for recursive or large operations.
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/deletions"
@@ -1345,7 +1345,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job for recursive or large operations.
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/archives"
@@ -1354,7 +1354,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job for recursive or large operations.
   - method: POST
     path: "/api/v1/stacks/{stackId}/files/extractions"
@@ -1363,7 +1363,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job for recursive or large operations.
   - method: PATCH
     path: "/api/v1/stacks/{stackId}/files/metadata"
@@ -1373,7 +1373,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: "chmod and/or chown, optional recursion (202 + job); each requested change needs its capability."
   - method: GET
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files"
@@ -1382,7 +1382,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: "Directory listing; ?path= is a root-relative path."
   - method: GET
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/content"
@@ -1391,7 +1391,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: Returns the ETag used by PUT.
   - method: PUT
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/content"
@@ -1400,7 +1400,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match required; 412 on external change.
   - method: GET
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/downloads"
@@ -1409,7 +1409,7 @@ routes:
     scope: resource
     owner: 15
     kind: stream
-    status: planned
+    status: implemented
     notes: Bounded binary download (file or streamed archive).
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/entries"
@@ -1418,7 +1418,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/uploads"
     operationId: upload-volume-files
@@ -1426,7 +1426,7 @@ routes:
     scope: resource
     owner: 15
     kind: stream
-    status: planned
+    status: implemented
     notes: Bounded binary upload.
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/conflict-previews"
@@ -1435,7 +1435,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/copies"
     operationId: create-volume-file-copy
@@ -1443,7 +1443,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job for recursive or large operations.
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/moves"
@@ -1452,7 +1452,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job for recursive or large operations.
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/deletions"
@@ -1461,7 +1461,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job for recursive or large operations.
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/archives"
@@ -1470,7 +1470,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job for recursive or large operations.
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/extractions"
@@ -1479,7 +1479,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job for recursive or large operations.
   - method: PATCH
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/metadata"
@@ -1489,7 +1489,7 @@ routes:
     scope: resource
     owner: 15
     kind: json
-    status: planned
+    status: implemented
     notes: "chmod and/or chown, optional recursion (202 + job); each requested change needs its capability."
   - method: GET
     path: /api/v1/schedule-defaults

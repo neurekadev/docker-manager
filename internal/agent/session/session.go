@@ -31,6 +31,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/clock"
 	"github.com/neurekadev/dockyard/internal/ids"
 	"github.com/neurekadev/dockyard/internal/protocol"
+	"github.com/neurekadev/dockyard/internal/streammux"
 )
 
 // Backoff is the reconnect policy: exponential from Min to Max with full
@@ -115,6 +116,13 @@ var ErrNotEnrolled = errors.New("session: the agent is not enrolled")
 // JSON) or an error; *HandlerError chooses the protocol error code.
 type RequestHandler func(ctx context.Context, input json.RawMessage) (any, error)
 
+// StreamHandler serves a stream the manager opened (files.download,
+// files.upload, container.logs, container.exec, ...). It reads and writes
+// s and should finish it with s.CloseWrite or s.CloseWithResult; ctx ends
+// when the stream or the session ends. A returned error aborts the stream
+// (*HandlerError chooses the protocol code, others become internal).
+type StreamHandler func(ctx context.Context, s *streammux.Stream) error
+
 // HandlerError is a request failure with a protocol error code.
 type HandlerError struct {
 	Code      string
@@ -123,6 +131,9 @@ type HandlerError struct {
 }
 
 func (e *HandlerError) Error() string { return e.Code + ": " + e.Message }
+
+// ProtocolCode returns the protocol error code.
+func (e *HandlerError) ProtocolCode() string { return e.Code }
 
 // JobRunner is the agent job runner (internal/agent/jobs.Runner).
 type JobRunner interface {
@@ -152,7 +163,10 @@ type Options struct {
 	// Requests are the named request handlers served besides the built-in
 	// agent.credential.rotate.
 	Requests map[string]RequestHandler
-	Backoff  Backoff
+	// Streams are the stream handlers by kind (protocol.StreamKinds); the
+	// session advertises them in the capabilities' streams.
+	Streams map[string]StreamHandler
+	Backoff Backoff
 	// WelcomeTimeout bounds the wait for welcome (default 30 s).
 	WelcomeTimeout time.Duration
 	// OnStatus observes connection state changes (must not block).
@@ -363,7 +377,9 @@ func (c *Client) runOnce(ctx context.Context, cred *state.Credential) error {
 	ws.SetReadLimit(protocol.MaxFrameSize)
 	sctx, scancel := context.WithCancel(ctx)
 	defer scancel()
-	k := &conn{c: c, ws: ws, parent: ctx, ctx: sctx, cancel: scancel, out: make(chan outFrame, c.opts.SendQueue), activity: make(chan struct{}, 1)}
+	k := &conn{c: c, ws: ws, parent: ctx, ctx: sctx, cancel: scancel, out: make(chan outFrame, c.opts.SendQueue),
+		streamOut: make(chan outFrame, streamQueue), activity: make(chan struct{}, 1)}
+	k.mux = streammux.New(k, protocol.MaxStreams)
 	return k.serve(cred, installID, caps)
 }
 
@@ -402,6 +418,12 @@ func (c *Client) capabilitiesFrame(k *conn) (*protocol.Frame, bool) {
 		}
 	}
 	slices.Sort(caps.Requests)
+	for kind := range c.opts.Streams {
+		if !slices.Contains(caps.Streams, kind) {
+			caps.Streams = append(caps.Streams, kind)
+		}
+	}
+	slices.Sort(caps.Streams)
 	f, err := protocol.NewFrame(protocol.TypeCapabilities, k.frameID("c"), "", protocol.JobRef{}, caps)
 	if err != nil {
 		c.log.Error("cannot build the capabilities frame", "error", err)

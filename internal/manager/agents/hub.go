@@ -14,6 +14,7 @@ import (
 
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
 	"github.com/neurekadev/dockyard/internal/protocol"
+	"github.com/neurekadev/dockyard/internal/streammux"
 )
 
 // JobEngine is the job engine as seen by the session hub
@@ -192,6 +193,17 @@ func (h *Hub) RequestEnvironment(ctx context.Context, environmentID, name string
 		return nil, jobs.ErrAgentOffline
 	}
 	return s.Request(ctx, name, input, timeout)
+}
+
+// OpenStream opens a byte stream (files.download, files.upload,
+// container.logs, container.exec, ...) on the environment's live session.
+// jobs.ErrAgentOffline without a session. See Session.OpenStream.
+func (h *Hub) OpenStream(ctx context.Context, environmentID, kind string, input any, o streammux.OpenOptions) (*streammux.Stream, error) {
+	s := h.EnvironmentSession(environmentID)
+	if s == nil {
+		return nil, jobs.ErrAgentOffline
+	}
+	return s.OpenStream(ctx, kind, input, o)
 }
 
 // SessionInfo describes a live session (diagnostics).

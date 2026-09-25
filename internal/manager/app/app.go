@@ -39,6 +39,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
 	"github.com/neurekadev/dockyard/internal/manager/config"
 	"github.com/neurekadev/dockyard/internal/manager/events"
+	"github.com/neurekadev/dockyard/internal/manager/files"
 	"github.com/neurekadev/dockyard/internal/manager/idempotency"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
 	"github.com/neurekadev/dockyard/internal/manager/metrics"
@@ -106,6 +107,7 @@ type Manager struct {
 	regs     *registries.Service
 	// resources is the Docker resource service (#6).
 	resources *resources.Service
+	files     *files.Service
 	handler   http.Handler
 }
 
@@ -280,6 +282,9 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return nil, fmt.Errorf("recover jobs: %w", err)
 	}
 	m.agents.AttachJobs(m.jobs)
+	// The scoped file manager (#15); stack scopes resolve once #7 installs
+	// its stack roots (Files().SetStacks).
+	m.files = files.New(files.Options{Agents: m.agents.Hub(), Jobs: m.jobs, Logger: log.With("component", "files")})
 
 	// Observation (#5): metrics live in their own database file so sample
 	// writes never contend with jobs and auth; manager-state backups (#10)
@@ -345,22 +350,24 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		Clock:  opts.Clock,
 		UI:     opts.UI,
 		API: api.Deps{
-			Build:        buildinfo.Get(),
-			Readiness:    m.readiness,
-			Jobs:         m.jobs,
-			Authorizer:   authorizer,
-			Clock:        opts.Clock,
-			Idempotency:  m.idem,
-			Audit:        m.audit,
-			SSEHeartbeat: cfg.StreamHeartbeat,
-			Identity:     m.identity,
-			Agents:       m.agents,
-			Permissions:  m.perms,
-			Registries:   m.regs,
-			APITokens:    m.identity,
-			Observe:      m.observe,
-			Docker:       m.resources,
-			InstanceID:   m.instance.ID,
+			Build:          buildinfo.Get(),
+			Readiness:      m.readiness,
+			Jobs:           m.jobs,
+			Authorizer:     authorizer,
+			Clock:          opts.Clock,
+			Idempotency:    m.idem,
+			Audit:          m.audit,
+			SSEHeartbeat:   cfg.StreamHeartbeat,
+			Identity:       m.identity,
+			Agents:         m.agents,
+			Permissions:    m.perms,
+			Registries:     m.regs,
+			APITokens:      m.identity,
+			Observe:        m.observe,
+			Docker:         m.resources,
+			InstanceID:     m.instance.ID,
+			Files:          m.files,
+			FilesMaxUpload: cfg.FilesMaxUpload,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -484,6 +491,10 @@ func (m *Manager) Observe() *observe.Service { return m.observe }
 // manager-side digest check (#20).
 func (m *Manager) Registries() *registries.Service { return m.regs }
 
+// Files returns the scoped file service (#15): #7 installs its stack root
+// resolver and source observer with SetStacks.
+func (m *Manager) Files() *files.Service { return m.files }
+
 // Events returns the internal event bus.
 func (m *Manager) Events() *events.Bus { return m.events }
 
@@ -566,6 +577,9 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 func (m *Manager) Close() error {
 	if m.resources != nil {
 		m.resources.Close()
+	}
+	if m.files != nil {
+		m.files.Close()
 	}
 	if m.jobs != nil {
 		m.jobs.Close()

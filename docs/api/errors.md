@@ -110,12 +110,20 @@ same change.
 | `network_builtin` | 409 | no | Predefined networks (`bridge`, `host`, `none`) cannot be removed. | #6 |
 | `resource_name_taken` | 409 | no | Another container, volume or network of the environment already uses this name. | #6 |
 | `unsupported_api_version` | 409 | no | The environment's Docker Engine API version is too old for the operation; upgrade Docker Engine (25.0 or newer, see the support matrix). | #6 |
+| `file_exists` | 409 | no | File manager: the name already exists (choose overwrite, skip or keep both, or another name). | #15 |
+| `file_conflict` | 409 | no | File manager: the entry changed during the operation or the operation would put a directory into itself. | #15 |
+| `file_type_mismatch` | 409 | no | File manager: the path is a directory where a file is needed, or a path component is not a directory. | #15 |
+| `file_unsupported` | 409 | no | File manager: the entry's content is not served (a symlink, device, FIFO or socket, or a file with several hard links whose other names may lie outside the root). | #15 |
+| `volume_files_unsupported` | 409 | no | File manager: this volume cannot be browsed (non-local driver or remote-backed local volume, DockYard's own volumes, the stacks volume, or the agent's storage layout is not verified); the message says why. | #15 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
+| `length_required` | 411 | no | Uploads need a `Content-Length` header. | #15 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |
 | `payload_too_large` | 413 | no | The request body exceeds the route's documented limit. | #2 |
 | `unsupported_media_type` | 415 | no | The `Content-Type` is not accepted by the route. | #2 |
+| `range_not_satisfiable` | 416 | no | The `Range` of a single-file download lies outside the file; `Content-Range` carries its size. | #15 |
 | `validation_failed` | 422 | no | One or more inputs are invalid; `details` lists each field. | #2 |
 | `recreate_required` | 422 | no | The requested container settings cannot change in place; create a new container (or use a Compose stack). `details` lists the fields. | #6 |
+| `content_digest_mismatch` | 422 | no | The uploaded bytes do not match `X-DockYard-Content-SHA256`; nothing was written. | #15 |
 | `version_unsupported` | 426 | no | Agent routes: the agent's protocol or version is outside the manager's window (same or previous minor release, never newer than the manager); upgrade as the message says. | #3 |
 | `precondition_required` | 428 | no | The edit requires an `If-Match` header with the resource's current `ETag`. | #4 |
 | `rate_limited` | 429 | yes | Too many requests; retry after the `Retry-After` delay. | #2 |

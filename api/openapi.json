@@ -398,6 +398,74 @@
         ],
         "type": "object"
       },
+      "ArchiveStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "conflict": {
+            "enum": [
+              "fail",
+              "overwrite",
+              "keep_both"
+            ],
+            "type": "string"
+          },
+          "destination": {
+            "description": "Archive file to create (root-relative).",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "format": {
+            "description": "Default zip.",
+            "enum": [
+              "zip",
+              "tar.gz"
+            ],
+            "type": "string"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ArchiveVolumeInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "conflict": {
+            "enum": [
+              "fail",
+              "overwrite",
+              "keep_both"
+            ],
+            "type": "string"
+          },
+          "destination": {
+            "description": "Archive file to create (root-relative).",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "format": {
+            "description": "Default zip.",
+            "enum": [
+              "zip",
+              "tar.gz"
+            ],
+            "type": "string"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "AuditActor": {
         "additionalProperties": false,
         "properties": {
@@ -786,6 +854,49 @@
         "required": [
           "newPassword"
         ],
+        "type": "object"
+      },
+      "ChmodDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "dirMode": {
+            "description": "Octal bits for directories (default: mode).",
+            "examples": [
+              "0755"
+            ],
+            "pattern": "^0?[0-7]{3}$",
+            "type": "string"
+          },
+          "mode": {
+            "description": "Octal permission bits (special bits such as setuid are refused).",
+            "examples": [
+              "0644"
+            ],
+            "pattern": "^0?[0-7]{3}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      "ChownDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "gid": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "uid": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "CloseEvent": {
@@ -1916,6 +2027,56 @@
         },
         "type": "object"
       },
+      "CreateStackEntryInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "Initial content of a new file (UTF-8).",
+            "type": "string"
+          },
+          "contentBase64": {
+            "type": "string"
+          },
+          "path": {
+            "description": "Root-relative path of the new entry (its parent must exist).",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "file",
+              "dir"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateVolumeEntryInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "Initial content of a new file (UTF-8).",
+            "type": "string"
+          },
+          "contentBase64": {
+            "type": "string"
+          },
+          "path": {
+            "description": "Root-relative path of the new entry (its parent must exist).",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "file",
+              "dir"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateVolumeInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -2031,6 +2192,34 @@
         "required": [
           "group"
         ],
+        "type": "object"
+      },
+      "DeletionStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "paths": {
+            "description": "Entries to delete, recursively (symlinks are removed, never followed). Preview first with a conflict preview of operation delete.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "DeletionVolumeInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "paths": {
+            "description": "Entries to delete, recursively (symlinks are removed, never followed). Preview first with a conflict preview of operation delete.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "type": "array"
+          }
+        },
         "type": "object"
       },
       "DockerCounts": {
@@ -2733,6 +2922,322 @@
         "required": [
           "field",
           "message"
+        ],
+        "type": "object"
+      },
+      "ExtractionStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "conflict": {
+            "description": "Per entry when the name exists (default fail: the entry is reported and skipped).",
+            "enum": [
+              "fail",
+              "overwrite",
+              "skip",
+              "keep_both"
+            ],
+            "type": "string"
+          },
+          "destination": {
+            "description": "Directory to extract into (created when missing).",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "path": {
+            "description": "The zip or tar.gz archive (root-relative).",
+            "maxLength": 4096,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ExtractionVolumeInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "conflict": {
+            "description": "Per entry when the name exists (default fail: the entry is reported and skipped).",
+            "enum": [
+              "fail",
+              "overwrite",
+              "skip",
+              "keep_both"
+            ],
+            "type": "string"
+          },
+          "destination": {
+            "description": "Directory to extract into (created when missing).",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "path": {
+            "description": "The zip or tar.gz archive (root-relative).",
+            "maxLength": 4096,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FileConflictDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "destination": {
+            "type": "string"
+          },
+          "existing": {
+            "$ref": "#/components/schemas/FileEntry"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "destination",
+          "existing"
+        ],
+        "type": "object"
+      },
+      "FileContent": {
+        "additionalProperties": false,
+        "properties": {
+          "binary": {
+            "description": "The file is not UTF-8 text (NUL bytes or invalid UTF-8): offer a download instead of the editor.",
+            "type": "boolean"
+          },
+          "content": {
+            "description": "UTF-8 text (absent for binary files).",
+            "type": "string"
+          },
+          "contentBase64": {
+            "description": "Binary content, base64 (only for binary files).",
+            "type": "string"
+          },
+          "entry": {
+            "$ref": "#/components/schemas/FileEntry"
+          },
+          "offset": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "truncated": {
+            "description": "The file continues after the returned bytes (at most 512 KiB per request): not editable in place.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entry",
+          "binary",
+          "truncated",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "FileEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "etag": {
+            "description": "Content revision of a regular file (strong ETag, quoted): send it as If-Match when saving.",
+            "type": "string"
+          },
+          "gid": {
+            "description": "Numeric host group.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "linkStatus": {
+            "description": "Where a symlink resolves; outside targets are never followed.",
+            "enum": [
+              "inside",
+              "outside",
+              "dangling",
+              "loop"
+            ],
+            "type": "string"
+          },
+          "linkTarget": {
+            "description": "Symlink target as stored (never followed out of the root).",
+            "type": "string"
+          },
+          "links": {
+            "description": "Hard link count. Regular files with more than one link are listed, but their content is not served (another name may lie outside the root).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mode": {
+            "description": "Octal permission and special bits, host semantics.",
+            "examples": [
+              "0644"
+            ],
+            "type": "string"
+          },
+          "modifiedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "compose.yaml"
+            ],
+            "type": "string"
+          },
+          "path": {
+            "description": "Root-relative, slash-separated; \".\" is the root.",
+            "examples": [
+              "config/app.env"
+            ],
+            "type": "string"
+          },
+          "size": {
+            "description": "Bytes (regular files; 0 otherwise).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "file",
+              "dir",
+              "symlink",
+              "other"
+            ],
+            "type": "string"
+          },
+          "uid": {
+            "description": "Numeric host owner.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "path",
+          "type",
+          "size",
+          "mode",
+          "uid",
+          "gid",
+          "modifiedAt"
+        ],
+        "type": "object"
+      },
+      "FileImpactDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "dirs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entries": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "files": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "other": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "symlinks": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "truncated": {
+            "description": "Counting stopped at 100 000 entries.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entries",
+          "files",
+          "dirs",
+          "symlinks",
+          "other",
+          "bytes",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "FileListing": {
+        "additionalProperties": false,
+        "properties": {
+          "dir": {
+            "$ref": "#/components/schemas/FileEntry",
+            "description": "The listed directory."
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FileEntry"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "total": {
+            "description": "Entries matching the filters.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "truncated": {
+            "description": "The directory holds more than 100 000 entries; the listing covers the first ones read.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dir",
+          "items",
+          "total",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "FilePreview": {
+        "additionalProperties": false,
+        "properties": {
+          "conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/FileConflictDTO"
+            },
+            "type": "array"
+          },
+          "conflictsTruncated": {
+            "description": "More than 1000 conflicts; only the first are listed.",
+            "type": "boolean"
+          },
+          "impact": {
+            "$ref": "#/components/schemas/FileImpactDTO"
+          }
+        },
+        "required": [
+          "conflicts",
+          "conflictsTruncated",
+          "impact"
+        ],
+        "type": "object"
+      },
+      "FileUploadResult": {
+        "additionalProperties": false,
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/FileEntry",
+            "description": "The written file (its name may differ with conflict=keep_both)."
+          },
+          "skipped": {
+            "description": "conflict=skip and the name existed: nothing was written.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entry",
+          "skipped"
         ],
         "type": "object"
       },
@@ -3460,6 +3965,56 @@
           "type",
           "id"
         ],
+        "type": "object"
+      },
+      "MetadataStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "chmod": {
+            "$ref": "#/components/schemas/ChmodDTO",
+            "description": "Needs <root>.files.chmod."
+          },
+          "chown": {
+            "$ref": "#/components/schemas/ChownDTO",
+            "description": "Needs <root>.files.chown."
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "type": "array"
+          },
+          "recursive": {
+            "description": "Apply below directories too (symlinks are never followed).",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "MetadataVolumeInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "chmod": {
+            "$ref": "#/components/schemas/ChmodDTO",
+            "description": "Needs <root>.files.chmod."
+          },
+          "chown": {
+            "$ref": "#/components/schemas/ChownDTO",
+            "description": "Needs <root>.files.chown."
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "type": "array"
+          },
+          "recursive": {
+            "description": "Apply below directories too (symlinks are never followed).",
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "MetricSeries": {
@@ -4601,6 +5156,92 @@
         },
         "type": "object"
       },
+      "PreviewStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "destination": {
+            "description": "Target directory (copy, move, upload, extract) or archive file (archive).",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "names": {
+            "description": "File names to upload into destination.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          },
+          "operation": {
+            "enum": [
+              "copy",
+              "move",
+              "delete",
+              "upload",
+              "extract",
+              "archive",
+              "metadata"
+            ],
+            "type": "string"
+          },
+          "paths": {
+            "description": "Sources (copy, move, delete, metadata, archive) or the archive (extract).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          },
+          "recursive": {
+            "description": "metadata: count recursively.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "PreviewVolumeInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "destination": {
+            "description": "Target directory (copy, move, upload, extract) or archive file (archive).",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "names": {
+            "description": "File names to upload into destination.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          },
+          "operation": {
+            "enum": [
+              "copy",
+              "move",
+              "delete",
+              "upload",
+              "extract",
+              "archive",
+              "metadata"
+            ],
+            "type": "string"
+          },
+          "paths": {
+            "description": "Sources (copy, move, delete, metadata, archive) or the archive (extract).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          },
+          "recursive": {
+            "description": "metadata: count recursively.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "PullImageInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -5193,6 +5834,34 @@
         "required": [
           "rules"
         ],
+        "type": "object"
+      },
+      "ReplaceStackContentInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "New content as UTF-8 text (at most 512 KiB).",
+            "type": "string"
+          },
+          "contentBase64": {
+            "description": "New content as base64 (binary; at most 512 KiB decoded).",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReplaceVolumeContentInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "New content as UTF-8 text (at most 512 KiB).",
+            "type": "string"
+          },
+          "contentBase64": {
+            "description": "New content as base64 (binary; at most 512 KiB decoded).",
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "ResourceDTO": {
@@ -5839,6 +6508,74 @@
           "uri",
           "expiresAt"
         ],
+        "type": "object"
+      },
+      "TransferStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "conflict": {
+            "description": "Per top-level item when the name exists in the destination (default fail: that item fails). Apply-to-all is this one setting; the UI asks per item and sends one request per decision group.",
+            "enum": [
+              "fail",
+              "overwrite",
+              "skip",
+              "keep_both"
+            ],
+            "type": "string"
+          },
+          "destination": {
+            "description": "Target directory.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "name": {
+            "description": "New name of a single source (rename: move into the source's own directory under this name).",
+            "maxLength": 255,
+            "type": "string"
+          },
+          "paths": {
+            "description": "Sources (root-relative).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "TransferVolumeInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "conflict": {
+            "description": "Per top-level item when the name exists in the destination (default fail: that item fails). Apply-to-all is this one setting; the UI asks per item and sends one request per decision group.",
+            "enum": [
+              "fail",
+              "overwrite",
+              "skip",
+              "keep_both"
+            ],
+            "type": "string"
+          },
+          "destination": {
+            "description": "Target directory.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "name": {
+            "description": "New name of a single source (rename: move into the source's own directory under this name).",
+            "maxLength": 255,
+            "type": "string"
+          },
+          "paths": {
+            "description": "Sources (root-relative).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "type": "array"
+          }
+        },
         "type": "object"
       },
       "UpdateAgentInputBody": {
@@ -13707,6 +14444,2562 @@
         "x-dockyard-scope": "resource"
       }
     },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/files": {
+      "get": {
+        "description": "One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/api/files.md. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "operationId": "list-volume-files",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+            "explode": false,
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+              "maxLength": 4096,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Order (default name; ties by name; type puts directories first).",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Order (default name; ties by name; type puts directories first).",
+              "enum": [
+                "name",
+                "-name",
+                "size",
+                "-size",
+                "modified",
+                "-modified",
+                "type",
+                "-type"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only names containing this text (case-insensitive).",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Only names containing this text (case-insensitive).",
+              "maxLength": 256,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include dot files.",
+            "explode": false,
+            "in": "query",
+            "name": "hidden",
+            "schema": {
+              "description": "Include dot files.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileListing"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List a directory of the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-capability": "volume.files.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/archives": {
+      "post": {
+        "description": "Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt). Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "operationId": "create-volume-file-archive",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveVolumeInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Create an archive in the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "volume.files.archive",
+        "x-dockyard-capability": "volume.files.archive",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/conflict-previews": {
+      "post": {
+        "description": "Lists the destinations an operation would overwrite (for per-item overwrite / skip / keep both decisions; apply-to-all is off by default in the UI) and counts what it touches, recursively where the operation recurses (delete, recursive chmod/chown).",
+        "operationId": "create-volume-file-conflict-preview",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewVolumeInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilePreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Preview conflicts and impact in the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "volume.files.read",
+        "x-dockyard-capability": "volume.files.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/content": {
+      "get": {
+        "description": "At most 512 KiB of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "operationId": "get-volume-file-content",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+            "explode": false,
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+              "maxLength": 4096,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Byte offset for paging through large files.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "description": "Byte offset for paging through large files.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileContent"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Read a file of the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-capability": "volume.files.read",
+        "x-dockyard-scope": "resource"
+      },
+      "put": {
+        "description": "Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "operationId": "replace-volume-file-content",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+            "explode": false,
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+              "maxLength": 4096,
+              "type": "string"
+            }
+          },
+          {
+            "description": "ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag.",
+              "maxLength": 1024,
+              "type": "string"
+            }
+          },
+          {
+            "description": "* creates the file only if it does not exist (412 otherwise).",
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "description": "* creates the file only if it does not exist (412 otherwise).",
+              "maxLength": 8,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceVolumeContentInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileEntry"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Failed"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Required"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Save a file of the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "volume.files.write",
+        "x-dockyard-capability": "volume.files.write",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/copies": {
+      "post": {
+        "description": "Starts a files.copy job (202 + job): sources are copied recursively into destination; symlinks are copied as symlinks (never followed), hard-linked and special files fail per item. conflict applies per top-level item. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "operationId": "create-volume-file-copy",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferVolumeInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Copy files in the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "volume.files.copy",
+        "x-dockyard-capability": "volume.files.copy",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/deletions": {
+      "post": {
+        "description": "Starts a files.delete job (202 + job) deleting each path recursively; symlinks are removed, never followed. Preview the impact first (conflict preview, operation delete). Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "operationId": "create-volume-file-deletion",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeletionVolumeInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Delete files in the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "volume.files.delete",
+        "x-dockyard-capability": "volume.files.delete",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/downloads": {
+      "get": {
+        "description": "One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "operationId": "download-volume-files",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Paths to download (repeat the parameter). One regular file downloads raw unless format is set; several paths or a directory download as an archive.",
+            "explode": true,
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "description": "Paths to download (repeat the parameter). One regular file downloads raw unless format is set; several paths or a directory download as an archive.",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 256,
+              "type": "array"
+            }
+          },
+          {
+            "description": "Archive format (default zip for archives).",
+            "explode": false,
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "description": "Archive format (default zip for archives).",
+              "enum": [
+                "zip",
+                "tar.gz"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Single byte range (bytes=start-end) for resuming a single-file download.",
+            "in": "header",
+            "name": "Range",
+            "schema": {
+              "description": "Single byte range (bytes=start-end) for resuming a single-file download.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "application/zip": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "File or archive bytes"
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Requested range of a single file"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "416": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Requested Range Not Satisfiable"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Download files of the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "volume.files.download",
+        "x-dockyard-capability": "volume.files.download",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/entries": {
+      "post": {
+        "description": "Creates an empty directory or a new file (optional initial content up to 512 KiB). 409 file_exists when the name exists. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "operationId": "create-volume-file-entry",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVolumeEntryInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileEntry"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Create a file or directory in the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "volume.files.write",
+        "x-dockyard-capability": "volume.files.write",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/extractions": {
+      "post": {
+        "description": "Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (10 GiB and 100x the archive size) as well as the entry count (100 000). Nested archives are not extracted. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "operationId": "create-volume-file-extraction",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtractionVolumeInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Extract an archive in the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "volume.files.extract",
+        "x-dockyard-capability": "volume.files.extract",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/metadata": {
+      "patch": {
+        "description": "Starts a files.metadata job (202 + job): chmod (needs volume.files.chmod) and/or chown (needs volume.files.chown) of the paths, optionally recursive. Symlinks are skipped (never followed), special and hard-linked files fail per item; changes go through the opened file (fchmod/fchown). Preview the count with a conflict preview of operation metadata. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "operationId": "update-volume-file-metadata",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MetadataVolumeInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Change permissions or ownership in the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "volume_file_metadata.update",
+        "x-dockyard-capability": "volume.files.{change}",
+        "x-dockyard-capability-values": [
+          "volume.files.chmod",
+          "volume.files.chown"
+        ],
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/moves": {
+      "post": {
+        "description": "Starts a files.move job (202 + job): each source is renamed into destination (a rename is a move into the same directory under a new name: use conflict and one source). conflict applies per item. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "operationId": "create-volume-file-move",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferVolumeInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Move or rename files in the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "volume.files.move",
+        "x-dockyard-capability": "volume.files.move",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/uploads": {
+      "post": {
+        "description": "Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-DockYard-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKYARD_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "operationId": "upload-volume-files",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Docker volume name.",
+            "in": "path",
+            "name": "volumeId",
+            "required": true,
+            "schema": {
+              "description": "Docker volume name.",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+            "explode": false,
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+              "maxLength": 4096,
+              "type": "string"
+            }
+          },
+          {
+            "description": "File name in the target directory (path).",
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "description": "File name in the target directory (path).",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "What to do when the name exists, instead of If-Match/If-None-Match.",
+            "explode": false,
+            "in": "query",
+            "name": "conflict",
+            "schema": {
+              "description": "What to do when the name exists, instead of If-Match/If-None-Match.",
+              "enum": [
+                "overwrite",
+                "skip",
+                "keep_both"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Replace exactly this revision (ETag).",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "Replace exactly this revision (ETag).",
+              "maxLength": 1024,
+              "type": "string"
+            }
+          },
+          {
+            "description": "* creates only (412 when the name exists).",
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "description": "* creates only (412 when the name exists).",
+              "maxLength": 8,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required (411 otherwise); at most DOCKYARD_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+            "in": "header",
+            "name": "Content-Length",
+            "schema": {
+              "description": "Required (411 otherwise); at most DOCKYARD_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch).",
+            "in": "header",
+            "name": "X-DockYard-Content-SHA256",
+            "schema": {
+              "description": "Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch).",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "description": "The file's bytes.",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUploadResult"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Length Required"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Failed"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Required"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Upload a file into the volume",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "volume.files.write",
+        "x-dockyard-capability": "volume.files.write",
+        "x-dockyard-scope": "resource"
+      }
+    },
     "/api/v1/groups": {
       "get": {
         "description": "Every group with member and rule counts, in creation order. Instance owner only (never delegable, never with an API token).",
@@ -17862,6 +21155,2419 @@
         ],
         "x-dockyard-capability": "public",
         "x-dockyard-scope": "none"
+      }
+    },
+    "/api/v1/stacks/{stackId}/files": {
+      "get": {
+        "description": "One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/api/files.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "operationId": "list-stack-files",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+            "explode": false,
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+              "maxLength": 4096,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Order (default name; ties by name; type puts directories first).",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Order (default name; ties by name; type puts directories first).",
+              "enum": [
+                "name",
+                "-name",
+                "size",
+                "-size",
+                "modified",
+                "-modified",
+                "type",
+                "-type"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only names containing this text (case-insensitive).",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Only names containing this text (case-insensitive).",
+              "maxLength": 256,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include dot files.",
+            "explode": false,
+            "in": "query",
+            "name": "hidden",
+            "schema": {
+              "description": "Include dot files.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileListing"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List a directory of the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-capability": "stack.files.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/files/archives": {
+      "post": {
+        "description": "Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt). Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "operationId": "create-stack-file-archive",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Create an archive in the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "stack.files.archive",
+        "x-dockyard-capability": "stack.files.archive",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/files/conflict-previews": {
+      "post": {
+        "description": "Lists the destinations an operation would overwrite (for per-item overwrite / skip / keep both decisions; apply-to-all is off by default in the UI) and counts what it touches, recursively where the operation recurses (delete, recursive chmod/chown).",
+        "operationId": "create-stack-file-conflict-preview",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilePreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Preview conflicts and impact in the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "stack.files.read",
+        "x-dockyard-capability": "stack.files.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/files/content": {
+      "get": {
+        "description": "At most 512 KiB of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "operationId": "get-stack-file-content",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+            "explode": false,
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+              "maxLength": 4096,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Byte offset for paging through large files.",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "description": "Byte offset for paging through large files.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileContent"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Read a file of the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-capability": "stack.files.read",
+        "x-dockyard-scope": "resource"
+      },
+      "put": {
+        "description": "Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "operationId": "replace-stack-file-content",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+            "explode": false,
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+              "maxLength": 4096,
+              "type": "string"
+            }
+          },
+          {
+            "description": "ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag.",
+              "maxLength": 1024,
+              "type": "string"
+            }
+          },
+          {
+            "description": "* creates the file only if it does not exist (412 otherwise).",
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "description": "* creates the file only if it does not exist (412 otherwise).",
+              "maxLength": 8,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceStackContentInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileEntry"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Failed"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Required"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Save a file of the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "stack.files.write",
+        "x-dockyard-capability": "stack.files.write",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/files/copies": {
+      "post": {
+        "description": "Starts a files.copy job (202 + job): sources are copied recursively into destination; symlinks are copied as symlinks (never followed), hard-linked and special files fail per item. conflict applies per top-level item. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "operationId": "create-stack-file-copy",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Copy files in the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "stack.files.copy",
+        "x-dockyard-capability": "stack.files.copy",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/files/deletions": {
+      "post": {
+        "description": "Starts a files.delete job (202 + job) deleting each path recursively; symlinks are removed, never followed. Preview the impact first (conflict preview, operation delete). Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "operationId": "create-stack-file-deletion",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeletionStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Delete files in the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "stack.files.delete",
+        "x-dockyard-capability": "stack.files.delete",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/files/downloads": {
+      "get": {
+        "description": "One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "operationId": "download-stack-files",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Paths to download (repeat the parameter). One regular file downloads raw unless format is set; several paths or a directory download as an archive.",
+            "explode": true,
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "description": "Paths to download (repeat the parameter). One regular file downloads raw unless format is set; several paths or a directory download as an archive.",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 256,
+              "type": "array"
+            }
+          },
+          {
+            "description": "Archive format (default zip for archives).",
+            "explode": false,
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "description": "Archive format (default zip for archives).",
+              "enum": [
+                "zip",
+                "tar.gz"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Single byte range (bytes=start-end) for resuming a single-file download.",
+            "in": "header",
+            "name": "Range",
+            "schema": {
+              "description": "Single byte range (bytes=start-end) for resuming a single-file download.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "application/zip": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "File or archive bytes"
+          },
+          "206": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Requested range of a single file"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "416": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Requested Range Not Satisfiable"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Download files of the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "stack.files.download",
+        "x-dockyard-capability": "stack.files.download",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/files/entries": {
+      "post": {
+        "description": "Creates an empty directory or a new file (optional initial content up to 512 KiB). 409 file_exists when the name exists. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "operationId": "create-stack-file-entry",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStackEntryInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileEntry"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Create a file or directory in the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "stack.files.write",
+        "x-dockyard-capability": "stack.files.write",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/files/extractions": {
+      "post": {
+        "description": "Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (10 GiB and 100x the archive size) as well as the entry count (100 000). Nested archives are not extracted. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "operationId": "create-stack-file-extraction",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtractionStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Extract an archive in the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "stack.files.extract",
+        "x-dockyard-capability": "stack.files.extract",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/files/metadata": {
+      "patch": {
+        "description": "Starts a files.metadata job (202 + job): chmod (needs stack.files.chmod) and/or chown (needs stack.files.chown) of the paths, optionally recursive. Symlinks are skipped (never followed), special and hard-linked files fail per item; changes go through the opened file (fchmod/fchown). Preview the count with a conflict preview of operation metadata. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "operationId": "update-stack-file-metadata",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MetadataStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Change permissions or ownership in the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "stack_file_metadata.update",
+        "x-dockyard-capability": "stack.files.{change}",
+        "x-dockyard-capability-values": [
+          "stack.files.chmod",
+          "stack.files.chown"
+        ],
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/files/moves": {
+      "post": {
+        "description": "Starts a files.move job (202 + job): each source is renamed into destination (a rename is a move into the same directory under a new name: use conflict and one source). conflict applies per item. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "operationId": "create-stack-file-move",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Move or rename files in the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "stack.files.move",
+        "x-dockyard-capability": "stack.files.move",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/files/uploads": {
+      "post": {
+        "description": "Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-DockYard-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKYARD_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "operationId": "upload-stack-files",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+            "explode": false,
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "description": "Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root.",
+              "maxLength": 4096,
+              "type": "string"
+            }
+          },
+          {
+            "description": "File name in the target directory (path).",
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "description": "File name in the target directory (path).",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "description": "What to do when the name exists, instead of If-Match/If-None-Match.",
+            "explode": false,
+            "in": "query",
+            "name": "conflict",
+            "schema": {
+              "description": "What to do when the name exists, instead of If-Match/If-None-Match.",
+              "enum": [
+                "overwrite",
+                "skip",
+                "keep_both"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Replace exactly this revision (ETag).",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "Replace exactly this revision (ETag).",
+              "maxLength": 1024,
+              "type": "string"
+            }
+          },
+          {
+            "description": "* creates only (412 when the name exists).",
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "description": "* creates only (412 when the name exists).",
+              "maxLength": 8,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required (411 otherwise); at most DOCKYARD_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+            "in": "header",
+            "name": "Content-Length",
+            "schema": {
+              "description": "Required (411 otherwise); at most DOCKYARD_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch).",
+            "in": "header",
+            "name": "X-DockYard-Content-SHA256",
+            "schema": {
+              "description": "Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch).",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "description": "The file's bytes.",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUploadResult"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Length Required"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Failed"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Required"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Upload a file into the stack's project directory",
+        "tags": [
+          "Files"
+        ],
+        "x-dockyard-audit": "stack.files.write",
+        "x-dockyard-capability": "stack.files.write",
+        "x-dockyard-scope": "resource"
       }
     },
     "/api/v1/users": {

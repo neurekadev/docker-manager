@@ -175,6 +175,24 @@ func TestAuditConfig(t *testing.T) {
 	}
 }
 
+func TestFilesMaxUpload(t *testing.T) {
+	cfg, err := load(t, map[string]string{EnvPublicURL: "https://d.example.com"})
+	if err != nil || cfg.FilesMaxUpload != 2<<30 {
+		t.Fatalf("default %d %v", cfg.FilesMaxUpload, err)
+	}
+	cfg, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvFilesMaxUploadMB: "100"})
+	if err != nil || cfg.FilesMaxUpload != 100<<20 {
+		t.Fatalf("custom %d %v", cfg.FilesMaxUpload, err)
+	}
+	// The agents refuse more than 2 GiB, so the manager may only lower it.
+	for _, v := range []string{"0", "4096", "big"} {
+		if _, err := load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvFilesMaxUploadMB: v}); err == nil ||
+			!strings.Contains(err.Error(), EnvFilesMaxUploadMB) {
+			t.Fatalf("%s accepted: %v", v, err)
+		}
+	}
+}
+
 func TestStreamHeartbeat(t *testing.T) {
 	cfg, err := load(t, map[string]string{EnvPublicURL: "https://docker.example.com"})
 	if err != nil || cfg.StreamHeartbeat != 15*time.Second {
