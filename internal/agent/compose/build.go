@@ -21,10 +21,28 @@ type BuildOptions struct {
 	NoCache  bool
 	// PullBase pulls newer base images.
 	PullBase bool
+	// MissingOnly builds only images that are missing on the host (and
+	// services with pull_policy: build), like a deploy does; otherwise
+	// every build section is rebuilt.
+	MissingOnly bool
+	// BuildEvents, when set, receives the raw BuildKit progress (steps and
+	// build output) of each image instead of the summarized Events.
+	BuildEvents func(image string, ev engine.BuildEvent)
+	// Built is called after each image was built.
+	Built func(b BuiltImage)
+}
+
+// BuiltImage is an image the adapter built for a service.
+type BuiltImage struct {
+	Service string
+	// Image is the service's image reference (the tag it was built as).
+	Image   string
+	ImageID string
 }
 
 // Build builds the images of services with a build section through the
-// Engine's BuildKit (an explicit stack build, #33).
+// Engine's BuildKit (an explicit stack build or a deploy's build step,
+// #33).
 func (a *Adapter) Build(ctx context.Context, p *Project, o BuildOptions) error {
 	if err := a.guard("compose.build", p); err != nil {
 		return err
@@ -33,16 +51,19 @@ func (a *Adapter) Build(ctx context.Context, p *Project, o BuildOptions) error {
 	if err != nil {
 		return engine.WrapCode("compose.build", engine.CodeInvalidArgument, err)
 	}
-	return a.buildImages(ctx, model, buildRequest{all: true, noCache: o.NoCache, pull: o.PullBase, auth: o.Auth, events: o.Events})
+	return a.buildImages(ctx, model, buildRequest{all: !o.MissingOnly, noCache: o.NoCache, pull: o.PullBase, auth: o.Auth,
+		events: o.Events, buildEvents: o.BuildEvents, built: o.Built})
 }
 
 type buildRequest struct {
 	// all rebuilds every build service; otherwise only missing images.
-	all     bool
-	noCache bool
-	pull    bool
-	auth    []engine.RegistryAuth
-	events  func(Event)
+	all         bool
+	noCache     bool
+	pull        bool
+	auth        []engine.RegistryAuth
+	events      func(Event)
+	buildEvents func(image string, ev engine.BuildEvent)
+	built       func(BuiltImage)
 }
 
 // buildImages builds the images of the model's build services (sorted by
@@ -90,11 +111,18 @@ func (a *Adapter) buildImages(ctx context.Context, model *types.Project, req bui
 					req.events(Event{Resource: "Image " + image, Status: "working", Text: ev.Step, Details: ev.Status})
 				}
 			}
-			if _, err := a.opts.Engine.Build(ctx, spec); err != nil {
+			if req.buildEvents != nil {
+				spec.Progress = func(ev engine.BuildEvent) { req.buildEvents(image, ev) }
+			}
+			res, err := a.opts.Engine.Build(ctx, spec)
+			if err != nil {
 				return err
 			}
 			if req.events != nil {
 				req.events(Event{Resource: "Image " + image, Status: "done", Text: "Built"})
+			}
+			if req.built != nil {
+				req.built(BuiltImage{Service: name, Image: image, ImageID: res.ImageID})
 			}
 		}
 		// The image now exists locally: the SDK must use it as is.

@@ -60,6 +60,9 @@ type Options struct {
 	// WaitTimeout bounds each dependency-condition wait of start/restart
 	// (default lifecycle.DefaultWaitTimeout).
 	WaitTimeout time.Duration
+	// BuildCancelPoll is how often a running build checks for cancellation
+	// (default buildrun.DefaultCancelPoll).
+	BuildCancelPoll time.Duration
 }
 
 // Service serves the compose.* requests and runs the stack.* jobs.

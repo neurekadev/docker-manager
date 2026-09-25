@@ -30,6 +30,7 @@ const (
 	CapStackManage          Capability = "stack.manage"
 	CapStackRemove          Capability = "stack.remove"
 	CapStackDeploy          Capability = "stack.deploy"
+	CapStackBuild           Capability = "stack.build"
 	CapStackDefinitionRead  Capability = "stack.definition.read"
 	CapStackDefinitionWrite Capability = "stack.definition.write"
 	capContainerDetailsRead            = "container.details.read"
@@ -59,6 +60,7 @@ type StackService interface {
 	Update(ctx context.Context, id string, expectRevision int64, p domain.StackPatch) (domain.Stack, error)
 	Delete(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest) (domain.Job, error)
 	Deploy(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest, o domain.StackDeployOptions) (domain.Job, error)
+	Build(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest, o domain.StackBuildOptions) (domain.Job, error)
 	Operate(ctx context.Context, p authz.Principal, st domain.Stack, action string, r domain.StackJobRequest) (domain.Job, error)
 	Restore(ctx context.Context, p authz.Principal, st domain.Stack, revisionID string) (domain.StackRestore, error)
 	Revisions(ctx context.Context, stackID string, beforeSeq int64, limit int) ([]domain.StackRevision, error)
@@ -720,12 +722,13 @@ type deployStackInput struct {
 	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
 	IdempotencyKeyParam
 	Body *struct {
-		Pull           string   `json:"pull,omitempty" enum:"missing,always" doc:"missing (default): pull only images that are not on the host; always: pull every image first."`
-		Build          bool     `json:"build,omitempty" doc:"Rebuild every build section (default: only missing images are built)."`
-		ForceRecreate  bool     `json:"forceRecreate,omitempty"`
-		RemoveOrphans  bool     `json:"removeOrphans,omitempty" doc:"Remove containers of services no longer in the definition."`
-		Services       []string `json:"services,omitempty" maxItems:"64" doc:"Deploy only these services (and their dependencies)."`
-		TimeoutSeconds int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period for recreated containers."`
+		Pull                string   `json:"pull,omitempty" enum:"missing,always" doc:"missing (default): pull only images that are not on the host; always: pull every image first."`
+		Build               bool     `json:"build,omitempty" doc:"Rebuild every build section (default: only missing images are built)."`
+		ForceRecreate       bool     `json:"forceRecreate,omitempty"`
+		RemoveOrphans       bool     `json:"removeOrphans,omitempty" doc:"Remove containers of services no longer in the definition."`
+		Services            []string `json:"services,omitempty" maxItems:"64" doc:"Deploy only these services (and their dependencies)."`
+		TimeoutSeconds      int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period for recreated containers."`
+		BuildTimeoutSeconds int      `json:"buildTimeoutSeconds,omitempty" minimum:"0" maximum:"21600" doc:"Bounds the images the deploy builds (default 3600)."`
 	}
 }
 
@@ -738,9 +741,45 @@ func (h *stacksAPI) deploy(ctx context.Context, in *deployStackInput) (*JobAccep
 	var o domain.StackDeployOptions
 	if b := in.Body; b != nil {
 		r.Services, r.TimeoutSeconds = b.Services, b.TimeoutSeconds
-		o = domain.StackDeployOptions{Pull: b.Pull, Build: b.Build, ForceRecreate: b.ForceRecreate, RemoveOrphans: b.RemoveOrphans}
+		o = domain.StackDeployOptions{Pull: b.Pull, Build: b.Build, ForceRecreate: b.ForceRecreate, RemoveOrphans: b.RemoveOrphans,
+			BuildTimeoutSeconds: b.BuildTimeoutSeconds}
 	}
 	j, err := h.svc.Deploy(ctx, p, st, r, o)
+	if err != nil {
+		return nil, stackErr(err)
+	}
+	return Accepted(j), nil
+}
+
+type buildStackInput struct {
+	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
+	IdempotencyKeyParam
+	Body *struct {
+		Services       []string `json:"services,omitempty" maxItems:"64" doc:"Build only these services (each needs a build section); default: every service with a build section."`
+		NoCache        bool     `json:"noCache,omitempty" doc:"Build without the build cache."`
+		Pull           bool     `json:"pull,omitempty" doc:"Pull newer versions of the base images."`
+		TimeoutSeconds int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"21600" doc:"Stops the build with a failure after this long (default 3600)."`
+		RegistryIDs    []string `json:"registryIds,omitempty" maxItems:"16" doc:"Registry connections for base images; default: the environment's host-wide connection per registry."`
+	}
+}
+
+func (h *stacksAPI) build(ctx context.Context, in *buildStackInput) (*JobAccepted, error) {
+	_, p, st, _, err := h.requireStack(ctx, in.StackID, CapStackBuild)
+	if err != nil {
+		return nil, err
+	}
+	r := domain.StackJobRequest{IdempotencyKey: in.IdempotencyKey}
+	var o domain.StackBuildOptions
+	if b := in.Body; b != nil {
+		r.Services = b.Services
+		o = domain.StackBuildOptions{NoCache: b.NoCache, Pull: b.Pull, TimeoutSeconds: b.TimeoutSeconds, RegistryIDs: b.RegistryIDs}
+		// Names and options only: build argument values live in the
+		// Compose files and are never audited (#30, #33).
+		if len(b.Services) > 0 {
+			audit.SetDetail(ctx, "services", b.Services)
+		}
+	}
+	j, err := h.svc.Build(ctx, p, st, r, o)
 	if err != nil {
 		return nil, stackErr(err)
 	}
@@ -1273,6 +1312,17 @@ func registerStacks(a huma.API, deps Deps) {
 			"revision. Deploys of one stack serialize (job lock). A failed deploy keeps the last applied revision; nothing is rolled back.",
 		Tags: []string{tagStacks}, Errors: jobErrs, DefaultStatus: http.StatusAccepted,
 	}, Capability: CapStackDeploy, Scope: ScopeResource, Idempotency: IdempotencyJob}, h.deploy)
+
+	Register(a, Operation{Operation: huma.Operation{
+		OperationID: "create-stack-build", Method: http.MethodPost, Path: one + "/builds", Summary: "Build a stack's images",
+		Description: "Starts a stack.build job (202): the agent rebuilds the images of the stack's Compose build sections (or of " +
+			"the named services) from the definition on disk through the Engine's BuildKit, without deploying them. BuildKit " +
+			"progress and build output stream as the job's events (credentials removed); cancel the job to stop the build " +
+			"(images built before stay, the interrupted one keeps its previous version). Base images authenticate with the named " +
+			"registry connections, or the environment's host-wide connection per registry. Build arguments come from the Compose " +
+			"files, end up in the image history and are never audited. Builds per environment are capped (build class).",
+		Tags: []string{tagStacks}, Errors: jobErrs, DefaultStatus: http.StatusAccepted,
+	}, Capability: CapStackBuild, Scope: ScopeResource, Idempotency: IdempotencyJob}, h.build)
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "create-stack-operation", Method: http.MethodPost, Path: one + "/operations", Summary: "Start, stop, restart or take down a stack",

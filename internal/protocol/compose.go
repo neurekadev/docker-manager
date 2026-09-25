@@ -399,6 +399,14 @@ type StackJobInput struct {
 	Build         bool `json:"build,omitempty"`
 	ForceRecreate bool `json:"forceRecreate,omitempty"`
 	RemoveOrphans bool `json:"removeOrphans,omitempty"`
+	// NoCache builds without the build cache and PullBase pulls newer base
+	// images (stack.build, #33).
+	NoCache  bool `json:"noCache,omitempty"`
+	PullBase bool `json:"pullBase,omitempty"`
+	// BuildTimeoutSeconds bounds the builds of a stack.build or a deploy's
+	// build step (0 = jobspec.DefaultBuildTimeout, at most
+	// jobspec.MaxBuildTimeout).
+	BuildTimeoutSeconds int `json:"buildTimeoutSeconds,omitempty"`
 	// TimeoutSeconds bounds stop grace periods (0 = service defaults).
 	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
 	// RegistryConnections are the registry connections (#19) the manager
@@ -439,8 +447,11 @@ type StackJobOutput struct {
 	Sources  *SourceSnapshot  `json:"sources,omitempty"`
 	Services []ComposeService `json:"services,omitempty"`
 	Images   []AppliedImage   `json:"images,omitempty"`
-	Binds    []ComposeBind    `json:"binds,omitempty"`
-	Warnings []ComposeIssue   `json:"warnings,omitempty"`
+	// Built are the images this job built from build sections
+	// (stack.build, and the build step of stack.deploy).
+	Built    []AppliedImage `json:"built,omitempty"`
+	Binds    []ComposeBind  `json:"binds,omitempty"`
+	Warnings []ComposeIssue `json:"warnings,omitempty"`
 	// Before is the Engine state captured before the operation changed
 	// anything; After the state when it finished (also on failure).
 	Before []ServiceState `json:"before"`

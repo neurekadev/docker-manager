@@ -60,8 +60,10 @@ agent's steps:
 2. `pull_images`: only with `pull: always` (the default `missing` never
    moves tags implicitly, #20). Every pull, build and `up` uses the
    registry credentials of the command (#19, below), in memory only.
-3. `build_images`: only with `build: true`; otherwise missing images are
-   built during `apply`, always through the Engine's BuildKit (#33).
+3. `build_images`: builds the images of build sections that are missing
+   on the host (every build section with `build: true`) through the
+   Engine's BuildKit, with streamed progress and cancellation, exactly
+   like `stack.build` (builds.md, #33).
 4. `apply`: snapshot the definition files, **load the project from exactly
    those bytes**, re-read the files and retry when they changed meanwhile,
    then Compose `up` (dependency order and `depends_on` conditions by the
@@ -145,6 +147,7 @@ compose_project_exists`: import it instead).
 | `stack.create`, `stack.import` | creation/validation, discovery/import in an environment |
 | `stack.manage` | display metadata (never written to Compose files) |
 | `stack.deploy`, `stack.start/stop/restart/down`, `stack.remove` | the jobs |
+| `stack.build` | `POST /stacks/{id}/builds` (rebuild the build sections without deploying, #33) |
 
 Any other capability on a stack shows it minimally (id, name, environment,
 status, actions). Stacks are located by the stack Locator; stack-scoped
@@ -218,5 +221,6 @@ but not deployed is operated as deployed.
   (`jobexec.ClassedError`): Engine/Compose codes (`dependency_failed`,
   `invalid_project`, `unsupported_compose_feature`, `unauthorized`,
   `rate_limited`, ...), lifecycle codes (`dependency_missing`,
-  `no_containers`, `dependency_conflict`), `storage_*` (#28) and
-  `credential_unavailable` (#19), each with recovery guidance.
+  `no_containers`, `dependency_conflict`), `storage_*` (#28),
+  `credential_unavailable` (#19) and `nothing_to_build` (a stack build
+  without a build section, #33), each with recovery guidance.

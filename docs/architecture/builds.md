@@ -97,15 +97,48 @@ its job targets the definition, which covers the images it tags for
 authorization (`authz.TargetResources`). Deleting a definition keeps its
 build records. Scheduled rebuilds are not in v1.
 
-## Stack builds (follow-up)
+## Stack builds
 
-`POST /stacks/{stackId}/builds` (`stack.build`) and building Compose
-`build:` sections during deploy need the stack model of #7 (project
-directories, revisions). The Compose adapter already builds `build:`
-services through the Engine adapter's BuildKit before the SDK runs
-(engine-integration.md); what remains is the `stack.build` executor
-(load the stack project, build its services with `regauth.All(sc.Secrets)`,
-stream progress, honor cancellation) and the route, both on top of #7.
+Compose `build:` sections are built by the Compose adapter through the
+Engine adapter's BuildKit (`engine.Client.Build`), never the Compose SDK's
+build path (#25: without buildx it falls back to the legacy builder and a
+`git` CLI). Two jobs use the same path (`internal/agent/stacks`
+`runBuild`, shared helpers in `internal/agent/buildrun`):
+
+- `POST /stacks/{stackId}/builds` (`stack.build` on the stack,
+  `Idempotency-Key` honored) enqueues a `stack.build` job (202): steps
+  `fetch_sources` (load the project on disk, refuse with
+  `nothing_to_build` when the stack or a named service has no build
+  section) and `build_images` (rebuild every selected build section, with
+  `noCache` / `pull` for base images). It never deploys: the running
+  containers keep their images until the next deploy.
+- `stack.deploy`'s `build_images` step builds the images missing on the
+  host (every build section with `build: true`) before `apply`, so a
+  deploy's builds stream and cancel the same way.
+
+Both stream BuildKit steps and build output as job progress per image
+(`<image>: <step>`), scrubbed of the command's credentials with the
+bounds of manual builds; report every built image as an item (image
+reference -> image ID) and in the output (`built`); stop on cancellation
+(`jobexec.ErrStepCancelled`: the job ends `cancelled`, images built
+before stay, the interrupted build tags nothing) and on the build timeout
+(`timeoutSeconds` / `buildTimeoutSeconds`, default 1 h, at most 6 h). The
+job engine's build class caps `stack.build` jobs per environment
+(`DOCKYARD_JOB_MAX_CONCURRENT_BUILDS`); stack jobs of one stack serialize
+on the stack lock.
+
+Registry credentials for base images (#19): `registryIds` in the request,
+or else the environment's host-wide connection per registry
+(`Registries().BuildCredentials`, as for manual builds); a deploy of a
+stack with build sections adds the same host-wide connections to the
+connections selected for its images. IDs go into the input
+(`registryConnections`), secrets arrive only with the command. Compose Git
+contexts get no Git credential in v1 (public repositories only).
+
+Build arguments come from the Compose files (and `.env`
+interpolation): they reach BuildKit and the image history, never the job
+input, job events or the audit record (which carries the capability and
+the requested service names).
 
 ## Tests
 
@@ -121,6 +154,21 @@ dispatch, concurrency cap, records, definitions and runs, whole-database
 canary scan), `internal/manager/app/builds_test.go` (HTTP, shaping,
 owner-only, audit without credentials or build argument values).
 
+Stack builds: `internal/agent/buildrun` (scrubbing, bounded progress,
+cancellation, timeout), `internal/agent/stacks` `build_test.go` (the real
+Compose adapter against a scripted Engine: rebuild of every section with
+the request's options, missing-only deploy builds, mid-build cancellation
+of `stack.build` and `stack.deploy`, timeout, credentials passed to
+BuildKit and scrubbed from progress, result and journal),
+`internal/manager/stacks` `build_test.go` (enqueue, credential IDs,
+command secrets, progress as job events, cancellation through the job
+engine), `internal/manager/app` `TestStackBuildThroughTheAPI` (HTTP, audit,
+database canary scan), `internal/manager/api`
+`TestStackBuildNeedsItsOwnCapability`.
+
 Integration (`-tags integration`, extended `compose-fixtures`):
 `TestGitBuildsOnTwoEngines` (Git server fixture, two DinD Engines, public
-and private repositories).
+and private repositories); `TestComposeStackBuildRebuildAndCancel`
+(internal/agent/stacks: the deploy builds the missing image, `stack.build`
+rebuilds without deploying, the redeploy runs the new image, a build
+cancelled mid-`RUN` tags nothing).

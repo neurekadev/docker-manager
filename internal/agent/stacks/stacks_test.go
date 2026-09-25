@@ -638,7 +638,15 @@ func TestDeployUsesAndReportsOnDiskBytesWithoutModifyingThem(t *testing.T) {
 
 func TestDeployWithPullAndBuild(t *testing.T) {
 	e, _ := deployFixture(t)
+	// No service has a build section: nothing is built (build_test.go
+	// covers builds through the real adapter).
 	res, _ := run(t, e.svc, jobspec.StackDeploy, protocol.StackJobInput{Stack: ref("app"), Pull: "always", Build: true})
+	if res.Outcome != jobexec.OutcomeSucceeded || !slices.Equal(e.c.calls, []string{"pull:app", "up:app"}) {
+		t.Errorf("result %+v calls %v", res, e.c.calls)
+	}
+	writeTree(t, filepath.Join(e.root, "app"), map[string]string{"compose.yaml": appYAML + "  api:\n    build: ./api\n"})
+	e.c.calls = nil
+	res, _ = run(t, e.svc, jobspec.StackDeploy, protocol.StackJobInput{Stack: ref("app"), Pull: "always", Build: true})
 	if res.Outcome != jobexec.OutcomeSucceeded || !slices.Equal(e.c.calls, []string{"pull:app", "build:app", "up:app"}) {
 		t.Errorf("result %+v calls %v", res, e.c.calls)
 	}
