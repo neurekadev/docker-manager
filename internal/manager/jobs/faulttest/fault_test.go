@@ -311,8 +311,10 @@ func managerMain() int {
 				if gate != nil {
 					<-gate.held
 				}
-				_ = out.write(envelope{Ctl: "done"})
+				// Close before telling the parent: its hang-up must never
+				// look like one that came before the job finished.
 				close(done)
+				_ = out.write(envelope{Ctl: "done"})
 				return
 			}
 			select {
@@ -324,7 +326,11 @@ func managerMain() int {
 	select {
 	case <-done:
 	case <-stdinClosed:
-		return 4 // the parent hung up before the job finished
+		select {
+		case <-done: // both ready: the hang-up answered "done"
+		default:
+			return 4 // the parent hung up before the job finished
+		}
 	}
 	// Keep handling frames until the parent hangs up, so stage boundaries
 	// after the terminal commit (e.g. engine.result.committed) are reached.
@@ -334,7 +340,9 @@ func managerMain() int {
 	// after the done watcher may already have seen it). Stop dispatching
 	// and let that goroutine finish before exiting, like the manager's
 	// shutdown (Engine.Close) does, so the point is reached on every run
-	// (extended run 36075563917, TestManagerDrainsJobTail).
+	// (extended run 36075563917, TestManagerDrainsJobTail). Previously the
+	// child returned right after the hang-up: with 0, or with 4 when the
+	// hang-up won the race against close(done).
 	log.Debug("parent hung up; draining the engine")
 	stopRun()
 	<-runDone
@@ -728,10 +736,11 @@ func TestKillAtEveryStage(t *testing.T) {
 // 36075563917 (TestKillAtEveryStage/manager_backup failed with "fault point
 // engine.manager_job.committed was not reached"). That point sits in the
 // manager-local job goroutine after the terminal commit; the manager child
-// used to return as soon as the parent hung up after "done", so when the
-// goroutine was descheduled between commit and point the process exited 0
-// first. The gate forces exactly that interleaving: the manager must still
-// let the goroutine finish its tail (and crash there) before exiting.
+// used to return as soon as the parent hung up after "done" (exit 0, or 4
+// when the hang-up beat close(done)), so when the goroutine was descheduled
+// between commit and point the process exited first. The gate forces
+// exactly that interleaving: the manager must still let the goroutine
+// finish its tail (and crash there) before exiting.
 func TestManagerDrainsJobTail(t *testing.T) {
 	for _, name := range []string{"manager_backup", "retention"} {
 		t.Run(name, func(t *testing.T) {
