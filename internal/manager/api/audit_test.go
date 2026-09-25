@@ -23,6 +23,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"github.com/neurekadev/dockyard/internal/manager/events"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
 	"github.com/neurekadev/dockyard/internal/manager/jobs/jobstest"
 	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
@@ -51,6 +52,7 @@ type auditFixture struct {
 	api    huma.API
 	h      http.Handler
 	mirror *testutil.LogBuffer
+	bus    *events.Bus
 }
 
 func openTestDB(t *testing.T) *bun.DB {
@@ -88,7 +90,9 @@ func newAuditFixture(t *testing.T, az authz.Authorizer) *auditFixture {
 	}
 	t.Cleanup(f.eng.Close)
 	mux := http.NewServeMux()
-	f.api = New(mux, Deps{Jobs: f.eng, Authorizer: az, Clock: f.clk, Audit: f.log, Idempotency: &memIdempotency{recs: map[string]*memRec{}}})
+	f.bus = events.New(f.clk)
+	f.api = New(mux, Deps{Jobs: f.eng, Authorizer: az, Clock: f.clk, Audit: f.log, Idempotency: &memIdempotency{recs: map[string]*memRec{}},
+		Events: f.bus})
 	logger := testutil.Logger(t)
 	f.h = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := logging.WithRequestID(r.Context(), "req-123")
@@ -237,6 +241,39 @@ func registerAuditTestOps(a huma.API) {
 			DefaultStatus: http.StatusCreated},
 		Capability: CapabilityOwner, Scope: ScopeInstance, Idempotency: IdempotencyStored,
 	}, func(context.Context, *struct{ IdempotencyKeyParam }) (*struct{}, error) { return nil, nil })
+}
+
+// TestMutationsPublishResourceChanged (#23): a successful audited mutation
+// announces its targets on the bus (live streams invalidate them); failed
+// calls and job targets publish nothing.
+func TestMutationsPublishResourceChanged(t *testing.T) {
+	f := newAuditFixture(t, auditAuthz{})
+	registerAuditTestOps(f.api)
+	sub := f.bus.Subscribe(16, func(e events.Event) bool { return e.Type == events.ResourceChanged })
+	defer sub.Close()
+	if rec := f.do(http.MethodPost, BasePath+"/test/stacks/st-1/operations", `{"action":"stop"}`, "X-Test-User", "alice"); rec.Code != http.StatusNoContent {
+		t.Fatalf("status %d", rec.Code)
+	}
+	var got []string
+	for len(sub.C()) > 0 {
+		e := <-sub.C()
+		got = append(got, e.ResourceType+":"+e.ResourceID+":"+e.Attributes["action"]+":"+e.Attributes["op"])
+	}
+	if len(got) != 2 || got[0] != "stack:st-1:stack.stop:update" {
+		t.Fatalf("published %v", got)
+	}
+	f.do(http.MethodPatch, BasePath+"/test/environments/env-1/containers/web", `{"name":"taken"}`, "X-Test-User", "alice")
+	if len(sub.C()) != 0 {
+		t.Fatal("a failed mutation was published")
+	}
+	evs := []domain.AuditEvent{{Action: "backup_policy.manage", EnvironmentID: "env-1", Outcome: domain.AuditSuccess,
+		Targets: []domain.AuditTarget{{Type: "backup_policy", ID: "p1"}, {Type: "job", ID: "j1"}}}}
+	publishChanges(f.bus, Operation{Operation: huma.Operation{Method: http.MethodDelete}}, evs[0], http.StatusNoContent)
+	publishChanges(f.bus, Operation{Operation: huma.Operation{Method: http.MethodPost}}, domain.AuditEvent{Action: "stack.files.write",
+		Targets: []domain.AuditTarget{{Type: "stack", ID: "s"}}}, http.StatusCreated)
+	if e := <-sub.C(); e.ResourceID != "p1" || e.Attributes["op"] != "delete" || e.EnvironmentID != "env-1" || len(sub.C()) != 0 {
+		t.Fatalf("published %+v (and %d more)", e, len(sub.C()))
+	}
 }
 
 func TestAuditRecordShape(t *testing.T) {

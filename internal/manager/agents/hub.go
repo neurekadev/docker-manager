@@ -195,6 +195,25 @@ func (h *Hub) RequestEnvironment(ctx context.Context, environmentID, name string
 	return s.Request(ctx, name, input, timeout)
 }
 
+// EnvironmentServes reports whether the environment's live session
+// advertised the named request (callers of requests newer than the
+// oldest supported agent check it: an N-1 agent closes the session on an
+// unknown request name).
+func (h *Hub) EnvironmentServes(environmentID, name string) bool {
+	s := h.EnvironmentSession(environmentID)
+	return s != nil && s.Serves(name)
+}
+
+// RescanEnvironment sends a rescan to the environment's agent
+// (jobs.ErrAgentOffline without a session).
+func (h *Hub) RescanEnvironment(ctx context.Context, environmentID string, p protocol.RescanPayload, timeout time.Duration) (protocol.RescanResult, error) {
+	s := h.EnvironmentSession(environmentID)
+	if s == nil {
+		return protocol.RescanResult{}, jobs.ErrAgentOffline
+	}
+	return s.Rescan(ctx, p, timeout)
+}
+
 // OpenStream opens a byte stream (files.download, files.upload,
 // container.logs, container.exec, ...) on the environment's live session.
 // jobs.ErrAgentOffline without a session. See Session.OpenStream.

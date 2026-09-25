@@ -3,7 +3,10 @@
 // A new build installs in the background and then WAITS. The page shows a
 // prompt; only when the user clicks reload does it ask the waiting worker to
 // take over and reload once it controls the page. Nothing here reloads on
-// its own, so unsaved edits, terminals or restores are never interrupted.
+// its own, and applyUpdate refuses while critical work is registered
+// ($lib/live criticalWork: unsaved edits, terminals, restores, uploads), so
+// they are never interrupted.
+import { criticalWork, type CriticalItem } from '$lib/live/critical.svelte';
 import { SKIP_WAITING } from './sw-core';
 
 export const SW_URL = '/service-worker.js';
@@ -42,10 +45,20 @@ export class PwaState {
 	updating = $state(false);
 	registered = $state(false);
 	error = $state<string | null>(null);
+	/** Critical work that held back the last applyUpdate (empty otherwise). */
+	blockedBy = $state<CriticalItem[]>([]);
 
 	#container: ContainerLike | null = null;
 	#registration: RegistrationLike | null = null;
 	#reload: () => void = () => location.reload();
+	#critical: () => CriticalItem[];
+	/** The new worker took control while critical work held the reload. */
+	#activated = false;
+
+	/** critical lists work a reload would destroy (default: criticalWork). */
+	constructor(critical: () => CriticalItem[] = () => criticalWork.items) {
+		this.#critical = critical;
+	}
 
 	/**
 	 * Registers the service worker. `reload` is injectable for tests; it is
@@ -98,15 +111,33 @@ export class PwaState {
 
 	/**
 	 * User accepted the update: activate the waiting worker and reload once
-	 * it controls the page. Returns false when there is nothing to apply.
+	 * it controls the page. Returns false when there is nothing to apply, or
+	 * while critical work is open (blockedBy lists it; nothing is reloaded).
 	 */
 	applyUpdate(): boolean {
 		const container = this.#container;
 		const waiting = this.#registration?.waiting;
-		if (!container || !waiting) return false;
+		if (!container || (!waiting && !this.#activated)) return false;
+		const open = this.#critical();
+		this.blockedBy = open;
+		if (open.length > 0) return false;
+		if (!waiting) {
+			// Activated earlier, reload held back: reload now.
+			this.#activated = false;
+			this.updating = true;
+			this.#reload();
+			return true;
+		}
 		this.updating = true;
 		const onChange = () => {
 			container.removeEventListener('controllerchange', onChange);
+			// Work may have started while the worker was activating.
+			if (this.#critical().length > 0) {
+				this.blockedBy = this.#critical();
+				this.updating = false;
+				this.#activated = true;
+				return;
+			}
 			this.#reload();
 		};
 		container.addEventListener('controllerchange', onChange);

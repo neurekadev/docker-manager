@@ -20,6 +20,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -48,6 +49,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/gitcreds"
 	"github.com/neurekadev/dockyard/internal/manager/idempotency"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
+	"github.com/neurekadev/dockyard/internal/manager/live"
 	"github.com/neurekadev/dockyard/internal/manager/maintenance"
 	"github.com/neurekadev/dockyard/internal/manager/metrics"
 	envmigrations "github.com/neurekadev/dockyard/internal/manager/migrations"
@@ -143,6 +145,11 @@ type Manager struct {
 	// resources is the Docker resource service (#6).
 	resources *resources.Service
 	files     *files.Service
+	// Live synchronization (#23): the live stream hub, its job source and
+	// the file watch set of every agent.
+	live      *live.Hub
+	liveJobs  *live.JobSource
+	fileWatch *files.Watcher
 	stacks    *stacks.Service
 	io        *containerio.Service
 	handler   http.Handler
@@ -483,6 +490,16 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	// service (#7), which records a revision when a definition file changes.
 	m.files = files.New(files.Options{Agents: m.agents.Hub(), Jobs: m.jobs, Logger: log.With("component", "files")})
 	m.files.SetStacks(m.stacks, m.stacks)
+	// Live synchronization (#23): every agent watches its stacks and the
+	// open volume views (files.watch); external definition edits become
+	// revisions; the live stream relays the bus (jobs through the engine's
+	// change listener) to every open UI tab, filtered per user.
+	m.fileWatch = files.NewWatcher(files.WatcherOptions{Agents: m.agents.Hub(), Stacks: m.stacks, Bus: m.events, Clock: opts.Clock,
+		Logger: log.With("component", "files")})
+	m.files.SetWatcher(m.fileWatch)
+	m.live = live.New(live.Options{Bus: m.events, Clock: opts.Clock, Logger: log})
+	m.liveJobs = live.NewJobSource(m.jobs.Get, m.events, opts.Clock, log)
+	m.jobs.OnChange(m.liveJobs.Changed)
 
 	// Image builds (#33): build records, definitions and the image.build
 	// jobs they enqueue.
@@ -631,6 +648,8 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Backups:        m.backups,
 			Removal:        removal.New(db),
 			Diagnostics:    m.diag,
+			Live:           m.live,
+			FileWatch:      m.fileWatch,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -762,6 +781,13 @@ func (m *Manager) Observe() *observe.Service { return m.observe }
 // manager-side digest check (#20).
 func (m *Manager) Registries() *registries.Service { return m.regs }
 
+// Live returns the live stream hub (#23).
+func (m *Manager) Live() *live.Hub { return m.live }
+
+// FileWatch returns the file watcher's manager side (#23): the agents'
+// watch sets and the recording of external definition edits.
+func (m *Manager) FileWatch() *files.Watcher { return m.fileWatch }
+
 // Files returns the scoped file service (#15): #7 installs its stack root
 // resolver and source observer with SetStacks.
 func (m *Manager) Files() *files.Service { return m.files }
@@ -856,6 +882,17 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		defer close(backupsDone)
 		m.backups.Run(engineCtx)
 	}()
+	// Live synchronization (#23): the live stream hub, its job source and
+	// the agents' file watch sets.
+	liveDone := make(chan struct{})
+	go func() {
+		defer close(liveDone)
+		var wg sync.WaitGroup
+		wg.Go(func() { m.live.Run(engineCtx) })
+		wg.Go(func() { m.liveJobs.Run(engineCtx) })
+		wg.Go(func() { m.fileWatch.Run(engineCtx) })
+		wg.Wait()
+	}()
 	defer func() {
 		stopEngine()
 		<-engineDone
@@ -866,6 +903,7 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		<-metricsDone
 		<-schedDone
 		<-backupsDone
+		<-liveDone
 	}()
 	srv := server.HTTPServer(m.handler, m.opts.Logger)
 	errCh := make(chan error, 1)

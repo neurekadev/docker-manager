@@ -8,7 +8,7 @@ the [route inventory](../../api/route-inventory.yaml) is listed here
 
 | route | operation | transport | owner |
 | --- | --- | --- | --- |
-| `GET /live/stream` | `stream-live-events` | SSE | #23 |
+| `GET /live/stream` | `stream-live-events` | SSE | #23 (implemented) |
 | `GET /jobs/{jobId}/events/stream` | `stream-job-events` | SSE | #26 (implemented) |
 | `GET /environments/{environmentId}/events/stream` | `stream-environment-events` | SSE | #5 (implemented) |
 | `GET /stacks/{stackId}/events/stream` | `stream-stack-events` | SSE | #7 (implemented) |
@@ -86,71 +86,143 @@ data: {"topic":"containers","kind":"container","resourceId":"…","environmentId
 
 ## Live invalidation stream (#23)
 
-`GET /api/v1/live/stream` is the one multiplexed, permission-filtered,
-versioned stream each open UI tab keeps. It carries **invalidations**, never
-resource bodies or secrets: the client refetches affected queries with the
-generated API client.
+Implemented (`internal/manager/live`, handler `internal/manager/api/live.go`,
+browser client `web/src/lib/live`). `GET /api/v1/live/stream` is the one
+multiplexed, permission-filtered, versioned stream each open UI tab keeps. It
+carries **invalidations**, never resource bodies, file contents or secrets:
+the client refetches affected queries with the generated API client.
 
-Query parameters (all optional): `topics` (comma-separated, default all
-topics the caller may see), `environmentId`, `stackId`, `volume` (narrow file
-and resource topics to open views). Unknown topics are `422`; topics the
-caller may not see simply produce nothing.
+Query parameters (all optional):
+
+| parameter | meaning |
+| --- | --- |
+| `topics` | comma-separated topics (default: every topic). Unknown topics are `422`; topics the caller may not see simply produce nothing |
+| `environmentId` | only events of this environment (instance-wide events such as policies, settings and jobs without an environment still pass) |
+| `stackId` | comma-separated stack IDs (at most 16): narrows `files.changed` to these stacks (the tab's open file views) |
+| `volume` | comma-separated `<environmentId>/<volume name>` (at most 16): narrows `files.changed` to these volumes **and keeps them watched** by the agent while the stream is open (needs `volume.files.read`; volumes are otherwise watched only for 5 minutes after a listing) |
+| `cursor` | resume position for clients that reconnect with a new `EventSource` (which cannot send `Last-Event-ID`); `Last-Event-ID` wins |
+
+Whole-environment file invalidations reach every file view of the
+environment whatever the narrowing. A tab whose open views change
+reconnects with its cursor; nothing is lost.
 
 Topics: `environments`, `agents`, `containers`, `images`, `volumes`,
 `networks`, `stacks`, `jobs`, `files`, `policies`, `backups`, `registries`,
-`settings`, `permissions`.
+`settings`, `permissions`, `metrics`.
 
 ### Events
 
 | event | id | data | client action |
 | --- | --- | --- | --- |
-| `hello` | — | `{version: "dockyard.live/v1", cursor, heartbeatMs, topics}` | (Re)fetch every open view (the snapshot), then apply events after `cursor` |
-| `invalidate` | cursor | `{topic, kind, resourceId, environmentId?, revision?, action: created\|updated\|deleted, at}` | Invalidate queries for that resource and its lists; ignore when `revision` ≤ the cached revision |
-| `job` | cursor | `{jobId, state, progressPercent?, at}` | Update job badges; open `/jobs/{jobId}/events/stream` for detail |
-| `agent` | cursor | `{environmentId, status: online\|offline\|outdated, at}` | Show connection state; data of an offline environment is stale |
+| `hello` | — | `{version: "dockyard.live/v1", cursor, heartbeatMs, topics, resumed}` | `resumed: false`: (re)fetch every open view (the snapshot), then apply events after `cursor`; `resumed: true`: the missed events follow, cached data stays valid |
+| `invalidate` | cursor | `{topic, kind, resourceId, environmentId?, revision?, action: created\|updated\|deleted, at}` | Invalidate queries for that resource and its lists; `revision` (when the resource has one) may be compared with the cached one |
+| `job` | cursor | `{jobId, kind, state, environmentId?, progressPercent?, revision, at}` | Update job badges and lists; open `/jobs/{jobId}/events/stream` for detail |
+| `agent` | cursor | `{environmentId, status: online\|offline, at}` | Show connection state; data of an offline environment is stale |
 | `files.changed` | cursor | see [file changes](#file-changes) | Invalidate listings; editor conflict handling |
-| `permissions.changed` | cursor | `{at}` | Drop **all** cached data, refetch `/me/permissions`, then reconnect; the server closes the stream right after |
-| `reset` | — | `{reason: cursor_expired\|gap\|overflow\|server_restart, cursor}` | Discard caches of subscribed topics, refetch (new snapshot), continue from the new `cursor` |
+| `permissions.changed` | — | `{at}` | Drop **all** cached data, refetch `/me/permissions`, then reconnect; `close` follows at once |
+| `reset` | — | `{reason: cursor_expired\|gap\|overflow\|server_restart, cursor, environmentId?}` | Discard cached data (only that environment's with `environmentId`), refetch, continue from the new `cursor` |
 | `close` | — | `{reason: permissions_changed\|session_expired\|max_age\|shutdown}` | Stream ends; reconnect (after re-authentication for `session_expired`) |
+
+What the sources are: Docker events relayed by agents (#5) → `invalidate`
+on `containers`/`images`/`volumes`/`networks`; environment and agent state
+and enrollments → `environments`/`agents` (online/offline as `agent`);
+Engine inventory refreshes → `invalidate` kind `inventory`; new metric
+samples → `invalidate` topic `metrics` (at most every 10 s per
+environment); stacks and their revisions (#7, including revisions the
+watcher recorded after an external edit) → `stacks`; jobs (#26: created,
+state, progress) → `job`; file-scope invalidations (#15/#23) →
+`files.changed`; every successful API mutation of other resources
+(policies, schedules, backups and repositories, registry and Git
+credentials, build definitions, settings, groups, users, invitations, API
+tokens) → `invalidate` on `policies`, `backups`, `registries`, `images`,
+`settings` or `permissions` with `kind` the resource type.
 
 - **Snapshot + cursor:** `hello` is sent first and fixes the cursor before
   the client fetches; anything that changes after it arrives as an event, so
   no change falls between snapshot and stream.
 - **Replay and gaps:** the manager keeps a bounded replay log (the newest
-  10 000 events or 15 minutes). Reconnecting with a `Last-Event-ID` inside
-  the log replays the missed events; outside it, or when the manager itself
-  lost events (agent reconnect, restart), the stream starts with `reset`.
-- **Deduplication:** cursors increase strictly; clients ignore an event whose
-  `id` is not above the last one applied. The manager coalesces repeated
-  invalidations of one resource within 250 ms and drops duplicate agent
-  events (by agent `seq`).
-- **Agents offline/reconnecting:** an environment is reported `online` only
-  after the manager reconciled it (#3, #26); a `reset` for its topics follows
-  so views refetch.
+  10 000 records or 15 minutes). Reconnecting with a `Last-Event-ID` (or
+  `cursor`) inside the log replays the missed events (`hello.resumed:
+  true`); a cursor older than the log gets `reset` `cursor_expired`, one of
+  another manager process `reset` `server_restart`. When the manager itself
+  lost events (its bus subscription overflowed) every stream gets `reset`
+  `gap`; when an agent reconnected or lost events (a sequence gap) the
+  streams get `reset` `gap` with that `environmentId`, before the
+  environment is reported `online` again (#3, #26).
+- **Deduplication and coalescing:** ids increase strictly; clients ignore
+  an event whose `id` is not above the last one applied. The manager
+  coalesces repeated events of one resource: the first in a 250 ms window
+  is sent at once, the rest are merged (file paths united; beyond 256 paths
+  an overflow) and sent once when the window ends; metrics per environment
+  use a 10 s window. Duplicate agent events are dropped by their agent
+  `seq` before they reach the bus.
+- **Backpressure:** each stream has a queue of 512 records. A client that
+  falls behind loses its queue and gets `reset` `overflow` with a fresh
+  cursor; producers (agents, the job engine) are never blocked. At most 8
+  live streams per user or API token (`429 rate_limited`).
+- **Permissions:** every record is filtered per subscriber with the #17
+  event rules (`authz.EventVisible`) and shaped to identity and action
+  only: no attributes, no names of resources the caller cannot see, file
+  paths only with the scope's files-read capability. Container events of a
+  container seen only through `container.metrics.read` are status
+  invalidations; such a user receives nothing about files, jobs, policies
+  or other containers. A permission change ends the stream with
+  `permissions.changed` and `close permissions_changed`; the client drops
+  its cache and reconnects under the new rules, so a revoked user keeps
+  nothing privileged on screen. Ended sessions and revoked or expired API
+  tokens close with `session_expired`.
 - **Fallback polling:** if the stream cannot be kept (three failed
   connections within 60 s, or a proxy that buffers SSE), clients poll open
   views — at most every 10 s for an open detail view and every 30 s for lists
   and metrics — and stop polling once the stream reconnects. Clients never
   queue mutations while offline (#25 decision 4).
+- **Measured load** (`TestLiveHighEventVolume`,
+  `TestLiveSustainedVolumeIsLossless`): 20 sessions × 10 000 events are
+  delivered losslessly at about 400 000 deliveries/s when the waves fit the
+  queues; an unbounded flood ends in resets (never silent gaps) within
+  milliseconds.
 
 ### File changes
 
 External create/modify/rename/delete events in stack and volume roots
 (reported by the agent watcher, [agent-v1.md](../protocol/agent-v1.md#fs_invalidation-and-rescan-15-23))
-arrive as:
+and changes made through DockYard's file manager arrive as:
 
 ```json
-{"scope":{"kind":"stack","id":"0190…"},"paths":["compose.yaml"],"overflow":false,"at":"…"}
+{"scope":{"kind":"stack","id":"0190…","environmentId":"0190…"},"paths":["compose.yaml"],"overflow":false,"at":"…"}
 ```
 
 - Sent only to subscribers with the scope's files-read capability
   (`stack.files.read` / `volume.files.read`); others get nothing — not even
-  the path names. Contents are never sent.
-- `overflow: true` (or a `reset`) means "refetch the whole listing".
+  the path names. Contents are never sent. Scope `kind: environment`
+  (`overflow: true`, no paths: the agent lost file notifications) reaches
+  everyone who sees the environment and means "refresh every file view of
+  it".
+- `paths` name changed entries or directories whose listing changed
+  (reconciliation scans report directories): refresh the listing of each
+  path's directory and of the path itself, and the metadata and content of
+  the path. `overflow: true` (or a `reset`) means "refetch the whole scope".
 - An open editor whose file is in `paths` keeps the buffer, shows the
   external change, and saves only with `If-Match` of the version it loaded;
-  a stale save gets `412` and the UI offers compare / reload / save-as /
-  overwrite (#15). Unsaved text is never replaced silently.
+  a stale save gets `412` with the current `ETag` and the UI offers compare /
+  reload / save-as / overwrite (#15). Unsaved text is never replaced
+  silently.
+- An external edit of a stack's `compose.yaml`, override or `.env` is also
+  recorded as a stack revision (source `external`, "undeployed changes",
+  #25 Q1) about a second later and announced on `stacks`.
+- Latency: local volumes within 2 s at p95 (measured 200 ms with the 200 ms
+  debounce), remote or unsupported mounts within 30 s (#25 Q5; budgets in
+  [support-matrix.md](../support-matrix.md#file-watching-23)).
+
+### How the other streams relate
+
+Job, environment, stack, log and terminal streams keep their dedicated
+protocols. They share the resource IDs of the live stream (`jobId`,
+`environmentId`, stack IDs, container names), the same authentication,
+heartbeats, max age and close reasons, and are ended the same way by a
+permission change. A client typically keeps the live stream for
+invalidation and opens a dedicated stream only for a view that shows a
+job's log or a container's output.
 
 ## Job events (`stream-job-events`)
 

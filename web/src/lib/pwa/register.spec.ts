@@ -6,6 +6,7 @@ import {
 	type RegistrationLike,
 	type WorkerLike
 } from './register.svelte';
+import type { CriticalItem } from '$lib/live/critical.svelte';
 
 class FakeWorker extends EventTarget implements WorkerLike {
 	state = 'installing';
@@ -120,6 +121,38 @@ describe('service worker registration', () => {
 		expect(reloads()).toBe(1);
 		container.takeControl(new FakeWorker());
 		expect(reloads()).toBe(1); // one reload only
+	});
+
+	it('never reloads while critical work is open (#23)', async () => {
+		const container = new FakeContainer();
+		container.controller = new FakeWorker();
+		const open: CriticalItem[] = [{ id: 1, kind: 'unsaved-edit', label: 'compose.yaml' }];
+		const state = new PwaState(() => open);
+		let reloads = 0;
+		await state.register(container, () => reloads++);
+		const w = container.reg.newWorker();
+		container.reg.finishInstall(w);
+
+		expect(state.applyUpdate()).toBe(false);
+		expect(state.blockedBy.map((i) => i.label)).toEqual(['compose.yaml']);
+		expect(w.messages).toEqual([]);
+		expect(state.updating).toBe(false);
+
+		// Work finished: the update applies.
+		open.length = 0;
+		expect(state.applyUpdate()).toBe(true);
+		expect(state.blockedBy).toEqual([]);
+		// A terminal opened while the new worker was activating: still no reload.
+		open.push({ id: 2, kind: 'terminal', label: 'web-1' });
+		container.takeControl(w);
+		expect(reloads).toBe(0);
+		expect(state.updating).toBe(false);
+		expect(state.blockedBy.map((i) => i.kind)).toEqual(['terminal']);
+		// Terminal closed: the next click reloads (the worker is active).
+		open.length = 0;
+		container.reg.waiting = null;
+		expect(state.applyUpdate()).toBe(true);
+		expect(reloads).toBe(1);
 	});
 
 	it('applyUpdate is a no-op without a waiting worker', async () => {

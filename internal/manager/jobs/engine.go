@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -127,6 +128,8 @@ type Engine struct {
 
 	subsMu sync.Mutex
 	subs   map[string]map[chan struct{}]struct{}
+	// changeListeners observe every job change (OnChange).
+	changeListeners []func(jobIDs []string)
 
 	mgrMu      sync.Mutex
 	mgrExecs   map[domain.JobKind]jobexec.Executor
@@ -270,7 +273,6 @@ func (e *Engine) Subscribe(jobID string) (<-chan struct{}, func()) {
 
 func (e *Engine) notify(jobIDs ...string) {
 	e.subsMu.Lock()
-	defer e.subsMu.Unlock()
 	for _, id := range jobIDs {
 		for ch := range e.subs[id] {
 			select {
@@ -279,6 +281,21 @@ func (e *Engine) notify(jobIDs ...string) {
 			}
 		}
 	}
+	listeners := e.changeListeners
+	e.subsMu.Unlock()
+	for _, fn := range listeners {
+		fn(jobIDs)
+	}
+}
+
+// OnChange registers fn, called with the IDs of jobs that were created,
+// changed state or reported progress (the live stream's job source, #23).
+// fn runs on the engine's goroutines: it must not block or call back into
+// the engine synchronously.
+func (e *Engine) OnChange(fn func(jobIDs []string)) {
+	e.subsMu.Lock()
+	defer e.subsMu.Unlock()
+	e.changeListeners = append(slices.Clone(e.changeListeners), fn)
 }
 
 var errIllegalTransition = errors.New("jobs: illegal state transition")

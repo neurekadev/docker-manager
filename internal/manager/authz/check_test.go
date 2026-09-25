@@ -171,6 +171,11 @@ func TestEventVisibility(t *testing.T) {
 	files := events.Event{Type: events.FilesInvalidated, ResourceType: events.ResourceFileScope, ResourceID: "stack:s1", EnvironmentID: "e1",
 		Paths: []string{"compose.yaml"}, Attributes: map[string]string{"scopeKind": "stack", "scopeId": "s1"}}
 	enroll := events.Event{Type: events.EnrollmentCreated, ResourceType: events.ResourceEnrollment, ResourceID: "x"}
+	job := events.Event{Type: events.JobUpdated, ResourceType: events.ResourceJob, ResourceID: "j", EnvironmentID: "e1",
+		Job: &domain.Job{ID: "j", Kind: "container.restart", EnvironmentID: "e1", Targets: []domain.JobTarget{{Type: domain.TargetContainer, ID: "web"}}}}
+	policy := events.Event{Type: events.ResourceChanged, ResourceType: "backup_policy", ResourceID: "p1", Attributes: map[string]string{"action": "backup_policy.manage"}}
+	group := events.Event{Type: events.ResourceChanged, ResourceType: "group", ResourceID: "g1"}
+	token := events.Event{Type: events.ResourceChanged, ResourceType: "api_token", ResourceID: "t1"}
 	unknown := events.Event{Type: "future.event"}
 	cases := []struct {
 		name  string
@@ -187,6 +192,14 @@ func TestEventVisibility(t *testing.T) {
 		{"enrollments need agent.enroll", c("allow agent.read @all"), enroll, false},
 		{"agent.enroll", c("allow agent.enroll @all"), enroll, true},
 		{"unknown types: not for users", c("allow environment.read @all"), unknown, false},
+		{"job: job.read on its environment", c("allow job.read @env:e1"), job, true},
+		{"job: the kind's capability on the target", c("allow container.restart @container:e1/web"), job, true},
+		{"job: other environment", c("allow job.read @env:e2"), job, false},
+		{"job without its record", c("allow job.read @all"), events.Event{Type: events.JobUpdated, ResourceID: "j"}, false},
+		{"policy change: policy readers", c("allow backup_policy.read @all"), policy, true},
+		{"policy change: others", c("allow environment.read @all"), policy, false},
+		{"group change: users", c("allow environment.read @all"), group, false},
+		{"token change: users", c("allow api_tokens.create @all"), token, false},
 	}
 	for _, tc := range cases {
 		if got := authz.EventVisible(tc.c, tc.event); got != tc.want {
@@ -194,7 +207,7 @@ func TestEventVisibility(t *testing.T) {
 		}
 	}
 	owner := authz.For(ctx, authztest.New().Owner("o"), principal("o"))
-	if !authz.EventVisible(owner, unknown) || !authz.EventVisible(owner, files) {
+	if !authz.EventVisible(owner, unknown) || !authz.EventVisible(owner, files) || !authz.EventVisible(owner, group) || !authz.EventVisible(owner, token) {
 		t.Fatal("owner sees every event")
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/neurekadev/dockyard/internal/clock"
+	"github.com/neurekadev/dockyard/internal/domain"
 )
 
 // Event types.
@@ -70,6 +71,17 @@ const (
 	StackUpdated          = "stack.updated"
 	StackRemoved          = "stack.removed"
 	StackRevisionRecorded = "stack.revision_recorded"
+
+	// JobUpdated: a job was created, changed state or reported progress
+	// (#26, published for the live stream #23, coalesced). Job carries the
+	// job so subscribers are filtered with job.read on its targets.
+	JobUpdated = "job.updated"
+	// ResourceChanged: an API mutation succeeded on a resource that has no
+	// event of its own (policies, backups and repositories, registry and
+	// Git credentials, build definitions, settings, groups, users, API
+	// tokens, ...). ResourceType/ResourceID/EnvironmentID name the target;
+	// Attributes["action"] is the audited action key (#23).
+	ResourceChanged = "resource.changed"
 )
 
 // Resource types.
@@ -83,6 +95,7 @@ const (
 	ResourceNetwork     = "network"
 	ResourceFileScope   = "file_scope"
 	ResourceStack       = "stack"
+	ResourceJob         = "job"
 )
 
 // Event is one published change.
@@ -110,6 +123,9 @@ type Event struct {
 	// container names). Internal: filter per member before anything leaves
 	// the manager.
 	Members []string
+	// Job is the job of a job.updated event (internal: its input is never
+	// sent anywhere; it decides visibility).
+	Job *domain.Job
 }
 
 // Bus distributes events to subscribers. The zero value is not usable; call

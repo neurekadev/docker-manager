@@ -52,6 +52,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/state"
 	"github.com/neurekadev/dockyard/internal/agent/storage"
 	"github.com/neurekadev/dockyard/internal/agent/transport"
+	"github.com/neurekadev/dockyard/internal/agent/watch"
 	"github.com/neurekadev/dockyard/internal/buildinfo"
 	"github.com/neurekadev/dockyard/internal/clock"
 	"github.com/neurekadev/dockyard/internal/domain"
@@ -139,6 +140,9 @@ type Options struct {
 	TokenPoll time.Duration
 	// Backoff overrides the session reconnect policy (tests).
 	Backoff session.Backoff
+	// NewNotifier overrides the file watcher's kernel notifier (tests;
+	// default fsnotify).
+	NewNotifier func() (watch.Notifier, error)
 
 	afterHealthWrite func(time.Time) // test hook
 }
@@ -205,6 +209,8 @@ type Agent struct {
 	readyOnce   sync.Once
 
 	sampler *observe.Sampler
+	// watcher watches the declared file scopes (#23); nil without Files.
+	watcher *watch.Watcher
 }
 
 // Run runs the agent until ctx is canceled.
@@ -426,6 +432,14 @@ func (a *Agent) addResources() {
 	}
 }
 
+// rescan is the session's rescan handler (nil without the watcher).
+func (a *Agent) rescan() func(context.Context, protocol.RescanPayload) (protocol.RescanResult, error) {
+	if a.watcher == nil {
+		return nil
+	}
+	return a.watcher.Rescan
+}
+
 // observedEngine is the Engine for observation (nil while disconnected).
 func (a *Agent) observedEngine() observe.EngineAPI {
 	if e := a.Engine(); e != nil {
@@ -507,6 +521,28 @@ func (a *Agent) enableFiles() {
 		},
 	})
 	reqs := svc.Requests()
+	// The scoped file watcher (#23): the manager declares the scopes
+	// (files.watch), changes become fs_invalidation frames, rescans are
+	// answered from its reconciliation baseline.
+	a.watcher = watch.New(watch.Options{
+		Resolve: svc.ScopeDir, Clock: a.opts.Clock, Logger: a.opts.Logger, NewNotifier: a.opts.NewNotifier,
+		Invalidate: func(p protocol.FSInvalidationPayload) {
+			if c := a.client; c != nil {
+				c.FileInvalidations().Publish(p)
+			}
+		},
+		MaxWatches: a.opts.Config.WatchMax,
+	})
+	reqs[protocol.ReqFilesWatch] = func(ctx context.Context, input json.RawMessage) (any, error) {
+		var in protocol.FilesWatchInput
+		if err := json.Unmarshal(input, &in); err != nil {
+			return nil, &session.HandlerError{Code: protocol.CodeInvalidFrame, Message: "malformed files.watch input"}
+		}
+		if err := in.Validate(); err != nil {
+			return nil, &session.HandlerError{Code: protocol.CodeInvalidFrame, Message: err.Error()}
+		}
+		return a.watcher.SetScopes(ctx, in), nil
+	}
 	for k, v := range a.opts.Requests {
 		reqs[k] = v
 	}
@@ -517,6 +553,17 @@ func (a *Agent) enableFiles() {
 	}
 	a.opts.Streams = streams
 	a.opts.Executors = append(append([]jobexec.Executor(nil), a.opts.Executors...), svc.Executors()...)
+}
+
+// rootWatchMode is how the watcher can observe a root's filesystem (#23).
+func (a *Agent) rootWatchMode(dir string) string {
+	switch {
+	case a.watcher == nil:
+		return "none"
+	case !a.watcher.Notifying() || watch.RemoteFilesystem(dir):
+		return protocol.WatchPoll
+	}
+	return protocol.WatchInotify
 }
 
 func (d stackDeps) Storage() *storage.Result {
@@ -595,7 +642,7 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	if r := c.Storage; r != nil {
 		for _, root := range r.Roots {
 			if root.OK {
-				p.Roots = append(p.Roots, protocol.Root{Kind: root.Kind, Path: root.Path, Watch: "inotify"})
+				p.Roots = append(p.Roots, protocol.Root{Kind: root.Kind, Path: root.Path, Watch: a.rootWatchMode(root.Path)})
 			}
 		}
 		if r.StacksOK() {
@@ -694,6 +741,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		DialOptions:  func(h http.Header) *websocket.DialOptions { return tr.DialOptions(h, protocol.Version) },
 		AgentVersion: info0.Version, UserAgent: userAgent(), Capabilities: a.CapabilitiesPayload,
 		Requests: a.opts.Requests, Streams: a.opts.Streams, Backoff: a.opts.Backoff, OnStatus: a.onSessionStatus,
+		Rescan: a.rescan(),
 	})
 	runner, err := agentjobs.New(ctx, agentjobs.Options{StateDir: cfg.StateDir, Clock: clk, Logger: log.With("component", "jobs"),
 		Sender: a.client, Executors: a.opts.Executors})
@@ -720,6 +768,11 @@ func (a *Agent) Run(ctx context.Context) error {
 	var control sync.WaitGroup
 	control.Add(1)
 	go func() { defer control.Done(); a.control(ctx) }()
+	if a.watcher != nil {
+		control.Add(1)
+		go func() { defer control.Done(); a.watcher.Run(ctx) }()
+		defer func() { _ = a.watcher.Close() }()
+	}
 	if a.sampler != nil {
 		relay := observe.NewEventRelay(observe.EventOptions{Clock: clk, Logger: log, Engine: a.observedEngine, Publisher: a.client.Events()})
 		control.Add(2)

@@ -92,6 +92,7 @@ type Service struct {
 	mu       sync.Mutex
 	stacks   StackRoots
 	observer SourceObserver
+	watcher  *Watcher
 	closed   bool
 	watchers sync.WaitGroup
 	stop     chan struct{}
@@ -116,6 +117,14 @@ func (s *Service) SetStacks(r StackRoots, o SourceObserver) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.stacks, s.observer = r, o
+}
+
+// SetWatcher installs the file watcher (#23): volume listings keep the
+// volume watched for a lease.
+func (s *Service) SetWatcher(w *Watcher) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.watcher = w
 }
 
 func (s *Service) deps() (StackRoots, SourceObserver) {
@@ -186,6 +195,12 @@ func request[O any](ctx context.Context, s *Service, r api.FileRoot, name string
 // List lists a directory page.
 func (s *Service) List(ctx context.Context, r api.FileRoot, in protocol.FilesListInput) (protocol.FilesListOutput, error) {
 	in.Scope = r.Scope
+	s.mu.Lock()
+	w := s.watcher
+	s.mu.Unlock()
+	if w != nil && r.Scope.Kind == protocol.ScopeVolume {
+		w.Touch(r.EnvironmentID, r.Scope.ID) // an open volume view: watch it (#23)
+	}
 	return request[protocol.FilesListOutput](ctx, s, r, protocol.ReqFilesList, in)
 }
 

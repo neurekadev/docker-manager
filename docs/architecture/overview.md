@@ -107,6 +107,11 @@ domain types (`domain`) are separate and converted explicitly.
   and the observed Engine state; deploys and operations are `stack.*` jobs
   run by the agent with the shared dependency-aware lifecycle; see
   [stacks.md](stacks.md).
+- **Live synchronization (#23):** the live stream hub
+  (`internal/manager/live`) relays the event bus to one permission-filtered
+  SSE stream per UI tab with cursor resume and resets; agents watch stack
+  and open volume roots (`internal/agent/watch`) and external Compose edits
+  become revisions; see [live-sync.md](live-sync.md).
 - **Secrets at rest:** sensitive settings are sealed with
   `secrets.Keyring.Seal(value, context)` into `dy1.<keyID>.<ciphertext>`
   envelopes bound to their field context.

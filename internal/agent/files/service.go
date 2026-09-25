@@ -307,6 +307,18 @@ func (s *Service) open(ctx context.Context, scope protocol.FileScope) (*scopeRoo
 	return &scopeRoot{root: root, scope: scope, key: resolved}, nil
 }
 
+// ScopeDir resolves a scope to its verified, symlink-free root directory
+// (absolute OS path) with the same checks as every file operation: the
+// file watcher (#23) watches exactly this directory.
+func (s *Service) ScopeDir(ctx context.Context, scope protocol.FileScope) (string, error) {
+	r, err := s.open(ctx, scope)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+	return r.key, nil
+}
+
 func evalOr(p string) string {
 	r, err := filepath.EvalSymlinks(filepath.FromSlash(p))
 	if err != nil {

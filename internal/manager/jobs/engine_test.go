@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -568,5 +569,39 @@ func TestListFilters(t *testing.T) {
 	}
 	if got := ids(domain.JobFilter{BeforeID: b.ID, Limit: 1}); !slices.Equal(got, []string{a.ID}) {
 		t.Fatalf("cursor: %v", got)
+	}
+}
+
+// TestOnChangeObservesEveryJobChange (#23): change listeners see a job's
+// creation, dispatch and completion (the live stream's job source).
+func TestOnChangeObservesEveryJobChange(t *testing.T) {
+	h := newHarness(t)
+	var mu sync.Mutex
+	seen := map[string]int{}
+	h.eng.OnChange(func(ids []string) {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, id := range ids {
+			seen[id]++
+		}
+	})
+	j := h.enqueue(jobs.Request{Kind: jobspec.StackDeploy, EnvironmentID: "e1", Targets: []domain.JobTarget{stack("web")}})
+	count := func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return seen[j.ID]
+	}
+	if count() != 1 {
+		t.Fatalf("creation not observed: %d", count())
+	}
+	h.disp.Connect("e1")
+	h.dispatch()
+	afterDispatch := count()
+	if afterDispatch < 2 {
+		t.Fatalf("dispatch not observed: %d", afterDispatch)
+	}
+	h.completeAll("e1")
+	if count() <= afterDispatch {
+		t.Fatalf("completion not observed: %d", count())
 	}
 }

@@ -166,6 +166,9 @@ type Options struct {
 	// Streams are the stream handlers by kind (protocol.StreamKinds); the
 	// session advertises them in the capabilities' streams.
 	Streams map[string]StreamHandler
+	// Rescan answers the manager's rescan frames (the file watcher, #23);
+	// nil answers unsupported_request.
+	Rescan  func(ctx context.Context, p protocol.RescanPayload) (protocol.RescanResult, error)
 	Backoff Backoff
 	// WelcomeTimeout bounds the wait for welcome (default 30 s).
 	WelcomeTimeout time.Duration
