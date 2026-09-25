@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	agentio "github.com/neurekadev/dockyard/internal/agent/containerio"
 	"github.com/neurekadev/dockyard/internal/agent/engine"
 	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
@@ -95,6 +96,12 @@ func (e *env) connectGuardedAgent(name string, fe *enginefake.Engine, guard *pro
 	res := agentres.New(agentres.Options{Engine: func() engine.Engine { return fe }, Logger: testutil.Logger(t), Guard: guard,
 		ManagedStackDir: func(dir string) bool { return strings.HasPrefix(dir, stacksRoot+"/") }})
 	execs := res.Executors()
+	// Container logs and exec sessions (#8), as the runtime wires them.
+	cio := agentio.New(agentio.Options{Engine: func() agentio.Engine { return fe }, Clock: e.clk, Logger: testutil.Logger(t)})
+	requests := res.Requests()
+	for k, v := range cio.Requests() {
+		requests[k] = v
+	}
 	a := &testAgent{env: er.EnvironmentID, engine: fe, done: make(chan error, 1)}
 	client := session.New(session.Options{
 		State: st, Clock: e.clk, Logger: testutil.Logger(t), URL: "ws" + strings.TrimPrefix(e.srv.URL, "http") + protocol.SessionPath,
@@ -111,7 +118,8 @@ func (e *env) connectGuardedAgent(name string, fe *enginefake.Engine, guard *pro
 				Arch: "amd64", Engine: info, Commands: cmds, Requests: []string{}, Streams: []string{},
 				Transport: protocol.TransportInfo{ManagerURL: e.srv.URL, PlainHTTP: true}}, true
 		},
-		Requests: res.Requests(),
+		Requests: requests,
+		Streams:  cio.Streams(),
 		Backoff:  session.Backoff{Min: time.Second, Max: time.Minute, ResetAfter: time.Minute, Rand: func() float64 { return 0 }},
 	})
 	runCtx, cancel := context.WithCancel(context.Background())

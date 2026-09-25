@@ -152,14 +152,6 @@ audit records, later responses or the database (canary tests in
 | `permissions.TestTokenScopeIntersectsCurrentPermissions`, `TestQueuedTokenJobRecheckedAtDispatch`, `TestValidateTokenScope` | evaluation, dispatch recheck, scope validation |
 | `api.TestAuthorizeExecNeedsExplicitTokenGrant` | the exec check |
 | `scripts/smoke/deploy-smoke.sh` step `api-token` | the same with curl against the deployed images behind Caddy |
-
-**Pending (#6, #8):** the literal #31 example — a token scoped to
-`container.restart` on one container restarts it via curl and cannot read
-its logs — needs the container routes. #6 must add, next to its restart
-route, an app test that creates a token with `allow container.restart
-@container:<env>/web`, restarts `web` with it (202, job origin `api_token`),
-gets `404` for restart of another container, `403` for `GET
-…/containers/web/logs` (or `404` when the container is otherwise hidden),
-and `403 api_token_not_allowed` on an owner route; #8 must use
-`api.AuthorizeExec` for the terminal route and test that the same token is
-refused a terminal while a token with `container.exec` gets one.
+| `app.TestAPITokenRestartsOneContainer` (#6) | a token with `allow container.restart @container:<env>/web` restarts `web` (202, origin `api_token`), gets `404` for another container, `403` for other actions, `403 api_token_not_allowed` on an owner route |
+| `app.TestAPITokenTerminalNeedsContainerExec` (#8) | the same restart token gets `403` for `…/web/logs`, `…/web/logs/stream` and `POST …/web/exec-sessions` although its owner holds both; a token with `container.exec` gets a terminal session (`201`, audited with the token ID) but no logs; restart- and metrics-only users get neither |
+| `containerio.TestExecAuthorizationBoundaries` (#8) | the terminal routes through `api.AuthorizeExec`: tokens without an explicit `container.exec` grant are refused |

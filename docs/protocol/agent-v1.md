@@ -616,6 +616,42 @@ the agent side is `internal/agent/files`, the manager side
 - DockYard's own changes are published as `fs_invalidation` of the
   changed paths (the watcher of #23 reports external ones).
 
+### Container logs and exec (#8)
+
+Agent side `internal/agent/containerio`, manager side
+`internal/manager/containerio`; wire types `internal/protocol/containerio.go`.
+
+- `container.logs` (request, `ContainerLogsInput` → `ContainerLogsOutput`):
+  a bounded tail (default 500, at most 5 000 lines and 600 KiB; `truncated`
+  when older lines were left out), `since`/`until` filtered to the
+  sub-second by the agent (the Engine filters whole seconds). Lines are
+  split at newlines and at 16 KiB (`partial` on all but the last piece).
+- `container.logs` (stream, `agent_to_manager`, input
+  `ContainerLogsInput`): newline-delimited JSON `LogLine`s (tail or `since`,
+  then follow). A stopped container keeps the stream open: the agent polls
+  its state (every 2 s) and resumes after the last delivered timestamp,
+  skipping lines it already sent at that timestamp. The stream ends with
+  `stream_close {reason: error, code: not_found}` when the container is
+  removed. The manager decouples the browser with a bounded queue (1 024
+  lines per subscriber) and counts dropped lines instead of withholding
+  credit from the agent.
+- `container.exec.create` (request, `ExecCreateInput` → `ExecCreateOutput`):
+  creates an Engine exec instance on a running, unpaused container
+  (`conflict` otherwise) with stdin attached. At most 256 argv entries /
+  64 KiB and 256 instances per agent (`busy`). An instance that is not
+  attached within 2 minutes is forgotten.
+- `container.exec.resize`, `container.exec.delete` (requests): resize the
+  TTY; delete closes the instance's stdin (Engine exec has no kill).
+- `container.exec` (stream, `both`, input `ExecStreamInput{execId}`): one
+  attachment per instance (`conflict` for a second). Manager →
+  agent `stream_data` is stdin; an eof close from the manager closes stdin.
+  Agent → manager `stream_data` is output with `channel` `stdout` or
+  `stderr` (with a TTY everything is `stdout`). When the process exits the
+  agent sends its eof close with `exitCode`. A command missing from the
+  image (Engine exit 126/127 with a "not found" message in the first
+  output) ends with `stream_close {reason: error, code: not_found}` instead.
+  Terminal bytes are never logged on either side.
+
 ### error
 
 ```json
@@ -860,4 +896,5 @@ The manager maps them to public errors: `not_found` → 404,
 | Docker resource requests (`container.list/inspect`, `image.list/inspect/tag`, `volume.list/inspect`, `network.list/inspect`) and executors (`container.*`, `image.pull/remove`, `volume.*`, `network.*`) | `internal/protocol/docker.go` (inputs/outputs), `internal/agent/resources` | implemented (#6) |
 | `rescan` (agent answers `unsupported_request`), agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stubs | #23 (rescan, watcher) |
 | `compose.discover/validate/read/write/services` requests, `stack.deploy/start/stop/restart/down/remove` executors, result `output` | `internal/agent/stacks`, `internal/jobexec`, `internal/manager/stacks` | implemented (#7) |
-| other request/stream executors | agent adapter | #8, #10, #14, #21, #35 |
+| container logs (`container.logs` request and stream) and exec (`container.exec.create/resize/delete`, `container.exec` stream) | `internal/agent/containerio`, `internal/manager/containerio` | implemented (#8) |
+| other request/stream executors | agent adapter | #10, #14, #21, #35 |

@@ -514,7 +514,12 @@ func (s *Stream) WriteChannel(channel string, p []byte) (int, error) {
 // bytes, sha256}. Streams this side only receives on are closed too (the
 // peer's close then ends the stream).
 func (s *Stream) CloseWrite() error {
-	return s.closeWith(nil)
+	return s.closeWith(nil, nil)
+}
+
+// CloseWriteExit is CloseWrite carrying a process exit code (exec).
+func (s *Stream) CloseWriteExit(code int) error {
+	return s.closeWith(nil, &code)
 }
 
 // CloseWithResult is CloseWrite carrying a kind-specific result (e.g. the
@@ -524,10 +529,10 @@ func (s *Stream) CloseWithResult(result any) error {
 	if err != nil {
 		return err
 	}
-	return s.closeWith(b)
+	return s.closeWith(b, nil)
 }
 
-func (s *Stream) closeWith(result json.RawMessage) error {
+func (s *Stream) closeWith(result json.RawMessage, exitCode *int) error {
 	s.mu.Lock()
 	if s.failed != nil {
 		err := s.failed
@@ -539,7 +544,7 @@ func (s *Stream) closeWith(result json.RawMessage) error {
 		return nil
 	}
 	s.localClosed = true
-	p := protocol.StreamClosePayload{Reason: protocol.CloseReasonEOF, Bytes: s.sent, Result: result}
+	p := protocol.StreamClosePayload{Reason: protocol.CloseReasonEOF, Bytes: s.sent, Result: result, ExitCode: exitCode}
 	if s.canSend {
 		p.SHA256 = hex.EncodeToString(s.sendHash.Sum(nil))
 	}

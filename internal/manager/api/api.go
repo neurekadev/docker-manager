@@ -112,6 +112,9 @@ type Deps struct {
 	// Builds serves image builds and build definitions (#33); nil
 	// answers with 503.
 	Builds BuildService
+	// ContainerIO serves container logs and exec terminals (#8); nil
+	// answers those routes with 503 (after authorization).
+	ContainerIO ContainerIOService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -175,6 +178,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerFiles(a, deps)
 	registerGitCredentials(a, deps)
 	registerBuilds(a, deps)
+	registerContainerIO(a, deps)
 	return a
 }
 

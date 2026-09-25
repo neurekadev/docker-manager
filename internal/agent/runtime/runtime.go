@@ -37,6 +37,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/builds"
 	"github.com/neurekadev/dockyard/internal/agent/compose"
 	"github.com/neurekadev/dockyard/internal/agent/config"
+	"github.com/neurekadev/dockyard/internal/agent/containerio"
 	"github.com/neurekadev/dockyard/internal/agent/engine"
 	"github.com/neurekadev/dockyard/internal/agent/files"
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
@@ -121,6 +122,9 @@ type Options struct {
 	// files.download/files.upload streams and the files.* job executors,
 	// confined to stack project directories and local volumes (#28).
 	Files bool
+	// ContainerIO serves container logs and exec sessions (#8): the
+	// container.logs and container.exec.* requests and streams.
+	ContainerIO bool
 	// TokenPoll is how often a handed-over enrollment token is looked for
 	// (default DefaultTokenPoll).
 	TokenPoll time.Duration
@@ -280,6 +284,9 @@ func New(opts Options) (*Agent, error) {
 	reqs := st.Requests()
 	maps.Copy(reqs, a.opts.Requests)
 	a.opts.Requests = reqs
+	if opts.ContainerIO {
+		a.enableContainerIO()
+	}
 	return a, nil
 }
 
@@ -355,6 +362,30 @@ func (a *Agent) observedRoots() []observe.Root {
 		}
 	}
 	return out
+}
+
+// enableContainerIO wires container logs and exec sessions (#8) into the
+// session's requests and streams. Explicitly configured handlers win.
+func (a *Agent) enableContainerIO() {
+	svc := containerio.New(containerio.Options{
+		Engine: func() containerio.Engine {
+			if e := a.Engine(); e != nil {
+				return e
+			}
+			return nil
+		},
+		Clock: a.opts.Clock, Logger: a.opts.Logger,
+	})
+	reqs := svc.Requests()
+	for k, v := range a.opts.Requests {
+		reqs[k] = v
+	}
+	a.opts.Requests = reqs
+	streams := svc.Streams()
+	for k, v := range a.opts.Streams {
+		streams[k] = v
+	}
+	a.opts.Streams = streams
 }
 
 // enableFiles wires the scoped file service (#15) into the session's
