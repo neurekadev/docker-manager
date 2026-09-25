@@ -95,6 +95,10 @@ domain types (`domain`) are separate and converted explicitly.
   manager's engine (`internal/manager/jobs`), with one lock matrix, fencing
   tokens and reconnect reconciliation; see
   [job-engine.md](job-engine.md).
+- **Scheduler (#13):** one cron parser (`internal/cron`) and one runner
+  (`internal/manager/scheduler`) decide when policy runs (backups,
+  verification, update checks and runs, prune) are due and enqueue them as
+  the manager service identity; see [scheduler.md](scheduler.md).
 - **Compose stacks (#7):** the on-disk definition is the source of truth;
   the manager records immutable revisions, the applied revision and images
   and the observed Engine state; deploys and operations are `stack.*` jobs

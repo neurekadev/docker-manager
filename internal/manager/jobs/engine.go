@@ -132,8 +132,9 @@ type Engine struct {
 	mgrExecs   map[domain.JobKind]jobexec.Executor
 	mgrRunning map[string]*managerRun
 
-	hooksMu     sync.RWMutex
-	finishHooks map[domain.JobKind][]FinishHook
+	hooksMu        sync.RWMutex
+	finishHooks    map[domain.JobKind][]FinishHook
+	scheduledCheck ScheduledCheck
 
 	lifetime context.Context
 	stop     context.CancelFunc
@@ -350,6 +351,30 @@ func (e *Engine) OnFinish(kind domain.JobKind, h FinishHook) {
 	e.hooksMu.Lock()
 	defer e.hooksMu.Unlock()
 	e.finishHooks[kind] = append(e.finishHooks[kind], h)
+}
+
+// ScheduledCheck revalidates a queued scheduled job right before it is
+// dispatched (#13, #17: policy enabled state and target scope). A non-empty
+// reason fails the job with class policy_rejected; an error leaves it
+// waiting for the next pass (logged).
+type ScheduledCheck func(ctx context.Context, j domain.Job) (reason string, err error)
+
+// SetScheduledCheck installs the dispatch-time revalidation of scheduled
+// jobs (the scheduler installs it; call before Run).
+func (e *Engine) SetScheduledCheck(fn ScheduledCheck) {
+	e.hooksMu.Lock()
+	defer e.hooksMu.Unlock()
+	e.scheduledCheck = fn
+}
+
+func (e *Engine) checkScheduled(ctx context.Context, j domain.Job) (string, error) {
+	e.hooksMu.RLock()
+	fn := e.scheduledCheck
+	e.hooksMu.RUnlock()
+	if fn == nil || j.Origin != domain.OriginScheduled {
+		return "", nil
+	}
+	return fn(ctx, j)
 }
 
 func (e *Engine) runFinishHooks(ctx context.Context, db bun.IDB, j *domain.Job) error {

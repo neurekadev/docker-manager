@@ -131,6 +131,16 @@ func (e *Engine) DispatchPending(ctx context.Context) error {
 				continue
 			}
 		}
+		if reason, err := e.checkScheduled(ctx, *j); err != nil {
+			reserved = append(reserved, waiting{j.ID, j.Locks})
+			errs = append(errs, fmt.Errorf("revalidate scheduled job %s: %w", j.ID, err))
+			continue
+		} else if reason != "" {
+			errs = append(errs, e.failWaiting(ctx, j, domain.ErrorPolicyRejected,
+				"the schedule's policy refused this run when it was dispatched: "+reason+"; nothing was changed",
+				"Check the policy's enabled state and targets; the next scheduled run is evaluated again."))
+			continue
+		}
 		dispatched, err := e.acquire(ctx, j, spec)
 		if errors.Is(err, errConflict) || errors.Is(err, errNotWaiting) {
 			continue

@@ -247,6 +247,10 @@ const (
 	// the job needs was deleted or revoked (or cannot be decrypted) when
 	// the job was dispatched; nothing was sent to the agent (#19, #33).
 	ErrorCredentialUnavailable = "credential_unavailable" //nolint:gosec // G101: an error class, not a credential
+	// ErrorPolicyRejected: a scheduled job's policy refused the run when
+	// it was dispatched (policy disabled or deleted, target gone, #13);
+	// nothing was sent to the executor.
+	ErrorPolicyRejected = "policy_rejected"
 	// ErrorInternal: an engine bug or database failure.
 	ErrorInternal = "internal"
 )

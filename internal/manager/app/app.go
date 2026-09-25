@@ -4,8 +4,8 @@
 //	instance → auth primitives → audit trail → identity → permissions → agents (all environments
 //	offline) → job engine recovery → metrics database (own file and
 //	migrations) → observation → Docker resources → HTTP handler → listener → serve (+ job
-//	engine loop, auth housekeeping, audit retention, metrics collection,
-//	rollups and retention)
+//	engine loop, scheduler, auth housekeeping, audit retention, metrics
+//	collection, rollups and retention)
 //
 // Migrations always finish before any listener or background worker starts;
 // a migration failure aborts startup with the database unchanged.
@@ -51,6 +51,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/regclient"
 	"github.com/neurekadev/dockyard/internal/manager/registries"
 	"github.com/neurekadev/dockyard/internal/manager/resources"
+	"github.com/neurekadev/dockyard/internal/manager/scheduler"
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
 	"github.com/neurekadev/dockyard/internal/manager/server"
 	"github.com/neurekadev/dockyard/internal/manager/stacks"
@@ -125,6 +126,7 @@ type Manager struct {
 	handler   http.Handler
 	git       *gitcreds.Service
 	builds    *builds.Service
+	sched     *scheduler.Service
 }
 
 // ErrSecretKeyMissing means the database belongs to an existing installation
@@ -324,6 +326,14 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	}
 	m.perms.RegisterLocator(catalog.TypeStack, m.stacks.Locator())
 	m.agents.Hub().AddReconciler(m.stacks.Reconciler())
+	// The shared cron scheduler (#13): its finish hooks and the dispatch
+	// revalidation of scheduled jobs are installed on the engine before
+	// recovery; policy workstreams (#10, #14, #20) Register their sources.
+	if m.sched, err = scheduler.New(scheduler.Options{DB: db, Clock: opts.Clock, Logger: log.With("component", "scheduler"),
+		Jobs: m.jobs, Audit: m.audit}); err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
 	if err := m.jobs.Recover(ctx); err != nil {
 		m.jobs.Close()
 		return nil, fmt.Errorf("recover jobs: %w", err)
@@ -461,6 +471,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Stacks:         m.stacks,
 			Events:         m.events,
 			ContainerIO:    m.io,
+			Schedules:      m.sched,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -604,6 +615,12 @@ func (m *Manager) Builds() *builds.Service { return m.builds }
 // RecordObserved.
 func (m *Manager) Stacks() *stacks.Service { return m.stacks }
 
+// Scheduler returns the shared cron scheduler (#13): policy workstreams
+// register their PolicySource with Register, prefill new policies from
+// Default, validate with scheduler.ValidateSpec (api.ValidateSchedule) and
+// call Notify after changing a policy.
+func (m *Manager) Scheduler() *scheduler.Service { return m.sched }
+
 // Events returns the internal event bus.
 func (m *Manager) Events() *events.Bus { return m.events }
 
@@ -651,6 +668,12 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		defer close(metricsDone)
 		m.metrics.Run(engineCtx)
 	}()
+	// The scheduler (#13) enqueues due policy runs in the job engine.
+	schedDone := make(chan struct{})
+	go func() {
+		defer close(schedDone)
+		_ = m.sched.Run(engineCtx)
+	}()
 	defer func() {
 		stopEngine()
 		<-engineDone
@@ -659,6 +682,7 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		<-sweepDone
 		<-observeDone
 		<-metricsDone
+		<-schedDone
 	}()
 	srv := server.HTTPServer(m.handler, m.opts.Logger)
 	errCh := make(chan error, 1)
