@@ -58,7 +58,10 @@ test.describe('settings', () => {
 			await expect(tabs.getByRole('link', { name })).toBeVisible();
 	});
 
-	test('this DockYard: rename it, deployment settings read-only (#4)', async ({ page, baseURL }) => {
+	test('this DockYard: rename it, deployment settings read-only (#4)', async ({
+		page,
+		baseURL
+	}) => {
 		await signIn(page);
 		await page.goto('/settings');
 		const card = page.getByRole('region', { name: 'About this DockYard' });
@@ -71,7 +74,9 @@ test.describe('settings', () => {
 		await expect(card).toContainText('Enter a name.');
 		await card.getByLabel('Name').fill(`  ${name}  `);
 		await card.getByRole('button', { name: 'Rename DockYard' }).click();
-		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(`Renamed DockYard to ${name}`);
+		await expect(page.getByRole('status', { name: 'Notifications' })).toContainText(
+			`Renamed DockYard to ${name}`
+		);
 		await expect(card).toContainText(name);
 		const settings = await (await page.request.get('/api/v1/settings')).json();
 		expect(settings.name).toBe(name);
