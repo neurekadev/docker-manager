@@ -121,6 +121,8 @@ type hostOpts struct {
 	// reattach enrolls with intent reattach:<environmentId> and reuses fe.
 	reattach string
 	fe       *enginefake.Engine
+	// localRoots are the agent's DOCKYARD_BACKUP_LOCAL_ROOTS.
+	localRoots []string
 }
 
 type backupHost struct {
@@ -176,7 +178,7 @@ func (b *backupEnv) enrollHost(ctx context.Context, o hostOpts, fe *enginefake.E
 	agentLog := b.secrets.CaptureLogger(t) // agent logs are checked for canaries too
 	guard := protect.New(protect.Options{StacksVolume: "dockyard_stacks", Logger: agentLog})
 	svc := agentbackups.New(agentbackups.Options{Engine: func() engine.Engine { return fe }, Loader: func() agentbackups.Loader { return loaderFunc{} },
-		Storage: func() *storage.Result { return res }, Guard: guard, Restic: b.opener, Clock: e.clk, Logger: agentLog,
+		Storage: func() *storage.Result { return res }, Guard: guard, Restic: b.opener, LocalRoots: o.localRoots, Clock: e.clk, Logger: agentLog,
 		WaitTimeout: time.Second})
 
 	sub := e.m.Events().Subscribe(256, func(ev events.Event) bool { return ev.Type == events.EnvironmentOnline })

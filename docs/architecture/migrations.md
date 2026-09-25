@@ -80,8 +80,12 @@ volumes exclusive; only the stack is authorized with `stack.migrate`,
    waiting for health and dependency conditions (#7); the migration waits
    for it.
 5. **finalize** — records the migration completed (and runs the
-   `OnStackMoved` hooks: update and backup policies that target the stack
-   follow it, #10/#20), releases the compensation and removes the staging
+   `OnStackMoved` hooks in the same transaction: the stack's update policy
+   moves to the destination with its candidates reset to unchecked, #20;
+   backup policies select the stack by ID and back it up where it is now,
+   refusing it with `repository_not_serving_environment` when only a local
+   repository of another executor is configured, #10 — see updates.md and
+   backups.md), releases the compensation and removes the staging
    directory.
 
 The **source stays stopped and untouched**. `POST

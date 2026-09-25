@@ -67,7 +67,12 @@ agent's steps:
 4. `apply`: snapshot the definition files, **load the project from exactly
    those bytes**, re-read the files and retry when they changed meanwhile,
    then Compose `up` (dependency order and `depends_on` conditions by the
-   SDK). The result output (`protocol.StackJobOutput`) carries the
+   SDK). A container recreated because its definition or image changed
+   inherits its predecessor's anonymous volumes, like `docker compose up`
+   (the adapter sets the SDK's `Inherit`, whose zero value would start it
+   with empty ones; `compose.UpOptions.RenewAnonymousVolumes` is the
+   explicit `--renew-anon-volumes`, not exposed by the API). The result
+   output (`protocol.StackJobOutput`) carries the
    sources (contents inline up to 96 KiB, hashes only above), the applied
    images, binds, warnings and the state before and after — also when `up`
    fails.

@@ -18,14 +18,18 @@ func TestSensitiveKeys(t *testing.T) {
 		"refresh-token", "apiKey", "accessKey", "privateKey", "credential", "credentials", "Authorization", "cookie",
 		"key", "env", "environment", "envVars", "dotenv", "content", "contents", "body", "data", "value", "values",
 		"input", "output", "logs", "totp", "otp", "seed", "code", "recoveryCodes", "fileContent", "composeFile", "auth",
-		"dockerConfigJson", "labels", "command", "args"} {
+		"dockerConfigJson", "labels", "command", "args",
+		// Not a metadata suffix: redacted (the old revocation detail key).
+		"apiTokensRevoked"} {
 		if !audit.SensitiveKey(k) {
 			t.Errorf("SensitiveKey(%q) = false", k)
 		}
 	}
 	for _, k := range []string{"tokenId", "tokenIds", "secretName", "credentialId", "passwordChangedAt", "keyCount",
 		"environmentId", "name", "path", "kind", "state", "effect", "capability", "scope", "tokenScope", "status",
-		"format", "reason", "deletedRecords", "items", "diff", "before", "after", "rules", "contentType"} {
+		"format", "reason", "deletedRecords", "items", "diff", "before", "after", "rules", "contentType",
+		// Counts of revoked credentials (auth revocations, manager restore).
+		"apiTokenCount", "agentsRevoked"} {
 		if audit.SensitiveKey(k) {
 			t.Errorf("SensitiveKey(%q) = true", k)
 		}

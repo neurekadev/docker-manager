@@ -447,6 +447,14 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		m.jobs.Close()
 		return nil, err
 	}
+	// Policies that target a stack follow it when it migrates (#35): the
+	// hooks run in the transaction that completes the migration. Update
+	// policies move to the destination; backup policies select stacks by
+	// ID (they follow by construction) and record whether a repository can
+	// hold the destination's data. Maintenance policies target whole
+	// environments, not stacks.
+	m.migrations.OnStackMoved(m.updates.StackMoved)
+	m.migrations.OnStackMoved(m.backups.StackMoved)
 	if err := m.jobs.Recover(ctx); err != nil {
 		m.jobs.Close()
 		return nil, fmt.Errorf("recover jobs: %w", err)

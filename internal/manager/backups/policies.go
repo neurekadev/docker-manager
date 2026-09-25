@@ -82,10 +82,15 @@ type PolicyPatch struct {
 	Retention        *domain.BackupRetention
 }
 
-// UpdatePolicy edits a policy (If-Match revision).
+// UpdatePolicy edits a policy (If-Match revision). Validation reads stacks
+// and environments through their services, which use their own database
+// handle: it runs outside any transaction (inside one, the single SQLite
+// connection deadlocks as soon as the policy selects a stack or names an
+// environment repository), and the write is a compare-and-set on the
+// revision.
 func (s *Service) UpdatePolicy(ctx context.Context, id string, revision int64, pp PolicyPatch) (before, after domain.BackupPolicy, err error) {
-	err = s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		p, err := store.GetBackupPolicy(ctx, tx, id)
+	err = func() error {
+		p, err := store.GetBackupPolicy(ctx, s.db, id)
 		if err != nil {
 			return err
 		}
@@ -130,15 +135,15 @@ func (s *Service) UpdatePolicy(ctx context.Context, id string, revision int64, p
 			p.Retention = *pp.Retention
 		}
 		p.Revision, p.UpdatedAt = revision+1, s.now()
-		if err := s.validatePolicy(ctx, tx, &p); err != nil {
+		if err := s.validatePolicy(ctx, s.db, &p); err != nil {
 			return err
 		}
-		if err := store.UpdateBackupPolicy(ctx, tx, &p, revision); err != nil {
+		if err := store.UpdateBackupPolicy(ctx, s.db, &p, revision); err != nil {
 			return err
 		}
 		after = p
 		return nil
-	})
+	}()
 	if err != nil {
 		return before, after, err
 	}
@@ -468,6 +473,15 @@ func (s *Service) PreviewScope(ctx context.Context, id string, draft *domain.Bac
 		ep := EnvironmentPreview{EnvironmentID: e.EnvironmentID, RepositoryID: e.Repository.ID}
 		if env, err := s.environment(ctx, e.EnvironmentID); err == nil {
 			ep.EnvironmentName = env.Name
+		}
+		if !Serves(e.Repository, backup.EnvironmentScope(e.EnvironmentID)) {
+			// A stack migrated here (#35) while the policy names a local
+			// repository of another executor: runs refuse its members.
+			ep.ErrorClass = ClassRepositoryNotServing
+			out.Warnings = append(out.Warnings, fmt.Sprintf("Repository %s cannot hold environment %s's data (a local repository lives on "+
+				"one executor): add an environment repository for it to this policy.", e.Repository.Name, e.EnvironmentID))
+			out.Environments = append(out.Environments, ep)
+			continue
 		}
 		if s.opts.Agents == nil {
 			ep.ErrorClass = "agent_offline"

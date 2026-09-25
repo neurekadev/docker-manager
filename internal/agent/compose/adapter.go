@@ -155,7 +155,12 @@ type UpOptions struct {
 	PullBase bool
 	// ForceRecreate recreates containers even when unchanged.
 	ForceRecreate bool
-	RemoveOrphans bool
+	// RenewAnonymousVolumes gives recreated containers new, empty anonymous
+	// volumes (docker compose up --renew-anon-volumes). By default a
+	// recreated container inherits its predecessor's anonymous volumes,
+	// like the Compose CLI; the SDK's zero value would drop them.
+	RenewAnonymousVolumes bool
+	RemoveOrphans         bool
 	// Wait waits until services are running/healthy (bounded by WaitTimeout).
 	Wait        bool
 	WaitTimeout time.Duration
@@ -193,8 +198,12 @@ func (a *Adapter) Up(ctx context.Context, p *Project, o UpOptions) error {
 			RemoveOrphans:        o.RemoveOrphans,
 			Recreate:             recreate,
 			RecreateDependencies: api.RecreateDiverged,
-			Timeout:              o.StopTimeout,
-			QuietPull:            true,
+			// The CLI's default (Inherit: !renewAnonVolumes); the SDK's
+			// zero value would give every recreated container empty
+			// anonymous volumes and lose their data.
+			Inherit:   !o.RenewAnonymousVolumes,
+			Timeout:   o.StopTimeout,
+			QuietPull: true,
 		},
 		Start: api.StartOptions{Project: model, Services: o.Services, Wait: o.Wait, WaitTimeout: o.WaitTimeout},
 	})

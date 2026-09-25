@@ -421,8 +421,14 @@ func (s *Service) planShutdown(ctx context.Context, eng engine.Engine, p *itemPl
 		runningServices = append(runningServices, svc)
 	}
 	order := map[string]int{}
-	for i, svc := range g.StopOrder(runningServices) {
-		order[svc] = i + 1
+	if len(prot) > 0 {
+		// DockYard's own project is never stopped (#32): the run backs the
+		// whole project up live, so no container of it gets a stop order.
+		p.conflicts = append(p.conflicts, fmt.Sprintf("stack %s contains DockYard's own containers; it is backed up live", p.project))
+	} else {
+		for i, svc := range g.StopOrder(runningServices) {
+			order[svc] = i + 1
+		}
 	}
 	for _, c := range containers {
 		svc := c.Labels[lifecycle.ComposeServiceLabel]

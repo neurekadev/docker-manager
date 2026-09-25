@@ -30,8 +30,18 @@ only production process execution in DockYard.
   are selected by ID, so a policy follows a stack migrated to another
   environment (#35; with local repositories the destination environment
   needs its own repository in `environmentRepositories`, else the next run
-  refuses that member). Docker maintenance (#14) never prunes a
-  standalone volume a policy selects.
+  refuses that member: it is recorded `failed` with class
+  `repository_not_serving_environment`, the rest of the set runs, the
+  scope preview shows the same class and a warning, and the local
+  repository is never handed to another executor's agent). The
+  `Service.StackMoved` hook (`Migrations().OnStackMoved`, in the
+  migration's completing transaction) audits `backup_policy.stack_moved`
+  per policy with whether a repository can hold the destination's data.
+  Snapshots taken before the move keep the source's repository, scope and
+  environment. Docker maintenance (#14) never prunes a standalone volume a
+  policy selects (`Maintenance().SetBackupReferences`); stack volumes are
+  protected as part of DockYard stacks, and a local repository on a volume
+  mounted into DockYard's agent is DockYard's own (#32).
 - A **run** of a policy is one **backup set**: a `backup.run` job per
   environment and, with the manager state, a `manager.backup` job queued
   last. Each member (stack, volume, manager state) is its own snapshot with
@@ -131,8 +141,15 @@ exactly the services that were running, dependencies first
 (`lifecycle.Resume`, which refuses rather than start a service that was
 stopped). The compensation runs after a failure, a cancellation or a crash
 (`jobexec.Recover`). A failed stop aborts the job before any snapshot.
-DockYard's own project is backed up live. Snapshots taken this way are
-marked `consistency: shutdown`, others `live` (crash-consistent).
+DockYard's own project is backed up live (#32): the preview gives none of
+its containers a stop order and says so, the run never stops it and its
+snapshot stays `live` even when other stacks of the same run are stopped.
+Snapshots taken with the stack stopped are marked `consistency: shutdown`,
+others `live` (crash-consistent). Resuming honors dependency conditions
+like a deploy: a dependency that comes back unhealthy keeps its dependents
+stopped and fails the job with `restart_failed` (the backup itself is
+complete); a completed one-shot that was not running satisfies
+`service_completed_successfully` without running again.
 
 ## Manager state
 

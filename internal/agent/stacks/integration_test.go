@@ -308,6 +308,45 @@ func TestComposeStackDeployUpdateAndLifecycle(t *testing.T) {
 	}
 }
 
+// TestComposeStackDeployAndUpdateOnTwoHosts (#7 Done-when 1): the same
+// multi-service app (health-gated dependency, completed one-shot, build
+// section, relative bind) deploys and updates on either of two hosts, each
+// an Engine of its own with the agent image running the agent's stack
+// executors (official Compose SDK, no Docker CLI); dependency order holds
+// on both and the definition files stay byte-identical.
+func TestComposeStackDeployAndUpdateOnTwoHosts(t *testing.T) {
+	hosts := []*rig{newRig(t), newRig(t)}
+	for i, r := range hosts {
+		files := appFiles(r.bin, "host")
+		r.put("shop", files, "app/workload")
+		before := r.read("shop").Snapshot.Hash
+		if res := r.job("stack.deploy", "shop", nil); res.Outcome != "succeeded" {
+			t.Fatalf("host %d deploy: %+v", i, res)
+		}
+		db, migrate, web := r.inspect("shop-db-1"), r.inspect("shop-migrate-1"), r.inspect("shop-web-1")
+		if !db.State.Running || migrate.State.Running || migrate.State.ExitCode != 0 || !web.State.Running ||
+			!web.State.StartedAt.After(migrate.State.FinishedAt) || !migrate.State.StartedAt.After(db.State.StartedAt) {
+			t.Fatalf("host %d states/order: db %+v migrate %+v web %+v", i, db.State, migrate.State, web.State)
+		}
+		// Update on this host: a changed .env value recreates web only.
+		r.put("shop", map[string][]byte{".env": []byte("GREETING=host-v2\n")})
+		updated := r.read("shop").Snapshot.Hash
+		res := r.job("stack.deploy", "shop", nil)
+		if res.Outcome != "succeeded" {
+			t.Fatalf("host %d update: %+v", i, res)
+		}
+		if r.inspect("shop-web-1").ID == web.ID || r.inspect("shop-db-1").ID != db.ID {
+			t.Errorf("host %d: the update recreated the wrong services", i)
+		}
+		if o := output(t, res); o.Sources == nil || o.Sources.Hash != updated || updated == before {
+			t.Errorf("host %d: update sources %+v, want %s", i, o.Sources, updated)
+		}
+		if got := r.read("shop").Snapshot.Hash; got != updated {
+			t.Errorf("host %d: the deploy changed the definition on disk", i)
+		}
+	}
+}
+
 // TestComposeStackDeployUnhealthyDependency: a dependency that never becomes
 // healthy fails the deploy with the sources and the state after reported
 // (recovery data); the dependent is not started.

@@ -39,6 +39,18 @@ scheduled runs; the run source refuses runs outside it when due and again
 at dispatch (`outside_update_window`). Manual checks and runs are explicit
 user actions and ignore schedules and the window.
 
+**Migrated stacks (#35).** A stack policy follows its stack to another
+environment: `Service.StackMoved` is registered with
+`Migrations().OnStackMoved` and runs in the transaction that completes the
+migration. The policy keeps its ID (permission rules follow it),
+schedules, window, history and quarantined digests; its environment
+becomes the destination (so scheduled checks and runs are not refused as
+`target_not_found`), its candidates are reset to `unchecked` (only a new
+check, for the destination's platform, makes a digest runnable again) and
+a name already used in the destination gets a ` (moved)` suffix. The move
+is audited as `update_policy.move`. Policies on DockYard's own project and
+on standalone containers never move (containers are not migrated).
+
 ## Eligibility (`eligible.Check`)
 
 Never inferred from tag text or image creation time:

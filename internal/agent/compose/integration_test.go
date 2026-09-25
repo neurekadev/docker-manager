@@ -451,3 +451,49 @@ services:
 		t.Errorf("containers left after down: %+v", ps)
 	}
 }
+
+// TestComposeRecreateKeepsAnonymousVolumes (#7 × #20): a deploy that
+// recreates a container because its definition changed keeps the
+// container's anonymous volume (and so its data), like `docker compose
+// up`; RenewAnonymousVolumes gives the new container an empty one.
+func TestComposeRecreateKeepsAnonymousVolumes(t *testing.T) {
+	v := setup(t, testharness.EngineOptions{})
+	ctx := ctxFor(t, 5*time.Minute)
+	def := func(gen string) map[string]string {
+		return map[string]string{"compose.yaml": "services:\n  app:\n    image: " + w + "\n    command: [\"serve\"]\n" +
+			"    environment:\n      GEN: \"" + gen + "\"\n    volumes:\n      - /data\n"}
+	}
+	anon := func() (id, volume string) {
+		t.Helper()
+		d, err := v.eng.InspectContainer(ctx, "anonvol-app-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range d.Mounts {
+			if m.Destination == "/data" && m.Type == "volume" {
+				return d.ID, m.Name
+			}
+		}
+		t.Fatalf("no anonymous volume at /data: %+v", d.Mounts)
+		return "", ""
+	}
+	p := project(t, v.a, "anonvol", def("1"))
+	v.down(t, p)
+	if err := v.a.Up(ctx, p, compose.UpOptions{}); err != nil {
+		t.Fatalf("up: %v", err)
+	}
+	id1, vol1 := anon()
+	if err := v.a.Up(ctx, project(t, v.a, "anonvol", def("2")), compose.UpOptions{}); err != nil {
+		t.Fatalf("redeploy: %v", err)
+	}
+	id2, vol2 := anon()
+	if id2 == id1 || vol2 != vol1 {
+		t.Fatalf("recreate: container %s -> %s, volume %s -> %s (want a new container on the same volume)", id1, id2, vol1, vol2)
+	}
+	if err := v.a.Up(ctx, project(t, v.a, "anonvol", def("3")), compose.UpOptions{RenewAnonymousVolumes: true}); err != nil {
+		t.Fatalf("redeploy with renew: %v", err)
+	}
+	if id3, vol3 := anon(); id3 == id2 || vol3 == vol2 {
+		t.Fatalf("renew: container %s -> %s, volume %s -> %s (want a new volume)", id2, id3, vol2, vol3)
+	}
+}

@@ -170,6 +170,9 @@ func (s *Service) stepStopContainers(ctx context.Context, sc *jobexec.StepContex
 		running []string
 	}
 	var stops []stop
+	// live are stack members backed up while running (DockYard's own
+	// project): their snapshots stay marked live.
+	live := map[string]bool{}
 	for _, it := range in.Items {
 		if it.Kind != backup.MemberStack || failed[it.Key()] {
 			continue
@@ -195,6 +198,7 @@ func (s *Service) stepStopContainers(ctx context.Context, sc *jobexec.StepContex
 		if len(protected) > 0 {
 			// DockYard's own project is never stopped (#32).
 			rep.Conflicts = append(rep.Conflicts, fmt.Sprintf("stack %s contains DockYard's own containers; it is backed up live", p.project))
+			live[it.Key()] = true
 			continue
 		}
 		running := map[string]bool{}
@@ -243,7 +247,7 @@ func (s *Service) stepStopContainers(ctx context.Context, sc *jobexec.StepContex
 		}
 	}
 	for i := range out.Members {
-		if out.Members[i].Kind == backup.MemberStack && out.Members[i].State != backup.StateFailed {
+		if out.Members[i].Kind == backup.MemberStack && out.Members[i].State != backup.StateFailed && !live[out.Members[i].Item] {
 			out.Members[i].Consistency = backup.ConsistencyShutdown
 		}
 	}
