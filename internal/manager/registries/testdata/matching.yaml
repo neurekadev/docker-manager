@@ -1,0 +1,54 @@
+# Registry connection matching corpus (#19). Each case lists the stored
+# connections (host as entered; the test normalizes it like the API) and the
+# expected outcome for one request:
+#   select: <connection id>   the selected connection
+#   select: anonymous         no connection applies
+#   ambiguous: [ids]          tie; explicit selection required
+#   mismatch: true            explicit connection is not a candidate
+#   candidates: [ids]         (optional) every candidate, best first
+connections:
+  hub-default: {host: docker.io}
+  hub-alias: {host: index.docker.io, pattern: "acme/*"}
+  hub-app: {host: registry-1.docker.io, pattern: acme/app}
+  hub-library: {host: "https://index.docker.io/v1/", pattern: nginx}
+  ghcr-org: {host: ghcr.io, pattern: "org/*"}
+  ghcr-team: {host: GHCR.IO, pattern: "org/team/*"}
+  ghcr-org-high: {host: ghcr.io, pattern: "other/*", priority: 10}
+  ghcr-other: {host: ghcr.io, pattern: "other/*"}
+  lan-5000: {host: "registry.lan:5000"}
+  lan-5000-env: {host: "registry.lan:5000", environment: env-a}
+  lan-5000-stack: {host: "registry.lan:5000", stack: stack-1}
+  lan-plain: {host: registry.lan}
+  quay-a: {host: quay.io}
+  quay-b: {host: quay.io}
+  local: {host: "localhost:5000", status: revoked}
+
+cases:
+  # Docker Hub: every spelling of the host and the library/ namespace.
+  - {name: hub official short, ref: nginx, select: hub-library, candidates: [hub-library, hub-default]}
+  - {name: hub official via index alias, ref: index.docker.io/library/nginx:1.27, select: hub-library}
+  - {name: hub official via registry-1 alias, ref: "registry-1.docker.io/nginx", select: hub-library}
+  - {name: hub exact repository beats namespace, ref: acme/app:2, select: hub-app, candidates: [hub-app, hub-alias, hub-default]}
+  - {name: hub namespace, ref: docker.io/acme/worker, select: hub-alias}
+  - {name: hub namespace is not a prefix of another namespace, ref: acmex/app, select: hub-default}
+  - {name: hub registry.hub.docker.com alias, ref: registry.hub.docker.com/acme/app, select: hub-app}
+  # GHCR: deeper namespace wins; priority breaks ties; same priority is ambiguous.
+  - {name: ghcr org namespace, ref: ghcr.io/org/app, select: ghcr-org}
+  - {name: ghcr deeper namespace, ref: ghcr.io/org/team/app:v1, select: ghcr-team, candidates: [ghcr-team, ghcr-org]}
+  - {name: ghcr priority, ref: ghcr.io/other/app, select: ghcr-org-high, candidates: [ghcr-org-high, ghcr-other]}
+  - {name: ghcr no match is anonymous, ref: ghcr.io/stranger/app, select: anonymous}
+  - {name: ghcr explicit lower priority, ref: ghcr.io/other/app, explicit: ghcr-other, select: ghcr-other}
+  - {name: ghcr explicit wrong namespace, ref: ghcr.io/org/app, explicit: ghcr-other, mismatch: true}
+  - {name: ghcr explicit other host, ref: ghcr.io/org/app, explicit: hub-default, mismatch: true}
+  # Self-hosted: host:port is exact; bindings are preferred where they apply.
+  - {name: lan port, ref: "registry.lan:5000/team/app", select: lan-5000}
+  - {name: lan other port is another registry, ref: "registry.lan:5001/team/app", select: anonymous}
+  - {name: lan without port, ref: registry.lan/team/app, select: lan-plain}
+  - {name: lan environment binding, ref: "registry.lan:5000/team/app", environment: env-a, select: lan-5000-env, candidates: [lan-5000-env, lan-5000]}
+  - {name: lan other environment ignores the binding, ref: "registry.lan:5000/team/app", environment: env-b, select: lan-5000, candidates: [lan-5000]}
+  - {name: lan stack binding beats environment binding, ref: "registry.lan:5000/team/app", environment: env-a, stack: stack-1, select: lan-5000-stack, candidates: [lan-5000-stack, lan-5000-env, lan-5000]}
+  - {name: lan explicit bound elsewhere, ref: "registry.lan:5000/team/app", explicit: lan-5000-env, environment: env-b, mismatch: true}
+  # Ties and revoked connections.
+  - {name: quay tie is ambiguous, ref: quay.io/org/app, ambiguous: [quay-a, quay-b]}
+  - {name: quay tie resolved explicitly, ref: quay.io/org/app, explicit: quay-b, select: quay-b}
+  - {name: revoked stays selected (no anonymous fallback), ref: "localhost:5000/app", select: local}

@@ -13,6 +13,7 @@ require (
 	github.com/containerd/platforms v1.0.0-rc.5
 	github.com/danielgtaylor/huma/v2 v2.39.1
 	github.com/descope/virtualwebauthn v1.0.5
+	github.com/distribution/reference v0.6.0
 	github.com/docker/cli v29.7.2+incompatible
 	github.com/docker/compose/v5 v5.5.1
 	github.com/go-webauthn/webauthn v0.18.2
@@ -62,7 +63,6 @@ require (
 	github.com/containerd/ttrpc v1.2.9 // indirect
 	github.com/containerd/typeurl/v2 v2.3.0 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
-	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect

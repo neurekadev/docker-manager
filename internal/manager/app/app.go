@@ -44,9 +44,12 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/metrics"
 	"github.com/neurekadev/dockyard/internal/manager/observe"
 	"github.com/neurekadev/dockyard/internal/manager/permissions"
+	"github.com/neurekadev/dockyard/internal/manager/regclient"
+	"github.com/neurekadev/dockyard/internal/manager/registries"
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
 	"github.com/neurekadev/dockyard/internal/manager/server"
 	"github.com/neurekadev/dockyard/internal/manager/store"
+	"github.com/neurekadev/dockyard/internal/protocol"
 )
 
 // ShutdownGrace bounds graceful HTTP shutdown.
@@ -73,6 +76,9 @@ type Options struct {
 	OnPasswordCompute func()
 	// Audit records security events (#30); nil logs them.
 	Audit auth.Auditor
+	// RegistryHTTPClient overrides the HTTP client of manager-side
+	// registry checks (#19; tests trust a fake registry's certificate).
+	RegistryHTTPClient *http.Client
 }
 
 // Manager is a started (migrated, not yet serving) manager.
@@ -91,6 +97,7 @@ type Manager struct {
 	perms    *permissions.Service
 	metrics  *metrics.Store
 	observe  *observe.Service
+	regs     *registries.Service
 	handler  http.Handler
 }
 
@@ -226,9 +233,30 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	if err := m.agents.ResetOnline(ctx); err != nil {
 		return nil, fmt.Errorf("reset environment connection state: %w", err)
 	}
+	// Registry connections (#19): owner-administered credentials, resolved
+	// into each agent command at dispatch (never stored with a job).
+	regLog := log.With("component", "registries")
+	m.regs, err = registries.New(registries.Options{
+		DB: db, Keyring: m.keyring, Clock: opts.Clock, Logger: regLog,
+		Guard: m.identity, Audit: m.audit, ForgetResource: m.perms.ForgetResource,
+		Client: regclient.New(regclient.Options{HTTP: opts.RegistryHTTPClient, Clock: opts.Clock, Logger: regLog}),
+	})
+	if err != nil {
+		return nil, err
+	}
+	m.perms.RegisterLocator(catalog.TypeRegistry, permissions.LocatorFunc(func(ctx context.Context, ref authz.ResourceRef) (permissions.Location, error) {
+		_, err := m.regs.Get(ctx, ref.ID)
+		if errors.Is(err, domain.ErrRegistryConnectionNotFound) {
+			return permissions.Location{}, nil
+		}
+		if err != nil {
+			return permissions.Location{}, err
+		}
+		return permissions.Location{Found: true, Parents: []authz.ResourceRef{}}, nil
+	}))
 	m.jobs, err = jobs.New(jobs.Options{
 		DB: db, Clock: opts.Clock, Logger: log.With("component", "jobs"),
-		Dispatcher: m.agents.Hub(), Authorizer: authorizer, Audit: m.audit,
+		Dispatcher: m.agents.Hub(), Authorizer: authorizer, Audit: m.audit, CommandSecrets: m.commandSecrets,
 		Limits: jobs.Limits{
 			ConcurrencyCaps: map[string]int{jobspec.ClassPull: cfg.Jobs.MaxConcurrentPulls, jobspec.ClassBuild: cfg.Jobs.MaxConcurrentBuilds},
 			HistoryMaxAge:   cfg.Jobs.HistoryRetention,
@@ -293,6 +321,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Identity:     m.identity,
 			Agents:       m.agents,
 			Permissions:  m.perms,
+			Registries:   m.regs,
 			APITokens:    m.identity,
 			Observe:      m.observe,
 		},
@@ -311,6 +340,20 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	m.handler = srv.Handler
 	ok = true
 	return m, nil
+}
+
+// commandSecrets resolves the credentials named by a job's input for its
+// agent command (#19 registry connections; #33 adds Git credentials).
+func (m *Manager) commandSecrets(ctx context.Context, j *domain.Job) (*protocol.CommandSecrets, error) {
+	regs, err := m.regs.CommandSecrets(ctx, j)
+	if err != nil {
+		return nil, err
+	}
+	s := &protocol.CommandSecrets{Registries: regs}
+	if s.Empty() {
+		return nil, nil
+	}
+	return s, nil
 }
 
 func (m *Manager) initInstance(ctx context.Context) error {
@@ -397,6 +440,11 @@ func (m *Manager) Metrics() *metrics.Store { return m.metrics }
 
 // Observe returns the observation service (#5).
 func (m *Manager) Observe() *observe.Service { return m.observe }
+
+// Registries returns the registry connection service (#19): Select is
+// the resolver pull/deploy/build/update handlers use, Check the
+// manager-side digest check (#20).
+func (m *Manager) Registries() *registries.Service { return m.regs }
 
 // Events returns the internal event bus.
 func (m *Manager) Events() *events.Bus { return m.events }

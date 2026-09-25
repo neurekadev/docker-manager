@@ -15,6 +15,7 @@
 package secrets
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -139,6 +140,23 @@ func (kr *Keyring) Open(envelope string, context string) ([]byte, error) {
 		return nil, ErrDecrypt
 	}
 	return pt, nil
+}
+
+// Fingerprint returns a short keyed fingerprint of a secret value, bound to
+// context (e.g. "registry_connections/<id>/secret"): "fp_" + 16 hex digits
+// of HMAC-SHA256 under a key derived from the primary key. It lets users
+// recognize whether a write-only credential changed without revealing it;
+// unlike a plain hash it cannot be brute-forced without the secret key.
+// Values fingerprinted under a retired key differ; store the fingerprint
+// when the secret is written.
+func (kr *Keyring) Fingerprint(value []byte, context string) string {
+	derive := hmac.New(sha256.New, kr.primary.raw)
+	derive.Write([]byte("dockyard/fingerprint/v1"))
+	mac := hmac.New(sha256.New, derive.Sum(nil))
+	mac.Write([]byte(context))
+	mac.Write([]byte{0})
+	mac.Write(value)
+	return "fp_" + hex.EncodeToString(mac.Sum(nil)[:8])
 }
 
 // KeyIDOf returns the key ID recorded in an envelope (for rotation sweeps).

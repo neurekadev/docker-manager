@@ -47,7 +47,7 @@ type env struct {
 	nextIP   atomic.Int32
 }
 
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T, with ...func(*Options)) *env {
 	t.Helper()
 	dataDir := t.TempDir()
 	e := &env{t: t, clk: clock.NewFake(time.Now().UTC().Truncate(time.Second)), secrets: canary.New()}
@@ -58,10 +58,14 @@ func newEnv(t *testing.T) *env {
 		SecretKeyFile:  filepath.Join(dataDir, config.SecretKeyFileName),
 		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("::1/128")},
 	}
-	m, err := Start(testutil.Context(t), Options{
+	opts := Options{
 		Config: cfg, Logger: e.secrets.CaptureLogger(t), UI: testUI, Clock: e.clk,
 		PasswordParams: cheapParams, OnPasswordCompute: func() { e.computes.Add(1) },
-	})
+	}
+	for _, f := range with {
+		f(&opts)
+	}
+	m, err := Start(testutil.Context(t), opts)
 	if err != nil {
 		t.Fatal(err)
 	}

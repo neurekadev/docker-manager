@@ -56,7 +56,8 @@ old finished jobs).
 
 Stable error classes: `agent_offline`, `authorization_revoked`,
 `step_failed`, `unknown_outcome`, `journal_lost`, `resume_limit`,
-`rejected`, `compensation_failed`, `executor_restarted`, `cancelled`,
+`rejected`, `compensation_failed`, `executor_restarted`,
+`credential_unavailable`, `cancelled`,
 `internal`.
 
 ### Idempotency
@@ -330,6 +331,14 @@ jobexec.Executor{
 Manager-local kinds register the same structure with
 `engine.RegisterManagerExecutor` before `Recover`. Steps must honor `ctx`;
 cancellation takes effect only at declared safe points.
+
+**Credentials (#19, #33)**: job inputs name registry connections / Git
+credentials by ID (`jobspec.CredentialRefs`); `Options.CommandSecrets`
+resolves them into the command's `secrets` at every dispatch (never stored
+with the job), and the agent keeps them in `StepContext.Secrets` for the
+running attempt only (`jobexec.State.Secrets` is never serialized). An
+unavailable credential fails the job with `credential_unavailable` before
+anything is sent. See [registries](registries.md).
 
 **Transport (#3)**: `internal/manager/agents.Hub` implements
 `jobs.AgentDispatcher` (ordered `Send` through one writer per session,

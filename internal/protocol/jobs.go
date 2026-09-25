@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 )
@@ -81,7 +82,58 @@ type CommandPayload struct {
 	// CompletedSteps lists steps completed by earlier attempts; a resumed
 	// attempt skips them.
 	CompletedSteps []string `json:"completedSteps,omitempty"`
+	// Secrets are the credentials this attempt may use (#19, #33). The
+	// manager resolves them at every dispatch from the connection IDs in
+	// the job's input, so they are never part of the stored job. The agent
+	// keeps them in memory for this attempt only: they are never journaled,
+	// logged or written to a Docker config, and a resumed attempt receives
+	// them again with its new command.
+	Secrets *CommandSecrets `json:"secrets,omitempty"`
 }
+
+// CommandSecrets are per-attempt credentials.
+type CommandSecrets struct {
+	Registries []RegistryCredential `json:"registries,omitempty"`
+	Git        []GitCredential      `json:"git,omitempty"`
+}
+
+// RegistryCredential authenticates image pulls from one registry host.
+type RegistryCredential struct {
+	// ConnectionID is the registry connection (for results and logs).
+	ConnectionID string `json:"connectionId"`
+	// Host is the normalized registry host (docker.io for Docker Hub).
+	Host string `json:"host"`
+	// ServerAddress is the Engine's X-Registry-Auth server address.
+	ServerAddress string `json:"serverAddress"`
+	Username      string `json:"username"`
+	Secret        string `json:"secret"`
+}
+
+// GitCredential authenticates HTTPS Git fetches from one host.
+type GitCredential struct {
+	CredentialID string `json:"credentialId"`
+	// Host is the Git host (host[:port]) the credential is sent to.
+	Host     string `json:"host"`
+	Username string `json:"username"`
+	Secret   string `json:"secret"`
+}
+
+// String hides the secret values (fmt %v / %s).
+func (s *CommandSecrets) String() string {
+	if s == nil {
+		return "<nil>"
+	}
+	return "CommandSecrets{" + strconv.Itoa(len(s.Registries)) + " registries, " + strconv.Itoa(len(s.Git)) + " git, redacted}"
+}
+
+// GoString hides the secret values (%#v).
+func (s *CommandSecrets) GoString() string { return s.String() }
+
+// LogValue hides the secret values in slog.
+func (s *CommandSecrets) LogValue() slog.Value { return slog.StringValue(s.String()) }
+
+// Empty reports whether s carries no credential.
+func (s *CommandSecrets) Empty() bool { return s == nil || len(s.Registries)+len(s.Git) == 0 }
 
 // AckPayload is the body of an ack frame.
 type AckPayload struct {

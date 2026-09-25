@@ -109,11 +109,16 @@ type State struct {
 	Compensations []Compensation          `json:"compensations,omitempty"`
 	Items         []protocol.ItemPayload  `json:"items,omitempty"`
 	Outcome       *protocol.ResultPayload `json:"outcome,omitempty"`
+	// Secrets are the attempt's credentials (#19, #33). They are never
+	// serialized and never cloned, so a journal (file or database) cannot
+	// hold them; only the running attempt sees them.
+	Secrets *protocol.CommandSecrets `json:"-"`
 }
 
-// Clone returns a deep copy.
+// Clone returns a deep copy without Secrets.
 func (s *State) Clone() State {
 	c := *s
+	c.Secrets = nil
 	c.Input = slices.Clone(s.Input)
 	c.Completed = slices.Clone(s.Completed)
 	c.Compensations = slices.Clone(s.Compensations)
@@ -167,6 +172,10 @@ type StepContext struct {
 	Attempt uint32
 	// Input is the job's JSON input object.
 	Input json.RawMessage
+	// Secrets are the credentials the manager sent with this attempt (nil
+	// when none). Use them for this attempt only; never log, journal or
+	// persist them.
+	Secrets *protocol.CommandSecrets
 
 	st   *State
 	opts Options
@@ -238,7 +247,7 @@ func Run(ctx context.Context, exec Executor, st *State, o Options) (protocol.Res
 		return finish(ctx, st, o, protocol.ResultPayload{Outcome: OutcomeFailed, ErrorClass: domain.ErrorRejected,
 			Message: fmt.Sprintf("no executor for kind %q", st.Kind)})
 	}
-	sc := &StepContext{Kind: st.Kind, JobID: st.JobID, Attempt: st.Attempt, Input: st.Input, st: st, opts: o}
+	sc := &StepContext{Kind: st.Kind, JobID: st.JobID, Attempt: st.Attempt, Input: st.Input, Secrets: st.Secrets, st: st, opts: o}
 	var res *protocol.ResultPayload
 	for _, step := range spec.Steps {
 		if slices.Contains(st.Completed, step.Name) {
