@@ -12,14 +12,14 @@
 //     E2E_UI_PASSWORD=dockyard-devstack-owner E2E_DEVSTACK_CONTROL=http://127.0.0.1:8081 \
 //     npx playwright test tests/live-ui.spec.ts
 // Needs the seeded environments (homelab, nas) and the Restricted account
-// (E2E_GUEST_USER / E2E_GUEST_PASSWORD, devstack defaults); skipped
+// (E2E_UI_GUEST / E2E_UI_GUEST_PASSWORD, devstack defaults); skipped
 // without them. The steps change shared state, so they run in order.
 import { expect, test, type Browser, type Page } from '@playwright/test';
 
 const owner = process.env.E2E_UI_OWNER ?? 'owner';
 const password = process.env.E2E_UI_PASSWORD ?? 'dockyard-e2e-owner-passphrase';
-const guest = process.env.E2E_GUEST_USER ?? 'guest';
-const guestPassword = process.env.E2E_GUEST_PASSWORD ?? 'dockyard-devstack-guest';
+const guest = process.env.E2E_UI_GUEST ?? 'guest';
+const guestPassword = process.env.E2E_UI_GUEST_PASSWORD ?? 'dockyard-devstack-guest';
 const control = process.env.E2E_DEVSTACK_CONTROL ?? '';
 
 type Env = { id: string; name: string; online: boolean };

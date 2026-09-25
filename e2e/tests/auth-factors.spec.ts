@@ -69,32 +69,47 @@ async function confirmIdentity(page: Page) {
 }
 
 test.describe.serial('sign-in factors (#16)', () => {
-	test.skip(process.env.E2E_FACTORS !== '1', 'changes the owner account: set E2E_FACTORS=1 on a dedicated manager');
+	test.skip(
+		process.env.E2E_FACTORS !== '1',
+		'changes the owner account: set E2E_FACTORS=1 on a dedicated manager'
+	);
 	// Real TOTP time steps: a test may wait up to one 30 s step.
 	test.describe.configure({ timeout: 120_000 });
 
-	test('authenticator app: set up from the shown secret, then asked for at sign-in', async ({ page }) => {
+	test('authenticator app: set up from the shown secret, then asked for at sign-in', async ({
+		page
+	}) => {
 		await passwordStep(page);
 		await signedIn(page);
 		await page.goto('/settings/security');
-		await expect(page.getByRole('heading', { level: 1, name: 'Profile and security' })).toBeVisible();
+		await expect(
+			page.getByRole('heading', { level: 1, name: 'Profile and security' })
+		).toBeVisible();
 		// The card's button opens the setup, whose own button starts it.
 		await page.getByRole('button', { name: 'Set up authenticator app' }).click();
 		await page.getByRole('button', { name: 'Set up authenticator app' }).click();
-		await expect(page.getByRole('img', { name: 'QR code of the authenticator setup' })).toBeVisible();
+		await expect(
+			page.getByRole('img', { name: 'QR code of the authenticator setup' })
+		).toBeVisible();
 		seed = (await page.locator('.secret .mono').innerText()).trim();
 		expect(seed).toMatch(/^[A-Z2-7]{16,}=*$/);
 		await page.getByLabel('Code from the app').fill(await freshCode(page));
 		await page.getByRole('button', { name: 'Turn on', exact: true }).click();
 		await expect(page.getByText('Turned on the authenticator app')).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Turn off authenticator app' })).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'Turn off authenticator app' })
+		).toBeVisible();
 
 		// A password alone no longer signs in; a wrong code is refused.
 		await passwordStep(page);
 		await expect(page.getByLabel('Authenticator code')).toBeVisible();
 		expect((await page.request.get('/api/v1/me')).status()).toBe(401);
-		const valid = new Set([-1, 0, 1].map((d) => totp(seed, { timeMs: Date.now() + d * STEP_MS })));
-		await page.getByLabel('Authenticator code').fill(['000000', '111111', '222222'].find((c) => !valid.has(c))!);
+		const valid = new Set(
+			[-1, 0, 1].map((d) => totp(seed, { timeMs: Date.now() + d * STEP_MS }))
+		);
+		await page
+			.getByLabel('Authenticator code')
+			.fill(['000000', '111111', '222222'].find((c) => !valid.has(c))!);
 		await page.getByRole('button', { name: 'Verify' }).click();
 		await expect(page.getByText('That code did not work.', { exact: false })).toBeVisible();
 		expect((await page.request.get('/api/v1/me')).status()).toBe(401);
@@ -107,7 +122,10 @@ test.describe.serial('sign-in factors (#16)', () => {
 		await signInWithCode(page);
 		await page.goto('/settings/security');
 		await page.getByRole('button', { name: 'Generate new codes' }).click();
-		await page.getByRole('alertdialog').getByRole('button', { name: 'Generate new codes' }).click();
+		await page
+			.getByRole('alertdialog')
+			.getByRole('button', { name: 'Generate new codes' })
+			.click();
 		await confirmIdentity(page);
 		const dialog = page.getByRole('dialog', { name: 'Your new recovery codes' });
 		const list = dialog.getByLabel('recovery codes', { exact: true });
@@ -125,13 +143,17 @@ test.describe.serial('sign-in factors (#16)', () => {
 			if (use === 'first') {
 				await signedIn(page);
 			} else {
-				await expect(page.getByText('That recovery code did not work.', { exact: false })).toBeVisible();
+				await expect(
+					page.getByText('That recovery code did not work.', { exact: false })
+				).toBeVisible();
 				expect((await page.request.get('/api/v1/me')).status()).toBe(401);
 			}
 		}
 	});
 
-	test('passkey: add one with a virtual authenticator, then sign in with it alone', async ({ page }) => {
+	test('passkey: add one with a virtual authenticator, then sign in with it alone', async ({
+		page
+	}) => {
 		const auth = await addVirtualAuthenticator(page);
 		await signInWithCode(page);
 		await page.goto('/settings/security');
@@ -146,7 +168,9 @@ test.describe.serial('sign-in factors (#16)', () => {
 		await page.goto('/sign-in');
 		await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
 		await signedIn(page);
-		expect((await (await page.request.get('/api/v1/auth/session')).json()).state).toBe('authenticated');
+		expect((await (await page.request.get('/api/v1/auth/session')).json()).state).toBe(
+			'authenticated'
+		);
 		await auth.remove();
 	});
 });

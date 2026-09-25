@@ -47,7 +47,7 @@ owner_pw=dockyard-devstack-owner
 guest=guest
 guest_pw=dockyard-devstack-guest
 
-all_groups=(ui-setup ui b1-environments stacks resources ui-files ui-logs admin-access admin-automation admin-settings auth-factors topology live import)
+all_groups=(ui-setup ui b1-environments stacks resources ui-files ui-logs admin-access admin-automation admin-settings auth-factors topology a11y live-ui live import)
 groups=("$@")
 [ "${#groups[@]}" -gt 0 ] || groups=("${all_groups[@]}")
 
@@ -154,6 +154,14 @@ run_group() {
 		loc="$(silo_location)" || return 1
 		E2E_LIVE_USER="$owner" E2E_LIVE_PASSWORD="$owner_pw" E2E_LIVE_STACK="${loc%% *}" E2E_LIVE_STACK_DIR="${loc#* }" \
 			playwright tests/live.spec.ts
+		;;
+	live-ui)
+		# The control listener changes the fake Engines directly (docker
+		# stop on a host, bypassing DockYard).
+		local control="127.0.0.1:$((port + 1))"
+		start_devstack "$g" -control "$control" || return 1
+		E2E_UI_OWNER="$owner" E2E_UI_PASSWORD="$owner_pw" E2E_UI_GUEST="$guest" E2E_UI_GUEST_PASSWORD="$guest_pw" \
+			E2E_DEVSTACK_CONTROL="http://${control}" playwright tests/live-ui.spec.ts
 		;;
 	ui-files)
 		start_devstack "$g" || return 1
