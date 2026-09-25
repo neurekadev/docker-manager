@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -13,6 +14,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/neurekadev/dockyard/internal/agent/state"
+	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/protocol"
 	"github.com/neurekadev/dockyard/internal/streammux"
 )
@@ -482,7 +484,7 @@ func (k *conn) serveRequest(f *protocol.Frame) {
 	go func() {
 		defer k.wg.Done()
 		defer func() { <-k.requestSlots }()
-		ctx, cancel := context.WithCancel(k.ctx)
+		ctx, cancel := context.WithCancel(requestContext(k.ctx, c.log, f.RequestID, "request", p.Name))
 		defer cancel()
 		var timer interface{ Stop() bool }
 		if f.Deadline != nil {
@@ -530,7 +532,7 @@ func (k *conn) serveStream(f *protocol.Frame) {
 	k.wg.Add(1)
 	go func() {
 		defer k.wg.Done()
-		ctx, cancel := context.WithCancel(k.ctx)
+		ctx, cancel := context.WithCancel(requestContext(k.ctx, c.log, f.RequestID, "stream", p.Kind))
 		defer cancel()
 		go func() {
 			select {
@@ -544,7 +546,7 @@ func (k *conn) serveStream(f *protocol.Frame) {
 			var he *HandlerError
 			if !errors.As(err, &he) {
 				if s.Err() == nil {
-					c.log.Error("stream failed", "kind", p.Kind, "error", err)
+					logging.FromContext(ctx).Error("stream failed", "kind", p.Kind, "error", err)
 				}
 				he = &HandlerError{Code: protocol.CodeInternal, Message: "internal agent error"}
 			}
@@ -553,6 +555,19 @@ func (k *conn) serveStream(f *protocol.Frame) {
 		}
 		_ = s.CloseWrite()
 	}()
+}
+
+// requestContext carries the manager's request ID (frame requestId, #34)
+// to a request or stream handler: logging.RequestID(ctx) returns it and
+// logging.FromContext(ctx) logs with request_id (and the request or stream
+// name). Without an ID the session logger is used as is.
+func requestContext(ctx context.Context, log *slog.Logger, requestID, what, name string) context.Context {
+	l := log.With(what, name)
+	if requestID != "" {
+		ctx = logging.WithRequestID(ctx, requestID)
+		l = l.With("request_id", requestID)
+	}
+	return logging.IntoContext(ctx, l)
 }
 
 // reply answers a request (or rescan) with response or error.

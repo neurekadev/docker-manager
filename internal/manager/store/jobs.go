@@ -26,6 +26,7 @@ type jobRow struct {
 	Origin           string     `bun:"origin,notnull"`
 	InitiatorUserID  string     `bun:"initiator_user_id,nullzero"`
 	InitiatorTokenID string     `bun:"initiator_token_id,nullzero"`
+	RequestID        string     `bun:"request_id,notnull"`
 	PolicyID         string     `bun:"policy_id,nullzero"`
 	EnvironmentID    string     `bun:"environment_id,nullzero"`
 	Targets          string     `bun:"targets,notnull"`
@@ -142,7 +143,7 @@ func fromJob(j *domain.Job) jobRow {
 	}
 	return jobRow{
 		ID: j.ID, Kind: string(j.Kind), Executor: string(j.Executor), Origin: string(j.Origin),
-		InitiatorUserID: j.InitiatorUserID, InitiatorTokenID: j.InitiatorTokenID, PolicyID: j.PolicyID,
+		InitiatorUserID: j.InitiatorUserID, InitiatorTokenID: j.InitiatorTokenID, PolicyID: j.PolicyID, RequestID: j.RequestID,
 		EnvironmentID: j.EnvironmentID, Targets: mustJSON(targets), Input: input, InputHash: j.InputHash,
 		IdempotencyScope: scope, IdempotencyKey: j.IdempotencyKey, Attempt: j.Attempt, State: string(j.State),
 		ProgressPercent: j.Progress.Percent, ProgressStep: j.Progress.Step, ProgressMessage: j.Progress.Message,
@@ -171,7 +172,7 @@ func idempotencyScope(j *domain.Job) string {
 func (r *jobRow) toDomain() (domain.Job, error) {
 	j := domain.Job{
 		ID: r.ID, Kind: domain.JobKind(r.Kind), Executor: domain.JobExecutor(r.Executor), Origin: domain.JobOrigin(r.Origin),
-		InitiatorUserID: r.InitiatorUserID, InitiatorTokenID: r.InitiatorTokenID, PolicyID: r.PolicyID,
+		InitiatorUserID: r.InitiatorUserID, InitiatorTokenID: r.InitiatorTokenID, PolicyID: r.PolicyID, RequestID: r.RequestID,
 		EnvironmentID: r.EnvironmentID, Input: []byte(r.Input), InputHash: r.InputHash, IdempotencyKey: r.IdempotencyKey,
 		Attempt: r.Attempt, State: domain.JobState(r.State),
 		Progress:   domain.JobProgress{Percent: r.ProgressPercent, Step: r.ProgressStep, Message: r.ProgressMessage},
@@ -514,4 +515,29 @@ func DeleteFinishedJobs(ctx context.Context, db bun.IDB, olderThan time.Time, ke
 		n += m
 	}
 	return int(n), nil
+}
+
+// JobCount is the number of jobs of one kind in one state.
+type JobCount struct {
+	Kind  domain.JobKind
+	State domain.JobState
+	Count int
+}
+
+// CountJobs counts jobs per kind and state (diagnostics, #34), sorted.
+func CountJobs(ctx context.Context, db bun.IDB) ([]JobCount, error) {
+	var rows []struct {
+		Kind  string `bun:"kind"`
+		State string `bun:"state"`
+		Count int    `bun:"n"`
+	}
+	if err := db.NewRaw(`SELECT kind, state, count(*) AS n FROM jobs GROUP BY kind, state ORDER BY kind, state`).Scan(ctx, &rows); err != nil &&
+		!errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("store: count jobs: %w", err)
+	}
+	out := make([]JobCount, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, JobCount{Kind: domain.JobKind(r.Kind), State: domain.JobState(r.State), Count: r.Count})
+	}
+	return out, nil
 }

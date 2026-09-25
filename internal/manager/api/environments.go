@@ -40,6 +40,20 @@ type Environment struct {
 	CreatedAt              time.Time  `json:"createdAt,omitzero" doc:"Full view."`
 	UpdatedAt              time.Time  `json:"updatedAt,omitzero" doc:"Full view."`
 	ArchivedAt             *time.Time `json:"archivedAt,omitempty"`
+	// Version compatibility of the active agent (#34, full view).
+	AgentVersion        string `json:"agentVersion,omitempty" example:"0.0.0-edge" doc:"Version the active agent reported (full view; absent while detached)."`
+	Compatibility       string `json:"compatibility,omitempty" enum:"current,outdated,unsupported" doc:"The active agent against this manager (full view): current; outdated (previous minor release, works, upgrade it); unsupported (its sessions are refused until it is upgraded)."`
+	UpgradeInstructions string `json:"upgradeInstructions,omitempty" doc:"How to upgrade an outdated or unsupported agent (there is no in-app self-update in v1)."`
+}
+
+// agentCompatibility fills the version compatibility fields of a
+// full-view environment from its active agent (#34).
+func (e *Environment) agentCompatibility(a *domain.Agent, managerVersion string) {
+	if e.View != authz.Full.String() || a == nil || a.ID != e.AgentID {
+		return
+	}
+	e.AgentVersion = a.Version
+	e.Compatibility, e.UpgradeInstructions = protocol.AgentCompatibility(managerVersion, a.Version)
 }
 
 // newEnvironment shapes an environment for a caller's view (#17).
@@ -88,13 +102,17 @@ type SystemHost struct {
 
 // SystemAgent is the environment's active agent as reported by it.
 type SystemAgent struct {
-	ID            string   `json:"id"`
-	Version       string   `json:"version"`
-	VersionStatus string   `json:"versionStatus" enum:"current,outdated"`
-	OS            string   `json:"os"`
-	Arch          string   `json:"arch"`
-	Protocols     []string `json:"protocols"`
-	Connected     bool     `json:"connected"`
+	ID            string `json:"id"`
+	Version       string `json:"version"`
+	VersionStatus string `json:"versionStatus" enum:"current,outdated" doc:"Recorded when its last session started."`
+	// Compatibility and UpgradeInstructions compare the version with this
+	// manager now (#34).
+	Compatibility       string   `json:"compatibility" enum:"current,outdated,unsupported" doc:"Against this manager now: unsupported agents are refused until upgraded."`
+	UpgradeInstructions string   `json:"upgradeInstructions,omitempty"`
+	OS                  string   `json:"os"`
+	Arch                string   `json:"arch"`
+	Protocols           []string `json:"protocols"`
+	Connected           bool     `json:"connected"`
 }
 
 // SystemRoot is a verified file root served by the agent (#28); host paths
@@ -145,7 +163,7 @@ func capabilitiesOf(a domain.Agent) *protocol.CapabilitiesPayload {
 	return &c
 }
 
-func newSystem(s domain.EnvironmentSystem) EnvironmentSystem {
+func newSystem(s domain.EnvironmentSystem, managerVersion string) EnvironmentSystem {
 	out := EnvironmentSystem{EnvironmentID: s.Environment.ID, Online: s.Environment.Online, Features: []string{}, Commands: []string{},
 		Requests: []string{}, Streams: []string{}, Roots: []SystemRoot{}, Diagnostics: []SystemDiagnostic{}}
 	a := s.Agent
@@ -154,6 +172,7 @@ func newSystem(s domain.EnvironmentSystem) EnvironmentSystem {
 	}
 	out.Agent = &SystemAgent{ID: a.ID, Version: a.Version, VersionStatus: a.VersionStatus, Protocols: []string{},
 		Connected: a.SessionID != "" && a.Status == domain.AgentActive}
+	out.Agent.Compatibility, out.Agent.UpgradeInstructions = protocol.AgentCompatibility(managerVersion, a.Version)
 	c := capabilitiesOf(*a)
 	if c == nil {
 		return out
@@ -301,9 +320,15 @@ func (h *agentsAPI) listEnvironments(ctx context.Context, in *listEnvironmentsIn
 	if err != nil {
 		return nil, Internal(err)
 	}
+	active, err := h.activeAgents(ctx)
+	if err != nil {
+		return nil, Internal(err)
+	}
 	out := make([]Environment, 0, len(items))
 	for _, e := range items {
-		out = append(out, newEnvironment(e, authz.ViewOf(c, environmentResource(e))))
+		env := newEnvironment(e, authz.ViewOf(c, environmentResource(e)))
+		env.agentCompatibility(active[e.AgentID], h.deps.Build.Version)
+		out = append(out, env)
 	}
 	cursor, err := nextCursor(fingerprint, next)
 	if err != nil {
@@ -325,7 +350,41 @@ func (h *agentsAPI) getEnvironment(ctx context.Context, in *environmentIDInput) 
 		return nil, err
 	}
 	body := newEnvironment(env, v)
+	if err := h.addCompatibility(ctx, &body); err != nil {
+		return nil, err
+	}
 	return &environmentOutput{ETagHeader: environmentETag(body), Body: body}, nil
+}
+
+// activeAgents maps agent ID to active agent (the version compatibility
+// of listed environments, #34).
+func (h *agentsAPI) activeAgents(ctx context.Context) (map[string]*domain.Agent, error) {
+	list, err := h.svc.ListAgents(ctx, domain.AgentFilter{Statuses: []domain.AgentStatus{domain.AgentActive}})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]*domain.Agent, len(list))
+	for i := range list {
+		out[list[i].ID] = &list[i]
+	}
+	return out, nil
+}
+
+// addCompatibility fills the version compatibility of one full-view
+// environment (#34).
+func (h *agentsAPI) addCompatibility(ctx context.Context, e *Environment) error {
+	if e.View != authz.Full.String() || e.AgentID == "" {
+		return nil
+	}
+	a, err := h.svc.GetAgent(ctx, e.AgentID)
+	if errors.Is(err, domain.ErrAgentNotFound) {
+		return nil
+	}
+	if err != nil {
+		return Internal(err)
+	}
+	e.agentCompatibility(&a, h.deps.Build.Version)
+	return nil
 }
 
 func (h *agentsAPI) updateEnvironment(ctx context.Context, in *updateEnvironmentInput) (*environmentOutput, error) {
@@ -351,6 +410,9 @@ func (h *agentsAPI) updateEnvironment(ctx context.Context, in *updateEnvironment
 		return nil, agentErr(err)
 	}
 	body := newEnvironment(env, authz.ViewOf(c, environmentResource(env)))
+	if err := h.addCompatibility(ctx, &body); err != nil {
+		return nil, err
+	}
 	return &environmentOutput{ETagHeader: environmentETag(body), Body: body}, nil
 }
 
@@ -399,7 +461,7 @@ func (h *agentsAPI) environmentSystem(ctx context.Context, in *environmentIDInpu
 	if err != nil {
 		return nil, agentErr(err)
 	}
-	out := newSystem(sys)
+	out := newSystem(sys, h.deps.Build.Version)
 	if obs := h.deps.Observe; obs != nil {
 		addInventory(&out, obs, env.ID)
 	}
@@ -444,9 +506,12 @@ func registerEnvironments(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "delete-environment", Method: http.MethodDelete, Path: BasePath + "/environments/{environmentId}",
 			Summary: "Archive an environment",
-			Description: "Archives the environment: it is hidden from operations while its history and records are kept, its agent's " +
-				"credential is revoked (a live session closes with 4403) and nothing on the host is touched. Enrolling its Engine again " +
-				"with intent reattach:<environmentId> re-attaches it. Requires If-Match. The dependency preview before removal is #34.",
+			Description: "Archives the environment: it is hidden from operations while its history and records are kept (stacks, " +
+				"policies, backup repositories, sets and snapshots, registry and Git bindings), its agent's credential is revoked (a live " +
+				"session closes with 4403), the permission rules scoped to it are removed (audited as environment.permission_rules_remove) " +
+				"and nothing on the host is touched. Scheduled update, backup and prune runs for it are refused while it is archived. " +
+				"Preview the dependent records first with POST …/removal-previews. Enrolling its Engine again with intent " +
+				"reattach:<environmentId> re-attaches it and its stacks and policies resume. Requires If-Match.",
 			Tags: []string{tagEnvironments}, DefaultStatus: http.StatusNoContent,
 			Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusPreconditionFailed, http.StatusPreconditionRequired},
 		},

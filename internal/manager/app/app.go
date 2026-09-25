@@ -30,6 +30,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/db/migrations"
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/manager/agents"
 	"github.com/neurekadev/dockyard/internal/manager/api"
 	"github.com/neurekadev/dockyard/internal/manager/audit"
@@ -41,6 +42,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/builds"
 	"github.com/neurekadev/dockyard/internal/manager/config"
 	"github.com/neurekadev/dockyard/internal/manager/containerio"
+	"github.com/neurekadev/dockyard/internal/manager/diagnostics"
 	"github.com/neurekadev/dockyard/internal/manager/events"
 	"github.com/neurekadev/dockyard/internal/manager/files"
 	"github.com/neurekadev/dockyard/internal/manager/gitcreds"
@@ -53,6 +55,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/permissions"
 	"github.com/neurekadev/dockyard/internal/manager/regclient"
 	"github.com/neurekadev/dockyard/internal/manager/registries"
+	"github.com/neurekadev/dockyard/internal/manager/removal"
 	"github.com/neurekadev/dockyard/internal/manager/resources"
 	"github.com/neurekadev/dockyard/internal/manager/scheduler"
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
@@ -115,6 +118,9 @@ type Options struct {
 	Restic restic.Opener
 	// BackupHTTPClient overrides the HTTP client of S3 connection tests.
 	BackupHTTPClient *http.Client
+	// LogRing keeps the recent log lines for the support bundle (#34);
+	// Run and Start create it (and tee Logger into it) when nil.
+	LogRing *logging.Ring
 }
 
 // Manager is a started (migrated, not yet serving) manager.
@@ -148,6 +154,8 @@ type Manager struct {
 	migrations *envmigrations.Service
 	updates    *updates.Service
 	backups    *backups.Service
+	// diag serves the internal metrics and the support bundle (#34).
+	diag *diagnostics.Service
 	// restart is signaled when the manager must restart in process (a
 	// staged manager-state restore, #24); Serve returns ErrRestart.
 	restart chan struct{}
@@ -189,6 +197,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	if opts.Migrations == nil {
 		opts.Migrations = migrations.Migrations
 	}
+	opts = withLogRing(opts)
 	cfg, log := opts.Config, opts.Logger
 
 	if err := os.MkdirAll(cfg.DataDir, 0o700); err != nil {
@@ -301,6 +310,9 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Archiving an environment removes the permission rules scoped to it,
+	// audited, in the same transaction (#34).
+	m.agents.SetArchiveHook(m.archiveEnvironment)
 	// The resource graph for authorization (#17): agents live in their
 	// environment. Feature workstreams register their resource types here.
 	m.perms.RegisterLocator(catalog.TypeAgent, permissions.LocatorFunc(func(ctx context.Context, ref authz.ResourceRef) (permissions.Location, error) {
@@ -576,6 +588,14 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return nil
 	})
 
+	// Diagnostics (#34): internal metrics and the support bundle.
+	if m.diag, err = m.newDiagnostics(); err != nil {
+		m.resources.Close()
+		_ = m.metrics.Close()
+		m.jobs.Close()
+		return nil, err
+	}
+
 	srv, err := server.New(server.Options{
 		Logger: log,
 		Clock:  opts.Clock,
@@ -609,6 +629,8 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Migrations:     m.migrations,
 			Updates:        m.updates,
 			Backups:        m.backups,
+			Removal:        removal.New(db),
+			Diagnostics:    m.diag,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -905,6 +927,9 @@ func Run(ctx context.Context, opts Options) error {
 	if opts.Clock == nil {
 		opts.Clock = clock.Real()
 	}
+	// One log ring for every manager started by this Run (controlled
+	// restarts keep the recent lines).
+	opts = withLogRing(opts)
 	cfg, log := opts.Config, opts.Logger
 	info := buildinfo.Get()
 	log.Info("starting dockyard-manager", "version", info.Version, "commit", info.Commit,

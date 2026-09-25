@@ -252,10 +252,13 @@ func DefaultLimits() SessionLimits {
 		MaxChunkBytes: MaxChunk, MaxPaths: MaxPaths}
 }
 
-// Agent version status in welcome.
+// Agent version status in welcome (current, outdated). The public API
+// also reports VersionUnsupported for a stored agent version the manager
+// would refuse now (AgentCompatibility), e.g. after a manager upgrade.
 const (
-	VersionCurrent  = "current"
-	VersionOutdated = "outdated"
+	VersionCurrent     = "current"
+	VersionOutdated    = "outdated"
+	VersionUnsupported = "unsupported"
 )
 
 // WelcomePayload establishes the session.
@@ -871,4 +874,30 @@ func CheckAgentVersion(managerVersion, agentVersion string) (string, error) {
 		return VersionOutdated, nil
 	}
 	return "", fmt.Errorf("%w: agent %s is older than the previous minor release of manager %s; upgrade the agent", ErrVersionUnsupported, agentVersion, managerVersion)
+}
+
+// UpgradeGuide is where the upgrade procedure of each deploy method is
+// documented (#34).
+const UpgradeGuide = "docs/operations/upgrades.md"
+
+// AgentCompatibility classifies a stored agent version for display (#34):
+// VersionCurrent, VersionOutdated (previous minor release: works, upgrade
+// it) or VersionUnsupported (the manager refuses its sessions), with
+// plain-language upgrade instructions for the last two ("" when current).
+// There is no in-app self-update in v1 (#25): the operator upgrades the
+// agent where it runs, always after the manager.
+func AgentCompatibility(managerVersion, agentVersion string) (status, instructions string) {
+	const how = "On the agent's host, pull the agent image the manager runs with and recreate the container " +
+		"(e.g. `docker compose pull && docker compose up -d` in the agent's Compose project); upgrade the manager first, " +
+		"then its agents. See " + UpgradeGuide + "."
+	st, err := CheckAgentVersion(managerVersion, agentVersion)
+	switch {
+	case err != nil:
+		reason := strings.TrimPrefix(err.Error(), ErrVersionUnsupported.Error()+": ")
+		return VersionUnsupported, "The manager refuses this agent: " + reason + ". " + how
+	case st == VersionOutdated:
+		return VersionOutdated, "This agent runs the previous minor release (" + agentVersion + ", manager " + managerVersion +
+			"): it still works, but support ends with the next manager release. " + how
+	}
+	return VersionCurrent, ""
 }

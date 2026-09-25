@@ -507,3 +507,55 @@ func TestAgentStopsOnNonRetryableRefusal(t *testing.T) {
 		t.Fatalf("revoked upgrade: %v", err)
 	}
 }
+
+// TestAgentVersionWindow (#34): with manager 1.4.0, an N-1 agent (1.3.x)
+// enrolls, connects and works, flagged outdated; an older agent (1.2.x)
+// and a newer one (1.5.x) are refused with close 4426 and a message saying
+// what to upgrade, and do not retry.
+func TestAgentVersionWindow(t *testing.T) {
+	f := newFixture(t)
+
+	// N-1: accepted, outdated.
+	old := f.newAgent("ENG-N1", "host-n1")
+	old.version = "1.3.7"
+	r := old.enroll(f.createEnrollment(domain.EnrollmentSpec{}).Token)
+	old.start()
+	f.waitOnline(r.EnvironmentID)
+	old.waitState(session.StateOnline)
+	a, err := f.svc.GetAgent(f.ctx, r.AgentID)
+	if err != nil || a.Version != "1.3.7" || a.VersionStatus != protocol.VersionOutdated {
+		t.Fatalf("N-1 agent %+v %v", a, err)
+	}
+	if st, msg := protocol.AgentCompatibility(testManagerVersion, a.Version); st != protocol.VersionOutdated || msg == "" {
+		t.Fatalf("N-1 compatibility %s %q", st, msg)
+	}
+
+	for _, c := range []struct{ version, says string }{
+		{"1.2.9", "upgrade the agent"},
+		{"1.5.0", "upgrade the manager first"},
+	} {
+		// Enrollment refuses it before anything is created.
+		ag := f.newAgent("ENG-"+c.version, "host-"+c.version)
+		ag.version = c.version
+		code, body := f.enrollHTTP(f.createEnrollment(domain.EnrollmentSpec{}).Token, ag.enrollRequest())
+		if code != http.StatusUpgradeRequired || !strings.Contains(string(body), c.says) {
+			t.Errorf("%s enrollment: %d %s", c.version, code, body)
+		}
+		// An enrolled agent whose version left the window is refused at
+		// the handshake.
+		enrolled := f.newAgent("ENG-X"+c.version, "host-x"+c.version)
+		er := enrolled.enroll(f.createEnrollment(domain.EnrollmentSpec{}).Token)
+		enrolled.version = c.version
+		enrolled.start()
+		err := <-enrolled.done
+		enrolled.cancel = nil
+		var stop *session.StopError
+		if !errors.As(err, &stop) || stop.CloseCode != protocol.CloseVersionUnsupported || !strings.Contains(stop.Reason, c.says) ||
+			protocol.ReconnectAllowed(stop.CloseCode) || stop.Unauthorized() {
+			t.Errorf("%s handshake: %v", c.version, err)
+		}
+		if f.svc.Hub().Online(er.EnvironmentID) {
+			t.Errorf("%s: environment online", c.version)
+		}
+	}
+}

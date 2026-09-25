@@ -16,6 +16,7 @@ import (
 
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/ids"
+	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/events"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
@@ -57,6 +58,8 @@ type Session struct {
 	pending map[string]chan requestResult
 	// requests are the request names of the last capabilities frame.
 	requests []string
+	// features are the capabilities features the agent announced.
+	features []string
 
 	// Reader-goroutine state.
 	seen          frameDedup
@@ -109,7 +112,19 @@ var errSessionClosed = fmt.Errorf("%w: session closed", jobs.ErrAgentOffline)
 // send queues f for the writer. A full queue means the connection is stuck:
 // the session is closed so the agent reconnects and reconciles.
 func (s *Session) send(f *protocol.Frame) error {
+	if f.RequestID != "" && !s.hasFeature(protocol.FeatureRequestID) {
+		c := *f // an agent predating requestId would reject the field
+		c.RequestID = ""
+		f = &c
+	}
 	return s.queue(outFrame{f: f})
+}
+
+// hasFeature reports whether the agent announced a capabilities feature.
+func (s *Session) hasFeature(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Contains(s.features, name)
 }
 
 // streamQueue bounds queued stream data frames; senders wait for space
@@ -209,7 +224,8 @@ func (s *Session) Request(ctx context.Context, name string, input any, timeout t
 		return nil, err
 	}
 	deadline := s.hub.svc.clk.Now().Add(timeout).UTC()
-	f := &protocol.Frame{Type: protocol.TypeRequest, ID: s.frameID("q"), Deadline: &deadline, Payload: b}
+	f := &protocol.Frame{Type: protocol.TypeRequest, ID: s.frameID("q"), Deadline: &deadline, Payload: b,
+		RequestID: protocol.RequestIDOrEmpty(logging.RequestID(ctx))}
 	if err := f.Validate(); err != nil {
 		return nil, err
 	}
@@ -540,6 +556,7 @@ func (s *Session) handle(f *protocol.Frame) bool {
 		s.haveCaps = true
 		s.mu.Lock()
 		s.requests = slices.Clone(c.Requests)
+		s.features = slices.Clone(c.Features)
 		s.mu.Unlock()
 		return true
 	case protocol.TypeJobReport:

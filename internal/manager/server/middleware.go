@@ -16,6 +16,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/manager/api"
 	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
+	"github.com/neurekadev/dockyard/internal/manager/server/sse"
 )
 
 // RequestIDHeader carries the request ID in requests and responses.
@@ -73,6 +74,9 @@ func accessLog(clk clock.Clock, next http.Handler) http.Handler {
 		start := clk.Now()
 		rec := &responseRecorder{ResponseWriter: w}
 		next.ServeHTTP(rec, r)
+		if rec.streamDone != nil {
+			rec.streamDone() // the event stream ended (#34 metrics)
+		}
 		level := slog.LevelInfo
 		if r.URL.Path == api.BasePath+"/health" || r.URL.Path == api.BasePath+"/health/ready" {
 			level = slog.LevelDebug // container health checks would flood the log
@@ -156,12 +160,17 @@ type responseRecorder struct {
 	status      int
 	bytes       int64
 	wroteHeader bool
+	// streamDone ends the count of an open event stream (sse.Track).
+	streamDone func()
 }
 
 func (r *responseRecorder) WriteHeader(code int) {
 	if !r.wroteHeader {
 		r.status = code
 		r.wroteHeader = true
+		if code == http.StatusOK && sse.IsStream(r.Header().Get("Content-Type")) {
+			r.streamDone = sse.Track()
+		}
 	}
 	r.ResponseWriter.WriteHeader(code)
 }

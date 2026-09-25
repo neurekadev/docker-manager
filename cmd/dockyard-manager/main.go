@@ -9,6 +9,7 @@
 //	dockyard-manager enrollment create [flags]     create an agent enrollment token
 //	dockyard-manager version          print build information
 //	dockyard-manager owner-recovery   issue a one-time owner recovery code (#16)
+//	dockyard-manager snapshots list|restore NAME   pre-migration snapshots (#34 rollback)
 package main
 
 import (
@@ -35,6 +36,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/api"
 	"github.com/neurekadev/dockyard/internal/manager/app"
 	"github.com/neurekadev/dockyard/internal/manager/config"
+	"github.com/neurekadev/dockyard/internal/manager/store"
 	"github.com/neurekadev/dockyard/web"
 )
 
@@ -68,6 +70,8 @@ func run(args []string, env envconfig.Source, stdout, stderr io.Writer) int {
 		return exitOK
 	case "owner-recovery":
 		return ownerRecovery(env, stdout, stderr)
+	case "snapshots":
+		return snapshots(args, env, stdout, stderr)
 	case "help", "-h", "--help":
 		usage(stdout)
 		return exitOK
@@ -94,6 +98,11 @@ Commands:
   version          print build information
   owner-recovery   issue a one-time owner recovery code (run inside the
                    manager container; signs the owner out everywhere)
+  snapshots list   list the pre-migration database snapshots
+  snapshots restore NAME
+                   replace the database with a pre-migration snapshot (the
+                   rollback of a failed upgrade; stop the manager first:
+                   docker compose run --rm --no-deps dockyard-manager snapshots restore NAME)
 
 Configuration is read from environment variables; see docs/configuration.md.
 `)
@@ -149,6 +158,59 @@ Open this link and choose a new password:
 Every owner session has been signed out. Redeeming the code sets a new password and
 removes the owner's TOTP, passkeys and recovery codes; sign in and enroll them again.
 `, code.ExpiresAt.Format(time.RFC3339), code.Code, code.URL)
+	return exitOK
+}
+
+// snapshots lists pre-migration snapshots or restores one (#34): the
+// rollback of an upgrade is restoring its snapshot and starting the
+// previous image (docs/operations/upgrades.md). The manager must be
+// stopped; run it in a one-off container on the same data volume.
+func snapshots(args []string, env envconfig.Source, stdout, stderr io.Writer) int {
+	usage := "usage: dockyard-manager snapshots list | snapshots restore NAME"
+	if len(args) == 0 || (args[0] != "list" && args[0] != "restore") || (args[0] == "list" && len(args) != 1) ||
+		(args[0] == "restore" && len(args) != 2) {
+		_, _ = fmt.Fprintln(stderr, usage)
+		return exitConfig
+	}
+	cfg, err := config.Load(env)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "dockyard-manager: invalid configuration:\n%v\n", err)
+		return exitConfig
+	}
+	if args[0] == "list" {
+		names, err := store.ListSnapshots(cfg.SnapshotDir())
+		if err != nil {
+			_, _ = fmt.Fprintln(stderr, "snapshots:", err)
+			return exitFail
+		}
+		if len(names) == 0 {
+			_, _ = fmt.Fprintln(stdout, "No pre-migration snapshots in", cfg.SnapshotDir())
+			return exitOK
+		}
+		for _, n := range names {
+			_, _ = fmt.Fprintln(stdout, n)
+		}
+		return exitOK
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	res, err := store.RestoreSnapshot(ctx, cfg.DatabasePath(), cfg.SnapshotDir(), args[1], time.Now())
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, "snapshots restore:", err)
+		if errors.Is(err, store.ErrSnapshotNotFound) {
+			return exitConfig
+		}
+		return exitFail
+	}
+	last := "(none)"
+	if len(res.Applied) > 0 {
+		last = res.Applied[len(res.Applied)-1]
+	}
+	_, _ = fmt.Fprintf(stdout, `Restored %s (schema: %d migrations, newest %s).
+The replaced database files are in %s.
+Now start the DockYard image that ran before the upgrade (pin its previous digest);
+starting the newer image again would repeat the upgrade.
+`, res.Snapshot, len(res.Applied), last, res.ReplacedDir)
 	return exitOK
 }
 

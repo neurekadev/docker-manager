@@ -53,6 +53,24 @@ routes:
     kind: json
     status: implemented
   - method: GET
+    path: /api/v1/system/metrics
+    operationId: get-system-metrics
+    capability: system.metrics.read
+    scope: instance
+    owner: 34
+    kind: stream
+    status: implemented
+    notes: "Prometheus text format of DockYard's internals; off unless DOCKYARD_METRICS_ENABLED (404). Not in the #4 catalog text."
+  - method: GET
+    path: /api/v1/support-bundle
+    operationId: get-support-bundle
+    capability: system.support_bundle
+    scope: instance
+    owner: 34
+    kind: stream
+    status: implemented
+    notes: "Owner-only streamed zip (#34); audited. Not in the #4 catalog text."
+  - method: GET
     path: /api/v1/search
     operationId: search
     capability: authenticated
@@ -697,6 +715,15 @@ routes:
     kind: json
     status: implemented
     notes: Archives the environment after a dependency preview; never touches containers.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/removal-previews"
+    operationId: create-environment-removal-preview
+    capability: environment.remove
+    scope: environment
+    owner: 34
+    kind: json
+    status: implemented
+    notes: "Dependent records of an environment before it is archived (#34); not in the #4 catalog text."
   - method: GET
     path: "/api/v1/environments/{environmentId}/agents"
     operationId: list-environment-agents

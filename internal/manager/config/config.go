@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -56,6 +57,9 @@ const (
 	// Backups (#10).
 	EnvBackupLocalRoots = "DOCKYARD_BACKUP_LOCAL_ROOTS"
 	EnvResticBinary     = "DOCKYARD_RESTIC_BINARY"
+	// Diagnostics (#34): the Prometheus endpoint of DockYard's own
+	// internals (not the host metrics of #5, which are always collected).
+	EnvMetricsEnabled = "DOCKYARD_METRICS_ENABLED"
 )
 
 // Defaults.
@@ -173,6 +177,62 @@ type Config struct {
 	// the manager may live in (#10); ResticBinary the pinned restic.
 	BackupLocalRoots []string
 	ResticBinary     string
+	// MetricsEnabled serves GET /api/v1/system/metrics (#34; default off).
+	MetricsEnabled bool
+}
+
+// Setting is one effective configuration value for diagnostics (#34).
+type Setting struct {
+	Name  string
+	Value string
+}
+
+// Settings lists the effective configuration by environment variable for
+// the support bundle (#34). Config holds no secret values (the secret key
+// is a file: only its path is listed).
+func (c Config) Settings() []Setting {
+	public := ""
+	if c.PublicURL != nil {
+		public = c.PublicURL.String()
+	}
+	proxies := make([]string, 0, len(c.TrustedProxies))
+	for _, p := range c.TrustedProxies {
+		proxies = append(proxies, p.String())
+	}
+	d := func(v time.Duration) string { return v.String() }
+	i := func(v int) string { return strconv.Itoa(v) }
+	mb := func(v int64) string { return strconv.FormatInt(v>>20, 10) }
+	return []Setting{
+		{EnvPublicURL, public},
+		{EnvListenAddr, c.ListenAddr},
+		{EnvDataDir, c.DataDir},
+		{EnvSecretKeyFile, c.SecretKeyFile + " (path only)"},
+		{EnvLogLevel, c.LogLevel.String()},
+		{EnvLogFormat, c.LogFormat},
+		{EnvTrustedProxies, strings.Join(proxies, ",")},
+		{EnvStreamHeartbeat, d(c.StreamHeartbeat)},
+		{EnvSessionIdleTimeout, d(c.Sessions.IdleTimeout)},
+		{EnvSessionLifetime, d(c.Sessions.Lifetime)},
+		{EnvJobHistoryRetention, d(c.Jobs.HistoryRetention)},
+		{EnvJobHistoryMax, i(c.Jobs.HistoryMax)},
+		{EnvJobEventsMax, i(c.Jobs.EventsMax)},
+		{EnvJobMaxConcurrentPulls, i(c.Jobs.MaxConcurrentPulls)},
+		{EnvJobMaxConcurrentBuild, i(c.Jobs.MaxConcurrentBuilds)},
+		{EnvAuditRetentionDays, i(c.Audit.RetentionDays)},
+		{EnvAuditMaxSizeMB, mb(c.Audit.MaxBytes)},
+		{EnvAuditLogMirror, strconv.FormatBool(c.Audit.LogMirror)},
+		{EnvMetricsRetentionRaw, d(c.Metrics.RetentionRaw)},
+		{EnvMetricsRetentionMinute, d(c.Metrics.RetentionMinute)},
+		{EnvMetricsRetentionQuarter, d(c.Metrics.RetentionQuarter)},
+		{EnvMetricsMaxSizeMB, mb(c.Metrics.MaxBytes)},
+		{EnvMetricsMaxSeries, i(c.Metrics.MaxSeries)},
+		{EnvFilesMaxUploadMB, mb(c.FilesMaxUpload)},
+		{EnvMigrationBandwidthLimit, strconv.FormatInt(c.MigrationBandwidthLimit, 10) + " B/s (0: unlimited)"},
+		{EnvBackupLocalRoots, strings.Join(c.BackupLocalRoots, ",")},
+		{EnvResticBinary, c.ResticBinary},
+		{EnvMetricsEnabled, strconv.FormatBool(c.MetricsEnabled)},
+		{"local_development", strconv.FormatBool(c.LocalDevelopment)},
+	}
 }
 
 // DefaultResticBinary is where the image installs restic (#10).
@@ -299,6 +359,9 @@ func Load(src envconfig.Source) (Config, error) {
 
 	if cfg.BackupLocalRoots, err = parseRoots(src.String(EnvBackupLocalRoots, "")); err != nil {
 		errs = append(errs, fmt.Errorf("%s: %w", EnvBackupLocalRoots, err))
+	}
+	if cfg.MetricsEnabled, err = src.Bool(EnvMetricsEnabled, false); err != nil {
+		errs = append(errs, err)
 	}
 	cfg.ResticBinary = src.String(EnvResticBinary, DefaultResticBinary)
 	if !filepath.IsAbs(cfg.ResticBinary) && !strings.HasPrefix(cfg.ResticBinary, "/") {

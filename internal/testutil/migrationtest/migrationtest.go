@@ -26,3 +26,14 @@ const FailingTable = "must_not_exist"
 
 // FailingName is the name of the failing migration.
 const FailingName = "29990101000000"
+
+// Previous returns base without its newest n migrations: the schema of a
+// previous release, for upgrade tests (#34).
+func Previous(base *migrate.Migrations, n int) *migrate.Migrations {
+	all := base.Sorted()
+	set := migrate.NewMigrations()
+	for _, m := range all[:max(len(all)-n, 0)] {
+		set.Add(m)
+	}
+	return set
+}

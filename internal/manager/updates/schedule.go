@@ -60,8 +60,23 @@ func (s *Service) policy(ctx context.Context, id string) (domain.UpdatePolicy, e
 	return p, err
 }
 
-// target rejects a policy whose target is gone.
+// RejectEnvironmentArchived refuses scheduled checks and runs while the
+// policy's environment is archived (#34); they resume after a re-attach.
+const RejectEnvironmentArchived = "environment_archived"
+
+// target rejects a policy whose environment is archived or whose target
+// is gone.
 func (s *Service) target(ctx context.Context, p domain.UpdatePolicy) error {
+	env, err := s.opts.Environments.GetEnvironment(ctx, p.EnvironmentID)
+	if errors.Is(err, domain.ErrEnvironmentNotFound) {
+		return scheduler.Reject(scheduler.RejectTargetNotFound, "the policy's environment no longer exists")
+	}
+	if err != nil {
+		return err
+	}
+	if env.Status == domain.EnvironmentArchived {
+		return scheduler.Reject(RejectEnvironmentArchived, "the policy's environment is archived")
+	}
 	if p.TargetType != domain.UpdateTargetStack {
 		return nil // container targets are revalidated by the run itself
 	}

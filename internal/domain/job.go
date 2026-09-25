@@ -268,6 +268,10 @@ type Job struct {
 	InitiatorUserID  string
 	InitiatorTokenID string
 	PolicyID         string
+	// RequestID is the public API request that created the job (#34):
+	// command frames carry it to the agent's logs. Empty for scheduled
+	// and internal work.
+	RequestID string
 	// EnvironmentID is empty for manager-only kinds.
 	EnvironmentID string
 	Targets       []JobTarget

@@ -339,14 +339,24 @@ func (s *Service) UpdateEnvironment(ctx context.Context, id string, expectRevisi
 	return env, err
 }
 
+// ArchiveHook runs inside the transaction that archives an environment
+// (#34: the permission service removes the rules scoped to it). after, if
+// not nil, runs once the transaction committed.
+type ArchiveHook func(ctx context.Context, tx bun.Tx, env domain.Environment) (after func(), err error)
+
+// SetArchiveHook installs the archive hook (startup only).
+func (s *Service) SetArchiveHook(h ArchiveHook) { s.archiveHook = h }
+
 // ArchiveEnvironment archives an environment: it is hidden from operations
 // while its records are kept, its agent is revoked (a live session closes
 // with 4403) and nothing on the host is touched. Re-enrolling its Engine
-// with a reattach:<environmentId> enrollment re-attaches it. The full
-// removal preview (dependent stacks, policies, backups) is #34.
+// with a reattach:<environmentId> enrollment re-attaches it. The archive
+// hook removes the permission rules scoped to it in the same transaction;
+// the removal preview (#34) lists every dependent record beforehand.
 func (s *Service) ArchiveEnvironment(ctx context.Context, id string, expectRevision int64) (domain.Environment, error) {
 	var env domain.Environment
 	var revoked *domain.Agent
+	var after func()
 	changed := false
 	err := s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		var err error
@@ -379,10 +389,21 @@ func (s *Service) ArchiveEnvironment(ctx context.Context, id string, expectRevis
 		env.UpdatedAt = now
 		env.Revision++
 		changed = true
-		return store.UpdateEnvironment(ctx, tx, &env, 0)
+		if err := store.UpdateEnvironment(ctx, tx, &env, 0); err != nil {
+			return err
+		}
+		if s.archiveHook != nil {
+			if after, err = s.archiveHook(ctx, tx, env); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil || !changed {
 		return env, err
+	}
+	if after != nil {
+		after()
 	}
 	s.log.Info("environment archived", "environment_id", env.ID)
 	evs := []events.Event{{Type: events.EnvironmentArchived, ResourceType: events.ResourceEnvironment, ResourceID: env.ID, EnvironmentID: env.ID, Revision: env.Revision}}

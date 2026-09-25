@@ -17,9 +17,11 @@ import (
 	"github.com/neurekadev/dockyard/internal/faultinject"
 	"github.com/neurekadev/dockyard/internal/ids"
 	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/store"
+	"github.com/neurekadev/dockyard/internal/protocol"
 )
 
 // Request asks the engine to run a job.
@@ -81,11 +83,21 @@ func (e *Engine) Enqueue(ctx context.Context, req Request) (job domain.Job, crea
 	if d := e.authorize(ctx, req.Principal, caps, req.EnvironmentID, spec.AuthorizationTargets(req.Targets)); !d.Allowed {
 		return domain.Job{}, false, fmt.Errorf("%w: %s", domain.ErrJobForbidden, d.Reason)
 	}
+	// Archived environments are hidden from operations (#34): users and
+	// API tokens cannot start work there. Policy sources refuse their
+	// scheduled runs themselves; internal follow-ups keep the offline rules.
+	if req.EnvironmentID != "" && !req.Principal.IsService() {
+		env, err := store.GetEnvironment(ctx, e.db, req.EnvironmentID)
+		if err == nil && env.Status == domain.EnvironmentArchived {
+			return domain.Job{}, false, fmt.Errorf("%w: %s", domain.ErrEnvironmentArchived, req.EnvironmentID)
+		}
+	}
 
 	now := e.now()
 	j := domain.Job{
 		ID: ids.New(), Kind: spec.Kind, Executor: spec.Executor, Origin: originOf(req.Principal),
 		InitiatorUserID: req.Principal.UserID, InitiatorTokenID: req.Principal.TokenID, PolicyID: req.PolicyID,
+		RequestID:     protocol.RequestIDOrEmpty(logging.RequestID(ctx)),
 		EnvironmentID: req.EnvironmentID, Targets: slices.Clone(req.Targets), Input: input,
 		InputHash:      inputHash(spec.Kind, req.EnvironmentID, req.PolicyID, req.Targets, input),
 		IdempotencyKey: req.IdempotencyKey, Attempt: 1, State: domain.JobQueued,

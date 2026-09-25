@@ -878,7 +878,7 @@ export interface paths {
         post?: never;
         /**
          * Archive an environment
-         * @description Archives the environment: it is hidden from operations while its history and records are kept, its agent's credential is revoked (a live session closes with 4403) and nothing on the host is touched. Enrolling its Engine again with intent reattach:<environmentId> re-attaches it. Requires If-Match. The dependency preview before removal is #34.
+         * @description Archives the environment: it is hidden from operations while its history and records are kept (stacks, policies, backup repositories, sets and snapshots, registry and Git bindings), its agent's credential is revoked (a live session closes with 4403), the permission rules scoped to it are removed (audited as environment.permission_rules_remove) and nothing on the host is touched. Scheduled update, backup and prune runs for it are refused while it is archived. Preview the dependent records first with POST …/removal-previews. Enrolling its Engine again with intent reattach:<environmentId> re-attaches it and its stacks and policies resume. Requires If-Match.
          */
         delete: operations["delete-environment"];
         options?: never;
@@ -1518,6 +1518,26 @@ export interface paths {
          * @description Starts a network.remove job (202). Refused for predefined networks (409 network_builtin), networks with attached containers (409 network_in_use) and networks of a DockYard-managed stack (409 stack_managed).
          */
         delete: operations["delete-network"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/removal-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview removing an environment
+         * @description Lists every record that depends on the environment before it is removed (archived with DELETE /environments/{environmentId}): managed stacks and standalone container specifications, update, backup and maintenance policies, backup repositories and sets holding its data, registry and Git bindings, permission rules scoped to it, schedules and unfinished jobs, each with what archiving does to it, and offers migrating its stacks and volumes first (#35). Items the caller cannot see are left out (#17); permission rules are listed to the owner only. Changes nothing.
+         */
+        post: operations["create-environment-removal-preview"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3472,6 +3492,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/support-bundle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a support bundle
+         * @description Streams a zip for troubleshooting: versions (manager, API, agent protocol, every agent), the effective configuration (redacted), support-matrix checks per environment, environments and agents with their connection and version compatibility, the audit chain verification result, a job queue summary, database migration and snapshot status, and the manager's recent log lines. It never contains secret values (passwords, tokens, keys, credentials, the Recovery Key, TOTP seeds, Compose/.env or file contents, job inputs). Owner only; audited.
+         */
+        get: operations["get-support-bundle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * DockYard internal metrics (Prometheus)
+         * @description DockYard's own metrics in the Prometheus text exposition format 0.0.4: job queue depth and unfinished jobs by state and kind, connected agent sessions, environments by state, agents by version compatibility, open event streams and event bus subscribers, database sizes, the audit chain length and Go runtime basics. Off by default: 404 unless DOCKYARD_METRICS_ENABLED=true. Requires system.metrics.read (grant it to a dedicated API token and scrape with Authorization: Bearer). Host and container metrics are GET /environments/{environmentId}/metrics.
+         */
+        get: operations["get-system-metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/update-policies": {
         parameters: {
             query?: never;
@@ -3849,6 +3909,11 @@ export interface components {
         Agent: {
             /** @description Granted agent capabilities. */
             actions: string[];
+            /**
+             * @description The version against this manager now (full view of an active agent, #34): unsupported agents are refused until upgraded.
+             * @enum {string}
+             */
+            compatibility?: "current" | "outdated" | "unsupported";
             /** @description A session is established. The environment is reported online once the session's jobs were reconciled. */
             connected: boolean;
             /**
@@ -3890,10 +3955,12 @@ export interface components {
              * @description Full view.
              */
             updatedAt?: string;
+            /** @description How to upgrade an outdated or unsupported agent (no in-app self-update in v1). */
+            upgradeInstructions?: string;
             /** @example 0.0.0-edge */
             version?: string;
             /**
-             * @description outdated: previous minor release, still supported; upgrade it.
+             * @description Recorded when its last session started. outdated: previous minor release, still supported; upgrade it.
              * @enum {string}
              */
             versionStatus?: "current" | "outdated";
@@ -5438,10 +5505,20 @@ export interface components {
             actions: string[];
             /** @description The active agent; absent while the environment is detached (its agent was removed). */
             agentId?: string;
+            /**
+             * @description Version the active agent reported (full view; absent while detached).
+             * @example 0.0.0-edge
+             */
+            agentVersion?: string;
             /** @description The owner declared this a distinct host sharing another environment's Engine ID (cloned VM). */
             allowDuplicateEngineId?: boolean;
             /** Format: date-time */
             archivedAt?: string;
+            /**
+             * @description The active agent against this manager (full view): current; outdated (previous minor release, works, upgrade it); unsupported (its sessions are refused until it is upgraded).
+             * @enum {string}
+             */
+            compatibility?: "current" | "outdated" | "unsupported";
             /**
              * Format: date-time
              * @description When the environment last went online or offline.
@@ -5485,6 +5562,8 @@ export interface components {
              * @description Full view.
              */
             updatedAt?: string;
+            /** @description How to upgrade an outdated or unsupported agent (there is no in-app self-update in v1). */
+            upgradeInstructions?: string;
             /**
              * @description full: environment.read; minimal: only identity, status and the granted actions (#17).
              * @enum {string}
@@ -5566,6 +5645,34 @@ export interface components {
             errorClass?: string;
             items?: components["schemas"]["ScopePreviewItem"][];
             repositoryId: string;
+        };
+        EnvironmentRemovalPreview: {
+            /**
+             * @description What removal does: archive (the only v1 action).
+             * @enum {string}
+             */
+            action: "archive";
+            /**
+             * Format: int64
+             * @description Snapshot index entries of this host (kept; owner and backup readers only).
+             */
+            backupSnapshots: number;
+            /** @description Every dependent record kind, in a fixed order (count 0 when none). */
+            dependents: components["schemas"]["RemovalDependentKind"][];
+            description: string;
+            environmentId: string;
+            environmentName: string;
+            hostUntouched: boolean;
+            migration: components["schemas"]["RemovalMigrationOffer"];
+            /** @description How to bring the archived environment back. */
+            reattach: string;
+            /**
+             * Format: int64
+             * @description Send it as If-Match to DELETE /environments/{environmentId}.
+             */
+            revision: number;
+            /** @enum {string} */
+            status: "active" | "archived";
         };
         EnvironmentStatusEvent: {
             /** Format: date-time */
@@ -7425,6 +7532,34 @@ export interface components {
             code: string;
             message: string;
         };
+        RemovalDependent: {
+            detail?: string;
+            id: string;
+            name: string;
+        };
+        RemovalDependentKind: {
+            /**
+             * Format: int64
+             * @description Records of this kind the caller can see (#17: records hidden from the caller are not counted).
+             */
+            count: number;
+            items: components["schemas"]["RemovalDependent"][];
+            /** @enum {string} */
+            kind: "stack" | "managed_container" | "update_policy" | "backup_policy" | "maintenance_policy" | "backup_repository" | "backup_set" | "registry_connection" | "build_definition" | "permission_rule" | "schedule" | "job";
+            /**
+             * @description kept: kept and hidden with the environment, working again after a re-attach; paused: kept, scheduled runs are refused until a re-attach; removed: deleted with an audit record (permission rules scoped to the environment); interrupted: unfinished jobs end by the offline rules once the agent is disconnected.
+             * @enum {string}
+             */
+            onArchive: "kept" | "paused" | "removed" | "interrupted";
+        };
+        RemovalMigrationOffer: {
+            description: string;
+            /**
+             * Format: int64
+             * @description Visible managed stacks that could be migrated first.
+             */
+            stacks: number;
+        };
         RenameAPITokenInputBody: {
             name: string;
         };
@@ -8231,12 +8366,21 @@ export interface components {
         };
         SystemAgent: {
             arch: string;
+            /**
+             * @description Against this manager now: unsupported agents are refused until upgraded.
+             * @enum {string}
+             */
+            compatibility: "current" | "outdated" | "unsupported";
             connected: boolean;
             id: string;
             os: string;
             protocols: string[];
+            upgradeInstructions?: string;
             version: string;
-            /** @enum {string} */
+            /**
+             * @description Recorded when its last session started.
+             * @enum {string}
+             */
             versionStatus: "current" | "outdated";
         };
         SystemDiagnostic: {
@@ -16427,6 +16571,83 @@ export interface operations {
             };
             /** @description Gateway Timeout */
             504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-environment-removal-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentRemovalPreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -26630,6 +26851,127 @@ export interface operations {
             };
             /** @description Gateway Timeout */
             504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-support-bundle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Support bundle (zip) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-system-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Prometheus text exposition */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain; version=0.0.4; charset=utf-8": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

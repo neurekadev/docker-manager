@@ -173,6 +173,8 @@ func JobErrorFor(err error) error {
 		return Invalid(err.Error())
 	case errors.Is(err, domain.ErrJobKindUnavailable):
 		return NewError(http.StatusNotImplemented, CodeJobKindUnavailable, "this manager cannot run this kind of job yet")
+	case errors.Is(err, domain.ErrEnvironmentArchived):
+		return Conflict(CodeEnvironmentArchived, "the environment is archived; re-attach it to operate it")
 	}
 	return Internal(err)
 }

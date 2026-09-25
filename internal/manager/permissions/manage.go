@@ -361,3 +361,44 @@ func (s *Service) probeFor(ctx context.Context, cp catalog.Capability, sc domain
 	}
 	return authz.Resource{Type: cp.Type, Parents: []authz.ResourceRef{}}
 }
+
+// ForgetEnvironment removes every group and user rule scoped to an
+// environment being archived (#34): its environment-scoped rules and the
+// rules on containers, images, volumes and networks named in it. It runs
+// in the caller's transaction (the archive) and returns the removed rules
+// and the users whose access changed; call AccessChanged with them after
+// the transaction committed. Rules on stacks and policies stay with those
+// records (they resume after a re-attach).
+func (s *Service) ForgetEnvironment(ctx context.Context, tx bun.IDB, environmentID string) ([]domain.RemovedPermissionRule, []string, error) {
+	rules, err := store.EnvironmentRules(ctx, tx, environmentID)
+	if err != nil || len(rules) == 0 {
+		return nil, nil, err
+	}
+	seen := map[string]bool{}
+	var users []string
+	for _, r := range rules {
+		key := r.SubjectKind + ":" + r.SubjectID
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		if r.SubjectKind == "user" {
+			users = append(users, r.SubjectID)
+			continue
+		}
+		members, err := store.GroupMembers(ctx, tx, r.SubjectID)
+		if err != nil {
+			return nil, nil, err
+		}
+		users = append(users, members...)
+	}
+	if _, err := store.DeleteEnvironmentRules(ctx, tx, environmentID, s.clk.Now()); err != nil {
+		return nil, nil, err
+	}
+	return rules, users, nil
+}
+
+// AccessChanged ends the open requests and streams of users whose
+// effective permissions changed outside this service's own flows
+// (ForgetEnvironment).
+func (s *Service) AccessChanged(ctx context.Context, userIDs []string) { s.invalidate(ctx, userIDs) }

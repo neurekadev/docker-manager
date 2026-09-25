@@ -52,7 +52,7 @@ func ErrorCodes() []ErrorCode {
 		{CodeNoPendingFlow, http.StatusConflict, false, "No sign-in, TOTP enrollment or passkey ceremony is in progress in this session (or it expired); start again.", 16},
 		{CodeEngineAlreadyEnrolled, http.StatusConflict, false, "Agent enrollment: the Docker Engine already has an active agent (one agent per Engine); enroll with intent replace:<agentId> to move to the new agent.", 3},
 		{CodeEngineIdentityConflict, http.StatusConflict, false, "Agent enrollment: the Engine ID is already enrolled from another host (a cloned machine?); replace the agent, regenerate the clone's Engine ID or allow the duplicate Engine ID.", 3},
-		{CodeEnvironmentArchived, http.StatusConflict, false, "The environment is archived: it cannot be edited, and enrolling its Engine needs intent reattach:<environmentId>.", 3},
+		{CodeEnvironmentArchived, http.StatusConflict, false, "The environment is archived: it is hidden from operations (no edits, no new jobs), and enrolling its Engine needs intent reattach:<environmentId>.", 3},
 		{CodeEnvironmentDetached, http.StatusConflict, false, "Agent enrollment: the Engine belongs to an environment whose agent was removed; enroll with intent reattach:<environmentId>.", 3},
 		{CodeEngineMismatch, http.StatusConflict, false, "Agent enrollment: a replace or reattach enrollment was used for a different Docker Engine than its target's.", 3},
 		{CodeEnrollmentTargetUnavailable, http.StatusConflict, false, "Agent enrollment: the agent to replace or the environment to re-attach is no longer in a state that allows it; create a new enrollment.", 3},

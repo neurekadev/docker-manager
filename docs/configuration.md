@@ -42,6 +42,7 @@ Sources: `internal/manager/config`, `internal/agent/config`,
 | `DOCKYARD_MIGRATION_BANDWIDTH_LIMIT` | `0` | Bandwidth cap of environment migrations (#35) through the manager, in bytes per second: `0` (unlimited), a number of bytes or a number with a unit (`KB`, `MB`, `GB`, `KiB`, `MiB`, `GiB`, optionally `/s`), e.g. `50MB`; at least 1 KiB/s. One cap shared by all running migrations. |
 | `DOCKYARD_BACKUP_LOCAL_ROOTS` | empty | Comma-separated absolute directories (mounted into the manager) that local backup repositories on the manager may live in (#10). A local manager repository must be below one of them and outside the data directory. Empty: only S3 repositories can hold the manager state. |
 | `DOCKYARD_RESTIC_BINARY` | `/usr/local/bin/restic` | The pinned, checksum-verified restic of the image (#10). Restic's cache and temporary files live in `<data dir>/restic-cache` and `<data dir>/tmp`. |
+| `DOCKYARD_METRICS_ENABLED` | `false` | Serve DockYard's own metrics (job queue, agent sessions, event streams, database sizes, audit chain length) in the Prometheus text format at `GET /api/v1/system/metrics` (#34). Off: the route answers 404. Scrape it with an API token holding only `system.metrics.read`. Unrelated to the host and container metrics of #5, which are always collected. See `docs/operations/diagnostics.md`. |
 
 ### Secret-protection key
 
@@ -72,10 +73,14 @@ SQLite (pure Go, `modernc.org/sqlite` via Bun's `sqliteshim`) in WAL mode with
    consistent `VACUUM INTO` snapshot to `<data dir>/snapshots/`
    (`dockyard-<UTC time>-<seq>-pre-<migration>.db`, the newest 3 are kept);
 3. apply the pending migrations, each in its own transaction;
-4. on failure, exit non-zero with the database unchanged — restore from the
-   snapshot only if you need to roll back an earlier successful migration.
+4. on failure, exit non-zero: the failing migration left nothing behind, but
+   migrations before it in the same upgrade stay applied, so the previous
+   image cannot open the database any more. Roll back by restoring the
+   snapshot (`dockyard-manager snapshots restore <name>`, manager stopped)
+   and starting the previous image (`docs/operations/upgrades.md`).
 
-A database migrated by a newer DockYard build (unknown migrations) is refused.
+A database migrated by a newer DockYard build (unknown migrations) is refused:
+downgrades are unsupported.
 
 Sampled metrics live in a separate database file, `<data dir>/metrics.db`
 (#5), with its own migrations. It is migrated at startup without a

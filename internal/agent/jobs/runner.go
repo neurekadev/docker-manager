@@ -30,6 +30,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/faultinject"
 	"github.com/neurekadev/dockyard/internal/ids"
 	"github.com/neurekadev/dockyard/internal/jobexec"
+	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
 
@@ -219,6 +220,9 @@ func (r *Runner) ack(ctx context.Context, f *protocol.Frame, p protocol.AckPaylo
 
 func (r *Runner) handleCommand(ctx context.Context, f *protocol.Frame) error {
 	log := r.opts.Logger.With("job_id", f.JobID, "attempt", f.Attempt, "fencing_token", f.FencingToken)
+	if f.RequestID != "" {
+		log = log.With("request_id", f.RequestID)
+	}
 	if err := faultinject.Point(ctx, PointCommandReceived); err != nil {
 		return r.ack(ctx, f, protocol.AckPayload{Code: protocol.AckJournalFailed, Message: err.Error()})
 	}
@@ -265,7 +269,7 @@ func (r *Runner) handleCommand(ctx context.Context, f *protocol.Frame) error {
 		return r.ack(ctx, f, protocol.AckPayload{Code: protocol.AckDeadlineExceeded, Message: "command deadline passed before it arrived"})
 	}
 	st := jobexec.State{JobID: f.JobID, Attempt: f.Attempt, FencingToken: f.FencingToken, Kind: exec.Kind,
-		Input: p.Input, Completed: p.CompletedSteps}
+		Input: p.Input, Completed: p.CompletedSteps, RequestID: f.RequestID}
 	// The journal stores a clone, which never carries the secrets; only
 	// the running attempt below holds them (in memory).
 	if err := r.journal.Accept(&st); err != nil {
@@ -307,7 +311,16 @@ func (rp reporter) Progress(ctx context.Context, _ *jobexec.State, p protocol.Pr
 func (r *Runner) execute(exec jobexec.Executor, st jobexec.State, a *attempt) {
 	defer r.wg.Done()
 	ref := protocol.JobRef{JobID: st.JobID, Attempt: st.Attempt, FencingToken: st.FencingToken}
-	_, err := jobexec.Run(r.ctx, exec, &st, jobexec.Options{Journal: r.journal, Reporter: reporter{r, ref},
+	// Steps log with the job and, for API-initiated jobs, the manager's
+	// request ID (#34): logging.FromContext(ctx).
+	jl := r.opts.Logger.With("job_id", st.JobID, "attempt", st.Attempt)
+	ctx := r.ctx
+	if st.RequestID != "" {
+		ctx = logging.WithRequestID(ctx, st.RequestID)
+		jl = jl.With("request_id", st.RequestID)
+	}
+	ctx = logging.IntoContext(ctx, jl)
+	_, err := jobexec.Run(ctx, exec, &st, jobexec.Options{Journal: r.journal, Reporter: reporter{r, ref},
 		CancelRequested: a.cancel.Load, FaultPrefix: "agent"})
 	st.Secrets = nil // the attempt is over; drop the credentials
 	// Leaving the running set and sending the result happen as one step

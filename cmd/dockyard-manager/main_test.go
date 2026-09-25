@@ -11,14 +11,17 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/neurekadev/dockyard/internal/db/migrations"
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/envconfig"
 	"github.com/neurekadev/dockyard/internal/ids"
 	"github.com/neurekadev/dockyard/internal/manager/api"
 	"github.com/neurekadev/dockyard/internal/manager/app"
 	"github.com/neurekadev/dockyard/internal/manager/config"
+	"github.com/neurekadev/dockyard/internal/manager/secrets"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 	"github.com/neurekadev/dockyard/internal/testutil"
+	"github.com/neurekadev/dockyard/internal/testutil/migrationtest"
 )
 
 // TestOwnerRecoveryCommand: owner-recovery against a data directory prints
@@ -196,5 +199,70 @@ func TestEnrollmentCreateCommand(t *testing.T) {
 	code, stdout, _ = runCmd([]string{"enrollment", "create"}, vars)
 	if code != exitOK || !strings.Contains(stdout, "One-use token") || !strings.Contains(stdout, "dockyard-agent enroll") {
 		t.Fatalf("text output %d %q", code, stdout)
+	}
+}
+
+// TestSnapshotsCommand (#34): after an upgrade with pending migrations,
+// `snapshots list` shows its pre-migration snapshot and `snapshots
+// restore` puts the previous schema back.
+func TestSnapshotsCommand(t *testing.T) {
+	dir := t.TempDir()
+	vars := map[string]string{"DOCKYARD_PUBLIC_URL": "https://docker.example.com", "DOCKYARD_DATA_DIR": dir}
+	if code, out, _ := runCmd([]string{"snapshots", "list"}, vars); code != exitOK || !strings.Contains(out, "No pre-migration snapshots") {
+		t.Fatalf("empty list: %d %q", code, out)
+	}
+	cfg, err := config.Load(envconfig.Map(vars, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := testutil.Context(t)
+	ui := fstest.MapFS{"index.html": {Data: []byte("<!doctype html><title>DockYard</title>")}}
+	// The previous release's database (its schema and an instance), then
+	// the current manager upgrades it.
+	prev := migrationtest.Previous(migrations.Migrations, 1)
+	db, err := store.Open(ctx, cfg.DatabasePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Migrate(ctx, db, store.MigrateOptions{Migrations: prev, SnapshotDir: cfg.SnapshotDir(), Logger: testutil.Logger(t)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateInstance(ctx, db, testutil.Epoch); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	if _, err := secrets.CreateKeyFile(cfg.SecretKeyFile, nil); err != nil {
+		t.Fatal(err)
+	}
+	m, err := app.Start(ctx, app.Options{Config: cfg, Logger: testutil.Logger(t), UI: ui})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = m.Close()
+	code, out, stderr := runCmd([]string{"snapshots", "list"}, vars)
+	if code != exitOK || !strings.HasPrefix(out, "dockyard-") || strings.Count(out, "\n") != 1 {
+		t.Fatalf("list: %d %q %q", code, out, stderr)
+	}
+	name := strings.TrimSpace(out)
+	for _, args := range [][]string{{"snapshots"}, {"snapshots", "restore"}, {"snapshots", "drop", name}} {
+		if code, _, _ := runCmd(args, vars); code != exitConfig {
+			t.Errorf("%v: %d", args, code)
+		}
+	}
+	if code, _, stderr := runCmd([]string{"snapshots", "restore", "../dockyard.db"}, vars); code != exitConfig || !strings.Contains(stderr, "no such") {
+		t.Fatalf("traversal: %d %q", code, stderr)
+	}
+	code, out, stderr = runCmd([]string{"snapshots", "restore", name}, vars)
+	if code != exitOK || !strings.Contains(out, "Restored "+name) || !strings.Contains(out, "previous digest") {
+		t.Fatalf("restore: %d %q %q", code, out, stderr)
+	}
+	db, err = store.Open(ctx, cfg.DatabasePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	applied, pending, err := store.Status(ctx, db, prev)
+	if err != nil || len(pending) != 0 || len(applied) != len(prev.Sorted()) {
+		t.Fatalf("restored schema %v pending %v: %v", applied, pending, err)
 	}
 }

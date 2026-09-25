@@ -347,3 +347,37 @@ func TestProtocolDocListsNames(t *testing.T) {
 		}
 	}
 }
+
+// TestAgentCompatibility: the API's view of a stored agent version (#34):
+// N-1 is outdated with upgrade instructions, older or newer agents are
+// unsupported and say what to upgrade.
+func TestAgentCompatibility(t *testing.T) {
+	cases := []struct {
+		manager, agent, want string
+		says                 []string
+	}{
+		{"1.4.0", "1.4.2", VersionCurrent, nil},
+		{"0.0.0-edge", "0.0.0-edge", VersionCurrent, nil},
+		{"1.4.0", "1.3.7", VersionOutdated, []string{"previous minor release", "1.3.7", "docker compose pull", UpgradeGuide}},
+		{"1.4.0", "1.2.9", VersionUnsupported, []string{"refuses", "upgrade the agent", "docker compose pull", UpgradeGuide}},
+		{"1.4.0", "1.5.0", VersionUnsupported, []string{"upgrade the manager first"}},
+		{"1.4.0", "", VersionUnsupported, []string{"refuses"}},
+	}
+	for _, c := range cases {
+		st, msg := AgentCompatibility(c.manager, c.agent)
+		if st != c.want {
+			t.Errorf("%s vs %s: %s, want %s", c.manager, c.agent, st, c.want)
+		}
+		if c.says == nil && msg != "" {
+			t.Errorf("%s vs %s: unexpected instructions %q", c.manager, c.agent, msg)
+		}
+		for _, s := range c.says {
+			if !strings.Contains(msg, s) {
+				t.Errorf("%s vs %s: %q does not say %q", c.manager, c.agent, msg, s)
+			}
+		}
+		if strings.Contains(msg, ErrVersionUnsupported.Error()) {
+			t.Errorf("instructions leak the Go error prefix: %q", msg)
+		}
+	}
+}

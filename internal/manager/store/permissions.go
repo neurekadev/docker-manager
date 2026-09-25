@@ -335,3 +335,52 @@ func DeleteResourceRules(ctx context.Context, db bun.IDB, resourceType, environm
 	}
 	return total, nil
 }
+
+// envRuleWhere selects the rules scoped to one environment (#34): its
+// environment-scoped rules and the rules on resources named per
+// environment (containers, images, volumes, networks) in it. Rules on
+// resources with their own DockYard IDs (stacks, policies) are kept with
+// those records.
+const envRuleWhere = `environment_id = ? AND environment_id <> '' AND scope_kind IN ('environment', 'resource')`
+
+// EnvironmentRules lists the group and user rules scoped to an
+// environment, groups first, each in document order.
+func EnvironmentRules(ctx context.Context, db bun.IDB, environmentID string) ([]domain.RemovedPermissionRule, error) {
+	var out []domain.RemovedPermissionRule
+	for _, t := range []struct {
+		table ruleTable
+		kind  string
+	}{{groupRules, "group"}, {userRules, "user"}} {
+		var rows []ruleRow
+		err := db.NewRaw(`SELECT `+t.table.subjectCol+` AS subject, capability, scope_kind, environment_id, resource_type, resource_id,
+			effect, position FROM `+t.table.table+` WHERE `+envRuleWhere+` ORDER BY `+t.table.subjectCol+`, position`, environmentID).
+			Scan(ctx, &rows)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("store: read %s: %w", t.table.table, err)
+		}
+		for _, r := range rows {
+			out = append(out, domain.RemovedPermissionRule{SubjectKind: t.kind, SubjectID: r.Subject, Rule: r.toDomain()})
+		}
+	}
+	return out, nil
+}
+
+// DeleteEnvironmentRules removes the group and user rules scoped to an
+// environment (EnvironmentRules), bumping the affected documents'
+// revisions. It returns the number of rules removed.
+func DeleteEnvironmentRules(ctx context.Context, db bun.IDB, environmentID string, now time.Time) (int, error) {
+	total := 0
+	for _, t := range []ruleTable{groupRules, userRules} {
+		if _, err := db.NewRaw(`UPDATE `+t.parent+` SET permissions_revision = permissions_revision + 1, updated_at = ?
+			WHERE id IN (SELECT `+t.subjectCol+` FROM `+t.table+` WHERE `+envRuleWhere+`)`, now.UTC(), environmentID).Exec(ctx); err != nil {
+			return 0, fmt.Errorf("store: bump %s revisions: %w", t.parent, err)
+		}
+		res, err := db.NewRaw(`DELETE FROM `+t.table+` WHERE `+envRuleWhere, environmentID).Exec(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("store: delete %s: %w", t.table, err)
+		}
+		n, _ := res.RowsAffected()
+		total += int(n)
+	}
+	return total, nil
+}

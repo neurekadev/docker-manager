@@ -424,6 +424,9 @@ func (c *Client) capabilitiesFrame(k *conn) (*protocol.Frame, bool) {
 		}
 	}
 	slices.Sort(caps.Streams)
+	if !slices.Contains(caps.Features, protocol.FeatureRequestID) {
+		caps.Features = append(caps.Features, protocol.FeatureRequestID)
+	}
 	f, err := protocol.NewFrame(protocol.TypeCapabilities, k.frameID("c"), "", protocol.JobRef{}, caps)
 	if err != nil {
 		c.log.Error("cannot build the capabilities frame", "error", err)

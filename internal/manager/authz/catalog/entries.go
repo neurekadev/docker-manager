@@ -43,6 +43,7 @@ func resourceTypes() []ResourceType {
 		{Key: TypeAPIToken, Label: "API tokens"},
 		{Key: TypeAudit, Label: "Audit log"},
 		{Key: TypeSettings, Label: "Settings"},
+		{Key: TypeSystem, Label: "Diagnostics"},
 		{Key: TypeAdministration, Label: "Administration (owner only)"},
 	}
 }
@@ -267,6 +268,7 @@ func capabilities() []Capability {
 		adv(normal("api_tokens.create", TypeAPIToken, "Create API tokens", "Create API tokens limited to a subset of one's own permissions (needs recent authentication).", instanceOnly)),
 		adv(normal("settings.read", TypeSettings, "View settings", "See instance settings and schedule defaults.", instanceOnly)),
 		adv(high("settings.manage", TypeSettings, "Change settings", "Change instance settings and schedule defaults (not the security policy).", instanceOnly)),
+		adv(normal("system.metrics.read", TypeSystem, "Scrape internal metrics", "Read DockYard's own Prometheus metrics (job queue, agent sessions, streams, database size); meant for a monitoring API token. The endpoint is off unless DOCKYARD_METRICS_ENABLED is set.", instanceOnly)),
 	)
 
 	// Owner surface: never grantable (#16, #17, #31).
@@ -280,6 +282,7 @@ func capabilities() []Capability {
 		ownerOnly("manager.backup", "Back up the manager", "Back up DockYard's own state (database, keys)."),
 		ownerOnly("backup.import", "Import backup repositories", "Import an existing repository into a fresh manager (first-run recovery)."),
 		ownerOnly("system.restore", "Restore the manager", "Restore DockYard itself from a manager backup."),
+		ownerOnly("system.support_bundle", "Download support bundles", "Download a diagnostics bundle: versions, redacted configuration, recent logs, agent states and audit chain verification (never secrets)."),
 	)
 	return out
 }
