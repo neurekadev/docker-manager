@@ -1,0 +1,115 @@
+<script lang="ts">
+	// Backup repositories (#10): where backups are stored, whether the
+	// Recovery Key is confirmed for each, the last connection test and
+	// verification. Credentials and the key are never shown.
+	import { createQuery } from '@tanstack/svelte-query';
+	import HardDrive from '@lucide/svelte/icons/hard-drive';
+	import Plus from '@lucide/svelte/icons/plus';
+	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
+	import { routes } from '$lib/routes';
+	import { usePage } from '$lib/shell/page.svelte';
+	import { Badge, Button, Card, EmptyState, Table, formatRelative, type Column } from '$lib/ui';
+	import { environmentName } from '$lib/features/common/data';
+	import NameCell from '$lib/features/common/NameCell.svelte';
+	import Page from '$lib/features/common/Page.svelte';
+	import QueryView from '$lib/features/common/QueryView.svelte';
+	import BackupsHeader from '$lib/features/backups/BackupsHeader.svelte';
+	import { repositoryLocation, type BackupRepository } from '$lib/features/backups/model';
+	import { repositoriesQuery } from '$lib/features/backups/queries';
+
+	usePage({
+		title: 'Backup repositories',
+		crumbs: [{ label: 'Backups', href: routes.backups() }, { label: 'Repositories' }]
+	});
+
+	const perms = createQuery(() => myPermissionsQuery());
+	const envs = createQuery(() => environmentsQuery());
+	const repos = createQuery(() => repositoriesQuery());
+	const envName = (id: string) => environmentName(envs.data, id);
+
+	const columns: Column<BackupRepository>[] = [
+		{
+			id: 'name',
+			header: 'Repository',
+			cell: nameCell,
+			sortValue: (r) => r.name,
+			stack: 'title'
+		},
+		{ id: 'state', header: 'Recovery Key', cell: stateCell, width: '190px', stack: 'status' },
+		{ id: 'test', header: 'Last test', cell: testCell, width: '190px' },
+		{ id: 'verified', header: 'Last verified', cell: verifiedCell, width: '150px' }
+	];
+</script>
+
+{#snippet nameCell(r: BackupRepository)}
+	<NameCell
+		name={r.name}
+		href={routes.backupRepository(r.id)}
+		sub="{r.kind === 's3' ? 'S3' : 'Local'} {repositoryLocation(r, envName)}"
+		subMono
+	/>
+{/snippet}
+{#snippet stateCell(r: BackupRepository)}
+	{#if r.state === 'ready'}<Badge tone="ok" dot>Confirmed</Badge>{:else}<Badge tone="warn" dot
+			>Awaiting confirmation</Badge
+		>{/if}
+{/snippet}
+{#snippet testCell(r: BackupRepository)}
+	{#if r.lastTest}
+		<Badge tone={r.lastTest.ok ? 'ok' : 'danger'} dot
+			>{r.lastTest.ok ? 'Works' : 'Failed'}</Badge
+		>
+		<span class="muted num">{formatRelative(r.lastTest.at)}</span>
+	{:else}<span class="muted">Not tested</span>{/if}
+{/snippet}
+{#snippet verifiedCell(r: BackupRepository)}
+	{#if r.verification?.lastVerifiedAt}<span class="num"
+			>{formatRelative(r.verification.lastVerifiedAt)}</span
+		>{:else}<span class="muted">Never</span>{/if}
+{/snippet}
+
+<Page>
+	<BackupsHeader>
+		{#snippet actions()}
+			{#if perms.data?.owner}
+				<Button variant="primary" icon={Plus} href={routes.backupRepositoryNew()}
+					>Add repository</Button
+				>
+			{/if}
+		{/snippet}
+	</BackupsHeader>
+	<Card title="Repositories" padding="none">
+		<QueryView query={repos} errorTitle="The backup repositories could not be loaded.">
+			{#snippet children(rows)}
+				<Table
+					label="Backup repositories"
+					{rows}
+					{columns}
+					rowKey={(r) => r.id}
+					sort={{ column: 'name', direction: 'asc' }}
+				>
+					{#snippet empty()}
+						<EmptyState
+							icon={HardDrive}
+							color="teal"
+							title="No backup repositories yet."
+							description="Add a local directory or an S3 bucket. The first repository creates your Recovery Key."
+							level={3}
+							compact
+						>
+							{#snippet actions()}
+								{#if perms.data?.owner}
+									<Button
+										variant="primary"
+										icon={Plus}
+										href={routes.backupRepositoryNew()}>Add repository</Button
+									>
+								{/if}
+							{/snippet}
+						</EmptyState>
+					{/snippet}
+				</Table>
+			{/snippet}
+		</QueryView>
+	</Card>
+</Page>

@@ -30,6 +30,9 @@ web/src/
   lib/api/client.ts           typed client, unwrap(), ApiRequestError, schema type aliases
   lib/api/queries.ts          query keys, queryOptions factories, QueryClient
   lib/api/jobs.svelte.ts      JobWatcher (job event stream with a polling fallback)
+  lib/features/<area>/        feature screens' logic and components (updates, maintenance,
+                              backups, access, ...); lib/features/common: page layout, facts,
+                              QueryView (loading/denied/missing/error), schedules, critical work
   lib/lazy/                   the only entry points to CodeMirror/ECharts/xterm.js (+ themes)
   lib/live/                   live stream client, query-key conventions,
                               liveStatus, critical-work registry (#23)
@@ -114,6 +117,23 @@ against a built manager (below) or the E2E stack.
 Rules: the browser talks only to same-origin `/api/v1` (never an agent or
 Docker socket); tokens and secrets never go to `localStorage`,
 `sessionStorage` or Cache Storage.
+
+## Feature modules and step-up
+
+Screens of one area keep their query factories, pure presentation helpers
+(`model.ts`, unit-tested in `model.spec.ts`) and area components in
+`src/lib/features/<area>/`; generic pieces stay in `$lib/ui`. Shared page
+pieces are in `src/lib/features/common` (`Page`, `QueryView` for the
+loading/denied/not-found/error states, `Facts`, `NameCell`, `Fields`,
+`FormFooter`, `ScheduleSummary`, `useUnsaved`/`useCriticalWork`). Query keys
+still follow `liveKeys` (a feature marker after `'list'` keeps cached
+shapes apart).
+
+Changes the manager guards with recent authentication answer
+`403 step_up_required`; wrap the call in `withStepUp(() => …)` from
+`$lib/auth/stepup.svelte`: the signed-in layout's `StepUpDialog` asks for
+the password (plus TOTP) or a passkey once and the call is retried;
+dismissing it throws `StepUpCancelledError`.
 
 ## PWA
 

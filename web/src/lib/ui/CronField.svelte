@@ -32,14 +32,21 @@
 		timeZones
 	}: Props = $props();
 
-	const zones = $derived(
-		(
+	// Unique per instance: a form may hold several schedules (checks, runs).
+	const uid = $props.id();
+	const previewId = `${uid}-cron-preview`;
+
+	const zones = $derived.by(() => {
+		const list =
 			timeZones ??
 			(typeof Intl.supportedValuesOf === 'function'
 				? Intl.supportedValuesOf('timeZone')
-				: ['UTC'])
-		).map((z) => ({ value: z, label: z }))
-	);
+				: ['UTC']);
+		// Browsers omit aliases such as "UTC" from their list: keep the
+		// saved zone selectable so it is shown, not a blank field.
+		const all = timeZone && !list.includes(timeZone) ? [timeZone, ...list] : list;
+		return all.map((z) => ({ value: z, label: z }));
+	});
 
 	// Debounced copy of the inputs that drives the preview query.
 	let settled = $state({ cron: '', timeZone: '' });
@@ -71,13 +78,13 @@
 				bind:value={cron}
 				spellcheck="false"
 				autocomplete="off"
-				aria-describedby={[c.describedBy, 'cron-preview'].filter(Boolean).join(' ')}
+				aria-describedby={[c.describedBy, previewId].filter(Boolean).join(' ')}
 				aria-invalid={c.invalid || undefined}
 			/>
 		{/snippet}
 	</Field>
 	<Combobox label="Time zone" options={zones} bind:value={timeZone} />
-	<div class="preview" id="cron-preview" aria-live="polite">
+	<div class="preview" id={previewId} aria-live="polite">
 		{#if preview.data && !cronError}
 			<p class="head">Next runs</p>
 			<ol role="list">
@@ -89,7 +96,12 @@
 					</li>
 				{/each}
 			</ol>
-			{#each preview.data.notes as note (note)}<p class="note">{note}</p>{/each}
+			{#if preview.data.notes.length}
+				<details class="notes">
+					<summary>Missed runs, restarts and daylight saving time</summary>
+					{#each preview.data.notes as note (note)}<p class="note">{note}</p>{/each}
+				</details>
+			{/if}
 		{:else if preview.isFetching}
 			<p class="head">Checking the schedule…</p>
 		{/if}
@@ -130,6 +142,23 @@
 		margin-left: var(--space-2);
 		color: var(--warn);
 		font-size: var(--text-caption);
+	}
+
+	.notes {
+		margin-top: var(--space-2);
+	}
+
+	summary {
+		width: fit-content;
+		color: var(--accent-text);
+		font-size: var(--text-caption);
+		cursor: pointer;
+		border-radius: var(--radius-sm);
+	}
+
+	summary:focus-visible {
+		outline: var(--focus-ring);
+		outline-offset: var(--focus-offset);
 	}
 
 	.note {

@@ -1,0 +1,231 @@
+<script lang="ts">
+	// Create or edit a prune policy (#14): one rule per category starting
+	// from the instance's maintenance defaults (every rule off, 30 days,
+	// volume rules need their own opt-in) and a schedule that stays off until
+	// turned on. Saving never removes anything; preview on the policy page.
+	import { untrack } from 'svelte';
+	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+	import { goto } from '$app/navigation';
+	import { api, unwrap } from '$lib/api/client';
+	import { environmentsQuery } from '$lib/api/queries';
+	import { routes } from '$lib/routes';
+	import { Button, Card, CronField, Notice, Select, Switch, TextField, toast } from '$lib/ui';
+	import { ifMatch } from '$lib/features/common/data';
+	import { actionError, fieldErrors } from '$lib/features/common/errors';
+	import Fields from '$lib/features/common/Fields.svelte';
+	import FormFooter from '$lib/features/common/FormFooter.svelte';
+	import Page from '$lib/features/common/Page.svelte';
+	import { defaultSchedule, scheduleDefaultsQuery } from '$lib/features/common/schedules';
+	import { useUnsaved } from '$lib/features/common/unsaved.svelte';
+	import RuleList from './RuleList.svelte';
+	import {
+		normalizeRules,
+		ruleProblem,
+		type MaintenancePolicy,
+		type MaintenanceRule
+	} from './model';
+	import { maintenanceDefaultsQuery, maintenanceKeys } from './queries';
+
+	let {
+		policy,
+		environmentId: initialEnv = null
+	}: { policy?: MaintenancePolicy; environmentId?: string | null } = $props();
+
+	const qc = useQueryClient();
+	const p = untrack(() => policy);
+	const editing = !!p;
+	const envs = createQuery(() => environmentsQuery());
+	const defaults = createQuery(() => maintenanceDefaultsQuery());
+	const schedDefaults = createQuery(() => scheduleDefaultsQuery());
+
+	let name = $state(p?.name ?? '');
+	let description = $state(p?.description ?? '');
+	let environmentId = $state(p?.environmentId ?? untrack(() => initialEnv) ?? '');
+	let rules = $state<MaintenanceRule[]>(normalizeRules(p?.rules));
+	let enabled = $state(p?.schedule?.enabled ?? false);
+	let cron = $state(p?.schedule?.cron ?? '');
+	let zone = $state(p?.schedule?.timeZone ?? '');
+	let touched = $state(false);
+	let busy = $state(false);
+	let error = $state<unknown>(null);
+
+	// A new policy starts with the instance defaults.
+	let seeded = false;
+	$effect(() => {
+		if (editing || seeded || defaults.isPending || schedDefaults.isPending) return;
+		seeded = true;
+		if (defaults.data) rules = normalizeRules(defaults.data.rules);
+		const d = defaultSchedule('prune', schedDefaults.data);
+		cron = d.cron;
+		zone = d.timeZone;
+	});
+	$effect(() => {
+		if (!environmentId && envs.data?.length === 1) environmentId = envs.data[0].id;
+	});
+
+	useUnsaved(
+		() => `Maintenance policy ${name || 'draft'}`,
+		() => touched && !busy
+	);
+
+	const envOptions = $derived(
+		(envs.data ?? [])
+			.filter((e) => e.status !== 'archived')
+			.map((e) => ({ value: e.id, label: e.online ? e.name : `${e.name} (offline)` }))
+	);
+	const fields = $derived(fieldErrors(error));
+	const problems = $derived(rules.map(ruleProblem).filter(Boolean));
+	const canSave = $derived(
+		!!name.trim() && !!environmentId && problems.length === 0 && !!cron.trim()
+	);
+
+	// Without settings.read the defaults are unknown here: send only the
+	// rules the user changed and let the server start the rest from them.
+	const changed: string[] = [];
+	function setRule(i: number, r: MaintenanceRule) {
+		touched = true;
+		if (!changed.includes(r.category)) changed.push(r.category);
+		rules[i] = r;
+	}
+	const createRules = () =>
+		defaults.data ? rules : rules.filter((r) => changed.includes(r.category));
+
+	async function submit(e: SubmitEvent) {
+		e.preventDefault();
+		busy = true;
+		error = null;
+		try {
+			let saved: MaintenancePolicy;
+			const schedule = { cron, timeZone: zone, enabled };
+			if (!policy) {
+				saved = await unwrap(
+					api.POST('/api/v1/maintenance-policies', {
+						body: {
+							name: name.trim(),
+							description: description.trim() || undefined,
+							environmentId,
+							rules: createRules(),
+							schedule
+						}
+					})
+				);
+				toast.success(`Created maintenance policy ${saved.name}`, {
+					body: enabled
+						? undefined
+						: 'Its schedule is off: nothing is removed until you run it or turn the schedule on.'
+				});
+			} else {
+				saved = await unwrap(
+					api.PATCH('/api/v1/maintenance-policies/{policyId}', {
+						params: {
+							path: { policyId: policy.id },
+							header: { 'If-Match': ifMatch(policy.revision) }
+						},
+						body: {
+							name: name.trim(),
+							description: description.trim(),
+							rules,
+							schedule
+						}
+					})
+				);
+				toast.success(`Saved maintenance policy ${saved.name}`);
+			}
+			touched = false;
+			await qc.invalidateQueries({ queryKey: ['policies'] });
+			qc.setQueryData(maintenanceKeys.detail(saved.id), saved);
+			await goto(routes.maintenancePolicy(saved.id));
+		} catch (err) {
+			error = err;
+		} finally {
+			busy = false;
+		}
+	}
+</script>
+
+<form onsubmit={submit} oninput={() => (touched = true)} novalidate>
+	<Page>
+		{#if error && Object.keys(fields).length === 0}
+			<Notice
+				tone="danger"
+				title={editing ? 'The policy was not saved' : 'The policy was not created'}
+				live="alert"
+			>
+				{actionError(error, {
+					maintenance_policy_name_taken:
+						'Another maintenance policy has this name. Choose a different name.'
+				})}
+			</Notice>
+		{/if}
+		<Card title="Policy">
+			<Fields>
+				<TextField
+					label="Name"
+					bind:value={name}
+					required
+					error={fields['body.name']}
+					placeholder="Weekly cleanup"
+				/>
+				<TextField
+					label="Description"
+					description="Optional."
+					bind:value={description}
+					error={fields['body.description']}
+				/>
+				{#if editing}
+					<p class="muted">
+						Runs on one environment; create another policy for a different one.
+					</p>
+				{:else}
+					<Select
+						label="Environment"
+						options={envOptions}
+						bind:value={environmentId}
+						placeholder="Choose an environment"
+						required
+						error={fields['body.environmentId']}
+					/>
+				{/if}
+			</Fields>
+		</Card>
+
+		<Card
+			title="Rules"
+			subtitle="Turned-on rules together are this policy's cleanup. DockYard's own objects, stack resources, saved containers and backups are always kept."
+		>
+			<RuleList
+				{rules}
+				info={defaults.data?.categories}
+				suggested={defaults.data?.rules}
+				onchange={setRule}
+			/>
+		</Card>
+
+		<Card
+			title="Schedule"
+			subtitle="Scheduled runs always run in the background. Runs missed while DockYard was down are skipped, never run late."
+		>
+			<Fields>
+				<Switch
+					label="Run automatically"
+					description="Off: the policy runs only when you start it."
+					bind:checked={enabled}
+					onchange={() => (touched = true)}
+				/>
+				{#if zone}
+					<CronField label="Schedule" kind="prune" bind:cron bind:timeZone={zone} />
+				{/if}
+			</Fields>
+		</Card>
+	</Page>
+
+	<FormFooter>
+		<Button
+			href={policy ? routes.maintenancePolicy(policy.id) : routes.maintenance()}
+			variant="ghost">Cancel</Button
+		>
+		<Button type="submit" variant="primary" loading={busy} disabled={!canSave}>
+			{editing ? 'Save changes' : 'Create maintenance policy'}
+		</Button>
+	</FormFooter>
+</form>

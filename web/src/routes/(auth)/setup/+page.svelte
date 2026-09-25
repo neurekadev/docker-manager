@@ -3,6 +3,7 @@
 	// the HTTPS public origin (or the explicit http://localhost development
 	// mode); when this request does not qualify the manager says why and the
 	// form stays disabled until the proxy or URL is fixed.
+	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 	import ShieldAlert from '@lucide/svelte/icons/shield-alert';
 	import { api, unwrap } from '$lib/api/client';
 	import { usePublicPage } from '$lib/auth/flow.svelte';
@@ -154,6 +155,12 @@
 				</Button>
 			</fieldset>
 		</form>
+		<div class="import">
+			<p class="hint">Recovering an existing DockYard from its backups?</p>
+			<Button href={routes.setupImport()} icon={DatabaseBackup} block disabled={insecure}
+				>Import from backup</Button
+			>
+		</div>
 	{/if}
 </div>
 
@@ -189,5 +196,12 @@
 	.hint {
 		margin-top: var(--space-1);
 		color: var(--text-muted);
+	}
+
+	.import {
+		display: grid;
+		gap: var(--space-2);
+		padding-top: var(--space-4);
+		border-top: 1px solid var(--border-subtle);
 	}
 </style>

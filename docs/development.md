@@ -95,6 +95,21 @@ Seeded data:
   with the production file service and watcher: the file manager, uploads,
   archives and jobs work, and editing a file there with any editor shows up
   in an open listing (and as an editor conflict) within seconds.
+- Automation (#20, #14): the update policy **Silo images** with the result
+  of an earlier digest check (an update on a `latest` tag, a quarantined
+  digest with history, an up-to-date, an excluded and a failed service; the
+  devstack has no registry, so a new check reports its errors) and the
+  maintenance policy **Weekly cleanup** on homelab.
+- Backups (#10): an in-memory restic (`restictest`, persisted to
+  `<-backups>/restic-state.json`) behind local repositories below
+  `-backups` (default `<tmp>/dockyard-devstack-backups`): **Manager disk**
+  (Recovery Key generated, confirmed and printed), **Homelab disk** and
+  **NAS disk** (awaiting its key confirmation); the policies **Manager
+  state** (a complete set) and **Nightly** (partial: the devstack agents run
+  no restic, so the Silo member fails).
+- Import (#24): a seeded run starts `-backups` fresh; a later `-setup` run
+  keeps it, so setup's **Import from backup** can restore it (directory
+  `<-backups>/manager`, the printed Recovery Key).
 
 What is simulated: the Docker Engines, host metrics, Compose reads
 (`compose.read` from the project directories on disk, `compose.services`

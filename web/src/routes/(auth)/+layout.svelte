@@ -1,17 +1,21 @@
 <script lang="ts">
 	// Public pages (#16, #22): setup, sign-in, factor enrollment, invitation
 	// and password reset share one quiet, centered layout: the logo lockup,
-	// a panel, and the manager version.
+	// a panel, and the manager version. The backup import (a wizard with
+	// tables of backup sets) gets a wider panel.
 	import { createQuery } from '@tanstack/svelte-query';
+	import { page } from '$app/state';
+	import { routes } from '$lib/routes';
 	import { healthQuery } from '$lib/api/queries';
 	import Logo from '$lib/shell/Logo.svelte';
 
 	let { children } = $props();
 	const health = createQuery(() => healthQuery());
+	const wide = $derived(page.url.pathname.startsWith(routes.setupImport()));
 </script>
 
 <div class="auth">
-	<div class="column">
+	<div class="column" class:wide>
 		<div class="brand"><Logo /></div>
 		<main class="panel">
 			{@render children()}
@@ -49,6 +53,10 @@
 		align-items: stretch;
 		gap: var(--space-5);
 		width: min(420px, 100%);
+	}
+
+	.column.wide {
+		width: min(880px, 100%);
 	}
 
 	.brand {

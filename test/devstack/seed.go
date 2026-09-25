@@ -33,6 +33,9 @@ type seeder struct {
 	envs    map[string]string // host name -> environment ID
 	stacks  map[string]string // stack name -> stack ID
 	jobs    []string
+	backups string // local backup root (#10)
+	// recoveryKey is the seeded instance's Recovery Key (printed, local only).
+	recoveryKey string
 }
 
 func (s *seeder) stopAgents() {
@@ -295,7 +298,10 @@ func (s *seeder) seedAccountsAndJobs(ctx context.Context) error {
 	_, err := owner.do(ctx, http.MethodPost, "/api/v1/update-policies", map[string]any{"environmentId": hl, "name": "Silo images",
 		"target":        map[string]string{"type": "stack", "id": s.stacks["silo"]},
 		"checkSchedule": map[string]any{"cron": "30 2 * * 0", "timeZone": "Europe/Berlin", "enabled": true}}, nil)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.seedAdmin(ctx, owner)
 }
 
 func (s *seeder) waitJob(ctx context.Context, c *apiClient, id string) error {
@@ -333,6 +339,9 @@ func (s *seeder) printSummary(w io.Writer, accounts bool) {
 		filepath.Join(s.dataDir, "hosts", "<environment>", "volumes"))
 	if accounts {
 		_, _ = fmt.Fprintf(w, "\n  owner  %s / %s\n  guest  %s / %s (Restricted: no access)\n", ownerUser, ownerPassword, guestUser, guestPassword)
+		if s.recoveryKey != "" {
+			_, _ = fmt.Fprintf(w, "\n  backups      %s (import them with -setup)\n  recovery key %s\n", s.backups, s.recoveryKey)
+		}
 	} else {
 		_, _ = fmt.Fprintf(w, "\n  first-run setup is open: %s/setup\n", s.base)
 	}

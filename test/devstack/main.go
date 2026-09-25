@@ -33,6 +33,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/manager/app"
 	"github.com/neurekadev/dockyard/internal/manager/config"
+	"github.com/neurekadev/dockyard/internal/restic/restictest"
 	"github.com/neurekadev/dockyard/web"
 )
 
@@ -51,6 +52,7 @@ type options struct {
 	keep     bool
 	setup    bool
 	logLevel string
+	backups  string
 }
 
 func main() {
@@ -61,6 +63,8 @@ func main() {
 	flag.BoolVar(&o.keep, "keep", false, "keep the data directory of a previous run (default: start fresh)")
 	flag.BoolVar(&o.setup, "setup", false, "leave first-run setup open: no accounts and no jobs are seeded")
 	flag.StringVar(&o.logLevel, "log-level", "warn", "manager log level (debug, info, warn, error)")
+	flag.StringVar(&o.backups, "backups", filepath.Join(os.TempDir(), "dockyard-devstack-backups"),
+		"local backup root and simulated restic state; a seeded run starts it fresh, -setup keeps it (import it from setup)")
 	flag.Parse()
 	if err := run(o); err != nil {
 		fmt.Fprintln(os.Stderr, "devstack:", err)
@@ -91,6 +95,22 @@ func run(o options) error {
 	if err != nil {
 		return err
 	}
+	// Backups (#10): local repositories below o.backups, written by an
+	// in-memory restic whose state outlives the process (restictest.Persist),
+	// so a -setup run can import what a seeded run backed up (#24).
+	if !o.setup {
+		if err := os.RemoveAll(o.backups); err != nil {
+			return fmt.Errorf("reset %s: %w", o.backups, err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(o.backups, "manager"), 0o750); err != nil {
+		return err
+	}
+	cfg.BackupLocalRoots = []string{filepath.ToSlash(o.backups)}
+	resticStore := restictest.New(nil)
+	if err := resticStore.Persist(filepath.Join(o.backups, "restic-state.json")); err != nil {
+		return err
+	}
 	logger := logging.New(os.Stderr, cfg.LogLevel, cfg.LogFormat)
 	ui, err := uiAssets(o.uiDir)
 	if err != nil {
@@ -102,7 +122,7 @@ func run(o options) error {
 	started := make(chan *app.Manager, 1)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- app.Run(ctx, app.Options{Config: cfg, Logger: logger, UI: ui, UIBuilt: true,
+		errCh <- app.Run(ctx, app.Options{Config: cfg, Logger: logger, UI: ui, UIBuilt: true, Restic: resticStore,
 			OnStarted: func(m *app.Manager) {
 				select {
 				case started <- m:
@@ -117,7 +137,7 @@ func run(o options) error {
 		return err
 	}
 	base := "http://localhost:" + port
-	s := &seeder{m: m, base: base, dataDir: o.dataDir, log: logger.With("component", "devstack")}
+	s := &seeder{m: m, base: base, dataDir: o.dataDir, backups: filepath.ToSlash(o.backups), log: logger.With("component", "devstack")}
 	if err := s.seed(ctx, !o.setup); err != nil {
 		stop()
 		<-errCh
