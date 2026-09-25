@@ -12,3 +12,11 @@ export function takeCodeFromFragment(
 	}
 	return code;
 }
+
+/** The code from a pasted link (…#code=…) or a pasted code itself. */
+export function codeFromPasted(input: string): string {
+	const s = input.trim();
+	const i = s.indexOf('#');
+	if (i < 0) return s;
+	return new URLSearchParams(s.slice(i + 1)).get('code') ?? '';
+}

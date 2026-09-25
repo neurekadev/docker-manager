@@ -3,7 +3,7 @@ import { QueryClient } from '@tanstack/svelte-query';
 import type { Session } from '$lib/api/client';
 import { queryKeys } from '$lib/api/queries';
 import { routes, safeNext } from '$lib/routes';
-import { takeCodeFromFragment } from './code';
+import { codeFromPasted, takeCodeFromFragment } from './code';
 import { appDestination, publicDestination } from './guard';
 import { qrPath } from './qr';
 import { dropPrivateData, handleUnauthenticated, msUntilExpiryCheck } from './session';
@@ -126,6 +126,15 @@ describe('one-time codes in the fragment', () => {
 		expect(takeCodeFromFragment({ hash: '', pathname: '/invitation', search: '' })).toBe('');
 		expect(replace).not.toHaveBeenCalled();
 		vi.unstubAllGlobals();
+	});
+
+	it('takes the code from a pasted link or a pasted code', () => {
+		expect(codeFromPasted(' https://dy.example/invitation#code=dyi_abc123 ')).toBe(
+			'dyi_abc123'
+		);
+		expect(codeFromPasted('dyi_abc123\n')).toBe('dyi_abc123');
+		expect(codeFromPasted('https://dy.example/invitation#other=1')).toBe('');
+		expect(codeFromPasted('')).toBe('');
 	});
 });
 

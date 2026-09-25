@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import DialogHarness from '../../test/DialogHarness.svelte';
+import StackedDialogsHarness from '../../test/StackedDialogsHarness.svelte';
 import ConfirmDialog from './ConfirmDialog.svelte';
 import DestructiveConfirm from './DestructiveConfirm.svelte';
 import { ApiRequestError } from '$lib/api/client';
@@ -23,6 +24,27 @@ describe('Dialog', () => {
 		await user.keyboard('{Escape}');
 		await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('closed'));
 		await waitFor(() => expect(document.activeElement).toBe(opener));
+	});
+
+	it('stacks a dialog opened over another above it, whatever the mount order', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		render(StackedDialogsHarness);
+		const layer = (el: HTMLElement) => Number(el.style.getPropertyValue('--dy-layer'));
+		await user.click(screen.getByRole('button', { name: 'Invite user' }));
+		const invite = await screen.findByRole('dialog', { name: 'Invite a user' });
+		await user.click(screen.getByRole('button', { name: 'Create invitation' }));
+		const stepUp = await screen.findByRole('dialog', { name: "Confirm it's you" });
+		// The step-up check comes first in the DOM, so it must be the higher layer.
+		expect(
+			stepUp.compareDocumentPosition(invite) & Node.DOCUMENT_POSITION_FOLLOWING
+		).toBeTruthy();
+		expect(layer(stepUp)).toBeGreaterThan(layer(invite));
+		await waitFor(() => expect(stepUp.contains(document.activeElement)).toBe(true));
+		await user.keyboard('{Escape}');
+		await waitFor(() =>
+			expect(screen.queryByRole('dialog', { name: "Confirm it's you" })).toBeNull()
+		);
+		expect(screen.getByRole('dialog', { name: 'Invite a user' })).toBeInTheDocument();
 	});
 
 	it('ignores Escape when not dismissible (busy)', async () => {

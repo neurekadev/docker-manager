@@ -64,8 +64,11 @@ files afterwards. Files next to `compose.yaml` (relative bind mounts such as
 
 ## 4. Invite other people
 
-**Access → Users → Invite user** creates a one-time invitation link
-(shown once, 72 h by default). New users join the default group
+**Access → Users → Invite user → Create invite link** creates a
+single-use link (shown once, 72 h by default; **Options** binds it to an
+email address or changes the expiry). DockYard sends no email: send the
+link yourself. The person opens it and registers their own account
+(username and password). New users join the default group
 **Restricted**, which can see nothing until you grant permissions to the
 group or the user (**Access → Groups**). Grants are scoped: everything, one
 environment, one stack, one container, and so on; a user rule overrides the
