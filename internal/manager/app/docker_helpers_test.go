@@ -16,6 +16,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/engine"
 	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
+	"github.com/neurekadev/dockyard/internal/agent/observe"
 	"github.com/neurekadev/dockyard/internal/agent/protect"
 	agentres "github.com/neurekadev/dockyard/internal/agent/resources"
 	"github.com/neurekadev/dockyard/internal/agent/session"
@@ -42,6 +43,8 @@ type testAgent struct {
 	cancel context.CancelFunc
 	done   chan error
 	runner *agentjobs.Runner
+	// relayDone is closed when the Docker event relay stopped (nil: none).
+	relayDone chan struct{}
 }
 
 // connectAgent enrolls a new environment named name for fe and runs its
@@ -54,6 +57,19 @@ func (e *env) connectAgent(name string, fe *enginefake.Engine) *testAgent {
 // connectGuardedAgent is connectAgent with the agent's self-protection
 // guard (#32; nil: identification by labels only).
 func (e *env) connectGuardedAgent(name string, fe *enginefake.Engine, guard *protect.Guard) *testAgent {
+	e.t.Helper()
+	return e.connectAgentWith(name, fe, guard, false)
+}
+
+// connectObservedAgent is connectAgent with the agent's Docker event relay
+// (#5, internal/agent/observe) on the session, as the runtime wires it: the
+// fake Engine's events of every operation reach the manager's bus.
+func (e *env) connectObservedAgent(name string, fe *enginefake.Engine) *testAgent {
+	e.t.Helper()
+	return e.connectAgentWith(name, fe, nil, true)
+}
+
+func (e *env) connectAgentWith(name string, fe *enginefake.Engine, guard *protect.Guard, relay bool) *testAgent {
 	t := e.t
 	t.Helper()
 	ctx := testutil.Context(t)
@@ -130,6 +146,15 @@ func (e *env) connectGuardedAgent(name string, fe *enginefake.Engine, guard *pro
 	}
 	client.SetRunner(a.runner)
 	go func() { a.done <- client.Run(runCtx) }()
+	if relay {
+		a.relayDone = make(chan struct{})
+		r := observe.NewEventRelay(observe.EventOptions{Engine: func() observe.EngineAPI { return fe }, Publisher: client.Events(),
+			Clock: e.clk, Logger: testutil.Logger(t)})
+		go func() {
+			defer close(a.relayDone)
+			r.Run(runCtx)
+		}()
+	}
 	t.Cleanup(a.stop)
 	for {
 		select {
@@ -151,6 +176,9 @@ func (a *testAgent) stop() {
 	a.cancel()
 	<-a.done
 	a.runner.Wait()
+	if a.relayDone != nil {
+		<-a.relayDone
+	}
 	a.cancel = nil
 }
 

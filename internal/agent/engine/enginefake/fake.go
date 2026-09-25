@@ -37,6 +37,11 @@ type Engine struct {
 	calls      []string
 	pullAuths  []*engine.RegistryAuth
 	execs      []ExecInstance
+	// events is the Engine's event log (Docker API operations only, not
+	// the Add* seeding helpers' containers); notify is closed and replaced
+	// whenever an event is appended.
+	events []engine.Event
+	notify chan struct{}
 }
 
 // ExecInstance is an exec instance created with CreateExec (the fake
@@ -367,6 +372,9 @@ func (e *Engine) CreateContainer(_ context.Context, spec engine.ContainerSpec) (
 		return "", nil, notFound("container.create", "image", spec.Image)
 	}
 	id, err := e.create(spec)
+	if err == nil {
+		e.containerEvent(e.containers[id], "create")
+	}
 	return id, nil, err
 }
 
@@ -469,6 +477,7 @@ func (e *Engine) StartContainer(_ context.Context, id string) error {
 			return conflict("container.start", "cannot start a paused container, try unpause instead")
 		}
 		c.Details.State = engine.ContainerState{Status: "running", Running: true, Pid: 42, StartedAt: e.now(), Health: c.Details.State.Health}
+		e.containerEvent(c, "start")
 		return nil
 	})
 }
@@ -477,6 +486,8 @@ func (e *Engine) StartContainer(_ context.Context, id string) error {
 func (e *Engine) StopContainer(_ context.Context, id string, _ *time.Duration) error {
 	return e.mutate("container.stop", id, func(c *Container) error {
 		c.Details.State = engine.ContainerState{Status: "exited", StartedAt: c.Details.State.StartedAt, FinishedAt: e.now()}
+		e.containerEvent(c, "die")
+		e.containerEvent(c, "stop")
 		return nil
 	})
 }
@@ -486,6 +497,7 @@ func (e *Engine) RestartContainer(_ context.Context, id string, _ *time.Duration
 	return e.mutate("container.restart", id, func(c *Container) error {
 		c.Details.RestartCount++
 		c.Details.State = engine.ContainerState{Status: "running", Running: true, Pid: 43, StartedAt: e.now()}
+		e.containerEvent(c, "restart")
 		return nil
 	})
 }
@@ -497,6 +509,7 @@ func (e *Engine) PauseContainer(_ context.Context, id string) error {
 			return conflict("container.pause", "container %s is not running", c.Details.ID)
 		}
 		c.Details.State.Paused, c.Details.State.Status = true, "paused"
+		e.containerEvent(c, "pause")
 		return nil
 	})
 }
@@ -508,6 +521,7 @@ func (e *Engine) UnpauseContainer(_ context.Context, id string) error {
 			return conflict("container.unpause", "container %s is not paused", c.Details.ID)
 		}
 		c.Details.State.Paused, c.Details.State.Status = false, "running"
+		e.containerEvent(c, "unpause")
 		return nil
 	})
 }
@@ -516,6 +530,8 @@ func (e *Engine) UnpauseContainer(_ context.Context, id string) error {
 func (e *Engine) KillContainer(_ context.Context, id, _ string) error {
 	return e.mutate("container.kill", id, func(c *Container) error {
 		c.Details.State = engine.ContainerState{Status: "exited", ExitCode: 137, FinishedAt: e.now()}
+		e.containerEvent(c, "kill")
+		e.containerEvent(c, "die")
 		return nil
 	})
 }
@@ -527,6 +543,7 @@ func (e *Engine) RemoveContainer(_ context.Context, id string, o engine.RemoveOp
 			return conflict("container.remove", "cannot remove container %q: container is running: stop the container before removing or force remove", c.Details.Name)
 		}
 		delete(e.containers, c.Details.ID)
+		e.containerEvent(c, "destroy")
 		if o.Volumes {
 			for _, m := range c.Details.Mounts {
 				if m.Type == "volume" && len(m.Name) == 64 && !e.volumeUsed(m.Name) {
@@ -547,6 +564,7 @@ func (e *Engine) UpdateContainer(_ context.Context, id string, u engine.Containe
 		if u.RestartPolicy != "" {
 			c.Details.RestartPolicy = u.RestartPolicy
 		}
+		e.containerEvent(c, "update")
 		return nil
 	})
 }
@@ -619,6 +637,7 @@ func (e *Engine) PullImage(_ context.Context, ref string, o engine.PullOptions) 
 	if d := e.images[id].RepoDigests; len(d) > 0 {
 		_, digest, _ = strings.Cut(d[0], "@")
 	}
+	e.emit("image", "pull", tag, map[string]string{"name": tag})
 	e.mu.Unlock()
 	if o.Progress != nil {
 		o.Progress(engine.Progress{ID: "layer1", Status: "Downloading", Current: 512, Total: 1024})
@@ -646,6 +665,7 @@ func (e *Engine) TagImage(_ context.Context, source, target string) error {
 		}
 	}
 	im.RepoTags = append(im.RepoTags, target)
+	e.emit("image", "tag", im.ID, map[string]string{"name": target})
 	return nil
 }
 
@@ -674,13 +694,16 @@ func (e *Engine) RemoveImage(_ context.Context, ref string, force, _ bool) ([]en
 	if !byID && len(im.RepoTags) > 1 {
 		i := slices.Index(im.RepoTags, normalizeRef(ref))
 		out = append(out, engine.DeletedImage{Untagged: im.RepoTags[i]})
+		e.emit("image", "untag", im.ID, map[string]string{"name": im.RepoTags[i]})
 		im.RepoTags = slices.Delete(im.RepoTags, i, i+1)
 		return out, nil
 	}
 	for _, t := range im.RepoTags {
 		out = append(out, engine.DeletedImage{Untagged: t})
+		e.emit("image", "untag", im.ID, map[string]string{"name": t})
 	}
 	delete(e.images, im.ID)
+	e.emit("image", "delete", im.ID, nil)
 	return append(out, engine.DeletedImage{Deleted: im.ID}), nil
 }
 
@@ -769,6 +792,7 @@ func (e *Engine) CreateVolume(_ context.Context, spec engine.VolumeSpec) (engine
 		v.Labels = map[string]string{}
 	}
 	e.volumes[spec.Name] = v
+	e.emit("volume", "create", spec.Name, map[string]string{"driver": driver})
 	return *v, nil
 }
 
@@ -792,6 +816,7 @@ func (e *Engine) RemoveVolume(_ context.Context, name string, _ bool) error {
 		return conflict(op, "remove %s: volume is in use", name)
 	}
 	delete(e.volumes, name)
+	e.emit("volume", "destroy", name, nil)
 	return nil
 }
 
@@ -863,6 +888,7 @@ func (e *Engine) CreateNetwork(_ context.Context, spec engine.NetworkSpec) (stri
 	}
 	e.networks[id] = &engine.Network{ID: id, Name: spec.Name, Driver: driver, Scope: "local", Internal: spec.Internal,
 		Attachable: spec.Attachable, Created: e.now(), Labels: labels, Subnets: []string{"172.20.0.0/16"}, Gateways: []string{"172.20.0.1"}}
+	e.emit("network", "create", id, map[string]string{"name": spec.Name, "type": driver})
 	return id, nil
 }
 
@@ -896,6 +922,7 @@ func (e *Engine) RemoveNetwork(_ context.Context, idOrName string) error {
 		}
 	}
 	delete(e.networks, n.ID)
+	e.emit("network", "destroy", n.ID, map[string]string{"name": n.Name})
 	return nil
 }
 
@@ -922,6 +949,7 @@ func (e *Engine) ConnectNetwork(_ context.Context, netID, containerID string, al
 		c.Details.Networks = map[string]engine.EndpointInfo{}
 	}
 	c.Details.Networks[n.Name] = engine.EndpointInfo{NetworkID: n.ID, IPAddress: "172.20.0.2", Aliases: slices.Clone(aliases)}
+	e.emit("network", "connect", n.ID, map[string]string{"name": n.Name, "container": c.Details.ID})
 	return nil
 }
 
@@ -945,10 +973,64 @@ func (e *Engine) DisconnectNetwork(_ context.Context, netID, containerID string,
 	return nil
 }
 
-// Events implements engine.Engine: it blocks until ctx ends.
-func (e *Engine) Events(ctx context.Context, _ engine.EventFilter, _ func(engine.Event) error) error {
-	<-ctx.Done()
-	return Err("events", engine.CodeCanceled, "context canceled")
+// emit appends an Engine event (callers hold e.mu). Event times advance
+// by one second per event from the fake's clock, so a relay's coalescing
+// window never merges two distinct operations.
+func (e *Engine) emit(typ, action, actorID string, attrs map[string]string) {
+	at := e.now().Add(time.Duration(len(e.events)+1) * time.Second)
+	e.events = append(e.events, engine.Event{Type: typ, Action: action, ActorID: actorID, Attributes: attrs, Scope: "local", Time: at})
+	if e.notify != nil {
+		close(e.notify)
+	}
+	e.notify = make(chan struct{})
+}
+
+func (e *Engine) containerEvent(c *Container, action string) {
+	e.emit("container", action, c.Details.ID, map[string]string{"name": c.Details.Name, "image": c.Details.Image})
+}
+
+// EmittedEvents returns the Engine events of the operations so far.
+func (e *Engine) EmittedEvents() []engine.Event {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return slices.Clone(e.events)
+}
+
+// Events implements engine.Engine: it delivers the events of f.Types
+// (all when empty) emitted after f.Since, or from now on when Since is
+// zero, until ctx ends.
+func (e *Engine) Events(ctx context.Context, f engine.EventFilter, fn func(engine.Event) error) error {
+	e.mu.Lock()
+	next := len(e.events)
+	if !f.Since.IsZero() {
+		next = 0
+		for next < len(e.events) && !e.events[next].Time.After(f.Since) {
+			next++
+		}
+	}
+	e.mu.Unlock()
+	for {
+		e.mu.Lock()
+		if e.notify == nil {
+			e.notify = make(chan struct{})
+		}
+		pending, wait := slices.Clone(e.events[next:]), e.notify
+		next = len(e.events)
+		e.mu.Unlock()
+		for _, ev := range pending {
+			if len(f.Types) > 0 && !slices.Contains(f.Types, ev.Type) {
+				continue
+			}
+			if err := fn(ev); err != nil {
+				return err
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return Err("events", engine.CodeCanceled, "context canceled")
+		case <-wait:
+		}
+	}
 }
 
 // Logs implements engine.Engine.

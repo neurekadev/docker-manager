@@ -153,4 +153,13 @@ logs.
   lifecycle, images/volumes/networks); `internal/manager/app/docker_test.go`
   (real agent sessions: jobs end to end, pull failure classes, sealed
   specs, API token restart-only, metrics-only user).
-- Two real agents on two Engines: `TestEngineTwoAgentsEnrollAndServeJobs`.
+- Docker events of the operations (#5 relay): enginefake emits the
+  Engine's events for every Docker API operation (`Events`,
+  `EmittedEvents`); `TestDockerOperationsReachTheEventBus` (app, real
+  agent session with the event relay) shows container lifecycle,
+  creation/removal, image pull/tag/removal and volume/network
+  creation/removal reaching the manager's bus as `docker.event` of their
+  environment only.
+- Two real agents on two Engines: `TestEngineTwoAgentsEnrollAndServeJobs`
+  (also: each restart's and a volume creation's Docker event on the
+  manager's bus, per environment).
