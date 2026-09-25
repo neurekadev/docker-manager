@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -234,6 +235,10 @@ type testAgent struct {
 	execs    []jobexec.Executor
 	// streams are the agent's stream handlers (#15, #8).
 	streams map[string]session.StreamHandler
+	// requests are the agent's request handlers.
+	requests map[string]session.RequestHandler
+	// logger overrides the agent's logger (tests reading its lines).
+	logger *slog.Logger
 	// redial, when set, is waited for before every dial after the first
 	// (holds reconnects).
 	redial chan struct{}
@@ -295,8 +300,12 @@ func (a *testAgent) start() {
 	ctx, cancel := context.WithCancel(a.f.ctx)
 	a.cancel = cancel
 	a.statuses = make(chan session.Status, 256)
+	logger := a.logger
+	if logger == nil {
+		logger = testutil.Logger(a.t)
+	}
 	a.client = session.New(session.Options{
-		State: a.store, Clock: a.f.clk, Logger: testutil.Logger(a.t), URL: a.f.wsURL(),
+		State: a.store, Clock: a.f.clk, Logger: logger, URL: a.f.wsURL(),
 		DialOptions: func(h http.Header) *websocket.DialOptions { return &websocket.DialOptions{HTTPHeader: h} },
 		Dial: func(ctx context.Context, u string, o *websocket.DialOptions) (*websocket.Conn, *http.Response, error) {
 			if a.dials.Add(1) > 1 && a.redial != nil {
@@ -308,7 +317,7 @@ func (a *testAgent) start() {
 			}
 			return websocket.Dial(ctx, u, o)
 		},
-		AgentVersion: a.version, UserAgent: "dockyard-agent/test", Capabilities: a.capabilities, Streams: a.streams,
+		AgentVersion: a.version, UserAgent: "dockyard-agent/test", Capabilities: a.capabilities, Streams: a.streams, Requests: a.requests,
 		Backoff: session.Backoff{Min: time.Second, Max: time.Minute, ResetAfter: time.Minute, Rand: func() float64 { return 0 }},
 		OnStatus: func(s session.Status) {
 			select {
@@ -318,7 +327,7 @@ func (a *testAgent) start() {
 		},
 	})
 	var err error
-	a.runner, err = agentjobs.New(ctx, agentjobs.Options{StateDir: a.store.Dir(), Clock: a.f.clk, Logger: testutil.Logger(a.t),
+	a.runner, err = agentjobs.New(ctx, agentjobs.Options{StateDir: a.store.Dir(), Clock: a.f.clk, Logger: logger,
 		Sender: a.client, Executors: a.execs})
 	if err != nil {
 		a.t.Fatal(err)

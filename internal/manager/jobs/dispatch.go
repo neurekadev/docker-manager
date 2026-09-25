@@ -361,6 +361,7 @@ func (e *Engine) sendCommand(ctx context.Context, j *domain.Job, spec jobspec.Sp
 		e.opts.Logger.Error("could not build job command", "job_id", j.ID, "error", err)
 		return
 	}
+	f.RequestID = protocol.RequestIDOrEmpty(j.RequestID)
 	if err := e.opts.Dispatcher.Send(ctx, j.EnvironmentID, f); err != nil {
 		e.opts.Logger.Warn("could not deliver job command; it is reconciled when the agent reconnects",
 			"job_id", j.ID, "environment_id", j.EnvironmentID, "error", err)

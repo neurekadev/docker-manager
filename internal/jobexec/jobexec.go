@@ -98,11 +98,14 @@ type Compensation struct {
 
 // State is the durable record of one attempt (a journal entry).
 type State struct {
-	JobID         string                 `json:"jobId"`
-	Attempt       uint32                 `json:"attempt"`
-	FencingToken  uint64                 `json:"fencingToken"`
-	Kind          domain.JobKind         `json:"kind"`
-	Input         json.RawMessage        `json:"input,omitempty"`
+	JobID        string          `json:"jobId"`
+	Attempt      uint32          `json:"attempt"`
+	FencingToken uint64          `json:"fencingToken"`
+	Kind         domain.JobKind  `json:"kind"`
+	Input        json.RawMessage `json:"input,omitempty"`
+	// RequestID is the manager's request that created the job (command
+	// frame requestId, #34); steps log with it.
+	RequestID     string                 `json:"requestId,omitempty"`
 	CurrentStep   string                 `json:"currentStep,omitempty"`
 	StepInFlight  bool                   `json:"stepInFlight,omitempty"`
 	Completed     []string               `json:"completed,omitempty"`

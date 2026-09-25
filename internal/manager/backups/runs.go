@@ -202,8 +202,16 @@ func (s *Service) planRun(ctx context.Context, db bun.IDB, p domain.BackupPolicy
 	}
 	var reqs []jobs.Request
 	var refused []string
+	archived := 0
 	for _, e := range plans {
 		scope := backup.EnvironmentScope(e.EnvironmentID)
+		env, envErr := s.environment(ctx, e.EnvironmentID)
+		if envErr == nil && env.Status == domain.EnvironmentArchived {
+			// Archived hosts are hidden from operations (#34): their
+			// selections resume after a re-attach.
+			archived++
+			continue
+		}
 		if !Serves(e.Repository, scope) {
 			// A stack moved here by a migration (#35) while the policy's
 			// repository is local to another executor: never send that
@@ -222,7 +230,7 @@ func (s *Service) planRun(ctx context.Context, db bun.IDB, p domain.BackupPolicy
 		}
 		in := protocol.BackupRunInput{SetID: setID, PolicyID: p.ID, PolicyName: p.Name, InstanceID: s.opts.InstanceID,
 			Repository: repositoryRef(e.Repository, scope, key.State), Shutdown: p.Shutdown, StartedAt: startedAt}
-		if env, err := s.environment(ctx, e.EnvironmentID); err == nil {
+		if envErr == nil {
 			in.EnvironmentName = env.Name
 		}
 		targets := []domain.JobTarget{}
@@ -253,6 +261,9 @@ func (s *Service) planRun(ctx context.Context, db bun.IDB, p domain.BackupPolicy
 		reqs = append(reqs, jobs.Request{Kind: jobspec.ManagerBackup, Targets: []domain.JobTarget{repoTarget(p.RepositoryID)},
 			Input: managerBackupInput{SetID: setID, PolicyID: p.ID, RepositoryID: p.RepositoryID, IncludeMetrics: p.IncludeMetrics,
 				StartedAt: startedAt}})
+	}
+	if len(reqs) == 0 && archived > 0 {
+		return set, nil, fieldErr("stacks", "the policy selects only stacks and volumes of archived environments")
 	}
 	if len(reqs) == 0 {
 		if len(refused) > 0 {

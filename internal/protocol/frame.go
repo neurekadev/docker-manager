@@ -99,8 +99,28 @@ type Frame struct {
 	FencingToken uint64 `json:"fencingToken,omitempty"`
 	// Deadline after which the receiver must not start (or must abort) work.
 	Deadline *time.Time `json:"deadline,omitempty"`
+	// RequestID is the public API request (X-Request-ID) that caused a
+	// command, request or stream_open (#34); the agent logs it as
+	// request_id so one ID follows an operation from the proxy to the
+	// Engine call. Optional; scheduled work has none.
+	RequestID string `json:"requestId,omitempty"`
 	// Payload is the type-specific body; a JSON object when present.
 	Payload json.RawMessage `json:"payload,omitempty"`
+}
+
+// FeatureRequestID is the capabilities feature an agent announces when it
+// accepts the envelope's requestId (#34). The manager sends requestId only
+// to agents announcing it (receivers reject unknown fields).
+const FeatureRequestID = "frame.request_id"
+
+// RequestIDOrEmpty returns id when it is a valid envelope requestId, else
+// "" (request IDs come from the manager's HTTP layer; anything else is not
+// propagated).
+func RequestIDOrEmpty(id string) string {
+	if idRE.MatchString(id) {
+		return id
+	}
+	return ""
 }
 
 // Validation errors.
@@ -125,6 +145,14 @@ func (f *Frame) Validate() error {
 	}
 	if f.JobID != "" && !idRE.MatchString(f.JobID) {
 		return fmt.Errorf("%w: jobId must match %s", ErrInvalidFrame, idRE)
+	}
+	if f.RequestID != "" {
+		if !idRE.MatchString(f.RequestID) {
+			return fmt.Errorf("%w: requestId must match %s", ErrInvalidFrame, idRE)
+		}
+		if f.Type != TypeCommand && f.Type != TypeRequest && f.Type != TypeStreamOpen {
+			return fmt.Errorf("%w: requestId is only allowed on command, request and stream_open", ErrInvalidFrame)
+		}
 	}
 	if f.Deadline != nil && f.Deadline.IsZero() {
 		return fmt.Errorf("%w: deadline must not be zero", ErrInvalidFrame)

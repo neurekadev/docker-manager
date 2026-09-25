@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/neurekadev/dockyard/internal/buildinfo"
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/testutil"
@@ -411,5 +412,63 @@ func TestAgentAndEnvironmentRoutes(t *testing.T) {
 	}
 	if rec := call(h, "GET", "/api/v1/environments?status=archived", "alice", ""); !strings.Contains(rec.Body.String(), `"status":"archived"`) {
 		t.Fatalf("archived list: %s", rec.Body)
+	}
+}
+
+// TestAgentVersionCompatibilityFlags: environments, agents and system
+// information flag outdated and unsupported agents against the running
+// manager's version, with upgrade instructions (#34).
+func TestAgentVersionCompatibilityFlags(t *testing.T) {
+	for _, c := range []struct {
+		agentVersion, want string
+		instructions       bool
+	}{
+		{"1.4.1", "current", false},
+		{"1.3.9", "outdated", true},
+		{"1.2.0", "unsupported", true},
+		{"1.5.0", "unsupported", true},
+	} {
+		svc := newFakeAgents()
+		a := svc.agents["ag-1"]
+		a.Version = c.agentVersion
+		svc.agents["ag-1"] = a
+		mux := http.NewServeMux()
+		New(mux, Deps{Agents: svc, Authorizer: agentsAuthz{}, Clock: testutil.FakeClock(), Idempotency: &memIdempotency{},
+			Build: buildinfo.Info{Version: "1.4.0"}})
+		h := withTestContext(t, mux, "")
+
+		var env Environment
+		rec := call(h, "GET", "/api/v1/environments/env-1", "alice", "")
+		_ = json.Unmarshal(rec.Body.Bytes(), &env)
+		if rec.Code != 200 || env.AgentVersion != c.agentVersion || env.Compatibility != c.want || (env.UpgradeInstructions != "") != c.instructions {
+			t.Errorf("%s: environment %d %+v", c.agentVersion, rec.Code, env)
+		}
+		var page Page[Environment]
+		rec = call(h, "GET", "/api/v1/environments", "alice", "")
+		_ = json.Unmarshal(rec.Body.Bytes(), &page)
+		found := false
+		for _, e := range page.Items {
+			if e.ID == "env-1" {
+				found = e.Compatibility == c.want && e.AgentVersion == c.agentVersion
+			}
+		}
+		if !found {
+			t.Errorf("%s: environment list %s", c.agentVersion, rec.Body)
+		}
+		var ag Agent
+		rec = call(h, "GET", "/api/v1/agents/ag-1", "alice", "")
+		_ = json.Unmarshal(rec.Body.Bytes(), &ag)
+		if rec.Code != 200 || ag.Compatibility != c.want || (ag.UpgradeInstructions != "") != c.instructions {
+			t.Errorf("%s: agent %d %+v", c.agentVersion, rec.Code, ag)
+		}
+		var sys EnvironmentSystem
+		rec = call(h, "GET", "/api/v1/environments/env-1/system", "alice", "")
+		_ = json.Unmarshal(rec.Body.Bytes(), &sys)
+		if rec.Code != 200 || sys.Agent == nil || sys.Agent.Compatibility != c.want {
+			t.Errorf("%s: system %d %s", c.agentVersion, rec.Code, rec.Body)
+		}
+		if c.want == "unsupported" && !strings.Contains(env.UpgradeInstructions, "upgrade") {
+			t.Errorf("%s: instructions %q", c.agentVersion, env.UpgradeInstructions)
+		}
 	}
 }

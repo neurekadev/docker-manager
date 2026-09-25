@@ -20,6 +20,8 @@ the [route inventory](../../api/route-inventory.yaml) is listed here
 | `POST /environments/{environmentId}/volumes/{volumeId}/files/uploads` | `upload-volume-files` | binary request | #15 (implemented) |
 | `GET /backups/{backupId}/contents/download` | `download-backup-content` | binary response | #10 |
 | `GET /audit/exports` | `export-audit-events` | NDJSON/CSV response | #30 |
+| `GET /system/metrics` | `get-system-metrics` | Prometheus text response | #34 (implemented) |
+| `GET /support-bundle` | `get-support-bundle` | zip response | #34 (implemented) |
 
 Paths are relative to `/api/v1`.
 
@@ -397,3 +399,34 @@ an attachment (`Content-Disposition`), covering the records present when the
 export started (#30). There is no resume; repeat with a narrower time range.
 A failure mid-stream aborts the connection instead of ending the body
 cleanly. The export requires `audit.export` and is itself audited.
+
+## Internal metrics (`get-system-metrics`)
+
+`GET /system/metrics` answers `text/plain; version=0.0.4` (the Prometheus
+text exposition format) with DockYard's own metrics: `dockyard_build_info`,
+`dockyard_jobs{state}` (unfinished jobs), `dockyard_job_queue_depth`,
+`dockyard_jobs_unfinished_by_kind{kind}`, `dockyard_agent_sessions`,
+`dockyard_environments{status,online}`, `dockyard_agents{compatibility}`,
+`dockyard_sse_streams`, `dockyard_event_bus_subscribers`,
+`dockyard_database_size_bytes{database}`, `dockyard_audit_chain_records`,
+`dockyard_audit_chain_head_seq`, `go_goroutines` and
+`go_memstats_heap_alloc_bytes` (#34). Labels carry only enumerations, never
+names chosen by users. It is off by default: `404 not_found` unless the
+manager runs with `DOCKYARD_METRICS_ENABLED=true`. It needs
+`system.metrics.read` (instance scope): create an API token with only that
+grant for the scraper (`Authorization: Bearer …`). Host and container
+metrics are the JSON routes of #5, not this endpoint.
+
+## Support bundle (`get-support-bundle`)
+
+`GET /support-bundle` streams an `application/zip` attachment
+(`dockyard-support-<UTC time>.zip`) for troubleshooting (#34): `README.txt`,
+`versions.json`, `configuration.json` (the effective `DOCKYARD_*` settings;
+secrets are files whose paths only are listed), `support-matrix.json`
+(per-environment checks against the supported host boundary),
+`agents.json`, `audit-chain.json` (the audit hash chain verification),
+`jobs.json` (counts per kind and state, unfinished jobs without inputs),
+`database.json` (migrations, pre-migration snapshots, sizes) and
+`logs.ndjson` (the manager's recent in-memory log lines, redacted again).
+It never contains secret values. Owner only (`system.support_bundle`, never
+an API token) and audited. A failure mid-stream aborts the connection.

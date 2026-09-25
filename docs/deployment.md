@@ -99,6 +99,17 @@ connect from known networks you can also allow only those at the proxy:
 
 Co-located agents use the internal URL and are unaffected.
 
+## Upgrades, removal and diagnostics
+
+Upgrade the manager first, then the agents; the manager serves agents of
+its own and the previous minor release. The procedure per deploy method,
+the pre-migration snapshot and the rollback are in
+[`docs/operations/upgrades.md`](operations/upgrades.md). Removing agents
+and hosts (preview, archive, re-attach) is in
+[`docs/operations/removing-hosts.md`](operations/removing-hosts.md);
+diagnostics (logs and request IDs, health, metrics, support bundle) in
+[`docs/operations/diagnostics.md`](operations/diagnostics.md).
+
 ## Agents
 
 | Agent | `DOCKYARD_MANAGER_URL` | Notes |

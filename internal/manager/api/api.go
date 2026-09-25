@@ -132,6 +132,12 @@ type Deps struct {
 	// Backups serves backup repositories, the Recovery Key, policies and
 	// backups (#10); nil answers those routes with 503.
 	Backups BackupService
+	// Removal previews environment removals (#34); nil answers the
+	// preview with 503 (after authorization).
+	Removal RemovalService
+	// Diagnostics serves the internal metrics endpoint and the support
+	// bundle (#34); nil answers them with 404 / 503.
+	Diagnostics DiagnosticsService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -182,6 +188,8 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerIdentity(a, deps)
 	registerAgents(a, deps)
 	registerEnvironments(a, deps)
+	registerRemoval(a, deps)
+	registerDiagnostics(a, deps)
 	registerPermissions(a, deps)
 	registerStacks(a, deps)
 	registerAPITokens(a, deps)

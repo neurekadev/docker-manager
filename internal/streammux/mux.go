@@ -36,6 +36,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
 
@@ -153,6 +154,7 @@ func (m *Mux) Open(ctx context.Context, kind string, input any, o OpenOptions) (
 	if err != nil {
 		return nil, err
 	}
+	f.RequestID = protocol.RequestIDOrEmpty(logging.RequestID(ctx))
 	if err := protocol.ValidatePayload(f); err != nil {
 		return nil, err
 	}

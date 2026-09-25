@@ -73,6 +73,7 @@ const (
 	TypeAPIToken          = "api_token"
 	TypeAudit             = "audit"
 	TypeSettings          = "settings"
+	TypeSystem            = "system"
 	TypeAdministration    = "administration"
 )
 

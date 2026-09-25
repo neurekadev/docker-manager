@@ -163,6 +163,13 @@ func (b *Bus) Seq() uint64 {
 	return b.seq
 }
 
+// Subscribers returns the number of open subscriptions (diagnostics, #34).
+func (b *Bus) Subscribers() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return len(b.subs)
+}
+
 // Subscription receives events in order until Close.
 type Subscription struct {
 	bus     *Bus

@@ -88,6 +88,8 @@ type Service struct {
 	audit   AuditLog
 	opts    Options
 	hub     *Hub
+	// archiveHook runs in the archive transaction (#34).
+	archiveHook ArchiveHook
 }
 
 // New creates the service.

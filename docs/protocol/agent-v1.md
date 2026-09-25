@@ -269,6 +269,7 @@ rejected on both the envelope and the payload.
 | `correlationId` | the frame this one answers or belongs to (required where the table says so) |
 | `jobId`, `attempt`, `fencingToken` | job reference (#26); required on `command`, forbidden on `request` |
 | `deadline` | RFC 3339; required on `command` and `request`; after it the receiver must not start and must abort |
+| `requestId` | optional, manager → agent on `command`, `request` and `stream_open` only, `^[A-Za-z0-9._:-]{1,128}$`: the public API request (`X-Request-ID`) that caused the work (#34). The agent logs it as `request_id` with everything it does for that frame, so one ID correlates the proxy, manager and agent logs. Scheduled work carries none |
 | `payload` | a JSON object whose schema depends on `type` |
 
 Limits: a frame is at most 1 MiB encoded (`MaxFrameSize`; larger closes the
@@ -382,6 +383,9 @@ Upgrade order is manager first, then agents. The protocol identifier itself
 (`dockyard.agent/v1`) changes only for incompatible protocol changes; within
 v1, fields and frame types are only added, and receivers reject unknown
 fields, so an addition is used only after both sides announce it (`features`).
+Example: agents announce `frame.request_id` (`protocol.FeatureRequestID`);
+the manager sets the envelope's `requestId` only on sessions whose agent
+announced it (#34). Upgrade procedure: `docs/operations/upgrades.md`.
 
 ### command, ack, progress, result, job_report, cancel (jobs, #26)
 
