@@ -33,6 +33,7 @@ type Engine interface {
 	PullImage(ctx context.Context, ref string, o PullOptions) (PullResult, error)
 	TagImage(ctx context.Context, source, target string) error
 	RemoveImage(ctx context.Context, ref string, force, pruneChildren bool) ([]DeletedImage, error)
+	SaveImage(ctx context.Context, refs []string) (io.ReadCloser, error)
 	LoadImage(ctx context.Context, archive io.Reader) error
 	Build(ctx context.Context, spec BuildSpec) (BuildResult, error)
 

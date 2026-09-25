@@ -199,9 +199,10 @@ but not deployed is operated as deployed.
 - **#10 backups**: `Stack.Binds` lists resolved bind sources (`relPath`
   inside the project directory, `external` otherwise); use
   `lifecycle.Stop`/`Resume` with the pre-backup running set.
-- **#35 migrations**: stack rules follow the stack ID; the job output's
-  `Before`/`After` states and the lifecycle helper cover stop/start on both
-  ends.
+- **#35 migrations** ([migrations.md](migrations.md)): stack rules follow
+  the stack ID; `Place` moves the record to the destination at cut-over (and
+  back on rollback) and the destination deploy is a normal `stack.deploy`
+  job; the source stops and restarts through the lifecycle helper.
 - **#19 registry credentials**: `Deploy` selects the registry connection
   of every non-build image (`Registries().Select`, stack and environment
   bindings apply; ambiguous or revoked selections refuse the request with

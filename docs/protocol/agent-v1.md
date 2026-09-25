@@ -549,13 +549,47 @@ opener                                  sender/receiver
   implementation is `internal/streammux`.
 
 **Migration transfer relay (#35):** for a stack or volume migration job the
-manager opens `migration.send` on the source agent and `migration.receive`
-on the destination agent, both with the job ID. It relays `stream_data`
-between them and grants credit to the source only as the destination grants
-credit to the manager (end-to-end backpressure, at most one window
-buffered). The destination verifies `bytes`/`sha256` from the source's
-`stream_close`; a mismatch fails the idempotent `transfer` step, which the
-job engine may resume. The archive format is defined by #35.
+manager opens `migration.receive` on the destination agent and
+`migration.send` on the source agent, both with the job ID, once per part
+(`project`, each `volume`, `image`; inputs `MigrationReceiveInput` /
+`MigrationSendInput` in `internal/protocol/migration.go`). It relays
+`stream_data` between them and reads from the source only after the
+destination accepted the previous bytes (end-to-end backpressure: at most
+the source stream's window plus a 64 KiB copy buffer per part in manager
+memory, nothing on disk), optionally rate-limited
+(`DOCKYARD_MIGRATION_BANDWIDTH_LIMIT`).
+
+- **Format** (`internal/transfer`): the magic `DYXFER01`, then chunks
+  `uint32 BE length (1..196608) | payload | SHA-256(payload)`, then
+  `uint32 0 | uint64 BE total | SHA-256(whole payload) | uint64 BE chunks`.
+  The payload of `project` and `volume` parts is a PAX tar archive of the
+  tree: the root directory first (`./`), then every entry depth-first in
+  sorted order with numeric UID/GID (no names), permission and
+  setuid/setgid/sticky bits, nanosecond modification and access times;
+  symlinks as links with their target text (never followed), files with
+  several hard links once and then as hard links to the first name, FIFOs;
+  sockets and device nodes are skipped and listed in the result. `image`
+  parts carry the Engine's image save archive.
+- **Verification:** the destination's reader returns a chunk only after its
+  SHA-256 matched and ends only after the trailer matched; the manager
+  verifies the same framing incrementally while relaying; `stream_close`
+  adds the stream's own `bytes`/`sha256`. Both agents close with a
+  `MigrationPartResult {bytes, sha256, chunks, entries, skipped}` and the
+  manager requires source, manager and destination to agree. A mismatch
+  (or a lost session) fails the part, which the job retries from its start.
+- **Containment:** the source reads only the stack's project directory
+  inside a verified stack root and supported local volumes below the
+  verified volume directory (never DockYard's own volumes, #32). The
+  destination writes only into `<stacks>/.dockyard-migrations/<id>/project`
+  (moved to the new project directory by `migration.commit`, which never
+  replaces an existing directory) and into volumes it creates itself with
+  the label `dev.neureka.dockyard.migration=<id>`; extraction refuses
+  escaping names, members below symlinks or files, hard links to anything
+  but earlier regular files and device nodes.
+- `migration.cleanup` removes the staging directory and, unless
+  `finished`, the committed directory, the project's containers whose
+  working directory is that directory, and the volumes labeled with the
+  migration's ID.
 
 ### Scoped files (#15)
 
@@ -728,6 +762,7 @@ enqueueing and again at dispatch for queued manual jobs.
 | `stack.deploy` | command | `stack.deploy` |
 | `stack.down` | command | `stack.down` |
 | `stack.remove` | command | `stack.remove` |
+| `stack.remove_source` | command | `stack.migrate` |
 | `stack.restart` | command | `stack.restart` |
 | `stack.start` | command | `stack.start` |
 | `stack.stop` | command | `stack.stop` |
@@ -788,6 +823,10 @@ on a new session with a new frame ID.
 | `restore.preview` | request | `backup.restore` | no | #10 |
 | `maintenance.preview` | request | `maintenance.preview` | no | #14 |
 | `migration.preview` | request | `stack.migrate` / `volume.migrate` | no | #35 |
+| `migration.stop` | request | job-linked (`stack.migrate`): stop the source project in reverse dependency order | yes | #35 |
+| `migration.start` | request | job-linked (`stack.migrate`): start the services that ran before (rollback) | yes | #35 |
+| `migration.commit` | request | job-linked (`stack.migrate`): move the staged project directory into place | yes | #35 |
+| `migration.cleanup` | request | job-linked (`stack.migrate` / `volume.migrate`): remove what a migration created on the destination | yes | #35 |
 | `agent.credential.rotate` | request | `agent.manage` | yes | #3 |
 | `agent.diagnostics` | request | owner (support bundle, redacted) | no | #34 |
 | `manager.identity` | request | manager service (after every reconnect, when advertised) | yes | #32 |

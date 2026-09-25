@@ -85,6 +85,16 @@ const (
 	ReqManagerIdentity = "manager.identity"
 )
 
+// Job-linked migration requests (#35): the manager's stack.migrate and
+// volume.migrate jobs stop and restart the source stack and commit or clean
+// up what they wrote on the destination (docs/architecture/migrations.md).
+const (
+	ReqMigrationStop    = "migration.stop"
+	ReqMigrationStart   = "migration.start"
+	ReqMigrationCommit  = "migration.commit"
+	ReqMigrationCleanup = "migration.cleanup"
+)
+
 // Stream kinds opened with stream_open.
 const (
 	StreamContainerLogs    = "container.logs"
@@ -112,7 +122,8 @@ var requestNames = []string{
 	ReqComposeRead, ReqComposeWrite, ReqComposeServices,
 	ReqFilesList, ReqFilesStat, ReqFilesRead, ReqFilesWrite, ReqFilesMkdir, ReqFilesConflictPreview,
 	ReqBackupSnapshots, ReqBackupContents, ReqBackupScopePreview, ReqRestorePreview,
-	ReqMaintenancePreview, ReqMigrationPreview, ReqImageLocalDigests, ReqAgentCredentialRotate,
+	ReqMaintenancePreview, ReqMigrationPreview, ReqMigrationStop, ReqMigrationStart, ReqMigrationCommit,
+	ReqMigrationCleanup, ReqImageLocalDigests, ReqAgentCredentialRotate,
 	ReqAgentDiagnostics, ReqEngineCompatibilityInfo, ReqManagerIdentity,
 }
 
@@ -120,6 +131,7 @@ var requestNames = []string{
 var mutatingRequests = []string{
 	ReqContainerExecCreate, ReqContainerExecResize, ReqContainerExecDelete, ReqImageTag,
 	ReqFilesWrite, ReqFilesMkdir, ReqAgentCredentialRotate, ReqComposeWrite, ReqManagerIdentity,
+	ReqMigrationStop, ReqMigrationStart, ReqMigrationCommit, ReqMigrationCleanup,
 }
 
 var streamKinds = map[string]string{

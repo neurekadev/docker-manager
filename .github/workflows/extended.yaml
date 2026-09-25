@@ -221,6 +221,13 @@ jobs:
           DOCKYARD_TEST_ENGINE: ${{ matrix.engine }}
           DOCKYARD_TEST_AGENT_IMAGE: dockyard-agent:test
         run: go test -tags integration -count=1 -timeout 25m -run '^TestEngine' -v ./... 2>&1 | tee engine-tests.log
+      # Environment migration (#35): the manager or the source agent killed
+      # mid-transfer on real Engines (fault point migration.part.verified).
+      - name: Migration kill tests (TestEngine*KilledMidTransfer, -tags integration,faultinject)
+        env:
+          DOCKYARD_TEST_ENGINE: ${{ matrix.engine }}
+          DOCKYARD_TEST_AGENT_IMAGE: dockyard-agent:test
+        run: go test -tags integration,faultinject -count=1 -timeout 25m -run 'KilledMidTransfer$' -v ./internal/manager/migrations/ 2>&1 | tee migration-kill-tests.log
       - name: Results per operation
         if: always()
         run: |

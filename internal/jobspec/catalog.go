@@ -36,6 +36,9 @@ const (
 	StackBuild   domain.JobKind = "stack.build"
 	StackUpdate  domain.JobKind = "stack.update"
 	StackMigrate domain.JobKind = "stack.migrate"
+	// StackRemoveSource removes a migrated stack's source after the user
+	// confirmed the migration (#35).
+	StackRemoveSource domain.JobKind = "stack.remove_source"
 
 	VolumeCreate  domain.JobKind = "volume.create"
 	VolumeRemove  domain.JobKind = "volume.remove"
@@ -208,6 +211,12 @@ func catalogSpecs() []Spec {
 			s.ConcurrencyClass = ClassPull
 			return s
 		}(),
+		// Environment migration (#35): the manager relays the data between
+		// the two agents. Targets: the stack (its environment is the source),
+		// the source volumes and the destination's new volumes (lock only;
+		// the executor checks stack.create/stack.deploy and volume.create on
+		// the destination). The destination deploy is a stack.deploy job
+		// with its own stack lock.
 		{
 			Kind: StackMigrate, Summary: "Cold-migrate a stack and its volumes to another environment",
 			Capability: "stack.migrate", Executor: domain.ExecutorManager,
@@ -215,10 +224,21 @@ func catalogSpecs() []Spec {
 				target(domain.LockStack, exclusive, domain.TargetStack),
 				optional(target(domain.LockVolume, exclusive, domain.TargetVolume))},
 			Steps: []Step{idem("prepare"), idem("stop_source"), idem("transfer"), idem("deploy_destination"),
-				step("finalize", false, false,
-					"The source stack may already have been removed. Check both environments; the destination holds the migrated stack if its deployment succeeded.")},
-			Compensations:    []Compensation{{Name: CompStartSource, Description: "start the source stack again when the migration stops before cut-over"}},
+				step("finalize", true, false, "")},
+			Compensations: []Compensation{{Name: CompStartSource,
+				Description: "put the stack back on its source environment and start the services that ran before, when the migration stops before cut-over"}},
 			OnManagerRestart: RestartInterrupt,
+			LockOnly:         LockOnlyRule{Types: []domain.TargetType{domain.TargetVolume}, OtherEnvironments: true},
+		},
+		{
+			Kind: StackRemoveSource, Summary: "Remove a migrated stack's containers, volumes and files from its source environment",
+			Capability: "stack.migrate", Executor: domain.ExecutorAgent,
+			Locks: []LockRule{hostShared(),
+				target(domain.LockStack, exclusive, domain.TargetStack),
+				optional(target(domain.LockVolume, exclusive, domain.TargetVolume))},
+			OfflineDeadline: deadlineLong,
+			Steps:           []Step{idem("down"), idem("remove_volumes"), step("remove_files", true, false, "")},
+			LockOnly:        LockOnlyRule{Types: []domain.TargetType{domain.TargetVolume}},
 		},
 
 		// Volumes and networks.
@@ -235,12 +255,12 @@ func catalogSpecs() []Spec {
 			Steps:           []Step{idem("remove")},
 		},
 		{
-			Kind: VolumeMigrate, Summary: "Cold-migrate a volume to another environment",
+			Kind: VolumeMigrate, Summary: "Copy a volume to another environment",
 			Capability: "volume.migrate", Executor: domain.ExecutorManager,
-			Locks: []LockRule{hostShared(), target(domain.LockVolume, exclusive, domain.TargetVolume)},
-			Steps: []Step{idem("prepare"), idem("transfer"),
-				step("finalize", false, false, "The source volume may already have been removed. Check both environments before retrying.")},
+			Locks:            []LockRule{hostShared(), target(domain.LockVolume, exclusive, domain.TargetVolume)},
+			Steps:            []Step{idem("prepare"), idem("transfer"), step("finalize", true, false, "")},
 			OnManagerRestart: RestartInterrupt,
+			LockOnly:         LockOnlyRule{OtherEnvironments: true},
 		},
 		{
 			Kind: NetworkCreate, Summary: "Create a network", Capability: "network.create", Executor: domain.ExecutorAgent,

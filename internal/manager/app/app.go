@@ -47,6 +47,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
 	"github.com/neurekadev/dockyard/internal/manager/maintenance"
 	"github.com/neurekadev/dockyard/internal/manager/metrics"
+	envmigrations "github.com/neurekadev/dockyard/internal/manager/migrations"
 	"github.com/neurekadev/dockyard/internal/manager/observe"
 	"github.com/neurekadev/dockyard/internal/manager/permissions"
 	"github.com/neurekadev/dockyard/internal/manager/regclient"
@@ -100,6 +101,9 @@ type Options struct {
 	// (selfid.Detect; #32 tells co-located agents which container is the
 	// manager). Tests set it.
 	ContainerID string
+	// MigrationReconnectWait overrides how long a migration's transfer
+	// waits for a disconnected agent (#35; tests, 0 = the default).
+	MigrationReconnectWait time.Duration
 }
 
 // Manager is a started (migrated, not yet serving) manager.
@@ -129,6 +133,8 @@ type Manager struct {
 	builds    *builds.Service
 	sched     *scheduler.Service
 	maint     *maintenance.Service
+	// migrations moves stacks and volumes between environments (#35).
+	migrations *envmigrations.Service
 }
 
 // ErrSecretKeyMissing means the database belongs to an existing installation
@@ -359,6 +365,18 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		}
 		return permissions.Location{Found: true, EnvironmentID: p.EnvironmentID, Parents: []authz.ResourceRef{}}, nil
 	}))
+	// Environment migration (#35): the stack.migrate/volume.migrate manager
+	// executors (registered before recovery) relay data between agents;
+	// their finish hooks keep the migration records.
+	m.migrations, err = envmigrations.New(envmigrations.Options{
+		DB: db, Clock: opts.Clock, Logger: log.With("component", "migrations"), Agents: m.agents.Hub(), Environments: m.agents,
+		Jobs: m.jobs, Stacks: m.stacks, Registries: m.regs, Permissions: m.perms, Authorizer: authorizer, Audit: m.audit,
+		BandwidthLimit: cfg.MigrationBandwidthLimit, ReconnectWait: opts.MigrationReconnectWait,
+	})
+	if err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
 	if err := m.jobs.Recover(ctx); err != nil {
 		m.jobs.Close()
 		return nil, fmt.Errorf("recover jobs: %w", err)
@@ -500,6 +518,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			ContainerIO:    m.io,
 			Schedules:      m.sched,
 			Maintenance:    m.maint,
+			Migrations:     m.migrations,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -652,6 +671,9 @@ func (m *Manager) Scheduler() *scheduler.Service { return m.sched }
 // Maintenance returns the Docker maintenance service (#14): backups (#10)
 // install SetBackupReferences so backup destinations are never pruned.
 func (m *Manager) Maintenance() *maintenance.Service { return m.maint }
+
+// Migrations returns the environment migration service (#35).
+func (m *Manager) Migrations() *envmigrations.Service { return m.migrations }
 
 // Events returns the internal event bus.
 func (m *Manager) Events() *events.Bus { return m.events }

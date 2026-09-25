@@ -122,7 +122,7 @@ func (e *Engine) DispatchPending(ctx context.Context) error {
 			caps, err := spec.Capabilities(j.Targets, j.Input)
 			d := authz.Deny("the job's input no longer selects its capabilities")
 			if err == nil {
-				d = e.authorize(ctx, principalOf(j), caps, j.EnvironmentID, j.Targets)
+				d = e.authorize(ctx, principalOf(j), caps, j.EnvironmentID, spec.AuthorizationTargets(j.Targets))
 			}
 			if !d.Allowed {
 				errs = append(errs, e.failWaiting(ctx, j, domain.ErrorAuthorizationRevoked,

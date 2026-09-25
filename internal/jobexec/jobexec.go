@@ -171,6 +171,13 @@ const (
 // cancelled instead of failed; compensations run as for any cancellation.
 var ErrStepCancelled = errors.New("jobexec: step cancelled on request")
 
+// ErrStepInterrupted is returned (wrapped) by a step that lost a party it
+// depends on mid-way and gave up waiting for it, e.g. a migration whose
+// agent stayed disconnected (#35). The attempt ends interrupted instead of
+// failed, with the class and recovery of a ClassedError in the chain
+// (default agent_offline); compensations run as for any failure.
+var ErrStepInterrupted = errors.New("jobexec: step interrupted")
+
 // ErrAbandoned is returned by Run when ctx ended mid-attempt (process
 // shutdown). The journal keeps the in-flight state; Recover handles it on
 // the next start.
@@ -324,6 +331,14 @@ func Run(ctx context.Context, exec Executor, st *State, o Options) (protocol.Res
 			if errors.Is(err, ErrStepCancelled) {
 				res = &protocol.ResultPayload{Outcome: OutcomeCancelled, ErrorClass: domain.ErrorCancelled,
 					Message: "cancelled during step " + step.Name}
+				break
+			}
+			if errors.Is(err, ErrStepInterrupted) {
+				res = stepFailure(step, err)
+				res.Outcome, res.InterruptedStep = OutcomeInterrupted, step.Name
+				if res.ErrorClass == domain.ErrorStepFailed {
+					res.ErrorClass = domain.ErrorAgentOffline
+				}
 				break
 			}
 			res = stepFailure(step, err)

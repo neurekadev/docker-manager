@@ -85,3 +85,44 @@ func (w *tWriter) Write(p []byte) (int, error) {
 	}
 	return len(p), nil
 }
+
+// DriveClock runs fn in a goroutine and advances clk by step whenever a
+// timer is waiting, until fn returns (its error) or ctx ends. Use it for
+// code that sleeps on the fake clock an unknown number of times (rate
+// limits, backoff).
+func DriveClock(ctx context.Context, clk *clock.Fake, step time.Duration, fn func() error) error {
+	done := make(chan error, 1)
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		done <- fn()
+	}()
+	for {
+		select {
+		case err := <-done:
+			return err
+		default:
+		}
+		bctx, cancel := context.WithCancel(ctx)
+		stop := make(chan struct{})
+		go func() {
+			select {
+			case <-finished:
+				cancel()
+			case <-stop:
+			}
+		}()
+		err := clk.BlockUntilWaiters(bctx, 1)
+		close(stop)
+		cancel()
+		if err != nil {
+			select {
+			case <-finished:
+				continue
+			default:
+			}
+			return err
+		}
+		clk.Advance(step)
+	}
+}

@@ -71,8 +71,10 @@ plain-language reason (previews, effective permissions).
 - **Moved resources (#35):** stack (and service) rules follow the stack: its
   environment changes, its ID does not. Environment rules do not follow.
   Exact container/volume rules do not follow a migration (the target's
-  resources are new). The migration preview shows the change (#35 computes
-  it with `POST /permission-previews`).
+  resources are new). The migration preview shows the change:
+  `permissions.Service.MoveImpact` evaluates every stack and container
+  capability before and after the move for each user (the owner sees every
+  affected user, others their own change; [migrations](migrations.md)).
 - **Deleted resources:** rules on a resource that no longer exists match
   nothing. Feature services call `permissions.Service.ForgetResource` after
   deleting a resource through DockYard so a later resource with the same

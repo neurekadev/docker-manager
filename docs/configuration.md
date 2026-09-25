@@ -39,6 +39,7 @@ Sources: `internal/manager/config`, `internal/agent/config`,
 | `DOCKYARD_METRICS_MAX_SIZE_MB` | `2048` | Size cap of the metrics database in MiB (64..1048576). Above it every level's retention is shortened (oldest data first); at 5% of the retention new series are refused until space is free. The full scale budget (25 environments, 1 000 containers) needs about 1.2 GiB. |
 | `DOCKYARD_METRICS_MAX_SERIES` | `5000` | Maximum number of metric series (one per environment host, filesystem and container; 100..1000000). Samples of new containers beyond it are dropped (hosts are always kept). |
 | `DOCKYARD_FILES_MAX_UPLOAD_MB` | `2048` | Largest file-manager upload in MiB (1 to 2048; agents never accept more than 2 GiB). The reverse proxy's request body limit must allow it (#27); larger data goes in as an archive to extract (#15). |
+| `DOCKYARD_MIGRATION_BANDWIDTH_LIMIT` | `0` | Bandwidth cap of environment migrations (#35) through the manager, in bytes per second: `0` (unlimited), a number of bytes or a number with a unit (`KB`, `MB`, `GB`, `KiB`, `MiB`, `GiB`, optionally `/s`), e.g. `50MB`; at least 1 KiB/s. One cap shared by all running migrations. |
 
 ### Secret-protection key
 

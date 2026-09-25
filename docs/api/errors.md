@@ -132,6 +132,10 @@ same change.
 | `stack_not_adoptable` | 409 | no | The discovered Compose project cannot be adopted in place (its directory is outside the stacks volume and the registered stack roots, or its files are elsewhere); import it with an explicit Compose source. | #7 |
 | `stack_root_unavailable` | 409 | no | The agent refuses the stack's project directory: its storage layout is not verified, the root is not registered, or the directory is missing (#28). | #7 |
 | `revision_content_unavailable` | 409 | no | The revision was recorded by hash only (its definition was too large for a deploy result) and cannot be restored. | #7 |
+| `migration_blocked` | 409 | no | The migration's preflight check has blockers (`details` lists them: platform, name or port conflicts, missing external networks, free space, offline agents, ...); preview the migration, resolve them and retry. | #35 |
+| `migration_not_completed` | 409 | no | The source of a stack migration can be removed only after the migration completed. | #35 |
+| `migration_source_removed` | 409 | no | The migration's source was already removed. | #35 |
+| `migration_source_in_use` | 409 | no | A DockYard stack on the source environment manages the migrated project again (it was imported back); its files are not removed. | #35 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `length_required` | 411 | no | Uploads need a `Content-Length` header. | #15 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |

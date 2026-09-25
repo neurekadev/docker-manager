@@ -197,6 +197,9 @@ func JobResource(j domain.Job) Resource {
 	r := Resource{Type: catalog.TypeJob, ID: j.ID, EnvironmentID: j.EnvironmentID, Parents: []ResourceRef{},
 		Targets: TargetResources(j.EnvironmentID, j.Targets)}
 	if spec, ok := jobspec.Lookup(j.Kind); ok {
+		// Lock-only targets (migrations, #35) do not decide who may see
+		// or cancel the job.
+		r.Targets = TargetResources(j.EnvironmentID, spec.AuthorizationTargets(j.Targets))
 		if caps, err := spec.Capabilities(j.Targets, j.Input); err == nil {
 			r.JobCapabilities = caps
 		}

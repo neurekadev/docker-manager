@@ -1043,7 +1043,7 @@ routes:
     scope: resource
     owner: 35
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/migrations"
     operationId: create-volume-migration
@@ -1051,7 +1051,7 @@ routes:
     scope: resource
     owner: 35
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: GET
     path: "/api/v1/environments/{environmentId}/networks"
@@ -1240,7 +1240,7 @@ routes:
     scope: resource
     owner: 35
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/stacks/{stackId}/migrations"
     operationId: create-stack-migration
@@ -1248,7 +1248,7 @@ routes:
     scope: resource
     owner: 35
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: POST
     path: "/api/v1/stacks/{stackId}/migrations/{migrationId}/source-removals"
@@ -1257,7 +1257,7 @@ routes:
     scope: resource
     owner: 35
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: GET
     path: "/api/v1/stacks/{stackId}/files"

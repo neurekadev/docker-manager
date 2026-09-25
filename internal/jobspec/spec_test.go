@@ -164,7 +164,7 @@ func TestCatalogCoversV1Kinds(t *testing.T) {
 		"container.create", "container.start", "container.stop", "container.restart", "container.pause",
 		"container.unpause", "container.remove", "container.update",
 		"stack.deploy", "stack.start", "stack.stop", "stack.restart", "stack.down", "stack.remove", "stack.build", "stack.update",
-		"stack.migrate", "volume.migrate", "volume.create", "volume.remove", "network.create", "network.remove",
+		"stack.migrate", "stack.remove_source", "volume.migrate", "volume.create", "volume.remove", "network.create", "network.remove",
 		"update.check", "update.run", "prune.run", "backup.run", "restore.run", "backup.retention", "backup.verify",
 		"backup.import", "files.archive", "files.extract", "files.metadata", "files.copy", "files.move", "files.delete",
 		"manager.backup",
@@ -176,6 +176,45 @@ func TestCatalogCoversV1Kinds(t *testing.T) {
 	}
 	if len(Kinds()) != len(want) {
 		t.Errorf("catalog has %d kinds, want %d: %v", len(Kinds()), len(want), Kinds())
+	}
+}
+
+// TestAuthorizationTargets: migrations authorize their capability on the
+// source stack or volume only; the stack's volumes and the destination's
+// resources only take locks (#35).
+func TestAuthorizationTargets(t *testing.T) {
+	stackTarget := domain.JobTarget{Type: domain.TargetStack, ID: "s1"}
+	srcVol := domain.JobTarget{Type: domain.TargetVolume, ID: "shop_data"}
+	dstVol := domain.JobTarget{Type: domain.TargetVolume, ID: "shop_data", EnvironmentID: "dst"}
+	all := []domain.JobTarget{stackTarget, srcVol, dstVol}
+	s, _ := Lookup(StackMigrate)
+	if got := s.AuthorizationTargets(all); len(got) != 1 || got[0] != stackTarget {
+		t.Errorf("stack.migrate authorizes %v", got)
+	}
+	v, _ := Lookup(VolumeMigrate)
+	if got := v.AuthorizationTargets([]domain.JobTarget{srcVol, dstVol}); len(got) != 1 || got[0] != srcVol {
+		t.Errorf("volume.migrate authorizes %v", got)
+	}
+	r, _ := Lookup(StackRemoveSource)
+	if got := r.AuthorizationTargets([]domain.JobTarget{stackTarget, srcVol}); len(got) != 1 || got[0] != stackTarget {
+		t.Errorf("stack.remove_source authorizes %v", got)
+	}
+	d, _ := Lookup(StackDeploy)
+	if got := d.AuthorizationTargets(all); len(got) != 3 {
+		t.Errorf("kinds without LockOnly authorize every target, got %v", got)
+	}
+	// Locks still cover every target, on both environments.
+	locks, err := s.ComputeLocks("src", all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []domain.JobLock{
+		lock("host", "dst", "", shared), lock("host", "src", "", shared),
+		lock("stack", "src", "s1", exclusive),
+		lock("volume", "dst", "shop_data", exclusive), lock("volume", "src", "shop_data", exclusive),
+	}
+	if !slices.Equal(locks, want) {
+		t.Errorf("locks %v, want %v", locks, want)
 	}
 }
 

@@ -168,6 +168,18 @@ func (c *Client) RemoveImage(ctx context.Context, ref string, force, pruneChildr
 	return out, nil
 }
 
+// SaveImage streams an archive of the images refs (the Engine's image
+// save format, loadable with LoadImage), e.g. for environment migration of
+// locally built images (#35). The caller closes the reader; closing it early
+// or ending ctx aborts the save.
+func (c *Client) SaveImage(ctx context.Context, refs []string) (io.ReadCloser, error) {
+	res, err := c.api.ImageSave(ctx, refs)
+	if err != nil {
+		return nil, wrap("image.save", err)
+	}
+	return res, nil
+}
+
 // LoadImage loads an image archive (docker save / OCI layout tar) into the
 // Engine, e.g. for environment migration (#35).
 func (c *Client) LoadImage(ctx context.Context, archive io.Reader) error {

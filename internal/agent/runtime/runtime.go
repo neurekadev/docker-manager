@@ -41,6 +41,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/engine"
 	"github.com/neurekadev/dockyard/internal/agent/files"
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
+	"github.com/neurekadev/dockyard/internal/agent/migration"
 	"github.com/neurekadev/dockyard/internal/agent/observe"
 	"github.com/neurekadev/dockyard/internal/agent/protect"
 	"github.com/neurekadev/dockyard/internal/agent/prune"
@@ -288,7 +289,32 @@ func New(opts Options) (*Agent, error) {
 	if opts.ContainerIO {
 		a.enableContainerIO()
 	}
+	a.enableMigration()
 	return a, nil
+}
+
+// enableMigration wires environment migration (#35): the migration.*
+// requests, the migration.send/receive streams and the
+// stack.remove_source executor, over the live Engine and the verified
+// storage roots. Explicitly configured handlers and executors win.
+func (a *Agent) enableMigration() {
+	svc := migration.New(migration.Options{Deps: stackDeps{a}, Guard: a.guard, Clock: a.opts.Clock,
+		Logger: a.opts.Logger})
+	reqs := svc.Requests()
+	maps.Copy(reqs, a.opts.Requests)
+	a.opts.Requests = reqs
+	streams := svc.Streams()
+	maps.Copy(streams, a.opts.Streams)
+	a.opts.Streams = streams
+	own := map[domain.JobKind]bool{}
+	for _, x := range a.opts.Executors {
+		own[x.Kind] = true
+	}
+	for _, x := range svc.Executors() {
+		if !own[x.Kind] {
+			a.opts.Executors = append(a.opts.Executors, x)
+		}
+	}
 }
 
 // addResources adds the Docker resource requests and executors (#6) to

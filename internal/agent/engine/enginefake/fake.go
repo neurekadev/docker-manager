@@ -8,9 +8,11 @@
 package enginefake
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
@@ -36,6 +38,8 @@ type Engine struct {
 	failures   map[string][]error
 	calls      []string
 	pullAuths  []*engine.RegistryAuth
+	// volumeRoot is where volume mountpoints live (SetVolumeRoot).
+	volumeRoot string
 	execs      []ExecInstance
 	// events is the Engine's event log (Docker API operations only, not
 	// the Add* seeding helpers' containers); notify is closed and replaced
@@ -101,6 +105,25 @@ func (e *Engine) newID(seed string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// SetVolumeRoot places the mountpoints of volumes created from now on
+// below root (default /var/lib/docker/volumes): tests that give the
+// volumes real or in-memory directories (#35) use an absolute path of
+// their own.
+func (e *Engine) SetVolumeRoot(root string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.volumeRoot = strings.TrimSuffix(root, "/")
+}
+
+// volumeDir is a volume's mountpoint. Callers hold e.mu.
+func (e *Engine) volumeDir(name string) string {
+	root := e.volumeRoot
+	if root == "" {
+		root = "/var/lib/docker/volumes"
+	}
+	return root + "/" + name + "/_data"
+}
+
 // Fail makes the next call of op (e.g. "container.start", "image.pull")
 // return err; several calls queue several failures.
 func (e *Engine) Fail(op string, err error) {
@@ -136,6 +159,32 @@ func (e *Engine) AddImage(tags ...string) string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.addImage(tags, nil)
+}
+
+// AddImageDetails adds an image with explicit details (e.g. a locally
+// built image without repository digests, or another architecture) and
+// returns its ID (generated when d.ID is empty).
+func (e *Engine) AddImageDetails(d engine.ImageDetails) string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if d.ID == "" {
+		d.ID = "sha256:" + e.newID("img-"+strings.Join(d.RepoTags, ","))
+	}
+	if d.OS == "" {
+		d.OS = "linux"
+	}
+	if d.Created.IsZero() {
+		d.Created = e.now()
+	}
+	e.images[d.ID] = &Image{d}
+	return d.ID
+}
+
+// SetPlatform changes the Engine's reported OS and architecture.
+func (e *Engine) SetPlatform(os, arch string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.identity.OS, e.identity.Arch = os, arch
 }
 
 // AddLabeledImage adds an image with labels.
@@ -423,10 +472,10 @@ func (e *Engine) create(spec engine.ContainerSpec) (string, error) {
 				vname = e.newID("anon")
 			}
 			if _, ok := e.volumes[vname]; !ok {
-				e.volumes[vname] = &engine.Volume{Name: vname, Driver: "local", Mountpoint: "/var/lib/docker/volumes/" + vname + "/_data",
+				e.volumes[vname] = &engine.Volume{Name: vname, Driver: "local", Mountpoint: e.volumeDir(vname),
 					Scope: "local", CreatedAt: e.now(), Labels: map[string]string{}}
 			}
-			mounts = append(mounts, engine.Mount{Type: "volume", Name: vname, Source: "/var/lib/docker/volumes/" + vname + "/_data",
+			mounts = append(mounts, engine.Mount{Type: "volume", Name: vname, Source: e.volumeDir(vname),
 				Destination: m.Target, Driver: "local", ReadWrite: !m.ReadOnly})
 		case "bind", "tmpfs":
 			mounts = append(mounts, engine.Mount{Type: m.Type, Source: m.Source, Destination: m.Target, ReadWrite: !m.ReadOnly})
@@ -727,9 +776,60 @@ func shortID(id string) string {
 	return id
 }
 
-// LoadImage implements engine.Engine.
-func (e *Engine) LoadImage(context.Context, io.Reader) error {
-	return Err("image.load", engine.CodeUnsupported, "not supported by the fake")
+// SaveImage implements engine.Engine: the archive is a small JSON
+// manifest of the images (enough for a LoadImage round trip through the
+// fake).
+func (e *Engine) SaveImage(_ context.Context, refs []string) (io.ReadCloser, error) {
+	const op = "image.save"
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if err := e.call(op); err != nil {
+		return nil, err
+	}
+	var out []engine.ImageDetails
+	for _, r := range refs {
+		im, ok := e.findImage(r)
+		if !ok {
+			return nil, notFound(op, "image", r)
+		}
+		out = append(out, im.ImageDetails)
+	}
+	b, err := json.Marshal(savedImages{Magic: savedMagic, Images: out})
+	if err != nil {
+		return nil, err
+	}
+	return io.NopCloser(bytes.NewReader(b)), nil
+}
+
+const savedMagic = "enginefake-image-archive"
+
+type savedImages struct {
+	Magic  string                `json:"magic"`
+	Images []engine.ImageDetails `json:"images"`
+}
+
+// LoadImage implements engine.Engine: it loads archives written by the
+// fake's SaveImage (other archives are refused).
+func (e *Engine) LoadImage(_ context.Context, r io.Reader) error {
+	const op = "image.load"
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if err := e.call(op); err != nil {
+		return err
+	}
+	var s savedImages
+	if json.Unmarshal(b, &s) != nil || s.Magic != savedMagic {
+		return Err(op, engine.CodeInvalidArgument, "not an image archive")
+	}
+	for _, im := range s.Images {
+		c := im
+		e.images[c.ID] = &Image{ImageDetails: c}
+	}
+	return nil
 }
 
 // Build implements engine.Engine.
@@ -798,7 +898,7 @@ func (e *Engine) CreateVolume(_ context.Context, spec engine.VolumeSpec) (engine
 	if driver == "" {
 		driver = "local"
 	}
-	v := &engine.Volume{Name: spec.Name, Driver: driver, Mountpoint: "/var/lib/docker/volumes/" + spec.Name + "/_data", Scope: "local",
+	v := &engine.Volume{Name: spec.Name, Driver: driver, Mountpoint: e.volumeDir(spec.Name), Scope: "local",
 		CreatedAt: e.now(), Labels: maps.Clone(spec.Labels), Options: maps.Clone(spec.DriverOpts)}
 	if v.Labels == nil {
 		v.Labels = map[string]string{}

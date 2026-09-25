@@ -1,0 +1,159 @@
+# Environment migration (#35)
+
+A user moves a managed Compose stack (its project directory and named
+volumes) or copies a standalone named volume to another environment. The
+migration is previewed before anything stops, runs as a job, keeps the
+source intact until the user confirms its removal, and never deletes
+anything automatically.
+
+| Package | Role |
+| --- | --- |
+| `internal/manager/migrations` | Preview (`Evaluate`, a pure function over facts from both agents), the `stack.migrate` / `volume.migrate` manager executors, the relay (`Relay`), access-change previews, the `migrations` records and their finish hooks (audit `migration.finished`), source removals. |
+| `internal/agent/migration` | The agent side: `migration.preview/stop/start/commit/cleanup` requests, `migration.send/receive` streams, the tar writer/extractor (`WriteTree`, `ExtractTree`) over a contained filesystem (`FS`, `os.Root`), the `stack.remove_source` executor. `migrationtest`: an in-memory host filesystem and simulated environments for tests. |
+| `internal/transfer` | Chunk framing with per-chunk and whole-payload SHA-256 (`Writer`, `Reader`, `Verifier`), the bandwidth limiter, `ParseRate`. |
+| `internal/protocol` (`migration.go`) | Request, stream and job payloads. |
+| `internal/manager/api` (`migrations.go`) | The five routes. |
+| `internal/manager/store` (`migrations.go`) | `migrations` (migration `20260925235142_create_migrations`). |
+
+## Transfer
+
+Agents only dial out (#27): data flows **source agent → manager →
+destination agent** over the existing sessions. Per part (the project
+directory, each volume, the locally built images) the manager opens
+`migration.receive` on the destination and `migration.send` on the source
+and copies between them (protocol and format:
+[agent-v1.md](../protocol/agent-v1.md#streams), "Migration transfer
+relay"):
+
+- **Backpressure and memory:** the manager reads from the source only after
+  the destination accepted the previous bytes (stream credit end to end), so
+  a relayed part holds at most one stream window plus a 64 KiB buffer in
+  manager memory; nothing is written to the manager's disk
+  (`TestRelayBackpressureBoundsMemory`).
+- **Bandwidth cap:** `DOCKYARD_MIGRATION_BANDWIDTH_LIMIT` (bytes per second,
+  shared by all running migrations; `TestRelayBandwidthCap`).
+- **Checksums:** chunks carry their SHA-256 and the stream ends with the
+  payload's total length and SHA-256; the destination extracts a chunk only
+  after it matched, the manager verifies the framing while relaying, and the
+  source's, manager's and destination's results must agree. A mismatch or a
+  lost session retries the part from its start (at most 3 attempts; a lost
+  agent is awaited for up to 2 minutes, then the job is interrupted).
+- **Format:** PAX tar with the root directory first, numeric UID/GID,
+  permission and setuid/setgid/sticky bits, nanosecond modification and
+  access times, symlinks as links (never followed), hard links, FIFOs.
+  Sockets and device nodes are skipped and listed. A symlink's own
+  timestamps are not kept (`os.Root` has no lutimes).
+- **Containment:** the source reads only the project directory inside a
+  verified stack root and supported local volumes below the verified volume
+  directory; DockYard's own volumes, images and project are refused (#32).
+  The destination writes only into
+  `<stacks>/.dockyard-migrations/<migrationId>/project` (moved into place
+  by `migration.commit`, which never replaces a directory) and into volumes
+  it creates itself labeled `dev.neureka.dockyard.migration=<migrationId>`
+  (with the source volume's Compose labels, so Compose adopts them).
+  Extraction refuses escaping names, members below symlinks or files, hard
+  links to anything but earlier files, device nodes, and data beyond the
+  destination's free space.
+
+## Stack migration
+
+`stack.migrate` (manager executor; locks: host shared on both
+environments, the stack, the source volumes and the destination's new
+volumes exclusive; only the stack is authorized with `stack.migrate`,
+`jobspec.Spec.LockOnly`):
+
+1. **prepare** — re-checks the destination capabilities of the initiator
+   (`stack.create` in the destination, `stack.deploy` on the stack there),
+   removes the destination's leftovers of earlier unsuccessful migrations of
+   the stack (`migration.cleanup`) and re-runs the preview: blockers fail the
+   job before anything stops.
+2. **stop_source** — records the services that run, registers the
+   `start_source` compensation, then `migration.stop` stops the project in
+   reverse dependency order (`internal/agent/lifecycle`).
+3. **transfer** — project directory (with its relative bind directories),
+   the selected named volumes, locally built images (image save/load);
+   `migration.commit` moves the project into `<stacks>/<name>`.
+4. **deploy_destination** — cut-over: the stack record moves to the
+   destination (same ID, revisions, display metadata; `Root` stacks,
+   `Dir` = the project name), then a `stack.deploy` job (the initiator's,
+   idempotency key `migration-<id>`) deploys it there in dependency order,
+   waiting for health and dependency conditions (#7); the migration waits
+   for it.
+5. **finalize** — records the migration completed (and runs the
+   `OnStackMoved` hooks: update and backup policies that target the stack
+   follow it, #10/#20), releases the compensation and removes the staging
+   directory.
+
+The **source stays stopped and untouched**. `POST
+/stacks/{id}/migrations/{migrationId}/source-removals` (after completion,
+once; refused while a DockYard stack manages the source project again)
+starts `stack.remove_source` on the source: containers and networks of the
+project, the migrated volumes, then the project directory; exact
+permission rules naming them are deleted.
+
+**Stopping before completion** — a failure, cancellation or crash runs
+`start_source`: the stack record is put back on the source (when it had
+moved; a running destination deploy is cancelled) and the services that
+ran before are started again (`lifecycle.Resume`). When the source's agent
+is unreachable (e.g. right after a manager restart) the job ends
+interrupted with that guidance and the stack is started once the agent is
+back. The destination keeps what the migration wrote (`targetPartial`);
+the next migration of the stack to it removes it first. Backups of the
+source stay in their repository and restorable there (#10).
+
+Anonymous volumes are skipped unless selected (then copied under their
+name; the service still gets a new anonymous volume). Volumes with driver
+options and non-local drivers keep their definition only (data not
+migrated in v1). External volumes and networks must exist on the
+destination.
+
+## Volume migration
+
+`volume.migrate` copies a standalone volume to another environment,
+optionally under a new name, into a new volume. Containers using it on the
+source block the migration unless a crash-consistent copy is acknowledged
+(`acknowledgeCrashConsistency`). The source volume is kept.
+
+## Preview
+
+`Evaluate` turns the source's facts (`migration.preview` role source:
+services, images with platform and repository digests, volumes with their
+sizes, networks, binds, ports, devices) and the destination's
+(`migration.preview` role destination: conflicts, free space, platform,
+leftovers) into blockers and warnings (`preflight.go` lists the stable
+codes; corpus: `TestPreflightCorpus`):
+
+- **Images:** pull on the destination through its registry connection
+  (#19, checked with `Registries().Check` for the destination's platform),
+  rebuild from `build:` (#33), copy locally built images through the relay
+  (blocked on another architecture), or already present.
+- **Conflicts** (blockers): DockYard stack, Compose project, container,
+  volume and network names, the project directory, published host ports of
+  running containers; missing external networks and volumes.
+- **Warnings:** bind paths outside the project directory (not migrated),
+  device mappings, definition-only volumes, skipped anonymous volumes,
+  plain-HTTP transport of either agent, host ports held outside Docker.
+- **Size and downtime:** data size against the destination's free space
+  (blocker), expected downtime (stop + copy at the cap or 50 MB/s + start).
+- **Access** (#17): every stack and container capability (and volume
+  capabilities of copied volumes) evaluated before and after the move per
+  user (`permissions.Service.MoveImpact`): stack- and service-scoped rules
+  follow the stack, environment rules and exact per-environment rules do
+  not. The instance owner sees every affected user, others their own change
+  and a count.
+
+## Authorization
+
+`stack.migrate` on the stack (engine check at request and dispatch) plus
+`stack.create` in the destination and `stack.deploy` on the stack there
+(API check at preview and request, executor re-check in `prepare`, engine
+check of the destination deploy job). Volumes: `volume.migrate` on the
+volume plus `volume.create` in the destination.
+
+## Audit
+
+Requests are audited by `api.Register` (`stack.migrate`,
+`stack.migrate.preview`, `stack.migrate.remove_source`, `volume.migrate`,
+`volume.migrate.preview`) with source and destination; the job lifecycle
+by the engine; the outcome as `migration.finished` with source,
+destination, bytes, every part's size and checksum and the resulting state.

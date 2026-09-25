@@ -1454,6 +1454,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/migration-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a volume migration
+         * @description The preflight check of copying the volume to another environment (optionally under a new name): support (local volumes only; DockYard's own volumes are refused), running containers using it (blocking unless a crash-consistent copy is acknowledged), name conflicts, size against free space, transport and access changes. Needs volume.migrate on the volume and volume.create on the destination. Changes nothing.
+         */
+        post: operations["create-volume-migration-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/volumes/{volumeId}/migrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Migrate a volume
+         * @description Re-runs the preview (409 migration_blocked) and starts a volume.migrate job (202) that copies the volume's data with owners, modes, times, symlinks and hard links preserved into a new volume on the destination. The source volume is kept.
+         */
+        post: operations["create-volume-migration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/git-credentials": {
         parameters: {
             query?: never;
@@ -2785,6 +2825,66 @@ export interface paths {
         get: operations["get-stack-image-status"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/migration-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a stack migration
+         * @description Computes the preflight check of moving the stack to another environment before anything stops: platform and pullability of each image on the destination (registry connections, rebuilds, locally built images copied through the manager), name conflicts (stack, Compose project, containers, volumes, networks, project directory), host port conflicts, missing external networks and volumes, device mappings and bind paths outside the project directory (not migrated), non-local volume drivers (definition only), data size against the destination's free space, expected downtime, plain-HTTP transport and the effective-permission changes (stack-scoped rules follow the stack; environment rules do not). Needs stack.migrate on the stack plus stack.create and stack.deploy on the destination. Changes nothing.
+         */
+        post: operations["create-stack-migration-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/migrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Migrate a stack
+         * @description Re-runs the preview (409 migration_blocked with the blockers in details) and starts a stack.migrate job (202; the migration ID is the job ID). Cold migration: the source stops in reverse dependency order, the project directory (with its relative bind directories) and the selected named volumes are copied through the manager (checksummed per chunk and as a whole), the stack moves to the destination (same ID, revisions and stack-scoped rules) and is deployed there in dependency order. The source stays stopped and untouched until its removal is confirmed; a migration that stops before completing puts the stack back and restarts the source's services.
+         */
+        post: operations["create-stack-migration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/migrations/{migrationId}/source-removals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove a migrated stack's source
+         * @description Confirms a completed migration: starts a stack.remove_source job (202) on the source environment that removes the source project's containers and networks, the migrated volumes and the project directory there. 409 migration_not_completed before the migration completed, migration_source_removed after a removal, migration_source_in_use when a DockYard stack manages the source project again. Backup snapshots of the source stay in their repository.
+         */
+        post: operations["create-stack-migration-source-removal"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5029,6 +5129,121 @@ export interface components {
             /** @description Host samples arrived (environment.metrics.read). */
             host: boolean;
         };
+        MigrationAccess: {
+            changes: components["schemas"]["MigrationAccessChange"][];
+            /** @description true: changes lists every affected user (the caller is the instance owner); otherwise the caller's own change only. */
+            complete: boolean;
+            /** Format: int64 */
+            othersAffected: number;
+            unavailable?: string;
+        };
+        MigrationAccessChange: {
+            gained: string[];
+            lost: string[];
+            userId: string;
+            username: string;
+        };
+        MigrationData: {
+            /**
+             * Format: int64
+             * @description Free bytes of the destination's stacks volume (-1: unknown).
+             */
+            destinationStacksFree: number;
+            /**
+             * Format: int64
+             * @description Free bytes of the destination's Docker data root (-1: unknown).
+             */
+            destinationVolumesFree: number;
+            /** Format: int64 */
+            imageBytes: number;
+            /** Format: int64 */
+            projectBytes: number;
+            /**
+             * Format: int64
+             * @description Estimated bytes to transfer (tar framing included).
+             */
+            totalBytes: number;
+            truncated?: boolean;
+            /** Format: int64 */
+            volumeBytes: number;
+        };
+        MigrationDowntime: {
+            basis: string;
+            /** Format: int64 */
+            estimatedSeconds: number;
+        };
+        MigrationExclusion: {
+            name: string;
+            reason: string;
+        };
+        MigrationFinding: {
+            /** @description Stable code, e.g. platform_mismatch, port_conflict, volume_name_conflict, external_network_missing, external_bind_path, plain_http_transport. */
+            code: string;
+            message: string;
+            resource?: string;
+            service?: string;
+        };
+        MigrationPreview: {
+            access: components["schemas"]["MigrationAccess"];
+            /** @description No blockers: the migration can start (warnings are accepted by starting it). */
+            allowed: boolean;
+            blockers: components["schemas"]["MigrationFinding"][];
+            data: components["schemas"]["MigrationData"];
+            downtime: components["schemas"]["MigrationDowntime"];
+            excluded: components["schemas"]["MigrationExclusion"][];
+            /** @enum {string} */
+            kind: "stack" | "volume";
+            /** @description Earlier unsuccessful migrations whose partial data on the destination is removed first. */
+            leftovers: string[];
+            projectName?: string;
+            services: components["schemas"]["MigrationServicePlan"][];
+            sourceEnvironmentId: string;
+            stackId?: string;
+            /** @description The new project directory in the destination's stacks volume. */
+            targetDirectory?: string;
+            targetEnvironmentId: string;
+            transport: components["schemas"]["MigrationTransport"];
+            volumes: components["schemas"]["MigrationVolumePlan"][];
+            warnings: components["schemas"]["MigrationFinding"][];
+        };
+        MigrationServicePlan: {
+            /**
+             * @description pull on the destination (through its registry connection), rebuild from the build section, transfer through the manager, or already present.
+             * @enum {string}
+             */
+            action: "pull" | "rebuild" | "transfer" | "present";
+            image: string;
+            name: string;
+            /** @description The image's platform on the source. */
+            platform?: string;
+            reason?: string;
+            registryConnectionId?: string;
+        };
+        MigrationTransport: {
+            /**
+             * Format: int64
+             * @description DOCKYARD_MIGRATION_BANDWIDTH_LIMIT (0: unlimited).
+             */
+            bandwidthLimitBytesPerSecond: number;
+            destinationPlainHttp: boolean;
+            sourcePlainHttp: boolean;
+        };
+        MigrationVolumePlan: {
+            /** @enum {string} */
+            action: "copy" | "skip" | "definition_only" | "external";
+            anonymous?: boolean;
+            /** Format: int64 */
+            bytes: number;
+            /** Format: int64 */
+            entries: number;
+            /** @description Compose volume key. */
+            key?: string;
+            reason?: string;
+            source: string;
+            target: string;
+            /** @description The size is a lower bound (the scan hit its budget). */
+            truncated?: boolean;
+        };
         MyPermissions: {
             /** Format: int64 */
             catalogVersion: number;
@@ -6331,6 +6546,21 @@ export interface components {
             /** @description The DockYard stack (#7) when the project is one. */
             stackId?: string;
         };
+        StackMigrationBody: {
+            /** @description Anonymous volumes to copy (skipped by default). */
+            anonymousVolumes?: string[];
+            /** @description Named volumes whose data is not copied (Compose recreates them empty on the destination). Default: every named local volume is copied. */
+            excludeVolumes?: string[];
+            /** @description Required: the destination environment. */
+            targetEnvironmentId?: string;
+            /**
+             * Format: int64
+             * @description Stop grace period of the source's containers.
+             */
+            timeoutSeconds?: number;
+            /** @description Images to copy through the manager instead of pulling or rebuilding them on the destination (locally built images are copied anyway). */
+            transferImages?: string[];
+        };
         StackPort: {
             hostIp?: string;
             /** Format: int32 */
@@ -6711,6 +6941,14 @@ export interface components {
             usedBy?: components["schemas"]["ContainerRef"][];
             /** @enum {string} */
             view: "minimal" | "full";
+        };
+        VolumeMigrationBody: {
+            /** @description Copy the volume although running containers use it (a crash-consistent copy). Otherwise such containers block the migration. */
+            acknowledgeCrashConsistency?: boolean;
+            /** @description Required: the destination environment. */
+            targetEnvironmentId?: string;
+            /** @description A new name on the destination (default: the same name). */
+            targetName?: string;
         };
     };
     responses: never;
@@ -14743,6 +14981,230 @@ export interface operations {
             };
         };
     };
+    "create-volume-migration-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Volume name. */
+                volumeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeMigrationBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigrationPreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-volume-migration": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Volume name. */
+                volumeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeMigrationBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-git-credentials": {
         parameters: {
             query?: {
@@ -21455,6 +21917,336 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-migration-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StackMigrationBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigrationPreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-migration": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StackMigrationBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-migration-source-removal": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+                /** @description Migration ID (the stack.migrate job's ID). */
+                migrationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
                 headers: {
                     [name: string]: unknown;
                 };
