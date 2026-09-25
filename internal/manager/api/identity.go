@@ -51,6 +51,7 @@ type IdentityService interface {
 	PasskeyAuthenticationOptions(ctx context.Context, purpose domain.PasskeyPurpose) (json.RawMessage, error)
 	PasskeyAuthenticationVerification(ctx context.Context, response []byte) (domain.SessionState, error)
 	ListMyPasskeys(ctx context.Context) ([]domain.Passkey, error)
+	RenameMyPasskey(ctx context.Context, id, name string) (domain.Passkey, error)
 	DeleteMyPasskey(ctx context.Context, id string) error
 
 	Me(ctx context.Context) (domain.Account, error)
@@ -386,6 +387,17 @@ type passkeyListOutput struct{ Body Page[Passkey] }
 
 type passkeyIDInput struct {
 	CredentialID string `path:"credentialId" maxLength:"64" doc:"Passkey ID (from GET /api/v1/me/passkeys)."`
+}
+
+type passkeyRenameInput struct {
+	CredentialID string `path:"credentialId" maxLength:"64" doc:"Passkey ID (from GET /api/v1/me/passkeys)."`
+	Body         struct {
+		Name string `json:"name" minLength:"1" maxLength:"64" doc:"Label shown in the passkey list."`
+	}
+}
+
+type passkeyOutput struct {
+	Body Passkey
 }
 
 type accountOutput struct {

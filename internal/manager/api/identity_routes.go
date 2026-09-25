@@ -429,6 +429,26 @@ func registerFactors(a huma.API, h *identityAPI) {
 
 	Register(a, Operation{
 		Operation: huma.Operation{
+			OperationID: "update-my-passkey", Method: http.MethodPatch, Path: BasePath + "/me/passkeys/{credentialId}",
+			Summary:     "Rename one of my passkeys",
+			Description: "Changes only the label shown in the passkey list; the credential is unchanged (no step-up, no session ends). " + enroll,
+			Tags:        []string{tagMe}, Security: cookieOnly, Errors: []int{http.StatusNotFound, http.StatusUnprocessableEntity},
+		},
+		Capability: CapabilityAuthenticated, Scope: ScopeNone,
+	}, func(ctx context.Context, in *passkeyRenameInput) (*passkeyOutput, error) {
+		svc, err := h.service()
+		if err != nil {
+			return nil, err
+		}
+		pk, err := svc.RenameMyPasskey(ctx, in.CredentialID, in.Body.Name)
+		if err != nil {
+			return nil, identityError(err)
+		}
+		return &passkeyOutput{Body: newPasskey(pk)}, nil
+	})
+
+	Register(a, Operation{
+		Operation: huma.Operation{
 			OperationID: "delete-my-passkey", Method: http.MethodDelete, Path: BasePath + "/me/passkeys/{credentialId}",
 			Summary: "Revoke one of my passkeys", DefaultStatus: http.StatusNoContent,
 			Description: "Requires a recent step-up. 409 factor_required when the sign-in policy needs a passkey and this is the last one. " +

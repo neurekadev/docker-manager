@@ -99,6 +99,7 @@ export const routes = {
 	settings: () => '/settings',
 	security: () => '/settings/security',
 	apiTokens: () => '/settings/tokens',
+	apiTokenNew: () => '/settings/tokens/new',
 	allApiTokens: () => '/settings/tokens/all',
 	signInPolicy: () => '/settings/sign-in',
 	scheduleDefaults: () => '/settings/schedules',
