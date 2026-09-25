@@ -140,6 +140,7 @@ func (e *Engine) Enqueue(ctx context.Context, req Request) (job domain.Job, crea
 		if err := faultinject.Point(ctx, PointEnqueueCommitted); err != nil {
 			return job, created, err
 		}
+		e.notify(job.ID)
 		e.Wake()
 	}
 	return job, created, nil

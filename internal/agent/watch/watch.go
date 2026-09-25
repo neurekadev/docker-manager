@@ -79,6 +79,9 @@ type Options struct {
 	PollInterval   time.Duration
 	SafetyInterval time.Duration
 	MaxScanEntries int
+	// Scanned is called after each registration or reconciliation scan of
+	// a scope (diagnostics, tests). It must not block.
+	Scanned func(protocol.ScopeRef)
 }
 
 // scope is one watched scope.
@@ -231,6 +234,9 @@ func (w *Watcher) scanLoop(ctx context.Context) {
 			return
 		case ref := <-w.scanQ:
 			w.reconcile(ctx, ref)
+			if w.opts.Scanned != nil {
+				w.opts.Scanned(ref)
+			}
 			w.poke()
 		}
 	}

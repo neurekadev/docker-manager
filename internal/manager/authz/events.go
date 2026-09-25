@@ -94,6 +94,31 @@ func stackVisible(c Checker, e events.Event) bool {
 	return ViewOf(c, Resource{Type: catalog.TypeStack, ID: e.ResourceID, EnvironmentID: e.EnvironmentID, Parents: []ResourceRef{}}).Visible()
 }
 
+// jobVisible: job.read on the job's targets, or the kind's own capability
+// on every target (#17, the jobs API rule).
+func jobVisible(c Checker, e events.Event) bool {
+	return e.Job != nil && c.Can("job.read", JobResource(*e.Job)).Allowed
+}
+
+// changedVisible: a mutation of a catalog resource reaches everyone who
+// sees the resource at least minimally; settings reach settings.read
+// holders; anything else (users, groups, invitations, API tokens of other
+// users) only the owner.
+func changedVisible(c Checker, e events.Event) bool {
+	switch e.ResourceType {
+	case catalog.TypeSettings:
+		return c.Can("settings.read", Instance()).Allowed
+	case catalog.TypeEnvironment:
+		return ViewOf(c, EnvironmentResource(e.ResourceID)).Visible()
+	case catalog.TypeInstance, catalog.TypeAdministration, catalog.TypeAPIToken, catalog.TypeAudit:
+		return c.Can("groups.manage", Instance()).Allowed
+	}
+	if _, ok := catalog.Default().Type(e.ResourceType); !ok {
+		return c.Can("groups.manage", Instance()).Allowed
+	}
+	return ViewOf(c, Resource{Type: e.ResourceType, ID: e.ResourceID, EnvironmentID: e.EnvironmentID}).Visible()
+}
+
 var eventRules = map[string]eventRule{
 	events.EnvironmentCreated:      envVisible,
 	events.EnvironmentUpdated:      envVisible,
@@ -119,6 +144,8 @@ var eventRules = map[string]eventRule{
 	events.StackUpdated:            stackVisible,
 	events.StackRemoved:            stackVisible,
 	events.StackRevisionRecorded:   stackVisible,
+	events.JobUpdated:              jobVisible,
+	events.ResourceChanged:         changedVisible,
 }
 
 // HasEventRule reports whether an event type has a visibility rule.
