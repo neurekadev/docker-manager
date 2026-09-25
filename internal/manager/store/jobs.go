@@ -317,6 +317,9 @@ func ListJobs(ctx context.Context, db bun.IDB, q domain.JobFilter) ([]domain.Job
 	if len(q.Kinds) > 0 {
 		sel = sel.Where("kind IN (?)", bun.List(q.Kinds))
 	}
+	if len(q.Origins) > 0 {
+		sel = sel.Where("origin IN (?)", bun.List(q.Origins))
+	}
 	if q.EnvironmentID != "" {
 		sel = sel.Where("(environment_id = ? OR id IN (SELECT job_id FROM job_targets WHERE environment_id = ?))", q.EnvironmentID, q.EnvironmentID)
 	}

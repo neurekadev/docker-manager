@@ -32560,6 +32560,24 @@
             }
           },
           {
+            "description": "Only jobs with these origins (repeat the parameter).",
+            "explode": true,
+            "in": "query",
+            "name": "origin",
+            "schema": {
+              "description": "Only jobs with these origins (repeat the parameter).",
+              "items": {
+                "enum": [
+                  "manual",
+                  "scheduled",
+                  "api_token"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Only jobs in (or targeting) this environment.",
             "explode": false,
             "in": "query",

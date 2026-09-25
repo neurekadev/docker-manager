@@ -20766,6 +20766,8 @@ export interface operations {
                 state?: ("queued" | "blocked" | "dispatched" | "running" | "cancelling" | "succeeded" | "failed" | "partial" | "cancelled" | "interrupted")[];
                 /** @description Only jobs of this kind. */
                 kind?: string;
+                /** @description Only jobs with these origins (repeat the parameter). */
+                origin?: ("manual" | "scheduled" | "api_token")[];
                 /** @description Only jobs in (or targeting) this environment. */
                 environmentId?: string;
                 /** @description Only jobs with this target, as type:id (e.g. stack:0190a6e0-...). */

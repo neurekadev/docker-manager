@@ -238,7 +238,7 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 | --- | --- |
 | `Dialog` | `open` (bindable), `title`, `description`, `size`, `footer` snippet, `trigger` snippet, `dismissible`, `alert` (Bits UI AlertDialog: `role="alertdialog"`). Focus trapped, Escape closes, focus returns to the opener; full screen < 768 px. |
 | `ConfirmDialog` | `message`, `consequences[]`, **`confirmLabel`** (the action, never "OK"), `tone`, async `onconfirm` (progress on the button, failures shown inline, stays open). |
-| `DestructiveConfirm` | Type-to-confirm (`confirmText`, usually the resource name), `consequences[]`, `affected: AffectedResource[]`. |
+| `DestructiveConfirm` | Type-to-confirm (`confirmText`, usually the resource name), `consequences[]`, `affected: AffectedResource[]`, optional `extra` snippet (e.g. the archive dialog's "migrate stacks first" offer). |
 | `Drawer` | Side or bottom sheet (`side`, `size`, `hideTitle`); the narrow navigation, detail panes, the log drawer. |
 | `Popover` | Non-modal (`label`, `trigger` snippet): notices, environment switcher. |
 | `Tooltip` | `text`, `trigger` snippet `(props)`. Supplements names; never the only name. |
@@ -264,6 +264,18 @@ nulls as gaps), `TerminalView` (xterm.js + `TERMINAL_THEME`). They mount the
 libraries through `$lib/lazy` only (checked by `verify-build.mjs`).
 `mountLineChart(el, name, points, unit)` returns `{ update(series), resize() }`
 for charts; series colours come from `serviceSeriesColor`.
+
+`TimeSeriesChart` (`title`, `timestamps`, `lines: ChartLine[]`, `unit`:
+`percent | bytes | bytes_per_second | load | count`, `from`/`to`, `yMax`,
+`detail`) draws metric responses as they come from the API: nulls stay
+breaks, runs of missing samples are shaded **and** listed as text under
+the chart ("No samples since 12:40": offline intervals, #5), several
+lines get a text legend with their latest values, the figure is labelled
+with the latest value for assistive technology. Pure helpers in
+`$lib/ui/timeseries.ts` (`gapIntervals`, `latestValue`, `formatValue`);
+the ECharts option is `timeSeriesOption` in `$lib/lazy` (unit-tested).
+Charts and sparklines apply data that arrives while ECharts is still
+loading.
 
 ### Formatting
 

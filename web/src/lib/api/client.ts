@@ -24,6 +24,13 @@ export type SearchHit = Schema<'SearchHit'>;
 export type SearchResults = Schema<'SearchResults'>;
 export type SchedulePreview = Schema<'SchedulePreview'>;
 export type Overview = Schema<'Overview'>;
+export type Agent = Schema<'Agent'>;
+export type AgentEnrollment = Schema<'AgentEnrollment'>;
+export type EnvironmentCapacity = Schema<'EnvironmentCapacity'>;
+export type EnvironmentMetrics = Schema<'EnvironmentMetrics'>;
+export type Schedule = Schema<'Schedule'>;
+export type Stack = Schema<'Stack'>;
+export type UpdatePolicy = Schema<'UpdatePolicy'>;
 export type ApiClient = ReturnType<typeof createApiClient>;
 
 /**
@@ -109,4 +116,15 @@ export async function unwrap<T>(
 		response.status,
 		apiError
 	);
+}
+
+/**
+ * Like unwrap for operations without a response body (204 No Content,
+ * e.g. DELETE): resolves when the response is 2xx, otherwise throws the
+ * ApiRequestError.
+ */
+export async function unwrapEmpty(
+	call: Promise<{ data?: unknown; error?: unknown; response: Response }>
+): Promise<void> {
+	await unwrap(call.then((r) => (r.response.ok ? { ...r, data: r.data ?? null } : r)));
 }

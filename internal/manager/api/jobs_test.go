@@ -259,6 +259,41 @@ func TestListJobsPaginationFiltersAndVisibility(t *testing.T) {
 	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?state=done", "alice"), http.StatusUnprocessableEntity, CodeValidationFailed)
 }
 
+// The jobs view (#22) filters by origin: manual, scheduled or API token.
+func TestListJobsOriginFilter(t *testing.T) {
+	f := newJobsFixture(t, testAuthz{})
+	manual := f.enqueue(jobspec.StackStart, "e1", stackT("a"))
+	scheduled, _, err := f.eng.Enqueue(f.ctx, jobs.Request{Kind: jobspec.PruneRun, Principal: authz.Service(), EnvironmentID: "e1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scheduled.Origin != domain.OriginScheduled {
+		t.Fatalf("origin %s", scheduled.Origin)
+	}
+	ids, _ := listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?origin=scheduled", "alice"))
+	if len(ids) != 1 || ids[0] != scheduled.ID {
+		t.Fatalf("scheduled filter %v", ids)
+	}
+	ids, _ = listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?origin=manual", "alice"))
+	if len(ids) != 1 || ids[0] != manual.ID {
+		t.Fatalf("manual filter %v", ids)
+	}
+	ids, _ = listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?origin=manual&origin=scheduled", "alice"))
+	if len(ids) != 2 {
+		t.Fatalf("both origins %v", ids)
+	}
+	if ids, _ := listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?origin=api_token", "alice")); len(ids) != 0 {
+		t.Fatalf("api_token filter %v", ids)
+	}
+	// A cursor is bound to its origin filter.
+	_, next := listIDs(t, f.do(http.MethodGet, BasePath+"/jobs?limit=1&origin=manual&origin=scheduled", "alice"))
+	if next == "" {
+		t.Fatal("expected a next cursor")
+	}
+	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?limit=1&origin=manual&cursor="+next, "alice"), http.StatusUnprocessableEntity, CodeValidationFailed)
+	decodeError(t, f.do(http.MethodGet, BasePath+"/jobs?origin=robot", "alice"), http.StatusUnprocessableEntity, CodeValidationFailed)
+}
+
 func TestGetAndCancelJob(t *testing.T) {
 	f := newJobsFixture(t, testAuthz{})
 	f.disp.Connect("e1")

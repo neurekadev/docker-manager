@@ -108,7 +108,13 @@ function parentOf(path: string): string {
 export function keysForInvalidate(e: LiveInvalidate): Invalidation[] {
 	const env = e.environmentId ?? '';
 	const topic = e.topic as Topic;
-	if (topic === 'metrics') return [{ key: liveKeys.metrics(e.resourceId), class: 'metrics' }];
+	// New samples refresh the environment's charts and the overview's
+	// latest usage (dashboard CPU and memory), both at most every 10 s.
+	if (topic === 'metrics')
+		return [
+			{ key: liveKeys.metrics(e.resourceId), class: 'metrics' },
+			{ key: ['overview'], class: 'metrics' }
+		];
 	if (e.kind === 'inventory') {
 		return [
 			{ key: liveKeys.item('environments', e.resourceId), class: 'detail' },

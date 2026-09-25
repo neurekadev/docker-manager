@@ -1,0 +1,113 @@
+// Environment view model (#3, #5, #34): status words, metric ranges and
+// series extraction, compatibility and removal-preview wording. Pure.
+import type { Environment, EnvironmentMetrics, Schema } from '$lib/api/client';
+
+export type EnvironmentStatus = 'online' | 'offline' | 'archived';
+
+export function environmentStatus(e: Pick<Environment, 'online' | 'status'>): EnvironmentStatus {
+	if (e.status === 'archived') return 'archived';
+	return e.online ? 'online' : 'offline';
+}
+
+/** Chart ranges (the API picks raw 10 s, 1 min or 15 min storage). */
+export const METRIC_RANGES = [
+	{ id: '1h', label: '1 hour', seconds: 3600 },
+	{ id: '6h', label: '6 hours', seconds: 6 * 3600 },
+	{ id: '24h', label: '24 hours', seconds: 24 * 3600 },
+	{ id: '7d', label: '7 days', seconds: 7 * 86400 },
+	{ id: '30d', label: '30 days', seconds: 30 * 86400 },
+	{ id: '90d', label: '90 days', seconds: 90 * 86400 }
+] as const;
+
+export type MetricRangeId = (typeof METRIC_RANGES)[number]['id'];
+
+export function rangeSeconds(id: string): number {
+	return METRIC_RANGES.find((r) => r.id === id)?.seconds ?? 3600;
+}
+
+/** The values of one series (by key and, for disks, mount); [] if absent. */
+export function seriesValues(
+	m: EnvironmentMetrics | undefined,
+	key: string,
+	mount?: string
+): (number | null)[] {
+	const s = m?.series.find((x) => x.key === key && (mount === undefined || x.mount === mount));
+	return s ? s.values.map((v) => (v === undefined ? null : v)) : [];
+}
+
+/** Disk mounts present in a metrics response (docker, stacks, bind-N). */
+export function diskMounts(m: EnvironmentMetrics | undefined): string[] {
+	const out: string[] = [];
+	for (const s of m?.series ?? [])
+		if (s.key === 'disk.used_bytes' && s.mount && !out.includes(s.mount)) out.push(s.mount);
+	return out;
+}
+
+/** Filesystem roles in the user's words (never host paths, #5). */
+export function mountLabel(mount: string): string {
+	if (mount === 'docker') return 'Docker data';
+	if (mount === 'stacks') return 'Stacks';
+	const m = mount.match(/^bind-(\d+)$/);
+	return m ? `Bind mount ${m[1]}` : mount;
+}
+
+export const COMPATIBILITY: Record<
+	string,
+	{ status: string; label: string; tone: 'ok' | 'warn' | 'danger' }
+> = {
+	current: { status: 'current', label: 'Current', tone: 'ok' },
+	outdated: { status: 'outdated', label: 'Upgrade recommended', tone: 'warn' },
+	unsupported: { status: 'unsupported', label: 'Unsupported: refused', tone: 'danger' }
+};
+
+type Dependent = Schema<'RemovalDependentKind'>;
+
+const DEPENDENT_NOUNS: Record<Dependent['kind'], [string, string]> = {
+	stack: ['stack', 'stacks'],
+	managed_container: ['managed container', 'managed containers'],
+	update_policy: ['update policy', 'update policies'],
+	backup_policy: ['backup policy', 'backup policies'],
+	maintenance_policy: ['prune policy', 'prune policies'],
+	backup_repository: ['backup repository', 'backup repositories'],
+	backup_set: ['backup set', 'backup sets'],
+	registry_connection: ['registry connection', 'registry connections'],
+	build_definition: ['build definition', 'build definitions'],
+	permission_rule: ['permission rule', 'permission rules'],
+	schedule: ['schedule', 'schedules'],
+	job: ['queued or running job', 'queued or running jobs']
+};
+
+const ON_ARCHIVE: Record<Dependent['onArchive'], string> = {
+	kept: 'kept, and back after a re-attach',
+	paused: 'kept; scheduled runs pause until a re-attach',
+	removed: 'removed (audited)',
+	interrupted: 'stopped'
+};
+
+export function dependentNoun(kind: Dependent['kind'], count: number): string {
+	const n = DEPENDENT_NOUNS[kind] ?? [kind.replaceAll('_', ' '), kind.replaceAll('_', ' ')];
+	return count === 1 ? n[0] : n[1];
+}
+
+/** One consequence line per dependent kind with records, e.g. "2 stacks: kept, and back after a re-attach." */
+export function removalConsequences(p: Schema<'EnvironmentRemovalPreview'>): string[] {
+	const out: string[] = [];
+	out.push(`Hides ${p.environmentName} from every operation. Its history and backups are kept.`);
+	for (const d of p.dependents) {
+		if (!d.count) continue;
+		const what = `${d.count} ${dependentNoun(d.kind, d.count)}`;
+		out.push(
+			`${what[0].toUpperCase()}${what.slice(1)}: ${ON_ARCHIVE[d.onArchive] ?? d.onArchive}.`
+		);
+	}
+	if (p.hostUntouched)
+		out.push(
+			'Nothing on the host changes: containers, volumes and files keep running as they are.'
+		);
+	return out;
+}
+
+/** "e1a2…" style short agent label for lists. */
+export function agentLabel(a: Pick<Schema<'Agent'>, 'label' | 'hostname' | 'id'>): string {
+	return a.label || a.hostname || a.id.slice(0, 8);
+}

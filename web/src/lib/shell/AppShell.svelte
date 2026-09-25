@@ -16,8 +16,11 @@
 	import {
 		environmentsQuery,
 		environmentSystemQuery,
-		myPermissionsQuery
+		myPermissionsQuery,
+		recentJobsQuery,
+		updatePoliciesSummaryQuery
 	} from '$lib/api/queries';
+	import { jobKindLabel } from '$lib/features/jobs/labels';
 	import { liveStatus } from '$lib/live/status.svelte';
 	import { bannerDelay } from './live-banner';
 	import { routes } from '$lib/routes';
@@ -34,8 +37,8 @@
 	import Sidebar from './Sidebar.svelte';
 	import UserMenu from './UserMenu.svelte';
 	import { environmentSelection } from './environment.svelte';
-	import { accessOf, activeNav, hasAny, visibleNav } from './nav';
-	import { environmentNotices } from './notices.svelte';
+	import { accessOf, activeNav, hasAny, isRestricted, visibleNav } from './nav';
+	import { environmentNotices, jobNotices, updateNotices } from './notices.svelte';
 	import { pageState } from './page.svelte';
 
 	interface Props {
@@ -82,6 +85,25 @@
 	const feedNotices = environmentNotices();
 	$effect(() => {
 		if (envs.data) feedNotices(envs.data);
+	});
+
+	// Finished-job and update-available notices (#25 Q6): recent jobs and
+	// update summaries, both refreshed by live events.
+	const recentJobs = createQuery(() => ({
+		...recentJobsQuery(20),
+		enabled: !!perms.data && !isRestricted(access)
+	}));
+	const updatePolicies = createQuery(() => ({
+		...updatePoliciesSummaryQuery(),
+		enabled: hasAny(access, 'update_policy.')
+	}));
+	const feedJobNotices = jobNotices(() => user.id, jobKindLabel);
+	const feedUpdateNotices = updateNotices();
+	$effect(() => {
+		if (recentJobs.data) feedJobNotices(recentJobs.data.items);
+	});
+	$effect(() => {
+		if (updatePolicies.data) feedUpdateNotices(updatePolicies.data);
 	});
 
 	// The offline banner, once the live stream (#23) has been down for 5 s.

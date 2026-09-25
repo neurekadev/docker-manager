@@ -121,6 +121,92 @@ export async function mountLineChart(
 	};
 }
 
+/** One line of a time-series chart; values align with the timestamps. */
+export interface TimeSeriesLine {
+	name: string;
+	/** null is a gap (no sample): a break in the line, never zero (#5). */
+	values: (number | null)[];
+	color?: string;
+	/** A faint fill under the line. */
+	area?: boolean;
+}
+
+export interface TimeSeriesOptions {
+	/** Bucket times, ms since the epoch, ascending. */
+	timestamps: number[];
+	lines: TimeSeriesLine[];
+	/** Formats axis labels and tooltip values ("12.4%", "1.8 GB"). */
+	format: (v: number) => string;
+	/** The x axis spans exactly this range (so trailing gaps show). */
+	from: number;
+	to: number;
+	yMin?: number;
+	yMax?: number;
+	/** Ranges without samples, shaded (offline intervals). */
+	gaps?: { from: number; to: number }[];
+}
+
+export interface TimeSeriesChart extends Mounted {
+	update(opts: TimeSeriesOptions): void;
+	resize(): void;
+}
+
+export function timeSeriesOption(o: TimeSeriesOptions) {
+	const gapArea = o.gaps?.length
+		? {
+				silent: true,
+				itemStyle: { color: CHART_COLORS.gap },
+				data: o.gaps.map((g) => [{ xAxis: g.from }, { xAxis: g.to }])
+			}
+		: undefined;
+	return {
+		animation: false,
+		grid: { left: 4, right: 12, top: 12, bottom: 4, containLabel: true },
+		tooltip: {
+			trigger: 'axis',
+			valueFormatter: (v: unknown) => (typeof v === 'number' ? o.format(v) : 'No sample')
+		},
+		xAxis: { type: 'time', min: o.from, max: o.to },
+		yAxis: {
+			type: 'value',
+			min: o.yMin,
+			max: o.yMax,
+			// A known maximum (100 %, total memory) gets four even steps.
+			interval: o.yMax ? o.yMax / 4 : undefined,
+			axisLabel: { formatter: (v: number) => o.format(v) }
+		},
+		series: o.lines.map((l, i) => ({
+			type: 'line',
+			name: l.name,
+			showSymbol: false,
+			connectNulls: false,
+			lineStyle: l.color ? { color: l.color, width: 1.75 } : { width: 1.75 },
+			itemStyle: l.color ? { color: l.color } : undefined,
+			areaStyle: l.area ? { color: l.color, opacity: 0.08 } : undefined,
+			data: o.timestamps.map((t, j) => [t, l.values[j] ?? null]),
+			markArea: i === 0 ? gapArea : undefined
+		}))
+	};
+}
+
+/**
+ * A time-series line chart with an exact time range, formatted values and
+ * shaded gaps (host metrics, #5). Lines never connect across nulls.
+ */
+export async function mountTimeSeries(
+	el: HTMLElement,
+	opts: TimeSeriesOptions
+): Promise<TimeSeriesChart> {
+	const { init, DOCKYARD_ECHARTS_THEME } = await import('./echarts');
+	const chart = init(el, DOCKYARD_ECHARTS_THEME, { renderer: 'canvas' });
+	chart.setOption(timeSeriesOption(opts));
+	return {
+		destroy: () => chart.dispose(),
+		update: (o) => chart.setOption(timeSeriesOption(o), { replaceMerge: ['series'] }),
+		resize: () => chart.resize()
+	};
+}
+
 export interface Sparkline extends Mounted {
 	update(values: (number | null)[]): void;
 }
