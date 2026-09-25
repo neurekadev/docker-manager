@@ -310,7 +310,7 @@
 				>Restart</Button
 			>
 		{/if}
-		{#if stoppedLike && can('stack.start') && current !== 'undeployed' && current !== 'down'}
+		{#if current === 'stopped' && can('stack.start')}
 			<Button icon={Play} disabled={offline} onclick={() => ask('start')}>Start</Button>
 		{:else if can('stack.stop') && !stoppedLike}
 			<Button

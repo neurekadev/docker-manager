@@ -7,6 +7,7 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { untrack } from 'svelte';
 	import Layers from '@lucide/svelte/icons/layers';
 	import { ApiRequestError } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
@@ -39,6 +40,16 @@
 	const environment = $derived(envs.data?.find((e) => e.id === s?.environmentId));
 	const title = $derived(s ? stackTitle(s) : 'Stack');
 	const tray = new JobTray();
+	// The layout stays mounted when another stack opens: start its tray empty.
+	let trayFor = '';
+	$effect(() => {
+		if (id === trayFor) return;
+		trayFor = id;
+		untrack(() => {
+			tray.jobs = [];
+			tray.finished = [];
+		});
+	});
 
 	provideStackPage({
 		get id() {
@@ -199,7 +210,7 @@
 
 		<JobTrayView {tray} />
 
-		{@render children()}
+		{#key id}{@render children()}{/key}
 	</div>
 {/if}
 
