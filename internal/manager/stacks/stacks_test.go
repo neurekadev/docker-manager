@@ -531,8 +531,8 @@ func TestImageStatusEligibility(t *testing.T) {
 	for _, v := range h.svc.ImageStatus(st) {
 		got[v.Service] = v
 	}
-	if !got["db"].Eligible || got["pinned"].Reason != stacks.IneligiblePinned || got["untagged"].Reason != stacks.IneligibleUntagged ||
-		got["built"].Reason != stacks.IneligibleBuildOnly {
+	if !got["db"].Eligible || got["pinned"].Reason != domain.UpdateReasonDigestPinned || got["untagged"].Reason != domain.UpdateReasonUntagged ||
+		got["built"].Reason != domain.UpdateReasonBuildOnly {
 		t.Errorf("image status %+v", got)
 	}
 }

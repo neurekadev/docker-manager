@@ -77,11 +77,34 @@ func (s *Service) createContainer(ctx context.Context, sc *jobexec.StepContext) 
 	if err := s.checkMounts(ctx, eng, spec.Mounts); err != nil {
 		return err
 	}
+	es := EngineSpec(spec, in.Ownership)
+	sc.Progress(ctx, 10, "creating container "+spec.Name)
+	id, warnings, err := eng.CreateContainer(ctx, es)
+	if err != nil {
+		if engine.CodeOf(err) == engine.CodeConflict {
+			return &OpError{Class: ClassNameTaken, Message: err.Error(), err: err,
+				recovery: "Another container already uses this name. Choose another name or remove the other container first."}
+		}
+		return engineErr(err)
+	}
+	msg := "created " + shortID(id)
+	if len(warnings) > 0 {
+		msg += "; Engine warnings: " + strings.Join(warnings, "; ")
+	}
+	sc.Item(ctx, spec.Name, domain.ItemSucceeded, bound(msg))
+	return nil
+}
+
+// EngineSpec converts a validated create-container form (#6) and the
+// DockYard ownership labels into the Engine adapter's specification. The
+// update of a managed standalone container (#20) recreates it from the
+// same saved form through this function.
+func EngineSpec(spec protocol.ContainerSpec, ownership map[string]string) engine.ContainerSpec {
 	labels := maps.Clone(spec.Labels)
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	maps.Copy(labels, in.Ownership)
+	maps.Copy(labels, ownership)
 	es := engine.ContainerSpec{Name: spec.Name, Image: spec.Image, Cmd: spec.Command, Entrypoint: spec.Entrypoint, Env: spec.Env,
 		Labels: labels, WorkingDir: spec.WorkingDir, User: spec.User, RestartPolicy: spec.RestartPolicy,
 		Resources: engine.Resources{NanoCPUs: spec.Resources.NanoCPUs, CPUShares: spec.Resources.CPUShares, Memory: spec.Resources.Memory,
@@ -98,21 +121,7 @@ func (s *Service) createContainer(ctx context.Context, sc *jobexec.StepContext) 
 	if h := spec.Healthcheck; h != nil {
 		es.Healthcheck = &engine.HealthcheckSpec{Test: h.Test, Interval: h.Interval, Timeout: h.Timeout, StartPeriod: h.StartPeriod, Retries: h.Retries}
 	}
-	sc.Progress(ctx, 10, "creating container "+spec.Name)
-	id, warnings, err := eng.CreateContainer(ctx, es)
-	if err != nil {
-		if engine.CodeOf(err) == engine.CodeConflict {
-			return &OpError{Class: ClassNameTaken, Message: err.Error(), err: err,
-				recovery: "Another container already uses this name. Choose another name or remove the other container first."}
-		}
-		return engineErr(err)
-	}
-	msg := "created " + shortID(id)
-	if len(warnings) > 0 {
-		msg += "; Engine warnings: " + strings.Join(warnings, "; ")
-	}
-	sc.Item(ctx, spec.Name, domain.ItemSucceeded, bound(msg))
-	return nil
+	return es
 }
 
 func (s *Service) connectNetworks(ctx context.Context, sc *jobexec.StepContext) error {

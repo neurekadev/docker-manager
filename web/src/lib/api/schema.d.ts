@@ -710,6 +710,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/containers/{containerId}/image-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a container's image status
+         * @description The container's image, applied digest and platform, whether it can follow its tag's digest (#20; only DockYard-managed standalone containers with a saved recreate specification) and its update policy's state.
+         */
+        get: operations["get-container-image-status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/containers/{containerId}/logs": {
         parameters: {
             query?: never;
@@ -2991,6 +3011,138 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/update-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List update policies
+         * @description Update policies opt a DockYard stack (all or selected services) or a DockYard-managed standalone container into digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, environment and target.
+         */
+        get: operations["list-update-policies"];
+        put?: never;
+        /**
+         * Create an update policy
+         * @description Opts a stack or a DockYard-managed standalone container (with a saved recreate specification) into digest-driven updates. One policy per target. Check and run schedules default to the instance's update_check/update_run defaults and are disabled until enabled: nothing is checked or updated automatically before. DockYard's own project and containers are refused (409 update_target_ineligible). 409 update_policy_target_used, update_policy_name_taken.
+         */
+        post: operations["create-update-policy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/update-policies/{policyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an update policy
+         * @description The policy with its schedules (next run, recent runs), candidate summary, quarantined digests and applied digest history (full view).
+         */
+        get: operations["get-update-policy"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete an update policy
+         * @description Removes the policy, its candidates, quarantine and history (the audit trail and job history stay). If-Match required.
+         */
+        delete: operations["delete-update-policy"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit an update policy
+         * @description Changes name, opted-in and excluded services, schedules (enable/disable, cron, zone), window and wait timeout. If-Match required. The target cannot change (create another policy).
+         */
+        patch: operations["update-update-policy"];
+        trace?: never;
+    };
+    "/api/v1/update-policies/{policyId}/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List update candidates
+         * @description The digest model per service (or the container): reference, platform, registry connection, current, previous and candidate digests, status, ineligibility reason, errors and recovery guidance. All candidates on one page.
+         */
+        get: operations["list-update-policy-candidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/update-policies/{policyId}/checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check for updates
+         * @description Starts an update.check job on the manager: each eligible candidate's tag is resolved through its registry connection (#19; cached, rate-limit aware; 401/403/429 recorded on the candidate, never retried in a loop) and its host-platform manifest digest compared with the digest applied on the host. Nothing is pulled; an index change that leaves the host-platform image unchanged is no update. For stacks the definition's hash is read before and after.
+         */
+        post: operations["create-update-policy-check"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/update-policies/{policyId}/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview an update run
+         * @description What a run would do now, from the latest check: services/containers to recreate with current and candidate digests, dependents restarted (restart: true), the dependency graph, expected downtime, other consumers of the same tags on the environment and source drift. Nothing changes.
+         */
+        post: operations["create-update-policy-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/update-policies/{policyId}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run an update
+         * @description Starts an update.run job on the environment's agent: pulls the unchanged tagged references (credentials per dispatch, #19), verifies the tag still names the checked candidate, then recreates what changed through the Compose SDK from exactly the applied definition bytes (dependency order and conditions, restart propagation, stopped services kept stopped) or from the container's saved specification, and confirms health. No automatic rollback: a failure quarantines the candidate. 409 no_update_candidates, update_source_drift (undeployed changes: deploy first), update_preview_stale.
+         */
+        post: operations["create-update-policy-run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users": {
         parameters: {
             query?: never;
@@ -3704,6 +3856,30 @@ export interface components {
             /** Format: int64 */
             timeoutSeconds?: number;
         };
+        ContainerImageStatus: {
+            candidateDigest?: string;
+            /** Format: date-time */
+            checkedAt?: string;
+            container: string;
+            /** @description Repository digest of the running image. */
+            digest?: string;
+            /** @description The container could follow its tag's digest (#20). */
+            eligible: boolean;
+            /** @description The saved reference of a DockYard-managed container, else the container's image. */
+            image: string;
+            imageId?: string;
+            /** @description A DockYard-managed standalone container with a saved recreate specification. */
+            managed: boolean;
+            nonVersionTag: boolean;
+            platform?: string;
+            /** @description The container's update policy. */
+            policyId?: string;
+            /** @enum {string} */
+            reason?: "build_only" | "digest_pinned" | "untagged" | "pull_policy_conflict" | "invalid_reference" | "protected" | "no_recreate_spec" | "stack_managed";
+            reasonMessage?: string;
+            /** @enum {string} */
+            update: "no_policy" | "ineligible" | "unchecked" | "up_to_date" | "update_available" | "quarantined" | "check_failed" | "run_failed";
+        };
         ContainerLogs: {
             /** @description Oldest first. */
             lines: components["schemas"]["LogLineDTO"][];
@@ -4040,6 +4216,27 @@ export interface components {
         CreateStackOutputBody: {
             stack: components["schemas"]["Stack"];
             validation: components["schemas"]["StackValidation"];
+        };
+        CreateUpdatePolicyInputBody: {
+            /** @description Default: the instance's update_check default, disabled. */
+            checkSchedule?: components["schemas"]["UpdateScheduleInput"];
+            environmentId: string;
+            excludeServices?: string[];
+            name: string;
+            /** @description Default: the instance's update_run default, disabled. */
+            runSchedule?: components["schemas"]["UpdateScheduleInput"];
+            /** @description Opt in only these services (default: every service). */
+            services?: string[];
+            target: components["schemas"]["UpdateTarget"];
+            /** Format: int64 */
+            waitTimeoutSeconds?: number;
+            window?: components["schemas"]["UpdateWindow"];
+        };
+        CreateUpdateRunInputBody: {
+            /** @description Candidate IDs or service names (default: every update available). */
+            candidates?: string[];
+            /** @description The preview's fingerprint: 409 update_preview_stale when anything changed since. */
+            previewFingerprint?: string;
         };
         CreateVolumeEntryInputBody: {
             /** @description Initial content of a new file (UTF-8). */
@@ -5571,6 +5768,28 @@ export interface components {
              */
             total?: number;
         };
+        PageUpdateCandidate: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["UpdateCandidate"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageUpdatePolicy: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["UpdatePolicy"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageVolume: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Volume"][];
@@ -5656,6 +5875,20 @@ export interface components {
             /** @enum {string} */
             requiredFactors?: "none" | "totp" | "passkey" | "either" | "both";
             strictPasswords?: boolean;
+        };
+        PatchUpdatePolicyInputBody: {
+            /** @description Replaces the whole schedule (cron and timeZone required). */
+            checkSchedule?: components["schemas"]["UpdateScheduleInput"];
+            /** @description Remove the update window. */
+            clearWindow?: boolean;
+            excludeServices?: string[];
+            name?: string;
+            /** @description Replaces the whole schedule (cron and timeZone required). */
+            runSchedule?: components["schemas"]["UpdateScheduleInput"];
+            services?: string[];
+            /** Format: int64 */
+            waitTimeoutSeconds?: number;
+            window?: components["schemas"]["UpdateWindow"];
         };
         PatchUserInputBody: {
             displayName?: string;
@@ -5758,6 +5991,10 @@ export interface components {
             paths?: string[];
             /** @description metadata: count recursively. */
             recursive?: boolean;
+        };
+        PreviewUpdateInputBody: {
+            /** @description Candidate IDs or service names (default: every update available). */
+            candidates?: string[];
         };
         PreviewVolumeInputBody: {
             /** @description Target directory (copy, move, upload, extract) or archive file (archive). */
@@ -6502,21 +6739,30 @@ export interface components {
         };
         StackImageStatus: {
             build: boolean;
+            /** @description The registry's newer host-platform digest (update_available, quarantined). */
+            candidateDigest?: string;
+            /** Format: date-time */
+            checkedAt?: string;
             /** @description Digest applied on this host by the last deploy (#20 baseline). */
             digest?: string;
             /** @description The service could follow its tag's digest (#20). */
             eligible: boolean;
             image: string;
             imageId?: string;
+            /** @description Eligible, but the tag (latest, main, ...) can change meaning. */
+            nonVersionTag: boolean;
             platform?: string;
+            /** @description The stack's update policy. */
+            policyId?: string;
             /** @enum {string} */
-            reason?: "build_only" | "digest_pinned" | "untagged";
+            reason?: "build_only" | "digest_pinned" | "untagged" | "pull_policy_conflict" | "invalid_reference";
+            reasonMessage?: string;
             service: string;
             /**
-             * @description Update state; unknown until digest checks (#20) exist.
+             * @description Update state of the service under the stack's update policy; no_policy when the stack has none.
              * @enum {string}
              */
-            update: "unknown";
+            update: "no_policy" | "ineligible" | "unchecked" | "up_to_date" | "update_available" | "quarantined" | "check_failed" | "run_failed";
         };
         StackIssue: {
             /** @description invalid_project, unsupported_compose_feature, obsolete_version, bind_outside_project, ... */
@@ -6820,6 +7066,51 @@ export interface components {
             /** @description Operator note; empty clears it. */
             label?: string;
         };
+        UpdateCandidate: {
+            /** @description The registry's host-platform manifest digest. */
+            candidateDigest?: string;
+            /** @description The tag's index digest (multi-platform images). */
+            candidateIndexDigest?: string;
+            checkJobId?: string;
+            /** Format: date-time */
+            checkedAt?: string;
+            /** @description Digest applied on the host. */
+            currentDigest?: string;
+            currentImageId?: string;
+            eligible: boolean;
+            /** @description unauthorized, forbidden, rate_limited, registry_unavailable, not_found, platform_not_found, ambiguous_registry_connection, registry_connection_revoked, or a run's job error class. */
+            errorClass?: string;
+            errorMessage?: string;
+            /** @description Manual recovery of a quarantined or failed candidate. */
+            guidance?: string;
+            id: string;
+            /** @description Eligible, but the tag (latest, main, ...) can change meaning. */
+            nonVersionTag: boolean;
+            /** @description Host platform checked (os/arch[/variant]). */
+            platform?: string;
+            /** @description Digest before the last update. */
+            previousDigest?: string;
+            /** @enum {string} */
+            reason?: "build_only" | "digest_pinned" | "untagged" | "pull_policy_conflict" | "invalid_reference" | "not_deployed" | "no_applied_digest" | "excluded" | "protected" | "no_recreate_spec" | "stack_managed";
+            /** @description Why it is ineligible, or the warning of a non-version tag. */
+            reasonMessage?: string;
+            /** @description The resolved tagged reference (never rewritten). */
+            reference: string;
+            registry?: string;
+            /** @description Connection used for the last check (metadata only). */
+            registryConnectionId?: string;
+            repository?: string;
+            /** Format: int64 */
+            retryAfterSeconds?: number;
+            /** @description Compose service name, or the container name. */
+            service: string;
+            sourceHashAfter?: string;
+            /** @description The stack's definition hash read before the last check. */
+            sourceHashBefore?: string;
+            /** @enum {string} */
+            status: "ineligible" | "unchecked" | "up_to_date" | "update_available" | "quarantined" | "check_failed" | "run_failed";
+            tag?: string;
+        };
         UpdateDefinitionInputBody: {
             description?: string;
             name?: string;
@@ -6854,6 +7145,21 @@ export interface components {
         UpdateGroupInputBody: {
             name?: string;
         };
+        UpdateHistoryEntry: {
+            /** Format: date-time */
+            at: string;
+            errorClass?: string;
+            fromDigest?: string;
+            jobId?: string;
+            /** @enum {string} */
+            outcome: "updated" | "unchanged" | "kept_stopped" | "failed";
+            reference: string;
+            registryConnectionId?: string;
+            service: string;
+            sourceHashAfter?: string;
+            sourceHashBefore?: string;
+            toDigest?: string;
+        };
         UpdateMaintenanceDefaultsInputBody: {
             /** @description Each rule given replaces the default of its category. */
             rules: components["schemas"]["MaintenanceRule"][];
@@ -6864,6 +7170,90 @@ export interface components {
             /** @description Each rule given replaces the rule of its category (send the whole rule). */
             rules?: components["schemas"]["MaintenanceRule"][];
             schedule?: components["schemas"]["MaintenanceScheduleInput"];
+        };
+        UpdatePolicy: {
+            actions: string[];
+            checkSchedule?: components["schemas"]["UpdateSchedule"];
+            /** Format: date-time */
+            createdAt?: string;
+            environmentId: string;
+            /** @description Services never updated. Full view. */
+            excludeServices?: string[];
+            id: string;
+            name: string;
+            /** @description Quarantined candidate digests (never applied automatically). Full view. */
+            quarantine?: components["schemas"]["UpdateQuarantined"][];
+            /** @description Newest first (at most 20). Full view. */
+            recentHistory?: components["schemas"]["UpdateHistoryEntry"][];
+            /** Format: int64 */
+            revision?: number;
+            runSchedule?: components["schemas"]["UpdateSchedule"];
+            /** @description Opted-in services (empty: every service of the stack). Full view. */
+            services?: string[];
+            summary?: components["schemas"]["UpdatePolicySummary"];
+            target: components["schemas"]["UpdateTarget"];
+            /** Format: date-time */
+            updatedAt?: string;
+            /** @enum {string} */
+            view: "minimal" | "full";
+            /** Format: int64 */
+            waitTimeoutSeconds?: number;
+            window?: components["schemas"]["UpdateWindow"];
+        };
+        UpdatePolicySummary: {
+            /** Format: int64 */
+            available: number;
+            /**
+             * Format: int64
+             * @description check_failed and run_failed candidates.
+             */
+            failed: number;
+            /** Format: int64 */
+            ineligible: number;
+            /** Format: date-time */
+            lastCheckAt?: string;
+            /** Format: int64 */
+            quarantined: number;
+            /** Format: int64 */
+            unchecked: number;
+            /** Format: int64 */
+            upToDate: number;
+        };
+        UpdatePreview: {
+            /** @description The stack's dependency graph (as deployed). */
+            dependencies: components["schemas"]["UpdateServiceDependency"][];
+            /** @description Send as previewFingerprint to refuse the run when anything changed since. */
+            fingerprint: string;
+            /** @description Now is inside the policy's update window (scheduled runs only run inside it). */
+            inWindow: boolean;
+            items: components["schemas"]["UpdatePreviewItem"][];
+            notes: string[];
+            policyId: string;
+            /** @description Running dependents restarted with an updated service (depends_on restart: true). */
+            restarted: string[];
+            /** @description Other consumers of the tags on this environment: the pull moves the tag for them too; they pick up the new image at their next recreate. */
+            sharedTag: components["schemas"]["UpdateSharedConsumer"][];
+            /** @description Candidates left out, with their status and reason. */
+            skipped: components["schemas"]["UpdateCandidate"][];
+            /** @description The definition on disk differs from the applied revision: the run is refused until the stack is deployed. */
+            sourceDrift: boolean;
+            /** @description The applied revision's hash the definition on disk must have. */
+            sourceHash?: string;
+        };
+        UpdatePreviewItem: {
+            candidate: components["schemas"]["UpdateCandidate"];
+            /** @description Expected interruption. */
+            downtime: string;
+            /** @description It runs now (last observed state). */
+            running: boolean;
+        };
+        UpdateQuarantined: {
+            /** Format: date-time */
+            createdAt: string;
+            digest: string;
+            errorClass?: string;
+            jobId?: string;
+            service: string;
         };
         UpdateRegistryInputBody: {
             /** @description Empty removes the binding. */
@@ -6882,6 +7272,40 @@ export interface components {
              */
             status?: "revoked";
         };
+        UpdateSchedule: {
+            cron: string;
+            enabled: boolean;
+            invalidReason?: string;
+            nextRun?: components["schemas"]["ScheduleRunTime"];
+            /** @description Newest first (at most 5). */
+            recentRuns: components["schemas"]["ScheduleRun"][];
+            timeZone: string;
+        };
+        UpdateScheduleInput: {
+            /**
+             * @description Five-field cron expression; default: the instance default of the kind.
+             * @example 0 3 * * *
+             */
+            cron?: string;
+            /** @description Automatic checks/updates happen only when enabled (default false). */
+            enabled: boolean;
+            /**
+             * @description IANA time zone; default: the instance default.
+             * @example Europe/Berlin
+             */
+            timeZone?: string;
+        };
+        UpdateServiceDependency: {
+            dependsOn: components["schemas"]["StackDependency"][];
+            service: string;
+        };
+        UpdateSharedConsumer: {
+            container?: string;
+            reference: string;
+            service?: string;
+            stackId?: string;
+            stackName?: string;
+        };
         UpdateStackInputBody: {
             description?: string;
             displayName?: string;
@@ -6891,6 +7315,26 @@ export interface components {
             services?: {
                 [key: string]: components["schemas"]["StackServiceMetaBody"];
             };
+        };
+        UpdateTarget: {
+            /** @description Stack ID or container name (in the policy's environment). */
+            id: string;
+            /**
+             * @description stack: a DockYard stack's services; container: a DockYard-managed standalone container with a saved recreate specification.
+             * @enum {string}
+             */
+            type: "stack" | "container";
+        };
+        UpdateWindow: {
+            /** @description Days of the week, 0 (Sunday) to 6; empty: every day. */
+            days?: number[];
+            /**
+             * @description Exclusive; before start spans midnight.
+             * @example 05:00
+             */
+            end: string;
+            /** @example 02:00 */
+            start: string;
         };
         ValidateStackInputBody: {
             /** @description Required: compose.yaml content. */
@@ -10479,6 +10923,76 @@ export interface operations {
             };
             /** @description Gateway Timeout */
             504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-container-image-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+                /** @description Container name, ID or unique ID prefix. */
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContainerImageStatus"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -22669,6 +23183,794 @@ export interface operations {
             };
             /** @description Gateway Timeout */
             504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-update-policies": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Only policies of this environment. */
+                environmentId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageUpdatePolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-update-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUpdatePolicyInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdatePolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-update-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Update policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdatePolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-update-policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Update policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-update-policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Update policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchUpdatePolicyInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdatePolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-update-policy-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Update policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageUpdateCandidate"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-update-policy-check": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Update policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-update-policy-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Update policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewUpdateInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdatePreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-update-policy-run": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Update policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUpdateRunInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

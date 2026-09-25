@@ -175,8 +175,15 @@ type StackImageView struct {
 	Platform string
 	Build    bool
 	Eligible bool
-	// Reason explains ineligibility: build_only, digest_pinned, untagged.
-	Reason string
+	// Reason explains ineligibility (domain.UpdateReason*: build_only,
+	// digest_pinned, untagged, pull_policy_conflict, invalid_reference);
+	// ReasonMessage in plain language (also the warning of an eligible
+	// non-version tag).
+	Reason        string
+	ReasonMessage string
+	// NonVersionTag: eligible, but the tag ("latest", "main") can change
+	// meaning.
+	NonVersionTag bool
 }
 
 // StackRestore is the outcome of a revision restore.

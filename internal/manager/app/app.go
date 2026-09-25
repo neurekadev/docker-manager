@@ -58,6 +58,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/server"
 	"github.com/neurekadev/dockyard/internal/manager/stacks"
 	"github.com/neurekadev/dockyard/internal/manager/store"
+	"github.com/neurekadev/dockyard/internal/manager/updates"
 	"github.com/neurekadev/dockyard/internal/protocol"
 	"github.com/neurekadev/dockyard/internal/selfid"
 )
@@ -135,6 +136,7 @@ type Manager struct {
 	maint     *maintenance.Service
 	// migrations moves stacks and volumes between environments (#35).
 	migrations *envmigrations.Service
+	updates    *updates.Service
 }
 
 // ErrSecretKeyMissing means the database belongs to an existing installation
@@ -351,6 +353,15 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		m.jobs.Close()
 		return nil, err
 	}
+	// Digest-driven updates (#20): the update.check executor and the
+	// update.run/stack.deploy finish hooks (before recovery), the check and
+	// run schedule sources and the policy Locator.
+	if m.updates, err = updates.New(updates.Options{DB: db, Clock: opts.Clock, Logger: log.With("component", "updates"),
+		Jobs: m.jobs, Stacks: m.stacks, Registries: m.regs, Agents: m.agents.Hub(), Environments: m.agents, Audit: m.audit,
+		ForgetResource: m.perms.ForgetResource}); err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
 	if err := m.sched.Register(scheduler.KindPrune, m.maint.PolicySource()); err != nil {
 		m.jobs.Close()
 		return nil, err
@@ -377,6 +388,11 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		m.jobs.Close()
 		return nil, err
 	}
+	if err := m.updates.Register(m.sched); err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
+	m.perms.RegisterLocator(catalog.TypeUpdatePolicy, m.updates.Locator())
 	if err := m.jobs.Recover(ctx); err != nil {
 		m.jobs.Close()
 		return nil, fmt.Errorf("recover jobs: %w", err)
@@ -470,6 +486,9 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	m.stacks.SetProtection(m.resources)
 	// Prune runs protect what saved container specifications reference (#14).
 	m.maint.SetSpecs(m.resources)
+	// Container update policies read containers, saved recreate
+	// specifications and protection through the resource service (#6, #32).
+	m.updates.SetResources(m.resources)
 	hub.AddReconciler(func(ctx context.Context, s *agents.Session) error {
 		// Self-protection (#32): the agent learns which manager it serves
 		// and which container is that manager (co-located or not).
@@ -519,6 +538,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Schedules:      m.sched,
 			Maintenance:    m.maint,
 			Migrations:     m.migrations,
+			Updates:        m.updates,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -674,6 +694,9 @@ func (m *Manager) Maintenance() *maintenance.Service { return m.maint }
 
 // Migrations returns the environment migration service (#35).
 func (m *Manager) Migrations() *envmigrations.Service { return m.migrations }
+
+// Updates returns the digest-driven update service (#20).
+func (m *Manager) Updates() *updates.Service { return m.updates }
 
 // Events returns the internal event bus.
 func (m *Manager) Events() *events.Bus { return m.events }

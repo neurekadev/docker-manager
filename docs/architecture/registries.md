@@ -152,4 +152,7 @@ owner-only, API tokens refused, audit, whole-database canary scan).
 
 Integration (`-tags integration`, extended workflow `compose-fixtures`):
 `TestRegistryConnectionAgainstRegistryFixture` (registry fixture with fault
-proxy and two DinD Engines).
+proxy and two DinD Engines), `TestRegistryAutomaticUpdateOnTwoAgents`
+(internal/manager/updates: Compose deployment and a scheduled digest
+update of a private image on two Engines, #20) and
+`TestComposeDigestUpdateFromPrivateRegistry` (internal/agent/stacks).

@@ -271,7 +271,7 @@ func New(opts Options) (*Agent, error) {
 	}
 	// Compose stacks (#7): the compose.* requests and stack.* executors run
 	// on the live Engine/Compose adapters and the verified storage roots.
-	st := stacks.New(stacks.Options{Deps: stackDeps{a}, Clock: opts.Clock, Logger: opts.Logger.With("component", "stacks")})
+	st := stacks.New(stacks.Options{Deps: stackDeps{a}, Clock: opts.Clock, Logger: opts.Logger.With("component", "stacks"), Guard: a.guard})
 	own := map[domain.JobKind]bool{}
 	for _, x := range a.opts.Executors {
 		own[x.Kind] = true

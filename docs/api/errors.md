@@ -136,6 +136,12 @@ same change.
 | `migration_not_completed` | 409 | no | The source of a stack migration can be removed only after the migration completed. | #35 |
 | `migration_source_removed` | 409 | no | The migration's source was already removed. | #35 |
 | `migration_source_in_use` | 409 | no | A DockYard stack on the source environment manages the migrated project again (it was imported back); its files are not removed. | #35 |
+| `update_policy_target_used` | 409 | no | The stack or container already has an update policy (one per target); edit that policy. | #20 |
+| `update_policy_name_taken` | 409 | no | Another update policy in the environment already uses this name. | #20 |
+| `update_target_ineligible` | 409 | no | The target cannot follow digests: DockYard's own project or containers (#32), a container without a saved recreate specification, or a stack member; the message says which. | #20 |
+| `no_update_candidates` | 409 | no | Nothing to update: no checked candidate with a new host-platform digest (run a check first; quarantined and failed candidates are not applied). | #20 |
+| `update_source_drift` | 409 | no | The stack's definition on disk differs from the applied revision (undeployed changes); deploy it first. An update never deploys an edit or writes a file. | #20 |
+| `update_preview_stale` | 409 | no | The candidates, digests or the stack's definition changed since the given preview; preview again. | #20 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `length_required` | 411 | no | Uploads need a `Content-Length` header. | #15 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |

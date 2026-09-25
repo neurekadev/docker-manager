@@ -75,10 +75,11 @@ type dependencyJSON struct {
 }
 
 type serviceDefJSON struct {
-	Name      string           `json:"name"`
-	Image     string           `json:"image"`
-	Build     bool             `json:"build,omitempty"`
-	DependsOn []dependencyJSON `json:"dependsOn,omitempty"`
+	Name       string           `json:"name"`
+	Image      string           `json:"image"`
+	Build      bool             `json:"build,omitempty"`
+	DependsOn  []dependencyJSON `json:"dependsOn,omitempty"`
+	PullPolicy string           `json:"pullPolicy,omitempty"`
 }
 
 type imageJSON struct {
@@ -133,7 +134,7 @@ func fromStack(s *domain.Stack) stackRow {
 	}
 	services := make([]serviceDefJSON, 0, len(s.Services))
 	for _, sv := range s.Services {
-		d := serviceDefJSON{Name: sv.Name, Image: sv.Image, Build: sv.Build}
+		d := serviceDefJSON{Name: sv.Name, Image: sv.Image, Build: sv.Build, PullPolicy: sv.PullPolicy}
 		for _, dep := range sv.DependsOn {
 			d.DependsOn = append(d.DependsOn, dependencyJSON(dep))
 		}
@@ -215,7 +216,7 @@ func (r stackRow) toDomain() domain.Stack {
 	var services []serviceDefJSON
 	_ = json.Unmarshal([]byte(r.Services), &services)
 	for _, sv := range services {
-		d := domain.StackServiceDef{Name: sv.Name, Image: sv.Image, Build: sv.Build}
+		d := domain.StackServiceDef{Name: sv.Name, Image: sv.Image, Build: sv.Build, PullPolicy: sv.PullPolicy}
 		for _, dep := range sv.DependsOn {
 			d.DependsOn = append(d.DependsOn, domain.StackDependency(dep))
 		}

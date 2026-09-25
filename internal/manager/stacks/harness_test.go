@@ -128,6 +128,13 @@ func (f *fakeComposer) Build(ctx context.Context, p *compose.Project, o compose.
 	return nil
 }
 
+func (f *fakeComposer) Create(_ context.Context, p *compose.Project, o compose.CreateOptions) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "create:"+p.Name+":"+strings.Join(o.Services, ","))
+	return nil
+}
+
 func (f *fakeComposer) Builds() []compose.BuildOptions {
 	f.mu.Lock()
 	defer f.mu.Unlock()

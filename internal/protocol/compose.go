@@ -227,6 +227,9 @@ type ComposeService struct {
 	// .icon labels; the manager imports them as display metadata once.
 	Description string `json:"description,omitempty"`
 	Icon        string `json:"icon,omitempty"`
+	// PullPolicy is the service's pull_policy (empty: Compose's default,
+	// missing); #20 refuses policies that conflict with digest updates.
+	PullPolicy string `json:"pullPolicy,omitempty"`
 }
 
 // ComposeBind is a resolved bind-mount source (#7, #10).

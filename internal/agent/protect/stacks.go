@@ -17,6 +17,9 @@ import (
 var stackActions = map[domain.JobKind]protection.Action{
 	jobspec.StackDeploy: protection.Deploy, jobspec.StackUpdate: protection.Deploy, jobspec.StackStop: protection.Stop,
 	jobspec.StackRestart: protection.Restart, jobspec.StackDown: protection.Down, jobspec.StackRemove: protection.Down,
+	// Stack updates (#20); standalone container updates carry no stack and
+	// are checked by the executor itself.
+	jobspec.UpdateRun: protection.Deploy,
 }
 
 // GuardStacks wraps every step of the stack executors (#7) so the agent

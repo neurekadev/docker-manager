@@ -39,8 +39,15 @@ type rig struct {
 
 func newRig(t *testing.T) *rig {
 	t.Helper()
+	return newRigWith(t, testharness.EngineOptions{})
+}
+
+// newRigWith starts the rig's Engine with opts (e.g. a registry fixture's
+// EngineOptions).
+func newRigWith(t *testing.T, opts testharness.EngineOptions) *rig {
+	t.Helper()
 	img := testharness.AgentImage(t)
-	e := testharness.StartEngine(t, testharness.EngineOptions{})
+	e := testharness.StartEngine(t, opts)
 	e.LoadWorkload(t)
 	e.LoadHostImage(t, img)
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)

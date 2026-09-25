@@ -101,6 +101,8 @@ type StackServiceDef struct {
 	Image     string
 	Build     bool
 	DependsOn []StackDependency
+	// PullPolicy is the service's Compose pull_policy ("" = missing).
+	PullPolicy string
 }
 
 // StackImage is the image a service runs after a deploy (#20 baseline).

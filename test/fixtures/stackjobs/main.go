@@ -9,14 +9,18 @@
 // (outcome, error, output) as one JSON line and exits 0 when the job
 // succeeded, 1 otherwise.
 //
-//	stackjobs KIND NAME [SERVICE...]   KIND: stack.deploy, stack.start, stack.stop, stack.restart, stack.down, stack.build
+//	stackjobs KIND NAME [SERVICE...]   KIND: stack.deploy, stack.start, stack.stop, stack.restart, stack.down, stack.build, update.run
 //	stackjobs read NAME                 print compose.read's output
 //
 // Environment: DOCKER_HOST, DOCKYARD_STACKS_VOLUME, STACKJOBS_BUILD=1
 // (rebuild build sections), STACKJOBS_NO_CACHE=1 (build without cache),
 // STACKJOBS_WAIT_TIMEOUT (dependency waits), STACKJOBS_CANCEL_AFTER
 // (request cancellation of the job after this duration, as a cancel
-// frame from the manager would).
+// frame from the manager would), STACKJOBS_INPUT (the job input as JSON,
+// replacing the one built from the arguments: update.run, deploys naming
+// registry connections), STACKJOBS_SECRETS (the command's secrets as JSON,
+// protocol.CommandSecrets, as the manager sends them per dispatch; test
+// credentials only).
 package main
 
 import (
@@ -103,8 +107,18 @@ func main() {
 		fmt.Println(string(mustJSON(out)))
 		return
 	}
-	in := protocol.StackJobInput{StackID: name, Stack: ref, Services: os.Args[3:], Build: os.Getenv("STACKJOBS_BUILD") == "1",
-		NoCache: os.Getenv("STACKJOBS_NO_CACHE") == "1"}
+	var input json.RawMessage = mustJSON(protocol.StackJobInput{StackID: name, Stack: ref, Services: os.Args[3:],
+		Build: os.Getenv("STACKJOBS_BUILD") == "1", NoCache: os.Getenv("STACKJOBS_NO_CACHE") == "1"})
+	if v := os.Getenv("STACKJOBS_INPUT"); v != "" {
+		input = json.RawMessage(v)
+	}
+	var secrets *protocol.CommandSecrets
+	if v := os.Getenv("STACKJOBS_SECRETS"); v != "" {
+		secrets = &protocol.CommandSecrets{}
+		if err := json.Unmarshal([]byte(v), secrets); err != nil {
+			fail("STACKJOBS_SECRETS: %v", err)
+		}
+	}
 	cancelRequested := func() bool { return false }
 	if v := os.Getenv("STACKJOBS_CANCEL_AFTER"); v != "" {
 		d, err := time.ParseDuration(v)
@@ -123,7 +137,7 @@ func main() {
 	if exec == nil {
 		fail("unknown kind %s", kind)
 	}
-	st := &jobexec.State{JobID: "stackjobs-" + name, Attempt: 1, FencingToken: 1, Kind: domain.JobKind(kind), Input: mustJSON(in)}
+	st := &jobexec.State{JobID: "stackjobs-" + name, Attempt: 1, FencingToken: 1, Kind: domain.JobKind(kind), Input: input, Secrets: secrets}
 	result, err := jobexec.Run(ctx, *exec, st, jobexec.Options{Journal: journal{}, FaultPrefix: "agent",
 		CancelRequested: cancelRequested})
 	if err != nil {

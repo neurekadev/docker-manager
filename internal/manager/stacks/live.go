@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/neurekadev/dockyard/internal/domain"
+	"github.com/neurekadev/dockyard/internal/manager/updates/eligible"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
 
@@ -182,52 +183,35 @@ func drift(st domain.Stack, sv domain.StackServiceView) []string {
 	return out
 }
 
-// Image eligibility for digest-driven updates (#20).
-const (
-	EligibleUnknown     = ""
-	IneligibleBuildOnly = "build_only"
-	IneligiblePinned    = "digest_pinned"
-	IneligibleUntagged  = "untagged"
-)
-
 // ImageStatus returns the applied images of the last deploy and whether
-// each could follow its tag's digest (#20). Services never deployed by
-// DockYard report their definition's image only.
+// each could follow its tag's digest (#20, internal/manager/updates/
+// eligible). Services never deployed by DockYard report their
+// definition's image only.
 func (s *Service) ImageStatus(st domain.Stack) []domain.StackImageView {
 	out := []domain.StackImageView{}
 	seen := map[string]bool{}
+	policy := map[string]string{}
+	for _, d := range st.Services {
+		policy[d.Name] = d.PullPolicy
+	}
 	for _, i := range st.Images {
 		seen[i.Service] = true
 		out = append(out, imageView(domain.StackImageView{Service: i.Service, Image: i.Image, ImageID: i.ImageID, Digest: i.Digest,
-			Platform: i.Platform, Build: i.Build}))
+			Platform: i.Platform, Build: i.Build}, policy[i.Service]))
 	}
 	for _, d := range st.Services {
 		if !seen[d.Name] {
-			out = append(out, imageView(domain.StackImageView{Service: d.Name, Image: d.Image, Build: d.Build}))
+			out = append(out, imageView(domain.StackImageView{Service: d.Name, Image: d.Image, Build: d.Build}, d.PullPolicy))
 		}
 	}
 	slices.SortFunc(out, func(a, b domain.StackImageView) int { return strings.Compare(a.Service, b.Service) })
 	return out
 }
 
-func imageView(v domain.StackImageView) domain.StackImageView {
-	switch {
-	case v.Build:
-		v.Reason = IneligibleBuildOnly
-	case strings.Contains(v.Image, "@"):
-		v.Reason = IneligiblePinned
-	case !hasTag(v.Image):
-		v.Reason = IneligibleUntagged
-	default:
-		v.Eligible = true
-	}
+func imageView(v domain.StackImageView, pullPolicy string) domain.StackImageView {
+	r := eligible.Check(eligible.Subject{Reference: v.Image, Build: v.Build, PullPolicy: pullPolicy})
+	v.Eligible, v.Reason, v.ReasonMessage, v.NonVersionTag = r.Eligible, r.Reason, r.Message, r.NonVersionTag
 	return v
-}
-
-// hasTag reports whether a reference names an explicit tag.
-func hasTag(ref string) bool {
-	slash := strings.LastIndex(ref, "/")
-	return strings.LastIndex(ref, ":") > slash
 }
 
 // containersOf converts the agent's container list.

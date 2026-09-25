@@ -155,8 +155,8 @@ S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
 | `stack.start` | agent | `stack.start` | `host` S (each environment)<br>`stack` **X** (stack targets) | `start` (i,c) | 10m | — | — | — |
 | `stack.stop` | agent | `stack.stop` | `host` S (each environment)<br>`stack` **X** (stack targets) | `stop` (i,c) | 10m | — | — | — |
 | `stack.update` | agent | `stack.update` | `host` S (each environment)<br>`stack` **X** (stack targets) | `pull_images` (i,c) → `apply` (i,c) | 30m | pull | — | — |
-| `update.check` | manager | `update.check` | `stack` S (stack targets) | `check` (i,c) | — | — | — | resume |
-| `update.run` | agent | `update.run` | `host` S (each environment)<br>`stack` **X** (stack targets) | `pull_images` (i,c) → `recreate` (i,c) → `wait_healthy` (i) | 1h | pull | — | — |
+| `update.check` | manager | `update.check` | `host` S (each environment)<br>`stack` S (stack targets, optional)<br>`container` S (container targets, optional) | `check` (i,c) | — | — | — | resume |
+| `update.run` | agent | `update.run` | `host` S (each environment)<br>`stack` **X** (stack targets, optional)<br>`container` **X** (container targets, optional) | `pull_images` (i,c) → `recreate` (i,c) → `wait_healthy` (i) | 1h | pull | — | — |
 | `volume.create` | agent | `volume.create` | `host` S (each environment)<br>`volume` **X** (volume targets) | `create` (i,c) | 10m | — | — | — |
 | `volume.migrate` | manager | `volume.migrate` | `host` S (each environment)<br>`volume` **X** (volume targets) | `prepare` (i,c) → `transfer` (i,c) → `finalize` (i) | — | — | — | interrupt |
 | `volume.remove` | agent | `volume.remove` | `host` S (each environment)<br>`volume` **X** (volume targets) | `remove` (i,c) | 10m | — | — | — |
