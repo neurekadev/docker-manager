@@ -36,6 +36,8 @@ export { default as TabNav } from './TabNav.svelte';
 export type { TabLink } from './TabNav.svelte';
 export { default as Breadcrumbs } from './Breadcrumbs.svelte';
 export type { Crumb } from './Breadcrumbs.svelte';
+export { default as DiffView } from './DiffView.svelte';
+export { diffText, diffLines, splitLines, type DiffResult, type DiffLine } from './diff';
 export { default as Skeleton } from './Skeleton.svelte';
 export { default as Spinner } from './Spinner.svelte';
 

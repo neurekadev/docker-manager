@@ -50,6 +50,18 @@ func (s *Service) StackFileRoot(ctx context.Context, stackID string) (files.Stac
 	return files.StackRoot{EnvironmentID: st.EnvironmentID, Dir: path.Join(root, st.Dir)}, nil
 }
 
+// HostPath is the stack's project directory on the host (#22: the stack
+// header shows the logical location "environment · stack" with this path
+// on hover). It needs the agent's last reported stacks root for stacks in
+// the stacks volume.
+func (s *Service) HostPath(ctx context.Context, stackID string) (string, error) {
+	r, err := s.StackFileRoot(ctx, stackID)
+	if err != nil {
+		return "", err
+	}
+	return r.Dir, nil
+}
+
 // errNoStacksRoot: the environment's agent has not reported a verified
 // stacks volume.
 var errNoStacksRoot = &domain.StackError{Code: domain.StackErrRootUnavailable,

@@ -116,6 +116,14 @@ every reconnect the reconciler re-reads every stack of the environment in
 the background: edits made while it was offline become `external`
 revisions and the Engine state is refreshed.
 
+### Location in the UI (#22)
+
+The stack header shows the logical location "environment · stack". `GET
+/stacks/{stackId}` adds the project directory's host path
+(`location.hostPath`, resolved from the agent's reported stacks root) for
+callers with `stack.definition.read`, the same rule as bind sources; lists
+never carry it.
+
 ## Discovery and import
 
 `GET /environments/{id}/stacks/discovered` (`stack.import`) lists the

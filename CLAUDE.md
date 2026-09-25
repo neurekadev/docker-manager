@@ -611,8 +611,10 @@ Guides: `docs/design/README.md` (tokens, components, copy, a11y),
   `$lib/routes.ts`. Call `usePage({ title, crumbs, environmentScoped })`;
   lists filter by `environmentSelection.id` (null = all). Feature view
   models and components live in `$lib/features/<area>/` (pure `*.ts` with
-  `*.spec.ts`); only generic pieces go to `$lib/ui`. The environment route
-  parameter is `[environmentId]` (`routes/(app)/environments/[environmentId]`);
+  `*.spec.ts`); only generic pieces go to `$lib/ui` (stacks:
+  `$lib/features/stacks/` with `stackKeys`, `model.ts`, `actions.ts`).
+  The environment route parameter is `[environmentId]`
+  (`routes/(app)/environments/[environmentId]`);
   Docker object pages below it must use the same name.
 - **Charts:** `TimeSeriesChart` for metric responses (nulls are breaks,
   gaps shaded and listed as text), `Sparkline` in KPI cards; metric queries
