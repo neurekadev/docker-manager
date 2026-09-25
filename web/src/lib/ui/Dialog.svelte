@@ -7,6 +7,7 @@
 	import X from '@lucide/svelte/icons/x';
 	import { AlertDialog, Dialog } from 'bits-ui';
 	import IconButton from './IconButton.svelte';
+	import { claimDialogLayer } from './layers';
 
 	interface Props {
 		open?: boolean;
@@ -44,6 +45,17 @@
 		}
 	});
 
+	// A dialog opened over another one (the step-up check over the dialog
+	// that needs it) paints above it, whatever the DOM order (layers.ts).
+	let layer = $state(0);
+	$effect.pre(() => {
+		if (!open) return;
+		const claim = claimDialogLayer();
+		layer = claim.layer;
+		return claim.release;
+	});
+	const layerStyle = $derived(`--dy-layer: ${layer}`);
+
 	function onOpenChange(o: boolean) {
 		if (!o) onclose?.();
 	}
@@ -60,9 +72,10 @@
 		</D.Trigger>
 	{/if}
 	<D.Portal>
-		<D.Overlay class="dy-overlay" />
+		<D.Overlay class="dy-overlay" style={layerStyle} />
 		<D.Content
 			class="dy-dialog {size}"
+			style={layerStyle}
 			onEscapeKeydown={(e) => {
 				if (!dismissible) e.preventDefault();
 			}}
@@ -107,7 +120,7 @@
 	:global(.dy-overlay) {
 		position: fixed;
 		inset: 0;
-		z-index: var(--z-dialog);
+		z-index: calc(var(--z-dialog) + var(--dy-layer, 0));
 		background: var(--surface-overlay);
 	}
 
@@ -119,7 +132,7 @@
 		position: fixed;
 		top: 50%;
 		left: 50%;
-		z-index: var(--z-dialog);
+		z-index: calc(var(--z-dialog) + var(--dy-layer, 0));
 		display: flex;
 		flex-direction: column;
 		width: calc(100vw - 32px);

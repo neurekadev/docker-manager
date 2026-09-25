@@ -22,6 +22,8 @@
 		/** Why it matters, shown above the secret. */
 		description?: string;
 		confirmLabel?: string;
+		/** The confirmation checkbox; default "I stored the {label} somewhere safe". */
+		acknowledgeLabel?: string;
 		onconfirm: () => void;
 	}
 
@@ -32,6 +34,7 @@
 		fingerprint,
 		description,
 		confirmLabel = 'Continue',
+		acknowledgeLabel,
 		onconfirm
 	}: Props = $props();
 
@@ -75,7 +78,10 @@
 		{#if fingerprint}
 			<p class="fingerprint">Fingerprint <span class="mono">{fingerprint}</span></p>
 		{/if}
-		<Checkbox bind:checked={stored} label="I stored the {label} somewhere safe" />
+		<Checkbox
+			bind:checked={stored}
+			label={acknowledgeLabel ?? `I stored the ${label} somewhere safe`}
+		/>
 		<div class="continue">
 			<Button variant="primary" disabled={!stored} onclick={confirm}>{confirmLabel}</Button>
 		</div>

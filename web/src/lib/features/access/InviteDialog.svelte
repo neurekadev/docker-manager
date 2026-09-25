@@ -1,8 +1,9 @@
 <script lang="ts">
-	// Invite a user (#16): a single-use invitation link, shown once (DockYard
-	// keeps a verifier, not the code), optionally bound to an email address,
-	// expiring after the chosen hours. No email is sent: hand it over
-	// yourself. The new account joins the default group.
+	// Invite a user (#16): one click creates a single-use invite link, shown
+	// once (DockYard keeps a verifier, not the code). The person opens it and
+	// registers their own account, which joins the default group. Options:
+	// bind the link to an email address, change its expiry. No email is
+	// sent: hand the link over yourself.
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { api, unwrap, type Schema } from '$lib/api/client';
 	import { withStepUp } from '$lib/auth/stepup.svelte';
@@ -17,6 +18,7 @@
 	} from '$lib/ui';
 	import { newIdempotencyKey } from '$lib/features/common/data';
 	import { actionError, fieldErrors } from '$lib/features/common/errors';
+	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import Fields from '$lib/features/common/Fields.svelte';
 	import { accessKeys } from './queries';
 
@@ -67,51 +69,55 @@
 	}
 
 	const fields = $derived(fieldErrors(error));
+	const optionError = $derived(!!(fields['body.email'] || fields['body.expiresInHours']));
 </script>
 
 <Dialog
 	bind:open
 	title="Invite a user"
-	description="The link works once. The new account joins {defaultGroupName ??
+	description="Creates a link that registers one account. The account joins {defaultGroupName ??
 		'the default group'}."
 	dismissible={!issued}
 >
 	{#if issued}
 		<SecretReveal
 			secret={issued.url}
-			label="invitation link"
-			filename="dockyard-invitation.txt"
-			description="Send this link to the person you invite. It expires {formatDateTime(
+			label="invite link"
+			filename="dockyard-invite-link.txt"
+			description="Send this link to the person you invite: it opens a form to create their account. It works once and expires {formatDateTime(
 				issued.expiresAt
 			)}{issued.invitation.email
-				? ` and only works for ${issued.invitation.email}`
-				: ''}. DockYard sends no email and cannot show it again."
+				? `, only for ${issued.invitation.email}`
+				: ''}. DockYard sends no email and cannot show the link again."
+			acknowledgeLabel="I copied or sent the invite link"
 			confirmLabel="Done"
 			onconfirm={() => {
-				toast.success('Created the invitation');
+				toast.success('Created the invite link');
 				open = false;
 			}}
 		/>
 	{:else}
 		<form id="invite-form" onsubmit={create} novalidate>
 			<Fields>
-				<TextField
-					label="Email"
-					type="email"
-					bind:value={email}
-					description="Optional. Only this address can redeem the invitation; nothing is sent to it."
-					error={fields['body.email']}
-				/>
-				<TextField
-					label="Expires after (hours)"
-					type="number"
-					min="1"
-					bind:value={hours}
-					description="Optional. Empty: the default of the sign-in policy."
-					error={fields['body.expiresInHours']}
-				/>
+				<Disclosure summary="Options" open={optionError}>
+					<TextField
+						label="Email"
+						type="email"
+						bind:value={email}
+						description="Optional. Only this address can use the link; nothing is sent to it."
+						error={fields['body.email']}
+					/>
+					<TextField
+						label="Expires after (hours)"
+						type="number"
+						min="1"
+						bind:value={hours}
+						description="Optional. Empty: the default of the sign-in policy."
+						error={fields['body.expiresInHours']}
+					/>
+				</Disclosure>
 				{#if error && !Object.keys(fields).length}
-					<Notice tone="danger" title="The invitation was not created" live="alert"
+					<Notice tone="danger" title="The invite link was not created" live="alert"
 						>{actionError(error)}</Notice
 					>
 				{/if}
@@ -122,7 +128,7 @@
 		{#if !issued}
 			<Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
 			<Button variant="primary" type="submit" form="invite-form" loading={busy}
-				>Create invitation</Button
+				>Create invite link</Button
 			>
 		{/if}
 	{/snippet}
