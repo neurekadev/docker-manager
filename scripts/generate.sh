@@ -5,7 +5,7 @@
 #   docs/architecture/job-engine.md  lock-matrix table from internal/jobspec
 #
 #   bash scripts/generate.sh           regenerate in place
-#   bash scripts/generate.sh --check   fail if anything is stale (CI)
+#   bash scripts/generate.sh --check   fail if anything is stale
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 

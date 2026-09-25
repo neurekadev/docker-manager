@@ -1,0 +1,334 @@
+# Canonical CI: lint, unit tests and a test-free build on every push to main
+# and on manual dispatch; hybrid delivery of the two images
+# (code.neureka.dev/dockyard/dockyard-{manager,agent}:edge) from main only.
+# Local mirror: bash scripts/check.sh (lint, unit-tests, build).
+#
+# Deviations from the canonical GitHub layout, forced by Forgejo Actions on
+# code.neureka.dev:
+# - Artifacts use the Forgejo forks of upload-artifact/download-artifact
+#   (v4 API; actions/upload-artifact@v7 and actions/download-artifact@v8
+#   refuse to run outside github.com).
+# - The registry is code.neureka.dev, not GHCR: login uses
+#   vars.REGISTRY_USER and secrets.REGISTRY_TOKEN (write:package) instead of
+#   github.actor and github.token, so no job needs packages: write.
+# - Images are linux/amd64 only. linux/arm64 is blocked until a native arm64
+#   runner exists (no QEMU, no cross-building images on the amd64 runner).
+# - The BuildKit container joins the runner's forgejo-actions network, the
+#   only network on which the runner's actions cache server is reachable.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  CGO_ENABLED: "0"
+  GOTOOLCHAIN: local
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set Up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Set Up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install Web Dependencies
+        run: npm ci --prefix web --no-audit --no-fund
+      - name: Check Formatting
+        run: |
+          unformatted="$(git ls-files -z -- '*.go' | xargs -0 gofmt -l)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt: these files need formatting:"
+            echo "$unformatted"
+            exit 1
+          fi
+          npm --prefix web run format:check
+      - name: Run Go Linters
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.13.2
+      - name: Run Repository Policy Check
+        run: bash scripts/policy-check.sh
+      - name: Run ESLint
+        run: npm --prefix web run lint
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set Up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Set Up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install Web Dependencies
+        run: npm ci --prefix web --no-audit --no-fund
+      - name: Run Go Unit Tests
+        run: go test ./...
+      - name: Run Web Unit Tests
+        run: npm --prefix web run test
+
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set Up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Set Up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install Web Dependencies
+        run: npm ci --prefix web --no-audit --no-fund
+      # The manager embeds web/build/app when it exists (the committed
+      # placeholder page otherwise), so the UI is built first.
+      - name: Build Web UI
+        run: |
+          npm --prefix web run build
+          node web/scripts/verify-build.mjs
+      - name: Build Go Packages
+        run: go build ./...
+      - name: Build Release Binaries
+        env:
+          DIST_DIR: ${{ runner.temp }}/release-binaries
+        run: bash scripts/build-static.sh
+      # Replaces actions/upload-artifact@v7 (unsupported on Forgejo).
+      - name: Upload Release Binaries
+        uses: https://data.forgejo.org/forgejo/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        with:
+          name: release-binaries-linux
+          path: ${{ runner.temp }}/release-binaries/
+          if-no-files-found: error
+          retention-days: 7
+
+  build-images:
+    name: Build Image ${{ matrix.name }}
+    needs: [lint, unit-tests]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # linux/arm64 rows (Manager ARM64, Agent ARM64 on ubuntu-24.04-arm)
+        # are blocked: this Forgejo instance has no native arm64 runner, and
+        # images are never emulated or cross-built for another architecture.
+        include:
+          - name: Manager AMD64
+            component: manager
+            image: code.neureka.dev/dockyard/dockyard-manager
+            arch: amd64
+            runner: ubuntu-24.04
+            platform: linux/amd64
+            context: .
+            dockerfile: deploy/docker/manager.Dockerfile
+          - name: Agent AMD64
+            component: agent
+            image: code.neureka.dev/dockyard/dockyard-agent
+            arch: amd64
+            runner: ubuntu-24.04
+            platform: linux/amd64
+            context: .
+            dockerfile: deploy/docker/agent.Dockerfile
+    env:
+      PUBLISH: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+      SOURCE_VERSION: ${{ github.ref == 'refs/heads/main' && '0.0.0-edge' || 'dev' }}
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set Source Date
+        run: echo "SOURCE_DATE=$(git log -1 --format=%cI)" >> "$GITHUB_ENV"
+      - name: Set Up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: network=${{ job.container.network || 'forgejo-actions' }}
+      - name: Log In to Registry
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: code.neureka.dev
+          username: ${{ vars.REGISTRY_USER }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
+      - name: Extract Image Metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ matrix.image }}
+          labels: |
+            org.opencontainers.image.title=dockyard-${{ matrix.component }}
+            org.opencontainers.image.source=https://code.neureka.dev/dockyard/dockyard
+            org.opencontainers.image.version=${{ env.SOURCE_VERSION }}
+      - name: Build and Push Image Digest
+        id: build
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          build-args: |
+            GIT_TAG=${{ env.SOURCE_VERSION }}
+            GIT_HASH=${{ github.sha }}
+            GIT_DATE=${{ env.SOURCE_DATE }}
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ matrix.image }},push-by-digest=true,name-canonical=true,push=true
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=publish-${{ matrix.component }}-${{ matrix.arch }}
+          cache-to: type=gha,scope=publish-${{ matrix.component }}-${{ matrix.arch }},mode=max,ignore-error=true
+      - name: Build Image Without Pushing
+        if: env.PUBLISH != 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          build-args: |
+            GIT_TAG=${{ env.SOURCE_VERSION }}
+            GIT_HASH=${{ github.sha }}
+            GIT_DATE=${{ env.SOURCE_DATE }}
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: false
+          provenance: false
+          sbom: false
+          cache-from: |
+            type=gha,scope=ci-${{ matrix.component }}-${{ matrix.arch }}
+            type=gha,scope=publish-${{ matrix.component }}-${{ matrix.arch }}
+          cache-to: type=gha,scope=ci-${{ matrix.component }}-${{ matrix.arch }},mode=max,ignore-error=true
+      - name: Export Image Digest
+        if: env.PUBLISH == 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          case "$DIGEST" in
+            sha256:?*) ;;
+            *) echo "::error::build-push-action returned no digest"; exit 1 ;;
+          esac
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      # Replaces actions/upload-artifact@v7 (unsupported on Forgejo).
+      - name: Upload Image Digest
+        if: env.PUBLISH == 'true'
+        uses: https://data.forgejo.org/forgejo/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        with:
+          name: digests-${{ matrix.component }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish ${{ matrix.name }}
+    needs: [lint, unit-tests, build, build-images]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Manager
+            component: manager
+            image: code.neureka.dev/dockyard/dockyard-manager
+          - name: Agent
+            component: agent
+            image: code.neureka.dev/dockyard/dockyard-agent
+    steps:
+      # The Forgejo download-artifact v4 fork has no pattern/merge-multiple:
+      # each platform digest is downloaded by name (amd64 only while arm64
+      # is blocked).
+      - name: Download AMD64 Digest
+        uses: https://data.forgejo.org/forgejo/download-artifact@c850b930e6ba138125429b7e5c93fc707a7f8427 # v4.1.4
+        with:
+          name: digests-${{ matrix.component }}-amd64
+          path: ${{ runner.temp }}/digests
+      - name: Log In to Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: code.neureka.dev
+          username: ${{ vars.REGISTRY_USER }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
+      - name: Extract Image Metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index
+        with:
+          images: ${{ matrix.image }}
+          tags: type=raw,value=edge
+          annotations: |
+            org.opencontainers.image.title=dockyard-${{ matrix.component }}
+            org.opencontainers.image.source=https://code.neureka.dev/dockyard/dockyard
+            org.opencontainers.image.version=0.0.0-edge
+      - name: Create Multi-Platform Manifest
+        env:
+          IMAGE: ${{ matrix.image }}
+          METADATA: ${{ steps.meta.outputs.json }}
+        run: |
+          args=()
+          while IFS= read -r tag; do args+=(--tag "$tag"); done < <(jq -r '.tags[]' <<<"$METADATA")
+          while IFS= read -r annotation; do args+=(--annotation "$annotation"); done < <(jq -r '.annotations[]' <<<"$METADATA")
+          for digest in "$RUNNER_TEMP"/digests/*; do
+            args+=("${IMAGE}@sha256:$(basename "$digest")")
+          done
+          docker buildx imagetools create "${args[@]}"
+      - name: Verify Published Platforms
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          docker buildx imagetools inspect "${IMAGE}:edge"
+          manifest="$(docker buildx imagetools inspect "${IMAGE}:edge" --format '{{json .Manifest}}')"
+          echo "index digest: $(jq -r '.digest' <<<"$manifest")"
+          jq -e '[.manifests[].platform | select(. != null) | "\(.os)/\(.architecture)"] | index("linux/amd64") != null' <<<"$manifest"

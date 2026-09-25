@@ -42,26 +42,27 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY cmd/ cmd/
 COPY internal/ internal/
 ARG TARGETARCH
-ARG VERSION=0.0.0-edge
-ARG REVISION=unknown
-ARG CREATED=unknown
+# Build metadata (CI passes the version, the commit and its date).
+ARG GIT_TAG=0.0.0-edge
+ARG GIT_HASH=unknown
+ARG GIT_DATE=unknown
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOOS=linux GOARCH="${TARGETARCH}" go build -trimpath \
-      -ldflags "-s -w -X github.com/neurekadev/dockyard/internal/buildinfo.Version=${VERSION} -X github.com/neurekadev/dockyard/internal/buildinfo.Commit=${REVISION} -X github.com/neurekadev/dockyard/internal/buildinfo.Date=${CREATED}" \
+      -ldflags "-s -w -X github.com/neurekadev/dockyard/internal/buildinfo.Version=${GIT_TAG} -X github.com/neurekadev/dockyard/internal/buildinfo.Commit=${GIT_HASH} -X github.com/neurekadev/dockyard/internal/buildinfo.Date=${GIT_DATE}" \
       -o /out/dockyard-agent ./cmd/dockyard-agent
 
 # ---------------------------------------------------------------- runtime
 FROM ${RUNTIME_IMAGE}
-ARG VERSION=0.0.0-edge
-ARG REVISION=unknown
-ARG CREATED=unknown
+ARG GIT_TAG=0.0.0-edge
+ARG GIT_HASH=unknown
+ARG GIT_DATE=unknown
 LABEL org.opencontainers.image.title="dockyard-agent" \
       org.opencontainers.image.description="DockYard agent: outbound-only connector for a Docker Engine" \
-      org.opencontainers.image.source="https://github.com/neurekadev/dockyard" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.revision="${REVISION}" \
-      org.opencontainers.image.created="${CREATED}"
+      org.opencontainers.image.source="https://code.neureka.dev/dockyard/dockyard" \
+      org.opencontainers.image.version="${GIT_TAG}" \
+      org.opencontainers.image.revision="${GIT_HASH}" \
+      org.opencontainers.image.created="${GIT_DATE}"
 COPY --from=build /out/dockyard-agent /usr/local/bin/dockyard-agent
 COPY --from=restic /restic /usr/local/bin/restic
 ENV DOCKYARD_AGENT_STATE_DIR=/var/lib/dockyard-agent

@@ -1,0 +1,8 @@
+# actionlint configuration. Forgejo Actions resolves `uses:` URLs to other
+# hosts; the artifact actions come from the Forgejo forks on
+# data.forgejo.org (actions/upload-artifact@v4+ and download-artifact@v4+
+# refuse to run on Forgejo), a form actionlint does not know.
+paths:
+  .github/workflows/**/*.yaml:
+    ignore:
+      - 'specifying action "https://data\.forgejo\.org/forgejo/(upload|download)-artifact@[0-9a-f]{40}" in invalid format'
