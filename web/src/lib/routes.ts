@@ -6,9 +6,12 @@
 //   /stacks[/{stackId}[/files|logs|terminal|revisions|policies|activity]]
 //   /containers, /images, /volumes, /networks   lists (all or the selected environment)
 //   /environments/{id}/containers/{containerId} and images/volumes/networks details
-//   /builds, /registries, /backups, /updates, /maintenance, /jobs[/{jobId}], /schedules
+//   /builds, /registries, /jobs[/{jobId}], /schedules
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
-//   /access (users, groups, invitations), /settings[/security|/tokens|/audit]
+//   /backups[/{backupId}[/restore]|/policies[/new|/{id}]|/repositories[/new|/{id}]]
+//   /updates[/new|/{policyId}[/edit]], /maintenance[/new|/defaults|/{policyId}[/edit]]
+//   /access[/users/{id}|/groups[/{id}]|/invitations]
+//   /settings[/security|/tokens[/all]|/sign-in|/schedules|/audit|/diagnostics]
 //   /volumes/{env}/{volume}/files, /containers/{env}/{id}/logs|terminal,
 //   /popout/logs?stack=|environment=&container= (files, logs, terminals)
 //   /setup, /sign-in, /enroll, /invitation, /password-reset (public)
@@ -42,16 +45,41 @@ export const routes = {
 	builds: () => '/builds',
 	registries: () => '/registries',
 	backups: () => '/backups',
+	backup: (id: string) => `/backups/${e(id)}`,
+	backupRestore: (id: string) => `/backups/${e(id)}/restore`,
+	backupPolicies: () => '/backups/policies',
+	backupPolicyNew: () => '/backups/policies/new',
+	backupPolicy: (id: string) => `/backups/policies/${e(id)}`,
+	backupRepositories: () => '/backups/repositories',
+	backupRepositoryNew: () => '/backups/repositories/new',
+	backupRepository: (id: string) => `/backups/repositories/${e(id)}`,
 	updates: () => '/updates',
+	updatePolicyNew: () => '/updates/new',
+	updatePolicy: (id: string) => `/updates/${e(id)}`,
+	updatePolicyEdit: (id: string) => `/updates/${e(id)}/edit`,
 	maintenance: () => '/maintenance',
+	maintenanceNew: () => '/maintenance/new',
+	maintenancePolicy: (id: string) => `/maintenance/${e(id)}`,
+	maintenanceEdit: (id: string) => `/maintenance/${e(id)}/edit`,
+	maintenanceDefaults: () => '/maintenance/defaults',
 	jobs: () => '/jobs',
 	job: (id: string) => `/jobs/${e(id)}`,
 	schedules: () => '/schedules',
 	access: () => '/access',
+	accessUser: (id: string) => `/access/users/${e(id)}`,
+	accessGroups: () => '/access/groups',
+	accessGroup: (id: string) => `/access/groups/${e(id)}`,
+	accessInvitations: () => '/access/invitations',
 	settings: () => '/settings',
 	security: () => '/settings/security',
 	apiTokens: () => '/settings/tokens',
+	allApiTokens: () => '/settings/tokens/all',
+	signInPolicy: () => '/settings/sign-in',
+	scheduleDefaults: () => '/settings/schedules',
+	audit: () => '/settings/audit',
+	diagnostics: () => '/settings/diagnostics',
 	setup: () => '/setup',
+	setupImport: () => '/setup/import',
 	signIn: (next?: string, reason?: 'expired' | 'signed-out') => {
 		const q = new URLSearchParams();
 		if (next && next !== '/' && next.startsWith('/') && !next.startsWith('//'))

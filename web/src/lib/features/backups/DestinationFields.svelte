@@ -1,0 +1,124 @@
+<script lang="ts">
+	// Where backups live (#10): a local directory on the manager or on one
+	// environment's agent (below DOCKYARD_BACKUP_LOCAL_ROOTS there), or an S3
+	// bucket and prefix. S3 secrets are write-only: typed here, never shown.
+	import { PasswordField, RadioGroup, Select, Switch, TextField } from '$lib/ui';
+	import Fields from '$lib/features/common/Fields.svelte';
+	import type { Destination } from './destination';
+
+	interface Props {
+		value: Destination;
+		/** Offer the executor (manager or an environment) for local paths. */
+		executors?: { value: string; label: string }[];
+		errors?: Record<string, string>;
+		/** S3 credentials are optional (editing keeps the stored ones). */
+		credentialsOptional?: boolean;
+		localDescription?: string;
+	}
+
+	let {
+		value = $bindable(),
+		executors,
+		errors = {},
+		credentialsOptional = false,
+		localDescription = 'An absolute directory below DOCKYARD_BACKUP_LOCAL_ROOTS of the host that writes it, outside every directory it backs up.'
+	}: Props = $props();
+</script>
+
+<Fields>
+	<RadioGroup
+		label="Storage"
+		bind:value={value.kind}
+		options={[
+			{
+				value: 'local',
+				label: 'Local directory',
+				description:
+					'A disk or mount of the manager or of one environment. Recovery needs that disk.'
+			},
+			{
+				value: 's3',
+				label: 'S3-compatible storage',
+				description:
+					'AWS S3, MinIO, Backblaze B2, Wasabi and others. Recovery needs the bucket and a key pair.'
+			}
+		]}
+	/>
+	{#if value.kind === 'local'}
+		{#if executors}
+			<Select
+				label="Written by"
+				description="Local repositories live on one host; each environment backs up to its own."
+				options={executors}
+				bind:value={value.executor}
+				error={errors['body.executor']}
+			/>
+		{/if}
+		<TextField
+			label="Directory"
+			mono
+			bind:value={value.path}
+			placeholder="/backups/dockyard"
+			description={localDescription}
+			required
+			error={errors['body.path']}
+		/>
+	{:else}
+		<Fields columns={2}>
+			<TextField
+				label="Endpoint"
+				mono
+				bind:value={value.endpoint}
+				placeholder="https://s3.eu-central-1.amazonaws.com"
+				required
+				error={errors['body.endpoint']}
+			/>
+			<TextField
+				label="Region"
+				description="Optional."
+				bind:value={value.region}
+				placeholder="eu-central-1"
+				error={errors['body.region']}
+			/>
+			<TextField
+				label="Bucket"
+				mono
+				bind:value={value.bucket}
+				required
+				error={errors['body.bucket']}
+			/>
+			<TextField
+				label="Prefix"
+				mono
+				description="Optional. A folder inside the bucket."
+				bind:value={value.prefix}
+				placeholder="dockyard"
+				error={errors['body.prefix']}
+			/>
+			<TextField
+				label="Access key ID"
+				mono
+				bind:value={value.accessKeyId}
+				autocomplete="off"
+				required={!credentialsOptional}
+				description={credentialsOptional
+					? 'Optional. Leave empty to keep the stored key pair.'
+					: undefined}
+				error={errors['body.accessKeyId']}
+			/>
+			<PasswordField
+				label="Secret access key"
+				bind:value={value.secretAccessKey}
+				autocomplete="off"
+				required={!credentialsOptional}
+				description="Write-only: DockYard never shows it again."
+				error={errors['body.secretAccessKey']}
+			/>
+		</Fields>
+		<Switch
+			label="Path-style addressing"
+			description="On for MinIO and most self-hosted S3; off for AWS virtual-hosted buckets."
+			bind:checked={value.pathStyle}
+		/>
+	{/if}
+</Fields>

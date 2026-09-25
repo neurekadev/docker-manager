@@ -284,7 +284,13 @@ func TestBackupImportIntoAFreshManager(t *testing.T) {
 		t.Fatalf("lost key test %+v", ct)
 	}
 	anon.fail(http.StatusUnprocessableEntity, "backup_import_key_rejected", http.MethodPost, previewPath, src(map[string]any{"recoveryKey": lostKey.String()}))
-	anon.fail(http.StatusUnprocessableEntity, "recovery_key_malformed", http.MethodPost, previewPath, src(map[string]any{"recoveryKey": key2[:len(key2)-2] + "QQ"}))
+	// Change the last two characters (to a different pair, so the checksum
+	// always fails: the key may already end in "QQ").
+	typo := key2[:len(key2)-2] + "QQ"
+	if typo == key2 {
+		typo = key2[:len(key2)-2] + "AA"
+	}
+	anon.fail(http.StatusUnprocessableEntity, "recovery_key_malformed", http.MethodPost, previewPath, src(map[string]any{"recoveryKey": typo}))
 	anon.must(http.StatusOK, http.MethodPost, testPath, src(map[string]any{"prefix": "elsewhere"})).json(t, &ct)
 	if ct.OK || ct.Manager.Found {
 		t.Fatalf("missing repository test %+v", ct)

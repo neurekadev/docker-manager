@@ -621,6 +621,9 @@ Guides: `docs/design/README.md` (tokens, components, copy, a11y),
   resource in `src/lib/api/queries.ts` keyed with `liveKeys` (#23 section
   above) so live events refresh it; mutations invalidate by prefix, never
   retry; views never read the stream. Jobs: `JobProgress` / `JobWatcher`.
+  Feature screens may keep their factories in `$lib/features/<area>/queries.ts`
+  (docs/web.md, "Feature modules"); step-up-guarded calls go through
+  `withStepUp` (`$lib/auth/stepup.svelte`).
   Never store API data in `localStorage`/Cache Storage.
 - **Permissions:** show actions from DTO `actions`/`view`; navigation from
   `/me/permissions` (`$lib/shell/nav.ts`); hide, don't disable; Restricted

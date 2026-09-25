@@ -15,6 +15,7 @@
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { notices } from '$lib/shell/notices.svelte';
 	import BootScreen from '$lib/shell/BootScreen.svelte';
+	import StepUpDialog from '$lib/auth/StepUpDialog.svelte';
 
 	let { children } = $props();
 	const qc = useQueryClient();
@@ -65,6 +66,7 @@
 	<AppShell user={session.data.user} {onsignout}>
 		{@render children()}
 	</AppShell>
+	<StepUpDialog user={session.data.user} />
 {:else}
 	<BootScreen
 		error={session.isError ? session.error : null}
