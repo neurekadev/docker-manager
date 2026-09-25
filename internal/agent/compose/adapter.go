@@ -201,6 +201,48 @@ func (a *Adapter) Up(ctx context.Context, p *Project, o UpOptions) error {
 	return composeError(op, err)
 }
 
+// CreateOptions configures Create.
+type CreateOptions struct {
+	RunOptions
+	// Services are the services to converge; their dependencies are part
+	// of the model but never recreated.
+	Services []string
+	// StopTimeout overrides the stop grace period of replaced containers.
+	StopTimeout *time.Duration
+}
+
+// Create converges the services' containers with the loaded definition
+// without starting anything: a container whose configuration or image
+// changed (the image ID label differs after its tag moved, #20) is
+// replaced by a new, created container; anonymous volumes are inherited
+// like Compose's up does. Dependencies are never recreated and nothing is
+// built. Callers start the services afterwards (internal/agent/lifecycle).
+func (a *Adapter) Create(ctx context.Context, p *Project, o CreateOptions) error {
+	const op = "compose.create"
+	if err := a.guard(op, p); err != nil {
+		return err
+	}
+	if len(o.Services) == 0 {
+		return engine.Errorf(op, engine.CodeInvalidArgument, "no services to create")
+	}
+	model, err := selected(p, o.Services)
+	if err != nil {
+		return engine.WrapCode(op, engine.CodeInvalidArgument, err)
+	}
+	svc, err := a.service(o.RunOptions)
+	if err != nil {
+		return engine.Wrap(op, err)
+	}
+	return composeError(op, svc.Create(ctx, model, api.CreateOptions{
+		Services:             o.Services,
+		Recreate:             api.RecreateDiverged,
+		RecreateDependencies: api.RecreateNever,
+		Inherit:              true,
+		Timeout:              o.StopTimeout,
+		QuietPull:            true,
+	}))
+}
+
 // DownOptions configures Down.
 type DownOptions struct {
 	RunOptions

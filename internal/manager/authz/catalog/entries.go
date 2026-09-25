@@ -26,7 +26,7 @@ func resourceTypes() []ResourceType {
 		{Key: TypeBuildDefinition, Label: "Build definitions", Scopable: true, EnvironmentBound: true, Read: "build_definition.read",
 			Minimal: "id, name, environmentId"},
 		{Key: TypeUpdatePolicy, Label: "Update policies", Scopable: true, EnvironmentBound: true, Read: "update_policy.read",
-			Minimal: "id, name, enabled, target stack"},
+			Parents: []string{TypeStack, TypeContainer}, Minimal: "id, name, environmentId, target"},
 		{Key: TypeMaintenancePolicy, Label: "Maintenance policies", Scopable: true, EnvironmentBound: true,
 			Read: "maintenance_policy.read", Minimal: "id, name, enabled"},
 		{Key: TypeBackupRepository, Label: "Backup repositories", Scopable: true, Read: "backup_repository.read",
@@ -203,12 +203,14 @@ func capabilities() []Capability {
 	)
 
 	// Updates (#20).
-	updateScope := res(TypeUpdatePolicy, TypeStack)
+	// Checks and runs are jobs on the policy's stack or container: grants
+	// are scoped there (a stack grant also covers the stack's policy).
+	updateScope := res(TypeStack, TypeContainer)
 	add(
 		normal("update_policy.read", TypeUpdatePolicy, "View update policies", "See update policies, candidates and their state.", res(TypeUpdatePolicy)),
 		adv(normal("update_policy.manage", TypeUpdatePolicy, "Manage update policies", "Create, edit and delete update policies.", res(TypeUpdatePolicy))),
 		adv(normal("update.check", TypeUpdatePolicy, "Check for updates", "Check registries for newer digests of fixed tags.", updateScope)),
-		adv(normal("update.run", TypeUpdatePolicy, "Apply updates", "Pull updated images and recreate services (no automatic rollback).", updateScope)),
+		adv(normal("update.run", TypeUpdatePolicy, "Apply updates", "Pull updated images and recreate services or containers (no automatic rollback).", updateScope)),
 	)
 
 	// Maintenance (#14).

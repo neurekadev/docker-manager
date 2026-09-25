@@ -345,7 +345,7 @@ func (s *Service) Root(ctx context.Context, stackID string) (domain.StackRoot, e
 func servicesFrom(in []protocol.ComposeService) []domain.StackServiceDef {
 	out := make([]domain.StackServiceDef, 0, len(in))
 	for _, s := range in {
-		d := domain.StackServiceDef{Name: s.Name, Image: s.Image, Build: s.Build}
+		d := domain.StackServiceDef{Name: s.Name, Image: s.Image, Build: s.Build, PullPolicy: s.PullPolicy}
 		for _, dep := range s.DependsOn {
 			d.DependsOn = append(d.DependsOn, domain.StackDependency{Service: dep.Service, Condition: dep.Condition, Required: dep.Required, Restart: dep.Restart})
 		}

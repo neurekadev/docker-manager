@@ -884,7 +884,7 @@ routes:
     scope: resource
     owner: 20
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/images"
     operationId: list-images
@@ -1533,7 +1533,7 @@ routes:
     scope: resource
     owner: 20
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/update-policies
     operationId: create-update-policy
@@ -1541,7 +1541,7 @@ routes:
     scope: environment
     owner: 20
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/update-policies/{policyId}"
     operationId: get-update-policy
@@ -1549,7 +1549,7 @@ routes:
     scope: resource
     owner: 20
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/update-policies/{policyId}"
     operationId: update-update-policy
@@ -1557,7 +1557,7 @@ routes:
     scope: resource
     owner: 20
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match.
   - method: DELETE
     path: "/api/v1/update-policies/{policyId}"
@@ -1566,7 +1566,7 @@ routes:
     scope: resource
     owner: 20
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/update-policies/{policyId}/checks"
     operationId: create-update-policy-check
@@ -1574,7 +1574,7 @@ routes:
     scope: resource
     owner: 20
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job.
   - method: POST
     path: "/api/v1/update-policies/{policyId}/previews"
@@ -1583,7 +1583,7 @@ routes:
     scope: resource
     owner: 20
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/update-policies/{policyId}/runs"
     operationId: create-update-policy-run
@@ -1591,7 +1591,7 @@ routes:
     scope: resource
     owner: 20
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job; Idempotency-Key.
   - method: GET
     path: "/api/v1/update-policies/{policyId}/candidates"
@@ -1600,7 +1600,7 @@ routes:
     scope: resource
     owner: 20
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: /api/v1/maintenance-defaults
     operationId: get-maintenance-defaults

@@ -1,0 +1,32 @@
+# Eligibility corpus for digest-driven updates (#20). Each case is a
+# resolved image reference with the service's build flag and Compose
+# pull_policy; want is "eligible" or the ineligibility reason, warn marks
+# eligible non-version tags.
+- {name: version tag, ref: "ghcr.io/acme/app:1.2.3", want: eligible}
+- {name: short version tag, ref: "nginx:1", want: eligible}
+- {name: version with suffix, ref: "postgres:16.4-alpine", want: eligible}
+- {name: v-prefixed version, ref: "registry.lan:5000/team/api:v2.0.1", want: eligible}
+- {name: date version, ref: "acme/tool:2024.06.1", want: eligible}
+- {name: latest is eligible with a warning, ref: "nginx:latest", want: eligible, warn: true}
+- {name: branch tag is eligible with a warning, ref: "ghcr.io/acme/app:main", want: eligible, warn: true}
+- {name: stable tag is eligible with a warning, ref: "docker.io/library/redis:stable", want: eligible, warn: true}
+- {name: word tag with digits is not a version, ref: "acme/app:alpine3", want: eligible, warn: true}
+- {name: digest pinned, ref: "nginx@sha256:0000000000000000000000000000000000000000000000000000000000000000", want: digest_pinned}
+- {name: tag and digest pinned, ref: "nginx:1.27@sha256:1111111111111111111111111111111111111111111111111111111111111111", want: digest_pinned}
+- {name: untagged Docker Hub image, ref: "nginx", want: untagged}
+- {name: untagged private image, ref: "registry.lan:5000/team/api", want: untagged}
+- {name: build only, ref: "shop-web", build: true, want: build_only}
+- {name: build with image name, ref: "ghcr.io/acme/web:1.0", build: true, want: build_only}
+- {name: build with pinned image, ref: "ghcr.io/acme/web@sha256:2222222222222222222222222222222222222222222222222222222222222222", build: true, want: build_only}
+- {name: invalid reference, ref: "Not A Ref!", want: invalid_reference}
+- {name: empty reference, ref: "", want: invalid_reference}
+- {name: pull policy missing, ref: "nginx:1", pull: missing, want: eligible}
+- {name: pull policy if_not_present, ref: "nginx:1", pull: if_not_present, want: eligible}
+- {name: pull policy never, ref: "nginx:1", pull: never, want: pull_policy_conflict}
+- {name: pull policy build, ref: "nginx:1", pull: build, want: pull_policy_conflict}
+- {name: pull policy always, ref: "nginx:1", pull: always, want: pull_policy_conflict}
+- {name: pull policy daily, ref: "nginx:1", pull: daily, want: pull_policy_conflict}
+- {name: pull policy weekly, ref: "nginx:1", pull: weekly, want: pull_policy_conflict}
+- {name: pull policy every duration, ref: "nginx:1", pull: every_12h, want: pull_policy_conflict}
+- {name: pull policy refresh, ref: "nginx:1", pull: refresh, want: pull_policy_conflict}
+- {name: pinned wins over pull policy, ref: "nginx@sha256:3333333333333333333333333333333333333333333333333333333333333333", pull: always, want: digest_pinned}

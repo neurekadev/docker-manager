@@ -1493,6 +1493,88 @@
         ],
         "type": "object"
       },
+      "ContainerImageStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "candidateDigest": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "container": {
+            "type": "string"
+          },
+          "digest": {
+            "description": "Repository digest of the running image.",
+            "type": "string"
+          },
+          "eligible": {
+            "description": "The container could follow its tag's digest (#20).",
+            "type": "boolean"
+          },
+          "image": {
+            "description": "The saved reference of a DockYard-managed container, else the container's image.",
+            "type": "string"
+          },
+          "imageId": {
+            "type": "string"
+          },
+          "managed": {
+            "description": "A DockYard-managed standalone container with a saved recreate specification.",
+            "type": "boolean"
+          },
+          "nonVersionTag": {
+            "type": "boolean"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "policyId": {
+            "description": "The container's update policy.",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "build_only",
+              "digest_pinned",
+              "untagged",
+              "pull_policy_conflict",
+              "invalid_reference",
+              "protected",
+              "no_recreate_spec",
+              "stack_managed"
+            ],
+            "type": "string"
+          },
+          "reasonMessage": {
+            "type": "string"
+          },
+          "update": {
+            "enum": [
+              "no_policy",
+              "ineligible",
+              "unchecked",
+              "up_to_date",
+              "update_available",
+              "quarantined",
+              "check_failed",
+              "run_failed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "container",
+          "image",
+          "managed",
+          "eligible",
+          "nonVersionTag",
+          "update"
+        ],
+        "type": "object"
+      },
       "ContainerLogs": {
         "additionalProperties": false,
         "properties": {
@@ -2459,6 +2541,81 @@
           "stack",
           "validation"
         ],
+        "type": "object"
+      },
+      "CreateUpdatePolicyInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "checkSchedule": {
+            "$ref": "#/components/schemas/UpdateScheduleInput",
+            "description": "Default: the instance's update_check default, disabled."
+          },
+          "environmentId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "excludeServices": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "runSchedule": {
+            "$ref": "#/components/schemas/UpdateScheduleInput",
+            "description": "Default: the instance's update_run default, disabled."
+          },
+          "services": {
+            "description": "Opt in only these services (default: every service).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "target": {
+            "$ref": "#/components/schemas/UpdateTarget"
+          },
+          "waitTimeoutSeconds": {
+            "format": "int64",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "window": {
+            "$ref": "#/components/schemas/UpdateWindow"
+          }
+        },
+        "required": [
+          "environmentId",
+          "name",
+          "target"
+        ],
+        "type": "object"
+      },
+      "CreateUpdateRunInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "description": "Candidate IDs or service names (default: every update available).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "previewFingerprint": {
+            "description": "The preview's fingerprint: 409 update_preview_stale when anything changed since.",
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "CreateVolumeEntryInputBody": {
@@ -6558,6 +6715,56 @@
         ],
         "type": "object"
       },
+      "PageUpdateCandidate": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Items on this page (possibly empty, also when nextCursor is present).",
+            "items": {
+              "$ref": "#/components/schemas/UpdateCandidate"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Opaque cursor for the next page; absent on the last page.",
+            "type": "string"
+          },
+          "total": {
+            "description": "Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "PageUpdatePolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "description": "Items on this page (possibly empty, also when nextCursor is present).",
+            "items": {
+              "$ref": "#/components/schemas/UpdatePolicy"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Opaque cursor for the next page; absent on the last page.",
+            "type": "string"
+          },
+          "total": {
+            "description": "Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "PageVolume": {
         "additionalProperties": false,
         "properties": {
@@ -6783,6 +6990,52 @@
           },
           "strictPasswords": {
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "PatchUpdatePolicyInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "checkSchedule": {
+            "$ref": "#/components/schemas/UpdateScheduleInput",
+            "description": "Replaces the whole schedule (cron and timeZone required)."
+          },
+          "clearWindow": {
+            "description": "Remove the update window.",
+            "type": "boolean"
+          },
+          "excludeServices": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "runSchedule": {
+            "$ref": "#/components/schemas/UpdateScheduleInput",
+            "description": "Replaces the whole schedule (cron and timeZone required)."
+          },
+          "services": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "waitTimeoutSeconds": {
+            "format": "int64",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "window": {
+            "$ref": "#/components/schemas/UpdateWindow"
           }
         },
         "type": "object"
@@ -7110,6 +7363,20 @@
           "recursive": {
             "description": "metadata: count recursively.",
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "PreviewUpdateInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "description": "Candidate IDs or service names (default: every update available).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
           }
         },
         "type": "object"
@@ -9158,6 +9425,14 @@
           "build": {
             "type": "boolean"
           },
+          "candidateDigest": {
+            "description": "The registry's newer host-platform digest (update_available, quarantined).",
+            "type": "string"
+          },
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
           "digest": {
             "description": "Digest applied on this host by the last deploy (#20 baseline).",
             "type": "string"
@@ -9172,24 +9447,44 @@
           "imageId": {
             "type": "string"
           },
+          "nonVersionTag": {
+            "description": "Eligible, but the tag (latest, main, ...) can change meaning.",
+            "type": "boolean"
+          },
           "platform": {
+            "type": "string"
+          },
+          "policyId": {
+            "description": "The stack's update policy.",
             "type": "string"
           },
           "reason": {
             "enum": [
               "build_only",
               "digest_pinned",
-              "untagged"
+              "untagged",
+              "pull_policy_conflict",
+              "invalid_reference"
             ],
+            "type": "string"
+          },
+          "reasonMessage": {
             "type": "string"
           },
           "service": {
             "type": "string"
           },
           "update": {
-            "description": "Update state; unknown until digest checks (#20) exist.",
+            "description": "Update state of the service under the stack's update policy; no_policy when the stack has none.",
             "enum": [
-              "unknown"
+              "no_policy",
+              "ineligible",
+              "unchecked",
+              "up_to_date",
+              "update_available",
+              "quarantined",
+              "check_failed",
+              "run_failed"
             ],
             "type": "string"
           }
@@ -9199,6 +9494,7 @@
           "image",
           "build",
           "eligible",
+          "nonVersionTag",
           "update"
         ],
         "type": "object"
@@ -10107,6 +10403,135 @@
         },
         "type": "object"
       },
+      "UpdateCandidate": {
+        "additionalProperties": false,
+        "properties": {
+          "candidateDigest": {
+            "description": "The registry's host-platform manifest digest.",
+            "type": "string"
+          },
+          "candidateIndexDigest": {
+            "description": "The tag's index digest (multi-platform images).",
+            "type": "string"
+          },
+          "checkJobId": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currentDigest": {
+            "description": "Digest applied on the host.",
+            "type": "string"
+          },
+          "currentImageId": {
+            "type": "string"
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "errorClass": {
+            "description": "unauthorized, forbidden, rate_limited, registry_unavailable, not_found, platform_not_found, ambiguous_registry_connection, registry_connection_revoked, or a run's job error class.",
+            "type": "string"
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "guidance": {
+            "description": "Manual recovery of a quarantined or failed candidate.",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "nonVersionTag": {
+            "description": "Eligible, but the tag (latest, main, ...) can change meaning.",
+            "type": "boolean"
+          },
+          "platform": {
+            "description": "Host platform checked (os/arch[/variant]).",
+            "type": "string"
+          },
+          "previousDigest": {
+            "description": "Digest before the last update.",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "build_only",
+              "digest_pinned",
+              "untagged",
+              "pull_policy_conflict",
+              "invalid_reference",
+              "not_deployed",
+              "no_applied_digest",
+              "excluded",
+              "protected",
+              "no_recreate_spec",
+              "stack_managed"
+            ],
+            "type": "string"
+          },
+          "reasonMessage": {
+            "description": "Why it is ineligible, or the warning of a non-version tag.",
+            "type": "string"
+          },
+          "reference": {
+            "description": "The resolved tagged reference (never rewritten).",
+            "type": "string"
+          },
+          "registry": {
+            "type": "string"
+          },
+          "registryConnectionId": {
+            "description": "Connection used for the last check (metadata only).",
+            "type": "string"
+          },
+          "repository": {
+            "type": "string"
+          },
+          "retryAfterSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "service": {
+            "description": "Compose service name, or the container name.",
+            "type": "string"
+          },
+          "sourceHashAfter": {
+            "type": "string"
+          },
+          "sourceHashBefore": {
+            "description": "The stack's definition hash read before the last check.",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ineligible",
+              "unchecked",
+              "up_to_date",
+              "update_available",
+              "quarantined",
+              "check_failed",
+              "run_failed"
+            ],
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "service",
+          "reference",
+          "eligible",
+          "nonVersionTag",
+          "status"
+        ],
+        "type": "object"
+      },
       "UpdateDefinitionInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -10197,6 +10622,58 @@
         },
         "type": "object"
       },
+      "UpdateHistoryEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "errorClass": {
+            "type": "string"
+          },
+          "fromDigest": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "updated",
+              "unchanged",
+              "kept_stopped",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "registryConnectionId": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "sourceHashAfter": {
+            "type": "string"
+          },
+          "sourceHashBefore": {
+            "type": "string"
+          },
+          "toDigest": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "reference",
+          "outcome",
+          "at"
+        ],
+        "type": "object"
+      },
       "UpdateMaintenanceDefaultsInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -10241,6 +10718,270 @@
         },
         "type": "object"
       },
+      "UpdatePolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "checkSchedule": {
+            "$ref": "#/components/schemas/UpdateSchedule"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "excludeServices": {
+            "description": "Services never updated. Full view.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quarantine": {
+            "description": "Quarantined candidate digests (never applied automatically). Full view.",
+            "items": {
+              "$ref": "#/components/schemas/UpdateQuarantined"
+            },
+            "type": "array"
+          },
+          "recentHistory": {
+            "description": "Newest first (at most 20). Full view.",
+            "items": {
+              "$ref": "#/components/schemas/UpdateHistoryEntry"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "runSchedule": {
+            "$ref": "#/components/schemas/UpdateSchedule"
+          },
+          "services": {
+            "description": "Opted-in services (empty: every service of the stack). Full view.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/UpdatePolicySummary"
+          },
+          "target": {
+            "$ref": "#/components/schemas/UpdateTarget"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "view": {
+            "enum": [
+              "minimal",
+              "full"
+            ],
+            "type": "string"
+          },
+          "waitTimeoutSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "window": {
+            "$ref": "#/components/schemas/UpdateWindow"
+          }
+        },
+        "required": [
+          "id",
+          "environmentId",
+          "name",
+          "target",
+          "view",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "UpdatePolicySummary": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "failed": {
+            "description": "check_failed and run_failed candidates.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "ineligible": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lastCheckAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "quarantined": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unchecked": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "upToDate": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "available",
+          "upToDate",
+          "quarantined",
+          "ineligible",
+          "failed",
+          "unchecked"
+        ],
+        "type": "object"
+      },
+      "UpdatePreview": {
+        "additionalProperties": false,
+        "properties": {
+          "dependencies": {
+            "description": "The stack's dependency graph (as deployed).",
+            "items": {
+              "$ref": "#/components/schemas/UpdateServiceDependency"
+            },
+            "type": "array"
+          },
+          "fingerprint": {
+            "description": "Send as previewFingerprint to refuse the run when anything changed since.",
+            "type": "string"
+          },
+          "inWindow": {
+            "description": "Now is inside the policy's update window (scheduled runs only run inside it).",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UpdatePreviewItem"
+            },
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "policyId": {
+            "type": "string"
+          },
+          "restarted": {
+            "description": "Running dependents restarted with an updated service (depends_on restart: true).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sharedTag": {
+            "description": "Other consumers of the tags on this environment: the pull moves the tag for them too; they pick up the new image at their next recreate.",
+            "items": {
+              "$ref": "#/components/schemas/UpdateSharedConsumer"
+            },
+            "type": "array"
+          },
+          "skipped": {
+            "description": "Candidates left out, with their status and reason.",
+            "items": {
+              "$ref": "#/components/schemas/UpdateCandidate"
+            },
+            "type": "array"
+          },
+          "sourceDrift": {
+            "description": "The definition on disk differs from the applied revision: the run is refused until the stack is deployed.",
+            "type": "boolean"
+          },
+          "sourceHash": {
+            "description": "The applied revision's hash the definition on disk must have.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policyId",
+          "fingerprint",
+          "items",
+          "skipped",
+          "restarted",
+          "dependencies",
+          "sharedTag",
+          "sourceDrift",
+          "inWindow",
+          "notes"
+        ],
+        "type": "object"
+      },
+      "UpdatePreviewItem": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate": {
+            "$ref": "#/components/schemas/UpdateCandidate"
+          },
+          "downtime": {
+            "description": "Expected interruption.",
+            "type": "string"
+          },
+          "running": {
+            "description": "It runs now (last observed state).",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "candidate",
+          "running",
+          "downtime"
+        ],
+        "type": "object"
+      },
+      "UpdateQuarantined": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "errorClass": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "digest",
+          "createdAt"
+        ],
+        "type": "object"
+      },
       "UpdateRegistryInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -10283,6 +11024,112 @@
         },
         "type": "object"
       },
+      "UpdateSchedule": {
+        "additionalProperties": false,
+        "properties": {
+          "cron": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "invalidReason": {
+            "type": "string"
+          },
+          "nextRun": {
+            "$ref": "#/components/schemas/ScheduleRunTime"
+          },
+          "recentRuns": {
+            "description": "Newest first (at most 5).",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleRun"
+            },
+            "type": "array"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cron",
+          "timeZone",
+          "enabled",
+          "recentRuns"
+        ],
+        "type": "object"
+      },
+      "UpdateScheduleInput": {
+        "additionalProperties": false,
+        "properties": {
+          "cron": {
+            "description": "Five-field cron expression; default: the instance default of the kind.",
+            "examples": [
+              "0 3 * * *"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Automatic checks/updates happen only when enabled (default false).",
+            "type": "boolean"
+          },
+          "timeZone": {
+            "description": "IANA time zone; default: the instance default.",
+            "examples": [
+              "Europe/Berlin"
+            ],
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "UpdateServiceDependency": {
+        "additionalProperties": false,
+        "properties": {
+          "dependsOn": {
+            "items": {
+              "$ref": "#/components/schemas/StackDependency"
+            },
+            "type": "array"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "dependsOn"
+        ],
+        "type": "object"
+      },
+      "UpdateSharedConsumer": {
+        "additionalProperties": false,
+        "properties": {
+          "container": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "stackId": {
+            "type": "string"
+          },
+          "stackName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference"
+        ],
+        "type": "object"
+      },
       "UpdateStackInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -10307,6 +11154,64 @@
             "type": "object"
           }
         },
+        "type": "object"
+      },
+      "UpdateTarget": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "Stack ID or container name (in the policy's environment).",
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": {
+            "description": "stack: a DockYard stack's services; container: a DockYard-managed standalone container with a saved recreate specification.",
+            "enum": [
+              "stack",
+              "container"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "type": "object"
+      },
+      "UpdateWindow": {
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "description": "Days of the week, 0 (Sunday) to 6; empty: every day.",
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "maxItems": 7,
+            "type": "array"
+          },
+          "end": {
+            "description": "Exclusive; before start spans midnight.",
+            "examples": [
+              "05:00"
+            ],
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "type": "string"
+          },
+          "start": {
+            "examples": [
+              "02:00"
+            ],
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
         "type": "object"
       },
       "ValidateStackInputBody": {
@@ -15886,6 +16791,112 @@
           "Containers"
         ],
         "x-dockyard-capability": "container.exec",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/environments/{environmentId}/containers/{containerId}/image-status": {
+      "get": {
+        "description": "The container's image, applied digest and platform, whether it can follow its tag's digest (#20; only DockYard-managed standalone containers with a saved recreate specification) and its update policy's state.",
+        "operationId": "get-container-image-status",
+        "parameters": [
+          {
+            "description": "Environment ID.",
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "description": "Environment ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Container name, ID or unique ID prefix.",
+            "in": "path",
+            "name": "containerId",
+            "required": true,
+            "schema": {
+              "description": "Container name, ID or unique ID prefix.",
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContainerImageStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get a container's image status",
+        "tags": [
+          "Containers"
+        ],
+        "x-dockyard-capability": "container.details.read",
         "x-dockyard-scope": "resource"
       }
     },
@@ -34283,6 +35294,1152 @@
           "Stacks"
         ],
         "x-dockyard-capability": "stack.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/update-policies": {
+      "get": {
+        "description": "Update policies opt a DockYard stack (all or selected services) or a DockYard-managed standalone container into digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, environment and target.",
+        "operationId": "list-update-policies",
+        "parameters": [
+          {
+            "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Only policies of this environment.",
+            "explode": false,
+            "in": "query",
+            "name": "environmentId",
+            "schema": {
+              "description": "Only policies of this environment.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageUpdatePolicy"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List update policies",
+        "tags": [
+          "Updates"
+        ],
+        "x-dockyard-capability": "update_policy.read",
+        "x-dockyard-scope": "resource"
+      },
+      "post": {
+        "description": "Opts a stack or a DockYard-managed standalone container (with a saved recreate specification) into digest-driven updates. One policy per target. Check and run schedules default to the instance's update_check/update_run defaults and are disabled until enabled: nothing is checked or updated automatically before. DockYard's own project and containers are refused (409 update_target_ineligible). 409 update_policy_target_used, update_policy_name_taken.",
+        "operationId": "create-update-policy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUpdatePolicyInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatePolicy"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Create an update policy",
+        "tags": [
+          "Updates"
+        ],
+        "x-dockyard-audit": "update_policy.manage",
+        "x-dockyard-capability": "update_policy.manage",
+        "x-dockyard-scope": "environment"
+      }
+    },
+    "/api/v1/update-policies/{policyId}": {
+      "delete": {
+        "description": "Removes the policy, its candidates, quarantine and history (the audit trail and job history stay). If-Match required.",
+        "operationId": "delete-update-policy",
+        "parameters": [
+          {
+            "description": "Update policy ID.",
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "description": "Update policy ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag.",
+              "maxLength": 1024,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Failed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Required"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Delete an update policy",
+        "tags": [
+          "Updates"
+        ],
+        "x-dockyard-audit": "update_policy.manage",
+        "x-dockyard-capability": "update_policy.manage",
+        "x-dockyard-scope": "resource"
+      },
+      "get": {
+        "description": "The policy with its schedules (next run, recent runs), candidate summary, quarantined digests and applied digest history (full view).",
+        "operationId": "get-update-policy",
+        "parameters": [
+          {
+            "description": "Update policy ID.",
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "description": "Update policy ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatePolicy"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get an update policy",
+        "tags": [
+          "Updates"
+        ],
+        "x-dockyard-capability": "update_policy.read",
+        "x-dockyard-scope": "resource"
+      },
+      "patch": {
+        "description": "Changes name, opted-in and excluded services, schedules (enable/disable, cron, zone), window and wait timeout. If-Match required. The target cannot change (create another policy).",
+        "operationId": "update-update-policy",
+        "parameters": [
+          {
+            "description": "Update policy ID.",
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "description": "Update policy ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag.",
+              "maxLength": 1024,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchUpdatePolicyInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatePolicy"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Failed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Required"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Edit an update policy",
+        "tags": [
+          "Updates"
+        ],
+        "x-dockyard-audit": "update_policy.manage",
+        "x-dockyard-capability": "update_policy.manage",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/update-policies/{policyId}/candidates": {
+      "get": {
+        "description": "The digest model per service (or the container): reference, platform, registry connection, current, previous and candidate digests, status, ineligibility reason, errors and recovery guidance. All candidates on one page.",
+        "operationId": "list-update-policy-candidates",
+        "parameters": [
+          {
+            "description": "Update policy ID.",
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "description": "Update policy ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageUpdateCandidate"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List update candidates",
+        "tags": [
+          "Updates"
+        ],
+        "x-dockyard-capability": "update_policy.read",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/update-policies/{policyId}/checks": {
+      "post": {
+        "description": "Starts an update.check job on the manager: each eligible candidate's tag is resolved through its registry connection (#19; cached, rate-limit aware; 401/403/429 recorded on the candidate, never retried in a loop) and its host-platform manifest digest compared with the digest applied on the host. Nothing is pulled; an index change that leaves the host-platform image unchanged is no update. For stacks the definition's hash is read before and after.",
+        "operationId": "create-update-policy-check",
+        "parameters": [
+          {
+            "description": "Update policy ID.",
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "description": "Update policy ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Check for updates",
+        "tags": [
+          "Updates"
+        ],
+        "x-dockyard-audit": "update.check",
+        "x-dockyard-capability": "update.check",
+        "x-dockyard-idempotency": "job",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/update-policies/{policyId}/previews": {
+      "post": {
+        "description": "What a run would do now, from the latest check: services/containers to recreate with current and candidate digests, dependents restarted (restart: true), the dependency graph, expected downtime, other consumers of the same tags on the environment and source drift. Nothing changes.",
+        "operationId": "create-update-policy-preview",
+        "parameters": [
+          {
+            "description": "Update policy ID.",
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "description": "Update policy ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewUpdateInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatePreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Preview an update run",
+        "tags": [
+          "Updates"
+        ],
+        "x-dockyard-audit": "update.check",
+        "x-dockyard-capability": "update.check",
+        "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/update-policies/{policyId}/runs": {
+      "post": {
+        "description": "Starts an update.run job on the environment's agent: pulls the unchanged tagged references (credentials per dispatch, #19), verifies the tag still names the checked candidate, then recreates what changed through the Compose SDK from exactly the applied definition bytes (dependency order and conditions, restart propagation, stopped services kept stopped) or from the container's saved specification, and confirms health. No automatic rollback: a failure quarantines the candidate. 409 no_update_candidates, update_source_drift (undeployed changes: deploy first), update_preview_stale.",
+        "operationId": "create-update-policy-run",
+        "parameters": [
+          {
+            "description": "Update policy ID.",
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "description": "Update policy ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUpdateRunInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Run an update",
+        "tags": [
+          "Updates"
+        ],
+        "x-dockyard-audit": "update.run",
+        "x-dockyard-capability": "update.run",
+        "x-dockyard-idempotency": "job",
         "x-dockyard-scope": "resource"
       }
     },

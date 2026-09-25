@@ -125,6 +125,10 @@ type Deps struct {
 	// Migrations moves stacks and volumes between environments (#35); nil
 	// answers those routes with 503 (after authorization).
 	Migrations MigrationService
+	// Updates serves update policies, checks, candidates, previews and
+	// runs (#20); nil answers those routes with 503 (after
+	// authentication).
+	Updates UpdateService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -192,6 +196,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerContainerIO(a, deps)
 	registerSchedules(a, deps)
 	registerMaintenance(a, deps)
+	registerUpdates(a, deps)
 	return a
 }
 

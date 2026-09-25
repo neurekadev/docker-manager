@@ -25,6 +25,7 @@ type Engine interface {
 	UnpauseContainer(ctx context.Context, id string) error
 	KillContainer(ctx context.Context, id, signal string) error
 	RemoveContainer(ctx context.Context, id string, o RemoveOptions) error
+	RenameContainer(ctx context.Context, id, name string) error
 	UpdateContainer(ctx context.Context, id string, u ContainerUpdate) ([]string, error)
 	WaitContainer(ctx context.Context, id string) (int64, error)
 

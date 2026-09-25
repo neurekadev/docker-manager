@@ -51,6 +51,11 @@ type Engine struct {
 	buildCache  map[string]*engine.BuildCacheRecord
 	volumeSizes map[string]int64
 	sizes       map[string]int64
+	// remote maps a normalized tag to the digest the registry serves for
+	// it (Publish); startHealth sets the health of containers of an image
+	// when they start (SetStartHealth).
+	remote      map[string]string
+	startHealth map[string]string
 }
 
 // ExecInstance is an exec instance created with CreateExec (the fake
@@ -90,6 +95,8 @@ func New(engineID string) *Engine {
 		buildCache:  map[string]*engine.BuildCacheRecord{},
 		volumeSizes: map[string]int64{},
 		sizes:       map[string]int64{},
+		remote:      map[string]string{},
+		startHealth: map[string]string{},
 	}
 	for _, n := range []string{"bridge", "host", "none"} {
 		id := e.newID("net-" + n)
@@ -538,6 +545,9 @@ func (e *Engine) StartContainer(_ context.Context, id string) error {
 			return conflict("container.start", "cannot start a paused container, try unpause instead")
 		}
 		c.Details.State = engine.ContainerState{Status: "running", Running: true, Pid: 42, StartedAt: e.now(), Health: c.Details.State.Health}
+		if h, ok := e.startHealth[c.Details.ImageID]; ok {
+			c.Details.State.Health = &engine.Health{Status: h}
+		}
 		e.containerEvent(c, "start")
 		return nil
 	})
@@ -583,6 +593,21 @@ func (e *Engine) UnpauseContainer(_ context.Context, id string) error {
 		}
 		c.Details.State.Paused, c.Details.State.Status = false, "running"
 		e.containerEvent(c, "unpause")
+		return nil
+	})
+}
+
+// RenameContainer implements engine.Engine.
+func (e *Engine) RenameContainer(_ context.Context, id, name string) error {
+	return e.mutate("container.rename", id, func(c *Container) error {
+		name = strings.TrimPrefix(name, "/")
+		for _, other := range e.containers {
+			if other.Details.Name == name && other.Details.ID != c.Details.ID {
+				return conflict("container.rename", `Conflict. The container name "/%s" is already in use by container "%s"`, name, other.Details.ID)
+			}
+		}
+		c.Details.Name = name
+		e.containerEvent(c, "rename")
 		return nil
 	})
 }
@@ -689,9 +714,12 @@ func (e *Engine) PullImage(_ context.Context, ref string, o engine.PullOptions) 
 	tag := normalizeRef(ref)
 	im, ok := e.findImage(tag)
 	var id string
-	if ok {
+	switch {
+	case e.remote[tag] != "":
+		id = e.pullRemote(tag, e.remote[tag])
+	case ok:
 		id = im.ID
-	} else {
+	default:
 		id = e.addImage([]string{tag}, nil)
 	}
 	digest := ""
@@ -706,6 +734,71 @@ func (e *Engine) PullImage(_ context.Context, ref string, o engine.PullOptions) 
 		o.Progress(engine.Progress{Status: "Digest: " + digest})
 	}
 	return engine.PullResult{Digest: digest, ImageID: id}, nil
+}
+
+// Publish makes the registry serve digest for ref: the next pull of ref
+// moves the tag to an image with that repository digest (a new image when
+// none has it yet), like a tag moving to a new build (#20). The previous
+// image keeps its ID and digest.
+func (e *Engine) Publish(ref, digest string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.remote[normalizeRef(ref)] = digest
+}
+
+// SetStartHealth makes containers of image (ID or reference) report the
+// health status when they start ("healthy", "unhealthy", "starting").
+func (e *Engine) SetStartHealth(image, status string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if im, ok := e.findImage(image); ok {
+		e.startHealth[im.ID] = status
+	}
+}
+
+// ImageDigests returns the repository digests of an image (ID or reference).
+func (e *Engine) ImageDigests(image string) []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if im, ok := e.findImage(image); ok {
+		return slices.Clone(im.RepoDigests)
+	}
+	return nil
+}
+
+// repoOf strips the tag of a normalized reference ("host:5000/app:1" ->
+// "host:5000/app").
+func repoOf(tag string) string {
+	if i := strings.LastIndex(tag, ":"); i > strings.LastIndex(tag, "/") {
+		return tag[:i]
+	}
+	return tag
+}
+
+// pullRemote moves tag to the image with the published digest. Callers
+// hold e.mu.
+func (e *Engine) pullRemote(tag, digest string) string {
+	rd := repoOf(tag) + "@" + digest
+	var target *Image
+	for _, im := range e.images {
+		if slices.Contains(im.RepoDigests, rd) {
+			target = im
+		}
+	}
+	if target == nil {
+		id := "sha256:" + e.newID("img-"+rd)
+		target = &Image{engine.ImageDetails{ID: id, RepoDigests: []string{rd}, Created: e.now(), Size: 1 << 20, OS: "linux", Architecture: "amd64"}}
+		e.images[id] = target
+	}
+	for _, other := range e.images {
+		if i := slices.Index(other.RepoTags, tag); i >= 0 && other != target {
+			other.RepoTags = slices.Delete(other.RepoTags, i, i+1)
+		}
+	}
+	if !slices.Contains(target.RepoTags, tag) {
+		target.RepoTags = append(target.RepoTags, tag)
+	}
+	return target.ID
 }
 
 // TagImage implements engine.Engine.

@@ -277,17 +277,24 @@ func catalogSpecs() []Spec {
 		},
 
 		// Updates.
+		// An update policy targets one stack or one DockYard-managed
+		// standalone container (#20): the check reads registries on the
+		// manager, the run pulls and recreates on the agent.
 		{
-			Kind: UpdateCheck, Summary: "Check registries for newer digests of a stack's fixed tags",
+			Kind: UpdateCheck, Summary: "Check registries for newer digests of the fixed tags of a stack or container",
 			Capability: "update.check", Executor: domain.ExecutorManager,
-			Locks:            []LockRule{target(domain.LockStack, shared, domain.TargetStack)},
+			Locks: []LockRule{hostShared(),
+				optional(target(domain.LockStack, shared, domain.TargetStack)),
+				optional(target(domain.LockContainer, shared, domain.TargetContainer))},
 			Steps:            []Step{idem("check")},
 			OnManagerRestart: RestartResume,
 		},
 		{
-			Kind: UpdateRun, Summary: "Apply an image update to a stack (no automatic rollback)",
+			Kind: UpdateRun, Summary: "Apply an image update to a stack or standalone container (no automatic rollback)",
 			Capability: "update.run", Executor: domain.ExecutorAgent,
-			Locks:           []LockRule{hostShared(), target(domain.LockStack, exclusive, domain.TargetStack)},
+			Locks: []LockRule{hostShared(),
+				optional(target(domain.LockStack, exclusive, domain.TargetStack)),
+				optional(target(domain.LockContainer, exclusive, domain.TargetContainer))},
 			OfflineDeadline: deadlineScheduled, ConcurrencyClass: ClassPull,
 			Steps: []Step{idem("pull_images"), idem("recreate"), step("wait_healthy", true, false, "")},
 		},

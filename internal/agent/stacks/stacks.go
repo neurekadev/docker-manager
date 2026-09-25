@@ -28,6 +28,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/compose"
 	"github.com/neurekadev/dockyard/internal/agent/engine"
 	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
+	"github.com/neurekadev/dockyard/internal/agent/protect"
 	"github.com/neurekadev/dockyard/internal/agent/session"
 	"github.com/neurekadev/dockyard/internal/agent/storage"
 	"github.com/neurekadev/dockyard/internal/clock"
@@ -42,6 +43,8 @@ type Composer interface {
 	Pull(ctx context.Context, p *compose.Project, o compose.RunOptions) error
 	Build(ctx context.Context, p *compose.Project, o compose.BuildOptions) error
 	Down(ctx context.Context, name string, p *compose.Project, o compose.DownOptions) error
+	// Create converges services without starting them (#20 updates).
+	Create(ctx context.Context, p *compose.Project, o compose.CreateOptions) error
 }
 
 // Deps are the agent's live components; each may be nil while the Engine
@@ -63,6 +66,9 @@ type Options struct {
 	// BuildCancelPoll is how often a running build checks for cancellation
 	// (default buildrun.DefaultCancelPoll).
 	BuildCancelPoll time.Duration
+	// Guard identifies DockYard's own containers (#32): an update never
+	// recreates one. nil: no check (tests).
+	Guard *protect.Guard
 }
 
 // Service serves the compose.* requests and runs the stack.* jobs.
@@ -304,7 +310,7 @@ func serviceInfos(p *compose.Project) []protocol.ComposeService {
 	out := make([]protocol.ComposeService, 0, len(p.Services))
 	for _, s := range p.Services {
 		cs := protocol.ComposeService{Name: s.Name, Image: s.Image, Build: s.Build, Profiles: s.Profiles,
-			Description: s.Description, Icon: s.Icon}
+			Description: s.Description, Icon: s.Icon, PullPolicy: s.PullPolicy}
 		for _, d := range s.DependsOn {
 			cs.DependsOn = append(cs.DependsOn, protocol.ComposeDependency{Service: d.Service, Condition: d.Condition, Required: d.Required, Restart: d.Restart})
 		}

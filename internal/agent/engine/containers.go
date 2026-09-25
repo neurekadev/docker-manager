@@ -283,6 +283,16 @@ func stopTimeout(timeout *time.Duration) (*int, time.Duration) {
 	return &s, *timeout
 }
 
+// RenameContainer gives a container a new name (#20: a standalone
+// container keeps its name across an update; the old one steps aside until
+// its replacement exists).
+func (c *Client) RenameContainer(ctx context.Context, id, name string) error {
+	ctx, cancel := c.bound(ctx)
+	defer cancel()
+	_, err := c.api.ContainerRename(ctx, id, client.ContainerRenameOptions{NewName: name})
+	return wrap("container.rename", err)
+}
+
 // PauseContainer pauses a container.
 func (c *Client) PauseContainer(ctx context.Context, id string) error {
 	ctx, cancel := c.bound(ctx)

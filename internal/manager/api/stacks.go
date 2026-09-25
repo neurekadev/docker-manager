@@ -1033,9 +1033,15 @@ type StackImageStatus struct {
 	Platform string `json:"platform,omitempty"`
 	Build    bool   `json:"build"`
 	Eligible bool   `json:"eligible" doc:"The service could follow its tag's digest (#20)."`
-	Reason   string `json:"reason,omitempty" enum:"build_only,digest_pinned,untagged"`
-	// Update is #20's (candidate digests, checks): unknown until update checks exist.
-	Update string `json:"update" enum:"unknown" doc:"Update state; unknown until digest checks (#20) exist."`
+	Reason   string `json:"reason,omitempty" enum:"build_only,digest_pinned,untagged,pull_policy_conflict,invalid_reference"`
+	// ReasonMessage explains the reason (or warns about a non-version tag).
+	ReasonMessage string `json:"reasonMessage,omitempty"`
+	NonVersionTag bool   `json:"nonVersionTag" doc:"Eligible, but the tag (latest, main, ...) can change meaning."`
+	// Update is the state of the stack's update policy for the service (#20).
+	Update          string     `json:"update" enum:"no_policy,ineligible,unchecked,up_to_date,update_available,quarantined,check_failed,run_failed" doc:"Update state of the service under the stack's update policy; no_policy when the stack has none."`
+	PolicyID        string     `json:"policyId,omitempty" doc:"The stack's update policy."`
+	CandidateDigest string     `json:"candidateDigest,omitempty" doc:"The registry's newer host-platform digest (update_available, quarantined)."`
+	CheckedAt       *time.Time `json:"checkedAt,omitempty"`
 }
 
 type imageStatusOutput struct {
@@ -1051,9 +1057,35 @@ func (h *stacksAPI) imageStatus(ctx context.Context, in *stackIDInput) (*imageSt
 	}
 	out := &imageStatusOutput{}
 	out.Body.Images = []StackImageStatus{}
+	policyID := ""
+	cands := map[string]domain.UpdateCandidate{}
+	if u := h.deps.Updates; u != nil {
+		p, err := u.ForTarget(ctx, st.EnvironmentID, domain.UpdateTargetStack, st.ID)
+		if err != nil {
+			return nil, Internal(err)
+		}
+		if p != nil {
+			policyID = p.ID
+			list, err := u.Candidates(ctx, p.ID)
+			if err != nil {
+				return nil, Internal(err)
+			}
+			for _, c := range list {
+				cands[c.Service] = c
+			}
+		}
+	}
 	for _, i := range h.svc.ImageStatus(st) {
-		out.Body.Images = append(out.Body.Images, StackImageStatus{Service: i.Service, Image: i.Image, ImageID: i.ImageID, Digest: i.Digest,
-			Platform: i.Platform, Build: i.Build, Eligible: i.Eligible, Reason: i.Reason, Update: "unknown"})
+		s := StackImageStatus{Service: i.Service, Image: i.Image, ImageID: i.ImageID, Digest: i.Digest, Platform: i.Platform, Build: i.Build,
+			Eligible: i.Eligible, Reason: i.Reason, ReasonMessage: i.ReasonMessage, NonVersionTag: i.NonVersionTag, Update: "no_policy",
+			PolicyID: policyID}
+		if policyID != "" {
+			s.Update = string(domain.CandidateUnchecked)
+			if c, ok := cands[i.Service]; ok {
+				s.Update, s.CandidateDigest, s.CheckedAt = string(c.Status), c.CandidateDigest, c.CheckedAt
+			}
+		}
+		out.Body.Images = append(out.Body.Images, s)
 	}
 	return out, nil
 }

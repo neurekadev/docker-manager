@@ -41,6 +41,7 @@ func (s *Service) Executors() []jobexec.Executor {
 			"fetch_sources": classified(s.fetchSources),
 			"build_images":  classified(s.stackBuild),
 		}},
+		s.updateExecutor(),
 	}
 }
 

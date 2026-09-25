@@ -192,10 +192,15 @@ but not deployed is operated as deployed.
   exposes the service.
 - **#23 watcher**: `RecordObserved(ctx, stackID, domain.RevisionExternal,
   authz.Service())` after an external change to a definition file.
-- **#20 updates**: the applied images (`Stack.Images`, `GET
-  /stacks/{id}/image-status`) are the digest baseline; `update.run` should
-  reuse `stacks.Ref`, the deploy executor's source snapshot and the
-  lifecycle helper, and must never write definition files.
+- **#20 updates** (implemented, [updates.md](updates.md)): the applied
+  images (`Stack.Images`, `GET /stacks/{id}/image-status`) are the digest
+  baseline; `update.run` (`internal/agent/stacks/update.go`) reuses the
+  deploy executor's source snapshot, `Adapter.Create` and
+  `lifecycle.Update`/`Confirm`, never writes definition files, and
+  `RecordUpdatedImages` stores the new baseline after a successful run.
+  The stack image status shows each service's eligibility
+  (`updates/eligible`, including `pull_policy_conflict`; services carry
+  their Compose `pull_policy`) and its policy's update state.
 - **#10 backups**: `Stack.Binds` lists resolved bind sources (`relPath`
   inside the project directory, `external` otherwise); use
   `lifecycle.Stop`/`Resume` with the pre-backup running set.

@@ -33,16 +33,34 @@ const OCIManifestType = "application/vnd.oci.image.manifest.v1+json"
 // /dockyard-fixture.txt with the given content. Timestamps are fixed, so
 // equal inputs give equal digests.
 func NewTestImage(goarch, content string) (*OCIImage, error) {
+	return newImage(goarch, "dockyard-fixture.txt", 0o644, []byte(content),
+		map[string]any{"Cmd": []string{"/dockyard-fixture.txt"}})
+}
+
+// NewWorkloadImage builds a runnable linux/<goarch> image of the workload
+// binary (BuildWorkload) at /workload, entrypoint /workload, command
+// "serve" and the label dev.neureka.dockyard.test.revision=revision: equal
+// inputs give equal digests, another revision gives another digest of the
+// same program (#20: a tag moving to a new build).
+func NewWorkloadImage(goarch string, bin []byte, revision string) (*OCIImage, error) {
+	return newImage(goarch, "workload", 0o755, bin, map[string]any{
+		"Entrypoint": []string{WorkloadBinary}, "Cmd": []string{"serve"},
+		"Labels": map[string]string{"dev.neureka.dockyard.test.revision": revision},
+	})
+}
+
+// newImage builds a single-layer image with one file and the config.
+func newImage(goarch, name string, mode int64, content []byte, config map[string]any) (*OCIImage, error) {
 	if goarch == "" {
 		goarch = runtime.GOARCH
 	}
 	var tarBuf bytes.Buffer
 	tw := tar.NewWriter(&tarBuf)
 	epoch := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	if err := tw.WriteHeader(&tar.Header{Name: "dockyard-fixture.txt", Mode: 0o644, Size: int64(len(content)), ModTime: epoch, Typeflag: tar.TypeReg}); err != nil {
+	if err := tw.WriteHeader(&tar.Header{Name: name, Mode: mode, Size: int64(len(content)), ModTime: epoch, Typeflag: tar.TypeReg}); err != nil {
 		return nil, err
 	}
-	if _, err := tw.Write([]byte(content)); err != nil {
+	if _, err := tw.Write(content); err != nil {
 		return nil, err
 	}
 	if err := tw.Close(); err != nil {
@@ -65,7 +83,7 @@ func NewTestImage(goarch, content string) (*OCIImage, error) {
 		"architecture": goarch,
 		"os":           "linux",
 		"created":      epoch.Format(time.RFC3339),
-		"config":       map[string]any{"Cmd": []string{"/dockyard-fixture.txt"}},
+		"config":       config,
 		"rootfs":       map[string]any{"type": "layers", "diff_ids": []string{img.DiffID}},
 	}
 	var err error
