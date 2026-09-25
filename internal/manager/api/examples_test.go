@@ -86,7 +86,7 @@ func checkExamples(t reporter, a huma.API) int {
 							t.Errorf("%s %d: error response without the %s example", where, status, name)
 							continue
 						}
-						if got := oapi.Components.Examples[name].Value.(map[string]any)["code"]; !IsErrorCode(got) {
+						if got := oapi.Components.Examples[name].Value.(map[string]any)["code"]; !isErrorCode(got) {
 							t.Errorf("%s: example code %v is not in the catalog", name, got)
 						}
 					}
@@ -97,8 +97,8 @@ func checkExamples(t reporter, a huma.API) int {
 	return checked
 }
 
-// IsErrorCode reports whether v is a catalogued error code (test helper).
-func IsErrorCode(v any) bool {
+// isErrorCode reports whether v is a cataloged error code.
+func isErrorCode(v any) bool {
 	s, _ := v.(string)
 	for _, c := range ErrorCodes() {
 		if c.Code == s {

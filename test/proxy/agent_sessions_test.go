@@ -717,7 +717,7 @@ func (c *apiClient) openLive(ctx context.Context, t *testing.T, lastEventID, top
 	}
 	req.Header = h
 	// No client timeout on a stream.
-	resp, err := (&http.Client{Transport: c.client.Transport, Jar: c.client.Jar}).Do(req)
+	resp, err := (&http.Client{Transport: c.client.Transport, Jar: c.client.Jar}).Do(req) //nolint:bodyclose // sseStream.close closes it
 	if err != nil {
 		t.Fatal(err)
 	}

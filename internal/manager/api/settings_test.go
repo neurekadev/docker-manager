@@ -25,7 +25,9 @@ type settingsFixture struct {
 	log *audit.Log
 }
 
-func newSettingsHandler(t *testing.T, pol *authztest.Policy) http.Handler { return newSettingsFixture(t, pol).h }
+func newSettingsHandler(t *testing.T, pol *authztest.Policy) http.Handler {
+	return newSettingsFixture(t, pol).h
+}
 
 func newSettingsFixture(t *testing.T, pol *authztest.Policy) settingsFixture {
 	t.Helper()
