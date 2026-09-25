@@ -28,7 +28,7 @@ export const JOB_KIND_LABELS: Record<string, string> = {
 	'image.build': 'Build image',
 	'image.pull': 'Pull image',
 	'image.remove': 'Remove image',
-	'manager.backup': 'Back up DockYard',
+	'manager.backup': 'Back up DockYard Manager',
 	'manager.retention': 'Apply DockYard backup retention',
 	'manager.verify': 'Verify DockYard backups',
 	'network.create': 'Create network',

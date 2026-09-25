@@ -51,9 +51,6 @@ func (s *secretFiles) add(secret string) (string, error) {
 		return fdPath(2 + len(s.extra)), nil
 	}
 	if s.dir == "" {
-		if err := os.MkdirAll(s.tmpRoot, 0o700); err != nil {
-			return "", err
-		}
 		d, err := os.MkdirTemp(s.tmpRoot, "restic-secret-")
 		if err != nil {
 			return "", err
