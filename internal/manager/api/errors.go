@@ -151,6 +151,11 @@ const (
 	CodeEngineMismatch              = "engine_mismatch"
 	CodeEnrollmentTargetUnavailable = "enrollment_target_unavailable"
 	CodeAgentRevoked                = "agent_revoked"
+
+	// Authorization (#17).
+	CodeGroupNameTaken        = "group_name_taken"
+	CodeDefaultGroupProtected = "default_group_protected"
+	CodeGroupNotEmpty         = "group_not_empty"
 )
 
 // CodeForStatus returns the default code for an HTTP status.

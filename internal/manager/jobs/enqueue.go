@@ -74,7 +74,11 @@ func (e *Engine) Enqueue(ctx context.Context, req Request) (job domain.Job, crea
 	if err != nil {
 		return domain.Job{}, false, err
 	}
-	if d := e.authorize(ctx, req.Principal, spec, req.EnvironmentID, req.Targets); !d.Allowed {
+	caps, err := spec.Capabilities(req.Targets, input)
+	if err != nil {
+		return domain.Job{}, false, err
+	}
+	if d := e.authorize(ctx, req.Principal, caps, req.EnvironmentID, req.Targets); !d.Allowed {
 		return domain.Job{}, false, fmt.Errorf("%w: %s", domain.ErrJobForbidden, d.Reason)
 	}
 
@@ -150,30 +154,23 @@ func principalOf(j *domain.Job) authz.Principal {
 	return authz.Service()
 }
 
-// authorize checks the kind's capability on every target (the operation's
-// full effect, #17). The service identity runs scheduled work and is not
-// subject to user grants.
-func (e *Engine) authorize(ctx context.Context, p authz.Principal, spec jobspec.Spec, env string, targets []domain.JobTarget) authz.Decision {
+// authorize checks the kind's capabilities (jobspec.Spec.Capabilities) on
+// every target (the operation's full effect, #17; file paths are covered
+// by their stack or volume root, authz.TargetResources). The service
+// identity runs scheduled work and is not subject to user grants.
+func (e *Engine) authorize(ctx context.Context, p authz.Principal, caps []string, env string, targets []domain.JobTarget) authz.Decision {
 	if p.IsService() {
 		return authz.Allow("manager service identity")
 	}
-	resources := make([]authz.Resource, 0, len(targets)+1)
-	for _, t := range targets {
-		tenv := t.EnvironmentID
-		if tenv == "" {
-			tenv = env
-		}
-		resources = append(resources, authz.Resource{Type: string(t.Type), ID: t.ID, EnvironmentID: tenv})
-	}
-	if len(resources) == 0 {
-		resources = append(resources, authz.Resource{Type: "environment", ID: env, EnvironmentID: env})
-	}
-	for _, r := range resources {
-		if d := e.opts.Authorizer.Can(ctx, p, spec.Capability, r); !d.Allowed {
-			if d.Reason == "" {
-				d.Reason = "denied"
+	c := authz.For(ctx, e.opts.Authorizer, p)
+	for _, r := range authz.TargetResources(env, targets) {
+		for _, capability := range caps {
+			if d := c.Can(capability, r); !d.Allowed {
+				if d.Reason == "" {
+					d.Reason = "denied"
+				}
+				return d
 			}
-			return d
 		}
 	}
 	return authz.Allow("granted")

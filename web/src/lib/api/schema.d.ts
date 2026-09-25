@@ -57,7 +57,7 @@ export interface paths {
         };
         /**
          * List agents
-         * @description Agents newest first (active and revoked), filtered per item by agent.read.
+         * @description Agents newest first (active and revoked), filtered per item (#17): agent.read shows an agent in full, any other agent capability only its identity, status and granted actions (view minimal).
          */
         get: operations["list-agents"];
         put?: never;
@@ -410,7 +410,7 @@ export interface paths {
         };
         /**
          * List environments
-         * @description Environments in creation order, filtered per item by environment.read. Archived environments are listed only with ?status=archived.
+         * @description Environments in creation order, filtered per item (#17): environment.read shows an environment in full; any other capability applying in it (host stats, a grant on one of its stacks or containers) shows only its identity, status and granted actions (view minimal). Archived environments are listed only with ?status=archived.
          */
         get: operations["list-environments"];
         put?: never;
@@ -428,7 +428,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get an environment */
+        /**
+         * Get an environment
+         * @description Full with environment.read, minimal (identity, status, actions) with any other capability applying in it, 404 otherwise. The ETag is sent when the revision is visible.
+         */
         get: operations["get-environment"];
         put?: never;
         post?: never;
@@ -479,6 +482,102 @@ export interface paths {
          */
         get: operations["get-environment-system"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List groups
+         * @description Every group with member and rule counts, in creation order. Instance owner only (never delegable, never with an API token).
+         */
+        get: operations["list-groups"];
+        put?: never;
+        /**
+         * Create a group
+         * @description Creates a group without grants (no access); edit its rules with PUT /groups/{groupId}/permissions. 409 group_name_taken. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-group"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/groups/{groupId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a group
+         * @description Instance owner only (never delegable, never with an API token).
+         */
+        get: operations["get-group"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a group
+         * @description Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group (choose another default first); 409 group_not_empty while users are in it (move them first: DockYard never moves users implicitly, so deleting a group never changes anyone's access). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        delete: operations["delete-group"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a group
+         * @description Renames the group (the default group too). Requires If-Match with the group's ETag. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        patch: operations["update-group"];
+        trace?: never;
+    };
+    "/api/v1/groups/{groupId}/default-selection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a group the default
+         * @description New users (invitation redemptions) join this group from now on; existing members are not moved. The response warns when the group grants access, because every newly invited user gets it. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-group-default-selection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/groups/{groupId}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a group's rules
+         * @description The group's allow/deny rules and the document revision (ETag). Instance owner only (never delegable, never with an API token).
+         */
+        get: operations["get-group-permissions"];
+        /**
+         * Replace a group's rules
+         * @description Replaces the complete rule list. Rules name catalog capabilities at scopes they support; duplicates for the same capability and scope are rejected (422). Members' effective access changes at once: their open requests and streams end and their stored idempotent responses are dropped. Audited with the before/after rules. Requires If-Match with the document ETag. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        put: operations["replace-group-permissions"];
         post?: never;
         delete?: never;
         options?: never;
@@ -599,7 +698,7 @@ export interface paths {
         };
         /**
          * List jobs
-         * @description Jobs visible to the caller, newest first. Visibility is decided per job by job.read on the job's targets (never by who created it), so pages may hold fewer than limit items; follow nextCursor until it is absent.
+         * @description Jobs visible to the caller, newest first. Visibility is decided per job by job.read on every target of the job, or by holding the job kind's own capability on every target (a restart-only user sees restarts of that container) - never by who created it - so pages may hold fewer than limit items; follow nextCursor until it is absent.
          */
         get: operations["list-jobs"];
         put?: never;
@@ -747,6 +846,26 @@ export interface paths {
         patch: operations["update-my-password"];
         trace?: never;
     };
+    "/api/v1/me/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get my effective permissions
+         * @description The caller's effective permissions (one entry per capability and scope named by their rules, with the deciding rule) and the environments they can see. Use it to show or hide actions; the server still decides on every request.
+         */
+        get: operations["get-my-permissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/recovery-codes": {
         parameters: {
             query?: never;
@@ -765,6 +884,46 @@ export interface paths {
          * @description Replaces the caller's recovery codes with ten new one-time codes, returned only in this response (stored as verifiers). Requires a recent step-up (a fresh sign-in counts). Recovery codes complete a password sign-in when TOTP or the passkey is lost. Available to limited enrollment sessions.
          */
         post: operations["create-my-recovery-codes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/permission-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the permission catalog
+         * @description The versioned catalog of capability keys with their resource grouping, plain-language labels, compatible scopes, risk hints and owner-only flags. There are no generic read/write grants: every action has its own key.
+         */
+        get: operations["get-permission-catalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/permission-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview permissions (view as)
+         * @description Evaluates what a user (or a member of a group) could do, optionally with unsaved group rules, user overrides, a group move or an API token scope (#31) applied, and explains each requested check with its deciding rule. Nothing is stored and no session is impersonated. Instance owner only (never delegable, never with an API token).
+         */
+        post: operations["create-permission-preview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -878,9 +1037,29 @@ export interface paths {
         head?: never;
         /**
          * Update a user
-         * @description Edit profile fields, move the account to one group (#17), or disable/reactivate it. Disabling ends every session and open stream of the account immediately; the owner cannot be disabled (409 owner_protected). Requires If-Match. Instance owner only (never delegable, never with an API token).
+         * @description Edit profile fields, move the account to exactly one group (#17), or disable/reactivate it. A group move needs a recent step-up (403 step_up_required), changes the account's access at once and ends its open requests and streams. Disabling ends every session and open stream of the account immediately; the owner cannot be disabled (409 owner_protected). Requires If-Match. Instance owner only (never delegable, never with an API token).
          */
         patch: operations["update-user"];
+        trace?: never;
+    };
+    "/api/v1/users/{userId}/effective-permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a user's effective permissions
+         * @description The decision for every capability and scope named by the user's overrides or group rules, with the deciding rule (user override beats group rule; exact resource beats environment beats all). Instance owner only (never delegable, never with an API token).
+         */
+        get: operations["get-user-effective-permissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/users/{userId}/factor-resets": {
@@ -917,6 +1096,30 @@ export interface paths {
          * @description Returns a one-time password-reset code and link, only in this response; earlier unused codes of the account stop working. The user redeems it with POST /api/v1/auth/password-resets/redemptions, which ends all of their sessions. Requires a recent step-up; not for the owner. Instance owner only (never delegable, never with an API token).
          */
         post: operations["create-user-password-reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{userId}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a user's overrides
+         * @description The user's allow/deny overrides (absent capability/scope = inherit the group). Instance owner only (never delegable, never with an API token).
+         */
+        get: operations["get-user-permissions"];
+        /**
+         * Replace a user's overrides
+         * @description Replaces the user's override list: an allow or deny beats every group rule; removing a rule resets it to inherit (an empty list resets everything). The owner's capabilities are protected (409 owner_protected). The user's open requests and streams end at once. Audited with the before/after rules. Requires If-Match with the document ETag. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         */
+        put: operations["replace-user-permissions"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -994,48 +1197,61 @@ export interface components {
             totp: boolean;
         };
         Agent: {
+            /** @description Granted agent capabilities. */
+            actions: string[];
             /** @description A session is established. The environment is reported online once the session's jobs were reconciled. */
             connected: boolean;
-            /** Format: date-time */
-            createdAt: string;
-            /** @description Docker Engine ID. */
-            engineId: string;
+            /**
+             * Format: date-time
+             * @description Full view.
+             */
+            createdAt?: string;
+            /** @description Docker Engine ID (full view). */
+            engineId?: string;
             environmentId: string;
             /** @description Engine host name reported at enrollment. */
             hostname?: string;
             /** @example 0190a6e0-2222-7000-8000-000000000002 */
             id: string;
-            /** @description Generated by the agent once per state volume. */
-            installId: string;
+            /** @description Generated by the agent once per state volume (full view). */
+            installId?: string;
             /** @description Optional operator note. */
-            label: string;
+            label?: string;
             /** Format: date-time */
             lastConnectedAt?: string;
             /** Format: date-time */
             lastSeenAt?: string;
             /**
              * Format: int64
-             * @description Edit revision (the ETag).
+             * @description Edit revision (the ETag); full view, or minimal view with an edit action.
              */
-            revision: number;
+            revision?: number;
             /** Format: date-time */
             revokedAt?: string;
             /** @example removed */
             revokedReason?: string;
             /** @description A new credential waits for the agent's confirmation; the old one stays valid until then. */
-            rotationPending: boolean;
+            rotationPending?: boolean;
             /** @enum {string} */
             status: "active" | "revoked";
             transport?: components["schemas"]["AgentTransport"];
-            /** Format: date-time */
-            updatedAt: string;
+            /**
+             * Format: date-time
+             * @description Full view.
+             */
+            updatedAt?: string;
             /** @example 0.0.0-edge */
-            version: string;
+            version?: string;
             /**
              * @description outdated: previous minor release, still supported; upgrade it.
              * @enum {string}
              */
-            versionStatus: "current" | "outdated";
+            versionStatus?: "current" | "outdated";
+            /**
+             * @description full: agent.read; minimal: only identity, status and the granted actions (#17).
+             * @enum {string}
+             */
+            view: "minimal" | "full";
         };
         AgentEnrollment: {
             /** @description The agent created by the enrollment. */
@@ -1141,6 +1357,64 @@ export interface components {
             /** @example 0.0.0-edge */
             managerVersion: string;
         };
+        CatalogCapability: {
+            /** @description Less common: collapsed in editors until needed. */
+            advanced: boolean;
+            description: string;
+            /**
+             * @description Stable capability key.
+             * @example container.restart
+             */
+            key: string;
+            /**
+             * @description Plain-language action name.
+             * @example Restart
+             */
+            label: string;
+            /** @description Reserved to the instance owner: never grantable. */
+            ownerOnly: boolean;
+            /**
+             * @description Grouping in editors.
+             * @example container
+             */
+            resourceType: string;
+            /**
+             * @description high: shown distinctly (secrets, data loss, code execution, cross-resource visibility).
+             * @enum {string}
+             */
+            risk: "normal" | "high";
+            scopes: components["schemas"]["CatalogScopes"];
+            /**
+             * Format: int64
+             * @description Catalog version that introduced the key.
+             */
+            since: number;
+        };
+        CatalogResourceType: {
+            environmentBound: boolean;
+            /** @example container */
+            key: string;
+            /** @example Containers */
+            label: string;
+            /** @description Fields visible with any other capability. */
+            minimalFields?: string;
+            /** @description Identified by environment and name (rules name the environment). */
+            namedPerEnvironment: boolean;
+            /** @description Resource types that contain this one, nearest first. */
+            parents: string[];
+            /** @description Shows the resource in full; any other capability shows only the minimal fields. */
+            readCapability?: string;
+            /** @description Rules may target one resource of this type. */
+            scopable: boolean;
+        };
+        CatalogScopes: {
+            /** @description All such resources in one environment. */
+            environment: boolean;
+            /** @description All resources of the capability's type, including future ones. */
+            instance: boolean;
+            /** @description Resource types a rule may target individually. A parent type (stack, service) covers its current and future children. */
+            resourceTypes: string[];
+        };
         ChangePasswordInputBody: {
             /** @description Required when the account has a password. */
             currentPassword?: string;
@@ -1168,6 +1442,10 @@ export interface components {
              * @example new
              */
             intent?: string;
+        };
+        CreateGroupInputBody: {
+            /** @example Operators */
+            name: string;
         };
         CreateInvitationInputBody: {
             /** @description Bind the invitation to this address (it must be entered when redeeming). No email is sent. */
@@ -1220,6 +1498,35 @@ export interface components {
              */
             state: "completed" | "pending";
         };
+        DefaultSelectionOutputBody: {
+            group: components["schemas"]["Group"];
+            /** @description Set when the new default group grants access: every newly invited user gets it. */
+            warning?: string;
+        };
+        EffectivePermission: {
+            allowed: boolean;
+            capability: string;
+            /** @description Plain-language explanation. */
+            reason: string;
+            /** @description The deciding rule. */
+            rule?: components["schemas"]["PermissionRule"];
+            scope: components["schemas"]["PermissionScope"];
+            /**
+             * @description What decided: a user override, a group rule, or nothing (default deny).
+             * @enum {string}
+             */
+            source: "owner" | "user_rule" | "group_rule" | "default_deny" | "token_scope" | "unknown_capability" | "owner_only" | "inactive_account";
+        };
+        EffectivePermissions: {
+            /** Format: int64 */
+            catalogVersion: number;
+            /** @description One entry per capability and scope named by the user's or group's rules, with the effective decision there. Anything not listed is denied. */
+            entries: components["schemas"]["EffectivePermission"][];
+            groupId?: string;
+            /** @description The instance owner may do everything; entries are empty. */
+            owner: boolean;
+            userId?: string;
+        };
         EnrollmentRejection: {
             /** Format: date-time */
             at: string;
@@ -1240,10 +1547,12 @@ export interface components {
             message: string;
         };
         Environment: {
+            /** @description Granted environment capabilities (e.g. environment.metrics.read). */
+            actions: string[];
             /** @description The active agent; absent while the environment is detached (its agent was removed). */
             agentId?: string;
             /** @description The owner declared this a distinct host sharing another environment's Engine ID (cloned VM). */
-            allowDuplicateEngineId: boolean;
+            allowDuplicateEngineId?: boolean;
             /** Format: date-time */
             archivedAt?: string;
             /**
@@ -1251,10 +1560,13 @@ export interface components {
              * @description When the environment last went online or offline.
              */
             connectionChangedAt?: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** @description Docker Engine ID. */
-            engineId: string;
+            /**
+             * Format: date-time
+             * @description Full view.
+             */
+            createdAt?: string;
+            /** @description Docker Engine ID (full view). */
+            engineId?: string;
             /** @example 0190a6e0-3333-7000-8000-000000000003 */
             id: string;
             /** Format: date-time */
@@ -1268,9 +1580,9 @@ export interface components {
             online: boolean;
             /**
              * Format: int64
-             * @description Edit revision (the ETag).
+             * @description Edit revision (the ETag); full view, or minimal view with an edit action.
              */
-            revision: number;
+            revision?: number;
             /**
              * @description Host name or IP address users browse to, for links to published ports.
              * @example nas.lan
@@ -1281,8 +1593,16 @@ export interface components {
              * @enum {string}
              */
             status: "active" | "archived";
-            /** Format: date-time */
-            updatedAt: string;
+            /**
+             * Format: date-time
+             * @description Full view.
+             */
+            updatedAt?: string;
+            /**
+             * @description full: environment.read; minimal: only identity, status and the granted actions (#17).
+             * @enum {string}
+             */
+            view: "minimal" | "full";
         };
         EnvironmentSystem: {
             /** @description Absent while detached. */
@@ -1337,6 +1657,37 @@ export interface components {
              * @example expected length >= 1
              */
             message: string;
+        };
+        Group: {
+            /** Format: date-time */
+            createdAt: string;
+            /** @description New users join this group. */
+            default: boolean;
+            /** @description The group has at least one allow rule. */
+            grantsAccess: boolean;
+            /** @example 0190a6e0-0000-7000-8000-00000000000a */
+            id: string;
+            /** Format: int64 */
+            memberCount: number;
+            /** @example Restricted */
+            name: string;
+            /**
+             * Format: int64
+             * @description Revision of the group's permission document.
+             */
+            permissionsRevision: number;
+            /**
+             * Format: int64
+             * @description Group revision (the ETag of the group; name changes).
+             */
+            revision: number;
+            /** Format: int64 */
+            ruleCount: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        GroupsOutputBody: {
+            items: components["schemas"]["Group"][];
         };
         HealthBody: {
             /** @description Source commit the manager was built from. */
@@ -1511,6 +1862,18 @@ export interface components {
              */
             type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path";
         };
+        MyPermissions: {
+            /** Format: int64 */
+            catalogVersion: number;
+            /** @description One entry per capability and scope named by the user's or group's rules, with the effective decision there. Anything not listed is denied. */
+            entries: components["schemas"]["EffectivePermission"][];
+            /** @description Environments visible to the caller (at most 500). A new Restricted user sees none: show an empty state, not an error. */
+            environments: components["schemas"]["VisibleEnvironment"][];
+            groupId?: string;
+            /** @description The instance owner may do everything; entries are empty. */
+            owner: boolean;
+            userId?: string;
+        };
         PageAccount: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Account"][];
@@ -1663,6 +2026,79 @@ export interface components {
              */
             status?: "active" | "disabled";
         };
+        PermissionCatalog: {
+            capabilities: components["schemas"]["CatalogCapability"][];
+            resourceTypes: components["schemas"]["CatalogResourceType"][];
+            /**
+             * Format: int64
+             * @description Catalog version; increases when capabilities are added. New capabilities are denied until a rule grants them.
+             */
+            version: number;
+        };
+        PermissionDocument: {
+            /** Format: int64 */
+            catalogVersion: number;
+            /**
+             * Format: int64
+             * @description Document revision (the ETag); PUT needs it in If-Match.
+             */
+            revision: number;
+            /** @description Group documents: allow/deny rules (no rule = deny). User documents: overrides (no rule = inherit the group). */
+            rules: components["schemas"]["PermissionRule"][];
+            /** @description Group or user ID. */
+            subjectId: string;
+        };
+        PermissionPreview: {
+            checks: components["schemas"]["PreviewDecision"][];
+            effective: components["schemas"]["EffectivePermissions"];
+        };
+        PermissionRule: {
+            /** @example container.restart */
+            capability: string;
+            /** @enum {string} */
+            effect: "allow" | "deny";
+            scope: components["schemas"]["PermissionScope"];
+        };
+        PermissionScope: {
+            /** @description environment scopes; and resource scopes of types named per environment (container, image, volume, network). */
+            environmentId?: string;
+            /**
+             * @description instance: all resources of the capability's type (also future ones); environment: all of them in one environment; resource: one resource (a stack or service also covers its current and future children).
+             * @enum {string}
+             */
+            kind: "instance" | "environment" | "resource";
+            /** @description DockYard ID (stack, agent, policy, ...), Docker name (container, image, volume, network) or <stackId>/<service> for services. */
+            resourceId?: string;
+            /** @example container */
+            resourceType?: string;
+        };
+        PreviewCheck: {
+            capability: string;
+            resource: components["schemas"]["ResourceDTO"];
+        };
+        PreviewDecision: {
+            allowed: boolean;
+            capability: string;
+            reason: string;
+            resource: components["schemas"]["ResourceDTO"];
+            rule?: components["schemas"]["PermissionRule"];
+            /** @description owner, user_rule, group_rule, default_deny, token_scope, unknown_capability, owner_only, inactive_account or job_targets. */
+            source: string;
+        };
+        PreviewInputBody: {
+            /** @description Decisions to explain (capability + resource). */
+            checks?: components["schemas"]["PreviewCheck"][];
+            /** @description Preview the user as a member of this group (a move), or a member of this group without overrides when userId is absent. */
+            groupId?: string;
+            /** @description Unsaved group rules to preview instead of the stored ones. */
+            groupRules?: components["schemas"]["PermissionRule"][];
+            /** @description Preview an API token with this scope (#31, allow rules only): token scope ∩ the user's effective permissions. */
+            tokenScope?: components["schemas"]["PermissionRule"][];
+            /** @description Preview this user. */
+            userId?: string;
+            /** @description Unsaved user overrides to preview. */
+            userRules?: components["schemas"]["PermissionRule"][];
+        };
         ReadinessBody: {
             checks: components["schemas"]["ReadinessCheck"][];
             /** @enum {string} */
@@ -1692,6 +2128,27 @@ export interface components {
             /** @description Required unless the policy is passkey-only. */
             password?: string;
             username: string;
+        };
+        ReplaceDocumentBody: {
+            /** @description The complete new rule list. Duplicate rules for the same capability and scope are rejected. */
+            rules: components["schemas"]["PermissionRule"][];
+        };
+        ResourceDTO: {
+            environmentId?: string;
+            /** @description Empty: any (new) resource of the type in environmentId. */
+            id?: string;
+            /** @description Containing resources, nearest first (service <stackId>/<name>, stack). Omitted: resolved by the manager. */
+            parents?: components["schemas"]["ResourceRefDTO"][];
+            /**
+             * @description Catalog resource type, or instance.
+             * @example container
+             */
+            type: string;
+        };
+        ResourceRefDTO: {
+            environmentId?: string;
+            id: string;
+            type: string;
         };
         SecuritySettings: {
             /**
@@ -1842,6 +2299,20 @@ export interface components {
              * @example nas.lan
              */
             serviceAddress?: string;
+        };
+        UpdateGroupInputBody: {
+            name?: string;
+        };
+        VisibleEnvironment: {
+            /** @description Granted environment capabilities. */
+            actions: string[];
+            id: string;
+            name: string;
+            /**
+             * @description minimal: name and status only (a grant inside it); full: environment.read.
+             * @enum {string}
+             */
+            view: "minimal" | "full";
         };
     };
     responses: never;
@@ -3889,6 +4360,631 @@ export interface operations {
             };
         };
     };
+    "list-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupsOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGroupInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Group ID. */
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-group": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Group ID. */
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-group": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Group ID. */
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateGroupInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-group-default-selection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Group ID. */
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefaultSelectionOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-group-permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Group ID. */
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionDocument"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-group-permissions": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Group ID. */
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaceDocumentBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionDocument"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "get-health": {
         parameters: {
             query?: never;
@@ -4710,6 +5806,44 @@ export interface operations {
             };
         };
     };
+    "get-my-permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyPermissions"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "get-my-recovery-codes": {
         parameters: {
             query?: never;
@@ -4789,6 +5923,113 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-permission-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionCatalog"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-permission-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionPreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5370,6 +6611,74 @@ export interface operations {
             };
         };
     };
+    "get-user-effective-permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User ID. */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EffectivePermissions"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "create-user-factor-reset": {
         parameters: {
             query?: never;
@@ -5508,6 +6817,178 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-user-permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User ID. */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionDocument"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-user-permissions": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description User ID. */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaceDocumentBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionDocument"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };

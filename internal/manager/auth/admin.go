@@ -13,6 +13,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/neurekadev/dockyard/internal/domain"
+	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 )
@@ -297,6 +298,9 @@ func (s *Service) GetUser(ctx context.Context, id string) (domain.Account, error
 
 // PatchUser edits an account (owner; optimistic revision). Disabling ends
 // all sessions and streams of the account; the owner cannot be disabled.
+// Moving the account to another group (#17: exactly one group per user)
+// needs a recent step-up, is audited with the before/after group, and
+// ends the account's open requests and streams (its access changed).
 func (s *Service) PatchUser(ctx context.Context, id string, revision int64, p domain.UserPatch) (domain.Account, error) {
 	cur, err := s.requireOwner(ctx, false)
 	if err != nil {
@@ -305,6 +309,12 @@ func (s *Service) PatchUser(ctx context.Context, id string, revision int64, p do
 	target, err := store.GetUser(ctx, s.db, id)
 	if err != nil {
 		return domain.Account{}, err
+	}
+	moving := p.GroupID != nil && *p.GroupID != target.GroupID
+	if moving {
+		if err := s.requireRecent(cur); err != nil {
+			return domain.Account{}, err
+		}
 	}
 	if p.Status != nil && *p.Status != target.Status && target.Owner {
 		return domain.Account{}, domain.ErrOwnerProtected
@@ -332,12 +342,12 @@ func (s *Service) PatchUser(ctx context.Context, id string, revision int64, p do
 			}
 		}
 		s.record(ctx, action, OutcomeSuccess, cur.user.ID, "user", id, "")
-	case p.GroupID != nil && *p.GroupID != target.GroupID:
+	case moving:
 		// A group move changes permissions (#17): end open streams and
 		// stored responses so nothing keeps the old access.
-		s.forget(ctx, id)
-		s.hub.revoke(id, -1)
+		audit.SetDiff(ctx, map[string]string{"groupId": target.GroupID}, map[string]string{"groupId": u.GroupID})
 		s.record(ctx, "user.group_change", OutcomeSuccess, cur.user.ID, "user", id, "")
+		s.AccessChanged(ctx, []string{id})
 	default:
 		s.record(ctx, "user.update", OutcomeSuccess, cur.user.ID, "user", id, "")
 	}

@@ -24,8 +24,8 @@ func MatrixMarkdown() string {
 	b.WriteString("| Kind | Executor | Capability | Locks | Steps | Offline deadline | Cap class | Compensations | Manager restart |\n")
 	b.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, s := range Catalog() {
-		fmt.Fprintf(&b, "| `%s` | %s | `%s` | %s | %s | %s | %s | %s | %s |\n",
-			s.Kind, s.Executor, s.Capability, renderLocks(s.Locks), renderSteps(s.Steps),
+		fmt.Fprintf(&b, "| `%s` | %s | %s | %s | %s | %s | %s | %s | %s |\n",
+			s.Kind, s.Executor, s.capabilityDoc(), renderLocks(s.Locks), renderSteps(s.Steps),
 			orDash(fmtDuration(s.OfflineDeadline)), orDash(s.ConcurrencyClass),
 			renderCompensations(s.Compensations), orDash(string(s.OnManagerRestart)))
 	}

@@ -104,8 +104,8 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 				"finish enrolling the sign-in factors the instance policy requires before using DockYard"))
 			return
 		}
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+		ctx, cancel := context.WithCancelCause(ctx)
+		defer cancel(nil)
 		defer s.hub.register(cur.user.ID, cur.user.SessionEpoch, cancel)()
 		ctx = context.WithValue(ctx, currentKey{}, cur)
 		if cur.stage == domain.StageAuthenticated {

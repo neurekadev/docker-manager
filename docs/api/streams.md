@@ -153,8 +153,12 @@ arrive as:
 Implemented (#26). First `event: job` with the full `Job` (no id), then
 every retained event after `Last-Event-ID`: `id: <seq>`, `event: state |
 progress | item | log | warning`, `data: JobEvent`. The stream closes after
-the job's terminal events, or when the job is deleted by retention or the
-caller loses `job.read`. The per-job event log is bounded (newest 500), so
+the job's terminal events, or when the job is deleted by retention. When
+the caller's permissions change (#17: rule edit or group move) or the
+session ends, the stream ends with `event: close`, `data: {"reason":
+"permissions_changed"}` (or `"session_expired"`); reconnect to be filtered
+by the new permissions. Visibility is `job.read` on every target of the job,
+or holding the job kind's own capability on every target. The per-job event log is bounded (newest 500), so
 replay covers only retained events; `Last-Event-ID` must be a non-negative
 integer (`422` otherwise).
 

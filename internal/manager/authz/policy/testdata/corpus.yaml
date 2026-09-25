@@ -1,0 +1,311 @@
+# Decision corpus for the #17 evaluator (TestDecisionCorpus).
+#
+# Each case: a subject (owner / inactive flags, user rules, group rules,
+# optional API token scope), one check (capability + resource) and the
+# expected decision: allow or deny, the deciding source and, for rule
+# decisions, the deciding rule.
+#
+# Rule shorthand: "<allow|deny> <capability> @<scope>" where scope is
+#   all                  every resource of the capability's type (instance)
+#   env:<id>             one environment
+#   <type>:<id>          one resource with a global ID (stack, service, agent, ...)
+#   <type>:<env>/<name>  one resource named per environment (container, image, volume, network)
+# Resource: type, id, env (current environment), parents ("<type>:<id>",
+# nearest first; a parent in another environment is "<type>:<id>@<env>").
+# catalog: future uses a catalog v2 that adds container.snapshot.
+cases:
+  # --- Restricted / default deny -------------------------------------------
+  - name: a Restricted user (no rules) is denied container metrics
+    check: {capability: container.metrics.read, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: a Restricted user is denied environment details
+    check: {capability: environment.read, resource: {type: environment, id: e1, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: a Restricted user is denied job visibility
+    check: {capability: job.read, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: a Restricted user is denied the audit log
+    check: {capability: audit.read, resource: {type: instance}}
+    want: {decision: deny, source: default_deny}
+
+  # --- Owner ----------------------------------------------------------------
+  - name: the owner bypasses everything
+    subject: {owner: true}
+    check: {capability: container.exec, resource: {type: container, id: web, env: e1}}
+    want: {decision: allow, source: owner}
+  - name: owner user deny rules are ignored (owner capabilities are protected)
+    subject: {owner: true, user: ["deny container.exec @all"]}
+    check: {capability: container.exec, resource: {type: container, id: web, env: e1}}
+    want: {decision: allow, source: owner}
+  - name: the owner holds owner-only capabilities
+    subject: {owner: true}
+    check: {capability: groups.manage, resource: {type: instance}}
+    want: {decision: allow, source: owner}
+  - name: owner-only capabilities are never granted to others
+    subject: {group: ["allow audit.read @all"]}
+    check: {capability: users.manage, resource: {type: instance}}
+    want: {decision: deny, source: owner_only}
+
+  # --- Metrics-only / restart-only ------------------------------------------
+  - name: metrics-only allows metrics
+    subject: {group: ["allow container.metrics.read @container:e1/web"]}
+    check: {capability: container.metrics.read, resource: {type: container, id: web, env: e1}}
+    want: {decision: allow, source: group_rule, rule: "allow container.metrics.read @container:e1/web"}
+  - name: metrics-only does not allow details
+    subject: {group: ["allow container.metrics.read @container:e1/web"]}
+    check: {capability: container.details.read, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: metrics-only does not allow logs
+    subject: {group: ["allow container.metrics.read @container:e1/web"]}
+    check: {capability: container.logs.read, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: restart-only allows restart
+    subject: {group: ["allow container.restart @container:e1/web"]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: allow, source: group_rule}
+  - name: restart-only does not allow start
+    subject: {group: ["allow container.restart @container:e1/web"]}
+    check: {capability: container.start, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: restart-only does not allow stop
+    subject: {group: ["allow container.restart @container:e1/web"]}
+    check: {capability: container.stop, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: restart-only does not allow the terminal
+    subject: {group: ["allow container.restart @container:e1/web"]}
+    check: {capability: container.exec, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: restart-only on one container does not touch another
+    subject: {group: ["allow container.restart @container:e1/web"]}
+    check: {capability: container.restart, resource: {type: container, id: db, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: a same-named container in another environment is a different resource
+    subject: {group: ["allow container.restart @container:e1/web"]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e2}}
+    want: {decision: deny, source: default_deny}
+
+  # --- Scope precedence within a tier -----------------------------------------
+  - name: exact resource beats environment (group)
+    subject: {group: ["allow container.restart @env:e1", "deny container.restart @container:e1/web"]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: group_rule, rule: "deny container.restart @container:e1/web"}
+  - name: environment beats all (group)
+    subject: {group: ["allow container.restart @all", "deny container.restart @env:e1"]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: group_rule, rule: "deny container.restart @env:e1"}
+  - name: all applies to other environments
+    subject: {group: ["allow container.restart @all", "deny container.restart @env:e1"]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e2}}
+    want: {decision: allow, source: group_rule, rule: "allow container.restart @all"}
+  - name: exact allow beats environment deny (user)
+    subject: {user: ["deny container.logs.read @env:e1", "allow container.logs.read @container:e1/web"]}
+    check: {capability: container.logs.read, resource: {type: container, id: web, env: e1}}
+    want: {decision: allow, source: user_rule, rule: "allow container.logs.read @container:e1/web"}
+  - name: the environment deny still covers siblings
+    subject: {user: ["deny container.logs.read @env:e1", "allow container.logs.read @container:e1/web"]}
+    check: {capability: container.logs.read, resource: {type: container, id: db, env: e1}}
+    want: {decision: deny, source: user_rule, rule: "deny container.logs.read @env:e1"}
+
+  # --- User over group -----------------------------------------------------
+  - name: a user deny overrides a group allow
+    subject: {group: ["allow container.restart @all"], user: ["deny container.restart @all"]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: user_rule, rule: "deny container.restart @all"}
+  - name: a user allow overrides a group deny
+    subject: {group: ["deny stack.deploy @stack:s1"], user: ["allow stack.deploy @all"]}
+    check: {capability: stack.deploy, resource: {type: stack, id: s1, env: e1}}
+    want: {decision: allow, source: user_rule, rule: "allow stack.deploy @all"}
+  - name: a user rule overrides a more specific group rule
+    subject: {group: ["allow container.exec @container:e1/web"], user: ["deny container.exec @env:e1"]}
+    check: {capability: container.exec, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: user_rule, rule: "deny container.exec @env:e1"}
+  - name: inherit (no user rule) falls through to the group
+    subject: {group: ["allow container.restart @all"], user: ["deny container.stop @all"]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: allow, source: group_rule}
+  - name: a user rule outside the resource falls through to the group
+    subject: {group: ["allow container.restart @env:e1"], user: ["deny container.restart @env:e2"]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: allow, source: group_rule}
+  - name: a user allow without any group grant
+    subject: {user: ["allow container.metrics.read @env:e1"]}
+    check: {capability: container.metrics.read, resource: {type: container, id: web, env: e1}}
+    want: {decision: allow, source: user_rule}
+  - name: group move - the old group's rules no longer apply
+    note: the subject is evaluated with the new group's rules only
+    subject: {group: ["allow stack.read @all"]}
+    check: {capability: stack.deploy, resource: {type: stack, id: s1, env: e1}}
+    want: {decision: deny, source: default_deny}
+
+  # --- Wildcards and future resources / keys ---------------------------------
+  - name: an all-resources rule applies to a resource created later
+    subject: {group: ["allow volume.read @all"]}
+    check: {capability: volume.read, resource: {type: volume, id: created-tomorrow, env: e9}}
+    want: {decision: allow, source: group_rule}
+  - name: an environment rule applies to a stack deployed there later
+    subject: {group: ["allow stack.read @env:e1"]}
+    check: {capability: stack.read, resource: {type: stack, id: new-stack, env: e1}}
+    want: {decision: allow, source: group_rule}
+  - name: granting every current container key does not grant a future key
+    catalog: future
+    subject:
+      group:
+        - allow container.metrics.read @all
+        - allow container.details.read @all
+        - allow container.logs.read @all
+        - allow container.restart @all
+        - allow container.start @all
+        - allow container.stop @all
+        - allow container.exec @all
+        - allow container.pause @all
+        - allow container.unpause @all
+        - allow container.update @all
+        - allow container.remove @all
+        - allow container.create @all
+    check: {capability: container.snapshot, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: a key unknown to the catalog is denied
+    subject: {group: ["allow container.restart @all"]}
+    check: {capability: container.teleport, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: unknown_capability}
+  - name: creation checks match environment rules
+    subject: {group: ["allow stack.create @env:e1"]}
+    check: {capability: stack.create, resource: {type: stack, env: e1}}
+    want: {decision: allow, source: group_rule}
+  - name: creation checks never match single-resource rules
+    subject: {group: ["deny stack.read @stack:s1", "allow stack.create @env:e1"]}
+    check: {capability: stack.create, resource: {type: stack, env: e2}}
+    want: {decision: deny, source: default_deny}
+
+  # --- Stack-scoped (dynamic) container rules --------------------------------
+  - name: a stack-scoped container rule covers the stack's current containers
+    subject: {group: ["allow container.logs.read @stack:s1"]}
+    check: {capability: container.logs.read, resource: {type: container, id: s1-web-1, env: e1, parents: ["service:s1/web", "stack:s1"]}}
+    want: {decision: allow, source: group_rule, rule: "allow container.logs.read @stack:s1"}
+  - name: a stack-scoped container rule covers containers created by a later deploy
+    subject: {group: ["allow container.logs.read @stack:s1"]}
+    check: {capability: container.logs.read, resource: {type: container, id: s1-worker-3, env: e1, parents: ["service:s1/worker", "stack:s1"]}}
+    want: {decision: allow, source: group_rule}
+  - name: a stack-scoped container rule does not cover standalone containers
+    subject: {group: ["allow container.logs.read @stack:s1"]}
+    check: {capability: container.logs.read, resource: {type: container, id: adhoc, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: stack.read alone does not open container details
+    subject: {group: ["allow stack.read @stack:s1"]}
+    check: {capability: container.details.read, resource: {type: container, id: s1-web-1, env: e1, parents: ["service:s1/web", "stack:s1"]}}
+    want: {decision: deny, source: default_deny}
+  - name: stack.read alone does not open container logs
+    subject: {group: ["allow stack.read @stack:s1"]}
+    check: {capability: container.logs.read, resource: {type: container, id: s1-web-1, env: e1, parents: ["service:s1/web", "stack:s1"]}}
+    want: {decision: deny, source: default_deny}
+  - name: stack.read alone does not open stack files
+    subject: {group: ["allow stack.read @stack:s1"]}
+    check: {capability: stack.files.read, resource: {type: stack, id: s1, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: stack.files.read does not open the Compose definition
+    subject: {group: ["allow stack.files.read @stack:s1"]}
+    check: {capability: stack.definition.read, resource: {type: stack, id: s1, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: stack file rules never open volumes
+    subject: {group: ["allow stack.files.read @all"]}
+    check: {capability: volume.files.read, resource: {type: volume, id: data, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: a service rule beats the stack rule for that service
+    subject: {group: ["allow container.restart @stack:s1", "deny container.restart @service:s1/db"]}
+    check: {capability: container.restart, resource: {type: container, id: s1-db-1, env: e1, parents: ["service:s1/db", "stack:s1"]}}
+    want: {decision: deny, source: group_rule, rule: "deny container.restart @service:s1/db"}
+  - name: the stack rule still covers the other services
+    subject: {group: ["allow container.restart @stack:s1", "deny container.restart @service:s1/db"]}
+    check: {capability: container.restart, resource: {type: container, id: s1-web-1, env: e1, parents: ["service:s1/web", "stack:s1"]}}
+    want: {decision: allow, source: group_rule, rule: "allow container.restart @stack:s1"}
+  - name: an exact container rule beats its service and stack rules
+    subject: {group: ["deny container.restart @stack:s1", "allow container.restart @container:e1/s1-web-1"]}
+    check: {capability: container.restart, resource: {type: container, id: s1-web-1, env: e1, parents: ["service:s1/web", "stack:s1"]}}
+    want: {decision: allow, source: group_rule, rule: "allow container.restart @container:e1/s1-web-1"}
+  - name: a stack rule beats an environment rule
+    subject: {group: ["deny container.restart @env:e1", "allow container.restart @stack:s1"]}
+    check: {capability: container.restart, resource: {type: container, id: s1-web-1, env: e1, parents: ["service:s1/web", "stack:s1"]}}
+    want: {decision: allow, source: group_rule, rule: "allow container.restart @stack:s1"}
+
+  # --- Moved resources (environment migration, #35) --------------------------
+  - name: stack rules follow a migrated stack
+    subject: {group: ["allow stack.deploy @stack:s1", "allow stack.read @env:e1"]}
+    check: {capability: stack.deploy, resource: {type: stack, id: s1, env: e2}}
+    want: {decision: allow, source: group_rule, rule: "allow stack.deploy @stack:s1"}
+  - name: environment rules do not follow a migrated stack
+    subject: {group: ["allow stack.deploy @stack:s1", "allow stack.read @env:e1"]}
+    check: {capability: stack.read, resource: {type: stack, id: s1, env: e2}}
+    want: {decision: deny, source: default_deny}
+  - name: stack-scoped container rules follow the stack's new containers
+    subject: {group: ["allow container.metrics.read @stack:s1"]}
+    check: {capability: container.metrics.read, resource: {type: container, id: s1-web-1, env: e2, parents: ["service:s1/web", "stack:s1"]}}
+    want: {decision: allow, source: group_rule}
+  - name: exact container rules do not follow a migration (new containers)
+    subject: {group: ["allow container.metrics.read @container:e1/s1-web-1"]}
+    check: {capability: container.metrics.read, resource: {type: container, id: s1-web-1, env: e2, parents: ["service:s1/web", "stack:s1"]}}
+    want: {decision: deny, source: default_deny}
+  - name: a migrated stack's environment rules at the target apply
+    subject: {group: ["allow stack.read @env:e2"]}
+    check: {capability: stack.read, resource: {type: stack, id: s1, env: e2}}
+    want: {decision: allow, source: group_rule}
+
+  # --- Deleted resources ------------------------------------------------------
+  - name: a rule on a deleted container matches nothing else
+    subject: {group: ["allow container.logs.read @container:e1/gone"]}
+    check: {capability: container.logs.read, resource: {type: container, id: other, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: a container removed from its stack loses stack-scoped rules
+    note: after compose down/rm the container has no stack parent any more
+    subject: {group: ["allow container.logs.read @stack:s1"]}
+    check: {capability: container.logs.read, resource: {type: container, id: s1-web-1, env: e1}}
+    want: {decision: deny, source: default_deny}
+  - name: a deleted stack's rules do not apply to a new stack with another ID
+    subject: {group: ["allow stack.read @stack:s1"]}
+    check: {capability: stack.read, resource: {type: stack, id: s2, env: e1}}
+    want: {decision: deny, source: default_deny}
+
+  # --- Instance resources ------------------------------------------------------
+  - name: audit.read is instance-wide
+    subject: {group: ["allow audit.read @all"]}
+    check: {capability: audit.read, resource: {type: instance}}
+    want: {decision: allow, source: group_rule}
+  - name: backup contents are not derived from backup.read
+    subject: {group: ["allow backup.read @all"]}
+    check: {capability: backup.contents.read, resource: {type: backup, id: b1, parents: ["backup_repository:r1"]}}
+    want: {decision: deny, source: default_deny}
+  - name: repository-scoped backup rules cover the repository's snapshots
+    subject: {group: ["allow backup.contents.read @backup_repository:r1"]}
+    check: {capability: backup.contents.read, resource: {type: backup, id: b1, parents: ["backup_repository:r1"]}}
+    want: {decision: allow, source: group_rule}
+  - name: environment rules never cover instance resources
+    subject: {group: ["allow backup.run @env:e1"]}
+    check: {capability: backup.run, resource: {type: backup_repository, id: r1}}
+    want: {decision: deny, source: default_deny}
+
+  # --- API tokens (#31): token scope ∩ effective permissions ---------------
+  - name: a token inside its scope and the user's grants is allowed
+    subject: {group: ["allow container.restart @all"], token: ["allow container.restart @container:e1/web"]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: allow, source: group_rule}
+  - name: a token cannot reach another container
+    subject: {group: ["allow container.restart @all"], token: ["allow container.restart @container:e1/web"]}
+    check: {capability: container.restart, resource: {type: container, id: db, env: e1}}
+    want: {decision: deny, source: token_scope}
+  - name: a token cannot read logs it was not scoped to
+    subject: {group: ["allow container.logs.read @all"], token: ["allow container.restart @container:e1/web"]}
+    check: {capability: container.logs.read, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: token_scope}
+  - name: narrowing the user's grants narrows the token
+    subject: {group: ["allow container.restart @all"], user: ["deny container.restart @env:e1"], token: ["allow container.restart @container:e1/web"]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: user_rule}
+  - name: an owner's token is limited to its scope
+    subject: {owner: true, token: ["allow container.restart @container:e1/web"]}
+    check: {capability: container.exec, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: token_scope}
+
+  # --- Inactive accounts --------------------------------------------------
+  - name: a disabled user's queued job is denied at dispatch
+    subject: {inactive: true, group: ["allow container.restart @all"]}
+    check: {capability: container.restart, resource: {type: container, id: web, env: e1}}
+    want: {decision: deny, source: inactive_account}

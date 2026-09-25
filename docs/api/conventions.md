@@ -165,6 +165,10 @@ by operations returning `api.JobAccepted` (`api.Accepted(job)`).
 - A grant for one action on a resource exposes only the minimal identity and
   status fields needed to find it and run that action (for example
   restart-only shows name/state and the restart action, not config or logs).
+  Resource objects carry `view` (`minimal` or `full`) and `actions` (the
+  granted capability keys); fields outside the minimal view are absent, and
+  the revision/ETag is present only in the full view or with an edit action
+  ([authorization](../architecture/authorization.md#response-shaping-minimal-discovery)).
 - Scheduled jobs run as the manager service identity; the initiating user of
   a manual job is audit metadata, never an access-control owner.
 

@@ -41,6 +41,9 @@ func targetsFor(s jobspec.Spec) []domain.JobTarget {
 		if r.Source != jobspec.FromTargets {
 			continue
 		}
+		if s.RootScoped && r.TargetType == domain.TargetVolume {
+			continue // file jobs act inside exactly one root (the stack here)
+		}
 		id := "t-" + string(r.TargetType)
 		if r.TargetType == domain.TargetPath || r.TargetType == domain.TargetDestinationPath {
 			id = "/data/" + string(r.TargetType)
@@ -92,7 +95,11 @@ func TestEveryJobKindEmitsLifecycleAuditRecords(t *testing.T) {
 				}
 			}
 			j := h.enqueue(jobs.Request{Kind: spec.Kind, Principal: authz.Principal{Kind: authz.KindUser, UserID: "alice"},
-				EnvironmentID: env, Targets: targetsFor(spec), Input: map[string]any{"note": "x"}})
+				EnvironmentID: env, Targets: targetsFor(spec), Input: map[string]any{"note": "x", "chmod": map[string]any{"mode": "0644"}}})
+			caps, err := spec.Capabilities(j.Targets, j.Input)
+			if err != nil {
+				t.Fatal(err)
+			}
 			h.dispatch()
 			if spec.Executor == domain.ExecutorManager {
 				h.eng.Wait()
@@ -112,7 +119,7 @@ func TestEveryJobKindEmitsLifecycleAuditRecords(t *testing.T) {
 				}
 				if r.JobID != j.ID || r.Actor != (domain.AuditActor{Kind: domain.AuditActorUser, UserID: "alice"}) ||
 					r.Category != domain.AuditOperations || r.Outcome != domain.AuditSuccess || r.EnvironmentID != env ||
-					d["kind"] != string(spec.Kind) || d["capability"] != spec.Capability || d["origin"] != "manual" ||
+					d["kind"] != string(spec.Kind) || d["capability"] != strings.Join(caps, ",") || d["origin"] != "manual" ||
 					r.Targets[0] != (domain.AuditTarget{Type: "job", ID: j.ID}) || len(r.Targets) != len(j.Targets)+1 ||
 					strings.Contains(string(r.Details), `"note"`) {
 					t.Fatalf("record %+v %v", r, d)

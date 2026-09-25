@@ -303,6 +303,7 @@ func (h *jobsAPI) list(ctx context.Context, in *listJobsInput) (*listJobsOutput,
 			return nil, err
 		}
 	}
+	c := authz.For(ctx, h.authz, p) // one rule load for the whole page (#17)
 	jobs, next, err := ScanPage(ctx, Scan[domain.Job]{
 		Limit: in.PageLimit(), After: after.Before,
 		Fetch: func(ctx context.Context, before string, n int) ([]domain.Job, error) {
@@ -310,7 +311,7 @@ func (h *jobsAPI) list(ctx context.Context, in *listJobsInput) (*listJobsOutput,
 			return h.svc.List(ctx, f)
 		},
 		Position: func(j domain.Job) string { return j.ID },
-		Visible:  func(j domain.Job) bool { return h.can(ctx, p, CapJobRead, j) }, // per-item filtering (#17)
+		Visible:  func(j domain.Job) bool { return c.Can(string(CapJobRead), authz.JobResource(j)).Allowed }, // per-item filtering (#17)
 	})
 	if err != nil {
 		return nil, Internal(err)
@@ -380,6 +381,7 @@ func (h *jobsAPI) stream(ctx context.Context, in *streamJobEventsInput) (*huma.S
 func (h *jobsAPI) runStream(hctx huma.Context, p authz.Principal, j domain.Job, after int64) {
 	ctx := hctx.Context()
 	stream := StartSSE(hctx)
+	defer stream.CloseIfRevoked(ctx)
 	changed, unsubscribe := h.svc.Subscribe(j.ID)
 	defer unsubscribe()
 	clk := h.deps.clock()
@@ -404,8 +406,12 @@ func (h *jobsAPI) runStream(hctx huma.Context, p authz.Principal, j domain.Job, 
 			continue
 		}
 		cur, err := h.svc.Get(ctx, j.ID)
-		if err != nil || !h.can(ctx, p, CapJobRead, cur) {
-			return // deleted by retention or access revoked
+		if err != nil {
+			return // deleted by retention
+		}
+		if !h.can(ctx, p, CapJobRead, cur) {
+			_ = stream.Event("close", "", CloseEvent{Reason: "permissions_changed"})
+			return
 		}
 		if cur.State.Terminal() && after >= cur.LastEventSeq {
 			return
@@ -433,8 +439,9 @@ func registerJobs(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "list-jobs", Method: http.MethodGet, Path: BasePath + "/jobs",
 			Summary: "List jobs",
-			Description: "Jobs visible to the caller, newest first. Visibility is decided per job by job.read on the job's targets " +
-				"(never by who created it), so pages may hold fewer than limit items; follow nextCursor until it is absent.",
+			Description: "Jobs visible to the caller, newest first. Visibility is decided per job by job.read on every target of the " +
+				"job, or by holding the job kind's own capability on every target (a restart-only user sees restarts of that container) " +
+				"- never by who created it - so pages may hold fewer than limit items; follow nextCursor until it is absent.",
 			Tags: []string{tagJobs}, Errors: []int{http.StatusUnauthorized, http.StatusUnprocessableEntity},
 		},
 		Capability: CapJobRead, Scope: ScopeResource,

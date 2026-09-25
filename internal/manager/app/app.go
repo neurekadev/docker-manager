@@ -1,7 +1,7 @@
 // Package app wires the manager together and owns its startup order:
 //
 //	config → data dir → open DB → (snapshot) → migrate → secret key /
-//	instance → auth primitives → audit trail → agents (all environments
+//	instance → auth primitives → audit trail → identity → permissions → agents (all environments
 //	offline) → job engine recovery → HTTP handler → listener → serve (+ job
 //	engine loop, auth housekeeping, audit retention)
 //
@@ -33,10 +33,13 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/auth"
 	"github.com/neurekadev/dockyard/internal/manager/auth/password"
+	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
 	"github.com/neurekadev/dockyard/internal/manager/config"
 	"github.com/neurekadev/dockyard/internal/manager/events"
 	"github.com/neurekadev/dockyard/internal/manager/idempotency"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
+	"github.com/neurekadev/dockyard/internal/manager/permissions"
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
 	"github.com/neurekadev/dockyard/internal/manager/server"
 	"github.com/neurekadev/dockyard/internal/manager/store"
@@ -81,6 +84,7 @@ type Manager struct {
 	audit    *audit.Log
 	events   *events.Bus
 	agents   *agents.Service
+	perms    *permissions.Service
 	handler  http.Handler
 }
 
@@ -163,8 +167,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return nil, err
 	}
 
-	// Identity (#16): sessions, principals and the owner-only evaluator
-	// (the owner may do everything, everyone else is denied until #17).
+	// Identity (#16): sessions and principals.
 	m.identity, err = auth.NewService(ctx, auth.ServiceOptions{
 		DB: db, Kit: m.auth, Keyring: m.keyring, Logger: log.With("component", "identity"),
 		PublicURL: cfg.PublicURL, LocalDevelopment: cfg.LocalDevelopment,
@@ -174,7 +177,18 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	authorizer := m.identity.Authorizer()
+	// Authorization (#17): the permission service is the Authorizer of
+	// every route and of the job engine (request and dispatch checks); the
+	// identity service guards its owner-only flows and ends the open
+	// requests and streams of users whose access changed.
+	m.perms, err = permissions.New(permissions.Options{
+		DB: db, Clock: opts.Clock, Logger: log.With("component", "permissions"),
+		Guard: m.identity, Invalidator: m.identity,
+	})
+	if err != nil {
+		return nil, err
+	}
+	authorizer := m.perms
 
 	m.events = events.New(opts.Clock)
 	m.agents, err = agents.New(agents.Options{
@@ -184,6 +198,18 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The resource graph for authorization (#17): agents live in their
+	// environment. Feature workstreams register their resource types here.
+	m.perms.RegisterLocator(catalog.TypeAgent, permissions.LocatorFunc(func(ctx context.Context, ref authz.ResourceRef) (permissions.Location, error) {
+		a, err := m.agents.GetAgent(ctx, ref.ID)
+		if errors.Is(err, domain.ErrAgentNotFound) {
+			return permissions.Location{}, nil
+		}
+		if err != nil {
+			return permissions.Location{}, err
+		}
+		return permissions.Location{Found: true, EnvironmentID: a.EnvironmentID, Parents: []authz.ResourceRef{}}, nil
+	}))
 	// No session survives a restart: environments come back online only
 	// after their agent reconnected and its jobs were reconciled.
 	if err := m.agents.ResetOnline(ctx); err != nil {
@@ -223,6 +249,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			SSEHeartbeat: cfg.StreamHeartbeat,
 			Identity:     m.identity,
 			Agents:       m.agents,
+			Permissions:  m.perms,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -313,6 +340,11 @@ func (m *Manager) Identity() *auth.Service { return m.identity }
 
 // Agents returns the agent/environment service and session hub (#3).
 func (m *Manager) Agents() *agents.Service { return m.agents }
+
+// Permissions returns the authorization service (#17): feature workstreams
+// register their resource Locators on it and call ForgetResource after
+// deleting a resource.
+func (m *Manager) Permissions() *permissions.Service { return m.perms }
 
 // Events returns the internal event bus.
 func (m *Manager) Events() *events.Bus { return m.events }

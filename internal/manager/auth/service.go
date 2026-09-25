@@ -121,15 +121,35 @@ func (s *Service) isOwner(userID string) bool {
 	return id != nil && userID != "" && *id == userID
 }
 
-// Authorizer is the evaluator until #17: the instance owner may do
-// everything, every other principal is denied (deny by default).
-func (s *Service) Authorizer() authz.Authorizer {
-	return authz.Func(func(_ context.Context, p authz.Principal, _ string, _ authz.Resource) authz.Decision {
-		if p.Kind == authz.KindUser && s.isOwner(p.UserID) {
-			return authz.Allow("instance owner")
+// RequireOwner returns the owner's user ID when the request comes from the
+// owner's full session; with recent it also demands a sign-in or step-up
+// within StepUpWindow. It is the guard of owner-only flows in other
+// services (#17 groups and permissions). Errors: domain.ErrNotAuthenticated,
+// ErrEnrollmentRequired, ErrForbidden, ErrStepUpRequired.
+func (s *Service) RequireOwner(ctx context.Context, recent bool) (string, error) {
+	cur, err := s.requireOwner(ctx, recent)
+	if err != nil {
+		return "", err
+	}
+	return cur.user.ID, nil
+}
+
+// AccessChanged is called after the effective permissions of users may
+// have changed (#17: rule edits, group moves): their stored idempotent
+// responses are forgotten and their in-flight requests and open streams
+// end at once, so nothing keeps the old access; clients reconnect and are
+// filtered by the new rules. Sessions stay signed in
+// (permissions are evaluated on every request, so no session state holds
+// old access). The instance owner is never affected (owner bypass), so the
+// owner's own request is not cancelled.
+func (s *Service) AccessChanged(ctx context.Context, userIDs []string) {
+	for _, id := range userIDs {
+		if s.isOwner(id) {
+			continue
 		}
-		return authz.Deny("no grants (#17): only the instance owner is authorized")
-	})
+		s.forget(ctx, id)
+		s.hub.revokeCause(id, -1, authz.ErrPermissionsChanged)
+	}
 }
 
 // principalKey is the idempotency scope of a user (authz.Principal.Key).

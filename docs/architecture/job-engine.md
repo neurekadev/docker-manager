@@ -13,7 +13,7 @@ features never run their own serialization or recovery.
 | `internal/jobexec` | Step runner used by both executors: journal-before-step, safe points, compensations, crash recovery. |
 | `internal/agent/jobs` | Agent side: fencing check, fsync'd journal in the agent state dir, execution, reconnect report. |
 | `internal/protocol` (`jobs.go`) | Command/ack/progress/result/cancel/`job_report` frames. |
-| `internal/manager/authz` | `Authorizer` hook (deny-all until #17), principals. |
+| `internal/manager/authz` | `Authorizer` (the #17 permission service), principals, job targets (`TargetResources`, `JobResource`). |
 | `internal/manager/api` (`jobs.go`) | `/api/v1/jobs` routes, `Job` schema, SSE stream, `JobErrorFor`, `Accepted`. |
 | `internal/faultinject` | Named fault points (no-op unless built with `-tags faultinject`). |
 
@@ -124,12 +124,12 @@ S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
 | `container.stop` | agent | `container.stop` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `stop` (i,c) | 10m | — | — | — |
 | `container.unpause` | agent | `container.unpause` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `unpause` (i,c) | 10m | — | — | — |
 | `container.update` | agent | `container.update` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `update` (i,c) | 10m | — | — | — |
-| `files.archive` | agent | `files.archive` | `host` S (each environment)<br>`file_path` S (path targets)<br>`file_path` **X** (destination_path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `archive` (i,c) | 10m | — | — | — |
-| `files.copy` | agent | `files.copy` | `host` S (each environment)<br>`file_path` S (path targets)<br>`file_path` **X** (destination_path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `copy` (c) | 10m | — | — | — |
-| `files.delete` | agent | `files.delete` | `host` S (each environment)<br>`file_path` **X** (path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `delete` (i,c) | 10m | — | — | — |
-| `files.extract` | agent | `files.extract` | `host` S (each environment)<br>`file_path` S (path targets)<br>`file_path` **X** (destination_path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `extract` (c) | 10m | — | — | — |
-| `files.metadata` | agent | `files.metadata` | `host` S (each environment)<br>`file_path` **X** (path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `apply` (i,c) | 10m | — | — | — |
-| `files.move` | agent | `files.move` | `host` S (each environment)<br>`file_path` **X** (path targets)<br>`file_path` **X** (destination_path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `move` (c) | 10m | — | — | — |
+| `files.archive` | agent | `{stack,volume}.files.archive` | `host` S (each environment)<br>`file_path` S (path targets)<br>`file_path` **X** (destination_path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `archive` (i,c) | 10m | — | — | — |
+| `files.copy` | agent | `{stack,volume}.files.copy` | `host` S (each environment)<br>`file_path` S (path targets)<br>`file_path` **X** (destination_path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `copy` (c) | 10m | — | — | — |
+| `files.delete` | agent | `{stack,volume}.files.delete` | `host` S (each environment)<br>`file_path` **X** (path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `delete` (i,c) | 10m | — | — | — |
+| `files.extract` | agent | `{stack,volume}.files.extract` | `host` S (each environment)<br>`file_path` S (path targets)<br>`file_path` **X** (destination_path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `extract` (c) | 10m | — | — | — |
+| `files.metadata` | agent | `{stack,volume}.files.chmod`, `{stack,volume}.files.chown` | `host` S (each environment)<br>`file_path` **X** (path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `apply` (i,c) | 10m | — | — | — |
+| `files.move` | agent | `{stack,volume}.files.move` | `host` S (each environment)<br>`file_path` **X** (path targets)<br>`file_path` **X** (destination_path targets)<br>`volume` S (volume targets, optional)<br>`stack` S (stack targets, optional) | `move` (c) | 10m | — | — | — |
 | `image.build` | agent | `image.build` | `host` S (each environment)<br>`image` **X** (image targets) | `fetch_context` (i,c) → `build` (i,c) | 30m | build | — | — |
 | `image.pull` | agent | `image.pull` | `host` S (each environment)<br>`image` **X** (image targets) | `pull` (i,c) | 30m | pull | — | — |
 | `image.remove` | agent | `image.remove` | `host` S (each environment)<br>`image` **X** (image targets) | `remove` (i,c) | 10m | — | — | — |
@@ -211,17 +211,23 @@ table) before it ships.
 ## Authorization
 
 `internal/manager/authz` provides `Authorizer.Can(ctx, principal,
-capability, resource)` and `DenyAll` (the default until #17), so every job
-route fails closed: 401 without a principal, 404 for jobs the caller may not
-read (existence does not leak), 403 when reading is allowed but cancelling is
+capability, resource)`; the manager's Authorizer is the #17 permission
+service (`DenyAll` when none is configured), so every job route fails
+closed: 401 without a principal, 404 for jobs the caller may not read
+(existence does not leak), 403 when reading is allowed but cancelling is
 not. Manual and API-token jobs are authorized at enqueue against the kind's
-capability on **every** target and **rechecked at dispatch** while still
-queued (lost grant → `failed`/`authorization_revoked`). Scheduled jobs run as
-the manager service identity (`authz.Service()`, never derivable from a
-request). Running jobs finish or recover after the initiator loses access.
-Job visibility and cancellation are checked with `job.read` / `job.cancel`
-against `authz.JobResource(job)` (the job and its targets), per item in
-lists.
+capabilities (`jobspec.Spec.Capabilities`: the kind's key; per-root file
+keys such as `stack.files.copy`; `files.metadata` selects
+`<root>.files.chmod` / `.chown` from its input keys) on **every** target
+(`authz.TargetResources`: file paths are covered by their stack or volume
+root) and **rechecked at dispatch** while still queued (lost grant →
+`failed`/`authorization_revoked`). Scheduled jobs run as the manager service
+identity (`authz.Service()`, never derivable from a request). Running jobs
+finish or recover after the initiator loses access. Job visibility and
+cancellation are checked with `job.read` / `job.cancel` against
+`authz.JobResource(job)`: allowed when the caller holds the capability — or
+all of the kind's own capabilities — on every target, per item in lists;
+never by initiator ([authorization](authorization.md)).
 
 ## API
 
