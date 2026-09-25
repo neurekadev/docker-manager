@@ -144,7 +144,7 @@ type Manager struct {
 	// migrations moves stacks and volumes between environments (#35).
 	migrations *envmigrations.Service
 	updates    *updates.Service
-	backups   *backups.Service
+	backups    *backups.Service
 }
 
 // ErrSecretKeyMissing means the database belongs to an existing installation
