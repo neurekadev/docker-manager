@@ -140,7 +140,10 @@ func capabilities() []Capability {
 		normal("stack.restart", TypeStack, "Restart stack", "Restart all services of a stack.", stackScope),
 		high("stack.definition.read", TypeStack, "View Compose definition", "Read compose.yaml, override files, .env and revisions. They may contain secrets.", stackScope),
 		high("stack.definition.write", TypeStack, "Edit Compose definition", "Change compose.yaml, override files and .env, and restore revisions.", stackScope),
-		adv(normal("stack.create", TypeStack, "Create stacks", "Create managed stacks in an environment.", instEnv)),
+		// High risk (#12 security review): creating a stack writes its whole
+		// Compose definition, which may bind host paths or the Docker socket
+		// and run privileged containers once deployed.
+		adv(high("stack.create", TypeStack, "Create stacks", "Create managed stacks in an environment from a Compose definition. Deployed, it can mount host paths and run privileged containers.", instEnv)),
 		adv(normal("stack.import", TypeStack, "Import stacks", "Discover and adopt existing Compose projects.", instEnv)),
 		adv(normal("stack.manage", TypeStack, "Edit stack settings", "Rename a stack and edit its settings.", stackScope)),
 		adv(normal("stack.down", TypeStack, "Take stack down", "Stop and remove a stack's containers and networks (volumes are kept).", stackScope)),

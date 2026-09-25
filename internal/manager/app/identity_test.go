@@ -226,6 +226,54 @@ func TestInvitations(t *testing.T) {
 		map[string]string{"code": vcode, "username": "frank", "password": e.secrets.New(canary.Password, "frank")})
 }
 
+// TestConcurrentInvitationRedemptionIsOneUse (#12 "one-use invite
+// redemption"): simultaneous redemptions of one code create exactly one
+// account; every other request fails like an unknown code and the
+// invitation ends up redeemed by that one account.
+func TestConcurrentInvitationRedemptionIsOneUse(t *testing.T) {
+	e := newEnv(t)
+	owner, _ := e.setupOwner()
+	id, code := e.invite(owner, nil)
+	const n = 6 // below the per-IP failure burst, so no request is throttled
+	pw := e.secrets.New(canary.Password, "invitee password")
+	var wg sync.WaitGroup
+	results := make([]response, n)
+	for i := range n {
+		wg.Go(func() {
+			results[i] = e.client().do(http.MethodPost, "/api/v1/invitations/redemptions",
+				map[string]string{"code": code, "username": "invitee" + itoa(i), "password": pw})
+		})
+	}
+	wg.Wait()
+	created := 0
+	for _, r := range results {
+		switch {
+		case r.status == http.StatusCreated:
+			created++
+		case r.status == http.StatusBadRequest && r.code() == "invalid_code":
+		default:
+			t.Errorf("redemption: %d %s", r.status, r.body)
+		}
+	}
+	var users int
+	if err := e.m.DB().NewRaw("SELECT count(*) FROM users WHERE is_owner = 0").Scan(testutil.Context(t), &users); err != nil {
+		t.Fatal(err)
+	}
+	if created != 1 || users != 1 {
+		t.Fatalf("created %d, accounts %d; want exactly one", created, users)
+	}
+	var list struct {
+		Items []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"items"`
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/invitations", nil).json(t, &list)
+	if len(list.Items) != 1 || list.Items[0].ID != id || list.Items[0].Status != "redeemed" {
+		t.Fatalf("invitation after the race: %+v", list.Items)
+	}
+}
+
 // ownerPassword returns the canary registered for the owner.
 func (e *env) ownerPassword(*client) string {
 	for _, c := range e.secrets.All() {

@@ -1,8 +1,114 @@
 # Support matrix
 
-What DockYard v1 supports on a host, with the evidence behind it. Engine
+What DockYard v1 supports, with the evidence behind it (#12). Engine
 integration design: [architecture/engine-integration.md](architecture/engine-integration.md).
-Decisions are recorded in #25 (Q2 host boundary, Q5 file watching).
+Decisions are recorded in #25 (Q2 host boundary, Q5 file watching, Q9
+topology, Q16 root containers). How each line is verified:
+[testing/verification-matrix.md](testing/verification-matrix.md) (V01–V11).
+
+## Summary
+
+| Area | Supported in v1 | Not supported |
+| --- | --- | --- |
+| Host OS / CPU | Linux on amd64 and arm64 | Windows Engines, other architectures |
+| Docker Engine | standalone Engine ≥ 25.0 (API ≥ 1.44); tested 25.0.5, 28.5.2, 29.8.1 | < 25.0 (refused), rootless Engines, Docker Desktop, NAS vendor Engines, Swarm, Kubernetes |
+| Containers | both DockYard containers run as **root (UID 0)** | running them as a non-root user |
+| Deployment | one public HTTPS origin behind an operator's TLS reverse proxy (Caddy, Traefik, nginx examples); agents dial out | extra domain names or ports for agents; agents that listen |
+| Agents | one agent per Engine; co-located on the internal URL or remote over HTTPS | standby agents / failover (post-v1) |
+| Browsers | current Chromium-based browsers, Firefox and Safari (build target below) | older browsers; Firefox cannot install the PWA |
+| Manager / agent versions | agent of the same or the previous minor release as the manager | newer agents, older than N-1, other major versions |
+
+## Architectures and the root-only requirement
+
+- **linux/amd64 and linux/arm64** for both executables and both images. The
+  PR suite builds static, CGO-free binaries for both (`scripts/build-static.sh`,
+  `static-build` job); the `images` job builds multi-arch images; the
+  Engine matrix runs on `ubuntu-24.04` and `ubuntu-24.04-arm` runners.
+- **Both containers run as root (UID 0)** (#25 decision 16, #28). The agent
+  needs the Docker socket and root file access to stack and volume
+  directories (owners, modes, backups); the manager image uses the same
+  rule for a single support boundary. Running either as another user is
+  **unsupported**: the agent refuses to start as non-root
+  (`TestRefusesNonRoot`), and the deploy smoke test checks UID 0 for both.
+- The **manager never mounts the Docker socket**; only the agent does, and
+  the agent opens no listening socket (`TestAgentNeverListens`). Docker
+  socket access is equivalent to root on that host.
+
+## Artifacts
+
+| Artifact | Contents | Published as |
+| --- | --- | --- |
+| `dockyard-manager` executable | API, embedded web UI, SQLite store, job engine; CGO-free, static | `ghcr.io/neurekadev/dockyard-manager:edge` (linux/amd64, linux/arm64; provenance and SBOM) |
+| `dockyard-agent` executable | Docker/Compose adapter, files, backups; CGO-free, static; no web UI, no listener | `ghcr.io/neurekadev/dockyard-agent:edge` (linux/amd64, linux/arm64; provenance and SBOM) |
+| restic | 0.19.1, SHA-256 verified per architecture (`deploy/docker/*.Dockerfile`), in both images | inside the images only |
+
+Only the rolling `:edge` tag is published from `main`; there are no git
+tags, GitHub Releases or semver images in this build (#25). Neither image
+contains a Docker, Compose or buildx CLI, Node or a shell toolchain; both
+are based on `gcr.io/distroless/static-debian12` pinned by digest
+(`scripts/ci/image-contents.sh` checks each image).
+
+### Pinned integration libraries
+
+| Component | Version | Why pinned |
+| --- | --- | --- |
+| Moby Engine client (`github.com/moby/moby/client`) | v0.6.0 | the official Engine SDK; API version negotiation, all Engine calls through the agent's adapter |
+| Moby API types (`github.com/moby/moby/api`) | v1.56.0 | matching types; the agent talks API 1.44–1.56 |
+| Docker Compose SDK (`github.com/docker/compose/v5`) | v5.5.1 | in-process Compose lifecycle (no CLI) |
+| compose-go (`github.com/compose-spec/compose-go/v2`) | v2.15.0 | project loading and validation |
+| BuildKit client (`github.com/moby/buildkit`) | v0.33.0 | image builds through the Engine's BuildKit |
+| restic | 0.19.1 | backup format and CLI behaviour; `TestResticPinMatchesDockerfiles` keeps tests and images on the same version |
+| Go toolchain | 1.27.1 | `go.mod`, `golang:1.27.1-alpine3.24` build image pinned by digest |
+
+The legacy `github.com/docker/docker` module, hand-written Engine HTTP
+clients and the Docker/Compose/buildx CLIs are forbidden by
+`scripts/policy-check.sh` and the linters. Bumping the Moby client or the
+Compose SDK means re-running the Engine matrix below.
+
+## Deployment topology
+
+One public origin (for example `https://docker.example.com`) behind an
+operator-managed TLS-terminating reverse proxy serves the web app,
+`/api/v1` and `/agent/v1`. The manager listens on plain HTTP on the
+internal network only and honours forwarded headers only from
+`DOCKYARD_TRUSTED_PROXIES`. Remote agents dial the same origin over HTTPS
+(certificate validated, redirects refused); an agent on the manager's
+Docker network may use the internal URL with the explicit
+`DOCKYARD_MANAGER_ALLOW_HTTP` opt-in. Tested proxy configurations: Caddy
+2.11, Traefik 3.7 and nginx 1.30 from `deploy/` (Playwright through each,
+`e2e` job). Requirements and timeouts: [deployment.md](deployment.md).
+A highly available manager is out of v1.
+
+## Browsers
+
+The web app is built for Vite 8's `baseline-widely-available` target:
+**Chrome and Edge 111+, Firefox 114+, Safari and iOS Safari 16.4+**.
+
+| Browser | Status |
+| --- | --- |
+| Chromium-based (Chrome, Edge, Brave), desktop and Android | supported and tested (Playwright Chromium: every E2E spec); installable PWA; passkeys |
+| Safari (macOS, iOS/iPadOS 16.4+) | supported, manual check (V09); installable via *Add to Home Screen*; passkeys |
+| Firefox (desktop) | supported, manual check (V09); no PWA install (Firefox limitation) |
+| Anything older than the build target | unsupported |
+
+Passkeys, the service worker and secure cookies need the HTTPS origin
+(`http://localhost` only for development).
+
+## Manager/agent protocol compatibility
+
+- The agent protocol is `dockyard.agent/v1` ([protocol/agent-v1.md](protocol/agent-v1.md)),
+  versioned separately from `/api/v1`.
+- **Version window:** a manager serves agents of its own minor release and
+  of the previous one (N-1). An agent newer than its manager, older than
+  N-1, of another major version or with an unparsable version is refused
+  (session close `4426`, enrollment `426 version_unsupported`) with a
+  message saying what to upgrade. Upgrade the manager first, then agents
+  ([operations/upgrades.md](operations/upgrades.md)).
+- New protocol fields reach an agent only after it announces the matching
+  capability feature, so an N-1 agent never sees a field it predates.
+- Rolling `:edge` builds all report `0.0.0-edge` and count as the same
+  version: upgrade manager and agents together. A real N-1 image test is a
+  manual release check (there are no versioned images yet).
 
 ## Docker Engine versions
 
@@ -210,8 +316,10 @@ invalidation):
 
 The latency is dominated by the 200 ms debounce; the manager's coalescing
 window (250 ms, first event immediate) and the live stream add network
-time only. The end-to-end check through the proxies is
-`e2e/tests/live.spec.ts` (written; needs an agent environment).
+time only. The end-to-end browser check is `e2e/tests/live.spec.ts`
+(an external edit reaches two browser sessions; run against the devstack's
+production watcher by `scripts/ci/e2e-devstack.sh`, green on the Windows
+development host on 2026-09-25; the Linux run is the `e2e-devstack` job).
 
 **Watch limits.** inotify watches are per user and shared by every root
 process on the host (containers included): `fs.inotify.max_user_watches`

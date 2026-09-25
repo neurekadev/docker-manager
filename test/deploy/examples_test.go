@@ -263,3 +263,81 @@ func TestE2EComposeMatchesDeploy(t *testing.T) {
 		}
 	}
 }
+
+var (
+	configVarRE  = regexp.MustCompile(`"(DOCKYARD_[A-Z0-9_]+)"`)
+	envExampleRE = regexp.MustCompile(`(?m)^#?\s*(DOCKYARD_[A-Z0-9_]+)=`)
+	composeRefRE = regexp.MustCompile(`\$\{(DOCKYARD_[A-Z0-9_]+)(:?[-?][^}]*)?\}`)
+)
+
+// configVars returns the DOCKYARD_* variables a config package reads.
+func configVars(t *testing.T, rel string) map[string]bool {
+	t.Helper()
+	out := map[string]bool{}
+	for _, m := range configVarRE.FindAllStringSubmatch(read(t, rel), -1) {
+		out[m[1]] = true
+	}
+	if len(out) < 5 {
+		t.Fatalf("%s: found only %d variables", rel, len(out))
+	}
+	return out
+}
+
+// TestExampleVariablesAreKnown (#12, #27): the examples run the published
+// edge images and set only variables the manager and the agent read (a
+// renamed setting would otherwise be ignored silently); every variable of
+// an .env.example is used by its example, and every variable an example
+// needs without a default is in its .env.example, so
+// `cp .env.example .env && docker compose up -d` works as documented.
+func TestExampleVariablesAreKnown(t *testing.T) {
+	manager := configVars(t, "internal/manager/config/config.go")
+	agent := configVars(t, "internal/agent/config/config.go")
+	for _, dir := range []string{"caddy", "traefik", "nginx", "remote-agent"} {
+		t.Run(dir, func(t *testing.T) {
+			base := "deploy/" + dir
+			c := load(t, base+"/compose.yaml")
+			for name, known := range map[string]map[string]bool{"dockyard-manager": manager, "dockyard-agent": agent} {
+				svc, ok := c.Services[name]
+				if !ok {
+					if name == "dockyard-agent" || dir != "remote-agent" {
+						t.Errorf("no service %s", name)
+					}
+					continue
+				}
+				if svc.Image != "ghcr.io/neurekadev/"+name+":edge" {
+					t.Errorf("%s image %q, want the published edge image", name, svc.Image)
+				}
+				for k := range svc.Environment {
+					if strings.HasPrefix(k, "DOCKYARD_") && !known[k] {
+						t.Errorf("%s sets %s, which %s does not read", name, k, name)
+					}
+				}
+			}
+			// Everything in the example directory except .env.example.
+			var used strings.Builder
+			err := filepath.WalkDir(filepath.Join(repoRoot(t), filepath.FromSlash(base)), func(p string, d os.DirEntry, err error) error {
+				if err != nil || d.IsDir() || d.Name() == ".env.example" {
+					return err
+				}
+				b, err := os.ReadFile(p)
+				used.Write(b)
+				return err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			listed := map[string]bool{}
+			for _, m := range envExampleRE.FindAllStringSubmatch(read(t, base+"/.env.example"), -1) {
+				listed[m[1]] = true
+				if !strings.Contains(used.String(), m[1]) {
+					t.Errorf(".env.example sets %s, which the example never uses", m[1])
+				}
+			}
+			for _, m := range composeRefRE.FindAllStringSubmatch(read(t, base+"/compose.yaml"), -1) {
+				if (m[2] == "" || strings.Contains(m[2], "?")) && !listed[m[1]] {
+					t.Errorf("compose.yaml needs %s without a default, but .env.example does not list it", m[1])
+				}
+			}
+		})
+	}
+}

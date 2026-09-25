@@ -243,6 +243,38 @@ func TestAPITokenRestartsOneContainer(t *testing.T) {
 	e.assertNoTokenValues()
 }
 
+// TestJobOutlivesTheRequestersSession (#12 "in-flight recovery after
+// requester logout", #26): a job belongs to the instance, not to the
+// browser session that asked for it. The requester signs out while the job
+// is still queued; it is dispatched and succeeds on the agent, keeps its
+// initiator as audit metadata and stays visible to others allowed to see
+// it, while the ended session reads nothing.
+func TestJobOutlivesTheRequestersSession(t *testing.T) {
+	e, nas, _ := twoHosts(t)
+	owner, _ := e.setupOwner()
+	rita, ritaID := e.opsUser(owner, "allow container.restart @env:"+nas.env)
+	r := rita.must(http.StatusAccepted, http.MethodPost, "/api/v1/environments/"+nas.env+"/containers/web/restart", nil)
+	id := jobOf(t, r)
+	var j dockerJob
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/jobs/"+id, nil).json(t, &j)
+	if j.State != "queued" || j.InitiatorUserID != ritaID {
+		t.Fatalf("job before sign-out %+v", j)
+	}
+	rita.must(http.StatusNoContent, http.MethodDelete, "/api/v1/auth/session", nil)
+	rita.fail(http.StatusUnauthorized, "unauthenticated", http.MethodGet, "/api/v1/jobs/"+id, nil)
+
+	if done := e.runJob(id); done.State != domain.JobSucceeded {
+		t.Fatalf("job after the requester signed out %+v", done)
+	}
+	if c, _ := nas.engine.Container("web"); c.Details.RestartCount != 1 {
+		t.Fatal("web was not restarted")
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/jobs/"+id, nil).json(t, &j)
+	if j.State != "succeeded" || j.InitiatorUserID != ritaID || j.Origin != "manual" {
+		t.Fatalf("job after completion %+v", j)
+	}
+}
+
 // TestMetricsOnlyUserSeesOnlyIdentityAndStatus (#17 Done-when 2 with the
 // container routes): container.metrics.read on one container shows only
 // that container with identity, state and the metrics action; its details,

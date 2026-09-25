@@ -9,38 +9,69 @@ from one place.
 
 ## Status
 
-Early development (v1 in progress). The foundation is in place: the two Go
-executables, SQLite persistence with migrations, the `/api/v1` conventions,
-the embedded SvelteKit shell, CI and the rolling `edge` images. Features land
-per the roadmap. There are no releases yet; `main` publishes
+v1 is in release acceptance (#12; the roadmap in #1 tracks what is still
+open). There are no versioned releases yet: `main` publishes the rolling
+`edge` images
 `ghcr.io/neurekadev/dockyard-manager:edge` and
-`ghcr.io/neurekadev/dockyard-agent:edge`.
+`ghcr.io/neurekadev/dockyard-agent:edge` (linux/amd64 and linux/arm64).
 
-## Quick links
+## Quick start
 
+On a Linux host with Docker Engine 25.0+ and the Compose plugin, with a DNS
+name pointing at it:
+
+```bash
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin   # packages are private
+git clone https://github.com/neurekadev/dockyard.git && cd dockyard/deploy/caddy
+cp .env.example .env        # set DOCKYARD_HOST=docker.example.com (and DOCKYARD_TLS)
+docker compose up -d        # manager + co-located agent + Caddy, from the :edge images
+```
+
+Then open `https://docker.example.com`, create the owner account, and enroll
+the co-located agent from **Environments → Add environment**:
+
+```bash
+printf '%s\n' '<token>' | docker compose exec -T dockyard-agent dockyard-agent enroll
+```
+
+Traefik and nginx variants live next to it (`deploy/traefik`,
+`deploy/nginx`), agents for other hosts in `deploy/remote-agent`. Step by
+step: the [user and administrator guide](docs/guide/README.md).
+
+## Documentation
+
+- Guide: [deployment](docs/guide/deployment.md) · [first run](docs/guide/first-run.md) ·
+  [multi-host](docs/guide/multi-host.md) · [PWA](docs/guide/pwa.md) ·
+  [upgrades](docs/guide/upgrades.md) · [backup and restore](docs/guide/backup-restore.md) ·
+  [policy safety](docs/guide/policy-safety.md) · [troubleshooting](docs/guide/troubleshooting.md)
+- [Support matrix](docs/support-matrix.md) (hosts, Engine versions, Compose features, browsers, versions)
+- [Deploying with Docker Compose](deploy/README.md) · [Deployment topology](docs/deployment.md) ·
+  [Configuration reference](docs/configuration.md)
+- [Security review v1](docs/security/review-v1.md) · [Verification matrix](docs/testing/verification-matrix.md)
+- [Architecture overview](docs/architecture/overview.md) · [Engine integration](docs/architecture/engine-integration.md)
+- API: [conventions](docs/api/conventions.md) · [streams](docs/api/streams.md) ·
+  OpenAPI [`api/openapi.json`](api/openapi.json) · agent protocol [`agent-v1.md`](docs/protocol/agent-v1.md)
+- [Development guide](docs/development.md) · [Code conventions](CLAUDE.md) · [Test harness](docs/testing/harness.md)
+- ADRs: [0001 foundation](docs/adr/0001-foundation.md) · [0002 frontend libraries](docs/adr/0002-frontend-libraries.md) ·
+  [0003 auth libraries](docs/adr/0003-auth-libraries.md)
 - Roadmap: issue #1 · Decision register: issue #25 · Project board: DockYard v1 Roadmap
-- [Deploying with Docker Compose](deploy/README.md)
-- [Configuration reference](docs/configuration.md)
-- [Support matrix](docs/support-matrix.md) (Docker Engine versions, hosts, Compose features) · [Engine integration](docs/architecture/engine-integration.md)
-- [Architecture overview](docs/architecture/overview.md)
-- [API conventions](docs/api/conventions.md) · OpenAPI: [`api/openapi.json`](api/openapi.json)
-- [Development guide](docs/development.md) · [Code conventions](CLAUDE.md)
-- [ADR 0001: foundation](docs/adr/0001-foundation.md) · [ADR 0002: frontend libraries](docs/adr/0002-frontend-libraries.md) · [ADR 0003: auth libraries](docs/adr/0003-auth-libraries.md)
 
 ## Repository layout
 
 ```
-cmd/dockyard-manager   manager entry point (serve, healthcheck, openapi, version)
-cmd/dockyard-agent     agent entry point (run, healthcheck, version)
-internal/manager/...   manager: app, config, server, api, store, secrets
-internal/agent/...     agent: config, runtime
+cmd/dockyard-manager   manager entry point (serve, healthcheck, enrollment, owner-recovery, snapshots, openapi, version)
+cmd/dockyard-agent     agent entry point (run, enroll, healthcheck, version)
+internal/manager/...   manager: app, api, auth, authz, jobs, stacks, backups, ...
+internal/agent/...     agent: engine and compose adapters, files, backups, runtime
 internal/protocol      manager<->agent frames (dockyard.agent/v1)
 internal/domain        shared domain types
 internal/db/migrations versioned Bun migrations
 web/                   SvelteKit PWA (embedded into the manager)
-deploy/                Dockerfiles and Compose example
-docs/                  architecture, API, configuration, ADRs
-scripts/               local and CI gates (bash)
+e2e/                   Playwright specs (TLS proxies, devstack)
+deploy/                Dockerfiles and Compose examples
+docs/                  guide, architecture, API, operations, testing, security
+scripts/               local and CI gates (bash), deploy smoke test
+test/                  deployment checks, devstack, fixtures, verification map checks
 ```
 
 Local gate: `bash scripts/check.sh`.

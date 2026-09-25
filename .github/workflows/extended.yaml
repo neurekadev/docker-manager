@@ -5,9 +5,9 @@
 #   gh workflow run extended.yaml --ref <branch> -f suites=fuzz,e2e
 #
 # Each suite is its own job gated on the `suites` input ("all" or a
-# comma-separated list of job names). Suites whose product features do not
-# exist yet run their fixture self-tests plus whatever real tests exist and
-# print a ::notice:: listing the pending checks; they never fake a pass.
+# comma-separated list of job names). Every tagged Go test is selected by
+# some job here (test/verification checks the -run filters and tags), and
+# docs/testing/verification-matrix.md maps every #12 item to its job.
 # How to run each suite locally: docs/testing/harness.md.
 name: extended
 
@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       suites:
-        description: 'Suites: "all" or a comma-separated list without spaces of race,fuzz,engine-matrix,compose-fixtures,storage,fs-security,fault-injection,secret-canary,e2e,smoke,metrics-budget'
+        description: 'Suites: "all" or a comma-separated list without spaces of race,fuzz,engine-matrix,compose-fixtures,storage,fs-security,fault-injection,secret-canary,e2e,e2e-devstack,smoke,metrics-budget'
         type: string
         default: all
       fuzztime:
@@ -273,16 +273,22 @@ jobs:
         env:
           DOCKYARD_TEST_AGENT_IMAGE: dockyard-agent:test
         run: go test -tags integration -count=1 -timeout 25m -run '^Test(Registry|Git|Compose)' -v ./... 2>&1 | tee compose-tests.log
-      - name: Pending checks
+      - name: Results and manual checks
         if: always()
         run: |
-          msg="stack deploys through the manager and the agent session (#7; the #3 session is merged); file manager, watcher and restic through the identical-path mount (#15, #23, #10); manual Git builds with private repositories as jobs (#33); Docker Hub pulls on two agents and credential rotation (#19)"
-          echo "::notice title=compose-fixtures pending checks::${msg}"
+          # Covered above: Compose fixtures (TestCompose*), stack deploys on one
+          # and two hosts (#7), the identical-path layout (#28), Git builds on
+          # two Engines (#33), private-registry pulls, digest updates on two
+          # agents and the registry connection test (#19, #20). Authenticated
+          # Docker Hub pulls need a real account: manual procedure V52m in
+          # docs/testing/verification-matrix.md.
+          msg="authenticated Docker Hub pulls on two agents are a manual release check (verification matrix V52m)"
+          echo "::notice title=compose-fixtures manual checks::${msg}"
           {
             echo '```'
             grep -E '^\s*--- (PASS|FAIL|SKIP)|^(ok|FAIL)\s' compose-tests.log || true
             echo '```'
-            echo "Pending: ${msg}"
+            echo "Manual: ${msg}"
           } >> "$GITHUB_STEP_SUMMARY"
 
   storage:
@@ -301,13 +307,13 @@ jobs:
       - name: MinIO and restic tests
         env:
           DOCKYARD_TEST_CACHE: ${{ runner.temp }}/dockyard-test-cache
+        # Local and S3 (MinIO) backup, retention, verification of a damaged
+        # repository and restore through the agent's executors
+        # (TestBackupRunWithRealRestic*, TestRestoreWithRealRestic, #10, #28),
+        # clean-manager import with the Recovery Key across two host
+        # repositories (TestBackupImportWithRealRestic*, #24). Corrupt and
+        # truncated manifests are unit-tested in the PR suite.
         run: go test -tags integration -count=1 -timeout 25m -run '^Test(MinIO|Restic|Storage|Backup|Restore)' -v ./...
-      - name: Pending checks
-        if: always()
-        run: |
-          msg="local and S3 backup/restore through the agent (#10), corrupt/truncated repository and manifest fixtures, clean-manager import with Recovery Key (#24), retention (#10)"
-          echo "::notice title=storage pending checks::${msg}"
-          echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
 
   fs-security:
     name: fs-security
@@ -336,12 +342,20 @@ jobs:
           fi
           echo "consumers=${#consumers[@]}" >> "$GITHUB_OUTPUT"
         id: consumers
-      - name: Pending checks
+      # Linux-only symlink escape trees and TOCTOU races of the file manager
+      # (internal/agent/files) run in the consumers step above; migration and
+      # restore extraction (TestExtractRefusesUnsafeMembers,
+      # TestArchiveSlipAndSpecialEntries) and missed fsnotify events
+      # (internal/agent/watch: TestMissedEventReconciliation,
+      # TestInotifyOverflowReconciles) run here with the race detector too.
+      - name: Extraction and watcher corpora (race)
+        env:
+          CGO_ENABLED: "1"
+        run: go test -count=1 -race ./internal/agent/migration/... ./internal/agent/watch/... ./internal/agent/backups/...
+      - name: Summary
         if: always()
         run: |
-          msg="file manager and archive/restore extraction against test/corpora/fs (#15, #24), simulated missed fsnotify events (#15)"
-          echo "::notice title=fs-security pending checks::${msg} — corpus consumers found: ${{ steps.consumers.outputs.consumers || 0 }}"
-          echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+          echo "fs-security corpus consumers: ${{ steps.consumers.outputs.consumers || 0 }}" >> "$GITHUB_STEP_SUMMARY"
 
   fault-injection:
     name: fault-injection
@@ -375,17 +389,19 @@ jobs:
             echo "no subprocess kill suites (test/fault) yet"
             echo "ran=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Pending checks
+      - name: Summary
         if: always()
         run: |
-          # Covered above: TestKillAtEveryStage kills the manager or the agent at
-          # every stage of simulated deploy/backup/prune/retention/manager-backup
-          # jobs (#26); agent reconnect, reconciliation and event gap relay are
-          # unit-tested with #3 (TestAgentRuntimeEnrollsReconnectsAndReenrolls,
-          # TestReconnectReconcilesRunningJob, TestRelaySequenceAndGaps).
-          msg="kill mid-job against the real deploy (#7), backup (#10) and prune (#14) executors; gap recovery in the browser live stream after dropped agent connections (#23); clock skew between manager and agent (#29; scheduler timing #13)"
-          echo "::notice title=fault-injection pending checks::${msg} — faultinject-tagged files: ${{ steps.tagged.outputs.files || 0 }}, kill suites ran: ${{ steps.kill.outputs.ran || false }}"
-          echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+          # Covered above: TestKillAtEveryStage (simulated deploy/backup/prune/
+          # retention/manager-backup jobs) and TestKillRealExecutorsAtEveryStage
+          # (the real deploy, backup-with-shutdown and prune executors over
+          # persisted fake Engines) kill the manager or the agent at every
+          # fault point (#26). Reconnects, event gaps and clock skew are
+          # Docker-free unit tests in the PR suite (TestReconnectReconcilesRunningJob,
+          # TestRelaySequenceAndGaps, TestLossesBecomeResets,
+          # TestClockSkewIsCorrectedAndFlagged, scheduler TestClockJumps); the
+          # migration kill tests on real Engines run in engine-matrix.
+          echo "faultinject-tagged files: ${{ steps.tagged.outputs.files || 0 }}, kill suites ran: ${{ steps.kill.outputs.ran || false }}" >> "$GITHUB_STEP_SUMMARY"
 
   secret-canary:
     name: secret-canary
@@ -406,15 +422,15 @@ jobs:
           mapfile -t pkgs < <(grep -rl --include='*_test.go' 'internal/testutil/canary' . | xargs -r -n1 dirname | sort -u)
           echo "consumers=$(( ${#pkgs[@]} ))" >> "$GITHUB_OUTPUT"
           go test -count=1 -v ./internal/testutil/canary/... "${pkgs[@]}"
-      - name: Pending checks
+      - name: Summary
         if: always()
         run: |
-          # Covered above: passwords/TOTP seeds in identity logs, audit rows and
-          # API responses (#16, internal/manager/app/identity*_test.go) and the
-          # audit redaction of every canary kind (#30, audit_canary_test.go).
-          msg="canary sweeps over each feature's logs, job output and API responses for API tokens (#31), registry credentials (#19), S3 keys (#10), .env values (#7)"
-          echo "::notice title=secret-canary pending checks::${msg} — packages using internal/testutil/canary: ${{ steps.canary.outputs.consumers || 0 }}"
-          echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+          # Covered above (every consumer package also runs in the PR suite):
+          # passwords and TOTP seeds (#16), API tokens (#31), registry and Git
+          # credentials (#19, #33), S3 keys and the Recovery Key (#10, #24),
+          # .env values (#7), the audit redaction of every kind (#30) and the
+          # support bundle (#34).
+          echo "packages using internal/testutil/canary: ${{ steps.canary.outputs.consumers || 0 }}" >> "$GITHUB_STEP_SUMMARY"
 
   e2e:
     name: e2e
@@ -499,12 +515,63 @@ jobs:
       - name: Compose logs
         if: failure()
         run: docker compose -f e2e/compose.yaml logs --no-color --timestamps
-      - name: Pending checks
+      - name: Scope
         if: always()
         run: |
-          msg="TOTP login and recovery-code flows in the browser (UI #22; the #16 API is tested in Go), live updates across views (#23), responsive layouts (#22)"
-          echo "::notice title=e2e pending checks::${msg}"
-          echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+          # This stack has no seeded environments: the UI track specs run
+          # their seeded steps in e2e-devstack (including TOTP, recovery code
+          # and passkey sign-in, live updates across two sessions and the
+          # narrow layouts), the terminal specs in smoke against a real
+          # Engine. Agent sessions, exec and reconnects through each proxy
+          # are TestTLSProxyAgentSessions above (scripted Engine).
+          msg="seeded UI specs run in e2e-devstack; real-Engine terminal specs in smoke"
+          echo "::notice title=e2e scope::${msg}"
+          echo "Scope: ${msg}" >> "$GITHUB_STEP_SUMMARY"
+
+  e2e-devstack:
+    # The Playwright UI specs against test/devstack (a real manager with
+    # in-process agents over fake Engines, seeded homelab): each spec on a
+    # fresh devstack, plus first-run setup, sign-in factors (TOTP, recovery
+    # code, passkey) and the fresh-manager import. scripts/ci/e2e-devstack.sh.
+    name: e2e-devstack
+    if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',e2e-devstack,')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            e2e/package-lock.json
+      - name: Install web and Playwright
+        run: |
+          npm ci --prefix web
+          npm ci --prefix e2e
+          (cd e2e && npx playwright install --with-deps chromium && npm run typecheck)
+      - name: Playwright against the devstack
+        env:
+          CI: "1"
+          E2E_DEVSTACK_ARTIFACTS: ${{ runner.temp }}/devstack
+        run: bash scripts/ci/e2e-devstack.sh
+      - name: Upload devstack logs and Playwright results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-devstack
+          path: |
+            ${{ runner.temp }}/devstack/*.log
+            e2e/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
 
   smoke:
     name: smoke
@@ -563,6 +630,13 @@ jobs:
             REVISION=${{ github.sha }}
           labels: org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=agent
+      - name: Owner password for the Playwright terminal specs
+        run: |
+          # Random per run and masked: the smoke owner signs in with it, and
+          # so does Playwright; it is never written to a file.
+          pw="smoke-$(openssl rand -hex 24)"
+          echo "::add-mask::${pw}"
+          echo "SMOKE_OWNER_PASSWORD=${pw}" >> "$GITHUB_ENV"
       - name: Deploy smoke test
         env:
           SMOKE_IMAGES: ${{ steps.mode.outputs.mode }}
@@ -570,12 +644,48 @@ jobs:
           # Read-only: compares commits when :edge has moved on to a newer main.
           GH_TOKEN: ${{ github.token }}
           SMOKE_ARTIFACTS: ${{ runner.temp }}/smoke
+          # Keep the deployment with a deployed stack for the terminal specs.
+          SMOKE_E2E_ENV: ${{ runner.temp }}/smoke-e2e.env
         run: bash scripts/smoke/deploy-smoke.sh
+      # Container logs and terminals through Caddy against a real Engine (#8,
+      # #22 track B3): the specs the agent-less e2e stack and the Docker-free
+      # devstack cannot run.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: Playwright terminal specs against the smoke deployment
+        working-directory: e2e
+        env:
+          CI: "1"
+          E2E_ENV_FILE: ${{ runner.temp }}/smoke-e2e.env
+        run: |
+          set -a
+          # shellcheck disable=SC1090 # written by the smoke test's e2e-fixture step
+          . "$E2E_ENV_FILE"
+          set +a
+          sudo apt-get update -qq && sudo apt-get install -y -qq libnss3-tools
+          mkdir -p "$HOME/.pki/nssdb"
+          [ -f "$HOME/.pki/nssdb/cert9.db" ] || certutil -d "sql:$HOME/.pki/nssdb" -N --empty-password
+          certutil -d "sql:$HOME/.pki/nssdb" -A -t "C,," -n dockyard-smoke -i "$E2E_CA_FILE"
+          npm ci
+          npx playwright install --with-deps chromium
+          E2E_TERMINAL_PASSWORD="$SMOKE_OWNER_PASSWORD" NODE_EXTRA_CA_CERTS="$E2E_CA_FILE" \
+            npx playwright test --workers=1 tests/terminal.spec.ts tests/ui-terminal.spec.ts
+      - name: Tear down the smoke deployment
+        if: always()
+        env:
+          SMOKE_IMAGES: ${{ steps.mode.outputs.mode }}
+          SMOKE_ARTIFACTS: ${{ runner.temp }}/smoke
+        run: bash scripts/smoke/deploy-smoke.sh teardown
       - name: Upload smoke logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: smoke-logs
-          path: ${{ runner.temp }}/smoke/
+          path: |
+            ${{ runner.temp }}/smoke/
+            e2e/test-results/
           if-no-files-found: ignore
           retention-days: 14
