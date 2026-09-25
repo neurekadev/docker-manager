@@ -159,15 +159,20 @@ const (
 	CodeTooLarge           = "too_large"
 	CodeEngineUnavailable  = "engine_unavailable"
 	CodeEngineError        = "engine_error"
-	CodeCancelled          = "cancelled"
-	CodeInternal           = "internal"
+	// CodeInvalidArgument: the Engine rejected the input (#6).
+	CodeInvalidArgument = "invalid_argument"
+	// CodeUnsupportedAPIVersion: the Engine's API version is too old for
+	// the operation (#6, #21).
+	CodeUnsupportedAPIVersion = "unsupported_api_version"
+	CodeCancelled             = "cancelled"
+	CodeInternal              = "internal"
 )
 
 var errorCodes = []string{
 	CodeInvalidFrame, CodeUnsupportedRequest, CodeUnsupportedStream, CodeVersionUnsupported,
 	CodeUnauthorized, CodeForbiddenPath, CodeNotFound, CodeConflict, CodeDeadlineExceeded,
 	CodeBusy, CodeStreamLimit, CodeTooLarge, CodeEngineUnavailable, CodeEngineError,
-	CodeCancelled, CodeInternal,
+	CodeInvalidArgument, CodeUnsupportedAPIVersion, CodeCancelled, CodeInternal,
 }
 
 // ErrorCodes returns every error frame code.
@@ -416,6 +421,18 @@ type ErrorPayload struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Retryable bool   `json:"retryable,omitempty"`
+}
+
+// ErrRequestTimeout means the agent did not answer a request in time (the
+// manager's request deadline passed; agents.ErrRequestTimeout).
+var ErrRequestTimeout = errors.New("agents: the agent did not answer in time")
+
+// CodedError is an error frame an agent answered a request with, as the
+// manager returns it (agents.RequestError).
+type CodedError interface {
+	error
+	ProtocolCode() string
+	ProtocolMessage() string
 }
 
 // Payload validation errors.

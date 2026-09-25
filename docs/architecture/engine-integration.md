@@ -210,9 +210,11 @@ Documented exceptions to "direct Engine HTTP": `internal/agent/engine/`
 `internal/testutil/fscorpus/` (a path-traversal test string),
 `internal/testharness/` (DinD readiness probes and the agent container's
 mounts in the CI fixtures), `test/deploy/*_test.go` (tests asserting that
-the deploy examples mount the socket) and `internal/manager/agents/install.go`
+the deploy examples mount the socket), `internal/manager/agents/install.go`
 (the agent install command shown to operators, which bind-mounts the socket
-into the agent container; the manager never dials it).
+into the agent container; the manager never dials it) and
+`internal/protocol/docker.go` (+ its test: the create-container validation
+refuses binding the socket into containers created through DockYard, #6).
 
 ## Tests
 

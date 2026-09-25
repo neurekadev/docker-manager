@@ -102,19 +102,32 @@ same change.
 | `registry_connection_name_taken` | 409 | no | Another registry connection already uses this name. | #19 |
 | `ambiguous_registry_connection` | 409 | no | Several registry connections match the image equally well (same host, repository matcher specificity, binding and priority); name one explicitly (`registryId`). | #19 |
 | `registry_connection_revoked` | 409 | no | The registry connection selected for the image is revoked; DockYard never falls back to anonymous access. Rotate a new credential into it or select another connection. | #19 |
+| `stack_managed` | 409 | no | The container, volume or network belongs to a DockYard-managed stack: change the stack's Compose definition (or use the stack's operations) instead of editing or removing it directly. | #6 |
+| `container_running` | 409 | no | The container is running; stop it first or remove it with `force=true`. | #6 |
+| `image_in_use` | 409 | no | Containers (running or not) use the image; remove them first. | #6 |
+| `volume_in_use` | 409 | no | Containers (running or not) mount the volume; remove them first. | #6 |
+| `network_in_use` | 409 | no | Containers are attached to the network; disconnect or remove them first. | #6 |
+| `network_builtin` | 409 | no | Predefined networks (`bridge`, `host`, `none`) cannot be removed. | #6 |
+| `resource_name_taken` | 409 | no | Another container, volume or network of the environment already uses this name. | #6 |
+| `unsupported_api_version` | 409 | no | The environment's Docker Engine API version is too old for the operation; upgrade Docker Engine (25.0 or newer, see the support matrix). | #6 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |
 | `payload_too_large` | 413 | no | The request body exceeds the route's documented limit. | #2 |
 | `unsupported_media_type` | 415 | no | The `Content-Type` is not accepted by the route. | #2 |
 | `validation_failed` | 422 | no | One or more inputs are invalid; `details` lists each field. | #2 |
+| `recreate_required` | 422 | no | The requested container settings cannot change in place; create a new container (or use a Compose stack). `details` lists the fields. | #6 |
 | `version_unsupported` | 426 | no | Agent routes: the agent's protocol or version is outside the manager's window (same or previous minor release, never newer than the manager); upgrade as the message says. | #3 |
 | `precondition_required` | 428 | no | The edit requires an `If-Match` header with the resource's current `ETag`. | #4 |
 | `rate_limited` | 429 | yes | Too many requests; retry after the `Retry-After` delay. | #2 |
 | `internal` | 500 | no | Unexpected server error. The cause is logged under the request ID and never returned. | #2 |
+| `engine_error` | 502 | yes | The environment's Docker Engine failed the operation; the message carries its explanation. Retrying helps only when the cause was transient. | #6 |
 | `not_implemented` | 501 | no | The route is declared but this manager build does not implement it yet. | #2 |
 | `job_kind_unavailable` | 501 | no | The operation would start a job kind whose executor this manager or agent does not provide yet. | #26 |
+| `agent_unsupported` | 501 | no | The environment's agent does not support this operation (it is older than the manager); upgrade the agent. | #6 |
 | `unavailable` | 503 | yes | A dependency (database, job engine, agent) is temporarily unavailable. | #2 |
 | `not_ready` | 503 | yes | Readiness check failed; `details` lists each failing check. | #2 |
+| `environment_offline` | 503 | yes | The environment's agent is not connected; retry when the environment is online again. | #6 |
+| `engine_unavailable` | 503 | yes | The environment's agent is connected but cannot reach its Docker Engine. | #6 |
 | `timeout` | 504 | yes | The operation did not finish within its deadline (also `408` for slow request bodies). | #2 |
 
 `502 Bad Gateway` maps to `unavailable` and `408 Request Timeout` to `timeout`

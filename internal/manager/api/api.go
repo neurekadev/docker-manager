@@ -89,6 +89,12 @@ type Deps struct {
 	// Registries serves registry connections (#19); nil answers those
 	// routes with 503.
 	Registries RegistryService
+	// Docker serves the containers, images, volumes and networks of each
+	// environment (#6); nil answers those routes with 503.
+	Docker DockerService
+	// InstanceID is the manager instance ID (containers it created are
+	// marked thisInstance).
+	InstanceID string
 }
 
 func (d Deps) clock() clock.Clock {
@@ -143,6 +149,11 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerAPITokens(a, deps)
 	registerObserve(a, deps)
 	registerRegistries(a, deps)
+	registerContainers(a, deps)
+	registerContainerMetrics(a, deps)
+	registerImages(a, deps)
+	registerVolumes(a, deps)
+	registerNetworks(a, deps)
 	return a
 }
 

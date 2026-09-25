@@ -4,6 +4,8 @@ package agents_test
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net"
 	"net/url"
 	"path/filepath"
@@ -13,15 +15,18 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/manager/agents"
 	"github.com/neurekadev/dockyard/internal/manager/app"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/config"
 	"github.com/neurekadev/dockyard/internal/manager/events"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
+	"github.com/neurekadev/dockyard/internal/protocol"
 	"github.com/neurekadev/dockyard/internal/testharness"
 	"github.com/neurekadev/dockyard/internal/testutil"
 )
@@ -31,8 +36,10 @@ import (
 // process and the real agent image in two Docker-in-Docker Engines of the
 // matrix. Both agents enroll with one-use tokens, open their sessions and
 // report their Engines; both environments appear online with the correct
-// identity; a job is dispatched to each environment in the same pass and
-// each agent answers it over its own session; a credential rotation
+// identity; each environment lists and resolves only its own Engine's
+// containers (#6: the same name, different IDs); a restart job is
+// dispatched to each environment in the same pass and each agent runs it
+// against its own Engine over its own session; a credential rotation
 // completes over each live session. The agents run as containers with the
 // deploy mounts, so this also proves the manager needs no Docker socket.
 func TestEngineTwoAgentsEnrollAndServeJobs(t *testing.T) {
@@ -72,8 +79,18 @@ func TestEngineTwoAgentsEnrollAndServeJobs(t *testing.T) {
 		agent    string
 	}
 	var all []started
+	webIDs := map[string]string{} // Engine ID -> ID of its "web" container
 	for i, e := range engines {
 		e.LoadHostImage(t, img)
+		e.LoadWorkload(t)
+		created, err := e.Client(t).ContainerCreate(ctx, client.ContainerCreateOptions{Name: "web",
+			Config: &container.Config{Image: testharness.WorkloadImage, Cmd: []string{"serve", "up"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.Client(t).ContainerStart(ctx, created.ID, client.ContainerStartOptions{}); err != nil {
+			t.Fatal(err)
+		}
 		info, err := e.Client(t).Info(ctx, client.InfoOptions{})
 		if err != nil {
 			t.Fatal(err)
@@ -89,6 +106,7 @@ func TestEngineTwoAgentsEnrollAndServeJobs(t *testing.T) {
 			"DOCKYARD_ENROLLMENT_TOKEN=" + c.Token,
 		}})
 		all = append(all, started{engine: e, engineID: info.Info.ID, name: name, agent: id})
+		webIDs[info.Info.ID] = created.ID
 	}
 
 	// Both environments come online (after their job reports were
@@ -137,21 +155,54 @@ func TestEngineTwoAgentsEnrollAndServeJobs(t *testing.T) {
 		t.Logf("environment %q: Engine %s (Docker %s), agent %s", env.Name, env.EngineID, s.engine.Version.Version, sys.Agent.ID)
 	}
 
-	// One job per environment, dispatched in one pass. The agent image has
-	// no executor for container.restart yet (#6), so each agent answers
-	// with a rejecting ack over its own session: the command reached the
-	// right agent, carried its fencing token and came back correlated.
-	// The manager's authorizer denies users until #17, so the jobs run as
-	// the service identity (like scheduled jobs).
+	// The Docker resource requests (#6) answer from each environment's own
+	// Engine: both have a container named web, with different IDs, and
+	// each environment sees only its own.
+	for engineID, env := range envByEngine {
+		raw, err := m.Agents().Hub().RequestEnvironment(ctx, env.ID, protocol.ReqContainerList, protocol.ContainerListInput{}, 0)
+		if err != nil {
+			t.Fatalf("container.list on %s: %v", env.Name, err)
+		}
+		var out protocol.ContainerListOutput
+		if err := json.Unmarshal(raw, &out); err != nil {
+			t.Fatal(err)
+		}
+		var ids []string
+		for _, c := range out.Containers {
+			if c.Name == "web" {
+				ids = append(ids, c.ID)
+			}
+		}
+		if len(ids) != 1 || ids[0] != webIDs[engineID] {
+			t.Errorf("%s lists web as %v, want %s", env.Name, ids, webIDs[engineID])
+		}
+		for other, id := range webIDs {
+			if other == engineID {
+				continue
+			}
+			_, err := m.Agents().Hub().RequestEnvironment(ctx, env.ID, protocol.ReqContainerInspect, protocol.ContainerInspectInput{Container: id}, 0)
+			var re *agents.RequestError
+			if !errors.As(err, &re) || re.Code != protocol.CodeNotFound {
+				t.Errorf("%s resolved another Engine's container %s: %v", env.Name, id, err)
+			}
+		}
+	}
+
+	// One restart job per environment, dispatched in one pass; each agent
+	// runs it with the #6 executor over its own session against its own
+	// Engine. The jobs run as the service identity (like scheduled jobs).
 	eng := m.Jobs()
+	jobEngine := map[string]string{}
 	var jobIDs []string
-	for _, env := range envByEngine {
+	for engineID, env := range envByEngine {
 		j, _, err := eng.Enqueue(ctx, jobs.Request{Kind: jobspec.ContainerRestart, Principal: authz.Service(), EnvironmentID: env.ID,
-			Targets: []domain.JobTarget{{Type: domain.TargetContainer, ID: "web"}}})
+			Targets: []domain.JobTarget{{Type: domain.TargetContainer, ID: "web"}},
+			Input:   protocol.ContainerActionInput{Name: "web", ID: webIDs[engineID]}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		jobIDs = append(jobIDs, j.ID)
+		jobEngine[j.ID] = engineID
 	}
 	if err := eng.DispatchPending(ctx); err != nil {
 		t.Fatal(err)
@@ -172,8 +223,7 @@ func TestEngineTwoAgentsEnrollAndServeJobs(t *testing.T) {
 					return
 				}
 				if j.State.Terminal() {
-					if j.State != domain.JobFailed || j.ErrorClass != domain.ErrorRejected || !strings.Contains(j.ErrorMessage, "unsupported_kind") ||
-						j.DispatchedAt == nil || j.FencingToken == 0 {
+					if j.State != domain.JobSucceeded || j.DispatchedAt == nil || j.FencingToken == 0 {
 						t.Errorf("job %s: %s %s %q", id, j.State, j.ErrorClass, j.ErrorMessage)
 					}
 					return
@@ -188,6 +238,15 @@ func TestEngineTwoAgentsEnrollAndServeJobs(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+	for _, s := range all {
+		insp, err := s.engine.Client(t).ContainerInspect(ctx, webIDs[s.engineID], client.ContainerInspectOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if insp.Container.State == nil || !insp.Container.State.Running {
+			t.Errorf("web on %s not running after the restart", s.name)
+		}
+	}
 
 	// Credential rotation over each live session: the agent persists the
 	// new credential in its state volume and the old one stops working.

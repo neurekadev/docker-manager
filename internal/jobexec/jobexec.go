@@ -330,12 +330,31 @@ func abandonOr(ctx context.Context, st *State, o Options, step jobspec.Step, err
 	return finish(ctx, st, o, *res)
 }
 
+// ClassedError is a step failure with its own stable error class instead
+// of step_failed, e.g. an Engine or registry failure (rate_limited,
+// unauthorized, not_found, #6) or a refusal (stack_managed, in_use). The
+// class is part of the job's public error ({class, message, recovery}) and
+// its audit record; Recovery, when not empty, replaces the step's guidance.
+type ClassedError interface {
+	error
+	ErrorClass() string
+	Recovery() string
+}
+
 func stepFailure(step jobspec.Step, err error) *protocol.ResultPayload {
 	rec := step.Recovery
 	if rec == "" {
 		rec = "Step " + step.Name + " failed. Fix the cause and run the job again."
 	}
-	return &protocol.ResultPayload{Outcome: OutcomeFailed, ErrorClass: domain.ErrorStepFailed,
+	class := domain.ErrorStepFailed
+	var ce ClassedError
+	if errors.As(err, &ce) && ce.ErrorClass() != "" {
+		class = ce.ErrorClass()
+		if r := ce.Recovery(); r != "" {
+			rec = r
+		}
+	}
+	return &protocol.ResultPayload{Outcome: OutcomeFailed, ErrorClass: class,
 		Message: "step " + step.Name + " failed: " + err.Error(), Recovery: rec}
 }
 

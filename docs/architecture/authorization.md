@@ -114,7 +114,10 @@ perms.RegisterLocator(catalog.TypeContainer, permissions.LocatorFunc(
 
 Built in: services are located through their stack (`<stackId>/<service>`),
 Docker-named resources live in their own environment. The manager registers
-the agent Locator; #6 registers containers/images/volumes/networks, #7 stacks.
+the agent Locator; #6 registers containers, volumes and networks
+(`resources.Service.Locator`: members of a DockYard stack's Compose project
+get their service and stack as parents; images and other objects use the
+built-in rule), #7 stacks.
 Locators must be cheap and must not call the Authorizer.
 
 ## Response shaping (minimal discovery)

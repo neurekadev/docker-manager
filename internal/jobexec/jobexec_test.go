@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -292,5 +293,37 @@ func TestExecutorValidate(t *testing.T) {
 	sc := &StepContext{Kind: jobspec.BackupRun, st: newState(), opts: Options{Journal: &memJournal{}}}
 	if err := sc.AddCompensation(context.Background(), "undeclared", nil); err == nil {
 		t.Fatal("undeclared compensation accepted")
+	}
+}
+
+type classedErr struct{ class, recovery string }
+
+func (e classedErr) Error() string      { return "registry says slow down" }
+func (e classedErr) ErrorClass() string { return e.class }
+func (e classedErr) Recovery() string   { return e.recovery }
+
+// TestClassedStepErrors: a step error with its own class (an Engine or
+// registry code, #6) becomes the job's error class and recovery; without a
+// recovery the step's guidance stays; compensations still run.
+func TestClassedStepErrors(t *testing.T) {
+	var log []string
+	exec := backupExec(&log, "", false)
+	exec.Steps["snapshot"] = func(context.Context, *StepContext) error {
+		return fmt.Errorf("wrapped: %w", classedErr{class: "rate_limited", recovery: "Wait before retrying."})
+	}
+	res, _ := Run(context.Background(), exec, newState(), Options{Journal: &memJournal{}})
+	if res.Outcome != OutcomeFailed || res.ErrorClass != "rate_limited" || res.Recovery != "Wait before retrying." ||
+		!strings.Contains(res.Message, "registry says slow down") {
+		t.Fatalf("res %+v", res)
+	}
+	if log[len(log)-1] != `compensate:["web"]` {
+		t.Fatalf("compensation not run: %v", log)
+	}
+	exec.Steps["snapshot"] = func(context.Context, *StepContext) error { return classedErr{class: "not_found"} }
+	res, _ = Run(context.Background(), exec, newState(), Options{Journal: &memJournal{}})
+	spec, _ := jobspec.Lookup(jobspec.BackupRun)
+	st, _ := spec.Step("snapshot")
+	if res.ErrorClass != "not_found" || res.Recovery != st.Recovery {
+		t.Fatalf("res %+v", res)
 	}
 }

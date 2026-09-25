@@ -3,7 +3,7 @@
 //	config → data dir → open DB → (snapshot) → migrate → secret key /
 //	instance → auth primitives → audit trail → identity → permissions → agents (all environments
 //	offline) → job engine recovery → metrics database (own file and
-//	migrations) → observation → HTTP handler → listener → serve (+ job
+//	migrations) → observation → Docker resources → HTTP handler → listener → serve (+ job
 //	engine loop, auth housekeeping, audit retention, metrics collection,
 //	rollups and retention)
 //
@@ -46,6 +46,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/permissions"
 	"github.com/neurekadev/dockyard/internal/manager/regclient"
 	"github.com/neurekadev/dockyard/internal/manager/registries"
+	"github.com/neurekadev/dockyard/internal/manager/resources"
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
 	"github.com/neurekadev/dockyard/internal/manager/server"
 	"github.com/neurekadev/dockyard/internal/manager/store"
@@ -54,6 +55,11 @@ import (
 
 // ShutdownGrace bounds graceful HTTP shutdown.
 const ShutdownGrace = 15 * time.Second
+
+// reconcileRequestTimeout bounds the inventory request of the Docker
+// resource reconciler after an agent (re)connects (it never fails the
+// reconnect).
+const reconcileRequestTimeout = 10 * time.Second
 
 // Options configures the manager. Only Config, Logger and UI are required.
 type Options struct {
@@ -98,7 +104,9 @@ type Manager struct {
 	metrics  *metrics.Store
 	observe  *observe.Service
 	regs     *registries.Service
-	handler  http.Handler
+	// resources is the Docker resource service (#6).
+	resources *resources.Service
+	handler   http.Handler
 }
 
 // ErrSecretKeyMissing means the database belongs to an existing installation
@@ -305,6 +313,33 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return m.observe.Reconcile(ctx, s.EnvironmentID())
 	})
 
+	// Docker resources (#6): containers, images, volumes and networks of
+	// every environment through its agent; mutations are jobs, pulls use
+	// the matching registry connection (#19). Their permission Locators
+	// place Compose-stack members in their stack (#17) and a reconciler
+	// refreshes that after every (re)connect.
+	m.resources, err = resources.New(resources.Options{
+		DB: db, Keyring: m.keyring, Agents: hub, Jobs: m.jobs, Permissions: m.perms, Registries: m.regs,
+		InstanceID: m.instance.ID, Clock: opts.Clock, Logger: log.With("component", "resources"),
+	})
+	if err != nil {
+		_ = m.metrics.Close()
+		m.jobs.Close()
+		return nil, err
+	}
+	for _, typ := range []string{catalog.TypeContainer, catalog.TypeVolume, catalog.TypeNetwork} {
+		m.perms.RegisterLocator(typ, m.resources.Locator(typ))
+	}
+	hub.AddReconciler(func(ctx context.Context, s *agents.Session) error {
+		if !s.Serves(protocol.ReqContainerList) {
+			return nil // an agent without the #6 requests
+		}
+		m.resources.ReconcileSession(ctx, s.EnvironmentID(), func(ctx context.Context, name string, input any) ([]byte, error) {
+			return s.Request(ctx, name, input, reconcileRequestTimeout)
+		})
+		return nil
+	})
+
 	srv, err := server.New(server.Options{
 		Logger: log,
 		Clock:  opts.Clock,
@@ -324,6 +359,8 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Registries:   m.regs,
 			APITokens:    m.identity,
 			Observe:      m.observe,
+			Docker:       m.resources,
+			InstanceID:   m.instance.ID,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -333,6 +370,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		Auth:             m.identity.Middleware,
 	})
 	if err != nil {
+		m.resources.Close()
 		_ = m.metrics.Close()
 		m.jobs.Close()
 		return nil, err
@@ -449,6 +487,9 @@ func (m *Manager) Registries() *registries.Service { return m.regs }
 // Events returns the internal event bus.
 func (m *Manager) Events() *events.Bus { return m.events }
 
+// Resources returns the Docker resource service (#6).
+func (m *Manager) Resources() *resources.Service { return m.resources }
+
 // Idempotency returns the Idempotency-Key response store (its Forget is
 // called when a principal's sessions, token or permissions change).
 func (m *Manager) Idempotency() *idempotency.Store { return m.idem }
@@ -523,6 +564,9 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 // Close stops manager-local jobs (recovered on the next start) and releases
 // the database.
 func (m *Manager) Close() error {
+	if m.resources != nil {
+		m.resources.Close()
+	}
 	if m.jobs != nil {
 		m.jobs.Close()
 	}

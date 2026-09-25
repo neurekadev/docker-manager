@@ -53,6 +53,8 @@ in GitHub issues #1 (roadmap) and #25 (decision register).
 | `internal/jobspec` | Job kind catalog and lock definitions (shared by manager and agent) | `domain` |
 | `internal/jobexec` | Journaled step runner (shared by manager and agent) | `jobspec`, `protocol`, `faultinject` |
 | `internal/agent/jobs` | Agent job runner: fencing, fsync'd journal, reconnect report | `jobexec`, `protocol` |
+| `internal/agent/resources` | Docker resource requests and job executors (#6) over the Engine adapter | `engine`, `session`, `jobexec`, `protocol` |
+| `internal/manager/resources` | Docker resources of every environment (#6): agent requests, job requests, recreate specifications, Locators | `store`, `jobs`, `authz`, `permissions`, `protocol` |
 | `internal/faultinject` | Named fault points, no-op unless built with `-tags faultinject` | stdlib |
 | `internal/db/migrations` | Versioned Bun migrations (one file each) | `bun` |
 | `internal/agent/config`, `internal/agent/runtime` | Agent configuration and main loop | `protocol`, shared |

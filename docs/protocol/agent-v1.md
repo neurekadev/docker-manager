@@ -422,7 +422,10 @@ Defined in `internal/protocol/jobs.go` and
 ```
 
 Failures answer with `error` (correlationId = request). Requests the agent
-does not serve fail with `unsupported_request`. The request's `input` and
+does not serve fail with `unsupported_request`. The Docker resource
+requests and job inputs of #6 are defined in `internal/protocol/docker.go`
+(strict decoding: unknown input fields are refused); their semantics are in
+[docker-resources.md](../architecture/docker-resources.md). The request's `input` and
 `output` schemas are owned by the feature issue named in the table and
 documented next to its code; this document fixes the names, capabilities and
 bounds.
@@ -677,6 +680,8 @@ Codes of `error` frames and of `stream_close {reason: error}`:
 | `too_large` | an input or output exceeds its bound |
 | `engine_unavailable` | the Docker Engine is unreachable |
 | `engine_error` | the Engine rejected the operation (message is sanitized) |
+| `invalid_argument` | the Engine rejected the input (for example an invalid tag) |
+| `unsupported_api_version` | the Engine's API version is too old for the operation |
 | `cancelled` | cancelled by the manager |
 | `internal` | unexpected agent failure (details only in the agent log) |
 
@@ -735,4 +740,5 @@ The manager maps them to public errors: `not_found` → 404,
 | job dispatch over the session (`jobs.AgentDispatcher`) and job frame routing, reconcile-before-online | `internal/manager/agents` (`Hub`), `internal/agent/session` + `internal/agent/jobs` | implemented (#3) |
 | `rescan` (agent answers `unsupported_request`), agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stubs | #15, #23 (rescan), #8, #15, #35 (streams) |
 | `engine.info`, `host.metrics`, Docker event relay (coalescing, rate bound) | `internal/agent/observe`, `internal/manager/observe` | implemented (#5) |
-| request/stream executors | agent adapter | #6, #7, #8, #10, #14, #15, #21, #35 |
+| Docker resource requests (`container.list/inspect`, `image.list/inspect/tag`, `volume.list/inspect`, `network.list/inspect`) and executors (`container.*`, `image.pull/remove`, `volume.*`, `network.*`) | `internal/protocol/docker.go` (inputs/outputs), `internal/agent/resources` | implemented (#6) |
+| other request/stream executors | agent adapter | #7, #8, #10, #14, #15, #21, #35 |

@@ -35,8 +35,16 @@ func shapingAPI(t *testing.T, pol *authztest.Policy) http.Handler {
 }
 
 func agentRoutes(t *testing.T) []authztest.Call {
-	calls := authztest.Routes(t, map[string]string{"environmentId": "env-1", "agentId": "ag-1", "enrollmentId": "x"},
+	all := authztest.Routes(t, map[string]string{"environmentId": "env-1", "agentId": "ag-1", "enrollmentId": "x"},
 		"/api/v1/environments", "/api/v1/agents", "/api/v1/agent-enrollments")
+	// The Docker resource routes of an environment have their own matrices
+	// (docker_authz_test.go, with a Docker service).
+	var calls []authztest.Call
+	for _, c := range all {
+		if !isDockerRoute(c.Path) {
+			calls = append(calls, c)
+		}
+	}
 	for i := range calls {
 		calls[i].Headers = map[string]string{"If-Match": "*", "Idempotency-Key": "k-" + calls[i].OperationID}
 	}

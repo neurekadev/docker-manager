@@ -177,6 +177,10 @@ type ContainerDetails struct {
 	// Networks maps network name to the container's addresses on it.
 	Networks map[string]EndpointInfo
 	Ports    []Port
+	// Resources are the container's limits; Healthcheck its configured
+	// health check (nil: the image's or none).
+	Resources   Resources
+	Healthcheck *HealthcheckSpec
 }
 
 // EndpointInfo is a container's attachment to a network.

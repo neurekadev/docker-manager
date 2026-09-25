@@ -58,7 +58,11 @@ Stable error classes: `agent_offline`, `authorization_revoked`,
 `step_failed`, `unknown_outcome`, `journal_lost`, `resume_limit`,
 `rejected`, `compensation_failed`, `executor_restarted`,
 `credential_unavailable`, `cancelled`,
-`internal`.
+`internal`. A step may fail with its own class instead of `step_failed` by
+returning a `jobexec.ClassedError` (class plus recovery guidance), e.g. the
+Engine and registry codes and refusals of the Docker resource kinds
+(`rate_limited`, `unauthorized`, `stack_managed`, `volume_in_use`, ...;
+[docker-resources.md](docker-resources.md#job-error-classes)).
 
 ### Idempotency
 
@@ -117,7 +121,7 @@ S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
 | `backup.retention` | manager | `backup.retention` | `repository` **X** (repository targets) | `forget` (i,c) → `prune_repository` (i,c) | — | — | — | resume |
 | `backup.run` | agent | `backup.run` | `host` S (each environment)<br>`stack` **X** (stack targets, optional)<br>`volume` S (volume targets, optional)<br>`file_path` S (path targets, optional)<br>`repository` S (repository targets) | `prepare` (i,c) → `stop_containers` (i,c) → `snapshot` (c) → `start_containers` (i) → `record` (i,c) | 1h | — | `start_containers` | — |
 | `backup.verify` | manager | `backup.verify` | `repository` S (repository targets) | `check` (i,c) | — | — | — | resume |
-| `container.create` | agent | `container.create` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `create` (c) | 10m | — | — | — |
+| `container.create` | agent | `container.create` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `create` (c) → `connect_networks` (i) → `start` (i) | 10m | — | — | — |
 | `container.pause` | agent | `container.pause` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `pause` (i,c) | 10m | — | — | — |
 | `container.remove` | agent | `container.remove` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `remove` (i,c) | 10m | — | — | — |
 | `container.restart` | agent | `container.restart` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `restart` (i,c) | 10m | — | — | — |
