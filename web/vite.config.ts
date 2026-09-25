@@ -4,6 +4,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { webManifest } from './src/lib/pwa/manifest.ts';
 import { bundleReport } from './scripts/bundle-report-plugin.ts';
+import { svelteTesting } from '@testing-library/svelte/vite';
 
 export default defineConfig({
 	plugins: [
@@ -61,7 +62,23 @@ export default defineConfig({
 	},
 	test: {
 		expect: { requireAssertions: true },
-		include: ['src/**/*.{test,spec}.{js,ts}'],
-		environment: 'node'
+		// *.spec.ts: logic in Node. *.test.ts: components in jsdom with
+		// @testing-library/svelte (docs/design/README.md, "Tests").
+		projects: [
+			{
+				extends: true,
+				test: { name: 'unit', include: ['src/**/*.spec.ts'], environment: 'node' }
+			},
+			{
+				extends: true,
+				plugins: [svelteTesting()],
+				test: {
+					name: 'components',
+					include: ['src/**/*.test.ts'],
+					environment: 'jsdom',
+					setupFiles: ['./src/test/setup.ts']
+				}
+			}
+		]
 	}
 });

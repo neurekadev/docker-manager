@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { flushSync } from 'svelte';
 import { ApiRequestError } from '$lib/api/client';
 import { Connectivity } from './connectivity.svelte';
-import { PLACEHOLDER_BACKGROUND_COLOR, PLACEHOLDER_THEME_COLOR, webManifest } from './manifest';
+import { BACKGROUND_COLOR, THEME_COLOR, webManifest } from './manifest';
 import appHtml from '../../app.html?raw';
 
 describe('Connectivity', () => {
@@ -79,10 +79,8 @@ describe('web app manifest', () => {
 
 	it('app.html links the manifest and repeats the placeholder theme colour', () => {
 		expect(appHtml).toContain('<link rel="manifest" href="/manifest.webmanifest" />');
-		expect(appHtml).toContain(
-			`<meta name="theme-color" content="${PLACEHOLDER_THEME_COLOR}" />`
-		);
-		expect(webManifest.theme_color).toBe(PLACEHOLDER_THEME_COLOR);
-		expect(webManifest.background_color).toBe(PLACEHOLDER_BACKGROUND_COLOR);
+		expect(appHtml).toContain(`<meta name="theme-color" content="${THEME_COLOR}" />`);
+		expect(webManifest.theme_color).toBe(THEME_COLOR);
+		expect(webManifest.background_color).toBe(BACKGROUND_COLOR);
 	});
 });

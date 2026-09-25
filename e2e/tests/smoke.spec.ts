@@ -1,5 +1,6 @@
 // Smoke: the embedded UI shell loads through the TLS proxy and renders the
-// manager health result (#11, #27, #29).
+// manager health result (#11, #27, #29) on the public pages (#22: setup or
+// sign-in, whose footer shows the manager version).
 import { expect, test } from '@playwright/test';
 
 test('UI shell renders the health result through the TLS proxy', async ({ page, baseURL }) => {
@@ -12,7 +13,7 @@ test('UI shell renders the health result through the TLS proxy', async ({ page, 
 	expect(headers['content-security-policy']).toContain("default-src 'self'");
 	expect(headers['x-frame-options']).toBe('DENY');
 
-	await expect(page.getByRole('heading', { name: 'DockYard' })).toBeVisible();
+	await expect(page.getByRole('heading', { level: 1, name: /DockYard/ })).toBeVisible();
 	const api = await health;
 	expect(api.status()).toBe(200);
 	expect(api.headers()['cache-control']).toBe('no-store');
@@ -20,8 +21,9 @@ test('UI shell renders the health result through the TLS proxy', async ({ page, 
 	expect(body.status).toBe('ok');
 
 	// The page shows exactly what the API returned.
-	await expect(page.getByText(`Manager ok · version ${body.version} (${body.commit})`)).toBeVisible();
-	await expect(page.getByRole('alert')).toHaveCount(0);
+	await expect(page.getByText(`DockYard ${body.version} (${body.commit.slice(0, 12)})`)).toBeVisible();
+	// No alert is shown (the toast region for errors exists but is empty).
+	await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toHaveCount(0);
 	// Served over TLS by the proxy (checked last so local HTTP runs still
 	// exercise everything above).
 	expect(page.url()).toMatch(/^https:\/\//);
@@ -42,6 +44,6 @@ test('deep links fall back to the UI shell', async ({ page }) => {
 	expect(res?.status()).toBe(200);
 	expect(res?.headers()['content-type']).toContain('text/html');
 	// The SPA boots (its router then renders the page or its not-found view).
-	await expect(page).toHaveTitle('DockYard');
+	await expect(page).toHaveTitle(/DockYard$/);
 	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 });

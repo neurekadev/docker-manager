@@ -161,6 +161,14 @@ resource and run it. For every resource route:
    capabilities on every target — a restart-only user follows and can cancel
    restarts of that container. Never by initiator.
 
+7. Search (`GET /api/v1/search`, the UI's ⌘K palette, #22): each hit is
+   filtered with the same `ViewOf` as its own list route (environments,
+   stacks per stack, services by the stack's full view or a grant on the
+   service, containers/images/volumes/networks with their parents) and
+   carries identity and status only, whatever the view. Docker objects are
+   searched only in environments the caller sees; environments that could
+   not be searched are reported in `gaps` (never hidden ones).
+
 Examples: metrics-only (`environment.metrics.read @env:E`) lists `E` with
 `view: minimal`, `actions: ["environment.metrics.read"]` and no Engine ID,
 revision or timestamps; system information, edits, agents and jobs are

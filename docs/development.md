@@ -45,6 +45,74 @@ writes `web/build/app`, which `web/embed.go` picks up automatically).
 The agent refuses to run as non-root and targets Linux; run it in its
 container (see `deploy/`) rather than on a Windows host.
 
+## UI devstack (no Docker)
+
+`test/devstack` runs a real manager on localhost plus in-process agents over
+in-memory fake Docker Engines (`internal/agent/engine/enginefake`), seeded
+with a small homelab, so UI work and Playwright need no Docker Engine:
+
+```bash
+npm --prefix web run build            # the devstack serves web/build/app from disk
+go run ./test/devstack                # http://localhost:8080, seeded, owner signed up
+go run ./test/devstack -setup         # first-run setup still open (no accounts, no jobs)
+go run ./test/devstack -addr 127.0.0.1:8090 -keep -log-level info
+```
+
+It prints the environments and credentials:
+
+| account | password | access |
+| --- | --- | --- |
+| `admin` (owner) | `dockyard-devstack-owner` | everything |
+| `guest` | `dockyard-devstack-guest` | Restricted (the denied state) |
+
+Seeded data:
+
+- **homelab** (online, service address `192.168.1.10`): the stack **Silo**
+  (services `silo-web`, `silo-api`, `silo-db`, `silo-redis`, `silo-worker`
+  with the #22 display metadata; descriptions and icons are DockYard
+  metadata, not images), the stack **Media** (`jellyfin`), standalone
+  `homeassistant`, `pihole` and an exited `backup-runner`, volumes,
+  networks and images.
+- **nas** (online): `syncthing`, `samba` and stopped leftovers for prune.
+- **edge** (arm64): enrolled, then disconnected, so it is **offline**.
+- Metrics: a 30-minute history and a live 10 s sampler per host and
+  container (smooth, deterministic curves); `engine.info` inventories.
+- Jobs: a container restart (succeeded), a container start that fails, and
+  a prune run with one failed removal (**partial**).
+- Container logs: a few lines per service, followed every 4 s.
+
+What is simulated: the Docker Engines, host metrics, Compose reads
+(`compose.read` from in-memory files, `compose.services` from the fake
+Engine) and container logs. Everything between the public API and the
+Engine adapter is production code. Not available: exec terminals, Compose
+deploys and builds (they need a real Engine; use the CI suites). The
+devstack is a test tool under `test/`: it is never part of the images or
+`scripts/build-static.sh`, refuses non-loopback addresses and prints
+credentials, so never expose it.
+
+Rebuild the UI and restart the devstack to see UI changes (the manager
+reads the UI files at start). For hot reload, run `npm --prefix web run dev`
+and point its proxy at the devstack (`vite.config.ts` proxies `/api` to
+`127.0.0.1:8080`).
+
+### Playwright against the devstack
+
+```bash
+cd e2e && npm ci && npx playwright install chromium
+go run ./test/devstack -setup               # fresh manager for the setup flow (other terminal)
+E2E_BASE_URL=http://localhost:8080 npx playwright test tests/ui.spec.ts
+# a seeded devstack (setup done): tell the spec who the owner is
+E2E_BASE_URL=http://localhost:8080 E2E_UI_OWNER=admin E2E_UI_PASSWORD=dockyard-devstack-owner \
+  npx playwright test tests/ui.spec.ts
+# review screenshots at 1440x900 and 390x844 (keep them outside the repo)
+E2E_SCREENSHOTS_DIR=/tmp/dockyard-shots E2E_BASE_URL=http://localhost:8080 npx playwright test tests/ui.spec.ts
+```
+
+`tests/pwa.spec.ts` and `tests/smoke.spec.ts` also run against the devstack;
+only their final HTTPS assertions fail on plain `http://localhost` (CI runs
+them behind the TLS proxies of `e2e/compose.yaml`). Design review rules:
+[design/README.md](design/README.md#tests-and-screenshot-review).
+
 ## Generated artifacts
 
 `api/openapi.json` and `web/src/lib/api/schema.d.ts` are generated and

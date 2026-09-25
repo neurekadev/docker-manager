@@ -138,8 +138,9 @@ Implications:
 - More CodeMirror languages (`.env`, JSON, Dockerfile, ...) are added as
   separate dynamic imports keyed by file type (#15).
 - Route-level code splitting (SvelteKit nodes) covers mid-size libraries
-  such as Bits UI. The `/lazy-proof` page is a temporary proof, removed when
-  real views use these libraries (#22).
+  such as Bits UI. The #11 `/lazy-proof` page was replaced by the design
+  gallery `/design` (#22), which keeps the same lazy-loading controls for
+  `e2e/tests/pwa.spec.ts`.
 
 ### Generated client and Svelte Query
 
@@ -151,12 +152,74 @@ turns a result into data or an `ApiRequestError` (`status`, `apiError`,
 408 and 429 only, at most twice; mutations never retry automatically. The
 workflow is in [docs/web.md](../web.md).
 
-### Placeholders (provisional until #22)
+### Placeholders (replaced by #22)
 
-Manifest `theme_color` `#404040`, `background_color` `#ffffff` and the icon
-set generated from `web/static/icons/icon.svg` are neutral placeholders, not
-branding. The connection and update notices are unstyled. #22 replaces them
-without changing the behaviour contract above.
+#11 shipped neutral placeholders: manifest `theme_color` `#404040`,
+`background_color` `#ffffff`, unstyled connection and update notices, and
+the icon set generated from `web/static/icons/icon.svg`. #22 replaced the
+colours and notices without changing the behaviour contract above (next
+section); the icon set is still the placeholder artwork.
+
+### #22 additions (2026-09-25): design system foundation
+
+The mockup-derived design system ([docs/design/README.md](../design/README.md))
+adds these dependencies (exact versions, lockfile committed):
+
+| Package | Version | License | Role | Loading |
+| --- | --- | --- | --- | --- |
+| `@fontsource-variable/inter` | 5.3.0 | **OFL-1.1** | UI typeface, self-hosted (the PWA works offline; no font CDN) | CSS `@font-face`, woff2 per unicode range |
+| `@fontsource-variable/jetbrains-mono` | 5.3.0 | **OFL-1.1** | code, logs, IDs, terminals | same |
+| `uqr` | 0.1.3 | MIT (no dependencies) | QR code of the TOTP `otpauth://` URI, rendered in the browser as SVG (the secret never leaves the page) | route-split (enrollment page) |
+| `@codemirror/language`, `@codemirror/view`, `@codemirror/state`, `@lezer/highlight` | 6.12.4, 6.43.13, 6.7.6, 1.2.4 | MIT | already shipped with `codemirror`; now direct dependencies because the DockYard editor theme imports them | lazy |
+| `@testing-library/svelte`, `@testing-library/jest-dom`, `@testing-library/user-event`, `jsdom` (dev) | 5.4.2, 7.0.1, 14.6.7, 30.1.1 | MIT | component tests (`*.test.ts`) | not shipped |
+
+**OFL-1.1 for font packages only.** The SIL Open Font License permits
+bundling and redistributing the fonts with software; its conditions apply to
+the font files themselves (keep the copyright notice, do not sell the fonts
+alone, keep the reserved names for modified fonts), which DockYard ships
+unmodified. `scripts/license-check.sh` checks these two packages to be
+exactly OFL-1.1 and excludes only them from the general allowlist run;
+OFL-1.1 is **not** added to the general npm allowlist, so any other package
+under it still fails the gate.
+
+Other decisions:
+
+- **Bits UI moves into the initial load.** The signed-in shell uses its
+  menus, popovers, dialogs and tooltips on every page, so route-splitting it
+  no longer helps. The dashboard's static closure is now ~143 KiB gzip of
+  JS (was ~50 KiB for the unstyled #11 shell); CodeMirror, ECharts and
+  xterm.js stay lazy (`verify-build.mjs`). `verify-build.mjs` now counts the
+  `(app)` group layout (the shell) and the dashboard page as the initial
+  load of `/`.
+- **No `@tanstack/svelte-virtual`.** `Table` windows long lists itself
+  (fixed row height, `virtualWindow` in `src/lib/ui/table.ts`, unit-tested)
+  past 500 rows; revisit when a view needs variable row heights (#15).
+- **No component kit or CSS framework.** Styling is plain scoped CSS over
+  the tokens in `src/lib/design/tokens.css`.
+- **Placeholders replaced:** manifest `theme_color` is `--surface-shell`
+  (`#0e141d`), `background_color` `--surface-canvas` (`#0b1016`); the
+  connection and update notices use the design system. The PWA icon set is
+  still the #11 placeholder artwork.
+
+Measured after #22 (`node web/scripts/verify-build.mjs --markdown`):
+
+| bundle | chunks | raw KiB | gzip KiB |
+| --- | ---: | ---: | ---: |
+| initial load of / (JS) | 43 | 439.0 | 143.1 |
+| initial load of / (CSS) | 8 | 61.3 | 16.0 |
+| codemirror (lazy) | 4 | 418.6 | 136.6 |
+| echarts (lazy) | 1 | 482.1 | 161.3 |
+| xterm (lazy) | 1 | 323.4 | 80.2 |
+| bits-ui (in initial load) | 2 | 169.1 | 47.1 |
+| svelte-query (in initial load) | 4 | 33.3 | 10.9 |
+| lucide (in initial load) | 28 | 29.2 | 13.0 |
+| openapi-fetch (in initial load) | 1 | 6.4 | 2.0 |
+| svelte + kit (in initial load) | 5 | 84.2 | 31.8 |
+| all JS chunks | 77 | 1750.5 | 556.0 |
+| service-worker precache | 116 files | 2128.2 | |
+
+The precache grows by the font files (~300 KiB for every unicode-range
+subset; browsers download only the subsets a page uses).
 
 ## Consequences
 

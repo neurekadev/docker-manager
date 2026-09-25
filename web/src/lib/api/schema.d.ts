@@ -2832,6 +2832,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search
+         * @description Global search for the command palette: environments, stacks and their services, and (for queries of at least two characters) the containers, images, volumes and networks of online environments. Every hit is filtered like the resource's own list route (#17) and carries identity and status only. Environments whose Docker objects could not be searched are listed in gaps.
+         */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/security": {
         parameters: {
             query?: never;
@@ -8014,6 +8034,36 @@ export interface components {
             reason?: string;
             service?: string;
             state: string;
+        };
+        SearchGap: {
+            environmentId: string;
+            environmentName: string;
+            /**
+             * @description offline: the agent is not connected; timeout: it did not answer in time; error: it answered with an error.
+             * @enum {string}
+             */
+            reason: "offline" | "timeout" | "error";
+        };
+        SearchHit: {
+            environmentId?: string;
+            environmentName?: string;
+            /** @description The identifier used in the resource's routes: environment ID, stack ID, <stackId>/<service>, container ID, image ID, volume name or network ID. */
+            id: string;
+            /** @description Display name (environment or stack name, service, container, volume or network name, first image tag). */
+            name: string;
+            /** @description The stack of a service, or of a container, volume or network that belongs to a DockYard stack. */
+            stackId?: string;
+            /** @description online/offline (environments), the deployment status (stacks) or the container state. */
+            status?: string;
+            /** @enum {string} */
+            type: "environment" | "stack" | "service" | "container" | "image" | "volume" | "network";
+        };
+        SearchResults: {
+            /** @description Visible environments whose containers, images, volumes and networks are missing from the results. */
+            gaps: components["schemas"]["SearchGap"][];
+            /** @description Best matches first: exact names, then prefixes, then other matches; alphabetical within each rank. */
+            items: components["schemas"]["SearchHit"][];
+            query: string;
         };
         SecuritySettings: {
             /**
@@ -23428,6 +23478,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SchedulePreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    search: {
+        parameters: {
+            query: {
+                /** @description Case-insensitive text found anywhere in the name. */
+                q: string;
+                limit?: number;
+                /** @description Comma-separated hit types to return (default all): environment, stack, service, container, image, volume, network. */
+                types?: string;
+                /** @description Search only this environment (the palette's environment switcher). */
+                environmentId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResults"];
                 };
             };
             /** @description Unauthorized */

@@ -66,14 +66,16 @@ for (const [lib, re] of Object.entries(LAZY)) {
 	}
 }
 
-// Initial load of "/": kit entries + root layout + root page nodes.
+// Initial load of "/": kit entries + root layout + the (app) group layout
+// (the signed-in shell, #22) + the dashboard page node.
 const isNode = (c, n) => c.facade?.endsWith(`/nodes/${n}.js`);
-const rootPage = report.chunks.find(
-	(c) =>
-		c.isEntry &&
-		c.facade?.includes('/nodes/') &&
-		c.modules.some((m) => m.endsWith('src/routes/+page.svelte'))
-);
+const nodeWith = (suffix) =>
+	report.chunks.find(
+		(c) =>
+			c.isEntry && c.facade?.includes('/nodes/') && c.modules.some((m) => m.endsWith(suffix))
+	);
+const rootPage = nodeWith('src/routes/(app)/+page.svelte') ?? nodeWith('src/routes/+page.svelte');
+const appLayout = nodeWith('src/routes/(app)/+layout.svelte');
 const initialRoots = report.chunks
 	.filter(
 		(c) =>
@@ -84,7 +86,8 @@ const initialRoots = report.chunks
 	)
 	.map((c) => c.file);
 if (rootPage) initialRoots.push(rootPage.file);
-else fail('could not find the chunk of src/routes/+page.svelte');
+else fail('could not find the chunk of the / page (src/routes/(app)/+page.svelte)');
+if (appLayout) initialRoots.push(appLayout.file);
 if (initialRoots.length < 4)
 	fail(`expected start, app, layout and page entries, got ${initialRoots.join(', ')}`);
 const initial = staticClosure(initialRoots);

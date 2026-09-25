@@ -3,24 +3,38 @@
 The DockYard UI is a SvelteKit single-page app (Svelte 5, TypeScript) built
 with `@sveltejs/adapter-static` and embedded into `dockyard-manager`
 (`web/embed.go`). It is an installable PWA. Library choices, licenses and
-bundle sizes: [ADR 0002](adr/0002-frontend-libraries.md). Visual design and
-components: #22 (not selected yet; the shell is intentionally unstyled).
+bundle sizes: [ADR 0002](adr/0002-frontend-libraries.md). Visual design,
+tokens and the component library: [design/README.md](design/README.md) (#22;
+live gallery at `/design`). Docker-free local stack for UI work:
+[development.md](development.md#ui-devstack-no-docker).
 
 ```
 web/src/
   app.html                    document template (manifest link, theme-color)
   service-worker.ts           service worker entry (SvelteKit-built)
-  routes/+layout.svelte       QueryClientProvider, SW registration, notices
-  routes/+page.svelte         minimal shell: GET /api/v1/health via Svelte Query
-  routes/lazy-proof/          TEMPORARY lazy-loading proof page (remove in #22)
+  routes/+layout.svelte       global styles, QueryClientProvider (session-expiry hook),
+                              SW registration, connection/update notices, toasts
+  routes/+error.svelte        not-found and router errors
+  routes/(app)/               signed-in area: auth guard + AppShell (+layout.svelte),
+                              the dashboard (+page.svelte), one folder per section
+  routes/(auth)/              public pages: setup, sign-in, enroll, invitation,
+                              password-reset (centred layout)
+  routes/design/              the design system gallery (public, sample data)
+  lib/design/                 tokens.css, global.css, service hues, icon registry, demo data
+  lib/ui/                     the component library ($lib/ui barrel)
+  lib/shell/                  app shell: sidebar, nav filter, environment switcher,
+                              top bar, command palette, notices, page title/breadcrumbs
+  lib/auth/                   route guard, session lifecycle, WebAuthn, QR, one-time codes
+  lib/routes.ts               every in-app URL
   lib/api/schema.d.ts         GENERATED from api/openapi.json
-  lib/api/client.ts           typed client, unwrap(), ApiRequestError
+  lib/api/client.ts           typed client, unwrap(), ApiRequestError, schema type aliases
   lib/api/queries.ts          query keys, queryOptions factories, QueryClient
-  lib/lazy/                   the only entry points to CodeMirror/ECharts/xterm.js
+  lib/api/jobs.svelte.ts      JobWatcher (job event stream with a polling fallback)
+  lib/lazy/                   the only entry points to CodeMirror/ECharts/xterm.js (+ themes)
   lib/live/                   live stream client, query-key conventions,
                               liveStatus, critical-work registry (#23)
-  lib/pwa/                    SW rules, registration/update flow, connectivity,
-                              manifest, notices
+  lib/pwa/                    SW rules, registration/update flow, connectivity, manifest
+  test/                       jsdom setup and test harness components
 web/static/                   copied verbatim (icons, favicon.ico, robots.txt)
 web/scripts/verify-build.mjs  post-build checks and bundle-size table
 ```
@@ -85,11 +99,17 @@ against a built manager (below) or the E2E stack.
 
    Pass `signal` so leaving a view cancels its requests. Tests pass a fake
    `fetch` to `createApiClient(fetch, baseUrl)` (see `client.spec.ts`).
+   Keys follow the live conventions (`liveKeys` in `src/lib/live/keys.ts`,
+   e.g. `['stacks', 'item', id]`), so a live event invalidates lists and
+   details together.
 5. Writes use `createMutation` and invalidate by key prefix
    (`queryClient.invalidateQueries({ queryKey: queryKeys.stacks })`).
    Mutations are never retried automatically; dangerous retries use the
    API's idempotency keys (#4). Reads stay current through the live
    stream (below): build their query keys with `liveKeys`.
+6. A 401 while signed in means the session ended: the QueryClient hook drops
+   every cached API response and redirects to sign-in with `?next=`
+   (`src/lib/auth/session.ts`).
 
 Rules: the browser talks only to same-origin `/api/v1` (never an agent or
 Docker socket); tokens and secrets never go to `localStorage`,
@@ -100,11 +120,12 @@ Docker socket); tokens and secrets never go to `localStorage`,
 - **Manifest**: `src/lib/pwa/manifest.ts` (written to
   `/manifest.webmanifest` by `@vite-pwa/sveltekit`), linked from
   `app.html`. `id`, `start_url` and `scope` are `/`, `display` is
-  `standalone`. Colours are **provisional placeholders** until #22; keep
-  `app.html`'s `theme-color` equal to `PLACEHOLDER_THEME_COLOR`
-  (unit-tested).
-- **Icons**: placeholder artwork authored as `web/static/icons/icon.svg`
-  (not derived from the mockup). Regenerate the PNGs after changing it:
+  `standalone`. Colours are the design tokens (#22): `THEME_COLOR` is
+  `--surface-shell`, `BACKGROUND_COLOR` `--surface-canvas`; keep
+  `app.html`'s `theme-color` equal to `THEME_COLOR` (unit-tested).
+- **Icons**: still the #11 placeholder artwork authored as
+  `web/static/icons/icon.svg` (not derived from the mockup; the in-app
+  logo is `src/lib/shell/Logo.svelte`). Regenerate the PNGs after changing it:
 
   ```bash
   cd web
@@ -215,8 +236,13 @@ CodeMirror, ECharts and xterm.js are reachable only through
 
 ```ts
 import { mountYamlEditor } from '$lib/lazy';
-const editor = await mountYamlEditor(element, text); // editor.text(), editor.destroy()
+const editor = await mountYamlEditor(element, text, { label: 'compose.yaml', onChange });
+// editor.text(), editor.setText(), editor.focus(), editor.destroy()
 ```
+
+Prefer the `$lib/ui` wrappers `CodeEditor`, `Sparkline` and `TerminalView`;
+every mount applies DockYard's theme (`codemirror-theme.ts`,
+`echarts-theme.ts`, `TERMINAL_THEME`).
 
 `verify-build.mjs` fails the web gate if one of them is statically imported
 by any entry chunk. Bits UI and Lucide are imported directly (Lucide per
@@ -224,13 +250,19 @@ icon: `import X from '@lucide/svelte/icons/x'`).
 
 ## Tests
 
-- `npm --prefix web test` (vitest, Node): client/Svelte Query integration,
-  service-worker routing and caching rules, update flow, connectivity,
-  manifest.
+- `npm --prefix web test` (vitest) runs two projects: `unit` (`*.spec.ts`,
+  Node: client/Svelte Query integration, service-worker rules, update flow,
+  connectivity, manifest, tokens and contrast, hues, guards, stores,
+  JobWatcher, WebAuthn/QR helpers) and `components` (`*.test.ts`, jsdom +
+  `@testing-library/svelte`: roles, labels, keyboard, focus trap and return;
+  setup in `src/test/setup.ts`).
 - `web/scripts/verify-build.mjs`: lazy chunks, precache list, manifest and
   icon sizes after the build.
 - Go: `internal/manager/server` (`TestPWAAssets`, deep links, caching),
   `web` (`TestAssetsHaveIndex` checks PWA files in a real build).
-- Playwright (`e2e/tests/pwa.spec.ts`, extended workflow job `e2e`):
-  manifest, service worker under the TLS proxy, deep-link reloads, API
-  responses absent from Cache Storage, offline shell, lazy loading.
+- Playwright (`e2e/tests/pwa.spec.ts`, `ui.spec.ts`, extended workflow job
+  `e2e`): manifest, service worker under the TLS proxy, deep-link reloads,
+  API responses absent from Cache Storage, offline shell, lazy loading (on
+  `/design`); first-run setup, sign-in and sign-out, shell navigation,
+  environment switcher and the Restricted user's denied state. Locally
+  against the devstack: [development.md](development.md#playwright-against-the-devstack).
