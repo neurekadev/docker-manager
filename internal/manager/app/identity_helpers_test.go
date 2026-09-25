@@ -67,6 +67,9 @@ func newEnv(t *testing.T, with ...func(*Options)) *env {
 	for _, f := range with {
 		f(&opts)
 	}
+	if c, ok := opts.Clock.(*clock.Fake); ok {
+		e.clk = c // an option chose another start instant (withWallClockStart)
+	}
 	m, err := Start(testutil.Context(t), opts)
 	if err != nil {
 		t.Fatal(err)

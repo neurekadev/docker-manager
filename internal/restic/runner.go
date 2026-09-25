@@ -116,7 +116,11 @@ func (p *repo) run(ctx context.Context, c call) (result, error) {
 		}
 		args = append(args, "--new-password-file", np)
 	}
-	cmd := exec.CommandContext(ctx, bin, args...) //nolint:gosec // fixed binary; arguments carry no secrets and no shell
+	// runCtx also ends when restic reports a retry of a permanent backend
+	// failure (see retryWatch).
+	runCtx, stop := context.WithCancel(ctx)
+	defer stop()
+	cmd := exec.CommandContext(runCtx, bin, args...) //nolint:gosec // fixed binary; arguments carry no secrets and no shell
 	cmd.Env = p.env(pwPath, tmp)
 	cmd.Dir = c.dir
 	cmd.Stdin = c.stdin
@@ -133,7 +137,8 @@ func (p *repo) run(ctx context.Context, c call) (result, error) {
 	}
 	cmd.WaitDelay = grace
 	stderr := &tailBuffer{max: maxStderrTail}
-	cmd.Stderr = stderr
+	watch := &retryWatch{tail: stderr, abort: stop}
+	cmd.Stderr = watch
 	var collected bytes.Buffer
 	var stdoutErr error
 	var stdout io.ReadCloser
@@ -176,6 +181,10 @@ func (p *repo) run(ctx context.Context, c call) (result, error) {
 	res := result{stdout: collected.Bytes(), exitCode: exit}
 	if ctx.Err() != nil {
 		return res, &Error{Op: c.op, Code: CodeCancelled, ExitCode: exit, Message: "cancelled"}
+	}
+	// Written by the stderr copier, which cmd.Wait has joined.
+	if watch.code != "" {
+		return res, &Error{Op: c.op, Code: watch.code, ExitCode: exit, Message: summarize(stderr.String(), secrets)}
 	}
 	if waitErr != nil && !slices.Contains(c.ok, exit) {
 		return res, classify(c.op, exit, stderr.String(), secrets)
@@ -294,7 +303,9 @@ func classifyText(s string) string {
 		return CodeKeyRejected
 	case has("config file already exists", "repository master key and config already initialized"):
 		return CodeRepositoryExists
-	case has("access denied", "accessdenied", "invalidaccesskeyid", "signaturedoesnotmatch", "403 forbidden", "status code: 403"):
+	case has("access denied", "accessdenied", "invalidaccesskeyid", "signaturedoesnotmatch", "403 forbidden", "status code: 403",
+		// S3 error messages (minio-go prints the message, not the code).
+		"signature we calculated does not match", "access key id you provided does not exist", "difference between the request time"):
 		return CodeAccessDenied
 	case has("repository does not exist", "unable to open config file", "is there a repository at the following location", "nosuchbucket", "bucket does not exist"):
 		return CodeRepositoryNotFound
@@ -349,6 +360,64 @@ func scrub(s string, secrets []string) string {
 		}
 	}
 	return s
+}
+
+// retryNotice is how restic reports a backend request it will retry
+// ("Load(<config/0000000000>, 0, 0) returned error, retrying after
+// 1.2s: <error>"). restic retries every error its backend does not
+// consider permanent for up to 15 minutes and has no option to shorten
+// that; the S3 backend treats only AccessDenied as permanent, so a wrong
+// secret key (SignatureDoesNotMatch), an unknown key ID or a missing
+// bucket would hold a job for 15 minutes.
+const retryNotice = "returned error, retrying after"
+
+// permanentRetry returns the error class of a retry notice whose error
+// no retry can fix (access denied, missing bucket), or "".
+func permanentRetry(line string) string {
+	s := strings.ToLower(line)
+	_, cause, ok := strings.Cut(s, retryNotice)
+	if !ok {
+		return ""
+	}
+	switch code := classifyText(cause); code {
+	case CodeAccessDenied, CodeRepositoryNotFound:
+		return code
+	}
+	return ""
+}
+
+// retryWatch is restic's stderr: it keeps the tail for error messages and
+// ends the run (abort) at the first retry of a permanent failure, keeping
+// its class in code (read after cmd.Wait).
+type retryWatch struct {
+	tail    *tailBuffer
+	abort   func()
+	partial []byte
+	code    string
+}
+
+func (w *retryWatch) Write(p []byte) (int, error) {
+	_, _ = w.tail.Write(p)
+	if w.code != "" {
+		return len(p), nil
+	}
+	w.partial = append(w.partial, p...)
+	for {
+		line, rest, ok := bytes.Cut(w.partial, []byte("\n"))
+		if !ok {
+			break
+		}
+		w.partial = rest
+		if code := permanentRetry(string(line)); code != "" {
+			w.code, w.partial = code, nil
+			w.abort()
+			break
+		}
+	}
+	if len(w.partial) > maxStderrTail {
+		w.partial = w.partial[len(w.partial)-maxStderrTail:]
+	}
+	return len(p), nil
 }
 
 // tailBuffer keeps the last max bytes written.

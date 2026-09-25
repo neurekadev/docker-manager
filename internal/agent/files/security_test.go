@@ -3,6 +3,8 @@ package files
 import (
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -100,6 +102,11 @@ func (f *fixture) leakInZip(b []byte) {
 // of the traversal corpus (#29) against both scopes: each either fails or
 // acts inside the root; nothing outside the roots changes and the outside
 // secret is never returned. Runs on every platform.
+//
+// Each case starts from the same roots: a corpus path that is a legal name
+// inside the root (e.g. "..／secret.txt") receives a copy and an archive
+// of the whole root, so carrying the roots over would double them per case
+// (exponential work, 30 s and more under -race).
 func TestTraversalCorpusStaysInsideRoot(t *testing.T) {
 	f := newFixture(t)
 	f.write("inside.txt", "inside\n")
@@ -108,9 +115,11 @@ func TestTraversalCorpusStaysInsideRoot(t *testing.T) {
 		for _, scope := range []protocol.FileScope{f.vol, f.stk} {
 			f.every(scope, c.Path)
 		}
-	}
-	if after := f.snapshot(); after != before {
-		t.Fatalf("something outside the roots changed:\nbefore:\n%s\nafter:\n%s", before, after)
+		if after := f.snapshot(); after != before {
+			t.Fatalf("case %s (%q): something outside the roots changed:\nbefore:\n%s\nafter:\n%s", c.Name, c.Path, before, after)
+		}
+		f.resetRoots()
+		f.write("inside.txt", "inside\n")
 	}
 	// Traversal paths are refused outright, before touching the disk.
 	for _, p := range []string{"..", "../secret.txt", "a/../../x", "/etc/passwd", "..\\x", "a\x00b", "./a", "a//b"} {
@@ -165,9 +174,27 @@ func TestEscapeTreeIsRefused(t *testing.T) {
 		}
 		// Writing through an escaping link never creates anything outside.
 		_, _ = f.svc.Write(f.ctx, protocol.FilesWriteInput{Scope: scope, Path: c.Path + "/new.txt", Data: []byte("x"), CreateOnly: true})
-		if _, err := f.svc.Write(f.ctx, protocol.FilesWriteInput{Scope: scope, Path: c.Path, Data: []byte("x"), Overwrite: true}); err == nil && c.Kind == fscorpus.KindSymlink {
+		if c.Kind == fscorpus.KindHardlink {
+			continue // replacing the hard-linked name is checked below, after the archive and copy checks
+		}
+		if _, err := f.svc.Write(f.ctx, protocol.FilesWriteInput{Scope: scope, Path: c.Path, Data: []byte("x"), Overwrite: true}); err == nil {
 			t.Errorf("overwriting symlink %s succeeded", c.Path)
 		}
+	}
+	// The hard-linked file gets no ETag (it would be derived from the
+	// outside content), so If-Match with a guessed tag cannot confirm it.
+	hl, err := f.svc.Stat(f.ctx, protocol.FilesStatInput{Scope: scope, Path: "hardlink-secret", ETag: true})
+	if err != nil || hl.Type != protocol.FileTypeFile || hl.ETag != "" || (runtime.GOOS != "windows" && hl.Links != 2) {
+		t.Errorf("stat hardlink-secret: %+v %v", hl, err)
+	}
+	secretInfo, err := os.Stat(secretPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256([]byte(et.Secret))
+	guess := computeETag(sum[:], secretInfo.Size(), secretInfo.ModTime())
+	if _, err := f.svc.Write(f.ctx, protocol.FilesWriteInput{Scope: scope, Path: "hardlink-secret", Data: []byte("x"), IfMatch: []string{guess}}); code(err) != protocol.CodeConflict {
+		t.Errorf("If-Match with the outside file's tag: %v, want conflict", err)
 	}
 	if _, err := f.svc.List(f.ctx, protocol.FilesListInput{Scope: scope, Path: "escape-dir"}); code(err) != protocol.CodeForbiddenPath {
 		t.Errorf("list escape-dir: %v", err)
@@ -228,6 +255,21 @@ func TestEscapeTreeIsRefused(t *testing.T) {
 		t.Errorf("a copied symlink must stay a symlink: %v", err)
 	}
 	f.runJob(jobspec.FilesArchive, protocol.FilesJobInput{Scope: scope, Paths: []string{"."}, Destination: "all.tar.gz", Format: protocol.FormatTarGz})
+	if tgz, err := os.ReadFile(filepath.Join(et.Root, "all.tar.gz")); err != nil {
+		t.Errorf("archive job: %v", err)
+	} else if zr, err := gzip.NewReader(bytes.NewReader(tgz)); err != nil {
+		t.Errorf("archive job wrote an invalid gzip stream: %v", err)
+	} else if tb, _ := io.ReadAll(zr); !bytes.Contains(tb, []byte("hardlink-secret  (several hard links)")) || bytes.Contains(tb, []byte(et.Secret)) {
+		t.Error("the archive job must skip the hard-linked file and list it")
+	}
+	// Replacing the hard-linked name renames a new file over it: the
+	// outside name keeps its inode and content (checked below).
+	if _, err := f.svc.Write(f.ctx, protocol.FilesWriteInput{Scope: scope, Path: "hardlink-secret", Data: []byte("x"), Overwrite: true}); err != nil {
+		t.Errorf("overwrite hardlink-secret: %v", err)
+	}
+	if a, err1 := os.Stat(filepath.Join(et.Root, "hardlink-secret")); err1 != nil || os.SameFile(a, secretBefore) {
+		t.Errorf("the overwrite must replace the name, not write the shared inode: %v", err1)
+	}
 	res = f.runJob(jobspec.FilesDelete, protocol.FilesJobInput{Scope: scope, Paths: []string{"escape-dir", "escape-abs", "hardlink-secret"}})
 	if res.Outcome != "succeeded" {
 		t.Errorf("delete: %+v", res)

@@ -302,17 +302,19 @@ func TestStorageLimitsAreEnforced(t *testing.T) {
 		t.Fatalf("%+v", res)
 	}
 
-	// Storage cap: a day of samples of 200 containers, then a cap below
-	// the used size. Retention shortens every level until the database
-	// fits, oldest data first; at the minimum horizon new series are
-	// refused while hosts keep reporting.
+	// Storage cap: a day of samples of a host and 4 containers (~1.2 MB,
+	// ten times the empty database), then a cap below the used size.
+	// Retention shortens every level until the database fits, oldest data
+	// first; at the minimum horizon new series are refused while hosts
+	// keep reporting. (More containers add nothing but ingest time, which
+	// the pure-Go SQLite under -race multiplies by 30 and more.)
 	s2 := openTest(t, clk, func(o *Options) { o.MaxBytes = 1 << 40 })
 	start := now.Add(-23 * time.Hour)
 	for h := range 23 {
 		var batch []domain.MetricSample
 		for k := range 360 {
 			b := domain.MetricSample{At: start.Add(time.Duration(h)*time.Hour + time.Duration(k)*10*time.Second), Host: &domain.HostValues{CPUPercent: f(5)}}
-			for c := range 20 {
+			for c := range 4 {
 				b.Containers = append(b.Containers, domain.ContainerValues{Name: fmt.Sprintf("app-%03d", c), CPUPercent: f(1), MemoryBytes: i(1 << 20)})
 			}
 			batch = append(batch, b)
