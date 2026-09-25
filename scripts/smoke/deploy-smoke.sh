@@ -242,8 +242,9 @@ step_health_ready() {
 
 step_owner_setup() {
 	local jar="${SMOKE_ARTIFACTS}/cookies.txt" out="${SMOKE_ARTIFACTS}/owner-setup.json" pw code
-	# Random per run; never printed.
-	pw="smoke-$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 32)"
+	# Random per run; never printed. (No "tr </dev/urandom | head" here:
+	# under pipefail tr's SIGPIPE would fail the step.)
+	pw="smoke-$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 	local body
 	body="$(jq -nc --arg p "$pw" '{username: "smoke-owner", displayName: "Smoke Owner", password: $p}')"
 	code="$(curl -sS -o "$out" -w '%{http_code}' --cacert "$CA" -c "$jar" -H 'Content-Type: application/json' \
