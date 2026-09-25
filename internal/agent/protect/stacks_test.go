@@ -3,6 +3,7 @@ package protect
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/neurekadev/dockyard/internal/agent/engine"
@@ -64,5 +65,42 @@ func TestGuardStacks(t *testing.T) {
 	}
 	if len(ran) != 2 || ran[0] != "start" || ran[1] != "stop" {
 		t.Fatalf("steps that ran: %v", ran)
+	}
+}
+
+// TestGuardStacksRefusesUpdatesOfDockYardProject (#32 × #20): an
+// update.run the manager sent for DockYard's own Compose project is
+// refused by the agent before any step acts; other projects' updates run.
+func TestGuardStacksRefusesUpdatesOfDockYardProject(t *testing.T) {
+	fe := enginefake.New("ENG")
+	d := fe.Deploy(true)
+	g := New(Options{SelfContainerID: d.AgentID, StacksVolume: d.Stacks})
+	var ran []string
+	spec, _ := jobspec.Lookup(jobspec.UpdateRun)
+	steps := map[string]jobexec.StepFunc{}
+	for _, st := range spec.Steps {
+		steps[st.Name] = func(context.Context, *jobexec.StepContext) error { ran = append(ran, st.Name); return nil }
+	}
+	execs := g.GuardStacks(func() engine.Engine { return fe }, []jobexec.Executor{{Kind: jobspec.UpdateRun, Steps: steps}})
+	run := func(project string) protocol.ResultPayload {
+		t.Helper()
+		in, _ := json.Marshal(protocol.UpdateRunInput{PolicyID: "p", StackID: "s",
+			Stack:    &protocol.ProjectRef{Root: "stacks", Dir: project, ProjectName: project},
+			Services: []protocol.UpdateService{{Service: "web", Reference: "nginx:1.27", Digest: "sha256:" + strings.Repeat("a", 64)}}})
+		res, err := jobexec.Run(testutil.Context(t), execs[0], &jobexec.State{JobID: "j-" + project, Attempt: 1, FencingToken: 1,
+			Kind: jobspec.UpdateRun, Input: in}, jobexec.Options{Journal: journal{}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	if res := run("dockyard"); res.Outcome != jobexec.OutcomeFailed || res.ErrorClass != protection.CodeProtected {
+		t.Fatalf("update of DockYard's project: %+v", res)
+	}
+	if len(ran) != 0 {
+		t.Fatalf("a step ran for DockYard's project: %v", ran)
+	}
+	if res := run("shop"); res.Outcome != jobexec.OutcomeSucceeded || len(ran) != len(spec.Steps) {
+		t.Fatalf("update of another project: %+v (steps %v)", res, ran)
 	}
 }

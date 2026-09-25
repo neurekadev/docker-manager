@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -200,8 +201,25 @@ func (s *Service) planRun(ctx context.Context, db bun.IDB, p domain.BackupPolicy
 		return set, nil, err
 	}
 	var reqs []jobs.Request
+	var refused []string
 	for _, e := range plans {
 		scope := backup.EnvironmentScope(e.EnvironmentID)
+		if !Serves(e.Repository, scope) {
+			// A stack moved here by a migration (#35) while the policy's
+			// repository is local to another executor: never send that
+			// repository to this agent; the members fail with a class the
+			// user can act on (add an environment repository).
+			for _, it := range e.Items {
+				if only != nil && !only[scope+"\x00"+it.Key()] {
+					continue
+				}
+				set.Members = append(set.Members, domain.BackupSetMember{Item: it.Key(), Kind: it.Kind, Scope: scope,
+					RepositoryID: e.Repository.ID, EnvironmentID: e.EnvironmentID, StackID: it.StackID, StackName: it.StackName,
+					Volume: it.Volume, State: backup.StateFailed, ErrorClass: ClassRepositoryNotServing})
+				refused = append(refused, it.Key())
+			}
+			continue
+		}
 		in := protocol.BackupRunInput{SetID: setID, PolicyID: p.ID, PolicyName: p.Name, InstanceID: s.opts.InstanceID,
 			Repository: repositoryRef(e.Repository, scope, key.State), Shutdown: p.Shutdown, StartedAt: startedAt}
 		if env, err := s.environment(ctx, e.EnvironmentID); err == nil {
@@ -237,6 +255,10 @@ func (s *Service) planRun(ctx context.Context, db bun.IDB, p domain.BackupPolicy
 				StartedAt: startedAt}})
 	}
 	if len(reqs) == 0 {
+		if len(refused) > 0 {
+			return set, nil, fieldErr("environmentRepositories", "no repository of this policy can hold the data of %s "+
+				"(a stack moved to another environment?): add an environment repository for its environment", strings.Join(refused, ", "))
+		}
 		return set, nil, fieldErr("stacks", "the policy selects nothing to back up")
 	}
 	if len(reqs) > scheduler.MaxJobsPerRun {

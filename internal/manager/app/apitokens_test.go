@@ -10,6 +10,7 @@ import (
 
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
 	"github.com/neurekadev/dockyard/internal/testutil"
@@ -365,6 +366,20 @@ func TestAPITokenRefusalsAreGeneric(t *testing.T) {
 	r := owner.must(http.StatusOK, http.MethodPatch, "/api/v1/users/"+ritaID, map[string]string{"status": "disabled"}, header("If-Match", etag))
 	waitStreamEnd(t, stream, "stream of a disabled user's token", "session_expired")
 	e.bot(dis).refused("token of a disabled user")
+	// The disable's audit record carries how many tokens it revoked,
+	// unredacted: a count is metadata, never a secret.
+	disabled := false
+	for _, row := range e.auditRows() {
+		if row.Action == "user.update" && strings.Contains(row.Details, "user.disable") {
+			disabled = true
+			if !strings.Contains(row.Details, `"apiTokenCount":1`) || strings.Contains(row.Details, audit.Redacted) {
+				t.Errorf("disable audit details %s", row.Details)
+			}
+		}
+	}
+	if !disabled {
+		t.Error("no user.disable audit record")
+	}
 	owner.must(http.StatusOK, http.MethodPatch, "/api/v1/users/"+ritaID, map[string]string{"status": "active"}, header("If-Match", r.header.Get("ETag")))
 	e.bot(dis).refused("token of a re-enabled user")
 	var all struct {

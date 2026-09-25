@@ -291,7 +291,10 @@ func (s *Service) revokeUserTokens(ctx context.Context, userID, by string, reaso
 		return err
 	}
 	if len(ids) > 0 {
-		audit.SetDetail(ctx, "apiTokensRevoked", len(ids))
+		// A count under a metadata-suffixed key: the audit redaction treats
+		// every key containing "token" as secret unless it ends in Count,
+		// ID, Name, ... ("apiTokensRevoked" was stored as [REDACTED]).
+		audit.SetDetail(ctx, "apiTokenCount", len(ids))
 	}
 	s.endTokens(ctx, ids)
 	return nil

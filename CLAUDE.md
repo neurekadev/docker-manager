@@ -97,6 +97,10 @@ No Docker locally: Engine-dependent tests run in CI only.
 - Never pass secret values, tokens, file contents, `.env` values or error
   messages; the redaction layer is a safety net, not a licence. Record error
   classes (stable codes), not messages.
+- Detail keys containing secret words (`token`, `secret`, `key`, ...) are
+  redacted unless they end in a metadata suffix (`Id`, `Ids`, `Name`,
+  `Count`, `Type`, `At`, ...): name counts `apiTokenCount`, not
+  `apiTokensRevoked` (`audit.SensitiveKey`).
 - The trail is append-only (DB triggers); there is no update/delete API.
   Diagnostics (#34) call `(*audit.Log).Verify(ctx)`.
 - `audit.read`/`audit.export` are instance-scoped, high-risk catalog
@@ -349,6 +353,9 @@ Guide: `docs/architecture/stacks.md`. Manager: `internal/manager/stacks`
   never by looping over containers.
 - Job results: steps set output with `sc.SetOutput`; the manager reacts in
   `jobs.Engine.OnFinish` hooks (transactional, `j.ResultOutput`).
+- Recreated containers keep their anonymous volumes (`compose.Adapter.Up`
+  and `Create` set the SDK's `Inherit`; its zero value loses the data).
+  Any new SDK call building `api.CreateOptions` must do the same.
 - Agent payloads address a project with `protocol.ProjectRef` (root +
   project-relative dir + project name); `protocol.StackRef` is #6's
   "which Compose project a Docker object belongs to".
@@ -453,7 +460,11 @@ Guide: `docs/architecture/migrations.md`. Manager
   `migrationtest.Host`/`Env` (in-memory, owners and special bits included).
 - Policies that target a stack (#10 backups, #20 updates) follow a migrated
   stack: register `Migrations().OnStackMoved(func(ctx, db, stackID, from,
-  to) error)` (runs in the completing transaction).
+  to) error)` (runs in the completing transaction; use `db`, never another
+  service's reads). Wired in `app`: `updates.Service.StackMoved` (policy
+  re-homed, candidates unchecked), `backups.Service.StackMoved` (audit;
+  runs refuse members no repository can hold,
+  `repository_not_serving_environment`).
 - Kinds whose extra targets only take locks set `jobspec.Spec.LockOnly`;
   the engine authorizes the capability on `Spec.AuthorizationTargets`.
 - A manager step that loses a party mid-way returns an error wrapping
