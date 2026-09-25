@@ -17,6 +17,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
 	"github.com/neurekadev/dockyard/internal/manager/store"
+	"github.com/neurekadev/dockyard/internal/protection"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
 
@@ -26,6 +27,13 @@ var operationKinds = map[string]domain.JobKind{
 	"stop":    jobspec.StackStop,
 	"restart": jobspec.StackRestart,
 	"down":    jobspec.StackDown,
+}
+
+// protectedActions are the stack kinds refused on DockYard's own Compose
+// project (#32).
+var protectedActions = map[domain.JobKind]protection.Action{
+	jobspec.StackDeploy: protection.Deploy, jobspec.StackStop: protection.Stop, jobspec.StackRestart: protection.Restart,
+	jobspec.StackDown: protection.Down, jobspec.StackRemove: protection.Down,
 }
 
 // OperationKind returns the job kind of an operation ("start", "stop",
@@ -43,6 +51,15 @@ func (s *Service) enqueue(ctx context.Context, p authz.Principal, st domain.Stac
 	}
 	if r.TimeoutSeconds < 0 || r.TimeoutSeconds > 3600 {
 		return domain.Job{}, &domain.InputError{Field: "timeoutSeconds", Message: "must be between 0 and 3600"}
+	}
+	if action, ok := protectedActions[kind]; ok && s.opts.Protection != nil {
+		p, err := s.opts.Protection.ProjectProtection(ctx, st.EnvironmentID, st.Name)
+		if err != nil {
+			return domain.Job{}, err
+		}
+		if err := protection.Check(p, action, false); err != nil {
+			return domain.Job{}, &domain.DockerError{Code: domain.DockerProtected, Message: err.Error()}
+		}
 	}
 	in.StackID, in.Stack, in.Services, in.TimeoutSeconds = st.ID, Ref(st), r.Services, r.TimeoutSeconds
 	j, _, err := s.opts.Jobs.Enqueue(ctx, jobs.Request{Kind: kind, Principal: p, EnvironmentID: st.EnvironmentID,

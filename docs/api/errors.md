@@ -112,6 +112,8 @@ same change.
 | `volume_in_use` | 409 | no | Containers (running or not) mount the volume; remove them first. | #6 |
 | `network_in_use` | 409 | no | Containers are attached to the network; disconnect or remove them first. | #6 |
 | `network_builtin` | 409 | no | Predefined networks (`bridge`, `host`, `none`) cannot be removed. | #6 |
+| `protected` | 409 | no | The container, image, volume or network is one of DockYard's own (its agent, manager, data, stacks volume or deployment): the operation is refused for everyone, the owner included; use Docker on the host if you really must. | #32 |
+| `confirmation_required` | 409 | no | Restarting this container interrupts DockYard (its manager or deployment); repeat the request with `confirm: true`. | #32 |
 | `resource_name_taken` | 409 | no | Another container, volume or network of the environment already uses this name. | #6 |
 | `unsupported_api_version` | 409 | no | The environment's Docker Engine API version is too old for the operation; upgrade Docker Engine (25.0 or newer, see the support matrix). | #6 |
 | `file_exists` | 409 | no | File manager: the name already exists (choose overwrite, skip or keep both, or another name). | #15 |

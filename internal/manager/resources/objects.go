@@ -9,6 +9,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
+	"github.com/neurekadev/dockyard/internal/protection"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
 
@@ -62,6 +63,9 @@ func (s *Service) PullImage(ctx context.Context, p authz.Principal, env string, 
 
 // RemoveImage starts an image.remove job for an unused image.
 func (s *Service) RemoveImage(ctx context.Context, p authz.Principal, env string, im protocol.ImageDetails, force bool, key string) (domain.Job, error) {
+	if err := protection.Check(im.Protection, protection.Remove, false); err != nil {
+		return domain.Job{}, refusal(err)
+	}
 	if len(im.UsedBy) > 0 {
 		return domain.Job{}, dockerErr(domain.DockerImageInUse, "image is used by %d container(s): %s; remove them first", len(im.UsedBy), names(im.UsedBy))
 	}
@@ -135,6 +139,9 @@ func (s *Service) CreateVolume(ctx context.Context, p authz.Principal, env strin
 // RemoveVolume starts a volume.remove job for an unused volume outside any
 // DockYard-managed stack. Its data is deleted permanently.
 func (s *Service) RemoveVolume(ctx context.Context, p authz.Principal, env string, v protocol.VolumeInfo, key string) (domain.Job, error) {
+	if err := protection.Check(v.Protection, protection.Remove, false); err != nil {
+		return domain.Job{}, refusal(err)
+	}
 	if s.StackManaged(ctx, env, v.Stack) {
 		return domain.Job{}, stackRefused("volume "+v.Name, v.Stack)
 	}
@@ -197,6 +204,9 @@ func (s *Service) CreateNetwork(ctx context.Context, p authz.Principal, env stri
 // RemoveNetwork starts a network.remove job for an unused, user-defined
 // network outside any DockYard-managed stack.
 func (s *Service) RemoveNetwork(ctx context.Context, p authz.Principal, env string, n protocol.NetworkInfo, key string) (domain.Job, error) {
+	if err := protection.Check(n.Protection, protection.Remove, false); err != nil {
+		return domain.Job{}, refusal(err)
+	}
 	if n.Builtin {
 		return domain.Job{}, dockerErr(domain.DockerNetworkBuiltin, "%s is a predefined network and cannot be removed", n.Name)
 	}

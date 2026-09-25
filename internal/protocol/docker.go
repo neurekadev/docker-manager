@@ -75,10 +75,11 @@ type StackRef struct {
 }
 
 // Protection says why DockYard refuses destructive operations on one of its
-// own resources (#32).
+// own resources (#32; decisions: internal/protection).
 type Protection struct {
-	// Role is manager, agent, manager_image, agent_image, manager_data,
-	// stacks, backup_repository or dockyard_project.
+	// Role is agent, manager, dockyard_project, dockyard_image,
+	// manager_data, agent_state, stacks, dockyard_volume or
+	// dockyard_network (protection.Role*).
 	Role string `json:"role"`
 	// Reason is shown to users.
 	Reason string `json:"reason"`
@@ -219,6 +220,18 @@ type NetworkInfo struct {
 
 // Request inputs and outputs.
 type (
+	// ManagerIdentityInput is the input of manager.identity: the manager's
+	// instance ID and its own container ID ("" when it does not run in a
+	// container). Sent after every (re)connect.
+	ManagerIdentityInput struct {
+		InstanceID  string `json:"instanceId"`
+		ContainerID string `json:"containerId,omitempty"`
+	}
+	// ManagerIdentityOutput answers manager.identity: whether the manager's
+	// container runs on this agent's Engine.
+	ManagerIdentityOutput struct {
+		Colocated bool `json:"colocated"`
+	}
 	// ContainerListInput lists every container (running or not).
 	ContainerListInput struct{}
 	// ContainerListOutput answers container.list.

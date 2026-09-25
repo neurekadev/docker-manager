@@ -41,6 +41,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/files"
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
 	"github.com/neurekadev/dockyard/internal/agent/observe"
+	"github.com/neurekadev/dockyard/internal/agent/protect"
 	"github.com/neurekadev/dockyard/internal/agent/resources"
 	"github.com/neurekadev/dockyard/internal/agent/session"
 	"github.com/neurekadev/dockyard/internal/agent/stacks"
@@ -53,6 +54,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/jobexec"
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/protocol"
+	"github.com/neurekadev/dockyard/internal/selfid"
 )
 
 // Health file settings.
@@ -106,6 +108,9 @@ type Options struct {
 	// Requests are the named request handlers the session serves
 	// (docs/protocol/agent-v1.md, "Allowed requests").
 	Requests map[string]session.RequestHandler
+	// SelfContainerID overrides the detection of the agent's own container
+	// (selfid.Detect, #32); tests set it.
+	SelfContainerID string
 	// Observe runs the host/container sampler and the Docker event relay
 	// and serves engine.info and host.metrics (#5). The dockyard-agent
 	// command sets it; focused tests leave it off.
@@ -176,6 +181,9 @@ type Agent struct {
 	healthy   bool // the Engine answered the last ping
 	status    string
 	identity  *state.Credential
+
+	// guard identifies DockYard's own resources (#32).
+	guard *protect.Guard
 
 	healthMu    sync.Mutex
 	store       *state.Store
@@ -262,7 +270,9 @@ func New(opts Options) (*Agent, error) {
 	for _, x := range a.opts.Executors {
 		own[x.Kind] = true
 	}
-	for _, x := range st.Executors() {
+	// DockYard's own Compose project is never deployed, stopped or taken
+	// down through a stack job (#32).
+	for _, x := range a.guard.GuardStacks(a.Engine, st.Executors()) {
 		if !own[x.Kind] {
 			a.opts.Executors = append(a.opts.Executors, x)
 		}
@@ -277,9 +287,23 @@ func New(opts Options) (*Agent, error) {
 // the options; handlers and executors the caller passed for the same
 // names or kinds win (tests).
 func (a *Agent) addResources() {
+	self := a.opts.SelfContainerID
+	if self == "" {
+		self = selfid.Detect()
+	}
+	stacks := a.opts.Config.StacksVolume
+	if stacks == "" {
+		stacks = config.DefaultStacksVolume
+	}
+	// DockYard's own resources (#32): the agent refuses to stop or remove
+	// itself, the co-located manager and their data, whatever the manager
+	// sends.
+	a.guard = protect.New(protect.Options{SelfContainerID: self, StacksVolume: stacks, Logger: a.log})
+	a.log.Info("self-protection", "agent_container_id", self, "stacks_volume", stacks)
 	svc := resources.New(resources.Options{
 		Engine:          a.Engine,
 		ManagedStackDir: func(dir string) bool { return a.StackGuard(dir) == nil },
+		Guard:           a.guard,
 		Logger:          a.log,
 	})
 	reqs := svc.Requests()

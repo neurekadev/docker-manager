@@ -723,6 +723,7 @@ on a new session with a new frame ID.
 | `migration.preview` | request | `stack.migrate` / `volume.migrate` | no | #35 |
 | `agent.credential.rotate` | request | `agent.manage` | yes | #3 |
 | `agent.diagnostics` | request | owner (support bundle, redacted) | no | #34 |
+| `manager.identity` | request | manager service (after every reconnect, when advertised) | yes | #32 |
 
 ### Observation requests (#5)
 

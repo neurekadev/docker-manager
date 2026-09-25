@@ -83,9 +83,22 @@ type Options struct {
 	Registries Registries
 	// Systems reads agents' reported roots (file manager roots, #15).
 	Systems Systems
+	// Protection reports whether a Compose project is DockYard's own
+	// (#32; resources.Service); its deploy, stop, restart, down and removal
+	// are refused. nil: no check (tests).
+	Protection ProjectProtection
 	// RequestTimeout bounds agent requests (default DefaultRequestTimeout).
 	RequestTimeout time.Duration
 }
+
+// ProjectProtection is resources.Service.ProjectProtection (#32).
+type ProjectProtection interface {
+	ProjectProtection(ctx context.Context, env, project string) (*protocol.Protection, error)
+}
+
+// SetProtection installs the #32 check (the resource service is created
+// after the stack service).
+func (s *Service) SetProtection(p ProjectProtection) { s.opts.Protection = p }
 
 // Service manages stacks.
 type Service struct {

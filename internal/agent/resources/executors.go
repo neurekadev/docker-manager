@@ -15,6 +15,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobexec"
 	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/protection"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
 
@@ -73,6 +74,9 @@ func (s *Service) createContainer(ctx context.Context, sc *jobexec.StepContext) 
 		return engineErr(err)
 	}
 	spec := in.Spec
+	if err := s.checkMounts(ctx, eng, spec.Mounts); err != nil {
+		return err
+	}
 	labels := maps.Clone(spec.Labels)
 	if labels == nil {
 		labels = map[string]string{}
@@ -194,11 +198,23 @@ func (s *Service) containerStep(fn func(ctx context.Context, eng engine.Engine, 
 			return refuse(ClassRecreated, "Refresh the inventory and run the operation on the current container.",
 				"container %s is no longer named %s", shortID(in.ID), in.Name)
 		}
-		if err := fn(ctx, eng, sc, in, d); err != nil {
+		// DockYard's own containers (#32), whatever the manager decided.
+		set, err := s.protected(ctx, eng)
+		if err != nil {
+			return engineErr(err)
+		}
+		if err := protection.Check(set.Container(d.ID), containerAction[sc.Kind], in.Confirmed); err != nil {
 			return err
 		}
-		return nil
+		return fn(ctx, eng, sc, in, d)
 	}
+}
+
+// containerAction maps the container kinds to protection actions.
+var containerAction = map[domain.JobKind]protection.Action{
+	jobspec.ContainerStart: protection.Start, jobspec.ContainerStop: protection.Stop, jobspec.ContainerRestart: protection.Restart,
+	jobspec.ContainerPause: protection.Pause, jobspec.ContainerUnpause: protection.Unpause, jobspec.ContainerRemove: protection.Remove,
+	jobspec.ContainerUpdate: protection.Update,
 }
 
 func timeoutOf(in protocol.ContainerActionInput) *time.Duration {
@@ -314,6 +330,13 @@ func (s *Service) update(ctx context.Context, sc *jobexec.StepContext) error {
 		return refuse(ClassRecreated, "Refresh the inventory and run the operation on the current container.",
 			"container %s is no longer named %s", shortID(in.ID), in.Name)
 	}
+	set, err := s.protected(ctx, eng)
+	if err != nil {
+		return engineErr(err)
+	}
+	if err := protection.Check(set.Container(d.ID), protection.Update, false); err != nil {
+		return err
+	}
 	if err := s.stackManaged(d.Labels, "container "+in.Name); err != nil {
 		return err
 	}
@@ -391,6 +414,9 @@ func (s *Service) removeImage(ctx context.Context, sc *jobexec.StepContext) erro
 	if err != nil {
 		return engineErr(err)
 	}
+	if err := protection.Check(s.guard.Identify(ctx, eng, cs).Image(im.ID), protection.Remove, false); err != nil {
+		return err
+	}
 	if users := usersByImage(cs)[im.ID]; len(users) > 0 {
 		return refuse(ClassImageInUse, "Remove the containers using the image first.",
 			"image %s is used by %d container(s): %s", shortID(im.ID), len(users), namesOf(users))
@@ -453,6 +479,9 @@ func (s *Service) removeVolume(ctx context.Context, sc *jobexec.StepContext) err
 	cs, err := eng.ListContainers(ctx, engine.ContainerFilter{All: true})
 	if err != nil {
 		return engineErr(err)
+	}
+	if err := protection.Check(s.guard.Identify(ctx, eng, cs).Volume(v.Name, v.Labels), protection.Remove, false); err != nil {
+		return err
 	}
 	if st := objectStack(v.Labels, s.managedProjects(cs)); st != nil && st.Managed {
 		return refuse(ClassStackManaged, "Remove the volume from the stack's Compose definition (or remove the stack) instead.",
@@ -530,6 +559,9 @@ func (s *Service) removeNetwork(ctx context.Context, sc *jobexec.StepContext) er
 	if err != nil {
 		return engineErr(err)
 	}
+	if err := protection.Check(s.guard.Identify(ctx, eng, cs).Network(n.ID, n.Name, n.Labels), protection.Remove, false); err != nil {
+		return err
+	}
 	if st := objectStack(n.Labels, s.managedProjects(cs)); st != nil && st.Managed {
 		return refuse(ClassStackManaged, "Remove the network from the stack's Compose definition (or remove the stack) instead.",
 			"network %s belongs to the DockYard-managed stack %q", in.Name, st.Project)
@@ -565,4 +597,43 @@ func shortID(id string) string {
 		return id[:12]
 	}
 	return id
+}
+
+// checkMounts refuses mounts that would expose DockYard's own data (#32):
+// its volumes (manager data, agent state, stacks, backup repositories) and
+// bind mounts of the Engine's data root, a directory inside it or one of
+// its ancestors (every volume lives there).
+func (s *Service) checkMounts(ctx context.Context, eng engine.Engine, mounts []protocol.MountSpec) error {
+	if len(mounts) == 0 {
+		return nil
+	}
+	set, err := s.protected(ctx, eng)
+	if err != nil {
+		return engineErr(err)
+	}
+	for _, m := range mounts {
+		switch m.Type {
+		case "volume":
+			if m.Source == "" {
+				continue
+			}
+			if err := protection.Check(set.Volume(m.Source, nil), protection.Mount, false); err != nil {
+				return err
+			}
+		case "bind":
+			if root := set.DockerRootDir; root != "" && (pathWithin(m.Source, root) || pathWithin(root, m.Source)) {
+				return &protection.Refusal{Code: protection.CodeProtected, Action: protection.Mount,
+					Reason: "refused to bind " + m.Source + ": it is or contains the Docker data root, which holds DockYard's own volumes"}
+			}
+		}
+	}
+	return nil
+}
+
+// pathWithin reports whether p is dir or below it (clean absolute paths).
+func pathWithin(p, dir string) bool {
+	if dir == "/" {
+		return true
+	}
+	return p == dir || strings.HasPrefix(p, strings.TrimSuffix(dir, "/")+"/")
 }

@@ -31,11 +31,12 @@ const (
 // Shaping (#17): image.read shows everything; image.tag or image.remove
 // on the image shows only id, references and environmentId (view minimal).
 type Image struct {
-	ID            string   `json:"id" example:"sha256:4e1b5f1a6d8e..."`
-	EnvironmentID string   `json:"environmentId"`
-	RepoTags      []string `json:"repoTags" doc:"References (repository:tag); empty for untagged (dangling) images."`
-	View          string   `json:"view" enum:"minimal,full"`
-	Actions       []string `json:"actions"`
+	ID            string              `json:"id" example:"sha256:4e1b5f1a6d8e..."`
+	EnvironmentID string              `json:"environmentId"`
+	RepoTags      []string            `json:"repoTags" doc:"References (repository:tag); empty for untagged (dangling) images."`
+	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for images DockYard's own containers run (#32): removal is refused."`
+	View          string              `json:"view" enum:"minimal,full"`
+	Actions       []string            `json:"actions"`
 
 	RepoDigests []string          `json:"repoDigests,omitempty" doc:"Full view."`
 	CreatedAt   *time.Time        `json:"createdAt,omitempty"`
@@ -67,7 +68,8 @@ func imageResource(env, id string) authz.Resource {
 }
 
 func newImage(env string, im protocol.ImageSummary, v authz.View) Image {
-	out := Image{ID: im.ID, EnvironmentID: env, RepoTags: nonNil(im.RepoTags), View: v.Level.String(), Actions: Actions(v), InUse: len(im.UsedBy) > 0}
+	out := Image{ID: im.ID, EnvironmentID: env, RepoTags: nonNil(im.RepoTags), Protection: newProtection(im.Protection), View: v.Level.String(),
+		Actions: Actions(v), InUse: len(im.UsedBy) > 0}
 	if !v.Full() {
 		out.InUse = false
 		return out
@@ -80,6 +82,7 @@ func newImage(env string, im protocol.ImageSummary, v authz.View) Image {
 func imageRemoval(im protocol.ImageSummary) Removal {
 	r := newRemoval("The image and its unused parent layers are deleted from this environment; pulling it again downloads it.",
 		"Exact permission rules on this image are removed.")
+	r.blockProtected(im.Protection)
 	if len(im.UsedBy) > 0 {
 		r.block(CodeImageInUse, "The image is used by containers; remove them first.")
 	}

@@ -27,24 +27,25 @@ const (
 // Shaping (#17): network.read shows everything; network.remove on the
 // network shows only id, name and environmentId (view minimal).
 type Network struct {
-	ID            string            `json:"id"`
-	Name          string            `json:"name" example:"shop_default"`
-	EnvironmentID string            `json:"environmentId"`
-	View          string            `json:"view" enum:"minimal,full"`
-	Actions       []string          `json:"actions"`
-	Driver        string            `json:"driver,omitempty" doc:"Full view."`
-	Scope         string            `json:"scope,omitempty"`
-	Internal      bool              `json:"internal,omitempty"`
-	Attachable    bool              `json:"attachable,omitempty"`
-	EnableIPv6    bool              `json:"enableIpv6,omitempty"`
-	CreatedAt     *time.Time        `json:"createdAt,omitempty"`
-	Labels        map[string]string `json:"labels,omitempty"`
-	Subnets       []string          `json:"subnets,omitempty"`
-	Gateways      []string          `json:"gateways,omitempty"`
-	Builtin       bool              `json:"builtin,omitempty" doc:"A predefined network (bridge, host, none)."`
-	Stack         *StackMembership  `json:"stack,omitempty"`
-	Containers    []ContainerRef    `json:"containers,omitempty" doc:"Attached containers (GET only; lists do not report them)."`
-	Removal       *Removal          `json:"removal,omitempty" doc:"Full view of GET only."`
+	ID            string              `json:"id"`
+	Name          string              `json:"name" example:"shop_default"`
+	EnvironmentID string              `json:"environmentId"`
+	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for DockYard's own networks (#32): removal is refused."`
+	View          string              `json:"view" enum:"minimal,full"`
+	Actions       []string            `json:"actions"`
+	Driver        string              `json:"driver,omitempty" doc:"Full view."`
+	Scope         string              `json:"scope,omitempty"`
+	Internal      bool                `json:"internal,omitempty"`
+	Attachable    bool                `json:"attachable,omitempty"`
+	EnableIPv6    bool                `json:"enableIpv6,omitempty"`
+	CreatedAt     *time.Time          `json:"createdAt,omitempty"`
+	Labels        map[string]string   `json:"labels,omitempty"`
+	Subnets       []string            `json:"subnets,omitempty"`
+	Gateways      []string            `json:"gateways,omitempty"`
+	Builtin       bool                `json:"builtin,omitempty" doc:"A predefined network (bridge, host, none)."`
+	Stack         *StackMembership    `json:"stack,omitempty"`
+	Containers    []ContainerRef      `json:"containers,omitempty" doc:"Attached containers (GET only; lists do not report them)."`
+	Removal       *Removal            `json:"removal,omitempty" doc:"Full view of GET only."`
 }
 
 func networkResource(env string, n protocol.NetworkInfo, stackIDs map[string]string) authz.Resource {
@@ -52,7 +53,7 @@ func networkResource(env string, n protocol.NetworkInfo, stackIDs map[string]str
 }
 
 func newNetwork(env string, n protocol.NetworkInfo, v authz.View, stackIDs map[string]string) Network {
-	out := Network{ID: n.ID, Name: n.Name, EnvironmentID: env, View: v.Level.String(), Actions: Actions(v)}
+	out := Network{ID: n.ID, Name: n.Name, EnvironmentID: env, Protection: newProtection(n.Protection), View: v.Level.String(), Actions: Actions(v)}
 	if !v.Full() {
 		return out
 	}
@@ -72,6 +73,7 @@ func newNetwork(env string, n protocol.NetworkInfo, v authz.View, stackIDs map[s
 func networkRemoval(n protocol.NetworkInfo, managed bool) Removal {
 	r := newRemoval("The network is deleted; containers can no longer be attached to it.",
 		"Exact permission rules on this network are removed.")
+	r.blockProtected(n.Protection)
 	if n.Builtin {
 		r.block(CodeNetworkBuiltin, "Predefined networks cannot be removed.")
 	}

@@ -134,7 +134,8 @@ logs.
   anonymously when a connection was named (`credential_unavailable`).
 - **#7 stacks:** `resources.Service.SetStackResolver` maps Compose projects
   to stack IDs: they become authorization parents and count as managed.
-- **#32 self-protection** adds protected DockYard resources on both sides.
+- **#32 self-protection:** DockYard's own resources carry `protection`
+  and are refused on both sides ([self-protection.md](self-protection.md)).
 - **#5:** container metrics (`GET …/containers/{id}/metrics`, served here
   from the #5 store by container name; readable while the environment is
   offline) and Docker event ingestion (live invalidation of these views,

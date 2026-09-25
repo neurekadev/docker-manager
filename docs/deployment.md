@@ -178,6 +178,25 @@ directory (or only while mounted); v1 lists them read-only with the reason
 and excludes them from file browsing, watching and backup
 ([support matrix](support-matrix.md)).
 
+## DockYard's own containers (#32)
+
+DockYard protects itself: through its UI, API, API tokens, policies and
+jobs it never stops, pauses, updates or removes the connected agent, never
+stops or removes the manager (a restart needs an explicit confirmation),
+never removes the manager data, agent state or stacks volumes or the images
+DockYard runs, and leaves them out of prune, update, backup-shutdown and
+bulk selections. The instance owner cannot override this; use Docker on the
+host if you really must.
+
+The agent finds its own container by itself. The co-located manager is
+found by its container ID, which the manager reports to its agents; keep the
+`dev.neureka.dockyard.role: manager` / `agent` labels of the deploy
+examples on your containers too, so both are also recognized when that
+detection is not possible (custom setups, other installations on the same
+host). Every other container of DockYard's own Compose project (for example
+the reverse proxy of the examples) is protected with them. Details:
+[architecture/self-protection.md](architecture/self-protection.md).
+
 ## First-run setup over HTTPS
 
 Creating the owner account (#16) needs a secure context. The manager refuses

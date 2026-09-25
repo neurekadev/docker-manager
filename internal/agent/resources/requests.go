@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/neurekadev/dockyard/internal/agent/engine"
+	"github.com/neurekadev/dockyard/internal/agent/protect"
 	"github.com/neurekadev/dockyard/internal/agent/session"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
@@ -27,7 +28,14 @@ func (s *Service) Requests() map[string]session.RequestHandler {
 		protocol.ReqVolumeInspect:    handle(s, s.inspectVolume),
 		protocol.ReqNetworkList:      handle(s, s.listNetworks),
 		protocol.ReqNetworkInspect:   handle(s, s.inspectNetwork),
+		protocol.ReqManagerIdentity:  s.guard.ManagerIdentityHandler(s.connected),
 	}
+}
+
+// connected returns the Engine or nil.
+func (s *Service) connected() engine.Engine {
+	e, _ := s.engine()
+	return e
 }
 
 // handle decodes the input strictly (unknown fields are refused), runs fn
@@ -82,9 +90,12 @@ func (s *Service) listContainers(ctx context.Context, eng engine.Engine, _ proto
 	if err != nil {
 		return protocol.ContainerListOutput{}, err
 	}
+	set := s.guard.Identify(ctx, eng, cs)
 	out := protocol.ContainerListOutput{Containers: make([]protocol.ContainerSummary, 0, len(cs))}
 	for _, c := range cs {
-		out.Containers = append(out.Containers, s.containerSummary(c))
+		sum := s.containerSummary(c)
+		sum.Protection = set.Container(c.ID)
+		out.Containers = append(out.Containers, sum)
 	}
 	return out, nil
 }
@@ -138,7 +149,13 @@ func (s *Service) inspectContainer(ctx context.Context, eng engine.Engine, in pr
 	if err != nil {
 		return protocol.ContainerDetails{}, err
 	}
-	return s.containerDetails(d), nil
+	set, err := s.protected(ctx, eng)
+	if err != nil {
+		return protocol.ContainerDetails{}, err
+	}
+	out := s.containerDetails(d)
+	out.Protection = set.Container(d.ID)
+	return out, nil
 }
 
 // usersByImage maps image IDs to the containers created from them.
@@ -159,11 +176,11 @@ func (s *Service) listImages(ctx context.Context, eng engine.Engine, _ protocol.
 	if err != nil {
 		return protocol.ImageListOutput{}, err
 	}
-	users := usersByImage(cs)
+	users, set := usersByImage(cs), s.guard.Identify(ctx, eng, cs)
 	out := protocol.ImageListOutput{Images: make([]protocol.ImageSummary, 0, len(ims))}
 	for _, im := range ims {
 		out.Images = append(out.Images, protocol.ImageSummary{ID: im.ID, RepoTags: realTags(im.RepoTags), RepoDigests: realTags(im.RepoDigests),
-			Created: im.Created.UTC(), Size: im.Size, Labels: maps.Clone(im.Labels), UsedBy: users[im.ID]})
+			Created: im.Created.UTC(), Size: im.Size, Labels: maps.Clone(im.Labels), UsedBy: users[im.ID], Protection: set.Image(im.ID)})
 	}
 	return out, nil
 }
@@ -186,7 +203,8 @@ func (s *Service) imageDetails(ctx context.Context, eng engine.Engine, im engine
 	}
 	return protocol.ImageDetails{
 		ImageSummary: protocol.ImageSummary{ID: im.ID, RepoTags: realTags(im.RepoTags), RepoDigests: realTags(im.RepoDigests),
-			Created: im.Created.UTC(), Size: im.Size, Labels: maps.Clone(im.Labels), UsedBy: usersByImage(cs)[im.ID]},
+			Created: im.Created.UTC(), Size: im.Size, Labels: maps.Clone(im.Labels), UsedBy: usersByImage(cs)[im.ID],
+			Protection: s.guard.Identify(ctx, eng, cs).Image(im.ID)},
 		OS: im.OS, Architecture: im.Architecture, Variant: im.Variant, Author: im.Author, Entrypoint: im.Entrypoint, Cmd: im.Cmd,
 		WorkingDir: im.WorkingDir, User: im.User, ExposedPorts: im.ExposedPorts, Volumes: im.Volumes, HasHealthTest: im.HasHealthTest,
 	}, nil
@@ -236,9 +254,9 @@ func usersByVolume(cs []engine.Container) map[string][]protocol.ContainerRef {
 	return out
 }
 
-func volumeInfo(v engine.Volume, users []protocol.ContainerRef, managed map[string]bool) protocol.VolumeInfo {
+func volumeInfo(v engine.Volume, users []protocol.ContainerRef, managed map[string]bool, set *protect.Set) protocol.VolumeInfo {
 	return protocol.VolumeInfo{Name: v.Name, Driver: v.Driver, Scope: v.Scope, Created: v.CreatedAt.UTC(), Labels: maps.Clone(v.Labels),
-		Options: maps.Clone(v.Options), UsedBy: users, Stack: objectStack(v.Labels, managed)}
+		Options: maps.Clone(v.Options), UsedBy: users, Stack: objectStack(v.Labels, managed), Protection: set.Volume(v.Name, v.Labels)}
 }
 
 func (s *Service) listVolumes(ctx context.Context, eng engine.Engine, _ protocol.VolumeListInput) (protocol.VolumeListOutput, error) {
@@ -250,10 +268,10 @@ func (s *Service) listVolumes(ctx context.Context, eng engine.Engine, _ protocol
 	if err != nil {
 		return protocol.VolumeListOutput{}, err
 	}
-	users, managed := usersByVolume(cs), s.managedProjects(cs)
+	users, managed, set := usersByVolume(cs), s.managedProjects(cs), s.guard.Identify(ctx, eng, cs)
 	out := protocol.VolumeListOutput{Volumes: make([]protocol.VolumeInfo, 0, len(vs))}
 	for _, v := range vs {
-		out.Volumes = append(out.Volumes, volumeInfo(v, users[v.Name], managed))
+		out.Volumes = append(out.Volumes, volumeInfo(v, users[v.Name], managed, set))
 	}
 	return out, nil
 }
@@ -270,16 +288,16 @@ func (s *Service) inspectVolume(ctx context.Context, eng engine.Engine, in proto
 	if err != nil {
 		return protocol.VolumeInfo{}, err
 	}
-	return volumeInfo(v, usersByVolume(cs)[v.Name], s.managedProjects(cs)), nil
+	return volumeInfo(v, usersByVolume(cs)[v.Name], s.managedProjects(cs), s.guard.Identify(ctx, eng, cs)), nil
 }
 
 // networkInfo converts a network. Attached containers are only known for
 // an inspected network (the list does not report them); byID adds their
 // names and states.
-func networkInfo(n engine.Network, byID map[string]engine.Container, managed map[string]bool) protocol.NetworkInfo {
+func networkInfo(n engine.Network, byID map[string]engine.Container, managed map[string]bool, set *protect.Set) protocol.NetworkInfo {
 	out := protocol.NetworkInfo{ID: n.ID, Name: n.Name, Driver: n.Driver, Scope: n.Scope, Internal: n.Internal, Attachable: n.Attachable,
 		EnableIPv6: n.EnableIPv6, Created: n.Created.UTC(), Labels: maps.Clone(n.Labels), Subnets: n.Subnets, Gateways: n.Gateways,
-		Builtin: slices.Contains(protocol.BuiltinNetworks, n.Name), Stack: objectStack(n.Labels, managed)}
+		Builtin: slices.Contains(protocol.BuiltinNetworks, n.Name), Stack: objectStack(n.Labels, managed), Protection: set.Network(n.ID, n.Name, n.Labels)}
 	ids := slices.Sorted(maps.Keys(n.Containers))
 	for _, id := range ids {
 		if c, ok := byID[id]; ok {
@@ -300,10 +318,10 @@ func (s *Service) listNetworks(ctx context.Context, eng engine.Engine, _ protoco
 	if err != nil {
 		return protocol.NetworkListOutput{}, err
 	}
-	managed := s.managedProjects(cs)
+	managed, set := s.managedProjects(cs), s.guard.Identify(ctx, eng, cs)
 	out := protocol.NetworkListOutput{Networks: make([]protocol.NetworkInfo, 0, len(ns))}
 	for _, n := range ns {
-		out.Networks = append(out.Networks, networkInfo(n, nil, managed))
+		out.Networks = append(out.Networks, networkInfo(n, nil, managed, set))
 	}
 	sort.Slice(out.Networks, func(i, j int) bool { return out.Networks[i].Name < out.Networks[j].Name })
 	return out, nil
@@ -325,5 +343,5 @@ func (s *Service) inspectNetwork(ctx context.Context, eng engine.Engine, in prot
 	for _, c := range cs {
 		byID[c.ID] = c
 	}
-	return networkInfo(n, byID, s.managedProjects(cs)), nil
+	return networkInfo(n, byID, s.managedProjects(cs), s.guard.Identify(ctx, eng, cs)), nil
 }

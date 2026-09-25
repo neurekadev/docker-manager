@@ -13,6 +13,7 @@
 package resources
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -21,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/neurekadev/dockyard/internal/agent/engine"
+	"github.com/neurekadev/dockyard/internal/agent/protect"
 	"github.com/neurekadev/dockyard/internal/agent/session"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
@@ -34,13 +36,17 @@ type Options struct {
 	// lies inside a verified stack root (#28), i.e. the stack is managed by
 	// DockYard (#7). nil: no stack is managed.
 	ManagedStackDir func(dir string) bool
-	Logger          *slog.Logger
+	// Guard identifies DockYard's own resources (#32); nil protects only
+	// what the labels show (no self container, no stacks volume).
+	Guard  *protect.Guard
+	Logger *slog.Logger
 }
 
 // Service implements the requests and executors.
 type Service struct {
-	opts Options
-	log  *slog.Logger
+	opts  Options
+	log   *slog.Logger
+	guard *protect.Guard
 }
 
 // New returns a Service.
@@ -49,7 +55,21 @@ func New(opts Options) *Service {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Service{opts: opts, log: log.With("component", "resources")}
+	guard := opts.Guard
+	if guard == nil {
+		guard = protect.New(protect.Options{Logger: log})
+	}
+	return &Service{opts: opts, log: log.With("component", "resources"), guard: guard}
+}
+
+// protected lists the Engine's containers and identifies DockYard's own
+// resources among them (#32).
+func (s *Service) protected(ctx context.Context, eng engine.Engine) (*protect.Set, error) {
+	cs, err := eng.ListContainers(ctx, engine.ContainerFilter{All: true})
+	if err != nil {
+		return nil, err
+	}
+	return s.guard.Identify(ctx, eng, cs), nil
 }
 
 // errEngineUnavailable is returned while the Engine is not connected.

@@ -10,6 +10,8 @@ import (
 
 	"github.com/neurekadev/dockyard/internal/agent/engine"
 	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
+	"github.com/neurekadev/dockyard/internal/agent/protect"
+	agentres "github.com/neurekadev/dockyard/internal/agent/resources"
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
@@ -705,5 +707,109 @@ func TestPullRegistrySelection(t *testing.T) {
 	}
 	if f.jobs.count() != n {
 		t.Fatal("a refused pull enqueued a job")
+	}
+}
+
+// TestSelfProtectionRoutes (#32 Done-when 1, API side): on a host running
+// DockYard, its containers, images, volumes and network are shown as
+// protected with a reason; stopping or removing the agent or manager,
+// deleting the manager data or stacks volume, removing DockYard's images
+// and network and mounting its volumes fail with 409 protected for the
+// owner too; the manager restarts only with confirm: true; nothing is
+// enqueued for a refusal.
+func TestSelfProtectionRoutes(t *testing.T) {
+	f := newDockerFixture(t, authztest.New().Owner("olga"))
+	fe := f.engines["env-1"]
+	d := fe.Deploy(true)
+	g := protect.New(protect.Options{SelfContainerID: d.AgentID, StacksVolume: d.Stacks})
+	g.SetManager("instance-1", d.ManagerID)
+	f.req.agents["env-1"] = agentres.New(agentres.Options{Engine: func() engine.Engine { return fe }, Guard: g,
+		ManagedStackDir: func(dir string) bool { return strings.HasPrefix(dir, stacksRoot+"/") }})
+	env := "/api/v1/environments/env-1"
+	base := env + "/containers"
+
+	var page struct {
+		Items []struct {
+			Name       string              `json:"name"`
+			View       string              `json:"view"`
+			Protection *ResourceProtection `json:"protection"`
+		} `json:"items"`
+	}
+	f.get("olga", base, &page)
+	roles := map[string]string{}
+	for _, c := range page.Items {
+		if c.Protection != nil {
+			roles[c.Name] = c.Protection.Role
+			if c.Protection.Reason == "" {
+				t.Errorf("%s without reason", c.Name)
+			}
+		}
+	}
+	if len(roles) != 3 || roles["dockyard-dockyard-agent-1"] != "agent" || roles["dockyard-dockyard-manager-1"] != "manager" ||
+		roles["dockyard-caddy-1"] != "dockyard_project" {
+		t.Fatalf("protected containers %v", roles)
+	}
+	var agent struct {
+		Protection *ResourceProtection `json:"protection"`
+		Details    *struct {
+			Removal Removal `json:"removal"`
+		} `json:"details"`
+	}
+	f.get("olga", base+"/dockyard-dockyard-agent-1", &agent)
+	if agent.Protection == nil || !agent.Protection.Self || agent.Protection.RestartAllowed || agent.Details == nil ||
+		agent.Details.Removal.Allowed || agent.Details.Removal.Blockers[0].Code != CodeProtected {
+		t.Fatalf("agent %+v", agent)
+	}
+
+	n := f.jobs.count()
+	for _, c := range []struct {
+		call authztest.Call
+		code string
+	}{
+		{authztest.Call{Method: http.MethodPost, Path: base + "/dockyard-dockyard-agent-1/stop"}, CodeProtected},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/dockyard-dockyard-agent-1/pause"}, CodeProtected},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/dockyard-dockyard-agent-1/restart", Body: map[string]any{"confirm": true}}, CodeProtected},
+		{authztest.Call{Method: http.MethodDelete, Path: base + "/dockyard-dockyard-agent-1?force=true"}, CodeProtected},
+		{authztest.Call{Method: http.MethodPatch, Path: base + "/dockyard-dockyard-agent-1", Body: map[string]any{"restartPolicy": "no"}}, CodeProtected},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/dockyard-dockyard-manager-1/stop"}, CodeProtected},
+		{authztest.Call{Method: http.MethodDelete, Path: base + "/dockyard-dockyard-manager-1?force=true"}, CodeProtected},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/dockyard-dockyard-manager-1/restart"}, CodeConfirmationRequired},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/dockyard-caddy-1/stop"}, CodeProtected},
+		{authztest.Call{Method: http.MethodDelete, Path: env + "/volumes/" + d.ManagerData}, CodeProtected},
+		{authztest.Call{Method: http.MethodDelete, Path: env + "/volumes/" + d.Stacks}, CodeProtected},
+		{authztest.Call{Method: http.MethodDelete, Path: env + "/volumes/" + d.AgentState}, CodeProtected},
+		{authztest.Call{Method: http.MethodDelete, Path: env + "/images/" + d.ManagerImage + "?force=true"}, CodeProtected},
+		{authztest.Call{Method: http.MethodDelete, Path: env + "/networks/" + d.Network}, CodeProtected},
+		{authztest.Call{Method: http.MethodPost, Path: base, Body: map[string]any{"name": "thief", "image": "nginx:1.27",
+			"mounts": []map[string]any{{"type": "volume", "source": d.ManagerData, "target": "/steal"}}}}, CodeProtected},
+	} {
+		r := f.do("olga", c.call)
+		if r.Status != http.StatusConflict || code(t, r) != c.code {
+			t.Errorf("%s: %d %s, want 409 %s", c.call, r.Status, r.Body, c.code)
+		}
+	}
+	if f.jobs.count() != n {
+		t.Fatal("a refused operation enqueued a job")
+	}
+	// Allowed: a confirmed manager restart, starting the agent.
+	for _, c := range []authztest.Call{
+		{Method: http.MethodPost, Path: base + "/dockyard-dockyard-manager-1/restart", Body: map[string]any{"confirm": true}},
+		{Method: http.MethodPost, Path: base + "/dockyard-dockyard-agent-1/start"},
+	} {
+		if r := f.do("olga", c); r.Status != http.StatusAccepted {
+			t.Errorf("%s: %d %s", c, r.Status, r.Body)
+		}
+	}
+	raw := f.jobs.jobs["job-1"].Input
+	if !strings.Contains(string(raw), `"confirmed":true`) {
+		t.Fatalf("confirmed restart input %s", raw)
+	}
+	var vol struct {
+		Protection *ResourceProtection `json:"protection"`
+		Removal    *Removal            `json:"removal"`
+	}
+	f.get("olga", env+"/volumes/"+d.Stacks, &vol)
+	if vol.Protection == nil || vol.Protection.Role != "stacks" || vol.Removal == nil || vol.Removal.Allowed {
+		t.Fatalf("stacks volume %+v", vol)
 	}
 }

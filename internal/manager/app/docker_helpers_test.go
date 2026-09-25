@@ -15,6 +15,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/engine"
 	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
+	"github.com/neurekadev/dockyard/internal/agent/protect"
 	agentres "github.com/neurekadev/dockyard/internal/agent/resources"
 	"github.com/neurekadev/dockyard/internal/agent/session"
 	"github.com/neurekadev/dockyard/internal/agent/state"
@@ -45,6 +46,13 @@ type testAgent struct {
 // connectAgent enrolls a new environment named name for fe and runs its
 // agent until the test ends; it returns once the environment is online.
 func (e *env) connectAgent(name string, fe *enginefake.Engine) *testAgent {
+	e.t.Helper()
+	return e.connectGuardedAgent(name, fe, nil)
+}
+
+// connectGuardedAgent is connectAgent with the agent's self-protection
+// guard (#32; nil: identification by labels only).
+func (e *env) connectGuardedAgent(name string, fe *enginefake.Engine, guard *protect.Guard) *testAgent {
 	t := e.t
 	t.Helper()
 	ctx := testutil.Context(t)
@@ -84,7 +92,7 @@ func (e *env) connectAgent(name string, fe *enginefake.Engine) *testAgent {
 		t.Fatal(err)
 	}
 
-	res := agentres.New(agentres.Options{Engine: func() engine.Engine { return fe }, Logger: testutil.Logger(t),
+	res := agentres.New(agentres.Options{Engine: func() engine.Engine { return fe }, Logger: testutil.Logger(t), Guard: guard,
 		ManagedStackDir: func(dir string) bool { return strings.HasPrefix(dir, stacksRoot+"/") }})
 	execs := res.Executors()
 	a := &testAgent{env: er.EnvironmentID, engine: fe, done: make(chan error, 1)}
