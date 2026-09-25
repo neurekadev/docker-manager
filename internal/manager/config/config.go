@@ -29,6 +29,9 @@ const (
 	EnvTrustedProxies  = "DOCKYARD_TRUSTED_PROXIES"
 	EnvStreamHeartbeat = "DOCKYARD_STREAM_HEARTBEAT"
 
+	EnvSessionIdleTimeout = "DOCKYARD_SESSION_IDLE_TIMEOUT"
+	EnvSessionLifetime    = "DOCKYARD_SESSION_LIFETIME"
+
 	EnvJobHistoryRetention   = "DOCKYARD_JOB_HISTORY_RETENTION"
 	EnvJobHistoryMax         = "DOCKYARD_JOB_HISTORY_MAX"
 	EnvJobEventsMax          = "DOCKYARD_JOB_EVENTS_MAX"
@@ -49,7 +52,19 @@ const (
 	DefaultJobEventsMax          = 500
 	DefaultJobMaxConcurrentPulls = 2
 	DefaultJobMaxConcurrentBuild = 1
+
+	// Browser session limits (#16): NIST SP 800-63B AAL2 reauthentication.
+	DefaultSessionIdleTimeout = time.Hour
+	DefaultSessionLifetime    = 24 * time.Hour
 )
+
+// SessionsConfig bounds browser sessions (#16).
+type SessionsConfig struct {
+	// IdleTimeout ends a session after this much inactivity.
+	IdleTimeout time.Duration
+	// Lifetime ends a session this long after sign-in, whatever the activity.
+	Lifetime time.Duration
+}
 
 // JobsConfig bounds the job engine (#26). Job history retention is
 // separate from audit retention (#30).
@@ -83,6 +98,7 @@ type Config struct {
 	// must stay below the reverse proxy's idle/read timeout (#27).
 	StreamHeartbeat time.Duration
 	Jobs            JobsConfig
+	Sessions        SessionsConfig
 }
 
 // DatabasePath is the SQLite database file inside the data directory.
@@ -144,6 +160,11 @@ func Load(src envconfig.Source) (Config, error) {
 		errs = append(errs, err)
 	}
 
+	cfg.Sessions, err = loadSessions(src)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	if len(errs) > 0 {
 		return Config{}, errors.Join(errs...)
 	}
@@ -159,6 +180,20 @@ func loadJobs(src envconfig.Source) (JobsConfig, error) {
 	c.MaxConcurrentPulls, errs[3] = src.Int(EnvJobMaxConcurrentPulls, DefaultJobMaxConcurrentPulls, 1, 64)
 	c.MaxConcurrentBuilds, errs[4] = src.Int(EnvJobMaxConcurrentBuild, DefaultJobMaxConcurrentBuild, 1, 64)
 	return c, errors.Join(errs[:]...)
+}
+
+func loadSessions(src envconfig.Source) (SessionsConfig, error) {
+	var c SessionsConfig
+	var errs [2]error
+	c.IdleTimeout, errs[0] = src.Duration(EnvSessionIdleTimeout, DefaultSessionIdleTimeout, 5*time.Minute, 7*24*time.Hour)
+	c.Lifetime, errs[1] = src.Duration(EnvSessionLifetime, DefaultSessionLifetime, 15*time.Minute, 30*24*time.Hour)
+	if err := errors.Join(errs[:]...); err != nil {
+		return c, err
+	}
+	if c.IdleTimeout > c.Lifetime {
+		return c, fmt.Errorf("%s (%s) must not exceed %s (%s)", EnvSessionIdleTimeout, c.IdleTimeout, EnvSessionLifetime, c.Lifetime)
+	}
+	return c, nil
 }
 
 // ParsePublicURL validates DOCKYARD_PUBLIC_URL. It must be an absolute origin
