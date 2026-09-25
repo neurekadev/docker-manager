@@ -41,6 +41,12 @@ type Engine interface {
 	CreateVolume(ctx context.Context, spec VolumeSpec) (Volume, error)
 	RemoveVolume(ctx context.Context, name string, force bool) error
 
+	// VolumeUsage, ListBuildCache and RemoveBuildCache serve prune
+	// policies (#14).
+	VolumeUsage(ctx context.Context) (map[string]VolumeUsage, error)
+	ListBuildCache(ctx context.Context) ([]BuildCacheRecord, error)
+	RemoveBuildCache(ctx context.Context, id string, all bool) (BuildCachePruneResult, error)
+
 	ListNetworks(ctx context.Context, labels ...string) ([]Network, error)
 	InspectNetwork(ctx context.Context, idOrName string) (Network, error)
 	CreateNetwork(ctx context.Context, spec NetworkSpec) (string, error)

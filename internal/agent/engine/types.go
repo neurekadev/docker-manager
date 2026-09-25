@@ -87,6 +87,8 @@ type ContainerFilter struct {
 	Names []string
 	// IDs match container ID prefixes.
 	IDs []string
+	// Size computes each container's writable layer size (SizeRw; slower).
+	Size bool
 }
 
 // Port is a container port and its host bindings.
@@ -134,6 +136,11 @@ type Container struct {
 	Labels map[string]string
 	Ports  []Port
 	Mounts []Mount
+	// SizeRw is the writable layer size (ContainerFilter.Size; else 0).
+	SizeRw int64
+	// Networks are the names of the networks the container is configured
+	// for (also while stopped), sorted.
+	Networks []string
 }
 
 // ContainerState is the runtime state of a container.

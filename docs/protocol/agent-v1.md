@@ -616,6 +616,37 @@ the agent side is `internal/agent/files`, the manager side
 - DockYard's own changes are published as `fs_invalidation` of the
   changed paths (the watcher of #23 reports external ones).
 
+### Maintenance: previews and prune runs (#14)
+
+Types in `internal/protocol/maintenance.go`; semantics in
+[maintenance.md](../architecture/maintenance.md). Implemented by
+`internal/agent/prune`.
+
+- `maintenance.preview` input and `prune.run` job input: `PruneInput
+  {policyId, rules: [{category, minAgeSeconds, includeLabels, excludeLabels,
+  exclude, containerStates, buildCacheAll, keepStorageBytes}], protect:
+  {projects, images, volumes, networks: [{ref, reason}]}}` — only the
+  policy's enabled rules (categories `stopped_containers`,
+  `dangling_images`, `unused_images`, `unused_networks`,
+  `anonymous_volumes`, `named_volumes`, `build_cache`; at most one rule
+  each) and what the manager protects (DockYard stacks' Compose projects
+  and images, saved container specifications, backup destinations). Strict
+  decoding; invalid inputs answer `invalid_argument` before the Engine is
+  read.
+- `maintenance.preview` output: `PrunePreviewOutput {at, categories:
+  [{category, remove, protected, excluded, retained, bytes, unknownSizes,
+  items: [{category, id, name, decision (remove|protected|excluded|retained),
+  reason, bytes, since}], truncated}]}` (at most 200 items per category).
+- `prune.run` steps `collect_candidates` (journals the candidates, at most
+  300, as the output) and `delete_candidates` (revalidates each against a
+  fresh Engine read, removes it with a targeted call, journals the output
+  after every item, honors cancellation between items). Output
+  `PruneRunOutput {items: [{category, id, name, status
+  (pending|removed|skipped|failed), reason, bytes}], protected, excluded,
+  retained, deferred, removed, skipped, failed, bytesReclaimed}`. The agent
+  never calls a broad Engine prune endpoint; build cache records are pruned
+  one record ID at a time.
+
 ### Container logs and exec (#8)
 
 Agent side `internal/agent/containerio`, manager side
@@ -898,4 +929,5 @@ The manager maps them to public errors: `not_found` → 404,
 | `compose.discover/validate/read/write/services` requests, `stack.deploy/start/stop/restart/down/remove` executors, result `output` | `internal/agent/stacks`, `internal/jobexec`, `internal/manager/stacks` | implemented (#7) |
 | `stack.build` executor (input `noCache`, `pullBase`, `buildTimeoutSeconds`; output `built`) | `internal/agent/stacks`, `internal/agent/buildrun` | implemented (#33) |
 | container logs (`container.logs` request and stream) and exec (`container.exec.create/resize/delete`, `container.exec` stream) | `internal/agent/containerio`, `internal/manager/containerio` | implemented (#8) |
-| other request/stream executors | agent adapter | #10, #14, #21, #35 |
+| `maintenance.preview` request and `prune.run` executor | `internal/protocol/maintenance.go`, `internal/agent/prune` | implemented (#14) |
+| other request/stream executors | agent adapter | #10, #21, #35 |

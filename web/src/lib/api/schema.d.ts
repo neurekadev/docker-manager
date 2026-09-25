@@ -1803,6 +1803,122 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/maintenance-defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the suggested prune rules
+         * @description The rules new maintenance policies start with (one per category: all disabled, 30 days) and each category's Engine limitations.
+         */
+        get: operations["get-maintenance-defaults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the suggested prune rules
+         * @description Each rule given replaces the default of its category; existing policies keep their rules. Enabling a volume rule needs volumeOptIn. Requires If-Match.
+         */
+        patch: operations["update-maintenance-defaults"];
+        trace?: never;
+    };
+    "/api/v1/maintenance-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List maintenance policies
+         * @description Prune policies, filtered per item (#17); optionally of one environment.
+         */
+        get: operations["list-maintenance-policies"];
+        put?: never;
+        /**
+         * Create a maintenance policy
+         * @description A prune policy of one environment with one rule per category (stopped containers, dangling and all unused images, unused networks, anonymous and named volumes, build cache). Rules not given start with the maintenance defaults; the schedule starts with the prune default of the schedule defaults and stays disabled unless enabled. Enabling a volume rule needs volumeOptIn. 409 maintenance_policy_name_taken.
+         */
+        post: operations["create-maintenance-policy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance-policies/{policyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a maintenance policy
+         * @description With its schedule (next run, recent scheduled runs) and the latest run's result.
+         */
+        get: operations["get-maintenance-policy"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a maintenance policy
+         * @description Its schedule and waiting runs go with it; a run already in progress finishes. Requires If-Match.
+         */
+        delete: operations["delete-maintenance-policy"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a maintenance policy
+         * @description Each rule given replaces its category's rule. Waiting runs of the policy are cancelled when its rules change (they carry the old rules). Requires If-Match.
+         */
+        patch: operations["update-maintenance-policy"];
+        trace?: never;
+    };
+    "/api/v1/maintenance-policies/{policyId}/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a maintenance policy
+         * @description Asks the environment's agent which objects a run would remove now: candidate IDs with reasons, protected, excluded and retained objects, and approximate reclaimed bytes. Optionally previews unsaved rules. Nothing is removed or saved. 503 environment_offline when the agent is not connected.
+         */
+        post: operations["create-maintenance-policy-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance-policies/{policyId}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a maintenance policy
+         * @description Starts a prune.run job (202 + job) with the policy's enabled rules: candidates are recomputed and each is revalidated right before its targeted removal; progress, skipped reasons, errors and bytes reclaimed are job items and output (GET /api/v1/jobs/{id}, events stream). Needs confirm: true (409 prune_confirmation_required). background is a presentation preference only: foreground and background runs are the same durable job and leaving the UI never cancels it; cancel with POST /jobs/{id}/cancellations (between items). 409 maintenance_run_active while another run of the policy is not finished, maintenance_policy_empty without enabled rules.
+         */
+        post: operations["create-maintenance-policy-run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -3739,6 +3855,15 @@ export interface components {
             /** @description Link on the public origin that redeems the code (the code is in the URL fragment). */
             url: string;
         };
+        CreateMaintenancePolicyInputBody: {
+            description?: string;
+            environmentId: string;
+            /** @example Weekly cleanup */
+            name: string;
+            /** @description Rules to set; categories not given start with the maintenance defaults (all disabled unless the defaults were changed). */
+            rules?: components["schemas"]["MaintenanceRule"][];
+            schedule?: components["schemas"]["MaintenanceScheduleInput"];
+        };
         CreateNetworkInputBody: {
             attachable?: boolean;
             /** @description Default bridge. */
@@ -4740,7 +4865,7 @@ export interface components {
              * @description Target resource type.
              * @enum {string}
              */
-            type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path" | "build_definition";
+            type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path" | "build_definition" | "maintenance_policy";
         };
         LogLineDTO: {
             /** Format: date-time */
@@ -4751,6 +4876,115 @@ export interface components {
             partial?: boolean;
             /** @enum {string} */
             stream: "stdout" | "stderr";
+        };
+        MaintenanceDefaults: {
+            categories: components["schemas"]["PruneCategoryInfo"][];
+            /** Format: int64 */
+            revision: number;
+            /** @description One rule per category. New policies start with these rules; changing them never changes existing policies. */
+            rules: components["schemas"]["MaintenanceRule"][];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        MaintenancePolicy: {
+            actions: string[];
+            /** Format: date-time */
+            createdAt?: string;
+            description?: string;
+            /** @description Automatic (scheduled) runs are enabled. */
+            enabled: boolean;
+            environmentId: string;
+            id: string;
+            lastRun?: components["schemas"]["MaintenanceRunSummary"];
+            name: string;
+            /** Format: int64 */
+            revision?: number;
+            /** @description Full view: one rule per category. The enabled ones together are the policy's system cleanup. */
+            rules?: components["schemas"]["MaintenanceRule"][];
+            /** @description Full view. */
+            schedule?: components["schemas"]["MaintenanceSchedule"];
+            /** Format: date-time */
+            updatedAt?: string;
+            /** @enum {string} */
+            view: "minimal" | "full";
+        };
+        MaintenanceRule: {
+            /** @description build_cache only: all unused records instead of dangling ones (not shared with images, not internal). */
+            buildCacheAll?: boolean;
+            /** @enum {string} */
+            category: "stopped_containers" | "dangling_images" | "unused_images" | "unused_networks" | "anonymous_volumes" | "named_volumes" | "build_cache";
+            /** @description stopped_containers only: exited, created, dead (default exited and dead). */
+            containerStates?: string[];
+            /** @description The rule takes part in runs. Every rule starts disabled. */
+            enabled: boolean;
+            /** @description IDs (full or at least 12 characters) and names that are never removed. */
+            exclude?: string[];
+            /** @description Objects carrying any of these labels (key or key=value) are never removed. Not for build cache. */
+            excludeLabels?: string[];
+            /** @description Candidates must carry every label (key or key=value). Not for build cache. */
+            includeLabels?: string[];
+            /**
+             * Format: int64
+             * @description build_cache only: keep the most recently used cache up to this size (0: no cap).
+             */
+            keepStorageBytes?: number;
+            /**
+             * Format: int64
+             * @description Only objects older than this are removed (0: any age). Age: since a container stopped (its creation if it never ran), an image's, network's or volume's creation, a build cache record's last use.
+             * @example 720
+             */
+            minAgeHours: number;
+            /** @description Volume rules only: explicit opt-in that removing volumes deletes their data. Required to enable an anonymous or named volume rule; each volume rule needs its own. */
+            volumeOptIn?: boolean;
+        };
+        MaintenanceRunSummary: {
+            /**
+             * Format: int64
+             * @description Approximate.
+             */
+            bytesReclaimed: number;
+            /**
+             * Format: int64
+             * @description Candidates beyond the per-run limit, left for the next run.
+             */
+            deferred: number;
+            /** Format: int64 */
+            failed: number;
+            /** Format: date-time */
+            finishedAt: string;
+            jobId: string;
+            /** @enum {string} */
+            origin: "manual" | "scheduled" | "api_token";
+            /** Format: int64 */
+            removed: number;
+            /** Format: int64 */
+            skipped: number;
+            state: string;
+        };
+        MaintenanceSchedule: {
+            /**
+             * @description Prune runs missed while the manager was down are recorded, never run late.
+             * @enum {string}
+             */
+            catchUp: "skip";
+            /** @example 0 3 * * 0 */
+            cron: string;
+            /** @description Automatic runs; start disabled. */
+            enabled: boolean;
+            invalidReason?: string;
+            nextRun?: components["schemas"]["ScheduleRunTime"];
+            /** @description Newest first: enqueued, missed, skipped (previous run active), rejected and failed scheduled runs. */
+            recentRuns: components["schemas"]["ScheduleRun"][];
+            /** @example Europe/Berlin */
+            timeZone: string;
+        };
+        MaintenanceScheduleInput: {
+            /** @description Five-field cron expression (default: the prune default of the schedule defaults). */
+            cron?: string;
+            /** @description Automatic runs (default false). */
+            enabled?: boolean;
+            /** @description IANA time zone (default: the instance's default zone). */
+            timeZone?: string;
         };
         MetadataStackInputBody: {
             /** @description Needs <root>.files.chmod. */
@@ -5045,6 +5279,17 @@ export interface components {
              */
             total?: number;
         };
+        PageMaintenancePolicy: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["MaintenancePolicy"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageNetwork: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["Network"][];
@@ -5281,6 +5526,12 @@ export interface components {
             /** @description Unsaved user overrides to preview. */
             userRules?: components["schemas"]["PermissionRule"][];
         };
+        PreviewMaintenancePolicyInputBody: {
+            /** @description Evaluate disabled rules too (previewing enables nothing). */
+            includeDisabled?: boolean;
+            /** @description Preview these rules (merged by category onto the saved ones) instead of the saved rules; nothing is saved. */
+            rules?: components["schemas"]["MaintenanceRule"][];
+        };
         PreviewStackInputBody: {
             /** @description Target directory (copy, move, upload, extract) or archive file (archive). */
             destination?: string;
@@ -5304,6 +5555,67 @@ export interface components {
             paths?: string[];
             /** @description metadata: count recursively. */
             recursive?: boolean;
+        };
+        PruneCategoryInfo: {
+            category: string;
+            /** @description Removal deletes stored data (volume rules need their own opt-in). */
+            deletesData: boolean;
+            description: string;
+            label: string;
+            /** @description Label include/exclude filters are supported. */
+            labels: boolean;
+            limitations: string[];
+        };
+        PruneCategoryPreview: {
+            /**
+             * Format: int64
+             * @description Approximate sum of the candidates' known sizes.
+             */
+            bytes: number;
+            /** @enum {string} */
+            category: "stopped_containers" | "dangling_images" | "unused_images" | "unused_networks" | "anonymous_volumes" | "named_volumes" | "build_cache";
+            /** Format: int64 */
+            excluded: number;
+            /** @description Candidates first (in removal order), then protected, excluded and retained objects; at most 200. */
+            items: components["schemas"]["PruneItemView"][];
+            /** Format: int64 */
+            protected: number;
+            /** Format: int64 */
+            remove: number;
+            /** Format: int64 */
+            retained: number;
+            truncated: boolean;
+            /** Format: int64 */
+            unknownSizes: number;
+        };
+        PruneItemView: {
+            /**
+             * Format: int64
+             * @description Approximate space freed; -1 when the Engine does not report it.
+             */
+            bytes: number;
+            /** @enum {string} */
+            decision: "remove" | "protected" | "excluded" | "retained";
+            id: string;
+            name?: string;
+            reason: string;
+            /**
+             * Format: date-time
+             * @description The time the age threshold is measured from.
+             */
+            since?: string;
+        };
+        PrunePreview: {
+            /** Format: date-time */
+            at: string;
+            /** Format: int64 */
+            bytes: number;
+            categories: components["schemas"]["PruneCategoryPreview"][];
+            environmentId: string;
+            notes: string[];
+            policyId: string;
+            /** Format: int64 */
+            remove: number;
         };
         PullImageInputBody: {
             /**
@@ -5582,6 +5894,12 @@ export interface components {
             /** @description The new password or access token (write-only). */
             secret: string;
             username?: string;
+        };
+        RunMaintenancePolicyInputBody: {
+            /** @description Presentation preference only: the run is the same durable job either way, and leaving the UI never cancels it. */
+            background?: boolean;
+            /** @description Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise). */
+            confirm?: boolean;
         };
         Schedule: {
             /** @enum {string} */
@@ -6305,6 +6623,17 @@ export interface components {
         };
         UpdateGroupInputBody: {
             name?: string;
+        };
+        UpdateMaintenanceDefaultsInputBody: {
+            /** @description Each rule given replaces the default of its category. */
+            rules: components["schemas"]["MaintenanceRule"][];
+        };
+        UpdateMaintenancePolicyInputBody: {
+            description?: string;
+            name?: string;
+            /** @description Each rule given replaces the rule of its category (send the whole rule). */
+            rules?: components["schemas"]["MaintenanceRule"][];
+            schedule?: components["schemas"]["MaintenanceScheduleInput"];
         };
         UpdateRegistryInputBody: {
             /** @description Empty removes the binding. */
@@ -16067,6 +16396,694 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-maintenance-defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceDefaults"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-maintenance-defaults": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMaintenanceDefaultsInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceDefaults"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-maintenance-policies": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Only policies of this environment. */
+                environmentId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageMaintenancePolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-maintenance-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMaintenancePolicyInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenancePolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-maintenance-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Maintenance policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenancePolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-maintenance-policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Maintenance policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-maintenance-policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Maintenance policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMaintenancePolicyInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenancePolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-maintenance-policy-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Maintenance policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PreviewMaintenancePolicyInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrunePreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-maintenance-policy-run": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Maintenance policy ID. */
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RunMaintenancePolicyInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

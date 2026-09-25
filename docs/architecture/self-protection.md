@@ -51,11 +51,10 @@ enqueued past the API is refused by the agent, `TestSelfProtectionOnTwoHosts`).
 
 ## For other workstreams (exclusion API)
 
-- **Prune (#14):** leave protected objects out of candidates and
-  revalidate before each deletion: agent side
-  `guard.Identify(ctx, eng, containers)` → `Set.Container/Image/Volume/Network`
-  with `protection.Excluded`; manager-side previews use the inventory's
-  `protection` (or `resources.Service.ProtectedContainers`).
+- **Prune (#14):** wired — `internal/agent/prune` identifies DockYard's
+  objects with `guard.Identify` on every plan and again before every
+  removal (`protection.Check` refuses them); previews list them as
+  `protected` with the reason ([maintenance.md](maintenance.md)).
 - **Updates (#20):** never add a protected container or project to an
   update policy or run (`protection.Excluded`); DockYard upgrades follow
   #34.

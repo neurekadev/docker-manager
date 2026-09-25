@@ -43,6 +43,7 @@ import (
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
 	"github.com/neurekadev/dockyard/internal/agent/observe"
 	"github.com/neurekadev/dockyard/internal/agent/protect"
+	"github.com/neurekadev/dockyard/internal/agent/prune"
 	"github.com/neurekadev/dockyard/internal/agent/resources"
 	"github.com/neurekadev/dockyard/internal/agent/session"
 	"github.com/neurekadev/dockyard/internal/agent/stacks"
@@ -324,6 +325,22 @@ func (a *Agent) addResources() {
 		if !own[x.Kind] {
 			a.opts.Executors = append(a.opts.Executors, x)
 		}
+	}
+	// Prune policies (#14): the maintenance.preview request and the
+	// prune.run executor share the guard, so DockYard's own resources are
+	// never candidates.
+	pr := prune.New(prune.Options{
+		Engine:          a.Engine,
+		ManagedStackDir: func(dir string) bool { return a.StackGuard(dir) == nil },
+		Guard:           a.guard,
+		Clock:           a.opts.Clock,
+		Logger:          a.log,
+	})
+	reqs = pr.Requests()
+	maps.Copy(reqs, a.opts.Requests)
+	a.opts.Requests = reqs
+	if x := pr.Executor(); !own[x.Kind] {
+		a.opts.Executors = append(a.opts.Executors, x)
 	}
 }
 

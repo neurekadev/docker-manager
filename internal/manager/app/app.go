@@ -45,6 +45,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/gitcreds"
 	"github.com/neurekadev/dockyard/internal/manager/idempotency"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
+	"github.com/neurekadev/dockyard/internal/manager/maintenance"
 	"github.com/neurekadev/dockyard/internal/manager/metrics"
 	"github.com/neurekadev/dockyard/internal/manager/observe"
 	"github.com/neurekadev/dockyard/internal/manager/permissions"
@@ -127,6 +128,7 @@ type Manager struct {
 	git       *gitcreds.Service
 	builds    *builds.Service
 	sched     *scheduler.Service
+	maint     *maintenance.Service
 }
 
 // ErrSecretKeyMissing means the database belongs to an existing installation
@@ -334,6 +336,29 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		m.jobs.Close()
 		return nil, err
 	}
+	// Docker maintenance (#14): prune policies, their finish hook (before
+	// recovery), the prune PolicySource of the scheduler and the policy
+	// Locator. Saved container specifications (#6) are wired below.
+	if m.maint, err = maintenance.New(maintenance.Options{DB: db, Clock: opts.Clock, Logger: log.With("component", "maintenance"),
+		Jobs: m.jobs, Agents: m.agents.Hub(), Environments: m.agents, Scheduler: m.sched, Stacks: m.stacks,
+		ForgetResource: m.perms.ForgetResource}); err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
+	if err := m.sched.Register(scheduler.KindPrune, m.maint.PolicySource()); err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
+	m.perms.RegisterLocator(catalog.TypeMaintenancePolicy, permissions.LocatorFunc(func(ctx context.Context, ref authz.ResourceRef) (permissions.Location, error) {
+		p, err := m.maint.Get(ctx, ref.ID)
+		if errors.Is(err, domain.ErrMaintenancePolicyNotFound) {
+			return permissions.Location{}, nil
+		}
+		if err != nil {
+			return permissions.Location{}, err
+		}
+		return permissions.Location{Found: true, EnvironmentID: p.EnvironmentID, Parents: []authz.ResourceRef{}}, nil
+	}))
 	if err := m.jobs.Recover(ctx); err != nil {
 		m.jobs.Close()
 		return nil, fmt.Errorf("recover jobs: %w", err)
@@ -425,6 +450,8 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	// Stack deploy/stop/restart/down/remove refuse DockYard's own Compose
 	// project (#32).
 	m.stacks.SetProtection(m.resources)
+	// Prune runs protect what saved container specifications reference (#14).
+	m.maint.SetSpecs(m.resources)
 	hub.AddReconciler(func(ctx context.Context, s *agents.Session) error {
 		// Self-protection (#32): the agent learns which manager it serves
 		// and which container is that manager (co-located or not).
@@ -472,6 +499,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Events:         m.events,
 			ContainerIO:    m.io,
 			Schedules:      m.sched,
+			Maintenance:    m.maint,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -620,6 +648,10 @@ func (m *Manager) Stacks() *stacks.Service { return m.stacks }
 // Default, validate with scheduler.ValidateSpec (api.ValidateSchedule) and
 // call Notify after changing a policy.
 func (m *Manager) Scheduler() *scheduler.Service { return m.sched }
+
+// Maintenance returns the Docker maintenance service (#14): backups (#10)
+// install SetBackupReferences so backup destinations are never pruned.
+func (m *Manager) Maintenance() *maintenance.Service { return m.maint }
 
 // Events returns the internal event bus.
 func (m *Manager) Events() *events.Bus { return m.events }

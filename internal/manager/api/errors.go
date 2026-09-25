@@ -171,6 +171,12 @@ const (
 	CodeAmbiguousGitCredential   = "ambiguous_git_credential"  //nolint:gosec // G101: an error code, not a credential
 	CodeGitCredentialRevoked     = "git_credential_revoked"    //nolint:gosec // G101: an error code, not a credential
 	CodeBuildDefinitionNameTaken = "build_definition_name_taken"
+
+	// Docker maintenance (#14).
+	CodeMaintenancePolicyNameTaken = "maintenance_policy_name_taken"
+	CodeMaintenancePolicyEmpty     = "maintenance_policy_empty"
+	CodeMaintenanceRunActive       = "maintenance_run_active"
+	CodePruneConfirmationRequired  = "prune_confirmation_required"
 )
 
 // CodeForStatus returns the default code for an HTTP status.
