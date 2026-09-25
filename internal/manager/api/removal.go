@@ -47,7 +47,7 @@ type RemovalMigrationOffer struct {
 // EnvironmentRemovalPreview is the response of the removal preview.
 type EnvironmentRemovalPreview struct {
 	EnvironmentID   string `json:"environmentId"`
-	EnvironmentName string `json:"environmentName"`
+	EnvironmentName string `json:"environmentName" example:"nas"`
 	Status          string `json:"status" enum:"active,archived"`
 	Revision        int64  `json:"revision" doc:"Send it as If-Match to DELETE /environments/{environmentId}."`
 	Action          string `json:"action" enum:"archive" doc:"What removal does: archive (the only v1 action)."`

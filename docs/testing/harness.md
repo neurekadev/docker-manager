@@ -210,6 +210,17 @@ idleness (longer than the 60 s proxy read timeouts) by heartbeats and
 pings, with arrival times proving the proxy does not buffer.
 `TestTLSProxyAgentTransport` (`test/proxy`, Go, `integration`) connects the
 agent transport through a real TLS proxy with a private CA.
+`tests/topology.spec.ts` enrolls a DockYard passkey in the profile and signs
+in with it (virtual authenticator, RP ID = the proxy origin's host), asks
+Chromium whether the PWA is installable (`Page.getInstallabilityErrors`)
+and creates an agent enrollment in the UI; `TestTLSProxyAgentSessions`
+(`test/proxy`, run after Playwright with `E2E_PROXY_STACK=1`) enrolls the
+real agent enrollment/transport/session code with that token through each
+proxy (scripted Engine), then checks an exec WebSocket (echo, 70 s idle,
+reattach after a dropped connection), the live stream's `Last-Event-ID`
+resume, session reconnects after a cut TCP connection and after an agent
+restart, and a co-located agent on the internal plain-HTTP URL. Both also
+run against `test/devstack` over `http://localhost` (no proxy).
 
 Helpers (`e2e/helpers`): `addVirtualAuthenticator` (Chromium CDP
 `WebAuthn.enable` / `addVirtualAuthenticator`), `totp` (RFC 6238, verified

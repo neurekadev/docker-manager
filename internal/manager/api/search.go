@@ -56,7 +56,7 @@ var searchTypes = []string{SearchEnvironment, SearchStack, SearchService, Search
 type SearchHit struct {
 	Type            string `json:"type" enum:"environment,stack,service,container,image,volume,network"`
 	ID              string `json:"id" doc:"The identifier used in the resource's routes: environment ID, stack ID, <stackId>/<service>, container ID, image ID, volume name or network ID."`
-	Name            string `json:"name" doc:"Display name (environment or stack name, service, container, volume or network name, first image tag)."`
+	Name            string `json:"name" example:"nextcloud" doc:"Display name (environment or stack name, service, container, volume or network name, first image tag)."`
 	EnvironmentID   string `json:"environmentId,omitempty"`
 	EnvironmentName string `json:"environmentName,omitempty"`
 	StackID         string `json:"stackId,omitempty" doc:"The stack of a service, or of a container, volume or network that belongs to a DockYard stack."`

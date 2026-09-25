@@ -83,6 +83,9 @@ timeouts must be comfortably longer; 60 s (nginx's default) is fine.
 The Playwright suite verifies this through each example proxy: an SSE
 stream and a WebSocket stay open through 70 s of silence (heartbeats and
 pings only), and heartbeats arrive as they are sent (no buffering).
+`TestTLSProxyAgentSessions` adds a terminal (exec WebSocket) idle for 70 s,
+agent sessions that reconnect after a cut connection or an agent restart,
+and a live stream resumed with `Last-Event-ID`, through each proxy.
 
 ### Optional: restrict `/agent/v1` by IP
 

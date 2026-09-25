@@ -147,7 +147,7 @@ type updateGitCredentialInput struct {
 	CredentialID string `path:"credentialId" maxLength:"64" doc:"Git credential ID."`
 	IfMatchParam
 	Body struct {
-		Name       *string `json:"name,omitempty" minLength:"1" maxLength:"100"`
+		Name       *string `json:"name,omitempty" example:"GitHub deploy token" minLength:"1" maxLength:"100"`
 		PathPrefix *string `json:"pathPrefix,omitempty" maxLength:"255"`
 		Username   *string `json:"username,omitempty" minLength:"1" maxLength:"255"`
 		Secret     *string `json:"secret,omitempty" minLength:"1" maxLength:"8192" writeOnly:"true" doc:"A new token (rotation; re-activates a revoked credential). Write-only."`

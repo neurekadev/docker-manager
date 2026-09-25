@@ -78,12 +78,12 @@ type ImageBuild struct {
 	EnvironmentID   string     `json:"environmentId"`
 	JobID           string     `json:"jobId"`
 	DefinitionID    string     `json:"definitionId,omitempty"`
-	GitURL          string     `json:"gitUrl"`
+	GitURL          string     `json:"gitUrl" example:"https://github.com/example/app.git"`
 	Ref             string     `json:"ref,omitempty"`
 	ContextPath     string     `json:"contextPath,omitempty"`
 	Dockerfile      string     `json:"dockerfile,omitempty"`
 	Target          string     `json:"target,omitempty"`
-	Tags            []string   `json:"tags"`
+	Tags            []string   `json:"tags" example:"registry.example.com/app:edge"`
 	Platform        string     `json:"platform,omitempty"`
 	NoCache         bool       `json:"noCache"`
 	Pull            bool       `json:"pull"`

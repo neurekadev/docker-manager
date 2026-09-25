@@ -122,6 +122,9 @@ Capability keys come from the permission catalog (`GET
   (`bash scripts/generate.sh` → `web/src/lib/api/schema.d.ts`) and calls the
   API through `openapi-fetch`. Any OpenAPI 3.1 generator works for other
   languages.
+- Every JSON request and response in the OpenAPI document has an example
+  body, and every error response an `Error` example
+  ([conventions](conventions.md#examples-in-the-openapi-document)).
 - Send `Accept: application/json`; parse errors as
   [`Error`](errors.md) (`application/problem+json`) and switch on `code`.
 - Send `X-Request-ID` if you have a correlation ID; it is echoed and logged.
@@ -138,4 +141,8 @@ Capability keys come from the permission catalog (`GET
 
 `GET /api/v1/capabilities` (public) returns the manager version, the API
 version (`v1`), the agent protocol version and stable feature flags. Clients
-use feature flags, not version comparisons, to enable optional behaviour.
+use feature flags, not version comparisons, to enable optional behaviour;
+v1 announces none (every v1 route in `api/route-inventory.yaml` is served).
+`GET /api/v1/settings` (`settings.read`) shows the instance's display name
+and deployment configuration (public URL, trusted proxy count, stream
+heartbeat, upload limit, whether the metrics endpoint is enabled).

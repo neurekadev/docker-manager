@@ -19,6 +19,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -62,6 +63,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/scheduler"
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
 	"github.com/neurekadev/dockyard/internal/manager/server"
+	"github.com/neurekadev/dockyard/internal/manager/settings"
 	"github.com/neurekadev/dockyard/internal/manager/stacks"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 	"github.com/neurekadev/dockyard/internal/manager/updates"
@@ -669,6 +671,9 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Diagnostics:    m.diag,
 			Live:           m.live,
 			FileWatch:      m.fileWatch,
+			Settings:       settings.New(db, opts.Clock),
+			Deployment: api.DeploymentInfo{PublicURL: originString(cfg.PublicURL), LocalDevelopment: cfg.LocalDevelopment,
+				TrustedProxies: len(cfg.TrustedProxies), MetricsEnabled: cfg.MetricsEnabled},
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -1036,4 +1041,12 @@ func runOnce(ctx context.Context, opts Options) error {
 		opts.OnListening(ln.Addr())
 	}
 	return m.Serve(ctx, ln)
+}
+
+// originString renders the public URL for the settings view ("" unset).
+func originString(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	return u.String()
 }

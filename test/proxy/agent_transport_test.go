@@ -39,8 +39,9 @@ import (
 // connects agents the two supported ways: a remote agent through the public
 // HTTPS origin, trusting the private CA via DOCKYARD_MANAGER_CA_FILE, and a
 // co-located agent on the internal plain-HTTP URL with the explicit opt-in.
-// The session handler is a stand-in until the real one arrives with #3; it
-// authenticates the bearer credential and echoes one frame.
+// The session handler here is a stand-in that authenticates the bearer
+// credential and echoes one frame (transport only); the real manager
+// session behind each proxy of deploy/ is TestTLSProxyAgentSessions.
 func TestTLSProxyAgentTransport(t *testing.T) {
 	ctx := testutil.Context(t)
 	cred, err := authsep.NewAgentCredential()

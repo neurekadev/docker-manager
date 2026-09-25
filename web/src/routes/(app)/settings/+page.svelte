@@ -1,8 +1,9 @@
 <script lang="ts">
 	// Settings overview: my profile and API tokens for everyone; the
-	// instance's sign-in policy, schedule and maintenance defaults, audit
-	// log and diagnostics for whoever may see them.
-	import { createQuery } from '@tanstack/svelte-query';
+	// instance's name and deployment configuration (#4 /settings), sign-in
+	// policy, schedule and maintenance defaults, audit log and diagnostics
+	// for whoever may see them.
+	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 	import Info from '@lucide/svelte/icons/info';
 	import KeyRound from '@lucide/svelte/icons/key-round';
@@ -15,16 +16,22 @@
 	import { routes } from '$lib/routes';
 	import { accessOf } from '$lib/shell/nav';
 	import { usePage } from '$lib/shell/page.svelte';
-	import { Card, Skeleton } from '$lib/ui';
+	import { Card, ErrorState, Skeleton, toast } from '$lib/ui';
 	import { can } from '$lib/features/common/access';
 	import { scheduleDefaultsQuery } from '$lib/features/common/schedules';
 	import Page from '$lib/features/common/Page.svelte';
 	import { factorsText } from '$lib/features/access/model';
 	import { myTokensQuery } from '$lib/features/access/queries';
+	import InstanceCard from '$lib/features/settings/InstanceCard.svelte';
 	import SettingsHeader from '$lib/features/settings/SettingsHeader.svelte';
 	import SettingsLink from '$lib/features/settings/SettingsLink.svelte';
 	import { FACTOR_POLICY } from '$lib/features/settings/model';
-	import { securitySettingsQuery } from '$lib/features/settings/queries';
+	import {
+		instanceSettingsQuery,
+		saveInstanceName,
+		securitySettingsQuery,
+		settingsKeys
+	} from '$lib/features/settings/queries';
 
 	usePage({ title: 'Settings', crumbs: [{ label: 'Settings' }] });
 
@@ -38,7 +45,25 @@
 		...scheduleDefaultsQuery(),
 		enabled: can(access, 'settings.read')
 	}));
+	const instance = createQuery(() => ({
+		...instanceSettingsQuery(),
+		enabled: can(access, 'settings.read')
+	}));
+	const qc = useQueryClient();
 	const me = $derived(session.data?.user);
+	const version = $derived(
+		health.data
+			? `${health.data.version} (build ${health.data.commit.slice(0, 12)})`
+			: undefined
+	);
+
+	async function rename(name: string) {
+		const current = instance.data;
+		if (!current) return;
+		const saved = await saveInstanceName(current, name);
+		qc.setQueryData(settingsKeys.instance, saved);
+		toast.success(`Renamed DockYard to ${saved.name}`);
+	}
 	const activeTokens = $derived((tokens.data ?? []).filter((t) => t.status === 'active').length);
 </script>
 
@@ -121,19 +146,37 @@
 		</section>
 	{/if}
 
-	<Card title="About this DockYard">
-		{#if health.data}
-			<p class="about">
-				<Info size={16} aria-hidden="true" />
-				<span
-					>Version <span class="mono">{health.data.version}</span> (build
-					<span class="mono">{health.data.commit.slice(0, 12)}</span>)</span
-				>
-			</p>
-		{:else}
-			<Skeleton lines={1} />
-		{/if}
-	</Card>
+	{#if can(access, 'settings.read') && instance.data}
+		<InstanceCard
+			settings={instance.data}
+			canEdit={can(access, 'settings.manage')}
+			{version}
+			onsave={rename}
+		/>
+	{:else if can(access, 'settings.read') && !instance.isError}
+		<Card title="About this DockYard"><Skeleton lines={3} /></Card>
+	{:else if can(access, 'settings.read')}
+		<ErrorState
+			error={instance.error}
+			title="The settings of this DockYard could not be loaded."
+			onretry={() => instance.refetch()}
+			retrying={instance.isFetching}
+		/>
+	{:else}
+		<Card title="About this DockYard">
+			{#if health.data}
+				<p class="about">
+					<Info size={16} aria-hidden="true" />
+					<span
+						>Version <span class="mono">{health.data.version}</span> (build
+						<span class="mono">{health.data.commit.slice(0, 12)}</span>)</span
+					>
+				</p>
+			{:else}
+				<Skeleton lines={1} />
+			{/if}
+		</Card>
+	{/if}
 </Page>
 
 <style>

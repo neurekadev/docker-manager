@@ -239,7 +239,7 @@ type PruneItemView struct {
 
 // PruneCategoryPreview is one category of a preview.
 type PruneCategoryPreview struct {
-	Category     string          `json:"category" enum:"stopped_containers,dangling_images,unused_images,unused_networks,anonymous_volumes,named_volumes,build_cache"`
+	Category     string          `json:"category" example:"dangling_images" enum:"stopped_containers,dangling_images,unused_images,unused_networks,anonymous_volumes,named_volumes,build_cache"`
 	Remove       int             `json:"remove"`
 	Protected    int             `json:"protected"`
 	Excluded     int             `json:"excluded"`
@@ -432,7 +432,7 @@ type runMaintenancePolicyInput struct {
 	PolicyID string `path:"policyId" maxLength:"64" doc:"Maintenance policy ID."`
 	IdempotencyKeyParam
 	Body *struct {
-		Confirm    bool `json:"confirm,omitempty" doc:"Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise)."`
+		Confirm    bool `json:"confirm,omitempty" example:"true" doc:"Must be true: a run deletes the candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise)."`
 		Background bool `json:"background,omitempty" doc:"Presentation preference only: the run is the same durable job either way, and leaving the UI never cancels it."`
 	}
 }

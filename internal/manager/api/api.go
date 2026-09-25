@@ -144,6 +144,12 @@ type Deps struct {
 	// FileWatch keeps volumes with an open file view watched while a live
 	// stream names them (#23); nil watches only stacks.
 	FileWatch FileWatch
+	// Settings serves the editable instance settings (GET/PATCH
+	// /settings); nil answers them with 503 (after authorization).
+	Settings SettingsService
+	// Deployment is the read-only deployment configuration GET /settings
+	// shows.
+	Deployment DeploymentInfo
 }
 
 func (d Deps) clock() clock.Clock {
@@ -212,11 +218,13 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerBuilds(a, deps)
 	registerContainerIO(a, deps)
 	registerSchedules(a, deps)
+	registerSettings(a, deps)
 	registerMaintenance(a, deps)
 	registerUpdates(a, deps)
 	registerBackups(a, deps)
 	registerLive(a, deps)
 	registerSearch(a, deps)
+	addExamples(a)
 	return a
 }
 

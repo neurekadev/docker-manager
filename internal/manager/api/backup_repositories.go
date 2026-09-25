@@ -515,12 +515,12 @@ type updateBackupRepositoryInput struct {
 	RepositoryID string `path:"repositoryId" maxLength:"64" doc:"Backup repository ID."`
 	IfMatchParam
 	Body struct {
-		Name            *string `json:"name,omitempty" minLength:"1" maxLength:"100"`
+		Name            *string `json:"name,omitempty" example:"Offsite S3" minLength:"1" maxLength:"100"`
 		Region          *string `json:"region,omitempty" maxLength:"64"`
 		PathStyle       *bool   `json:"pathStyle,omitempty"`
 		AccessKeyID     *string `json:"accessKeyId,omitempty" maxLength:"256" writeOnly:"true" doc:"Replace the S3 credentials (both fields)."`
 		SecretAccessKey *string `json:"secretAccessKey,omitempty" maxLength:"1024" writeOnly:"true"`
-		VerifyCron      *string `json:"verifyCron,omitempty" maxLength:"128"`
+		VerifyCron      *string `json:"verifyCron,omitempty" example:"0 5 * * 0" maxLength:"128"`
 		VerifyTimeZone  *string `json:"verifyTimeZone,omitempty" maxLength:"64"`
 		VerifyEnabled   *bool   `json:"verifyEnabled,omitempty" doc:"Enable scheduled verification (the key must be confirmed first)."`
 		VerifyReadData  *string `json:"verifyReadData,omitempty" maxLength:"16"`
@@ -593,7 +593,7 @@ func (h *backupsAPI) testRepository(ctx context.Context, in *backupRepositoryIDI
 type recoveryConfirmationInput struct {
 	RepositoryID string `path:"repositoryId" maxLength:"64" doc:"Backup repository ID."`
 	Body         struct {
-		RecoveryKey string `json:"recoveryKey" minLength:"1" maxLength:"256" writeOnly:"true" doc:"Type (or paste) the Recovery Key. Never logged, stored or audited."`
+		RecoveryKey string `json:"recoveryKey" example:"dyrk-4V7Q-2M9X-KP3T-8WRH-6JDN-CF5B-ZL2A" minLength:"1" maxLength:"256" writeOnly:"true" doc:"Type (or paste) the Recovery Key. Never logged, stored or audited."`
 		BackedUp    bool   `json:"backedUp" doc:"Must be true: you saved the key outside DockYard."`
 	}
 }

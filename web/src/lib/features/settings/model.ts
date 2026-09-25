@@ -1,5 +1,54 @@
-// Sign-in policy (#16) wording. Pure (settings.spec.ts).
-import type { SecuritySettings } from './queries';
+// Sign-in policy (#16) and instance settings (#4) wording. Pure
+// (settings.spec.ts).
+import { formatBytes } from '$lib/ui/format';
+import type { InstanceSettings, SecuritySettings } from './queries';
+
+/** Longest display name of the instance (the server's limit). */
+export const MAX_INSTANCE_NAME = 64;
+
+/**
+ * Checks a display name like the server does (surrounding white space is
+ * removed; 1-64 characters; no control characters). Returns the problem to
+ * show, or null.
+ */
+export function instanceNameProblem(name: string): string | null {
+	const n = name.trim();
+	if (n === '') return 'Enter a name.';
+	if ([...n].length > MAX_INSTANCE_NAME) return `Use at most ${MAX_INSTANCE_NAME} characters.`;
+	for (const ch of n) {
+		const c = ch.codePointAt(0) ?? 0;
+		if (c < 0x20 || (c >= 0x7f && c <= 0x9f))
+			return 'Remove line breaks and control characters.';
+	}
+	return null;
+}
+
+/** The read-only deployment configuration as label/value facts. */
+export function deploymentFacts(
+	s: InstanceSettings
+): { label: string; value: string; mono?: boolean }[] {
+	const d = s.deployment;
+	const proxies = d.trustedProxyCount;
+	return [
+		{ label: 'Public URL', value: d.publicUrl || 'Not set', mono: !!d.publicUrl },
+		{
+			label: 'Mode',
+			value: d.localDevelopment
+				? 'Local development over plain HTTP'
+				: 'HTTPS behind a reverse proxy'
+		},
+		{
+			label: 'Trusted proxies',
+			value:
+				proxies === 0
+					? 'None: forwarded headers are ignored'
+					: `${proxies} address ${proxies === 1 ? 'range' : 'ranges'}`
+		},
+		{ label: 'Stream heartbeat', value: `Every ${d.streamHeartbeatSeconds} s` },
+		{ label: 'Largest upload', value: formatBytes(d.filesMaxUploadBytes) },
+		{ label: 'Metrics endpoint', value: d.metricsEndpoint ? 'On' : 'Off' }
+	];
+}
 
 export type RequiredFactors = SecuritySettings['requiredFactors'];
 

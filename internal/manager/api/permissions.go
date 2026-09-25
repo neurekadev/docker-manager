@@ -308,7 +308,7 @@ type updateGroupInput struct {
 	GroupID string `path:"groupId" maxLength:"64" doc:"Group ID."`
 	IfMatchParam
 	Body struct {
-		Name *string `json:"name,omitempty" minLength:"1" maxLength:"64"`
+		Name *string `json:"name,omitempty" example:"Operators" minLength:"1" maxLength:"64"`
 	}
 }
 type deleteGroupInput struct {

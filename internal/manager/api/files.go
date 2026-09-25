@@ -228,7 +228,7 @@ type FilesReplaceInput struct {
 	IfMatchParam
 	IfNoneMatch string `header:"If-None-Match" maxLength:"8" doc:"* creates the file only if it does not exist (412 otherwise)."`
 	Body        struct {
-		Content       *string `json:"content,omitempty" doc:"New content as UTF-8 text (at most 512 KiB)."`
+		Content       *string `json:"content,omitempty" example:"server_tokens off;" doc:"New content as UTF-8 text (at most 512 KiB)."`
 		ContentBase64 *string `json:"contentBase64,omitempty" doc:"New content as base64 (binary; at most 512 KiB decoded)."`
 	}
 }
@@ -247,7 +247,7 @@ func (q *FilesDownloadQuery) common() *FilesDownloadQuery { return q }
 // FilesCreateEntryInput is the input of the entry creation routes.
 type FilesCreateEntryInput struct {
 	Body struct {
-		Path          string  `json:"path,omitempty" maxLength:"4096" doc:"Root-relative path of the new entry (its parent must exist)."`
+		Path          string  `json:"path,omitempty" example:"config/nginx.conf" maxLength:"4096" doc:"Root-relative path of the new entry (its parent must exist)."`
 		Type          string  `json:"type,omitempty" enum:"file,dir"`
 		Content       *string `json:"content,omitempty" doc:"Initial content of a new file (UTF-8)."`
 		ContentBase64 *string `json:"contentBase64,omitempty"`
@@ -272,9 +272,9 @@ func (q *FilesUploadQuery) common() *FilesUploadQuery { return q }
 // FilesPreviewInput is the input of the conflict preview routes.
 type FilesPreviewInput struct {
 	Body struct {
-		Operation   string   `json:"operation,omitempty" enum:"copy,move,delete,upload,extract,archive,metadata"`
-		Paths       []string `json:"paths,omitempty" maxItems:"1000" doc:"Sources (copy, move, delete, metadata, archive) or the archive (extract)."`
-		Destination string   `json:"destination,omitempty" maxLength:"4096" doc:"Target directory (copy, move, upload, extract) or archive file (archive)."`
+		Operation   string   `json:"operation,omitempty" example:"copy" enum:"copy,move,delete,upload,extract,archive,metadata"`
+		Paths       []string `json:"paths,omitempty" example:"config/nginx.conf" maxItems:"1000" doc:"Sources (copy, move, delete, metadata, archive) or the archive (extract)."`
+		Destination string   `json:"destination,omitempty" example:"backup" maxLength:"4096" doc:"Target directory (copy, move, upload, extract) or archive file (archive)."`
 		Names       []string `json:"names,omitempty" maxItems:"1000" doc:"File names to upload into destination."`
 		Recursive   bool     `json:"recursive,omitempty" doc:"metadata: count recursively."`
 	}
@@ -286,8 +286,8 @@ func (q *FilesPreviewInput) common() *FilesPreviewInput { return q }
 type FilesTransferInput struct {
 	IdempotencyKeyParam
 	Body struct {
-		Paths       []string `json:"paths,omitempty" maxItems:"256" doc:"Sources (root-relative)."`
-		Destination string   `json:"destination,omitempty" maxLength:"4096" doc:"Target directory."`
+		Paths       []string `json:"paths,omitempty" example:"config/nginx.conf" maxItems:"256" doc:"Sources (root-relative)."`
+		Destination string   `json:"destination,omitempty" example:"config-backup" maxLength:"4096" doc:"Target directory."`
 		Name        string   `json:"name,omitempty" maxLength:"255" doc:"New name of a single source (rename: move into the source's own directory under this name)."`
 		Conflict    string   `json:"conflict,omitempty" enum:"fail,overwrite,skip,keep_both" doc:"Per top-level item when the name exists in the destination (default fail: that item fails). Apply-to-all is this one setting; the UI asks per item and sends one request per decision group."`
 	}
@@ -299,7 +299,7 @@ func (q *FilesTransferInput) common() *FilesTransferInput { return q }
 type FilesDeletionInput struct {
 	IdempotencyKeyParam
 	Body struct {
-		Paths []string `json:"paths,omitempty" maxItems:"256" doc:"Entries to delete, recursively (symlinks are removed, never followed). Preview first with a conflict preview of operation delete."`
+		Paths []string `json:"paths,omitempty" example:"logs/old.log" maxItems:"256" doc:"Entries to delete, recursively (symlinks are removed, never followed). Preview first with a conflict preview of operation delete."`
 	}
 }
 
@@ -309,8 +309,8 @@ func (q *FilesDeletionInput) common() *FilesDeletionInput { return q }
 type FilesArchiveInput struct {
 	IdempotencyKeyParam
 	Body struct {
-		Paths       []string `json:"paths,omitempty" maxItems:"256"`
-		Destination string   `json:"destination,omitempty" maxLength:"4096" doc:"Archive file to create (root-relative)."`
+		Paths       []string `json:"paths,omitempty" example:"html,config" maxItems:"256"`
+		Destination string   `json:"destination,omitempty" example:"exports/site.zip" maxLength:"4096" doc:"Archive file to create (root-relative)."`
 		Format      string   `json:"format,omitempty" enum:"zip,tar.gz" doc:"Default zip."`
 		Conflict    string   `json:"conflict,omitempty" enum:"fail,overwrite,keep_both"`
 	}
@@ -322,8 +322,8 @@ func (q *FilesArchiveInput) common() *FilesArchiveInput { return q }
 type FilesExtractionInput struct {
 	IdempotencyKeyParam
 	Body struct {
-		Path        string `json:"path,omitempty" maxLength:"4096" doc:"The zip or tar.gz archive (root-relative)."`
-		Destination string `json:"destination,omitempty" maxLength:"4096" doc:"Directory to extract into (created when missing)."`
+		Path        string `json:"path,omitempty" example:"uploads/site.zip" maxLength:"4096" doc:"The zip or tar.gz archive (root-relative)."`
+		Destination string `json:"destination,omitempty" example:"html" maxLength:"4096" doc:"Directory to extract into (created when missing)."`
 		Conflict    string `json:"conflict,omitempty" enum:"fail,overwrite,skip,keep_both" doc:"Per entry when the name exists (default fail: the entry is reported and skipped)."`
 	}
 }

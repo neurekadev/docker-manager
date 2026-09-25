@@ -471,7 +471,21 @@ jobs:
         env:
           CI: "1"
           NODE_EXTRA_CA_CERTS: ${{ github.workspace }}/e2e/.e2e-ca.crt
+          # topology.spec.ts leaves the enrollment token it created in the
+          # UI for the agent-session step below.
+          E2E_ENROLLMENT_TOKEN_DIR: ${{ runner.temp }}/e2e-enrollment-tokens
         run: npx playwright test
+      - name: Agent sessions, exec and reconnects through each proxy (Go)
+        # Real agent enrollment/transport/session code against the managers
+        # behind Caddy, Traefik and nginx (test/proxy, #27): UI token, exec
+        # WebSocket idle and reattach, live-stream resume, session reconnect
+        # after a cut connection and a restart, co-located plain-HTTP agent.
+        if: success() || failure()
+        env:
+          E2E_PROXY_STACK: "1"
+          E2E_CA_FILE: ${{ github.workspace }}/e2e/.e2e-ca.crt
+          E2E_ENROLLMENT_TOKEN_DIR: ${{ runner.temp }}/e2e-enrollment-tokens
+        run: go test -tags integration -count=1 -timeout 15m -run '^TestTLSProxyAgentSessions$' -v ./test/proxy/
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -488,7 +502,7 @@ jobs:
       - name: Pending checks
         if: always()
         run: |
-          msg="passkey/TOTP login and recovery flows in the browser (UI #22; the #16 API is merged and tested in Go), live updates across views (#23), the real agent session (merged in #3) and its reconnects through Caddy, Traefik and nginx (TestTLSProxyAgentTransport still uses a stand-in session handler behind Caddy, #27), exec WebSocket through each proxy (#6, #27), responsive layouts (#22)"
+          msg="TOTP login and recovery-code flows in the browser (UI #22; the #16 API is tested in Go), live updates across views (#23), responsive layouts (#22)"
           echo "::notice title=e2e pending checks::${msg}"
           echo "Pending: ${msg}" >> "$GITHUB_STEP_SUMMARY"
 

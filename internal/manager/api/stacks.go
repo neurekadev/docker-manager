@@ -90,8 +90,8 @@ type StackDependency struct {
 // StackServiceDef is a service of the stack's definition with its display
 // metadata.
 type StackServiceDef struct {
-	Name        string            `json:"name"`
-	Image       string            `json:"image" doc:"Resolved image reference."`
+	Name        string            `json:"name" example:"web"`
+	Image       string            `json:"image" example:"nginx:1.27" doc:"Resolved image reference."`
 	Build       bool              `json:"build" doc:"The service has a build section (#33)."`
 	DependsOn   []StackDependency `json:"dependsOn"`
 	Description string            `json:"description,omitempty" doc:"DockYard display metadata (never written to Compose files)."`
@@ -281,7 +281,7 @@ func newStack(st domain.Stack, v authz.View, online bool) Stack {
 // StackIssue is a validation finding.
 type StackIssue struct {
 	Code    string `json:"code" doc:"invalid_project, unsupported_compose_feature, obsolete_version, bind_outside_project, ..."`
-	Message string `json:"message"`
+	Message string `json:"message" example:"services.web.ports: invalid port \"80a\""`
 	Service string `json:"service,omitempty"`
 }
 
@@ -609,8 +609,8 @@ func (h *stacksAPI) get(ctx context.Context, in *stackIDInput) (*stackOutput, er
 type createStackInput struct {
 	Body struct {
 		EnvironmentID string `json:"environmentId,omitempty" maxLength:"64" doc:"Required: the environment to create the stack in."`
-		Name          string `json:"name,omitempty" maxLength:"63" doc:"Required: Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume."`
-		DisplayName   string `json:"displayName,omitempty" maxLength:"128"`
+		Name          string `json:"name,omitempty" example:"web" maxLength:"63" doc:"Required: Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume."`
+		DisplayName   string `json:"displayName,omitempty" example:"Website" maxLength:"128"`
 		Description   string `json:"description,omitempty" maxLength:"1024"`
 		Icon          string `json:"icon,omitempty" maxLength:"64" doc:"Lucide icon name."`
 		StackDefinitionBody
@@ -650,7 +650,7 @@ func (h *stacksAPI) create(ctx context.Context, in *createStackInput) (*createSt
 type validateStackInput struct {
 	Body struct {
 		EnvironmentID string `json:"environmentId,omitempty" maxLength:"64" doc:"Required: the environment whose agent validates."`
-		Name          string `json:"name,omitempty" maxLength:"63" doc:"Required: project name the definition would be deployed as."`
+		Name          string `json:"name,omitempty" example:"web" maxLength:"63" doc:"Required: project name the definition would be deployed as."`
 		StackDefinitionBody
 	}
 }
@@ -678,9 +678,9 @@ type updateStackInput struct {
 	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
 	IfMatchParam
 	Body struct {
-		DisplayName *string                         `json:"displayName,omitempty" maxLength:"128"`
+		DisplayName *string                         `json:"displayName,omitempty" example:"Website" maxLength:"128"`
 		Description *string                         `json:"description,omitempty" maxLength:"1024"`
-		Icon        *string                         `json:"icon,omitempty" maxLength:"64" doc:"Lucide icon name; empty clears the override."`
+		Icon        *string                         `json:"icon,omitempty" example:"globe" maxLength:"64" doc:"Lucide icon name; empty clears the override."`
 		Services    map[string]StackServiceMetaBody `json:"services,omitempty" doc:"Display metadata per service name (empty values clear it)."`
 	}
 }
@@ -738,11 +738,11 @@ type deployStackInput struct {
 	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
 	IdempotencyKeyParam
 	Body *struct {
-		Pull                string   `json:"pull,omitempty" enum:"missing,always" doc:"missing (default): pull only images that are not on the host; always: pull every image first."`
+		Pull                string   `json:"pull,omitempty" example:"missing" enum:"missing,always" doc:"missing (default): pull only images that are not on the host; always: pull every image first."`
 		Build               bool     `json:"build,omitempty" doc:"Rebuild every build section (default: only missing images are built)."`
 		ForceRecreate       bool     `json:"forceRecreate,omitempty"`
 		RemoveOrphans       bool     `json:"removeOrphans,omitempty" doc:"Remove containers of services no longer in the definition."`
-		Services            []string `json:"services,omitempty" maxItems:"64" doc:"Deploy only these services (and their dependencies)."`
+		Services            []string `json:"services,omitempty" example:"web" maxItems:"64" doc:"Deploy only these services (and their dependencies)."`
 		TimeoutSeconds      int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period for recreated containers."`
 		BuildTimeoutSeconds int      `json:"buildTimeoutSeconds,omitempty" minimum:"0" maximum:"21600" doc:"Bounds the images the deploy builds (default 3600)."`
 	}
@@ -771,7 +771,7 @@ type buildStackInput struct {
 	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
 	IdempotencyKeyParam
 	Body *struct {
-		Services       []string `json:"services,omitempty" maxItems:"64" doc:"Build only these services (each needs a build section); default: every service with a build section."`
+		Services       []string `json:"services,omitempty" example:"web" maxItems:"64" doc:"Build only these services (each needs a build section); default: every service with a build section."`
 		NoCache        bool     `json:"noCache,omitempty" doc:"Build without the build cache."`
 		Pull           bool     `json:"pull,omitempty" doc:"Pull newer versions of the base images."`
 		TimeoutSeconds int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"21600" doc:"Stops the build with a failure after this long (default 3600)."`
@@ -806,8 +806,8 @@ type operateStackInput struct {
 	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
 	IdempotencyKeyParam
 	Body struct {
-		Action         string   `json:"action,omitempty" enum:"start,stop,restart,down" doc:"Required; selects the capability: stack.start, stack.stop, stack.restart or stack.down."`
-		Services       []string `json:"services,omitempty" maxItems:"64" doc:"Only these services (start/stop/restart); dependencies and restart: true dependents follow the lifecycle rules."`
+		Action         string   `json:"action,omitempty" example:"restart" enum:"start,stop,restart,down" doc:"Required; selects the capability: stack.start, stack.stop, stack.restart or stack.down."`
+		Services       []string `json:"services,omitempty" example:"web" maxItems:"64" doc:"Only these services (start/stop/restart); dependencies and restart: true dependents follow the lifecycle rules."`
 		TimeoutSeconds int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period."`
 	}
 }
@@ -842,7 +842,7 @@ func (h *stacksAPI) operate(ctx context.Context, in *operateStackInput) (*JobAcc
 type restoreStackInput struct {
 	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
 	Body    struct {
-		RevisionID string `json:"revisionId,omitempty" maxLength:"64" doc:"Required: the revision to write back to disk."`
+		RevisionID string `json:"revisionId,omitempty" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f" maxLength:"64" doc:"Required: the revision to write back to disk."`
 	}
 }
 
@@ -1042,8 +1042,8 @@ func shapeContainer(c authz.Checker, st domain.Stack, service string, ct domain.
 
 // StackImageStatus is one service's applied image and update eligibility.
 type StackImageStatus struct {
-	Service  string `json:"service"`
-	Image    string `json:"image"`
+	Service  string `json:"service" example:"web"`
+	Image    string `json:"image" example:"nginx:1.27"`
 	ImageID  string `json:"imageId,omitempty"`
 	Digest   string `json:"digest,omitempty" doc:"Digest applied on this host by the last deploy (#20 baseline)."`
 	Platform string `json:"platform,omitempty"`
@@ -1193,8 +1193,8 @@ type DiscoveredStackService struct {
 
 // DiscoveredStack is a Compose project found on the Engine (read-only).
 type DiscoveredStack struct {
-	Name       string                   `json:"name" doc:"Compose project name."`
-	WorkingDir string                   `json:"workingDir,omitempty" doc:"Project directory from the containers' labels (host path)."`
+	Name       string                   `json:"name" example:"nextcloud" doc:"Compose project name."`
+	WorkingDir string                   `json:"workingDir,omitempty" example:"nextcloud" doc:"Project directory from the containers' labels (host path)."`
 	Location   *StackLocation           `json:"location,omitempty" doc:"Where it lies under a verified stack root (adoptable in place)."`
 	Services   []DiscoveredStackService `json:"services"`
 	Adoptable  bool                     `json:"adoptable" doc:"Can be imported in place from its real files."`
@@ -1239,7 +1239,7 @@ func (h *stacksAPI) discovered(ctx context.Context, in *discoveredInput) (*disco
 type importStackInput struct {
 	EnvironmentID string `path:"environmentId" maxLength:"64" doc:"Environment ID."`
 	Body          struct {
-		ProjectName string `json:"projectName,omitempty" maxLength:"63" doc:"Required: the discovered Compose project to adopt."`
+		ProjectName string `json:"projectName,omitempty" example:"nextcloud" maxLength:"63" doc:"Required: the discovered Compose project to adopt."`
 		DisplayName string `json:"displayName,omitempty" maxLength:"128"`
 		Description string `json:"description,omitempty" maxLength:"1024"`
 		Icon        string `json:"icon,omitempty" maxLength:"64"`
