@@ -1163,6 +1163,10 @@
             },
             "type": "array"
           },
+          "protection": {
+            "$ref": "#/components/schemas/ResourceProtection",
+            "description": "Set for DockYard's own containers (#32): stop, pause, update and removal are refused."
+          },
           "stack": {
             "$ref": "#/components/schemas/StackMembership",
             "description": "Compose project and service."
@@ -1794,6 +1798,23 @@
             "description": "Maximum number of processes; -1 unlimited.",
             "format": "int64",
             "minimum": -1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ContainerRestartInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "confirm": {
+            "description": "Confirms a restart that interrupts DockYard (its manager or proxy, #32); without it such a restart answers 409 confirmation_required.",
+            "type": "boolean"
+          },
+          "timeoutSeconds": {
+            "description": "Seconds to wait before killing; default: the container's stop timeout.",
+            "format": "int64",
+            "maximum": 3600,
+            "minimum": 0,
             "type": "integer"
           }
         },
@@ -3970,6 +3991,10 @@
             },
             "type": "object"
           },
+          "protection": {
+            "$ref": "#/components/schemas/ResourceProtection",
+            "description": "Set for images DockYard's own containers run (#32): removal is refused."
+          },
           "repoDigests": {
             "description": "Full view.",
             "items": {
@@ -4941,6 +4966,10 @@
               "shop_default"
             ],
             "type": "string"
+          },
+          "protection": {
+            "$ref": "#/components/schemas/ResourceProtection",
+            "description": "Set for DockYard's own networks (#32): removal is refused."
           },
           "removal": {
             "$ref": "#/components/schemas/Removal",
@@ -6802,6 +6831,43 @@
         },
         "required": [
           "type"
+        ],
+        "type": "object"
+      },
+      "ResourceProtection": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "restartAllowed": {
+            "description": "A restart is allowed with an explicit confirmation (confirm: true); the UI disconnects while the manager restarts.",
+            "type": "boolean"
+          },
+          "role": {
+            "enum": [
+              "agent",
+              "manager",
+              "dockyard_project",
+              "dockyard_image",
+              "manager_data",
+              "agent_state",
+              "stacks",
+              "dockyard_volume",
+              "dockyard_network"
+            ],
+            "type": "string"
+          },
+          "self": {
+            "description": "This installation's own agent or manager.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "role",
+          "reason",
+          "self",
+          "restartAllowed"
         ],
         "type": "object"
       },
@@ -8703,6 +8769,10 @@
               "type": "string"
             },
             "type": "object"
+          },
+          "protection": {
+            "$ref": "#/components/schemas/ResourceProtection",
+            "description": "Set for DockYard's own volumes (#32): removal and mounting into new containers are refused."
           },
           "removal": {
             "$ref": "#/components/schemas/Removal",
@@ -14046,7 +14116,7 @@
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/restart": {
       "post": {
-        "description": "Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files).",
+        "description": "Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files). Restarting DockYard's manager (or another container of its own deployment) needs confirm: true (409 confirmation_required); the connected agent is never restarted through DockYard (409 protected).",
         "operationId": "restart-container",
         "parameters": [
           {
@@ -14088,7 +14158,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ContainerStopInputBody"
+                "$ref": "#/components/schemas/ContainerRestartInputBody"
               }
             }
           }

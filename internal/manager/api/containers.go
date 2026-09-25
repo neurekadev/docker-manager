@@ -150,14 +150,15 @@ type ContainerDetails struct {
 // environmentId, state, health, stack and service identity, view and the
 // granted actions (view minimal).
 type Container struct {
-	ID            string           `json:"id"`
-	Name          string           `json:"name" example:"web"`
-	EnvironmentID string           `json:"environmentId"`
-	State         string           `json:"state" enum:"created,running,paused,restarting,removing,exited,dead" example:"running"`
-	Health        string           `json:"health,omitempty" enum:"starting,healthy,unhealthy,none"`
-	Stack         *StackMembership `json:"stack,omitempty" doc:"Compose project and service."`
-	View          string           `json:"view" enum:"minimal,full" doc:"full: container.details.read; minimal: identity, state and the granted actions (#17)."`
-	Actions       []string         `json:"actions" doc:"Granted container capabilities (e.g. container.restart)."`
+	ID            string              `json:"id"`
+	Name          string              `json:"name" example:"web"`
+	EnvironmentID string              `json:"environmentId"`
+	State         string              `json:"state" enum:"created,running,paused,restarting,removing,exited,dead" example:"running"`
+	Health        string              `json:"health,omitempty" enum:"starting,healthy,unhealthy,none"`
+	Stack         *StackMembership    `json:"stack,omitempty" doc:"Compose project and service."`
+	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for DockYard's own containers (#32): stop, pause, update and removal are refused."`
+	View          string              `json:"view" enum:"minimal,full" doc:"full: container.details.read; minimal: identity, state and the granted actions (#17)."`
+	Actions       []string            `json:"actions" doc:"Granted container capabilities (e.g. container.restart)."`
 
 	Image     string              `json:"image,omitempty" doc:"Full view."`
 	ImageID   string              `json:"imageId,omitempty"`
@@ -186,7 +187,8 @@ func containerResource(env string, c protocol.ContainerSummary, stackIDs map[str
 
 func newContainer(env string, c protocol.ContainerSummary, v authz.View, stackIDs map[string]string, instanceID string) Container {
 	out := Container{ID: c.ID, Name: c.Name, EnvironmentID: env, State: c.State, Health: c.Health,
-		Stack: membership(c.Stack, stackIDs, managedStack(c.Stack, stackIDs)), View: v.Level.String(), Actions: Actions(v)}
+		Stack: membership(c.Stack, stackIDs, managedStack(c.Stack, stackIDs)), Protection: newProtection(c.Protection),
+		View: v.Level.String(), Actions: Actions(v)}
 	if !v.Full() {
 		return out
 	}
@@ -211,6 +213,7 @@ func (h *dockerAPI) visibleContainer(ctx context.Context, sc *scope, ref string)
 	if err != nil {
 		return d, authz.View{}, lookupErr(err, "container")
 	}
+	d.Protection = h.svc.ContainerProtection(d.ContainerSummary)
 	v := authz.ViewOf(sc.c, containerResource(sc.env.ID, d.ContainerSummary, sc.stacks(ctx, h.svc)))
 	if !v.Visible() {
 		return d, v, NotFound("container not found")
@@ -382,6 +385,15 @@ type containerStopInput struct {
 	}
 }
 
+type containerRestartInput struct {
+	ContainerPath
+	IdempotencyKeyParam
+	Body *struct {
+		TimeoutSeconds *int `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Seconds to wait before killing; default: the container's stop timeout."`
+		Confirm        bool `json:"confirm,omitempty" doc:"Confirms a restart that interrupts DockYard (its manager or proxy, #32); without it such a restart answers 409 confirmation_required."`
+	}
+}
+
 func (h *dockerAPI) listContainers(ctx context.Context, in *listContainersInput) (*listContainersOutput, error) {
 	sc, err := h.environment(ctx, in.EnvironmentID, false)
 	if err != nil {
@@ -398,6 +410,7 @@ func (h *dockerAPI) listContainers(ctx context.Context, in *listContainersInput)
 	}
 	var items []item
 	for _, c := range all {
+		c.Protection = h.svc.ContainerProtection(c)
 		v := authz.ViewOf(sc.c, containerResource(sc.env.ID, c, stacks))
 		switch {
 		case !v.Visible():
@@ -486,6 +499,7 @@ func (h *dockerAPI) containerRemoval(ctx context.Context, sc *scope, d protocol.
 	if specSaved {
 		r.Consequences = append(r.Consequences, "DockYard forgets the container's saved recreate specification (automatic updates stop).")
 	}
+	r.blockProtected(d.Protection)
 	if managedStack(d.Stack, sc.stacks(ctx, h.svc)) {
 		r.block(CodeStackManaged, "The container belongs to a DockYard-managed stack; change the stack instead.")
 	}
@@ -599,14 +613,14 @@ func (h *dockerAPI) stopContainer(ctx context.Context, in *containerStopInput) (
 	return Accepted(j), nil
 }
 
-func (h *dockerAPI) restartContainer(ctx context.Context, in *containerStopInput) (*JobAccepted, error) {
+func (h *dockerAPI) restartContainer(ctx context.Context, in *containerRestartInput) (*JobAccepted, error) {
 	sc, d, err := h.action(ctx, in.EnvironmentID, in.ContainerID, CapContainerRestart, true)
 	if err != nil {
 		return nil, err
 	}
 	var a protocol.ContainerActionInput
 	if in.Body != nil {
-		a.TimeoutSeconds = in.Body.TimeoutSeconds
+		a.TimeoutSeconds, a.Confirmed = in.Body.TimeoutSeconds, in.Body.Confirm
 	}
 	j, err := h.svc.ContainerAction(ctx, sc.p, sc.env.ID, jobspec.ContainerRestart, d, a, in.IdempotencyKey)
 	if err != nil {
@@ -702,8 +716,10 @@ func registerContainers(a huma.API, deps Deps) {
 	Register(a, Operation{
 		Operation: huma.Operation{
 			OperationID: "restart-container", Method: http.MethodPost, Path: base + "/{containerId}/restart", Summary: "Restart a container",
-			Description: "Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files).",
-			Tags:        []string{tagContainers}, DefaultStatus: http.StatusAccepted, Errors: dockerJobErrors,
+			Description: "Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files). " +
+				"Restarting DockYard's manager (or another container of its own deployment) needs confirm: true (409 confirmation_required); " +
+				"the connected agent is never restarted through DockYard (409 protected).",
+			Tags: []string{tagContainers}, DefaultStatus: http.StatusAccepted, Errors: dockerJobErrors,
 		},
 		Capability: CapContainerRestart, Scope: ScopeResource, Idempotency: IdempotencyJob,
 	}, h.restartContainer)

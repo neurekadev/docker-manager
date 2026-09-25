@@ -58,6 +58,11 @@ const (
 	DockerNameTaken = "resource_name_taken"
 	// DockerRecreateRequired: the change needs the container recreated.
 	DockerRecreateRequired = "recreate_required"
+	// DockerProtected: the object is one of DockYard's own (#32).
+	DockerProtected = "protected"
+	// DockerConfirmationRequired: restarting it interrupts DockYard; the
+	// caller must confirm (#32).
+	DockerConfirmationRequired = "confirmation_required"
 )
 
 // ManagedContainer is the saved recreate specification of a standalone

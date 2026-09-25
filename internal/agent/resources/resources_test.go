@@ -10,10 +10,12 @@ import (
 
 	"github.com/neurekadev/dockyard/internal/agent/engine"
 	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
+	"github.com/neurekadev/dockyard/internal/agent/protect"
 	"github.com/neurekadev/dockyard/internal/agent/session"
 	"github.com/neurekadev/dockyard/internal/domain"
 	"github.com/neurekadev/dockyard/internal/jobexec"
 	"github.com/neurekadev/dockyard/internal/jobspec"
+	"github.com/neurekadev/dockyard/internal/protection"
 	"github.com/neurekadev/dockyard/internal/protocol"
 	"github.com/neurekadev/dockyard/internal/testutil"
 )
@@ -457,4 +459,102 @@ func TestImageVolumeNetworkJobs(t *testing.T) {
 	fe.Fail("volume.create", enginefake.Err("volume.create", engine.CodeEngineUnavailable, "cannot connect"))
 	res, _ = run(t, s, jobspec.VolumeCreate, protocol.VolumeCreateInput{Name: "x"})
 	failed(t, "engine down", res, "engine_unavailable")
+}
+
+// deployed is an agent service on a host running DockYard (manager, agent,
+// proxy) with the manager identity received.
+func deployed(t *testing.T) (*Service, *enginefake.Engine, enginefake.Deployment) {
+	t.Helper()
+	fe := enginefake.New("ENGINE-A")
+	d := fe.Deploy(true)
+	fe.AddImage("nginx:1.27")
+	g := protect.New(protect.Options{SelfContainerID: d.AgentID, StacksVolume: d.Stacks, Logger: testutil.Logger(t)})
+	g.SetManager("inst-1", d.ManagerID)
+	s := New(Options{Engine: func() engine.Engine { return fe }, Guard: g, Logger: testutil.Logger(t)})
+	return s, fe, d
+}
+
+// TestSelfProtectionInExecutors (#32): the agent refuses, whatever the
+// manager sent, to stop, pause, restart, update or remove itself, to stop
+// or remove the manager and its proxy (a restart only with confirmation),
+// to remove DockYard's volumes, images and networks, and to mount them (or
+// the Docker data root) into new containers. Start stays allowed.
+func TestSelfProtectionInExecutors(t *testing.T) {
+	s, fe, d := deployed(t)
+	agent := func(kind domain.JobKind, confirm bool) protocol.ResultPayload {
+		r, _ := run(t, s, kind, protocol.ContainerActionInput{Name: "dockyard-dockyard-agent-1", ID: d.AgentID, Force: true, Confirmed: confirm})
+		return r
+	}
+	manager := func(kind domain.JobKind, confirm bool) protocol.ResultPayload {
+		r, _ := run(t, s, kind, protocol.ContainerActionInput{Name: "dockyard-dockyard-manager-1", ID: d.ManagerID, Force: true, Confirmed: confirm})
+		return r
+	}
+	for _, k := range []domain.JobKind{jobspec.ContainerStop, jobspec.ContainerPause, jobspec.ContainerRemove} {
+		failed(t, "agent "+string(k), agent(k, true), protection.CodeProtected)
+		failed(t, "manager "+string(k), manager(k, true), protection.CodeProtected)
+	}
+	failed(t, "agent restart", agent(jobspec.ContainerRestart, true), protection.CodeProtected)
+	failed(t, "manager restart", manager(jobspec.ContainerRestart, false), protection.CodeConfirmationRequired)
+	ok(t, "manager restart confirmed", manager(jobspec.ContainerRestart, true))
+	ok(t, "agent start", agent(jobspec.ContainerStart, false))
+	res, _ := run(t, s, jobspec.ContainerUpdate, protocol.ContainerUpdateInput{Name: "dockyard-caddy-1", ID: d.ProxyID, RestartPolicy: "always"})
+	failed(t, "proxy update", res, protection.CodeProtected)
+	if c, _ := fe.Container(d.AgentID); !c.Details.State.Running {
+		t.Fatal("the agent was stopped")
+	}
+
+	for _, v := range []string{d.ManagerData, d.AgentState, d.Stacks, d.ProxyData} {
+		res, _ = run(t, s, jobspec.VolumeRemove, protocol.VolumeRemoveInput{Name: v})
+		failed(t, "remove volume "+v, res, protection.CodeProtected)
+	}
+	res, _ = run(t, s, jobspec.ImageRemove, protocol.ImageRemoveInput{Image: d.ManagerImage, Force: true})
+	failed(t, "remove manager image", res, protection.CodeProtected)
+	n, _ := fe.InspectNetwork(testutil.Context(t), d.Network)
+	res, _ = run(t, s, jobspec.NetworkRemove, protocol.NetworkRemoveInput{Name: d.Network, ID: n.ID})
+	failed(t, "remove DockYard network", res, protection.CodeProtected)
+
+	for _, m := range []protocol.MountSpec{
+		{Type: "volume", Source: d.ManagerData, Target: "/steal"},
+		{Type: "volume", Source: d.Stacks, Target: "/steal"},
+		{Type: "bind", Source: "/var/lib/docker/volumes", Target: "/steal"},
+		{Type: "bind", Source: "/var/lib", Target: "/steal"},
+	} {
+		res, _ = run(t, s, jobspec.ContainerCreate, protocol.ContainerCreateInput{Spec: protocol.ContainerSpec{Name: "thief", Image: "nginx:1.27",
+			Mounts: []protocol.MountSpec{m}}})
+		failed(t, "mount "+m.Source, res, protection.CodeProtected)
+	}
+	if _, found := fe.Container("thief"); found {
+		t.Fatal("a container mounting DockYard's data was created")
+	}
+	res, _ = run(t, s, jobspec.ContainerCreate, protocol.ContainerCreateInput{Spec: protocol.ContainerSpec{Name: "fine", Image: "nginx:1.27",
+		Mounts: []protocol.MountSpec{{Type: "bind", Source: "/srv/www", Target: "/www"}, {Type: "volume", Source: "fresh", Target: "/data"}}}})
+	ok(t, "unprotected mounts", res)
+
+	// The inventory shows the protections.
+	list := must[protocol.ContainerListOutput](t, s, protocol.ReqContainerList, protocol.ContainerListInput{})
+	protected := map[string]string{}
+	for _, c := range list.Containers {
+		if c.Protection != nil {
+			protected[c.Name] = c.Protection.Role
+		}
+	}
+	if len(protected) != 3 || protected["dockyard-dockyard-agent-1"] != protection.RoleAgent || protected["dockyard-caddy-1"] != protection.RoleProject {
+		t.Fatalf("protected containers %v", protected)
+	}
+	vols := must[protocol.VolumeListOutput](t, s, protocol.ReqVolumeList, protocol.VolumeListInput{})
+	n2 := 0
+	for _, v := range vols.Volumes {
+		if v.Protection != nil {
+			n2++
+		}
+	}
+	if n2 != 4 {
+		t.Fatalf("protected volumes %d: %+v", n2, vols.Volumes)
+	}
+	im := must[protocol.ImageDetails](t, s, protocol.ReqImageInspect, protocol.ImageInspectInput{Image: d.AgentImage})
+	nw := must[protocol.NetworkInfo](t, s, protocol.ReqNetworkInspect, protocol.NetworkInspectInput{Network: d.Network})
+	d2 := must[protocol.ContainerDetails](t, s, protocol.ReqContainerInspect, protocol.ContainerInspectInput{Container: d.ManagerID})
+	if im.Protection == nil || nw.Protection == nil || d2.Protection == nil || !d2.Protection.Self {
+		t.Fatalf("inspect protections %+v %+v %+v", im.Protection, nw.Protection, d2.Protection)
+	}
 }

@@ -95,6 +95,9 @@ func (s *Service) CreateContainer(ctx context.Context, p authz.Principal, env st
 	} else if err != nil {
 		return domain.Job{}, err
 	}
+	if err := s.checkMounts(ctx, env, spec.Mounts); err != nil {
+		return domain.Job{}, err
+	}
 	for i, n := range spec.Networks {
 		if slices.Contains(protocol.BuiltinNetworks, n.Name) {
 			continue
@@ -192,6 +195,9 @@ func (s *Service) ManagedSpec(ctx context.Context, env string, labels map[string
 // ContainerAction starts a container lifecycle job (start, stop, restart,
 // pause, unpause, remove) on the inspected container d.
 func (s *Service) ContainerAction(ctx context.Context, p authz.Principal, env string, kind domain.JobKind, d protocol.ContainerDetails, in protocol.ContainerActionInput, key string) (domain.Job, error) {
+	if err := s.checkContainer(d.ContainerSummary, kind, in.Confirmed); err != nil {
+		return domain.Job{}, err
+	}
 	switch kind {
 	case jobspec.ContainerStart, jobspec.ContainerStop, jobspec.ContainerRestart, jobspec.ContainerPause, jobspec.ContainerUnpause:
 	case jobspec.ContainerRemove:
@@ -228,6 +234,9 @@ func (s *Service) ContainerAction(ctx context.Context, p authz.Principal, env st
 // (restart policy, resource limits). The saved recreate specification of a
 // DockYard-managed container is updated at the same time.
 func (s *Service) UpdateContainer(ctx context.Context, p authz.Principal, env string, d protocol.ContainerDetails, in protocol.ContainerUpdateInput, key string) (domain.Job, error) {
+	if err := s.checkContainer(d.ContainerSummary, "container.update", false); err != nil {
+		return domain.Job{}, err
+	}
 	if s.StackManaged(ctx, env, d.Stack) {
 		return domain.Job{}, stackRefused("container "+d.Name, d.Stack)
 	}

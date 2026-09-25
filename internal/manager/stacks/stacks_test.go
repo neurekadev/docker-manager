@@ -1,6 +1,7 @@
 package stacks_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -556,5 +557,45 @@ func TestLocatorAndRoot(t *testing.T) {
 	}
 	if !stacks.IsDefinitionFile(st, root.DefinitionFiles, "compose.override.yaml") || stacks.IsDefinitionFile(st, root.DefinitionFiles, "html/x") {
 		t.Error("definition file classification")
+	}
+}
+
+type ownProject string
+
+func (p ownProject) ProjectProtection(_ context.Context, _, project string) (*protocol.Protection, error) {
+	if project == string(p) {
+		return &protocol.Protection{Role: "dockyard_project", Reason: "DockYard's own Compose project " + project}, nil
+	}
+	return nil, nil
+}
+
+// TestDockYardProjectIsProtected (#32): deploy, stop, restart, down and
+// removal of DockYard's own Compose project are refused before a job
+// exists; start and other stacks are unaffected.
+func TestDockYardProjectIsProtected(t *testing.T) {
+	h := newHarness(t)
+	h.svc.SetProtection(ownProject("dockyard"))
+	own := h.create("dockyard", shopYAML, shopEnv)
+	other := h.create("shop", shopYAML, shopEnv)
+	refused := func(what string, _ domain.Job, err error) {
+		t.Helper()
+		var de *domain.DockerError
+		if !errors.As(err, &de) || de.Code != domain.DockerProtected || !strings.Contains(de.Message, "DockYard") {
+			t.Errorf("%s: %v", what, err)
+		}
+	}
+	j, err := h.svc.Deploy(h.ctx, alice, own, domain.StackJobRequest{}, domain.StackDeployOptions{})
+	refused("deploy", j, err)
+	for _, action := range []string{"stop", "restart", "down"} {
+		j, err := h.svc.Operate(h.ctx, alice, own, action, domain.StackJobRequest{})
+		refused(action, j, err)
+	}
+	j, err = h.svc.Delete(h.ctx, alice, own, domain.StackJobRequest{})
+	refused("delete", j, err)
+	if _, err := h.svc.Operate(h.ctx, alice, own, "start", domain.StackJobRequest{}); err != nil {
+		t.Errorf("start: %v", err)
+	}
+	if _, err := h.svc.Deploy(h.ctx, alice, other, domain.StackJobRequest{}, domain.StackDeployOptions{}); err != nil {
+		t.Errorf("deploy another stack: %v", err)
 	}
 }

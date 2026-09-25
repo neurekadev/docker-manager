@@ -89,8 +89,11 @@ type Options struct {
 	// InstanceID is the manager instance ID, set as ownership label on
 	// containers DockYard creates.
 	InstanceID string
-	Clock      clock.Clock
-	Logger     *slog.Logger
+	// ManagerContainerID is the manager's own container ID (selfid, #32;
+	// "" when it does not run in a container).
+	ManagerContainerID string
+	Clock              clock.Clock
+	Logger             *slog.Logger
 	// Registries (#19) and Stacks (#7) are optional until those
 	// workstreams provide them.
 	Registries RegistryResolver

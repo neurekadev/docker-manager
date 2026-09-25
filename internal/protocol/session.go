@@ -79,6 +79,10 @@ const (
 	ReqAgentCredentialRotate   = "agent.credential.rotate" //nolint:gosec // G101: a request name, not a credential
 	ReqAgentDiagnostics        = "agent.diagnostics"
 	ReqEngineCompatibilityInfo = "engine.compatibility"
+	// ReqManagerIdentity tells the agent which manager instance it serves and
+	// the ID of the manager's own container, so the agent recognizes a
+	// co-located manager (#32).
+	ReqManagerIdentity = "manager.identity"
 )
 
 // Stream kinds opened with stream_open.
@@ -109,13 +113,13 @@ var requestNames = []string{
 	ReqFilesList, ReqFilesStat, ReqFilesRead, ReqFilesWrite, ReqFilesMkdir, ReqFilesConflictPreview,
 	ReqBackupSnapshots, ReqBackupContents, ReqBackupScopePreview, ReqRestorePreview,
 	ReqMaintenancePreview, ReqMigrationPreview, ReqImageLocalDigests, ReqAgentCredentialRotate,
-	ReqAgentDiagnostics, ReqEngineCompatibilityInfo,
+	ReqAgentDiagnostics, ReqEngineCompatibilityInfo, ReqManagerIdentity,
 }
 
 // mutatingRequests change state on the agent or Engine.
 var mutatingRequests = []string{
 	ReqContainerExecCreate, ReqContainerExecResize, ReqContainerExecDelete, ReqImageTag,
-	ReqFilesWrite, ReqFilesMkdir, ReqAgentCredentialRotate, ReqComposeWrite,
+	ReqFilesWrite, ReqFilesMkdir, ReqAgentCredentialRotate, ReqComposeWrite, ReqManagerIdentity,
 }
 
 var streamKinds = map[string]string{

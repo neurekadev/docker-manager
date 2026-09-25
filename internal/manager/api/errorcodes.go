@@ -74,6 +74,8 @@ func ErrorCodes() []ErrorCode {
 		{CodeNetworkInUse, http.StatusConflict, false, "Containers are attached to the network; disconnect or remove them first.", 6},
 		{CodeNetworkBuiltin, http.StatusConflict, false, "Predefined networks (bridge, host, none) cannot be removed.", 6},
 		{CodeResourceNameTaken, http.StatusConflict, false, "Another container, volume or network of the environment already uses this name.", 6},
+		{CodeProtected, http.StatusConflict, false, "The container, image, volume or network is one of DockYard's own (its agent, manager, data, stacks volume or deployment): the operation is refused for everyone, the owner included; use Docker on the host if you really must.", 32},
+		{CodeConfirmationRequired, http.StatusConflict, false, "Restarting this container interrupts DockYard (its manager or deployment); repeat the request with confirm: true.", 32},
 		{CodeUnsupportedAPIVersion, http.StatusConflict, false, "The environment's Docker Engine API version is too old for the operation; upgrade Docker Engine (25.0 or newer, see the support matrix).", 6},
 		{CodeFileExists, http.StatusConflict, false, "File manager: the name already exists (choose overwrite, skip or keep both, or another name).", 15},
 		{CodeFileConflict, http.StatusConflict, false, "File manager: the entry changed during the operation or the operation would put a directory into itself.", 15},

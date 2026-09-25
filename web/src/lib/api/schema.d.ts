@@ -701,7 +701,7 @@ export interface paths {
         put?: never;
         /**
          * Restart a container
-         * @description Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files).
+         * @description Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files). Restarting DockYard's manager (or another container of its own deployment) needs confirm: true (409 confirmation_required); the connected agent is never restarted through DockYard (409 protected).
          */
         post: operations["restart-container"];
         delete?: never;
@@ -3203,6 +3203,8 @@ export interface components {
             /** @example web */
             name: string;
             ports?: components["schemas"]["ContainerPort"][];
+            /** @description Set for DockYard's own containers (#32): stop, pause, update and removal are refused. */
+            protection?: components["schemas"]["ResourceProtection"];
             /** @description Compose project and service. */
             stack?: components["schemas"]["StackMembership"];
             /**
@@ -3404,6 +3406,15 @@ export interface components {
              * @description Maximum number of processes; -1 unlimited.
              */
             pidsLimit?: number;
+        };
+        ContainerRestartInputBody: {
+            /** @description Confirms a restart that interrupts DockYard (its manager or proxy, #32); without it such a restart answers 409 confirmation_required. */
+            confirm?: boolean;
+            /**
+             * Format: int64
+             * @description Seconds to wait before killing; default: the container's stop timeout.
+             */
+            timeoutSeconds?: number;
         };
         ContainerStopInputBody: {
             /**
@@ -4242,6 +4253,8 @@ export interface components {
             labels?: {
                 [key: string]: string;
             };
+            /** @description Set for images DockYard's own containers run (#32): removal is refused. */
+            protection?: components["schemas"]["ResourceProtection"];
             /** @description Full view. */
             repoDigests?: string[];
             /** @description References (repository:tag); empty for untagged (dangling) images. */
@@ -4562,6 +4575,8 @@ export interface components {
             };
             /** @example shop_default */
             name: string;
+            /** @description Set for DockYard's own networks (#32): removal is refused. */
+            protection?: components["schemas"]["ResourceProtection"];
             /** @description Full view of GET only. */
             removal?: components["schemas"]["Removal"];
             scope?: string;
@@ -5264,6 +5279,15 @@ export interface components {
              */
             type: string;
         };
+        ResourceProtection: {
+            reason: string;
+            /** @description A restart is allowed with an explicit confirmation (confirm: true); the UI disconnects while the manager restarts. */
+            restartAllowed: boolean;
+            /** @enum {string} */
+            role: "agent" | "manager" | "dockyard_project" | "dockyard_image" | "manager_data" | "agent_state" | "stacks" | "dockyard_volume" | "dockyard_network";
+            /** @description This installation's own agent or manager. */
+            self: boolean;
+        };
         ResourceRefDTO: {
             environmentId?: string;
             id: string;
@@ -5928,6 +5952,8 @@ export interface components {
             options?: {
                 [key: string]: string;
             };
+            /** @description Set for DockYard's own volumes (#32): removal and mounting into new containers are refused. */
+            protection?: components["schemas"]["ResourceProtection"];
             /** @description Full view of GET only. */
             removal?: components["schemas"]["Removal"];
             scope?: string;
@@ -9384,7 +9410,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["ContainerStopInputBody"];
+                "application/json": components["schemas"]["ContainerRestartInputBody"];
             };
         };
         responses: {

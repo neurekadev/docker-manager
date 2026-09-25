@@ -28,19 +28,20 @@ const (
 // volume (its files, removal, ...) shows only name, environmentId and the
 // in-use flag (view minimal).
 type Volume struct {
-	Name          string            `json:"name" example:"shop_data"`
-	EnvironmentID string            `json:"environmentId"`
-	InUse         bool              `json:"inUse" doc:"At least one container (running or not) mounts the volume."`
-	View          string            `json:"view" enum:"minimal,full"`
-	Actions       []string          `json:"actions"`
-	Driver        string            `json:"driver,omitempty" doc:"Full view."`
-	Scope         string            `json:"scope,omitempty"`
-	CreatedAt     *time.Time        `json:"createdAt,omitempty"`
-	Labels        map[string]string `json:"labels,omitempty"`
-	Options       map[string]string `json:"options,omitempty"`
-	UsedBy        []ContainerRef    `json:"usedBy,omitempty"`
-	Stack         *StackMembership  `json:"stack,omitempty"`
-	Removal       *Removal          `json:"removal,omitempty" doc:"Full view of GET only."`
+	Name          string              `json:"name" example:"shop_data"`
+	EnvironmentID string              `json:"environmentId"`
+	InUse         bool                `json:"inUse" doc:"At least one container (running or not) mounts the volume."`
+	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for DockYard's own volumes (#32): removal and mounting into new containers are refused."`
+	View          string              `json:"view" enum:"minimal,full"`
+	Actions       []string            `json:"actions"`
+	Driver        string              `json:"driver,omitempty" doc:"Full view."`
+	Scope         string              `json:"scope,omitempty"`
+	CreatedAt     *time.Time          `json:"createdAt,omitempty"`
+	Labels        map[string]string   `json:"labels,omitempty"`
+	Options       map[string]string   `json:"options,omitempty"`
+	UsedBy        []ContainerRef      `json:"usedBy,omitempty"`
+	Stack         *StackMembership    `json:"stack,omitempty"`
+	Removal       *Removal            `json:"removal,omitempty" doc:"Full view of GET only."`
 }
 
 func volumeResource(env string, v protocol.VolumeInfo, stackIDs map[string]string) authz.Resource {
@@ -48,7 +49,8 @@ func volumeResource(env string, v protocol.VolumeInfo, stackIDs map[string]strin
 }
 
 func newVolume(env string, v protocol.VolumeInfo, view authz.View, stackIDs map[string]string) Volume {
-	out := Volume{Name: v.Name, EnvironmentID: env, InUse: len(v.UsedBy) > 0, View: view.Level.String(), Actions: Actions(view)}
+	out := Volume{Name: v.Name, EnvironmentID: env, InUse: len(v.UsedBy) > 0, Protection: newProtection(v.Protection), View: view.Level.String(),
+		Actions: Actions(view)}
 	if !view.Full() {
 		return out
 	}
@@ -65,6 +67,7 @@ func newVolume(env string, v protocol.VolumeInfo, view authz.View, stackIDs map[
 func volumeRemoval(v protocol.VolumeInfo, managed bool) Removal {
 	r := newRemoval("All data in the volume is deleted permanently; DockYard cannot undo it (restore it from a backup, #10).",
 		"Exact permission rules on this volume and its files are removed.")
+	r.blockProtected(v.Protection)
 	if managed {
 		r.block(CodeStackManaged, "The volume belongs to a DockYard-managed stack; remove it from the stack instead.")
 	}

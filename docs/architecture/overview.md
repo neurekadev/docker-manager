@@ -54,7 +54,10 @@ in GitHub issues #1 (roadmap) and #25 (decision register).
 | `internal/jobexec` | Journaled step runner (shared by manager and agent) | `jobspec`, `protocol`, `faultinject` |
 | `internal/agent/jobs` | Agent job runner: fencing, fsync'd journal, reconnect report | `jobexec`, `protocol` |
 | `internal/agent/resources` | Docker resource requests and job executors (#6) over the Engine adapter | `engine`, `session`, `jobexec`, `protocol` |
-| `internal/manager/resources` | Docker resources of every environment (#6): agent requests, job requests, recreate specifications, Locators | `store`, `jobs`, `authz`, `permissions`, `protocol` |
+| `internal/manager/resources` | Docker resources of every environment (#6): agent requests, job requests, recreate specifications, Locators, self-protection checks (#32) | `store`, `jobs`, `authz`, `permissions`, `protection`, `protocol` |
+| `internal/agent/protect` | Identifies DockYard's own resources on the agent's Engine (#32) | `engine`, `session`, `protection`, `protocol` |
+| `internal/protection` | Self-protection decisions and exclusion helpers shared by manager and agent (#32) | `protocol` |
+| `internal/selfid` | ID of the container the process runs in (#32) | stdlib |
 | `internal/faultinject` | Named fault points, no-op unless built with `-tags faultinject` | stdlib |
 | `internal/db/migrations` | Versioned Bun migrations (one file each) | `bun` |
 | `internal/agent/config`, `internal/agent/runtime` | Agent configuration and main loop | `protocol`, shared |

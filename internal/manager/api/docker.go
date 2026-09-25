@@ -45,6 +45,9 @@ const (
 	CodeNetworkBuiltin        = "network_builtin"
 	CodeResourceNameTaken     = "resource_name_taken"
 	CodeRecreateRequired      = "recreate_required"
+	// Self-protection (#32).
+	CodeProtected            = "protected"
+	CodeConfirmationRequired = "confirmation_required"
 )
 
 // DockerService is the Docker resource service as seen by the API
@@ -55,6 +58,9 @@ type DockerService interface {
 	InspectContainer(ctx context.Context, env, ref string) (protocol.ContainerDetails, error)
 	ManagedSpec(ctx context.Context, env string, labels map[string]string) (*domain.ManagedContainer, *protocol.ContainerSpec, error)
 	StackManaged(ctx context.Context, env string, st *protocol.StackRef) bool
+	// ContainerProtection is the effective #32 protection of a container
+	// (the agent's annotation plus the manager's own knowledge).
+	ContainerProtection(c protocol.ContainerSummary) *protocol.Protection
 	StackIDs(ctx context.Context, env string) map[string]string
 	CreateContainer(ctx context.Context, p authz.Principal, env string, spec protocol.ContainerSpec, start bool, key string) (domain.Job, error)
 	ContainerAction(ctx context.Context, p authz.Principal, env string, kind domain.JobKind, d protocol.ContainerDetails, in protocol.ContainerActionInput, key string) (domain.Job, error)
@@ -75,6 +81,31 @@ type DockerService interface {
 	InspectNetwork(ctx context.Context, env, ref string) (protocol.NetworkInfo, error)
 	CreateNetwork(ctx context.Context, p authz.Principal, env string, in protocol.NetworkCreateInput, key string) (domain.Job, error)
 	RemoveNetwork(ctx context.Context, p authz.Principal, env string, n protocol.NetworkInfo, key string) (domain.Job, error)
+}
+
+// ResourceProtection marks one of DockYard's own containers, images,
+// volumes or networks (#32): destructive operations are refused (409
+// protected) for everyone, the owner included; host-level Docker access is
+// the escape hatch.
+type ResourceProtection struct {
+	Role           string `json:"role" enum:"agent,manager,dockyard_project,dockyard_image,manager_data,agent_state,stacks,dockyard_volume,dockyard_network"`
+	Reason         string `json:"reason"`
+	Self           bool   `json:"self" doc:"This installation's own agent or manager."`
+	RestartAllowed bool   `json:"restartAllowed" doc:"A restart is allowed with an explicit confirmation (confirm: true); the UI disconnects while the manager restarts."`
+}
+
+func newProtection(p *protocol.Protection) *ResourceProtection {
+	if p == nil {
+		return nil
+	}
+	return &ResourceProtection{Role: p.Role, Reason: p.Reason, Self: p.Self, RestartAllowed: p.RestartAllowed}
+}
+
+// blockProtected adds the #32 blocker to a removal.
+func (r *Removal) blockProtected(p *protocol.Protection) {
+	if p != nil {
+		r.block(CodeProtected, "DockYard's own resource: "+p.Reason)
+	}
 }
 
 // Removal describes what removing a resource would do (#6: clear deletion

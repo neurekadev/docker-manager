@@ -348,6 +348,25 @@ Guide: `docs/architecture/stacks.md`. Manager: `internal/manager/stacks`
   project-relative dir + project name); `protocol.StackRef` is #6's
   "which Compose project a Docker object belongs to".
 
+## Self-protection (#32)
+
+Guide: `docs/architecture/self-protection.md`. DockYard's own containers,
+images, volumes, networks and Compose project are protected for everyone
+(owner and API tokens included): `internal/protection` decides
+(`Check`, `Excluded`, `Filter`), `internal/agent/protect` identifies (agent),
+`resources.Service.ContainerProtection` / `ProjectProtection` /
+`ProtectedContainers` answer on the manager.
+
+- Every destructive feature checks both sides: the manager before a job
+  exists, the agent executor again right before acting
+  (`protection.Refusal` is a `jobexec.ClassedError`).
+- Bulk features (prune #14, updates #20, backup/restore shutdown plans #10,
+  bulk selections and migrations #35) drop protected objects with
+  `protection.Filter` and show the reason; stack deploy/down/stop (#7)
+  refuse DockYard's own project.
+- No override flag: only the co-located manager's restart takes
+  `confirm: true`.
+
 ## Adding a migration
 
 - New file `internal/db/migrations/<UTC YYYYMMDDHHMMSS>_<snake_name>.go`.

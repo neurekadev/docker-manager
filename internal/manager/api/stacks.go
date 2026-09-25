@@ -456,6 +456,8 @@ func stackErr(err error) error {
 		return stackCodeErr(se)
 	case isRegistryErr(err):
 		return registryError(err)
+	case errors.As(err, new(*domain.DockerError)):
+		return dockerErr(err) // #32: DockYard's own Compose project
 	}
 	return JobErrorFor(err)
 }

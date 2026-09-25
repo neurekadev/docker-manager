@@ -55,6 +55,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/stacks"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 	"github.com/neurekadev/dockyard/internal/protocol"
+	"github.com/neurekadev/dockyard/internal/selfid"
 )
 
 // ShutdownGrace bounds graceful HTTP shutdown.
@@ -92,6 +93,10 @@ type Options struct {
 	// GitHTTPClient overrides the HTTP client of Git credential connection
 	// tests (#33; tests trust a fake Git server's certificate).
 	GitHTTPClient *http.Client
+	// ContainerID overrides the detection of the manager's own container
+	// (selfid.Detect; #32 tells co-located agents which container is the
+	// manager). Tests set it.
+	ContainerID string
 }
 
 // Manager is a started (migrated, not yet serving) manager.
@@ -385,9 +390,14 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	// the matching registry connection (#19). Their permission Locators
 	// place Compose-stack members in their stack (#17) and a reconciler
 	// refreshes that after every (re)connect.
+	containerID := opts.ContainerID
+	if containerID == "" {
+		containerID = selfid.Detect()
+	}
+	log.Info("self-protection", "manager_container_id", containerID)
 	m.resources, err = resources.New(resources.Options{
 		DB: db, Keyring: m.keyring, Agents: hub, Jobs: m.jobs, Permissions: m.perms, Registries: m.regs, Stacks: m.stacks,
-		InstanceID: m.instance.ID, Clock: opts.Clock, Logger: log.With("component", "resources"),
+		InstanceID: m.instance.ID, ManagerContainerID: containerID, Clock: opts.Clock, Logger: log.With("component", "resources"),
 	})
 	if err != nil {
 		_ = m.metrics.Close()
@@ -397,7 +407,18 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	for _, typ := range []string{catalog.TypeContainer, catalog.TypeVolume, catalog.TypeNetwork} {
 		m.perms.RegisterLocator(typ, m.resources.Locator(typ))
 	}
+	// Stack deploy/stop/restart/down/remove refuse DockYard's own Compose
+	// project (#32).
+	m.stacks.SetProtection(m.resources)
 	hub.AddReconciler(func(ctx context.Context, s *agents.Session) error {
+		// Self-protection (#32): the agent learns which manager it serves
+		// and which container is that manager (co-located or not).
+		if s.Serves(protocol.ReqManagerIdentity) {
+			if _, err := s.Request(ctx, protocol.ReqManagerIdentity,
+				protocol.ManagerIdentityInput{InstanceID: m.instance.ID, ContainerID: containerID}, reconcileRequestTimeout); err != nil {
+				log.Warn("could not send the manager identity to the agent", "environment_id", s.EnvironmentID(), "error", err)
+			}
+		}
 		if !s.Serves(protocol.ReqContainerList) {
 			return nil // an agent without the #6 requests
 		}

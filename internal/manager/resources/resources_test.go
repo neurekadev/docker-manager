@@ -21,6 +21,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 	"github.com/neurekadev/dockyard/internal/manager/store/storetest"
+	"github.com/neurekadev/dockyard/internal/protection"
 	"github.com/neurekadev/dockyard/internal/protocol"
 	"github.com/neurekadev/dockyard/internal/testutil"
 )
@@ -276,5 +277,63 @@ func TestAgentErrorsBecomeStableCodes(t *testing.T) {
 		!svc.StackManaged(ctx, "env-1", &protocol.StackRef{Project: "shop"}) ||
 		svc.StackManaged(ctx, "env-1", &protocol.StackRef{Project: "legacy"}) || svc.StackManaged(ctx, "env-1", nil) {
 		t.Fatal("stack management")
+	}
+}
+
+// TestManagerSideProtection (#32): the manager protects DockYard's
+// containers on its own too — by the role labels and by its own container
+// ID — even when an agent does not annotate them; it reports DockYard's
+// Compose project as protected and excludes its containers from bulk
+// selections.
+func TestManagerSideProtection(t *testing.T) {
+	svc, fe, fj, _, _ := fixture(t)
+	ctx := testutil.Context(t)
+	d := fe.Deploy(true)
+	// This agent has no Guard: it annotates by labels only; the manager
+	// knows its own container.
+	svc.opts.ManagerContainerID = d.ManagerID
+	unlabeled := protocol.ContainerSummary{ID: d.ManagerID, Name: "mgr"}
+	if p := svc.ContainerProtection(unlabeled); p == nil || p.Role != protection.RoleManager || !p.Self || !p.RestartAllowed {
+		t.Fatalf("own container %+v", p)
+	}
+	if p := svc.ContainerProtection(protocol.ContainerSummary{ID: "x", Labels: map[string]string{protocol.LabelRole: "agent"}}); p == nil || p.Role != protection.RoleAgent {
+		t.Fatalf("labeled agent %+v", p)
+	}
+	if svc.ContainerProtection(protocol.ContainerSummary{ID: "y", Name: "web"}) != nil {
+		t.Fatal("user container protected")
+	}
+	p := authz.Principal{Kind: authz.KindUser, UserID: "u"}
+	for _, kind := range []domain.JobKind{jobspec.ContainerStop, jobspec.ContainerRemove, jobspec.ContainerPause} {
+		_, err := svc.ContainerAction(ctx, p, "env-1", kind, protocol.ContainerDetails{ContainerSummary: unlabeled}, protocol.ContainerActionInput{Force: true}, "")
+		var de *domain.DockerError
+		if !errors.As(err, &de) || de.Code != domain.DockerProtected {
+			t.Errorf("%s of the manager: %v", kind, err)
+		}
+	}
+	_, err := svc.ContainerAction(ctx, p, "env-1", jobspec.ContainerRestart, protocol.ContainerDetails{ContainerSummary: unlabeled}, protocol.ContainerActionInput{}, "")
+	var de *domain.DockerError
+	if !errors.As(err, &de) || de.Code != domain.DockerConfirmationRequired {
+		t.Fatalf("unconfirmed restart: %v", err)
+	}
+	if len(fj.jobs) != 0 {
+		t.Fatal("a refused action enqueued a job")
+	}
+	// DockYard's Compose project, and a user project.
+	if pp, err := svc.ProjectProtection(ctx, "env-1", "dockyard"); err != nil || pp == nil || pp.Role != protection.RoleProject {
+		t.Fatalf("dockyard project %+v %v", pp, err)
+	}
+	if pp, err := svc.ProjectProtection(ctx, "env-1", "shop"); err != nil || pp != nil {
+		t.Fatalf("user project %+v %v", pp, err)
+	}
+	kept, excluded, err := svc.ProtectedContainers(ctx, "env-1")
+	// Agent and manager by their labels, the proxy as a member of their
+	// Compose project; the user's containers stay selectable.
+	if err != nil || len(kept) != 2 || len(excluded) != 3 {
+		t.Fatalf("kept %d excluded %+v %v", len(kept), excluded, err)
+	}
+	for _, c := range kept {
+		if strings.HasPrefix(c.Name, "dockyard-") {
+			t.Errorf("DockYard container %s selectable", c.Name)
+		}
 	}
 }
