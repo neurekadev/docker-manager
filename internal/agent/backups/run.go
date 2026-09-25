@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
 
+	"github.com/neurekadev/dockyard/internal/agent/engine"
 	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
 	"github.com/neurekadev/dockyard/internal/backup"
 	"github.com/neurekadev/dockyard/internal/domain"
@@ -44,6 +44,8 @@ import (
 // shutdownRecord is the compensation's argument: what was running.
 type shutdownRecord struct {
 	Projects []projectState `json:"projects"`
+	// Containers are standalone containers (IDs) stopped by a restore.
+	Containers []string `json:"containers,omitempty"`
 }
 
 type projectState struct {
@@ -114,7 +116,7 @@ func (s *Service) stepPrepare(ctx context.Context, sc *jobexec.StepContext) erro
 			sc.Item(ctx, it.Key(), domain.ItemFailed, p.err.Error())
 		} else {
 			usable++
-			m.Paths = slashAll(p.paths)
+			m.Paths = snapPaths(p.paths)
 			m.Volumes = p.volumes
 		}
 		out.Members = append(out.Members, m)
@@ -139,14 +141,6 @@ func memberOf(in protocol.BackupRunInput, it protocol.BackupItem) backup.Member 
 		m.RequiredCapabilities = []string{"files"}
 	}
 	return m
-}
-
-func slashAll(paths []string) []string {
-	out := make([]string, 0, len(paths))
-	for _, p := range paths {
-		out = append(out, filepath.ToSlash(p))
-	}
-	return out
 }
 
 func (s *Service) stepStopContainers(ctx context.Context, sc *jobexec.StepContext) error {
@@ -312,7 +306,11 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 			_ = sc.SetOutput(ctx, out)
 			continue
 		}
-		m.SnapshotID, m.Paths, m.Volumes, m.Bytes = sum.SnapshotID, slashAll(p.paths), p.volumes, sum.TotalBytesProcessed
+		m.SnapshotID, m.Paths, m.Volumes, m.Bytes = sum.SnapshotID, snapPaths(p.paths), p.volumes, sum.TotalBytesProcessed
+		m.VolumePaths = p.volumePaths
+		if p.dir != "" {
+			m.ProjectPath = snapPath(p.dir)
+		}
 		m.State = backup.StateComplete
 		if sum.Incomplete {
 			m.State, m.ErrorClass = backup.StatePartial, "files_unreadable"
@@ -416,6 +414,23 @@ func (s *Service) resume(ctx context.Context, sc *jobexec.StepContext, rec shutd
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", p.Project, err))
 		}
+	}
+	for _, id := range rec.Containers {
+		d, err := eng.InspectContainer(ctx, id)
+		if engine.IsCode(err, engine.CodeNotFound) {
+			continue
+		}
+		if err == nil && d.State.Running {
+			continue
+		}
+		if err == nil {
+			err = eng.StartContainer(ctx, id)
+		}
+		if err != nil {
+			errs = append(errs, fmt.Errorf("container %s: %w", id, err))
+			continue
+		}
+		started = append(started, id)
 	}
 	return started, errors.Join(errs...)
 }

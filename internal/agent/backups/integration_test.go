@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -123,6 +124,54 @@ func truncatePack(t *testing.T, repo string) {
 	}
 	if err := os.Truncate(biggest, size/2); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestRestoreWithRealRestic restores a volume, a stack definition and one
+// file from snapshots written by the real restic (local repository).
+func TestRestoreWithRealRestic(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("restoring snapshot paths needs Linux (restic restores the full path's directory metadata)")
+	}
+	e := newEnv(t)
+	r := realRestic(t)
+	e.svc.opts.Restic = r
+	e.store = nil
+	const key = restoreKey
+	ref := e.repoRef()
+	out := runRealBackup(t, e, ref, key, e.credential(key))
+	members := map[string]backup.Member{}
+	for _, m := range out.Members {
+		members[m.Item] = m
+	}
+	ctx := testutil.Context(t)
+	up := filepath.Join(e.volumes, "uploads", "_data")
+	write(t, filepath.Join(up, "a.jpg"), "changed")
+	write(t, filepath.Join(up, "junk"), "junk")
+	vin := e.restoreInput(members[backup.VolumeItem("uploads")], protocol.RestoreScopeVolume)
+	if res, _, err := e.run(ctx, jobspec.RestoreRun, vin, e.credential(key), nil); err != nil || res.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("volume restore: %+v %v", res, err)
+	}
+	if read(t, filepath.Join(up, "a.jpg")) != "jpeg" || read(t, filepath.Join(up, "junk")) != "<missing>" {
+		t.Error("volume not restored")
+	}
+	index := filepath.Join(e.project, "html", "index.html")
+	write(t, index, "defaced")
+	sin := e.restoreInput(members[backup.StackItem("st-app")], protocol.RestoreScopeStack)
+	if res, _, err := e.run(ctx, jobspec.RestoreRun, sin, e.credential(key), nil); err != nil || res.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("stack restore: %+v %v", res, err)
+	}
+	if read(t, index) != "<h1>hi</h1>" {
+		t.Error("stack not restored")
+	}
+	write(t, index, "again")
+	fin := sin
+	fin.Scope, fin.File = protocol.RestoreScopeFile, snapPath(index)
+	if res, _, err := e.run(ctx, jobspec.RestoreRun, fin, e.credential(key), nil); err != nil || res.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("file restore: %+v %v", res, err)
+	}
+	if read(t, index) != "<h1>hi</h1>" {
+		t.Error("file not restored")
 	}
 }
 

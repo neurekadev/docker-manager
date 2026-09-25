@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -425,6 +426,151 @@ type BackupFileStreamInput struct {
 	SnapshotID string                `json:"snapshotId"`
 	Path       string                `json:"path"`
 	MaxBytes   int64                 `json:"maxBytes"`
+}
+
+// Restore scopes (#10).
+const (
+	// RestoreScopeStack restores a stack's project directory: Compose
+	// files, .env, workspace and relative bind data (never its volumes).
+	RestoreScopeStack = "stack"
+	// RestoreScopeVolume restores named volumes (a volume snapshot, or
+	// volumes of a stack snapshot); stack definitions stay unchanged.
+	RestoreScopeVolume = "volume"
+	// RestoreScopeFile restores one file in place.
+	RestoreScopeFile = "file"
+)
+
+// RestoreVolume is a volume to restore.
+type RestoreVolume struct {
+	Name string `json:"name"`
+	// Source is the volume's data path inside the snapshot ("" derives it
+	// from the snapshot's paths).
+	Source string `json:"source,omitempty"`
+	// ComposeProject / ComposeKey label a volume that must be created (a
+	// stack volume on a fresh host).
+	ComposeProject string `json:"composeProject,omitempty"`
+	ComposeKey     string `json:"composeKey,omitempty"`
+}
+
+// RestoreRunInput is the input of restore.run and restore.preview.
+type RestoreRunInput struct {
+	Repository BackupRepositoryRef `json:"repository"`
+	SnapshotID string              `json:"snapshotId"`
+	Scope      string              `json:"scope"`
+	// SnapshotPaths are the paths the snapshot holds (from the index).
+	SnapshotPaths []string `json:"snapshotPaths,omitempty"`
+	// Stack: the project now and its directory inside the snapshot.
+	StackID       string          `json:"stackId,omitempty"`
+	StackName     string          `json:"stackName,omitempty"`
+	Project       *ProjectRef     `json:"project,omitempty"`
+	ProjectSource string          `json:"projectSource,omitempty"`
+	Volumes       []RestoreVolume `json:"volumes,omitempty"`
+	// File: the path inside the snapshot, restored at its current place
+	// (the project directory or volume it belongs to).
+	File string `json:"file,omitempty"`
+	// Shutdown stops the affected containers during the restore and
+	// restarts the previously running ones (default on: overwriting live
+	// data under running containers is refused unless disabled).
+	Shutdown bool `json:"shutdown"`
+}
+
+// Validate checks the input's shape.
+func (in RestoreRunInput) Validate() error {
+	if err := in.Repository.Validate(); err != nil {
+		return err
+	}
+	if !ValidSnapshotID(in.SnapshotID) {
+		return errors.New("restore: invalid snapshot ID")
+	}
+	switch in.Scope {
+	case RestoreScopeStack:
+		if in.Project == nil || in.StackID == "" {
+			return errors.New("restore: a stack restore needs the stack's project")
+		}
+		if err := in.Project.Validate(); err != nil {
+			return err
+		}
+		if len(in.Volumes) > 0 || in.File != "" {
+			return errors.New("restore: a stack restore never overwrites volumes (restore them with scope volume)")
+		}
+	case RestoreScopeVolume:
+		if len(in.Volumes) == 0 || len(in.Volumes) > MaxBackupItems {
+			return fmt.Errorf("restore: 1 to %d volumes", MaxBackupItems)
+		}
+		for _, v := range in.Volumes {
+			if !ValidVolumeName(v.Name) || (v.Source != "" && !ValidSnapshotPath(v.Source)) {
+				return fmt.Errorf("restore: invalid volume %q", v.Name)
+			}
+		}
+	case RestoreScopeFile:
+		if !ValidSnapshotPath(in.File) || in.File == "/" {
+			return errors.New("restore: a file restore needs the file's absolute path in the snapshot")
+		}
+		if in.Project != nil {
+			if err := in.Project.Validate(); err != nil {
+				return err
+			}
+		}
+	default:
+		return fmt.Errorf("restore: unknown scope %q", in.Scope)
+	}
+	for _, p := range append(slices.Clone(in.SnapshotPaths), in.ProjectSource) {
+		if p != "" && !ValidSnapshotPath(p) {
+			return fmt.Errorf("restore: invalid snapshot path %q", p)
+		}
+	}
+	return nil
+}
+
+// RestoreTarget is one place a restore writes.
+type RestoreTarget struct {
+	// Kind is project, volume or file.
+	Kind   string `json:"kind"`
+	Name   string `json:"name,omitempty"`
+	Path   string `json:"path"`
+	Source string `json:"source"`
+	Exists bool   `json:"exists"`
+	// Create: the target (volume or directory) does not exist yet.
+	Create bool `json:"create,omitempty"`
+	// Counts from the snapshot and the target (bounded walks).
+	Files        int64    `json:"files"`
+	Bytes        int64    `json:"bytes"`
+	Overwritten  int64    `json:"overwritten"`
+	Removed      int64    `json:"removed"`
+	Added        int64    `json:"added"`
+	FreeBytes    int64    `json:"freeBytes" doc:"-1 when unknown"`
+	Owners       []string `json:"owners,omitempty" doc:"uid:gid pairs the restored files carry"`
+	Complete     bool     `json:"complete" doc:"false when a count hit its bound"`
+	FilesChanged int64    `json:"filesRestored,omitempty"`
+}
+
+// RestorePreviewInput is the input of restore.preview.
+type RestorePreviewInput struct {
+	Input      RestoreRunInput       `json:"input"`
+	Credential *RepositoryCredential `json:"credential"`
+}
+
+// RestorePreviewOutput is the output of restore.preview.
+type RestorePreviewOutput struct {
+	Targets   []RestoreTarget     `json:"targets"`
+	Affected  []AffectedContainer `json:"affectedContainers"`
+	Conflicts []string            `json:"conflicts,omitempty"`
+	Warnings  []string            `json:"warnings,omitempty"`
+	// Blocked explains why the restore cannot run (protected containers,
+	// insufficient space, unresolvable paths).
+	Blocked []string `json:"blocked,omitempty"`
+}
+
+// RestoreRunOutput is the result output of restore.run.
+type RestoreRunOutput struct {
+	Scope    string          `json:"scope"`
+	Targets  []RestoreTarget `json:"targets"`
+	Shutdown *ShutdownReport `json:"shutdown,omitempty"`
+	// RedeploySuggested: a stack's definition was restored; deploy it
+	// explicitly to apply it (nothing is redeployed implicitly).
+	RedeploySuggested bool   `json:"redeploySuggested,omitempty"`
+	RollbackPath      string `json:"rollbackPath,omitempty"`
+	KeyGeneration     int    `json:"keyGeneration,omitempty"`
 }
 
 var snapshotIDRE = regexp.MustCompile(`^[0-9a-f]{8,64}$`)

@@ -155,10 +155,15 @@ type Member struct {
 	SnapshotTime  time.Time `json:"snapshotTime,omitzero"`
 	Paths         []string  `json:"paths,omitempty"`
 	Volumes       []string  `json:"volumes,omitempty"`
-	Consistency   string    `json:"consistency,omitempty"`
-	State         string    `json:"state"`
-	ErrorClass    string    `json:"errorClass,omitempty"`
-	Bytes         int64     `json:"bytes,omitempty"`
+	// ProjectPath is the stack's project directory and VolumePaths each
+	// volume's data directory as stored in the snapshot (restores map
+	// them to the current places).
+	ProjectPath string            `json:"projectPath,omitempty"`
+	VolumePaths map[string]string `json:"volumePaths,omitempty"`
+	Consistency string            `json:"consistency,omitempty"`
+	State       string            `json:"state"`
+	ErrorClass  string            `json:"errorClass,omitempty"`
+	Bytes       int64             `json:"bytes,omitempty"`
 	// RequiredCapabilities are what an agent needs to restore the member
 	// (e.g. "files", "compose").
 	RequiredCapabilities []string `json:"requiredCapabilities,omitempty"`

@@ -184,6 +184,38 @@ Verification (`backup.verify`, `manager.verify`) runs `restic check`, with
 `repository_damaged`. Each repository has an editable verification
 schedule (#13 kind `backup_verification`, disabled until enabled).
 
+## Restores (host data)
+
+`POST /backups/{id}/restore-previews` and `.../restores` (`confirm: true`)
+restore from a stack or volume snapshot on the agent of the environment the
+data lives in now (a stack migrated since, #35, is restored where it is when
+the repository is S3):
+
+| Scope | Restores | Never |
+| --- | --- | --- |
+| `stack` | the project directory: Compose files, `.env`, workspace and relative bind data | volumes; redeploying (the output suggests a deploy; the definition is recorded as an observed revision) |
+| `volume` | named volumes (a volume snapshot, or some or all volumes of a stack snapshot); a missing volume is created (with Compose's labels for a stack volume) | the stack definition |
+| `file` | one file in place (below the project directory or a volume) | anything outside the stack and its volumes (download it instead) |
+
+The snapshot records where the project directory and each volume were
+(`projectPath`, `volumePaths`), and `restore.run` maps them to their current
+places. The preview reports targets, files and bytes, how many files are
+overwritten, removed and added, the owners the files carry, free space, the
+containers that stop, and what blocks the restore (running containers
+without shutdown, DockYard's own containers, insufficient space, paths that
+cannot be restored). The job stops every container using the data (Compose
+projects in reverse dependency order, standalone containers directly) after
+journaling the restart compensation, restores into a staging directory next
+to each target (same filesystem), then swaps: the target's entries move to
+a rollback directory and the staged entries into place; any failure moves
+the original entries back. Only the previously running containers start
+again, dependencies first. A crash mid-swap leaves
+`.dockyard-rollback-<job>` next to the target (the job's recovery guidance
+says so). Authorization: `backup.restore` on the backup **and** on every
+target (stack, volumes, repository). Manager-state snapshots answer
+`manager_restore_required`: the owner restores them with the manager
+restore procedure.
+
 ## Jobs and locks
 
 | Kind | Executor | Locks | Steps |
@@ -191,6 +223,7 @@ schedule (#13 kind `backup_verification`, disabled until enabled).
 | `backup.run` | agent | host S, stack X, volume S, repository S | prepare, stop_containers, snapshot, start_containers, record |
 | `backup.retention` | agent | host S, repository X | forget, prune_repository |
 | `backup.verify` | agent | host S, repository S | check |
+| `restore.run` | agent | host S, stack X, volume X, repository S | prepare, stop_containers, restore_data, start_containers |
 | `manager.backup` | manager | repository X | snapshot_database, backup, write_manifest |
 | `manager.retention` | manager | repository X | forget, prune_repository |
 | `manager.verify` | manager | repository S | check |
