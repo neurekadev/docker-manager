@@ -117,6 +117,12 @@ type Options struct {
 	// MigrationReconnectWait overrides how long a migration's transfer
 	// waits for a disconnected agent (#35; tests, 0 = the default).
 	MigrationReconnectWait time.Duration
+	// AgentSession tunes the agent session protocol (#3; zero values use the
+	// protocol constants). Tests on a fake clock set a heartbeat timeout
+	// longer than any clock jump they make: a jump delivers none of the
+	// heartbeats real time would have carried, so the default watchdog
+	// would close idle agent sessions.
+	AgentSession agents.SessionOptions
 	// Restic overrides the manager's restic runner (#10; tests use
 	// restictest).
 	Restic restic.Opener
@@ -314,7 +320,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	m.events = events.New(opts.Clock)
 	m.agents, err = agents.New(agents.Options{
 		DB: db, Clock: opts.Clock, Logger: log.With("component", "agents"), Keyring: m.keyring, Bus: m.events,
-		ManagerVersion: buildinfo.Get().Version, PublicURL: cfg.PublicURL, Audit: m.audit,
+		ManagerVersion: buildinfo.Get().Version, PublicURL: cfg.PublicURL, Audit: m.audit, Session: opts.AgentSession,
 	})
 	if err != nil {
 		return nil, err

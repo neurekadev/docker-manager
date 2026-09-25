@@ -17,6 +17,7 @@ import (
 	"github.com/descope/virtualwebauthn"
 
 	"github.com/neurekadev/dockyard/internal/clock"
+	"github.com/neurekadev/dockyard/internal/manager/agents"
 	"github.com/neurekadev/dockyard/internal/manager/auth/password"
 	"github.com/neurekadev/dockyard/internal/manager/auth/totp"
 	"github.com/neurekadev/dockyard/internal/manager/config"
@@ -33,6 +34,10 @@ const (
 	publicHost   = "docker.example.com"
 	cookieName   = "__Host-dockyard_session"
 )
+
+// testHeartbeatTimeout outlasts every fake-clock jump of these tests (the
+// longest are a few days).
+const testHeartbeatTimeout = 30 * 24 * time.Hour
 
 // cheapParams keep Argon2id fast in tests (production: password.Current).
 var cheapParams = &password.Params{Memory: 64, Iterations: 1, Parallelism: 1, SaltLength: 16, KeyLength: 32}
@@ -63,6 +68,11 @@ func newEnv(t *testing.T, with ...func(*Options)) *env {
 	opts := Options{
 		Config: cfg, Logger: e.secrets.CaptureLogger(t), UI: testUI, Clock: e.clk,
 		PasswordParams: cheapParams, OnPasswordCompute: func() { e.computes.Add(1) },
+		// Tests jump the fake clock by minutes to days (step-up windows,
+		// schedules, TTLs) while agents stay connected; a jump carries none
+		// of the heartbeats that real time would, so the watchdog must not
+		// expire within any jump a test makes.
+		AgentSession: agents.SessionOptions{HeartbeatTimeout: testHeartbeatTimeout},
 	}
 	for _, f := range with {
 		f(&opts)

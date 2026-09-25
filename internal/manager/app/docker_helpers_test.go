@@ -233,7 +233,7 @@ func (e *env) runJob(id string) domain.Job {
 		select {
 		case <-ch:
 		case <-ctx.Done():
-			t.Fatalf("job %s stuck in %s", id, j.State)
+			t.Fatalf("job %s stuck in %s (blocked reason %q, by %q)", id, j.State, j.BlockedReason, j.BlockedBy)
 		}
 	}
 }
