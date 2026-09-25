@@ -634,7 +634,11 @@ func (s *stackSim) migrationPreview(ctx context.Context, raw json.RawMessage) (a
 	platform := id.OS + "/" + id.Arch
 	if in.Role == protocol.RoleSource {
 		if in.Source.Stack == nil {
-			return nil, &session.HandlerError{Code: protocol.CodeUnsupportedRequest, Message: "the devstack simulates stack migrations only"}
+			v, err := s.volumeFacts(ctx, in.Source.Volume)
+			if err != nil {
+				return nil, err
+			}
+			return protocol.MigrationPreviewOutput{Source: &protocol.MigrationSourceFacts{Platform: platform, Volume: v}}, nil
 		}
 		f, err := s.sourceFacts(ctx, *in.Source.Stack)
 		if err != nil {
@@ -681,6 +685,31 @@ func (s *stackSim) migrationRefuse(context.Context, json.RawMessage) (any, error
 
 func (s *stackSim) migrationCleanup(context.Context, json.RawMessage) (any, error) {
 	return protocol.MigrationCleanupOutput{Removed: []string{}}, nil
+}
+
+// volumeFacts describes a standalone volume on the source (#35 volume
+// migrations): its driver, a nominal size and the containers using it.
+func (s *stackSim) volumeFacts(ctx context.Context, name string) (*protocol.MigrationVolumeFacts, error) {
+	fe := s.host.engine
+	v, err := fe.InspectVolume(ctx, name)
+	if err != nil {
+		return nil, &session.HandlerError{Code: protocol.CodeNotFound, Message: "no such volume: " + name}
+	}
+	facts := &protocol.MigrationVolumeFacts{Name: v.Name, Driver: v.Driver, Exists: true, Labels: v.Labels,
+		Supported: v.Driver == "" || v.Driver == "local", Bytes: 256 << 20, Entries: 812}
+	if !facts.Supported {
+		facts.Reason = "the volume driver " + v.Driver + " keeps its data outside the host"
+	}
+	cs, _ := fe.ListContainers(ctx, engine.ContainerFilter{All: true})
+	for _, c := range cs {
+		for _, m := range c.Mounts {
+			if m.Type == "volume" && m.Name == v.Name {
+				facts.UsedBy = append(facts.UsedBy, protocol.MigrationContainerUse{Name: strings.TrimPrefix(c.Names[0], "/"),
+					Running: c.State == "running", Project: c.Labels[protocol.ComposeProjectLabel]})
+			}
+		}
+	}
+	return facts, nil
 }
 
 func (s *stackSim) sourceFacts(ctx context.Context, ref protocol.ProjectRef) (*protocol.MigrationProjectFacts, error) {
