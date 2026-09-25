@@ -18,6 +18,7 @@ import (
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
 	"github.com/neurekadev/dockyard/internal/agent/observe"
 	"github.com/neurekadev/dockyard/internal/agent/protect"
+	agentprune "github.com/neurekadev/dockyard/internal/agent/prune"
 	agentres "github.com/neurekadev/dockyard/internal/agent/resources"
 	"github.com/neurekadev/dockyard/internal/agent/session"
 	"github.com/neurekadev/dockyard/internal/agent/state"
@@ -111,11 +112,17 @@ func (e *env) connectAgentWith(name string, fe *enginefake.Engine, guard *protec
 
 	res := agentres.New(agentres.Options{Engine: func() engine.Engine { return fe }, Logger: testutil.Logger(t), Guard: guard,
 		ManagedStackDir: func(dir string) bool { return strings.HasPrefix(dir, stacksRoot+"/") }})
-	execs := res.Executors()
+	// Prune policies (#14), as the runtime wires them.
+	pr := agentprune.New(agentprune.Options{Engine: func() engine.Engine { return fe }, Guard: guard, Clock: e.clk, Logger: testutil.Logger(t),
+		ManagedStackDir: func(dir string) bool { return strings.HasPrefix(dir, stacksRoot+"/") }})
+	execs := append(res.Executors(), pr.Executor())
 	// Container logs and exec sessions (#8), as the runtime wires them.
 	cio := agentio.New(agentio.Options{Engine: func() agentio.Engine { return fe }, Clock: e.clk, Logger: testutil.Logger(t)})
 	requests := res.Requests()
 	for k, v := range cio.Requests() {
+		requests[k] = v
+	}
+	for k, v := range pr.Requests() {
 		requests[k] = v
 	}
 	a := &testAgent{env: er.EnvironmentID, engine: fe, done: make(chan error, 1)}

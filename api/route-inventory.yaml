@@ -1602,13 +1602,31 @@ routes:
     kind: json
     status: planned
   - method: GET
+    path: /api/v1/maintenance-defaults
+    operationId: get-maintenance-defaults
+    capability: settings.read
+    scope: instance
+    owner: 14
+    kind: json
+    status: implemented
+    notes: Suggested prune rules for new policies and each category's Engine limitations.
+  - method: PATCH
+    path: /api/v1/maintenance-defaults
+    operationId: update-maintenance-defaults
+    capability: settings.manage
+    scope: instance
+    owner: 14
+    kind: json
+    status: implemented
+    notes: If-Match.
+  - method: GET
     path: /api/v1/maintenance-policies
     operationId: list-maintenance-policies
     capability: maintenance_policy.read
     scope: resource
     owner: 14
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: /api/v1/maintenance-policies
     operationId: create-maintenance-policy
@@ -1616,7 +1634,7 @@ routes:
     scope: environment
     owner: 14
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/maintenance-policies/{policyId}"
     operationId: get-maintenance-policy
@@ -1624,7 +1642,7 @@ routes:
     scope: resource
     owner: 14
     kind: json
-    status: planned
+    status: implemented
   - method: PATCH
     path: "/api/v1/maintenance-policies/{policyId}"
     operationId: update-maintenance-policy
@@ -1632,7 +1650,7 @@ routes:
     scope: resource
     owner: 14
     kind: json
-    status: planned
+    status: implemented
     notes: If-Match.
   - method: DELETE
     path: "/api/v1/maintenance-policies/{policyId}"
@@ -1641,7 +1659,7 @@ routes:
     scope: resource
     owner: 14
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/maintenance-policies/{policyId}/previews"
     operationId: create-maintenance-policy-preview
@@ -1649,7 +1667,7 @@ routes:
     scope: resource
     owner: 14
     kind: json
-    status: planned
+    status: implemented
   - method: POST
     path: "/api/v1/maintenance-policies/{policyId}/runs"
     operationId: create-maintenance-policy-run
@@ -1657,7 +1675,7 @@ routes:
     scope: resource
     owner: 14
     kind: json
-    status: planned
+    status: implemented
     notes: 202 + job; Idempotency-Key; background preference.
   - method: GET
     path: /api/v1/backup-repositories

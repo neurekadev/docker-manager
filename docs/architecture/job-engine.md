@@ -101,7 +101,9 @@ is an ancestor of the other (segment-wise prefix: `/a` covers `/a/b`, not
   (`pull`: `DOCKYARD_JOB_MAX_CONCURRENT_PULLS`, default 2; `build`:
   `DOCKYARD_JOB_MAX_CONCURRENT_BUILDS`, default 1).
 - Prune takes shared `*` locks and must revalidate each candidate right
-  before deleting it; it therefore runs alongside deploys but waits for (and
+  before deleting it. Its shared `*` stack lock (#14) serializes it with
+  deploys, builds, updates, migrations, backup shutdowns and restores (their
+  exclusive stack locks), and it waits for (and
   blocks) exclusive volume/image/network/container work such as a volume
   restore.
 
@@ -141,7 +143,7 @@ S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
 | `manager.backup` | manager | `manager.backup` | `repository` **X** (repository targets) | `snapshot_database` (i,c) → `backup` (c) | — | — | — | interrupt |
 | `network.create` | agent | `network.create` | `host` S (each environment)<br>`network` **X** (network targets) | `create` (c) | 10m | — | — | — |
 | `network.remove` | agent | `network.remove` | `host` S (each environment)<br>`network` **X** (network targets) | `remove` (i,c) | 10m | — | — | — |
-| `prune.run` | agent | `maintenance.run` | `host` S (each environment)<br>`container` S (all (`*`))<br>`image` S (all (`*`))<br>`network` S (all (`*`))<br>`volume` S (all (`*`)) | `collect_candidates` (i,c) → `delete_candidates` (i,c) | 1h | — | — | — |
+| `prune.run` | agent | `maintenance.run` | `host` S (each environment)<br>`stack` S (all (`*`))<br>`container` S (all (`*`))<br>`image` S (all (`*`))<br>`network` S (all (`*`))<br>`volume` S (all (`*`)) | `collect_candidates` (i,c) → `delete_candidates` (i,c) | 1h | — | — | — |
 | `restore.run` | agent | `backup.restore` | `host` S (each environment)<br>`stack` **X** (stack targets, optional)<br>`volume` **X** (volume targets, optional)<br>`file_path` **X** (destination_path targets, optional)<br>`repository` S (repository targets) | `prepare` (i,c) → `stop_containers` (i,c) → `restore_data` (c) → `start_containers` (i) | 1h | — | `start_containers` | — |
 | `stack.build` | agent | `stack.build` | `host` S (each environment)<br>`stack` **X** (stack targets) | `fetch_sources` (i,c) → `build_images` (i,c) | 30m | build | — | — |
 | `stack.deploy` | agent | `stack.deploy` | `host` S (each environment)<br>`stack` **X** (stack targets) | `resolve_sources` (i,c) → `pull_images` (i,c) → `build_images` (i,c) → `apply` (i,c) | 30m | — | — | — |

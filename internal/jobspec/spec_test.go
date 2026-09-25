@@ -294,7 +294,17 @@ func TestMatrixSemantics(t *testing.T) {
 		{"volume restore vs prune", mustLocks(t, RestoreRun, "e1", vol("data"), repo), mustLocks(t, PruneRun, "e1"), true},
 		{"volume restore vs file write on volume", mustLocks(t, RestoreRun, "e1", vol("data"), repo),
 			mustLocks(t, FilesDelete, "e1", vol("data"), path("/var/lib/docker/volumes/data/_data/x")), true},
-		{"prune vs deploy", mustLocks(t, PruneRun, "e1"), deployWeb, false},
+		// #14: prune is serialized with deployments, builds, updates,
+		// migrations, backup shutdowns and restores (a deploy's freshly
+		// pulled image has no container yet, so revalidation alone
+		// cannot protect it).
+		{"prune vs deploy", mustLocks(t, PruneRun, "e1"), deployWeb, true},
+		{"prune vs stack build", mustLocks(t, PruneRun, "e1"), mustLocks(t, StackBuild, "e1", stack("web")), true},
+		{"prune vs update", mustLocks(t, PruneRun, "e1"), mustLocks(t, UpdateRun, "e1", stack("web")), true},
+		{"prune vs backup with shutdown", mustLocks(t, PruneRun, "e1"), mustLocks(t, BackupRun, "e1", stack("web"), repo), true},
+		{"prune vs image pull", mustLocks(t, PruneRun, "e1"),
+			mustLocks(t, ImagePull, "e1", domain.JobTarget{Type: domain.TargetImage, ID: "nginx:1"}), true},
+		{"prune vs deploy on another environment", mustLocks(t, PruneRun, "e1"), mustLocks(t, StackDeploy, "e2", stack("web")), false},
 		{"prune vs prune", mustLocks(t, PruneRun, "e1"), mustLocks(t, PruneRun, "e1"), false},
 		{"prune vs volume remove", mustLocks(t, PruneRun, "e1"), mustLocks(t, VolumeRemove, "e1", vol("data")), true},
 		{"backups share a repository", mustLocks(t, BackupRun, "e1", vol("a"), repo), mustLocks(t, BackupRun, "e2", vol("b"), repo), false},

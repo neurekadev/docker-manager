@@ -29,7 +29,7 @@ func (c *Client) ListContainers(ctx context.Context, f ContainerFilter) ([]Conta
 	if len(f.IDs) > 0 {
 		filters.Add("id", f.IDs...)
 	}
-	res, err := c.api.ContainerList(ctx, client.ContainerListOptions{All: f.All, Filters: filters})
+	res, err := c.api.ContainerList(ctx, client.ContainerListOptions{All: f.All, Size: f.Size, Filters: filters})
 	if err != nil {
 		return nil, wrap("container.list", err)
 	}
@@ -45,6 +45,7 @@ func (c *Client) ListContainers(ctx context.Context, f ContainerFilter) ([]Conta
 			State:   string(s.State),
 			Status:  s.Status,
 			Labels:  s.Labels,
+			SizeRw:  s.SizeRw,
 		}
 		if s.Health != nil {
 			ct.Health = string(s.Health.Status)
@@ -54,6 +55,12 @@ func (c *Client) ListContainers(ctx context.Context, f ContainerFilter) ([]Conta
 		}
 		for _, m := range s.Mounts {
 			ct.Mounts = append(ct.Mounts, mountFrom(m))
+		}
+		if s.NetworkSettings != nil {
+			for n := range s.NetworkSettings.Networks {
+				ct.Networks = append(ct.Networks, n)
+			}
+			sort.Strings(ct.Networks)
 		}
 		out = append(out, ct)
 	}

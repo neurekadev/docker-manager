@@ -119,6 +119,9 @@ type Deps struct {
 	// previews and the cross-policy schedule view; nil answers those
 	// routes with 503 (after authorization).
 	Schedules ScheduleService
+	// Maintenance serves prune policies, previews, runs and the suggested
+	// default rules (#14); nil answers those routes with 503.
+	Maintenance MaintenanceService
 }
 
 func (d Deps) clock() clock.Clock {
@@ -184,6 +187,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerBuilds(a, deps)
 	registerContainerIO(a, deps)
 	registerSchedules(a, deps)
+	registerMaintenance(a, deps)
 	return a
 }
 

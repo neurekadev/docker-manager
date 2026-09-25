@@ -42,6 +42,11 @@ type Engine struct {
 	// whenever an event is appended.
 	events []engine.Event
 	notify chan struct{}
+	// Prune support (#14): build cache records, volume sizes and container
+	// writable-layer sizes.
+	buildCache  map[string]*engine.BuildCacheRecord
+	volumeSizes map[string]int64
+	sizes       map[string]int64
 }
 
 // ExecInstance is an exec instance created with CreateExec (the fake
@@ -72,12 +77,15 @@ func New(engineID string) *Engine {
 	e := &Engine{
 		identity: engine.Identity{EngineID: engineID, Name: "fake-" + engineID, Version: "29.8.1", APIVersion: "1.56",
 			MinAPIVersion: "1.24", NegotiatedAPIVersion: "1.56", OS: "linux", Arch: "amd64", DockerRootDir: "/var/lib/docker"},
-		now:        func() time.Time { return time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC) },
-		containers: map[string]*Container{},
-		images:     map[string]*Image{},
-		volumes:    map[string]*engine.Volume{},
-		networks:   map[string]*engine.Network{},
-		failures:   map[string][]error{},
+		now:         func() time.Time { return time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC) },
+		containers:  map[string]*Container{},
+		images:      map[string]*Image{},
+		volumes:     map[string]*engine.Volume{},
+		networks:    map[string]*engine.Network{},
+		failures:    map[string][]error{},
+		buildCache:  map[string]*engine.BuildCacheRecord{},
+		volumeSizes: map[string]int64{},
+		sizes:       map[string]int64{},
 	}
 	for _, n := range []string{"bridge", "host", "none"} {
 		id := e.newID("net-" + n)
@@ -299,7 +307,11 @@ func (e *Engine) summary(c *Container) engine.Container {
 	d := c.Details
 	out := engine.Container{ID: d.ID, Names: []string{d.Name}, Image: d.Image, ImageID: d.ImageID, Command: c.Command,
 		Created: d.Created, State: d.State.Status, Status: d.State.Status, Labels: maps.Clone(d.Labels), Ports: slices.Clone(d.Ports),
-		Mounts: slices.Clone(d.Mounts)}
+		Mounts: slices.Clone(d.Mounts), SizeRw: e.sizes[d.ID]}
+	for n := range d.Networks {
+		out.Networks = append(out.Networks, n)
+	}
+	sort.Strings(out.Networks)
 	if d.State.Health != nil {
 		out.Health = d.State.Health.Status
 	}

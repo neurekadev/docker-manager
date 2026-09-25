@@ -276,11 +276,18 @@ func catalogSpecs() []Spec {
 		{
 			Kind: PruneRun, Summary: "Prune unused containers, images, networks, volumes and build cache",
 			Capability: "maintenance.run", Executor: domain.ExecutorAgent,
+			// Shared locks on every stack, container, image, network and
+			// volume of the environment: a prune runs alongside other
+			// prunes and reads, but waits for (and holds back) deploys,
+			// builds, updates, pulls, migrations, backup shutdowns and
+			// restores, which take exclusive locks (#14, #26).
 			Locks: []LockRule{hostShared(),
+				all(domain.LockStack, shared),
 				all(domain.LockContainer, shared), all(domain.LockImage, shared),
 				all(domain.LockNetwork, shared), all(domain.LockVolume, shared)},
 			OfflineDeadline: deadlineScheduled,
-			// delete revalidates every candidate immediately before removing it.
+			// delete revalidates every candidate immediately before
+			// removing it and honors cancellation between items.
 			Steps: []Step{idem("collect_candidates"), idem("delete_candidates")},
 		},
 

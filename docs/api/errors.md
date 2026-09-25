@@ -105,6 +105,10 @@ same change.
 | `ambiguous_git_credential` | 409 | no | Several Git credentials match the repository equally well (same host and path prefix length); name one explicitly (`gitCredentialId`). | #33 |
 | `git_credential_revoked` | 409 | no | The Git credential selected for the repository is revoked; DockYard never falls back to anonymous access. Set a new token or select another credential. | #33 |
 | `build_definition_name_taken` | 409 | no | Another build definition in this environment already uses this name. | #33 |
+| `maintenance_policy_name_taken` | 409 | no | Another maintenance policy in this environment already uses this name. | #14 |
+| `maintenance_policy_empty` | 409 | no | The maintenance policy has no enabled rule; enable at least one rule before running it. | #14 |
+| `maintenance_run_active` | 409 | no | A run of the maintenance policy is still queued or running; follow that job instead of starting another run. | #14 |
+| `prune_confirmation_required` | 409 | no | A manual prune run deletes resources and cannot be undone: review a preview and repeat the request with `confirm: true`. | #14 |
 | `registry_connection_revoked` | 409 | no | The registry connection selected for the image is revoked; DockYard never falls back to anonymous access. Rotate a new credential into it or select another connection. | #19 |
 | `stack_managed` | 409 | no | The container, volume or network belongs to a DockYard-managed stack: change the stack's Compose definition (or use the stack's operations) instead of editing or removing it directly. | #6 |
 | `container_running` | 409 | no | The container is running; stop it first or remove it with `force=true`. | #6 |
