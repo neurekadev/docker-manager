@@ -17,6 +17,8 @@ web/src/
   lib/api/client.ts           typed client, unwrap(), ApiRequestError
   lib/api/queries.ts          query keys, queryOptions factories, QueryClient
   lib/lazy/                   the only entry points to CodeMirror/ECharts/xterm.js
+  lib/live/                   live stream client, query-key conventions,
+                              liveStatus, critical-work registry (#23)
   lib/pwa/                    SW rules, registration/update flow, connectivity,
                               manifest, notices
 web/static/                   copied verbatim (icons, favicon.ico, robots.txt)
@@ -86,8 +88,8 @@ against a built manager (below) or the E2E stack.
 5. Writes use `createMutation` and invalidate by key prefix
    (`queryClient.invalidateQueries({ queryKey: queryKeys.stacks })`).
    Mutations are never retried automatically; dangerous retries use the
-   API's idempotency keys (#4). Live invalidation from the manager event
-   stream is #23.
+   API's idempotency keys (#4). Reads stay current through the live
+   stream (below): build their query keys with `liveKeys`.
 
 Rules: the browser talks only to same-origin `/api/v1` (never an agent or
 Docker socket); tokens and secrets never go to `localStorage`,
@@ -118,9 +120,18 @@ Docker socket); tokens and secrets never go to `localStorage`,
   offline fallback. Details and rationale: ADR 0002.
 - **Updates**: a new build installs in the background and waits. The
   *App update* notice offers *Reload to update* (applies it and reloads once)
-  or *Later*; nothing reloads on its own. Views with critical unsaved state
-  (#15 editor, #19 terminal, #10 restore) must keep working until the user
-  chooses to reload.
+  or *Later*; nothing reloads on its own. While critical work is registered
+  (`criticalWork` from `$lib/live`: an unsaved editor buffer, a live
+  terminal, an in-progress restore or upload) the button is disabled, the
+  notice says what is still open and `applyUpdate()` refuses, also when the
+  new worker took control meanwhile: register it for as long as a reload
+  would destroy it:
+
+  ```ts
+  import { criticalWork } from '$lib/live';
+  const release = criticalWork.register('unsaved-edit', path); // on first edit
+  release(); // after save or discard (idempotent)
+  ```
 - **Offline**: the *Connection status* notice shows when the browser is
   offline or the manager is unreachable (network failure or a bare
   502/503/504 from the proxy). Queries pause while offline and refetch on
@@ -145,6 +156,57 @@ E2E_BASE_URL=http://localhost:8080 npm --prefix e2e test -- tests/pwa.spec.ts
 The HTTPS-only assertions (and the stream helper tests, which need the echo
 fixture) fail in this mode; CI runs everything behind Caddy
 ([testing/harness.md](testing/harness.md#browser-e2e)).
+
+## Live data (#23)
+
+The root layout starts one live client per tab (`startLive(queryClient)`,
+`src/lib/live`): a single `EventSource` on `/api/v1/live/stream`
+([streams.md](api/streams.md#live-invalidation-stream-23)) whose events
+invalidate the affected Svelte Query keys. Views do not subscribe to
+anything themselves; they only have to
+
+1. **key their queries by the conventions** in `src/lib/live/keys.ts`
+   (build them with `liveKeys`):
+
+   | data | key |
+   | --- | --- |
+   | a list of a topic | `liveKeys.list('stacks', filters)` → `['stacks', 'list', filters]` (refreshed at most every second) |
+   | an instance-wide resource | `liveKeys.item('stacks', stackId, 'revisions')` → `['stacks', 'item', id, …]` (stacks, jobs, environments, agents, policies, backups, registries, settings, permissions) |
+   | a Docker object | `liveKeys.item('containers', envId, name, 'logs')` (containers, images, volumes, networks are named per environment) |
+   | charts | `liveKeys.metrics(envId, …)` (at most every 10 s) |
+   | a stack's containers | `liveKeys.stackServices(stackId)` (refreshed on container events) |
+   | scoped files | `liveKeys.files({kind: 'stack', id: stackId}, 'list' \| 'stat' \| 'content', path)`; volumes use `id: '<envId>/<volume>'` |
+   | the caller's permissions | `liveKeys.myPermissions` |
+
+2. **declare open file views** so their changes arrive and volumes stay
+   watched: `liveClient()?.setScopes({ stackIds: [id], volumes: ['e1/pgdata'] })`
+   (the client reconnects from its cursor; nothing is lost);
+3. **keep editor buffers**: a refetched `content` query with a different
+   `etag` is an external change: keep the unsaved buffer, show the
+   conflict and save only with `If-Match` of the loaded ETag (the API
+   answers `412` with the current ETag; #15). Never overwrite the buffer
+   from the query.
+
+What the client does: a non-resumed `hello` invalidates every query (fresh
+snapshot); reconnects resume from the last applied cursor with exponential
+backoff and jitter (1–30 s); duplicate or older ids are ignored; `reset`
+invalidates everything (or one environment's keys); `permissions.changed`
+calls `queryClient.clear()` at once, refetches `/me/permissions` and
+reconnects; `close session_expired` stops until `liveClient()?.reconnectNow()`
+(after signing in); three failed connections within a minute switch to
+polling (details every 10 s, lists and metrics every 30 s) until the stream
+is back.
+
+**`liveStatus`** (`src/lib/live/status.svelte.ts`) is the interface for the
+shell (#22): reactive `state` (`idle`, `connecting`, `live`,
+`reconnecting`, `polling`, `unauthenticated`, `stopped`), `since`,
+`lastEventAt`, `failures`, `environments` (`{ [envId]: 'online' |
+'offline' }` from agent events) and `stale` (anything but `live`: data may
+be behind; keep showing it, say so). Only the live client writes it.
+
+Tests: `client.spec.ts` (cursor resume, gap and environment resets,
+dedupe, revocation clearing, polling, throttling), `keys.spec.ts`
+(invalidation map, critical work); end to end `e2e/tests/live.spec.ts`.
 
 ## Lazy-loaded libraries
 

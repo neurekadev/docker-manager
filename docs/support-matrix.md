@@ -180,3 +180,57 @@ volume as a volume (stacks are browsed per stack, where the Compose source
 rules apply) and every volume mounted by DockYard's own containers (label
 `dev.neureka.dockyard.role`), answering `409 volume_files_unsupported`
 ([files.md](api/files.md#volumes)).
+
+## File watching (#23)
+
+The agent watches the file scopes the manager declares (`files.watch`):
+every stack's project directory, and each volume with an open file view
+(a live stream's `volume` filter, or 5 minutes after a listing). Changes
+reach open views through the live stream ([streams.md](api/streams.md#file-changes));
+external edits of a stack's Compose files become revisions (#25 Q1).
+Implementation: `internal/agent/watch`; protocol:
+[agent-v1.md](protocol/agent-v1.md#fs_invalidation-and-rescan-15-23).
+
+| filesystem of the scope | how | target (#25 Q5) |
+| --- | --- | --- |
+| local filesystems of the Docker data root (ext4, xfs, btrfs, zfs, …) | inotify, one kernel watch per directory, debounced 200 ms; a safety reconciliation every 10 min and right after a kernel queue overflow | visible within 2 s at p95 |
+| NFS, SMB/CIFS, FUSE, Ceph, Lustre, GPFS, 9p, AFS (statfs magic) | polled: bounded reconciliation scan every 30 s | within 60 s |
+| scopes beyond the watch budget, or an agent without kernel notifications | polled like remote filesystems (`reason: watch_limit` / `notify_unavailable` in the `files.watch` answer and the manager log) | within 60 s |
+| non-local volume drivers, DockYard's own volumes, the stacks volume as a volume | not watched (not served by the file manager, #28) | — |
+
+**Measured latency** (`TestRealFilesystemLatency`, `internal/agent/watch`:
+file create, append, rename and delete in a root and a nested directory,
+real kernel notifier, 49 changes, time from the change to the
+invalidation):
+
+| platform | notifier | p50 | p95 | max |
+| --- | --- | --- | --- | --- |
+| windows/amd64 (development machine, NTFS) | ReadDirectoryChangesW | 200.6 ms | 200.9 ms | 201.0 ms |
+| linux/amd64 (CI runner, ext4) | inotify | pending: runs in the `go` CI job, not executed while GitHub Actions is unavailable | | |
+
+The latency is dominated by the 200 ms debounce; the manager's coalescing
+window (250 ms, first event immediate) and the live stream add network
+time only. The end-to-end check through the proxies is
+`e2e/tests/live.spec.ts` (written; needs an agent environment).
+
+**Watch limits.** inotify watches are per user and shared by every root
+process on the host (containers included): `fs.inotify.max_user_watches`
+defaults to 8 192 on older kernels and scales with memory (up to 1 048 576)
+since Linux 5.11. The agent uses at most `DOCKYARD_WATCH_MAX` watches,
+default half the kernel limit, clamped to 1 024 – 524 288 (8 192 when the
+limit cannot be read). One watch per directory of every watched scope;
+nested scopes share watches. A scope that does not fit is polled as a whole
+and holds no watches; the kernel's own `ENOSPC` is treated the same. Each
+watch costs about 1 KiB of unswappable kernel memory. For large trees raise
+the host limit (`sysctl fs.inotify.max_user_watches=524288`) and
+`DOCKYARD_WATCH_MAX`.
+
+**Scan budgets.** A reconciliation scan walks at most 200 000 entries per
+scope (without following symlinks) and keeps one 64-bit hash per
+directory (names, sizes, modification times and modes of its entries), not
+per file; the directories past the budget are not compared (the scope
+reports `scan_truncated`; inotify still covers them in inotify mode, and
+listings are always read live). A manager `rescan` (after a lost
+notification sequence) walks at most 200 000 entries. One agent watches at
+most 4 096 scopes; one invalidation names at most 256 paths (more become a
+whole-scope overflow).
