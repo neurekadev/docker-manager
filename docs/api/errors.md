@@ -142,10 +142,19 @@ same change.
 | `no_update_candidates` | 409 | no | Nothing to update: no checked candidate with a new host-platform digest (run a check first; quarantined and failed candidates are not applied). | #20 |
 | `update_source_drift` | 409 | no | The stack's definition on disk differs from the applied revision (undeployed changes); deploy it first. An update never deploys an edit or writes a file. | #20 |
 | `update_preview_stale` | 409 | no | The candidates, digests or the stack's definition changed since the given preview; preview again. | #20 |
+| `backup_repository_name_taken` | 409 | no | Another backup repository already uses this name. | #10 |
+| `backup_policy_name_taken` | 409 | no | Another backup policy already uses this name. | #10 |
+| `backup_repository_in_use` | 409 | no | A backup policy uses the repository; change or delete the policy first. | #10 |
+| `recovery_key_not_confirmed` | 409 | no | The Recovery Key has not been confirmed (re-entered) for the repository yet; confirm it before policies can use or enable it. | #10 |
+| `key_rotation_in_progress` | 409 | no | A Recovery Key rotation is still moving repository locations to the new key; wait until no location is pending. | #10 |
+| `nothing_to_retry` | 409 | no | Every member of the backup set completed; there is nothing to retry. | #10 |
+| `backup_repository_error` | 409 | no | The backup repository could not be read (missing, Recovery Key rejected, storage refused access, locked or damaged); the message names the class and what to do. | #10 |
+| `backup_not_a_file` | 409 | no | Only regular files can be downloaded from a backup (not directories, links or special files). | #10 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
 | `length_required` | 411 | no | Uploads need a `Content-Length` header. | #15 |
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |
 | `payload_too_large` | 413 | no | The request body exceeds the route's documented limit. | #2 |
+| `backup_file_too_large` | 413 | no | The file in the backup is larger than the download limit (2 GiB); restore it instead. | #10 |
 | `unsupported_media_type` | 415 | no | The `Content-Type` is not accepted by the route. | #2 |
 | `range_not_satisfiable` | 416 | no | The `Range` of a single-file download lies outside the file; `Content-Range` carries its size. | #15 |
 | `validation_failed` | 422 | no | One or more inputs are invalid; `details` lists each field. | #2 |
@@ -153,6 +162,8 @@ same change.
 | `content_digest_mismatch` | 422 | no | The uploaded bytes do not match `X-DockYard-Content-SHA256`; nothing was written. | #15 |
 | `invalid_definition` | 422 | no | The Compose definition does not validate (syntax, paths or unsupported features); `details` lists each finding. | #7 |
 | `definition_too_large` | 422 | no | The Compose definition exceeds its bounds (256 KiB per file, 512 KiB and 32 files in total). | #7 |
+| `recovery_key_mismatch` | 422 | no | The re-entered Recovery Key is well-formed but is not the instance's (pending or current) key. | #10 |
+| `recovery_key_malformed` | 422 | no | The Recovery Key has a typo: its length or checksum is wrong (DYRK- followed by 13 groups of four characters). | #10 |
 | `version_unsupported` | 426 | no | Agent routes: the agent's protocol or version is outside the manager's window (same or previous minor release, never newer than the manager); upgrade as the message says. | #3 |
 | `precondition_required` | 428 | no | The edit requires an `If-Match` header with the resource's current `ETag`. | #4 |
 | `rate_limited` | 429 | yes | Too many requests; retry after the `Retry-After` delay. | #2 |

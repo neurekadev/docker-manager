@@ -72,8 +72,24 @@ type Project struct {
 	DefinitionFiles []string
 	// Binds are the resolved bind mounts of the enabled services.
 	Binds []Bind
+	// Volumes are the named-volume mounts of the enabled services and
+	// AnonymousVolumes their anonymous volume mounts (backups, #10).
+	Volumes          []VolumeMount
+	AnonymousVolumes []VolumeMount
 
 	model *types.Project
+}
+
+// VolumeMount is a volume mount of a service. Name is the Docker volume
+// name (the project-scoped name or the external name); it is empty for
+// anonymous volumes, whose names only the containers know.
+type VolumeMount struct {
+	Service  string
+	Key      string
+	Name     string
+	Target   string
+	External bool
+	ReadOnly bool
 }
 
 // Bind is a bind mount of a service (Source is an absolute host path).
@@ -179,8 +195,21 @@ func LoadProject(ctx context.Context, spec ProjectSpec) (*Project, error) {
 			defs = append(defs, ef.Path)
 		}
 		for _, v := range s.Volumes {
-			if v.Type == types.VolumeTypeBind {
+			switch v.Type {
+			case types.VolumeTypeBind:
 				p.Binds = append(p.Binds, Bind{Service: name, Source: v.Source, Target: v.Target, ReadOnly: v.ReadOnly})
+			case types.VolumeTypeVolume:
+				if v.Source == "" {
+					p.AnonymousVolumes = append(p.AnonymousVolumes, VolumeMount{Service: name, Target: v.Target, ReadOnly: v.ReadOnly})
+					continue
+				}
+				vc := model.Volumes[v.Source]
+				vn := vc.Name
+				if vn == "" {
+					vn = model.Name + "_" + v.Source
+				}
+				p.Volumes = append(p.Volumes, VolumeMount{Service: name, Key: v.Source, Name: vn, Target: v.Target,
+					External: bool(vc.External), ReadOnly: v.ReadOnly})
 			}
 		}
 	}

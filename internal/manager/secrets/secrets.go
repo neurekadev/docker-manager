@@ -76,6 +76,14 @@ func GenerateKey(r io.Reader) (Key, error) {
 // ID is a non-secret fingerprint of the key, safe to log and store.
 func (k Key) ID() string { return k.id }
 
+// Bytes returns a copy of the raw key material. Only the backup key bundle
+// (#10, #24: the key sealed under a Recovery Key-derived key inside
+// manager-state backups) and key file writing use it.
+func (k Key) Bytes() []byte { return append([]byte(nil), k.raw...) }
+
+// Primary returns the sealing key.
+func (kr *Keyring) Primary() Key { return kr.primary }
+
 // Keyring seals with a primary key and opens with any known key.
 type Keyring struct {
 	primary Key

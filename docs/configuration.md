@@ -40,6 +40,8 @@ Sources: `internal/manager/config`, `internal/agent/config`,
 | `DOCKYARD_METRICS_MAX_SERIES` | `5000` | Maximum number of metric series (one per environment host, filesystem and container; 100..1000000). Samples of new containers beyond it are dropped (hosts are always kept). |
 | `DOCKYARD_FILES_MAX_UPLOAD_MB` | `2048` | Largest file-manager upload in MiB (1 to 2048; agents never accept more than 2 GiB). The reverse proxy's request body limit must allow it (#27); larger data goes in as an archive to extract (#15). |
 | `DOCKYARD_MIGRATION_BANDWIDTH_LIMIT` | `0` | Bandwidth cap of environment migrations (#35) through the manager, in bytes per second: `0` (unlimited), a number of bytes or a number with a unit (`KB`, `MB`, `GB`, `KiB`, `MiB`, `GiB`, optionally `/s`), e.g. `50MB`; at least 1 KiB/s. One cap shared by all running migrations. |
+| `DOCKYARD_BACKUP_LOCAL_ROOTS` | empty | Comma-separated absolute directories (mounted into the manager) that local backup repositories on the manager may live in (#10). A local manager repository must be below one of them and outside the data directory. Empty: only S3 repositories can hold the manager state. |
+| `DOCKYARD_RESTIC_BINARY` | `/usr/local/bin/restic` | The pinned, checksum-verified restic of the image (#10). Restic's cache and temporary files live in `<data dir>/restic-cache` and `<data dir>/tmp`. |
 
 ### Secret-protection key
 
@@ -49,7 +51,9 @@ keys, TOTP seeds, …) with XChaCha20-Poly1305 under this key
 the manager generates it with mode 0600 at `DOCKYARD_SECRET_KEY_FILE`.
 
 - Back it up together with the data volume; without it encrypted settings are
-  unrecoverable. Portable recovery is designed in #24.
+  unrecoverable. DockYard's manager-state backups (#10, #24) carry it sealed
+  under a key derived from the Recovery Key, so the Recovery Key alone
+  recovers it on a fresh manager (`docs/architecture/backups.md`).
 - Operators may keep it outside the data volume, for example as a Docker
   secret: create it with `openssl rand -base64 32 > secret.key`, mount it and
   set `DOCKYARD_SECRET_KEY_FILE=/run/secrets/dockyard_secret_key`.
@@ -93,6 +97,9 @@ Manager-state backups (#10) leave it out by default.
 | `DOCKYARD_STACKS_VOLUME` | `dockyard_stacks` | Local named volume holding one directory per stack (#28). Must be mounted into the agent at its identical path (see "Host storage layout" in `docs/deployment.md`). |
 | `DOCKYARD_STACK_ROOTS` | empty | Comma-separated extra host directories with stacks (absolute, non-overlapping, at most 16), each bind-mounted into the agent at the identical path. Verified at startup like the stacks volume; a root that fails is refused on its own. |
 | `DOCKYARD_HOST_PROC` | `/proc` | procfs the host telemetry is read from (#5). CPU, memory, load and uptime are host-wide in any procfs; network rates come from `<proc>/1/net/dev`, i.e. the host's interfaces only when the agent shares the host's PID namespace (`pid: host`) or network (`network_mode: host`). See "Host telemetry" in `docs/architecture/metrics.md`. |
+| `DOCKYARD_BACKUP_LOCAL_ROOTS` | empty | Comma-separated absolute directories (mounted into the agent) that local backup repositories of this environment may live in (#10). A location outside them, or overlapping a stack root or Docker's data root (backup sources), is refused (`path_not_allowed`, `repository_inside_source`). |
+| `DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST` | empty | Comma-separated host paths outside stack project directories that backup policies may opt into (for example bind sources like `../data` or `/srv/shared`, #10). A path is backed up only when the policy opts in **and** it lies below an entry here; it must be mounted into the agent at the same path. System paths (`/`, `/proc`, `/sys`, `/dev`, `/run`, `/boot`) and Docker's data root are never allowed. |
+| `DOCKYARD_RESTIC_BINARY` | `/usr/local/bin/restic` | As for the manager; restic's cache and temporary files live in `<state dir>/restic-cache` and `<state dir>/tmp`. |
 | `DOCKYARD_LOG_LEVEL` | `info` | As for the manager. |
 | `DOCKYARD_LOG_FORMAT` | `json` | As for the manager. |
 

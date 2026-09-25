@@ -194,6 +194,19 @@ const (
 	CodeUnsupportedFile   = "unsupported_file"
 	CodeUnsupportedVolume = "unsupported_volume"
 	CodeDigestMismatch    = "digest_mismatch"
+	// Backup codes (#10): the restic error classes of internal/restic and
+	// the agent's own refusals of a repository location.
+	CodeRepositoryNotFound     = "repository_not_found"
+	CodeRecoveryKeyRejected    = "recovery_key_rejected"
+	CodeRepositoryLocked       = "repository_locked"
+	CodeRepositoryDamaged      = "repository_damaged"
+	CodeStorageAccessDenied    = "storage_access_denied"
+	CodeStorageUnreachable     = "storage_unreachable"
+	CodeSnapshotNotFound       = "snapshot_not_found"
+	CodeResticUnavailable      = "restic_unavailable"
+	CodeResticFailed           = "restic_failed"
+	CodePathNotAllowed         = "path_not_allowed"
+	CodeRepositoryInsideSource = "repository_inside_source"
 )
 
 var errorCodes = []string{
@@ -202,6 +215,9 @@ var errorCodes = []string{
 	CodeBusy, CodeStreamLimit, CodeTooLarge, CodeEngineUnavailable, CodeEngineError,
 	CodeInvalidArgument, CodeUnsupportedAPIVersion, CodeCancelled, CodeInternal,
 	CodeAlreadyExists, CodeNotDirectory, CodeIsDirectory, CodeUnsupportedFile, CodeUnsupportedVolume, CodeDigestMismatch,
+	CodeRepositoryNotFound, CodeRecoveryKeyRejected, CodeRepositoryLocked, CodeRepositoryDamaged, CodeStorageAccessDenied,
+	CodeStorageUnreachable, CodeSnapshotNotFound, CodeResticUnavailable, CodeResticFailed, CodePathNotAllowed,
+	CodeRepositoryInsideSource,
 }
 
 // ErrorCodes returns every error frame code.

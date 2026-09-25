@@ -34,6 +34,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/neurekadev/dockyard/internal/agent/backups"
 	"github.com/neurekadev/dockyard/internal/agent/builds"
 	"github.com/neurekadev/dockyard/internal/agent/compose"
 	"github.com/neurekadev/dockyard/internal/agent/config"
@@ -57,6 +58,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/jobexec"
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/protocol"
+	"github.com/neurekadev/dockyard/internal/restic"
 	"github.com/neurekadev/dockyard/internal/selfid"
 )
 
@@ -127,6 +129,11 @@ type Options struct {
 	// ContainerIO serves container logs and exec sessions (#8): the
 	// container.logs and container.exec.* requests and streams.
 	ContainerIO bool
+	// Backups serves backups (#10): the backup.* executors, requests and
+	// the backup.file stream, running restic (Config.ResticBinary).
+	Backups bool
+	// Restic overrides the restic runner of backups (tests).
+	Restic restic.Opener
 	// TokenPoll is how often a handed-over enrollment token is looked for
 	// (default DefaultTokenPoll).
 	TokenPoll time.Duration
@@ -290,7 +297,56 @@ func New(opts Options) (*Agent, error) {
 		a.enableContainerIO()
 	}
 	a.enableMigration()
+	if opts.Backups {
+		a.enableBackups()
+	}
 	return a, nil
+}
+
+// enableBackups wires backups (#10): requests, the backup.file stream and
+// the backup.* executors. Explicitly configured handlers win.
+func (a *Agent) enableBackups() {
+	cfg := a.opts.Config
+	opener := a.opts.Restic
+	if opener == nil {
+		bin := cfg.ResticBinary
+		if bin == "" {
+			bin = config.DefaultResticBinary
+		}
+		opener = &restic.Runner{Binary: bin, CacheDir: filepath.Join(cfg.StateDir, "restic-cache"),
+			TempDir: filepath.Join(cfg.StateDir, "tmp"), Logger: a.log.With("component", "restic")}
+	}
+	svc := backups.New(backups.Options{
+		Engine: a.Engine,
+		Loader: func() backups.Loader {
+			if c := a.Compose(); c != nil {
+				return c
+			}
+			return nil
+		},
+		Storage:           func() *storage.Result { return a.Capabilities().Storage },
+		Guard:             a.guard,
+		Restic:            opener,
+		LocalRoots:        cfg.BackupLocalRoots,
+		ExternalAllowlist: cfg.BackupExternalAllowlist,
+		Clock:             a.opts.Clock,
+		Logger:            a.log.With("component", "backups"),
+	})
+	reqs := svc.Requests()
+	maps.Copy(reqs, a.opts.Requests)
+	a.opts.Requests = reqs
+	streams := svc.Streams()
+	maps.Copy(streams, a.opts.Streams)
+	a.opts.Streams = streams
+	own := map[domain.JobKind]bool{}
+	for _, x := range a.opts.Executors {
+		own[x.Kind] = true
+	}
+	for _, x := range svc.Executors() {
+		if !own[x.Kind] {
+			a.opts.Executors = append(a.opts.Executors, x)
+		}
+	}
 }
 
 // enableMigration wires environment migration (#35): the migration.*

@@ -1001,6 +1001,23 @@ func (e *Engine) CreateVolume(_ context.Context, spec engine.VolumeSpec) (engine
 	return *v, nil
 }
 
+// SetVolumeMountpoint moves a volume's data directory (tests point it at
+// a temporary directory) and updates the containers mounting it.
+func (e *Engine) SetVolumeMountpoint(name, mountpoint string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if v, ok := e.volumes[name]; ok {
+		v.Mountpoint = mountpoint
+	}
+	for _, c := range e.containers {
+		for i := range c.Details.Mounts {
+			if c.Details.Mounts[i].Type == "volume" && c.Details.Mounts[i].Name == name {
+				c.Details.Mounts[i].Source = mountpoint
+			}
+		}
+	}
+}
+
 // AddVolume adds a volume with labels (seeding).
 func (e *Engine) AddVolume(name string, labels map[string]string) {
 	_, _ = e.CreateVolume(context.Background(), engine.VolumeSpec{Name: name, Labels: labels})

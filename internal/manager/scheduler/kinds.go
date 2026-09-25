@@ -100,7 +100,7 @@ func BuiltinKinds() []Kind {
 			JobKinds: []domain.JobKind{jobspec.PruneRun}},
 		{Key: KindBackupVerification, Label: "Repository verification", Suggested: "0 5 * * 0", CatchUp: domain.CatchUpOnce,
 			PolicyType: catalog.TypeBackupRepository, ReadCapability: "backup_repository.read",
-			JobKinds: []domain.JobKind{jobspec.BackupVerify}},
+			JobKinds: []domain.JobKind{jobspec.BackupVerify, jobspec.ManagerVerify}},
 	}
 }
 

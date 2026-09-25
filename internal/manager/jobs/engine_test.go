@@ -28,7 +28,7 @@ func TestEnqueueValidation(t *testing.T) {
 		"array input":         {jobs.Request{Kind: jobspec.StackDeploy, Principal: user("a"), EnvironmentID: "e1", Targets: []domain.JobTarget{stack("s")}, Input: json.RawMessage(`[1]`)}, domain.ErrJobInvalid},
 		"trailing input":      {jobs.Request{Kind: jobspec.StackDeploy, Principal: user("a"), EnvironmentID: "e1", Targets: []domain.JobTarget{stack("s")}, Input: json.RawMessage(`{}{}`)}, domain.ErrJobInvalid},
 		"invalid principal":   {jobs.Request{Kind: jobspec.StackDeploy, Principal: authz.Principal{Kind: authz.KindUser}, EnvironmentID: "e1", Targets: []domain.JobTarget{stack("s")}}, domain.ErrJobInvalid},
-		"manager kind without executor": {jobs.Request{Kind: jobspec.BackupRetention, Principal: user("a"),
+		"manager kind without executor": {jobs.Request{Kind: jobspec.ManagerRetention, Principal: user("a"),
 			Targets: []domain.JobTarget{repo("r")}}, domain.ErrJobKindUnavailable},
 		"long idempotency key": {jobs.Request{Kind: jobspec.StackDeploy, Principal: user("a"), EnvironmentID: "e1", Targets: []domain.JobTarget{stack("s")},
 			IdempotencyKey: strings.Repeat("k", 129)}, domain.ErrJobInvalid},

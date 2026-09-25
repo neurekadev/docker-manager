@@ -41,10 +41,11 @@ const (
 	S3SecretKey        Kind = "s3-secret-key" //nolint:gosec // G101: a kind name, not a credential
 	EnvValue           Kind = "env-value"
 	TOTPSeed           Kind = "totp-seed"
+	RecoveryKey        Kind = "recovery-key"
 )
 
 // Kinds lists every kind.
-var Kinds = []Kind{Password, APIToken, RegistryCredential, S3AccessKey, S3SecretKey, EnvValue, TOTPSeed}
+var Kinds = []Kind{Password, APIToken, RegistryCredential, S3AccessKey, S3SecretKey, EnvValue, TOTPSeed, RecoveryKey}
 
 // MinLength is the shortest value Register accepts: shorter values produce
 // false positives and weak encoded fragments.
@@ -183,6 +184,9 @@ func Generate(kind Kind) string {
 	case TOTPSeed:
 		// RFC 4648 base32, 32 characters (160 bits) like typical TOTP seeds.
 		return "CANARY" + randBase32(26)
+	case RecoveryKey:
+		// Shaped like a DockYard Recovery Key (#10): grouped base32.
+		return "DYRK-CANARY-" + randBase32(4) + "-" + randBase32(4) + "-" + randBase32(4) + "-" + randBase32(4)
 	}
 	return "canary-" + string(kind) + "-" + randHex(12)
 }

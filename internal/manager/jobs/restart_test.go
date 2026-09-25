@@ -33,11 +33,11 @@ func TestManagerRestartRecovery(t *testing.T) {
 	fx := &jobstest.Effects{}
 	retEntered, bkEntered := make(chan struct{}), make(chan struct{})
 	register(t, h.eng,
-		simWithBlock(jobspec.BackupRetention, fx, "prune_repository", retEntered, make(chan struct{})),
+		simWithBlock(jobspec.ManagerRetention, fx, "prune_repository", retEntered, make(chan struct{})),
 		simWithBlock(jobspec.ManagerBackup, fx, "backup", bkEntered, make(chan struct{})),
-		sim(jobspec.BackupVerify, fx))
+		sim(jobspec.ManagerVerify, fx))
 	svc := authz.Service()
-	ret := h.enqueue(jobs.Request{Kind: jobspec.BackupRetention, Principal: svc, Targets: []domain.JobTarget{repo("r1")}})
+	ret := h.enqueue(jobs.Request{Kind: jobspec.ManagerRetention, Principal: svc, Targets: []domain.JobTarget{repo("r1")}})
 	bk := h.enqueue(jobs.Request{Kind: jobspec.ManagerBackup, Principal: svc, Targets: []domain.JobTarget{repo("r2")}})
 	h.disp.Connect("e1")
 	ag := h.enqueue(jobs.Request{Kind: jobspec.StackDeploy, EnvironmentID: "e1", Targets: []domain.JobTarget{stack("web")}})
@@ -47,7 +47,7 @@ func TestManagerRestartRecovery(t *testing.T) {
 	cmd := h.commands("e1")[0]
 	h.ack("e1", cmd, protocol.AckPayload{Accepted: true})
 	// verify waits behind retention's exclusive repository lock.
-	ver := h.enqueue(jobs.Request{Kind: jobspec.BackupVerify, Principal: svc, Targets: []domain.JobTarget{repo("r1")}})
+	ver := h.enqueue(jobs.Request{Kind: jobspec.ManagerVerify, Principal: svc, Targets: []domain.JobTarget{repo("r1")}})
 	h.dispatch()
 	h.wantState(ver.ID, domain.JobBlocked)
 
@@ -59,7 +59,7 @@ func TestManagerRestartRecovery(t *testing.T) {
 
 	// Restart.
 	h.eng = h.newEngine()
-	register(t, h.eng, sim(jobspec.BackupRetention, fx), sim(jobspec.ManagerBackup, fx), sim(jobspec.BackupVerify, fx))
+	register(t, h.eng, sim(jobspec.ManagerRetention, fx), sim(jobspec.ManagerBackup, fx), sim(jobspec.ManagerVerify, fx))
 	if err := h.eng.Recover(h.ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -131,11 +131,11 @@ func TestManagerJobLifecycle(t *testing.T) {
 	}
 
 	// A failing step fails the job with guidance.
-	failing := jobstest.SimExecutor(jobspec.BackupVerify, jobstest.SimOptions{Effects: fx, Before: map[string]func(context.Context, *jobexec.StepContext) error{
+	failing := jobstest.SimExecutor(jobspec.ManagerVerify, jobstest.SimOptions{Effects: fx, Before: map[string]func(context.Context, *jobexec.StepContext) error{
 		"check": func(context.Context, *jobexec.StepContext) error { return context.DeadlineExceeded },
 	}})
 	register(t, h.eng, failing)
-	v := h.enqueue(jobs.Request{Kind: jobspec.BackupVerify, Targets: []domain.JobTarget{repo("r")}})
+	v := h.enqueue(jobs.Request{Kind: jobspec.ManagerVerify, Targets: []domain.JobTarget{repo("r")}})
 	h.dispatch()
 	h.eng.Wait()
 	if fj := h.wantState(v.ID, domain.JobFailed); fj.ErrorClass != domain.ErrorStepFailed || fj.Recovery == "" {

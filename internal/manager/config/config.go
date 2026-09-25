@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -52,6 +53,9 @@ const (
 	EnvFilesMaxUploadMB = "DOCKYARD_FILES_MAX_UPLOAD_MB"
 
 	EnvMigrationBandwidthLimit = "DOCKYARD_MIGRATION_BANDWIDTH_LIMIT"
+	// Backups (#10).
+	EnvBackupLocalRoots = "DOCKYARD_BACKUP_LOCAL_ROOTS"
+	EnvResticBinary     = "DOCKYARD_RESTIC_BINARY"
 )
 
 // Defaults.
@@ -165,6 +169,45 @@ type Config struct {
 	// MigrationBandwidthLimit caps the data environment migrations relay
 	// through the manager, in bytes per second (#35; 0: unlimited).
 	MigrationBandwidthLimit int64
+	// BackupLocalRoots are the directories local backup repositories on
+	// the manager may live in (#10); ResticBinary the pinned restic.
+	BackupLocalRoots []string
+	ResticBinary     string
+}
+
+// DefaultResticBinary is where the image installs restic (#10).
+const DefaultResticBinary = "/usr/local/bin/restic"
+
+// ResticCacheDir is restic's cache inside the data directory.
+func (c Config) ResticCacheDir() string { return filepath.Join(c.DataDir, "restic-cache") }
+
+// ResticTempDir holds restic's temporary files inside the data directory.
+func (c Config) ResticTempDir() string { return filepath.Join(c.DataDir, "tmp") }
+
+// parseRoots parses a comma-separated list of absolute, distinct
+// directories other than "/".
+func parseRoots(raw string) ([]string, error) {
+	var out []string
+	for _, f := range strings.Split(raw, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		if !strings.HasPrefix(f, "/") || strings.Contains(f, "\\") || strings.Contains("/"+f+"/", "/../") {
+			return nil, fmt.Errorf("%q must be an absolute path without \"..\"", f)
+		}
+		c := path.Clean(f)
+		if c == "/" {
+			return nil, fmt.Errorf("%q: the filesystem root is not allowed", f)
+		}
+		for _, o := range out {
+			if o == c {
+				return nil, fmt.Errorf("%q is listed twice", c)
+			}
+		}
+		out = append(out, c)
+	}
+	return out, nil
 }
 
 // DatabasePath is the SQLite database file inside the data directory.
@@ -252,6 +295,14 @@ func Load(src envconfig.Source) (Config, error) {
 
 	if cfg.MigrationBandwidthLimit, err = transfer.ParseRate(src.String(EnvMigrationBandwidthLimit, "0")); err != nil {
 		errs = append(errs, fmt.Errorf("%s: %w", EnvMigrationBandwidthLimit, err))
+	}
+
+	if cfg.BackupLocalRoots, err = parseRoots(src.String(EnvBackupLocalRoots, "")); err != nil {
+		errs = append(errs, fmt.Errorf("%s: %w", EnvBackupLocalRoots, err))
+	}
+	cfg.ResticBinary = src.String(EnvResticBinary, DefaultResticBinary)
+	if !filepath.IsAbs(cfg.ResticBinary) && !strings.HasPrefix(cfg.ResticBinary, "/") {
+		errs = append(errs, fmt.Errorf("%s: %q must be an absolute path", EnvResticBinary, cfg.ResticBinary))
 	}
 
 	if len(errs) > 0 {

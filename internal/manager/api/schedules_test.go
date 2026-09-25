@@ -73,7 +73,7 @@ func newScheduleFixture(t *testing.T, pol *authztest.Policy) scheduleFixture {
 		t.Fatal(err)
 	}
 	prune, _ := jobspec.Lookup(jobspec.PruneRun)
-	backup, _ := jobspec.Lookup(jobspec.BackupVerify)
+	backup, _ := jobspec.Lookup(jobspec.ManagerVerify)
 	if err := sched.Register(scheduler.KindPrune, apiPolicySource{kind: prune, policies: []scheduler.PolicySchedule{
 		{PolicyID: "pol-a", Name: "Env 1 cleanup", EnvironmentID: "env-1", Cron: "30 2 * * *", TimeZone: "America/New_York", Enabled: true},
 		{PolicyID: "pol-b", Name: "Env 2 cleanup", EnvironmentID: "env-2", Cron: "0 3 * * 0", TimeZone: "UTC", Enabled: false},

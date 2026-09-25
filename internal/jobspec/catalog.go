@@ -65,7 +65,9 @@ const (
 	FilesMove     domain.JobKind = "files.move"
 	FilesDelete   domain.JobKind = "files.delete"
 
-	ManagerBackup domain.JobKind = "manager.backup"
+	ManagerBackup    domain.JobKind = "manager.backup"
+	ManagerRetention domain.JobKind = "manager.retention"
+	ManagerVerify    domain.JobKind = "manager.verify"
 )
 
 // Compensation names shared by several kinds.
@@ -349,15 +351,32 @@ func catalogSpecs() []Spec {
 				step("start_containers", true, false, "")},
 			Compensations: []Compensation{compStartContainers},
 		},
+		// Backup repositories keep one restic repository per scope (#10):
+		// an environment's data is written, pruned and checked by its agent
+		// (backup.*), the manager's state by the manager (manager.*).
 		{
-			Kind: BackupRetention, Summary: "Apply a retention policy (forget and prune) to a repository",
+			Kind: BackupRetention, Summary: "Apply a policy's retention (forget and prune) to an environment's repository",
+			Capability: "backup.retention", Executor: domain.ExecutorAgent,
+			Locks:           []LockRule{hostShared(), target(domain.LockRepository, exclusive, domain.TargetRepository)},
+			OfflineDeadline: deadlineScheduled,
+			Steps:           []Step{idem("forget"), idem("prune_repository")},
+		},
+		{
+			Kind: BackupVerify, Summary: "Verify an environment's backup repository",
+			Capability: "backup.verify", Executor: domain.ExecutorAgent,
+			Locks:           []LockRule{hostShared(), target(domain.LockRepository, shared, domain.TargetRepository)},
+			OfflineDeadline: deadlineScheduled,
+			Steps:           []Step{idem("check")},
+		},
+		{
+			Kind: ManagerRetention, Summary: "Apply a policy's retention (forget and prune) to the manager-state repository",
 			Capability: "backup.retention", Executor: domain.ExecutorManager,
 			Locks:            []LockRule{target(domain.LockRepository, exclusive, domain.TargetRepository)},
 			Steps:            []Step{idem("forget"), idem("prune_repository")},
 			OnManagerRestart: RestartResume,
 		},
 		{
-			Kind: BackupVerify, Summary: "Verify a repository's integrity",
+			Kind: ManagerVerify, Summary: "Verify the manager-state backup repository",
 			Capability: "backup.verify", Executor: domain.ExecutorManager,
 			Locks:            []LockRule{target(domain.LockRepository, shared, domain.TargetRepository)},
 			Steps:            []Step{idem("check")},
@@ -375,7 +394,8 @@ func catalogSpecs() []Spec {
 			Capability: "manager.backup", Executor: domain.ExecutorManager,
 			Locks: []LockRule{target(domain.LockRepository, exclusive, domain.TargetRepository)},
 			Steps: []Step{idem("snapshot_database"),
-				step("backup", false, true, "A manager snapshot may or may not have been written. Check the repository, then run the manager backup again.")},
+				step("backup", false, true, "A manager snapshot may or may not have been written. Check the repository, then run the manager backup again."),
+				idem("write_manifest")},
 			OnManagerRestart: RestartInterrupt,
 		},
 

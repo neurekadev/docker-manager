@@ -120,9 +120,9 @@ S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
 | Kind | Executor | Capability | Locks | Steps | Offline deadline | Cap class | Compensations | Manager restart |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `backup.import` | manager | `backup.import` | `repository` S (repository targets) | `scan` (i,c) → `import_index` (i,c) | — | — | — | resume |
-| `backup.retention` | manager | `backup.retention` | `repository` **X** (repository targets) | `forget` (i,c) → `prune_repository` (i,c) | — | — | — | resume |
+| `backup.retention` | agent | `backup.retention` | `host` S (each environment)<br>`repository` **X** (repository targets) | `forget` (i,c) → `prune_repository` (i,c) | 1h | — | — | — |
 | `backup.run` | agent | `backup.run` | `host` S (each environment)<br>`stack` **X** (stack targets, optional)<br>`volume` S (volume targets, optional)<br>`file_path` S (path targets, optional)<br>`repository` S (repository targets) | `prepare` (i,c) → `stop_containers` (i,c) → `snapshot` (c) → `start_containers` (i) → `record` (i,c) | 1h | — | `start_containers` | — |
-| `backup.verify` | manager | `backup.verify` | `repository` S (repository targets) | `check` (i,c) | — | — | — | resume |
+| `backup.verify` | agent | `backup.verify` | `host` S (each environment)<br>`repository` S (repository targets) | `check` (i,c) | 1h | — | — | — |
 | `container.create` | agent | `container.create` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `create` (c) → `connect_networks` (i) → `start` (i) | 10m | — | — | — |
 | `container.pause` | agent | `container.pause` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `pause` (i,c) | 10m | — | — | — |
 | `container.remove` | agent | `container.remove` | `host` S (each environment)<br>`container` **X** (container targets)<br>`stack` S (stack targets, optional) | `remove` (i,c) | 10m | — | — | — |
@@ -140,7 +140,9 @@ S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
 | `image.build` | agent | `image.build` | `host` S (each environment)<br>`image` **X** (image targets) | `fetch_context` (i,c) → `build` (i,c) | 30m | build | — | — |
 | `image.pull` | agent | `image.pull` | `host` S (each environment)<br>`image` **X** (image targets) | `pull` (i,c) | 30m | pull | — | — |
 | `image.remove` | agent | `image.remove` | `host` S (each environment)<br>`image` **X** (image targets) | `remove` (i,c) | 10m | — | — | — |
-| `manager.backup` | manager | `manager.backup` | `repository` **X** (repository targets) | `snapshot_database` (i,c) → `backup` (c) | — | — | — | interrupt |
+| `manager.backup` | manager | `manager.backup` | `repository` **X** (repository targets) | `snapshot_database` (i,c) → `backup` (c) → `write_manifest` (i,c) | — | — | — | interrupt |
+| `manager.retention` | manager | `backup.retention` | `repository` **X** (repository targets) | `forget` (i,c) → `prune_repository` (i,c) | — | — | — | resume |
+| `manager.verify` | manager | `backup.verify` | `repository` S (repository targets) | `check` (i,c) | — | — | — | resume |
 | `network.create` | agent | `network.create` | `host` S (each environment)<br>`network` **X** (network targets) | `create` (c) | 10m | — | — | — |
 | `network.remove` | agent | `network.remove` | `host` S (each environment)<br>`network` **X** (network targets) | `remove` (i,c) | 10m | — | — | — |
 | `prune.run` | agent | `maintenance.run` | `host` S (each environment)<br>`stack` S (all (`*`))<br>`container` S (all (`*`))<br>`image` S (all (`*`))<br>`network` S (all (`*`))<br>`volume` S (all (`*`)) | `collect_candidates` (i,c) → `delete_candidates` (i,c) | 1h | — | — | — |
