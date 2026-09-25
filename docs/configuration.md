@@ -38,6 +38,7 @@ Sources: `internal/manager/config`, `internal/agent/config`,
 | `DOCKYARD_METRICS_RETENTION_15M` | `2160h` | Keep 15 min rollups this long (`168h`..`43800h`, at least the 1 min retention). |
 | `DOCKYARD_METRICS_MAX_SIZE_MB` | `2048` | Size cap of the metrics database in MiB (64..1048576). Above it every level's retention is shortened (oldest data first); at 5% of the retention new series are refused until space is free. The full scale budget (25 environments, 1 000 containers) needs about 1.2 GiB. |
 | `DOCKYARD_METRICS_MAX_SERIES` | `5000` | Maximum number of metric series (one per environment host, filesystem and container; 100..1000000). Samples of new containers beyond it are dropped (hosts are always kept). |
+| `DOCKYARD_FILES_MAX_UPLOAD_MB` | `2048` | Largest file-manager upload in MiB (1 to 2048; agents never accept more than 2 GiB). The reverse proxy's request body limit must allow it (#27); larger data goes in as an archive to extract (#15). |
 
 ### Secret-protection key
 

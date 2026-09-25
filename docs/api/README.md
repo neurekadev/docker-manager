@@ -10,6 +10,7 @@ with an API token.
 | [conventions.md](conventions.md) | paths, JSON rules, pagination/filter/sort/total, ETag/If-Match, idempotency keys, 202 + job, caching |
 | [errors.md](errors.md) | the error shape and the catalog of stable error codes |
 | [streams.md](streams.md) | SSE, WebSocket and binary stream contracts: live invalidation, jobs, logs, exec, files |
+| [files.md](files.md) | the scoped file manager: paths, revisions, previews and conflicts, errors, containment |
 | [versioning.md](versioning.md) | compatibility rules and the breaking-change check |
 | [`api/openapi.json`](../../api/openapi.json) | the OpenAPI 3.1 contract (generated; also served at `/api/v1/openapi.json` and `.yaml`) |
 | [`api/route-inventory.yaml`](../../api/route-inventory.yaml) | every route of the v1 catalog with capability, scope, owning issue and status |

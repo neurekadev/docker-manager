@@ -232,6 +232,8 @@ type testAgent struct {
 	cancel   context.CancelFunc
 	done     chan error
 	execs    []jobexec.Executor
+	// streams are the agent's stream handlers (#15, #8).
+	streams map[string]session.StreamHandler
 	// redial, when set, is waited for before every dial after the first
 	// (holds reconnects).
 	redial chan struct{}
@@ -306,7 +308,7 @@ func (a *testAgent) start() {
 			}
 			return websocket.Dial(ctx, u, o)
 		},
-		AgentVersion: a.version, UserAgent: "dockyard-agent/test", Capabilities: a.capabilities,
+		AgentVersion: a.version, UserAgent: "dockyard-agent/test", Capabilities: a.capabilities, Streams: a.streams,
 		Backoff: session.Backoff{Min: time.Second, Max: time.Minute, ResetAfter: time.Minute, Rand: func() float64 { return 0 }},
 		OnStatus: func(s session.Status) {
 			select {

@@ -95,6 +95,11 @@ type Deps struct {
 	// InstanceID is the manager instance ID (containers it created are
 	// marked thisInstance).
 	InstanceID string
+	// Files is the scoped file manager (#15); nil answers the file routes
+	// with 503. FilesMaxUpload bounds one upload (default DefaultMaxUpload,
+	// DOCKYARD_FILES_MAX_UPLOAD).
+	Files          FilesService
+	FilesMaxUpload int64
 }
 
 func (d Deps) clock() clock.Clock {
@@ -154,6 +159,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerImages(a, deps)
 	registerVolumes(a, deps)
 	registerNetworks(a, deps)
+	registerFiles(a, deps)
 	return a
 }
 

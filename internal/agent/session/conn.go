@@ -14,6 +14,7 @@ import (
 
 	"github.com/neurekadev/dockyard/internal/agent/state"
 	"github.com/neurekadev/dockyard/internal/protocol"
+	"github.com/neurekadev/dockyard/internal/streammux"
 )
 
 // maxConcurrentRequests bounds requests served at once per session.
@@ -21,6 +22,10 @@ const maxConcurrentRequests = 16
 
 // writeTimeout bounds one frame write.
 const writeTimeout = 10 * time.Second
+
+// streamQueue bounds queued stream_data frames (they wait for space
+// instead of closing the session; control frames have their own queue).
+const streamQueue = 64
 
 // conn is one established WebSocket session.
 type conn struct {
@@ -30,14 +35,16 @@ type conn struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	out      chan outFrame
-	activity chan struct{}
-	ready    atomic.Bool
-	closing  atomic.Bool
-	once     sync.Once
-	nextID   atomic.Uint64
-	idBase   string
-	reportID string
+	out       chan outFrame
+	streamOut chan outFrame
+	mux       *streammux.Mux
+	activity  chan struct{}
+	ready     atomic.Bool
+	closing   atomic.Bool
+	once      sync.Once
+	nextID    atomic.Uint64
+	idBase    string
+	reportID  string
 
 	eventSeq atomic.Uint64
 	fsSeq    atomic.Uint64
@@ -63,6 +70,28 @@ func (k *conn) frameID(prefix string) string {
 
 func (k *conn) send(f *protocol.Frame) error {
 	return k.queue(outFrame{f: f})
+}
+
+// FrameID implements streammux.Sender.
+func (k *conn) FrameID(prefix string) string { return k.frameID(prefix) }
+
+// SendControl implements streammux.Sender.
+func (k *conn) SendControl(f *protocol.Frame) error { return k.send(f) }
+
+// SendData implements streammux.Sender: stream frames wait for queue space
+// (flow control bounds them) instead of failing the session.
+func (k *conn) SendData(ctx context.Context, f *protocol.Frame) error {
+	if k.ctx.Err() != nil || k.closing.Load() {
+		return ErrNotConnected
+	}
+	select {
+	case k.streamOut <- outFrame{f: f}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-k.ctx.Done():
+		return ErrNotConnected
+	}
 }
 
 func (k *conn) queue(o outFrame) error {
@@ -102,6 +131,7 @@ func (k *conn) serve(cred *state.Credential, installID string, caps protocol.Cap
 		c.current.CompareAndSwap(k, nil)
 		stopping := k.parent.Err() != nil
 		k.cancel()
+		k.mux.CloseAll() // stream handlers see the session end
 		k.wg.Wait()
 		if stopping && !k.closing.Load() {
 			// The agent is stopping: tell the manager (orderly close) so it
@@ -261,25 +291,32 @@ func (k *conn) writeLoop() {
 	var seq uint64
 	for {
 		var o outFrame
+		// Control frames (job traffic, requests, credits) go before queued
+		// stream data.
 		select {
-		case <-k.ctx.Done():
-			return
-		case d := <-k.hbStart:
-			// The heartbeat interval is known once welcome arrived.
-			if hb == nil && d > 0 {
-				t := c.opts.Clock.NewTicker(d)
-				hb, hbC = t, t.C()
-			}
-			continue
 		case o = <-k.out:
-		case <-hbC:
-			seq++
-			f, err := protocol.NewFrame(protocol.TypeHeartbeat, k.frameID("hb"), "", protocol.JobRef{},
-				protocol.HeartbeatPayload{Seq: seq, SentAt: c.opts.Clock.Now().UTC()})
-			if err != nil {
+		default:
+			select {
+			case <-k.ctx.Done():
+				return
+			case d := <-k.hbStart:
+				// The heartbeat interval is known once welcome arrived.
+				if hb == nil && d > 0 {
+					t := c.opts.Clock.NewTicker(d)
+					hb, hbC = t, t.C()
+				}
 				continue
+			case o = <-k.out:
+			case o = <-k.streamOut:
+			case <-hbC:
+				seq++
+				f, err := protocol.NewFrame(protocol.TypeHeartbeat, k.frameID("hb"), "", protocol.JobRef{},
+					protocol.HeartbeatPayload{Seq: seq, SentAt: c.opts.Clock.Now().UTC()})
+				if err != nil {
+					continue
+				}
+				o = outFrame{f: f}
 			}
-			o = outFrame{f: f}
 		}
 		b, err := protocol.Encode(o.f)
 		if err != nil {
@@ -395,14 +432,10 @@ func (k *conn) handle(f *protocol.Frame) error {
 		// Scoped file rescans arrive with the watcher (#15, #23).
 		return ignoreClosed(k.reply(f.ID, nil, &HandlerError{Code: protocol.CodeUnsupportedRequest, Message: "rescan is not supported by this agent yet"}))
 	case protocol.TypeStreamOpen:
-		// Stream executors arrive with #8, #15 and #35.
-		cf, err := protocol.NewFrame(protocol.TypeStreamClose, k.frameID("sc"), f.ID, protocol.JobRef{},
-			protocol.StreamClosePayload{Reason: protocol.CloseReasonError, Code: protocol.CodeUnsupportedStream})
-		if err == nil {
-			return ignoreClosed(k.send(cf))
-		}
+		k.serveStream(f)
 		return nil
 	case protocol.TypeStreamData, protocol.TypeStreamCredit, protocol.TypeStreamClose:
+		k.mux.Handle(f)
 		return nil
 	case protocol.TypeError:
 		p, _ := protocol.DecodePayload[protocol.ErrorPayload](f)
@@ -471,6 +504,54 @@ func (k *conn) serveRequest(f *protocol.Frame) {
 			err = &HandlerError{Code: protocol.CodeDeadlineExceeded, Message: "the request deadline passed"}
 		}
 		_ = k.reply(f.ID, out, err)
+	}()
+}
+
+// serveStream accepts a stream the manager opened and runs its handler on
+// its own goroutine (at most protocol.MaxStreams at once). Unknown kinds
+// are refused with unsupported_stream, a full table with stream_limit.
+func (k *conn) serveStream(f *protocol.Frame) {
+	c := k.c
+	p, _ := protocol.DecodePayload[protocol.StreamOpenPayload](f)
+	h := c.opts.Streams[p.Kind]
+	if h == nil {
+		k.mux.Refuse(f.ID, protocol.CloseReasonError, protocol.CodeUnsupportedStream, p.Kind+" is not served by this agent")
+		return
+	}
+	s, err := k.mux.Accept(k.ctx, f)
+	switch {
+	case errors.Is(err, streammux.ErrLimit):
+		k.mux.Refuse(f.ID, protocol.CloseReasonLimit, protocol.CodeStreamLimit, "too many open streams")
+		return
+	case err != nil:
+		k.mux.Refuse(f.ID, protocol.CloseReasonError, protocol.CodeInvalidFrame, "invalid stream_open")
+		return
+	}
+	k.wg.Add(1)
+	go func() {
+		defer k.wg.Done()
+		ctx, cancel := context.WithCancel(k.ctx)
+		defer cancel()
+		go func() {
+			select {
+			case <-s.Done():
+				cancel()
+			case <-ctx.Done():
+			}
+		}()
+		err := h(ctx, s)
+		if err != nil {
+			var he *HandlerError
+			if !errors.As(err, &he) {
+				if s.Err() == nil {
+					c.log.Error("stream failed", "kind", p.Kind, "error", err)
+				}
+				he = &HandlerError{Code: protocol.CodeInternal, Message: "internal agent error"}
+			}
+			s.Abort(protocol.CloseReasonError, he.Code, he.Message)
+			return
+		}
+		_ = s.CloseWrite()
 	}()
 }
 

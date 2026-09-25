@@ -47,6 +47,8 @@ const (
 	EnvMetricsRetentionQuarter = "DOCKYARD_METRICS_RETENTION_15M"
 	EnvMetricsMaxSizeMB        = "DOCKYARD_METRICS_MAX_SIZE_MB"
 	EnvMetricsMaxSeries        = "DOCKYARD_METRICS_MAX_SERIES"
+
+	EnvFilesMaxUploadMB = "DOCKYARD_FILES_MAX_UPLOAD_MB"
 )
 
 // Defaults.
@@ -78,6 +80,9 @@ const (
 	DefaultMetricsRetentionQuarter = 90 * 24 * time.Hour
 	DefaultMetricsMaxSizeMB        = 2048
 	DefaultMetricsMaxSeries        = 5000
+
+	// DefaultFilesMaxUploadMB is also the agents' own upper bound (#15).
+	DefaultFilesMaxUploadMB = 2048
 )
 
 // MetricsConfig bounds the metrics database (#5).
@@ -151,6 +156,9 @@ type Config struct {
 	Sessions        SessionsConfig
 	Audit           AuditConfig
 	Metrics         MetricsConfig
+	// FilesMaxUpload bounds one file-manager upload in bytes (#15); the
+	// reverse proxy's body limit must allow it (#27).
+	FilesMaxUpload int64
 }
 
 // DatabasePath is the SQLite database file inside the data directory.
@@ -229,6 +237,12 @@ func Load(src envconfig.Source) (Config, error) {
 	if err != nil {
 		errs = append(errs, err)
 	}
+
+	uploadMB, err := src.Int(EnvFilesMaxUploadMB, DefaultFilesMaxUploadMB, 1, DefaultFilesMaxUploadMB)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	cfg.FilesMaxUpload = int64(uploadMB) << 20
 
 	if len(errs) > 0 {
 		return Config{}, errors.Join(errs...)

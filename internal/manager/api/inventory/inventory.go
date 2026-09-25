@@ -191,6 +191,7 @@ type specOperation struct {
 	Scope            string                     `json:"x-dockyard-scope"`
 	Responses        map[string]json.RawMessage `json:"responses"`
 	Security         []map[string][]string      `json:"security"`
+	RequestBody      *specResponse              `json:"requestBody"`
 }
 
 // acceptsBearer reports whether the operation documents the API token
@@ -208,10 +209,18 @@ type specResponse struct {
 	Content map[string]json.RawMessage `json:"content"`
 }
 
-// kind derives json/stream/websocket from the documented responses.
+// kind derives json/stream/websocket from the documented responses (and a
+// binary request body: bounded uploads are streams too).
 func (op specOperation) kind() string {
 	if _, ok := op.Responses["101"]; ok {
 		return KindWebSocket
+	}
+	if op.RequestBody != nil {
+		for ct := range op.RequestBody.Content {
+			if ct != "application/json" && !strings.HasSuffix(ct, "+json") {
+				return KindStream
+			}
+		}
 	}
 	for code, raw := range op.Responses {
 		if !strings.HasPrefix(code, "2") {

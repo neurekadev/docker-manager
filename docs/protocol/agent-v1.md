@@ -506,7 +506,31 @@ opener                                  sender/receiver
 - `stream_close` reasons: `eof`, `cancelled`, `error` (with a code), `timeout`,
   `limit`; `bytes` and `sha256` let the receiver verify a transfer;
   `exitCode` ends an exec stream.
-- Directions are fixed per kind (`StreamDirection`).
+- Directions are fixed per kind (`StreamDirection`). In v1 only the manager
+  opens streams (an agent-opened stream is refused with
+  `unsupported_stream`).
+- **Credit:** `windowBytes` in `stream_open` is the credit the opener grants
+  the agent for data sent to the manager. When the manager sends data
+  (`manager_to_agent`, `both`) it starts without credit: the agent grants
+  its window with a `stream_credit` as soon as it accepted the stream.
+  Receivers grant more credit after the application consumed at least a
+  quarter of the window. Data beyond the granted credit, beyond `maxBytes`
+  or with a `seq` gap aborts that stream (`error`, `invalid_frame` /
+  `too_large`), never the session.
+- **Half close:** `stream_close {reason: eof, bytes, sha256}` means "I sent
+  everything"; it travels on the same FIFO queue as the sender's
+  `stream_data`, so it never overtakes them. The stream ends when both
+  sides sent an eof close. Any other reason aborts the stream for both
+  sides at once (it overtakes queued data, which the receiver discards).
+  A receiver of a one-way stream may close early (e.g. an upload it
+  skipped); the sender stops writing.
+- **Result:** the side that commits a transfer may attach a kind-specific
+  `result` (JSON, at most 16 KiB) to its final eof close
+  (`files.upload`: the written entry).
+- Stream data frames use their own bounded queue on both session ends
+  (they wait for space; credit bounds what one stream can queue); control
+  frames (jobs, requests, credits, aborts) are written first. The shared
+  implementation is `internal/streammux`.
 
 **Migration transfer relay (#35):** for a stack or volume migration job the
 manager opens `migration.send` on the source agent and `migration.receive`
@@ -516,6 +540,65 @@ credit to the manager (end-to-end backpressure, at most one window
 buffered). The destination verifies `bytes`/`sha256` from the source's
 `stream_close`; a mismatch fails the idempotent `transfer` step, which the
 job engine may resume. The archive format is defined by #35.
+
+### Scoped files (#15)
+
+The `files.*` requests, the `files.download` / `files.upload` streams and
+the `files.*` job kinds share the types in `internal/protocol/files.go`;
+the agent side is `internal/agent/files`, the manager side
+`internal/manager/files` (public API: [files.md](../api/files.md)).
+
+- **Scope:** every input carries `scope {kind, id, dir?}`. `stack` scopes
+  name the project directory (`dir`, absolute, identical host path, #28):
+  the agent refuses it unless it and its resolved (symlink-free) path lie in
+  a verified stack root. `volume` scopes name a Docker volume: the agent
+  inspects it and serves only local-driver volumes under the verified volume
+  directory (`storage.Result.AccessFor`), never the stacks volume and never
+  volumes mounted by DockYard's own containers (label
+  `dev.neureka.dockyard.role`). Before the storage check ran nothing is
+  served (`unsupported_volume`).
+- **Paths** are root-relative, slash-separated, without a leading `/`,
+  `.`/`..` segments, backslashes or control characters
+  (`protocol.CleanRelativePath`); every access goes through an `os.Root`
+  opened on the scope directory, so symlinks are followed only while they
+  stay inside and absolute or escaping targets fail with `forbidden_path`.
+- **Content access** (read, download, archive, copy, chmod/chown) is refused
+  for regular files with more than one hard link, devices, FIFOs and
+  sockets (`unsupported_file`). Recursive operations never follow symlinks.
+- **Requests:** `files.list` (`FilesListInput` → `FilesListOutput`: sorted,
+  filtered, paged after a cursor; at most 500 entries per answer and
+  100 000 scanned), `files.stat` (`FilesStatInput` → `FileEntry`, with the
+  content `etag` on request), `files.read` (`FilesReadInput` →
+  `FilesReadOutput`: at most 512 KiB, base64 in the frame, binary
+  detection), `files.write` (`FilesWriteInput` → `FileEntry`: at most
+  512 KiB, exactly one of `ifMatch`, `createOnly`, `overwrite`; written to a
+  temporary file and renamed after re-checking the target), `files.mkdir`
+  (`FilesMkdirInput`: an empty directory or a new file), and
+  `files.conflict_preview` (`FilesPreviewInput` → `FilesPreviewOutput`:
+  existing destinations, at most 1000, and the recursive impact, at most
+  100 000 entries).
+- **ETag** of a regular file: `f1-` + hex(SHA-256 over the content's
+  SHA-256, size and modification time), for files up to 256 MiB.
+- **`files.download`** (`FilesDownloadInput`): `raw` streams one regular
+  file (optional `offset`/`length`); `zip` / `tar.gz` stream an archive of
+  the paths (escaping symlinks, hard-linked and special files are listed in
+  a final `DOCKYARD-SKIPPED.txt` member).
+- **`files.upload`** (`FilesUploadInput`, exactly `size` bytes, optional
+  `sha256`, one of `ifMatch` / `createOnly` / `conflict`): the agent checks
+  the precondition before storing anything (an early `stream_close` with
+  `result.skipped` for `conflict=skip`), writes a temporary file, verifies
+  size and digest, re-checks and commits (rename, or a hard link for
+  no-clobber names), then closes with `result` = `FilesUploadResult`.
+- **Jobs** `files.archive`, `files.extract`, `files.copy`, `files.move`,
+  `files.delete`, `files.metadata` take `FilesJobInput`; items report
+  per-path outcomes (at most 200, then a summary). Extraction validates
+  every entry (no `../`, absolute or drive names, symlinks only when they
+  resolve inside, hard links only to earlier members, no devices, no
+  setuid bits, nothing below a refused link) and limits entries (100 000),
+  bytes actually written (10 GiB) and the expansion ratio (100x the
+  archive, at least 1 MiB).
+- DockYard's own changes are published as `fs_invalidation` of the
+  changed paths (the watcher of #23 reports external ones).
 
 ### error
 
@@ -608,8 +691,8 @@ on a new session with a new frame ID.
 | `compose.validate` | request | `stack.create` / `stack.manage` | no | #7 |
 | `files.list` | request | `stack.files.read` / `volume.files.read` | no | #15 |
 | `files.stat` | request | `stack.files.read` / `volume.files.read` | no | #15 |
-| `files.read` | request | `stack.files.read` / `volume.files.read` (≤ 1 MiB; larger via `files.download`) | no | #15 |
-| `files.write` | request | `stack.files.write` / `volume.files.write` (≤ 1 MiB, expected revision) | yes | #15 |
+| `files.read` | request | `stack.files.read` / `volume.files.read` (≤ 512 KiB; larger via `files.download`) | no | #15 |
+| `files.write` | request | `stack.files.write` / `volume.files.write` (≤ 512 KiB, expected revision) | yes | #15 |
 | `files.mkdir` | request | `stack.files.write` / `volume.files.write` | yes | #15 |
 | `files.conflict_preview` | request | `stack.files.read` / `volume.files.read` | no | #15 |
 | `backup.snapshots` | request | `backup.read` | no | #10 |
@@ -684,11 +767,23 @@ Codes of `error` frames and of `stream_close {reason: error}`:
 | `unsupported_api_version` | the Engine's API version is too old for the operation |
 | `cancelled` | cancelled by the manager |
 | `internal` | unexpected agent failure (details only in the agent log) |
+| `already_exists` | the file name exists (create-only, no-clobber) |
+| `not_directory` | a path component or the target is not a directory |
+| `is_directory` | the target is a directory where a file is needed |
+| `unsupported_file` | the entry's content is not served: symlink, device, FIFO, socket, or a regular file with several hard links |
+| `unsupported_volume` | the volume cannot be served (non-local driver, remote-backed, DockYard's own or the stacks volume, storage not verified) |
+| `digest_mismatch` | an upload's bytes do not match its SHA-256 |
 
 The manager maps them to public errors: `not_found` → 404,
 `conflict` → 409/412, `deadline_exceeded` → 504 `timeout`,
 `engine_unavailable` and a missing session → 503 `unavailable`,
-`forbidden_path` → 422 on the path field, the rest → 500 `internal` or 502.
+`forbidden_path` → 422 on the path field, `already_exists` → 409
+`file_exists` (412 for create-only preconditions), `not_directory` /
+`is_directory` → 409 `file_type_mismatch`, `unsupported_file` → 409
+`file_unsupported`, `unsupported_volume` → 409 `volume_files_unsupported`,
+`too_large` → 413, `digest_mismatch` → 422 `content_digest_mismatch`,
+`unsupported_request`/`unsupported_stream` → 501, the rest → 500
+`internal` or 502.
 
 ## Close codes
 
@@ -738,7 +833,9 @@ The manager maps them to public errors: `not_found` → 404,
 | job command semantics, fencing, journal, reconciliation | `internal/protocol/jobs.go`, `internal/manager/jobs`, `internal/agent/jobs` | implemented (#26) |
 | `/agent/v1/enroll`, `/agent/v1/session`, handshake, heartbeats, close codes, requests, rotation, event/invalidation relay with sequence numbers | `internal/manager/agents` (manager), `internal/agent/{enroll,session,state,runtime}` (agent) | implemented (#3) |
 | job dispatch over the session (`jobs.AgentDispatcher`) and job frame routing, reconcile-before-online | `internal/manager/agents` (`Hub`), `internal/agent/session` + `internal/agent/jobs` | implemented (#3) |
-| `rescan` (agent answers `unsupported_request`), agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stubs | #15, #23 (rescan), #8, #15, #35 (streams) |
+| byte streams: open/accept, credit flow control, half close, results, aborts, limits | `internal/streammux` (both ends), `agents.Session.OpenStream` / `Hub.OpenStream`, `session.Options.Streams` | implemented (#15) |
+| scoped files: `files.*` requests, `files.download` / `files.upload` streams, `files.*` job executors | `internal/agent/files`, `internal/manager/files` | implemented (#15) |
 | `engine.info`, `host.metrics`, Docker event relay (coalescing, rate bound) | `internal/agent/observe`, `internal/manager/observe` | implemented (#5) |
 | Docker resource requests (`container.list/inspect`, `image.list/inspect/tag`, `volume.list/inspect`, `network.list/inspect`) and executors (`container.*`, `image.pull/remove`, `volume.*`, `network.*`) | `internal/protocol/docker.go` (inputs/outputs), `internal/agent/resources` | implemented (#6) |
-| other request/stream executors | agent adapter | #7, #8, #10, #14, #15, #21, #35 |
+| `rescan` (agent answers `unsupported_request`), agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stubs | #23 (rescan, watcher) |
+| other request/stream executors | agent adapter | #7, #8, #10, #14, #21, #35 |

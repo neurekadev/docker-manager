@@ -37,6 +37,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/agent/compose"
 	"github.com/neurekadev/dockyard/internal/agent/config"
 	"github.com/neurekadev/dockyard/internal/agent/engine"
+	"github.com/neurekadev/dockyard/internal/agent/files"
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
 	"github.com/neurekadev/dockyard/internal/agent/observe"
 	"github.com/neurekadev/dockyard/internal/agent/resources"
@@ -106,6 +107,12 @@ type Options struct {
 	// and serves engine.info and host.metrics (#5). The dockyard-agent
 	// command sets it; focused tests leave it off.
 	Observe bool
+	// Streams are the stream handlers by kind ("Allowed streams").
+	Streams map[string]session.StreamHandler
+	// Files serves the scoped file manager (#15): files.* requests, the
+	// files.download/files.upload streams and the files.* job executors,
+	// confined to stack project directories and local volumes (#28).
+	Files bool
 	// TokenPoll is how often a handed-over enrollment token is looked for
 	// (default DefaultTokenPoll).
 	TokenPoll time.Duration
@@ -236,6 +243,9 @@ func New(opts Options) (*Agent, error) {
 		a.opts.Requests = reqs
 	}
 	a.addResources()
+	if opts.Files {
+		a.enableFiles()
+	}
 	return a, nil
 }
 
@@ -285,6 +295,38 @@ func (a *Agent) observedRoots() []observe.Root {
 		}
 	}
 	return out
+}
+
+// enableFiles wires the scoped file service (#15) into the session's
+// requests, streams and the job runner's executors. Explicitly configured
+// handlers win.
+func (a *Agent) enableFiles() {
+	svc := files.New(files.Options{
+		Engine: func() files.Engine {
+			if e := a.Engine(); e != nil {
+				return e
+			}
+			return nil
+		},
+		Storage: func() *storage.Result { return a.Capabilities().Storage },
+		Clock:   a.opts.Clock, Logger: a.opts.Logger,
+		Invalidate: func(p protocol.FSInvalidationPayload) {
+			if c := a.client; c != nil {
+				c.FileInvalidations().Publish(p)
+			}
+		},
+	})
+	reqs := svc.Requests()
+	for k, v := range a.opts.Requests {
+		reqs[k] = v
+	}
+	a.opts.Requests = reqs
+	streams := svc.Streams()
+	for k, v := range a.opts.Streams {
+		streams[k] = v
+	}
+	a.opts.Streams = streams
+	a.opts.Executors = append(append([]jobexec.Executor(nil), a.opts.Executors...), svc.Executors()...)
 }
 
 // Capabilities returns the current capabilities (safe for concurrent use).
@@ -339,6 +381,12 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 		Streams:      []string{},
 		Transport:    ti,
 	}
+	for _, e := range a.opts.Executors {
+		if !slices.Contains(p.Commands, string(e.Kind)) {
+			p.Commands = append(p.Commands, string(e.Kind))
+		}
+	}
+	slices.Sort(p.Commands)
 	if c.EngineError != nil {
 		p.Diagnostics = append(p.Diagnostics, protocol.Diagnostic{
 			Area: protocol.DiagnosticEngine, Code: string(c.EngineError.Code), Message: bound(c.EngineError.Message),
@@ -445,7 +493,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		State: a.store, Clock: clk, Logger: log, URL: tr.WebSocketURL(protocol.SessionPath),
 		DialOptions:  func(h http.Header) *websocket.DialOptions { return tr.DialOptions(h, protocol.Version) },
 		AgentVersion: info0.Version, UserAgent: userAgent(), Capabilities: a.CapabilitiesPayload,
-		Requests: a.opts.Requests, Backoff: a.opts.Backoff, OnStatus: a.onSessionStatus,
+		Requests: a.opts.Requests, Streams: a.opts.Streams, Backoff: a.opts.Backoff, OnStatus: a.onSessionStatus,
 	})
 	runner, err := agentjobs.New(ctx, agentjobs.Options{StateDir: cfg.StateDir, Clock: clk, Logger: log.With("component", "jobs"),
 		Sender: a.client, Executors: a.opts.Executors})

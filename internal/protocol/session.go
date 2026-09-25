@@ -166,6 +166,14 @@ const (
 	CodeUnsupportedAPIVersion = "unsupported_api_version"
 	CodeCancelled             = "cancelled"
 	CodeInternal              = "internal"
+	// File scope codes (#15): the manager maps them to specific public
+	// errors (409 file_exists, 409 file_type_mismatch, ...).
+	CodeAlreadyExists     = "already_exists"
+	CodeNotDirectory      = "not_directory"
+	CodeIsDirectory       = "is_directory"
+	CodeUnsupportedFile   = "unsupported_file"
+	CodeUnsupportedVolume = "unsupported_volume"
+	CodeDigestMismatch    = "digest_mismatch"
 )
 
 var errorCodes = []string{
@@ -173,6 +181,7 @@ var errorCodes = []string{
 	CodeUnauthorized, CodeForbiddenPath, CodeNotFound, CodeConflict, CodeDeadlineExceeded,
 	CodeBusy, CodeStreamLimit, CodeTooLarge, CodeEngineUnavailable, CodeEngineError,
 	CodeInvalidArgument, CodeUnsupportedAPIVersion, CodeCancelled, CodeInternal,
+	CodeAlreadyExists, CodeNotDirectory, CodeIsDirectory, CodeUnsupportedFile, CodeUnsupportedVolume, CodeDigestMismatch,
 }
 
 // ErrorCodes returns every error frame code.
@@ -403,7 +412,14 @@ type StreamClosePayload struct {
 	// Bytes and SHA256 cover the data sent, for transfer verification.
 	Bytes  int64  `json:"bytes"`
 	SHA256 string `json:"sha256,omitempty"`
+	// Result is a kind-specific outcome sent with the final eof close of
+	// the side that commits the transfer (files.upload: the written
+	// entry). At most MaxCloseResult bytes.
+	Result json.RawMessage `json:"result,omitempty"`
 }
+
+// MaxCloseResult bounds StreamClosePayload.Result (bytes).
+const MaxCloseResult = 16 << 10
 
 // StreamCreditPayload grants the stream sender Bytes more bytes.
 type StreamCreditPayload struct {
@@ -633,6 +649,12 @@ func (p StreamClosePayload) Validate() error {
 	}
 	if p.Bytes < 0 {
 		return invalid("stream_close bytes must not be negative")
+	}
+	if len(p.Result) > MaxCloseResult {
+		return invalid("stream_close result exceeds %d bytes", MaxCloseResult)
+	}
+	if len(p.Result) > 0 && (p.Reason != CloseReasonEOF || !json.Valid(p.Result)) {
+		return invalid("stream_close result needs reason eof and valid JSON")
 	}
 	return nil
 }

@@ -162,4 +162,8 @@ backed by remote storage (`type=nfs|nfs4|cifs|smb|…` or `o=addr=…`) are
 listed read-only with the reason (`storage.Result.AccessFor`): their data is
 not under the volume directory, or only while a container mounts it. A
 short-lived helper container per operation was the alternative; it is
-deferred past v1.
+deferred past v1. The file manager (#15) additionally refuses the stacks
+volume as a volume (stacks are browsed per stack, where the Compose source
+rules apply) and every volume mounted by DockYard's own containers (label
+`dev.neureka.dockyard.role`), answering `409 volume_files_unsupported`
+([files.md](api/files.md#volumes)).

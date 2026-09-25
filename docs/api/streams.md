@@ -14,10 +14,10 @@ the [route inventory](../../api/route-inventory.yaml) is listed here
 | `GET /stacks/{stackId}/events/stream` | `stream-stack-events` | SSE | #7 |
 | `GET /environments/{environmentId}/containers/{containerId}/logs/stream` | `stream-container-logs` | SSE | #8 |
 | `GET /environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}/stream` | `stream-container-exec-session` | WebSocket | #8 |
-| `GET /stacks/{stackId}/files/downloads` | `download-stack-files` | binary response | #15 |
-| `GET /environments/{environmentId}/volumes/{volumeId}/files/downloads` | `download-volume-files` | binary response | #15 |
-| `POST /stacks/{stackId}/files/uploads` | `upload-stack-files` | binary request | #15 |
-| `POST /environments/{environmentId}/volumes/{volumeId}/files/uploads` | `upload-volume-files` | binary request | #15 |
+| `GET /stacks/{stackId}/files/downloads` | `download-stack-files` | binary response | #15 (implemented) |
+| `GET /environments/{environmentId}/volumes/{volumeId}/files/downloads` | `download-volume-files` | binary response | #15 (implemented) |
+| `POST /stacks/{stackId}/files/uploads` | `upload-stack-files` | binary request | #15 (implemented) |
+| `POST /environments/{environmentId}/volumes/{volumeId}/files/uploads` | `upload-volume-files` | binary request | #15 (implemented) |
 | `GET /backups/{backupId}/contents/download` | `download-backup-content` | binary response | #10 |
 | `GET /audit/exports` | `export-audit-events` | NDJSON/CSV response | #30 |
 
@@ -272,38 +272,56 @@ Close codes:
 
 ## File downloads and uploads (#15)
 
-Path encoding for every scoped file route: `path` query parameters are
-root-relative, slash-separated, percent-encoded UTF-8; no leading `/`, no
-`.`/`..` segments, no NUL, at most 4 096 bytes. The manager cleans and checks
-them, the agent re-checks containment beneath the root without following
-symlinks out of it; violations are `422` with a `query.path` detail. Raw
-host paths never appear in responses.
+Implemented. Path encoding for every scoped file route: `path` query
+parameters are root-relative, slash-separated, percent-encoded UTF-8; no
+leading `/`, no `.`/`..` segments, no backslash, NUL or control characters,
+at most 4 096 bytes (empty or `.` is the root). The manager checks them, the
+agent re-checks containment beneath the root without following symlinks out
+of it; violations are `422` with a `query.path` detail. Raw host paths never
+appear in responses. Details and the other file routes:
+[files.md](files.md).
 
 **Download** `GET …/files/downloads?path=a/b.txt[&path=…][&format=zip|tar.gz]`
 
-- One regular file: raw bytes, `Content-Type: application/octet-stream`,
-  `Content-Disposition: attachment; filename*=UTF-8''…`, `Content-Length`,
-  `ETag`; supports single `Range` requests (`206`) for resuming.
-- Several paths or a directory: a streamed archive (`zip` by default), no
-  `Content-Length`, no `Range`. Symlinks are stored only when they resolve
-  inside the root; others are skipped and listed in a final
-  `DOCKYARD-SKIPPED.txt` entry.
-- Limits: total bytes `DOCKYARD_FILES_MAX_DOWNLOAD` (default 10 GiB), 100 000
-  entries. A failure after the first byte aborts the connection (the client
-  sees a truncated download and must not treat it as complete; archives then
-  lack their end record).
+- One regular file (without `format`): raw bytes, `Content-Type:
+  application/octet-stream`, `Content-Disposition: attachment;
+  filename*=UTF-8''…`, `Content-Length`, `Accept-Ranges: bytes`, `ETag` (files
+  up to 256 MiB); a single `Range: bytes=a-b` request answers `206` with
+  `Content-Range` (`416 range_not_satisfiable` outside the file). The range
+  is not tied to the ETag: resuming clients compare the ETag themselves.
+- Several paths, a directory, or `format`: a streamed archive (`zip` by
+  default, `application/zip` / `application/gzip`), no `Content-Length`, no
+  `Range`. Symlinks are stored only when they resolve inside the root;
+  escaping symlinks, hard-linked and special files are skipped and listed in
+  a final `DOCKYARD-SKIPPED.txt` entry.
+- Limits (agent): 10 GiB per download or archive, 100 000 entries.
+- The manager waits for the first bytes before answering, so refusals
+  (`404`, `409 file_unsupported`, `413`, …) are ordinary JSON errors. A
+  failure after the first byte aborts the connection (the client sees a
+  truncated download and must not treat it as complete; archives then lack
+  their end record). A client disconnect cancels the agent's stream.
+- Backpressure: the agent reads the file only as fast as the manager
+  forwards bytes to the client (stream credit, 1 MiB window).
 
-**Upload** `POST …/files/uploads?path=dir&name=file.txt`
+**Upload** `POST …/files/uploads?path=dir&name=file.txt[&conflict=overwrite|skip|keep_both]`
 
-- Body: raw bytes, `Content-Type: application/octet-stream`,
-  `Content-Length` required (`411`), at most `DOCKYARD_FILES_MAX_UPLOAD`
-  (default 2 GiB, `413`; the proxy body limit must allow it, #27).
-- Preconditions: `If-None-Match: *` creates only (`412` if it exists);
-  `If-Match: <ETag>` replaces exactly that revision; neither → `428`.
-- Optional `X-DockYard-Content-SHA256` is verified before the file is
-  committed (`422` on mismatch). The agent writes to a temporary file in the
-  target directory and renames atomically, so readers never see a partial
-  file. Response `201` with the entry metadata and its `ETag`.
+- Body: raw bytes, `Content-Type: application/octet-stream` (`415`
+  otherwise), `Content-Length` required (`411 length_required`), at most
+  `DOCKYARD_FILES_MAX_UPLOAD_MB` (default and maximum 2048 MiB, `413`; the
+  proxy body limit must allow it, #27).
+- Preconditions, exactly one: `If-None-Match: *` creates only (`412` if the
+  name exists); `If-Match: <ETag>` replaces exactly that revision (`412` with
+  the current `ETag` otherwise); `conflict=overwrite|skip|keep_both` (skip
+  answers `201` with `skipped: true` and writes nothing; keep_both picks
+  `name (1).ext`); none → `428`.
+- Optional `X-DockYard-Content-SHA256` (hex) is verified before the file is
+  committed (`422 content_digest_mismatch`). The agent checks the
+  precondition before storing anything, writes a temporary file in the
+  target directory, verifies size and digest, re-checks the precondition and
+  renames atomically, so readers never see a partial file. Response `201`
+  with the entry metadata and its `ETag`.
+- Backpressure: the manager reads the request body only as fast as the agent
+  writes it (stream credit); the body is never buffered whole.
 - Many files: one request each, or upload an archive and extract it
   (`POST …/files/extractions`, a job).
 

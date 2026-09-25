@@ -20,6 +20,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/events"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
 	"github.com/neurekadev/dockyard/internal/protocol"
+	"github.com/neurekadev/dockyard/internal/streammux"
 )
 
 // Session is one established agent session (docs/protocol/agent-v1.md,
@@ -38,9 +39,11 @@ type Session struct {
 	// reqCtx carries the upgrade request's client IP and request ID (audit).
 	reqCtx context.Context
 
-	out      chan outFrame
-	activity chan struct{}
-	nextID   atomic.Uint64
+	out       chan outFrame
+	streamOut chan outFrame
+	mux       *streammux.Mux
+	activity  chan struct{}
+	nextID    atomic.Uint64
 
 	closeOnce sync.Once
 	closing   atomic.Bool
@@ -107,6 +110,45 @@ var errSessionClosed = fmt.Errorf("%w: session closed", jobs.ErrAgentOffline)
 // the session is closed so the agent reconnects and reconciles.
 func (s *Session) send(f *protocol.Frame) error {
 	return s.queue(outFrame{f: f})
+}
+
+// streamQueue bounds queued stream data frames; senders wait for space
+// (per-stream credit bounds what can be queued).
+const streamQueue = 64
+
+// FrameID implements streammux.Sender.
+func (s *Session) FrameID(prefix string) string { return s.frameID(prefix) }
+
+// SendControl implements streammux.Sender.
+func (s *Session) SendControl(f *protocol.Frame) error { return s.send(f) }
+
+// SendData implements streammux.Sender.
+func (s *Session) SendData(ctx context.Context, f *protocol.Frame) error {
+	if s.ctx.Err() != nil || s.closing.Load() {
+		return errSessionClosed
+	}
+	select {
+	case s.streamOut <- outFrame{f: f}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.ctx.Done():
+		return errSessionClosed
+	}
+}
+
+// OpenStream opens a byte stream of kind on this session
+// (docs/protocol/agent-v1.md, "Streams"). The stream is aborted when ctx
+// ends; it fails with streammux.ErrSessionClosed when the session ends,
+// and with a *streammux.CloseError carrying the agent's code
+// (unsupported_stream, not_found, forbidden_path, ...) when the agent
+// refuses or fails it.
+func (s *Session) OpenStream(ctx context.Context, kind string, input any, o streammux.OpenOptions) (*streammux.Stream, error) {
+	st, err := s.mux.Open(ctx, kind, input, o)
+	if errors.Is(err, streammux.ErrSessionClosed) {
+		return nil, errSessionClosed
+	}
+	return st, err
 }
 
 func (s *Session) queue(o outFrame) error {
@@ -212,9 +254,10 @@ func (h *Hub) serve(ctx context.Context, conn *websocket.Conn, p AgentPrincipal,
 	defer cancel()
 	s := &Session{
 		hub: h, id: ids.New(), p: p, conn: conn, started: h.svc.clk.Now().UTC(), ctx: ctx, cancel: cancel, reqCtx: ctx,
-		out: make(chan outFrame, h.opts.SendQueue), activity: make(chan struct{}, 1),
+		out: make(chan outFrame, h.opts.SendQueue), streamOut: make(chan outFrame, streamQueue), activity: make(chan struct{}, 1),
 		pending: map[string]chan requestResult{},
 	}
+	s.mux = streammux.New(s, protocol.MaxStreams)
 	s.log = h.log.With("agent_id", p.AgentID, "environment_id", p.EnvironmentID, "session_id", s.id, "client_ip", clientIP)
 	conn.SetReadLimit(protocol.MaxFrameSize)
 	if !h.track(s) {
@@ -371,18 +414,24 @@ func (s *Session) writeLoop() {
 	var hbSeq uint64
 	for {
 		var o outFrame
+		// Control frames (jobs, requests, credits) go before stream data.
 		select {
-		case <-s.ctx.Done():
-			return
 		case o = <-s.out:
-		case <-hb.C():
-			hbSeq++
-			f, err := protocol.NewFrame(protocol.TypeHeartbeat, s.frameID("h"), "", protocol.JobRef{},
-				protocol.HeartbeatPayload{Seq: hbSeq, SentAt: h.svc.clk.Now().UTC()})
-			if err != nil {
-				continue
+		default:
+			select {
+			case <-s.ctx.Done():
+				return
+			case o = <-s.out:
+			case o = <-s.streamOut:
+			case <-hb.C():
+				hbSeq++
+				f, err := protocol.NewFrame(protocol.TypeHeartbeat, s.frameID("h"), "", protocol.JobRef{},
+					protocol.HeartbeatPayload{Seq: hbSeq, SentAt: h.svc.clk.Now().UTC()})
+				if err != nil {
+					continue
+				}
+				o = outFrame{f: f}
 			}
-			o = outFrame{f: f}
 		}
 		if err := s.write(o.f); err != nil {
 			if s.ctx.Err() == nil && !s.closing.Load() {
@@ -523,15 +572,12 @@ func (s *Session) handle(f *protocol.Frame) bool {
 		s.relayInvalidation(f)
 		return true
 	case protocol.TypeStreamOpen:
-		// Stream executors arrive with #8, #15, #35: refuse politely.
-		cf, err := protocol.NewFrame(protocol.TypeStreamClose, s.frameID("sc"), f.ID, protocol.JobRef{},
-			protocol.StreamClosePayload{Reason: protocol.CloseReasonError, Code: protocol.CodeUnsupportedStream})
-		if err == nil {
-			_ = s.send(cf)
-		}
+		// In v1 only the manager opens streams: refuse politely.
+		s.mux.Refuse(f.ID, protocol.CloseReasonError, protocol.CodeUnsupportedStream, "agents do not open streams in v1")
 		return true
 	case protocol.TypeStreamData, protocol.TypeStreamCredit, protocol.TypeStreamClose:
-		return true // no manager-side streams yet
+		s.mux.Handle(f)
+		return true
 	}
 	s.fail(protocol.CloseProtocolError, protocol.CodeInvalidFrame, "frame type "+string(f.Type)+" is not sent by agents", f.ID)
 	return false
@@ -671,6 +717,7 @@ func (s *Session) end() {
 	for _, ch := range pending {
 		ch <- requestResult{err: errSessionClosed}
 	}
+	s.mux.CloseAll()
 	h := s.hub
 	s.onlineMu.Lock()
 	current, wasOnline := h.detach(s)
