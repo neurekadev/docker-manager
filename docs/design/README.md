@@ -6,8 +6,7 @@ never committed) and the design decisions in #25 Q8: **dark-only v1**, no
 "PRO" badge, and the narrow-layout rules below. Everything here is code in
 `web/src/lib/design` (tokens, hues) and `web/src/lib/ui` (components); the
 live gallery is **`/design`** in any running DockYard (public, sample data
-only), and `test/devstack` gives you a realistic homelab to build pages
-against without Docker.
+only).
 
 - [Principles](#principles)
 - [Tokens](#tokens)
@@ -307,7 +306,7 @@ loading.
    yet: `EmptyState` with the action. Forbidden: hide the control (the
    server answers 403/404 anyway).
 4. Lists filter by `environmentSelection.id` (null = all environments).
-5. Run it against the devstack and look at it at 1440×900 and 390×844
+5. Build the UI, run the manager and look at it at 1440×900 and 390×844
    ([Tests and screenshot review](#tests-and-screenshot-review)).
 
 ## Data, permissions and live updates
@@ -349,7 +348,7 @@ loading.
 
 ## Accessibility floor
 
-WCAG AA contrast (checked in `design.spec.ts`); status never by colour
+WCAG AA contrast (checked in `src/lib/design/design.spec.ts`); status never by colour
 alone; every control keyboard-operable with a visible focus ring; icon-only
 buttons always labelled (`IconButton.label`); dialogs trap focus and return
 it; live regions announce job completion, copies and connection changes;
@@ -363,19 +362,15 @@ it; live regions announce job completion, copies and connection changes;
   labels, keyboard, focus trap and return. Harness components live in
   `web/src/test/`. Use `userEvent.setup({ pointerEventsCheck: 0 })` with
   Bits UI overlays.
-- Playwright: `e2e/tests/ui.spec.ts` (setup, sign-in, shell, switcher,
-  denied state) against the devstack locally and behind the TLS proxies in
-  CI; `e2e/tests/a11y.spec.ts` runs axe-core (`@axe-core/playwright`) on
-  every main route (no serious or critical WCAG 2.1 A/AA violation; justified
-  exceptions go in its `EXCEPTIONS` map with the reason) and checks the
-  shell, a table, a dialog and the file manager with the keyboard only, and
-  reduced motion; `e2e/tests/live-ui.spec.ts` proves open views converge
-  (two sessions, direct Docker changes through the devstack's `-control`
-  listener, a network outage, a permission revocation).
-- The e2e specs follow the web app's Prettier style (`scripts/web-check.sh`
-  checks them).
-- Screenshot review: run the devstack (`docs/development.md`, "UI
-  devstack"), then look at your page at 1440×900 and 390×844 (e.g.
-  `E2E_SCREENSHOTS_DIR=<dir outside the repo> npx playwright test tests/ui.spec.ts`)
-  and compare against the mockup on #22 and this document. Keep screenshots
+- These unit and component tests are the only automated UI tests. The
+  Playwright suite (flows, axe-core accessibility scans of every main
+  route, keyboard-only walkthroughs, live convergence across sessions) was
+  removed on 2026-09-25: page-level accessibility, real-browser behaviour
+  and live updates in open screens are not verified by automated tests
+  any more; check them by hand (keyboard only, a screen reader, reduced
+  motion, the browser's accessibility audit) when you change a page.
+- Screenshot review: `npm --prefix web run build`, run the manager
+  (`docs/development.md`, "Running locally"; Docker screens need a
+  connected agent), then look at your page at 1440×900 and 390×844 and
+  compare against the mockup on #22 and this document. Keep screenshots
   out of the repository.

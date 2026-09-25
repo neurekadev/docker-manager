@@ -78,7 +78,6 @@ in_list() {
 #   internal/agent/compose/*_test.go  tests scripting that fake Engine
 #   internal/agent/config/config.go   the DOCKER_HOST default value only
 #   internal/testutil/fscorpus/       a path-traversal test string
-#   internal/testharness/             DinD readiness probes and agent mounts of the CI fixtures
 #   test/deploy/*_test.go             tests asserting the deploy examples mount the socket
 #   internal/manager/agents/install.go  the agent install command's socket bind mount (text shown to operators)
 #   internal/protocol/docker{,_test}.go  refuses binding the Docker socket into containers created through DockYard (#6)
@@ -87,7 +86,6 @@ engine_http_exceptions=(
 	'^internal/agent/compose/[^/]+_test\.go$'
 	'^internal/agent/config/config\.go$'
 	'^internal/testutil/fscorpus/'
-	'^internal/testharness/'
 	'^test/deploy/[^/]+_test\.go$'
 	'^internal/manager/agents/install\.go$'
 	'^internal/protocol/docker(_test)?\.go$'
@@ -105,14 +103,10 @@ check_direct_engine_http() {
 }
 
 # SDK boundary (#21): Engine, Compose, BuildKit and docker/cli packages are
-# imported only by the two agent adapters, the CI test harness and
-# integration tests (which drive the harness fixtures with SDK types).
+# imported only by the two agent adapters.
 sdk_exceptions=(
 	'^internal/agent/engine/'
 	'^internal/agent/compose/'
-	'^internal/testharness/'
-	'^test/'
-	'(^|/)([a-z0-9_]+_)?integration_test\.go$'
 )
 
 check_sdk_boundary() {

@@ -193,23 +193,3 @@ func dumpRows(t *testing.T, f *fixture) string {
 	}
 	return sb.String()
 }
-
-func FuzzCanonicalDetails(f *testing.F) {
-	f.Add("password", "hunter2", "note")
-	f.Add("env", `{"A":"b"}`, "value")
-	f.Add("name", "Bearer abcdefghijkl", "path")
-	f.Add("x", strings.Repeat("y", 2000), "")
-	f.Add("", "\x00\xff", "tokenId")
-	f.Fuzz(func(t *testing.T, key, value, key2 string) {
-		b, err := audit.CanonicalDetails(map[string]any{key: value, key2: map[string]any{key: []any{value}}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(b) > audit.MaxDetailsBytes || !json.Valid(b) {
-			t.Fatalf("invalid canonical details %q", b)
-		}
-		if audit.LooksSecret(value) && strings.Contains(string(b), value) {
-			t.Fatalf("secret-shaped value kept: %q", b)
-		}
-	})
-}

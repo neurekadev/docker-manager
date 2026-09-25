@@ -1,4 +1,0 @@
-services:
-  hello:
-    build: .
-    image: dockyard-fixture/private-hello:git

@@ -32,10 +32,11 @@ uses the `engine.Engine` interface and the domain-neutral types in
 All pins are exact in `go.mod`. `scripts/build-static.sh` builds the agent
 with `CGO_ENABLED=0` for linux/amd64 and linux/arm64 and checks from the
 binary's build info that it links exactly these versions of the Moby
-client/API, Compose SDK, docker/cli and BuildKit (CI job `static-build`).
-The client is pre-1.0: bump the Moby, Compose, docker/cli and BuildKit
-modules together, re-run the extended Engine matrix and update the support
-matrix.
+client/API, Compose SDK, docker/cli and BuildKit (the `build` class of the
+local gate and CI's `Build` job). The client is pre-1.0: bump the Moby,
+Compose, docker/cli and BuildKit modules together, re-test against real
+Engines by hand (there is no automated Engine suite any more) and update
+the support matrix.
 
 ## Engine adapter (`internal/agent/engine`)
 
@@ -87,8 +88,8 @@ part of the agent contract (job results, capability frames):
 
 Registry failures arrive as messages inside pull/build streams, usually
 without a status code, so the adapter classifies the message text; the
-classification is unit-tested with the Engine's real messages and
-integration-tested against the registry fixture's fault proxy.
+classification is unit-tested with the Engine's real messages; it is not
+verified against a real registry by automated tests.
 
 ### Registry credentials (#19)
 
@@ -211,9 +212,9 @@ root. The result feeds the capabilities (`roots`, the `stacks` feature,
 | check | where | rule |
 | --- | --- | --- |
 | legacy module | `scripts/policy-check.sh`, depguard | no `github.com/docker/docker` import, in `go.mod`, or anywhere in `go list -deps ./cmd/...` |
-| CLI execution | `scripts/policy-check.sh`, forbidigo | no `exec.Command`/`LookPath` of docker, docker-compose, buildx or docker-credential-*; forbidigo forbids `os/exec` outright except in tests and `internal/testharness` (add restic's runner when #10 lands) |
+| CLI execution | `scripts/policy-check.sh`, forbidigo | no `exec.Command`/`LookPath` of docker, docker-compose, buildx or docker-credential-*; forbidigo forbids `os/exec` outright except in tests and the restic runner (`internal/restic/runner.go`, #10) |
 | direct Engine HTTP | `scripts/policy-check.sh` | no Docker socket literal or raw Engine API path (`/_ping`, `/containers/json`, `/v1.NN/...`, ...) outside the exceptions below |
-| SDK boundary | `scripts/policy-check.sh`, depguard `sdk-boundary` | Moby client/API, Compose SDK, docker/cli, BuildKit and compose-go only in `internal/agent/engine`, `internal/agent/compose`, `internal/testharness`, `test/` and `*integration_test.go` files (which drive the harness fixtures) |
+| SDK boundary | `scripts/policy-check.sh`, depguard `sdk-boundary` | Moby client/API, Compose SDK, docker/cli, BuildKit and compose-go only in `internal/agent/engine` and `internal/agent/compose` |
 | graph | `scripts/build-static.sh` | agent links the pinned SDK versions, manager links none |
 
 Documented exceptions to "direct Engine HTTP": `internal/agent/engine/`
@@ -221,8 +222,7 @@ Documented exceptions to "direct Engine HTTP": `internal/agent/engine/`
 `internal/agent/compose/*_test.go` (tests scripting that fake Engine),
 `internal/agent/config/config.go` (the `DOCKER_HOST` default value only),
 `internal/testutil/fscorpus/` (a path-traversal test string),
-`internal/testharness/` (DinD readiness probes and the agent container's
-mounts in the CI fixtures), `test/deploy/*_test.go` (tests asserting that
+`test/deploy/*_test.go` (tests asserting that
 the deploy examples mount the socket), `internal/manager/agents/install.go`
 (the agent install command shown to operators, which bind-mounts the socket
 into the agent container; the manager never dials it) and
@@ -238,12 +238,11 @@ refuses binding the socket into containers created through DockYard, #6).
   auth); `internal/agent/compose` (loading, env isolation, rejected
   features, build mapping, `TestCredentialsNeverTouchDisk`);
   `internal/agent/runtime` (connection, backoff, capabilities).
-- Integration (`-tags integration`, extended workflow): `TestEngine*` in
-  `engine-matrix` for every Engine of `test/matrix/engines.json`
-  (`TestEngineAdapterNegotiatesAndIdentifies`, `TestEngineOperations` with
-  one subtest per v1 operation, `TestEngineComposeLifecycle`,
-  `TestEngineAgentImage`); `TestCompose*` in `compose-fixtures`
-  (depends_on conditions and restart propagation, unhealthy dependency,
-  failed one-shot, local build, private-registry pull). Containers run the
-  hermetic workload image (`test/fixtures/workload`,
-  `testharness.WorkloadImage`); no test pulls from Docker Hub inside DinD.
+- Not verified by automated tests any more: the adapter and the Compose
+  SDK against real Engines, the supported Engine version range, and pulls
+  and builds against real registries. The Engine matrix (every v1 operation
+  per Engine version, Compose lifecycle, agent image) and the Compose
+  fixture suite (depends_on conditions and restart propagation, unhealthy
+  dependency, failed one-shot, local build, private-registry pull) were
+  removed on 2026-09-25; their last results are recorded as historical
+  evidence in [support-matrix.md](../support-matrix.md#docker-engine-versions).

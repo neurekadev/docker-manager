@@ -29,7 +29,8 @@ model, and what DockYard still owns.
 All versions are pinned exactly in `go.mod`. `scripts/build-static.sh`
 fails unless the manager binary links exactly these versions (and the agent
 links none of the browser-auth libraries); `scripts/license-check.sh`
-covers their licenses; govulncheck runs in CI.
+covers their licenses; govulncheck runs in CI. (Note, 2026-09-25: the
+license check and govulncheck are manual reviews now; neither runs in CI.)
 
 | Module | Version | License | Owns |
 | --- | --- | --- | --- |

@@ -10,27 +10,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/faultinject"
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/store"
 	"github.com/neurekadev/dockyard/internal/protocol"
-)
-
-// Fault points of the manager engine (stage boundaries).
-const (
-	PointEnqueueCommitted      = "engine.enqueue.committed"
-	PointDispatchLocked        = "engine.dispatch.locked"
-	PointDispatchCommitted     = "engine.dispatch.committed"
-	PointDispatchSent          = "engine.dispatch.sent"
-	PointAckBeforeCommit       = "engine.ack.before_commit"
-	PointProgressCommitted     = "engine.progress.committed"
-	PointResultBeforeCommit    = "engine.result.before_commit"
-	PointResultCommitted       = "engine.result.committed"
-	PointReconcileBeforeCommit = "engine.reconcile.before_commit"
-	PointReconcileCommitted    = "engine.reconcile.committed"
-	PointManagerJobStarted     = "engine.manager_job.started"
-	PointManagerJobCommitted   = "engine.manager_job.committed"
 )
 
 // errConflict aborts an acquisition transaction whose lock set is no longer
@@ -166,14 +149,8 @@ func (e *Engine) DispatchPending(ctx context.Context) error {
 			classActive[k] = append(classActive[k], j.ID)
 		}
 		e.notify(dispatched.ID)
-		if err := faultinject.Point(ctx, PointDispatchCommitted); err != nil {
-			return err
-		}
 		if spec.Executor == domain.ExecutorAgent {
 			e.sendCommand(ctx, &dispatched, spec)
-			if err := faultinject.Point(ctx, PointDispatchSent); err != nil {
-				return err
-			}
 		} else {
 			e.startManagerJob(dispatched)
 		}
@@ -277,9 +254,6 @@ func (e *Engine) acquire(ctx context.Context, j *domain.Job, spec jobspec.Spec) 
 			if err := store.InsertJobLock(ctx, tx, cur.ID, l, now); err != nil {
 				return err
 			}
-		}
-		if err := faultinject.Point(ctx, PointDispatchLocked); err != nil {
-			return err
 		}
 		msg := "dispatched to the manager"
 		if spec.Executor == domain.ExecutorAgent {

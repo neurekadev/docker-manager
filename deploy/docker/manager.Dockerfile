@@ -54,29 +54,27 @@ COPY web/embed.go web/
 COPY web/build/fallback/ web/build/fallback/
 COPY --from=web /src/web/build/app/ web/build/app/
 ARG TARGETARCH
-ARG VERSION=0.0.0-edge
-ARG REVISION=unknown
-ARG CREATED=unknown
-# Build tags. Release images use none; the proxy E2E suite builds with
-# GO_TAGS=e2e to add its test-only routes (internal/manager/server/e2e_routes.go).
-ARG GO_TAGS=""
+# Build metadata (CI passes the version, the commit and its date).
+ARG GIT_TAG=0.0.0-edge
+ARG GIT_HASH=unknown
+ARG GIT_DATE=unknown
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    GOOS=linux GOARCH="${TARGETARCH}" go build -trimpath -tags "${GO_TAGS}" \
-      -ldflags "-s -w -X github.com/neurekadev/dockyard/internal/buildinfo.Version=${VERSION} -X github.com/neurekadev/dockyard/internal/buildinfo.Commit=${REVISION} -X github.com/neurekadev/dockyard/internal/buildinfo.Date=${CREATED}" \
+    GOOS=linux GOARCH="${TARGETARCH}" go build -trimpath \
+      -ldflags "-s -w -X github.com/neurekadev/dockyard/internal/buildinfo.Version=${GIT_TAG} -X github.com/neurekadev/dockyard/internal/buildinfo.Commit=${GIT_HASH} -X github.com/neurekadev/dockyard/internal/buildinfo.Date=${GIT_DATE}" \
       -o /out/dockyard-manager ./cmd/dockyard-manager
 
 # ---------------------------------------------------------------- runtime
 FROM ${RUNTIME_IMAGE}
-ARG VERSION=0.0.0-edge
-ARG REVISION=unknown
-ARG CREATED=unknown
+ARG GIT_TAG=0.0.0-edge
+ARG GIT_HASH=unknown
+ARG GIT_DATE=unknown
 LABEL org.opencontainers.image.title="dockyard-manager" \
       org.opencontainers.image.description="DockYard manager: web UI, API and agent endpoint" \
-      org.opencontainers.image.source="https://github.com/neurekadev/dockyard" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.revision="${REVISION}" \
-      org.opencontainers.image.created="${CREATED}"
+      org.opencontainers.image.source="https://code.neureka.dev/dockyard/dockyard" \
+      org.opencontainers.image.version="${GIT_TAG}" \
+      org.opencontainers.image.revision="${GIT_HASH}" \
+      org.opencontainers.image.created="${GIT_DATE}"
 COPY --from=build /out/dockyard-manager /usr/local/bin/dockyard-manager
 COPY --from=restic /restic /usr/local/bin/restic
 ENV DOCKYARD_LISTEN_ADDR=:8080 \

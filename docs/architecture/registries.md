@@ -137,7 +137,7 @@ messages.
 
 ## Tests
 
-Docker-free: `internal/imageref` (normalization, matchers, fuzz),
+Docker-free: `internal/imageref` (normalization, matchers),
 `internal/manager/regclient` (fake registry: bearer/basic auth, no
 anonymous fallback, 403/404, 429 with Retry-After, long Retry-After
 cooldown, 5xx backoff, jitter bounds, platform selection, cache and
@@ -150,9 +150,7 @@ journal, logs, results or reports), `internal/agent/regauth`,
 `internal/manager/app/registries_test.go` (HTTP: lifecycle, shaping,
 owner-only, API tokens refused, audit, whole-database canary scan).
 
-Integration (`-tags integration`, extended workflow `compose-fixtures`):
-`TestRegistryConnectionAgainstRegistryFixture` (registry fixture with fault
-proxy and two DinD Engines), `TestRegistryAutomaticUpdateOnTwoAgents`
-(internal/manager/updates: Compose deployment and a scheduled digest
-update of a private image on two Engines, #20) and
-`TestComposeDigestUpdateFromPrivateRegistry` (internal/agent/stacks).
+Connections against a real registry and pulls through real Engines are
+**not verified by automated tests**: the former integration tests (registry
+fixture with a fault proxy and two DinD Engines, scheduled digest updates of
+a private image, #20) were removed on 2026-09-25.

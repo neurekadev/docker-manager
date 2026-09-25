@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Builds both executables for linux/amd64 and linux/arm64 with CGO disabled
-# into dist/ and verifies each is a static binary.
+# into $DIST_DIR (default dist/) and verifies each is a static binary.
 #
-# The manager embeds web/build/app when present (run scripts/web-check.sh or
+# The manager embeds web/build/app when present (run
 # `npm --prefix web run build` first), otherwise the placeholder page.
 #
-# Environment: VERSION (default 0.0.0-edge), COMMIT, DATE (default: from git).
+# Environment: DIST_DIR (default dist), VERSION (default 0.0.0-edge),
+# COMMIT, DATE (default: from git).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+DIST_DIR="${DIST_DIR:-dist}"
 VERSION="${VERSION:-0.0.0-edge}"
 COMMIT="${COMMIT:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}"
 DATE="${DATE:-$(git log -1 --format=%cI 2>/dev/null || echo unknown)}"
@@ -68,11 +70,11 @@ check_auth_graph() { # bin out meta
 	done
 }
 
-rm -rf dist
-mkdir -p dist
+rm -rf "$DIST_DIR"
+mkdir -p "$DIST_DIR"
 for arch in amd64 arm64; do
 	for bin in dockyard-manager dockyard-agent; do
-		out="dist/${bin}-linux-${arch}"
+		out="${DIST_DIR}/${bin}-linux-${arch}"
 		echo "==> ${out}"
 		CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -ldflags "$ldflags" -o "$out" "./cmd/${bin}"
 
@@ -115,5 +117,5 @@ for arch in amd64 arm64; do
 		fi
 	done
 done
-(cd dist && sha256sum -- * >SHA256SUMS)
-ls -l dist
+(cd "$DIST_DIR" && sha256sum -- * >SHA256SUMS)
+ls -l "$DIST_DIR"

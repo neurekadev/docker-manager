@@ -32,8 +32,9 @@ override in v1; Docker on the host is the escape hatch).
 Detection works on a host with manager and agent (the co-located deploy
 examples) and on a host with only an agent (`deploy/remote-agent`): tests
 `TestHostWithManagerAndAgent`, `TestHostWithOnlyAnAgent`,
-`TestSelfProtectionOnTwoHosts` (real sessions), `TestEngineSelfProtection`
-(real Engines, `-tags integration`).
+`TestSelfProtectionOnTwoHosts` (real sessions over in-memory Engines).
+Detection against real Engines is not verified by automated tests any more
+(`TestEngineSelfProtection` was removed on 2026-09-25).
 
 ## Decisions (`protection.Check`)
 

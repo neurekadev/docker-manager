@@ -6,9 +6,6 @@ run:
   go: "1.27"
   timeout: 5m
   tests: true
-  # Lint the Docker-backed test harness too (it only builds with the tag).
-  build-tags:
-    - integration
 
 linters:
   default: none
@@ -38,18 +35,14 @@ linters:
               desc: use github.com/moby/moby/client through the agent Engine adapter (#21)
             - pkg: github.com/mattn/go-sqlite3
               desc: DockYard is CGO-free; use bun/driver/sqliteshim (modernc.org/sqlite)
-        # Only the two agent adapters (and the CI test harness) may use the
-        # Engine, Compose, BuildKit and docker/cli SDKs (#21). Everything else
-        # goes through internal/agent/engine's domain-neutral interface.
+        # Only the two agent adapters may use the Engine, Compose, BuildKit
+        # and docker/cli SDKs (#21). Everything else goes through
+        # internal/agent/engine's domain-neutral interface.
         sdk-boundary:
           files:
             - $all
             - "!**/internal/agent/engine/**"
             - "!**/internal/agent/compose/**"
-            - "!**/internal/testharness/**"
-            - "!**/test/**"
-            # Integration tests drive the harness fixtures, whose options use SDK types.
-            - "!**/*integration_test.go"
           deny:
             - pkg: github.com/moby/moby/client
               desc: only internal/agent/engine talks to the Engine (#21)
@@ -71,8 +64,8 @@ linters:
           msg: use log/slog
         # No Docker/Compose/buildx CLI or credential helpers (#21): process
         # execution is limited to the paths excluded below (see
-        # docs/architecture/engine-integration.md): tests, the CI harness and
-        # the pinned restic runner (internal/restic/runner.go, #10).
+        # docs/architecture/engine-integration.md): tests and the pinned
+        # restic runner (internal/restic/runner.go, #10).
         - pattern: ^exec\.(Command|CommandContext|LookPath)$
           pkg: ^os/exec$
           msg: the agent never executes Docker, Compose, buildx or credential-helper binaries; use the Engine/Compose SDK adapters (#21)
@@ -129,15 +122,9 @@ linters:
       - path: ^cmd/
         linters:
           - forbidigo
-      # Test fixture programs (run inside test containers) print to stdout and
-      # take paths from their arguments by design.
-      - path: ^test/fixtures/
-        linters:
-          - forbidigo
-          - gosec
-      # Process execution is allowed only in tests (subprocess crash tests,
-      # git/restic in fixtures) and in the CI test harness (git fixtures).
-      - path: (_test\.go$|^internal/testharness/)
+      # Process execution is allowed only in tests (the restic runner's
+      # helper process re-executes the test binary as a fake restic).
+      - path: _test\.go$
         text: exec\.(Command|CommandContext|LookPath)
         linters:
           - forbidigo

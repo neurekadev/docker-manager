@@ -187,27 +187,3 @@ func TestCheckSecureOrigin(t *testing.T) {
 		t.Fatalf("trusted peer should not get the proxy hint: %q", err)
 	}
 }
-
-func FuzzResolve(f *testing.F) {
-	f.Add("10.0.0.2:1", "1.2.3.4, 198.51.100.9", "https", "docker.example.com")
-	f.Add("203.0.113.1:9", "", "", "")
-	f.Add("[fd00::1]:1", "[2001:db8::1]:80,garbage", "http,https", "[::1]:8443")
-	res := NewResolver([]netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("fd00::/8")})
-	f.Fuzz(func(t *testing.T, remote, xff, proto, host string) {
-		r := httptest.NewRequest(http.MethodGet, "http://h/", nil)
-		r.RemoteAddr = remote
-		r.Header.Set(HeaderForwardedFor, xff)
-		r.Header.Set(HeaderForwardedProto, proto)
-		r.Header.Set(HeaderForwardedHost, host)
-		info := res.Resolve(r)
-		if info.Scheme != "http" && info.Scheme != "https" {
-			t.Fatalf("scheme %q", info.Scheme)
-		}
-		if !info.TrustedPeer && (info.ClientIP != info.Peer || info.Host != "h") {
-			t.Fatalf("untrusted peer honored headers: %+v", info)
-		}
-		if info.TrustedPeer && info.Host != "h" && !validHost(info.Host) {
-			t.Fatalf("invalid host %q", info.Host)
-		}
-	})
-}

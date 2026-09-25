@@ -10,7 +10,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/faultinject"
 	"github.com/neurekadev/dockyard/internal/ids"
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/manager/store"
@@ -95,9 +94,6 @@ func (e *Engine) handleAck(ctx context.Context, env string, f *protocol.Frame) e
 		if !current(&j, env, f.Ref()) || !j.State.Active() {
 			return nil // stale acknowledgement
 		}
-		if err := faultinject.Point(ctx, PointAckBeforeCommit); err != nil {
-			return err
-		}
 		switch {
 		case p.Accepted:
 			if j.State == domain.JobDispatched {
@@ -137,10 +133,7 @@ func (e *Engine) handleProgress(ctx context.Context, env string, f *protocol.Fra
 	if err != nil {
 		return err
 	}
-	ok, err := e.applyProgress(ctx, f.JobID, func(j *domain.Job) bool { return current(j, env, f.Ref()) }, p)
-	if err == nil && ok {
-		err = faultinject.Point(ctx, PointProgressCommitted)
-	}
+	_, err = e.applyProgress(ctx, f.JobID, func(j *domain.Job) bool { return current(j, env, f.Ref()) }, p)
 	return err
 }
 
@@ -256,9 +249,6 @@ func (e *Engine) handleResult(ctx context.Context, env string, f *protocol.Frame
 		if j.State.Terminal() || !current(&j, env, f.Ref()) {
 			return e.lateOutcome(ctx, tx, &j, f.Ref(), &res)
 		}
-		if err := faultinject.Point(ctx, PointResultBeforeCommit); err != nil {
-			return err
-		}
 		again, err := e.applyResult(ctx, tx, &j, res)
 		if again {
 			resend = &j
@@ -275,9 +265,6 @@ func (e *Engine) handleResult(ctx context.Context, env string, f *protocol.Frame
 			return nil, err
 		}
 		replies = append(replies, ack)
-	}
-	if err := faultinject.Point(ctx, PointResultCommitted); err != nil {
-		return nil, err
 	}
 	e.afterAgentChange(ctx, []string{f.JobID}, resend)
 	return replies, nil
@@ -473,12 +460,9 @@ func (e *Engine) handleReport(ctx context.Context, env string, f *protocol.Frame
 				}
 			}
 		}
-		return faultinject.Point(ctx, PointReconcileBeforeCommit)
+		return nil
 	})
 	if err != nil {
-		return nil, err
-	}
-	if err := faultinject.Point(ctx, PointReconcileCommitted); err != nil {
 		return nil, err
 	}
 	ack, err := protocol.NewFrame(protocol.TypeAck, ids.New(), f.ID, protocol.JobRef{}, protocol.AckPayload{Accepted: true, Forget: forget})

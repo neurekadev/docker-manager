@@ -3,7 +3,7 @@
 	// data, including a re-composition of the mockup's stack detail from the
 	// library. Public on purpose (no API data, no sign-in) so reviewers and
 	// feature agents can compare against docs/design/README.md. The "Lazy
-	// surfaces" section keeps the #11 lazy-loading proof (e2e/tests/pwa.spec.ts).
+	// surfaces" section loads the heavy libraries on demand (#11).
 	import { onDestroy } from 'svelte';
 	import Clock from '@lucide/svelte/icons/clock';
 	import Cpu from '@lucide/svelte/icons/cpu';

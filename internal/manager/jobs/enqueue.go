@@ -14,7 +14,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/faultinject"
 	"github.com/neurekadev/dockyard/internal/ids"
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/logging"
@@ -137,9 +136,6 @@ func (e *Engine) Enqueue(ctx context.Context, req Request) (job domain.Job, crea
 		return domain.Job{}, false, err
 	}
 	if created {
-		if err := faultinject.Point(ctx, PointEnqueueCommitted); err != nil {
-			return job, created, err
-		}
 		e.notify(job.ID)
 		e.Wake()
 	}

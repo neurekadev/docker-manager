@@ -166,9 +166,7 @@ engine), `internal/manager/app` `TestStackBuildThroughTheAPI` (HTTP, audit,
 database canary scan), `internal/manager/api`
 `TestStackBuildNeedsItsOwnCapability`.
 
-Integration (`-tags integration`, extended `compose-fixtures`):
-`TestGitBuildsOnTwoEngines` (Git server fixture, two DinD Engines, public
-and private repositories); `TestComposeStackBuildRebuildAndCancel`
-(internal/agent/stacks: the deploy builds the missing image, `stack.build`
-rebuilds without deploying, the redeploy runs the new image, a build
-cancelled mid-`RUN` tags nothing).
+Builds against a real BuildKit, Git server and registry are **not verified
+by automated tests**: the former integration tests (Git builds on two
+Engines, rebuild and mid-`RUN` cancellation of Compose build sections)
+were removed on 2026-09-25.

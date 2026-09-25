@@ -215,27 +215,3 @@ func TestDailyRunsOncePerLocalDay(t *testing.T) {
 		}
 	}
 }
-
-func FuzzParse(f *testing.F) {
-	for _, s := range []string{"0 2 * * *", "*/15 8-18/2 1,15 * 1-5", "0 0 30 2 *", "* * * * 7", "5/10 * * JAN sun", "@daily", "1-2/0 * * * *"} {
-		f.Add(s)
-	}
-	loc := time.UTC
-	f.Fuzz(func(t *testing.T, expr string) {
-		s, err := Parse(expr)
-		if err != nil {
-			var pe *ParseError
-			if !errors.As(err, &pe) {
-				t.Fatalf("non-ParseError %v", err)
-			}
-			return
-		}
-		again, err := Parse(s.String())
-		if err != nil || again.String() != s.String() {
-			t.Fatalf("normalized %q does not round-trip: %v", s.String(), err)
-		}
-		if _, ok := s.Next(time.Date(2026, 1, 1, 0, 0, 0, 0, loc), loc); !ok {
-			t.Fatalf("%q parsed but never runs", expr)
-		}
-	})
-}

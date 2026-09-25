@@ -102,5 +102,5 @@ update prompt consults, and the polling fallback.
 | agent watcher: create/edit/rename/delete, debounce, overflow, missed events (notifications disabled), watch limit, symlink escape, rescan | `internal/agent/watch` |
 | real-filesystem latency (p95) | `TestRealFilesystemLatency` |
 | external compose.yaml edit → revision (real fsnotify through the manager) | `TestExternalComposeEditRecordsRevision`, `TestExternalChangeAndWatchScopes`, `TestExternalChangesSettleAndGapsRescan`, `TestWatchSetFollowsStacksAndOpenVolumes` |
-| unsaved editor buffer: stale save refused with the current ETag | #15: `TestVolumeFilesThroughTheAPI` (412 with the current ETag), `TestReadWriteETagAndConflicts`; `e2e/tests/live.spec.ts` (written) |
+| unsaved editor buffer: stale save refused with the current ETag | #15: `TestVolumeFilesThroughTheAPI` (412 with the current ETag), `TestReadWriteETagAndConflicts`; the editor's side in `ConflictDialog.test.ts` / `EditorPane.test.ts` (jsdom). Two real browser sessions are not verified by automated tests (the Playwright spec was removed on 2026-09-25) |
 | browser client | `web/src/lib/live/*.spec.ts`, `web/src/lib/pwa/register.spec.ts` |

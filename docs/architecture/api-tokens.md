@@ -151,7 +151,6 @@ audit records, later responses or the database (canary tests in
 | `app.TestExpiredTokenStreamSwept` | the sweeper closes streams of expired tokens; session revocation leaves token streams |
 | `permissions.TestTokenScopeIntersectsCurrentPermissions`, `TestQueuedTokenJobRecheckedAtDispatch`, `TestValidateTokenScope` | evaluation, dispatch recheck, scope validation |
 | `api.TestAuthorizeExecNeedsExplicitTokenGrant` | the exec check |
-| `scripts/smoke/deploy-smoke.sh` step `api-token` | the same with curl against the deployed images behind Caddy |
 | `app.TestAPITokenRestartsOneContainer` (#6) | a token with `allow container.restart @container:<env>/web` restarts `web` (202, origin `api_token`), gets `404` for another container, `403` for other actions, `403 api_token_not_allowed` on an owner route |
 | `app.TestAPITokenTerminalNeedsContainerExec` (#8) | the same restart token gets `403` for `…/web/logs`, `…/web/logs/stream` and `POST …/web/exec-sessions` although its owner holds both; a token with `container.exec` gets a terminal session (`201`, audited with the token ID) but no logs; restart- and metrics-only users get neither |
 | `containerio.TestExecAuthorizationBoundaries` (#8) | the terminal routes through `api.AuthorizeExec`: tokens without an explicit `container.exec` grant are refused |

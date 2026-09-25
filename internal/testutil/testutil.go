@@ -60,29 +60,21 @@ func (b *LogBuffer) String() string {
 	return b.sb.String()
 }
 
-// ContextTimeout is Context's safety net against hangs: 30 s, scaled by
-// RaceSlowdown under the race detector.
-const ContextTimeout = 30 * time.Second * RaceSlowdown
-
-// RaceSlowdown scales hang safety nets (never assertions) when the race
-// detector is compiled in: instrumented code, and the pure-Go SQLite
-// driver in particular, runs 5 to 30 times slower.
-const RaceSlowdown = 1 + 4*raceBit
+// ContextTimeout is Context's safety net against hangs.
+const ContextTimeout = 30 * time.Second
 
 // Context returns a context canceled when the test ends, with a timeout as
 // a safety net against hangs (ContextTimeout).
 func Context(t testing.TB) context.Context {
 	t.Helper()
-	return ContextWithin(t, 30*time.Second)
+	return ContextWithin(t, ContextTimeout)
 }
 
-// ContextWithin is Context with another hang net d (scaled by
-// RaceSlowdown), for tests whose steps are slow by nature: a test that runs
-// the real restic twenty times (each run derives its key with scrypt, 1 to
-// 2 s on a busy runner) needs more than Context's 30 s.
+// ContextWithin is Context with another hang net d, for tests whose steps
+// are slow by nature.
 func ContextWithin(t testing.TB, d time.Duration) context.Context {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), d*RaceSlowdown)
+	ctx, cancel := context.WithTimeout(t.Context(), d)
 	t.Cleanup(cancel)
 	return ctx
 }

@@ -26,7 +26,7 @@ upgrade them.
 1. Note the image digests you run, so you can go back:
    ```bash
    docker compose images --format json | jq -r '.[] | "\(.Repository):\(.Tag) \(.ID)"'
-   docker image inspect --format '{{index .RepoDigests 0}}' ghcr.io/neurekadev/dockyard-manager:edge
+   docker image inspect --format '{{index .RepoDigests 0}}' code.neureka.dev/dockyard/dockyard-manager:edge
    ```
 2. Optional but recommended: run a manager-state backup (#10) or copy the
    `dockyard_data` volume. The upgrade takes its own pre-migration snapshot
@@ -104,7 +104,7 @@ place. Then pin the manager image to the digest you noted and start it:
 ```yaml
 # compose.yaml
   dockyard-manager:
-    image: ghcr.io/neurekadev/dockyard-manager@sha256:<previous digest>
+    image: code.neureka.dev/dockyard/dockyard-manager@sha256:<previous digest>
 ```
 
 ```bash
@@ -131,7 +131,8 @@ previous release. The window is covered by unit and transport tests
 real N-1 agent by hand:
 
 1. Build or pull a manager `1.N.x` and an agent `1.(N-1).y` (version stamped
-   with `-ldflags -X …/internal/buildinfo.Version=…`).
+   with `-ldflags -X …/internal/buildinfo.Version=…`, or the images' build
+   argument `GIT_TAG`).
 2. Start the manager, enroll the agent: it connects, its environment is
    online and `GET /api/v1/environments/{id}` shows `compatibility:
    "outdated"` with upgrade instructions; run a container restart and a

@@ -14,7 +14,7 @@ import (
 
 // Archive is one generated archive.
 type Archive struct {
-	// Name is the file name in test/corpora/fs.
+	// Name is the archive's file name.
 	Name string
 	// Format is "zip", "tar" or "tar.gz".
 	Format string

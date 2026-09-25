@@ -144,8 +144,9 @@ logs.
 ## Tests
 
 - Agent: `internal/agent/resources` (requests, error codes, every executor
-  with enginefake), `TestEngineResourceOperations` (`-tags integration`,
-  real Engines, registry fixture with auth and injected 429).
+  with enginefake). The operations against real Engines and a registry
+  with auth and injected 429 are not verified by automated tests any more
+  (the integration test was removed on 2026-09-25).
 - Manager: `internal/manager/resources` (Locators, reconciliation,
   forget-on-success, error mapping); `internal/manager/api/docker_test.go`
   (authztest matrices for Restricted, metrics-only and restart-only incl.

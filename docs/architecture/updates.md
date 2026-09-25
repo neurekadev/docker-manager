@@ -227,7 +227,7 @@ source bytes and mtimes identical through successful and failed updates,
 tag moved again, index digest, credentials, standalone recreate),
 `internal/manager/api` (`TestUpdatePolicy*`, image status).
 
-Integration (`-tags integration`, compose-fixtures job):
-`TestComposeDigestUpdateFromPrivateRegistry` (registry fixture, one DinD
-Engine) and `TestRegistryAutomaticUpdateOnTwoAgents` (scheduled check and
-run on two Engines with a manager-owned connection, #19).
+Updates against a real registry and real Engines are **not verified by
+automated tests**: the former integration tests (a digest update from a
+private registry on one Engine, a scheduled check and run on two Engines
+with a manager-owned connection, #19) were removed on 2026-09-25.

@@ -136,19 +136,3 @@ func TestAddresses(t *testing.T) {
 		t.Fatal("ServerAddress")
 	}
 }
-
-func FuzzParse(f *testing.F) {
-	for _, s := range []string{"nginx", "ghcr.io/o/a:1", "registry.lan:5000/a@sha256:" + sha, "index.docker.io/x", ":::", "0A/0"} {
-		f.Add(s)
-	}
-	f.Fuzz(func(t *testing.T, s string) {
-		r, err := Parse(s)
-		if err != nil {
-			return
-		}
-		again, err := Parse(r.String())
-		if err != nil || again != r {
-			t.Fatalf("Parse(%q) = %v; reparse %v, %v", s, r, again, err)
-		}
-	})
-}

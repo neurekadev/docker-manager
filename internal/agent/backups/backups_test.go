@@ -430,7 +430,7 @@ func (e *env) run(ctx context.Context, kind domain.JobKind, in any, secrets *pro
 	}
 	j := &memJournal{}
 	st := &jobexec.State{JobID: "job-1", Attempt: 1, Kind: kind, Input: raw, Secrets: secrets}
-	res, err := jobexec.Run(ctx, e.executor(kind), st, jobexec.Options{Journal: j, CancelRequested: cancel, FaultPrefix: "agent"})
+	res, err := jobexec.Run(ctx, e.executor(kind), st, jobexec.Options{Journal: j, CancelRequested: cancel})
 	return res, j, err
 }
 

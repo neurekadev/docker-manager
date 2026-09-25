@@ -8,17 +8,19 @@ clients and the agents on other hosts all use that origin. The examples in
 
 ## Requirements
 
-- A Linux host (amd64 or arm64) with Docker Engine 25.0 or newer and the
+- A Linux amd64 host (the images are published for linux/amd64 only) with
+  Docker Engine 25.0 or newer and the
   Compose plugin, using a local data root (default `/var/lib/docker`).
   Rootless Engines, Docker Desktop and NAS vendor Engines are not
   supported ([support matrix](../support-matrix.md#hosts)).
 - A DNS name for the origin and ports 80/443 on the host (or your own
   proxy in front).
-- Access to the images. The GHCR packages are private while DockYard is in
-  development; log in with a GitHub token that has `read:packages`:
+- Access to the images. The registry at `code.neureka.dev` is private
+  while DockYard is in development; log in with your Forgejo username and
+  a Forgejo access token that has the `read:package` scope:
 
   ```bash
-  echo "$GITHUB_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
+  echo "$FORGEJO_TOKEN" | docker login code.neureka.dev -u <forgejo-user> --password-stdin
   ```
 
 ## Start it
@@ -45,8 +47,8 @@ What the example creates:
 
 | Service | Image | Notes |
 | --- | --- | --- |
-| `dockyard-manager` | `ghcr.io/neurekadev/dockyard-manager:edge` | volume `dockyard_data` (database, snapshots, `secret.key`); publishes no port; trusts only the proxy's forwarded headers (`DOCKYARD_TRUSTED_PROXIES`) |
-| `dockyard-agent` | `ghcr.io/neurekadev/dockyard-agent:edge` | the Docker socket, Docker's volume directory at the identical path, volumes `dockyard_agent_state` and `dockyard_stacks`; talks to the manager over the internal network (`DOCKYARD_MANAGER_ALLOW_HTTP=true`) |
+| `dockyard-manager` | `code.neureka.dev/dockyard/dockyard-manager:edge` | volume `dockyard_data` (database, snapshots, `secret.key`); publishes no port; trusts only the proxy's forwarded headers (`DOCKYARD_TRUSTED_PROXIES`) |
+| `dockyard-agent` | `code.neureka.dev/dockyard/dockyard-agent:edge` | the Docker socket, Docker's volume directory at the identical path, volumes `dockyard_agent_state` and `dockyard_stacks`; talks to the manager over the internal network (`DOCKYARD_MANAGER_ALLOW_HTTP=true`) |
 | proxy | pinned by digest | the only published ports; fixed address `DOCKYARD_PROXY_IP` on the `dockyard` network |
 
 ## Settings you are likely to change

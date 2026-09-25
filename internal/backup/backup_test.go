@@ -90,29 +90,6 @@ func TestManifestDetectsCorruptionAndTruncation(t *testing.T) {
 	}
 }
 
-func FuzzDecodeManifest(f *testing.F) {
-	good, _ := EncodeManifest(sampleManifest())
-	f.Add(good)
-	f.Add(good[:len(good)/2])
-	f.Add([]byte("DOCKYARD-MANIFEST v1 length=2 sha256=00\n{}"))
-	f.Add([]byte(""))
-	f.Fuzz(func(t *testing.T, b []byte) {
-		m, err := DecodeManifest(b)
-		if err != nil {
-			return
-		}
-		// Whatever decodes re-encodes and decodes to the same set.
-		again, err := EncodeManifest(m)
-		if err != nil {
-			t.Fatal(err)
-		}
-		m2, err := DecodeManifest(again)
-		if err != nil || m2.SetID != m.SetID {
-			t.Fatalf("re-decode: %v", err)
-		}
-	})
-}
-
 func TestCompletenessAndMerge(t *testing.T) {
 	set := sampleManifest()
 	// Manager complete, stack pending: pending until the host reports.

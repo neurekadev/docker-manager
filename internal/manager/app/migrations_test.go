@@ -28,8 +28,8 @@ import (
 // Environment migration (#35) through the real manager: two agents with
 // real sessions serve the migration requests and streams over in-memory
 // Engines and host filesystems (migrationtest); the destination's
-// stack.deploy is simulated (the Compose SDK needs a Docker Engine: the
-// integration test in internal/manager/migrations covers that part).
+// stack.deploy is simulated (the Compose SDK needs a Docker Engine, which
+// the unit tests do not use).
 
 type migrationStackDeps struct{ me *migrationtest.Env }
 

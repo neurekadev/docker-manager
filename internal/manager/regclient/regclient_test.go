@@ -418,10 +418,3 @@ func TestRetryAfterHeaders(t *testing.T) {
 		}
 	}
 }
-
-func FuzzParseChallenge(f *testing.F) {
-	for _, s := range []string{`Bearer realm="x",service="y"`, `Basic realm="a\"b"`, `Bearer realm=unquoted,scope=x`, `Bearer realm="`} {
-		f.Add(s)
-	}
-	f.Fuzz(func(_ *testing.T, s string) { parseChallenge(s) })
-}

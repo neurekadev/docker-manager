@@ -22,7 +22,7 @@
 - Relaxing request validation (longer max lengths, fewer required members).
 - Documentation, examples, summaries.
 
-## Breaking changes (need the explicit label)
+## Breaking changes (need explicit approval)
 
 Anything that can break an existing, correct client, for example:
 
@@ -36,46 +36,36 @@ Anything that can break an existing, correct client, for example:
 - changing authentication requirements of an existing operation.
 
 Changes to `x-dockyard-capability` or `x-dockyard-scope` are authorization
-changes: they are not detected by the diff tool but by the route inventory
-(`TestRouteInventory` requires the inventory to change with them, which makes
-them visible in review) and must be agreed with #17.
+changes: they are visible in review through the route inventory
+(`TestRouteInventory` requires the inventory to change with them) and must
+be agreed with #17.
 
-## The breaking-change check
+## Reviewing for breaking changes
 
-`scripts/api-breaking.sh` compares the PR's `api/openapi.json` with the
-version at the merge base with `main`, using **oasdiff v1.32.1** (a pinned
-release binary verified by SHA-256; the script downloads it into
-`~/.cache/dockyard/` when missing).
+There is no automated contract check any more: the former oasdiff-based
+`api-contract` workflow and its `api-breaking-change` label were removed on
+2026-09-25 with the move to Forgejo. Breaking changes are found by review:
 
-```bash
-bash scripts/api-breaking.sh            # against origin/main
-bash scripts/api-breaking.sh <base-ref> # against another base
-```
-
-It prints the full changelog, then fails when oasdiff reports a breaking
-change at level `ERR`. The CI workflow `.github/workflows/api-contract.yaml`
-runs it on every pull request (and again when labels change).
+- `api/openapi.json` is committed and `TestOpenAPISnapshot` (part of
+  `go test ./...`) fails when it is stale, so every contract change shows
+  up in the change's diff of `api/openapi.json`.
+- The author and the reviewer read that diff against the lists above.
 
 ### Approving a breaking change
 
-Add the label **`api-breaking-change`** to the pull request. The check then
-still runs and prints the breaking changes, but passes. The PR description
-must contain a section `## API breaking change` with:
+A breaking change needs the owner's explicit approval. The change's
+description must contain a section `## API breaking change` with:
 
 1. what breaks and for whom (UI, API-token clients),
 2. why a compatible alternative (new operation, new optional member,
    deprecation period) is not possible,
 3. the migration path for clients.
 
-Removing the label makes the check fail again. Without the label there is no
-way to merge a breaking diff: `generate.sh --check` keeps the committed spec
-in sync with the code, and the check compares that spec.
-
 ## Deprecation
 
 Prefer deprecation to breaking: mark the operation or member
 `deprecated: true` in OpenAPI (Huma `Deprecated`), describe the replacement,
-keep it working, and remove it only in a later labelled PR once the UI and
+keep it working, and remove it only in a later approved change once the UI and
 known clients no longer use it. A deprecated operation should also answer
 with a `Deprecation` header and a `Link` to its replacement (RFC 9745) so
 clients notice at run time.

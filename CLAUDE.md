@@ -1,14 +1,29 @@
 # DockYard code conventions
 
-Binding for every change. Specs: GitHub issues (#1 roadmap, #25 decisions,
-#4 API catalog). Background: `docs/architecture/overview.md`,
-`docs/adr/0001-foundation.md`.
+Binding for every change. Specs: the GitHub issues of `neurekadev/dockyard`,
+kept as the written record (#1 roadmap, #25 decisions, #4 API catalog); the
+code lives at https://code.neureka.dev/dockyard/dockyard. Background:
+`docs/architecture/overview.md`, `docs/adr/0001-foundation.md`.
 
-## Local gate
+## Local gate and CI
 
-`bash scripts/check.sh` must pass before every push (policy, generated
-artifacts, gofmt/vet/golangci-lint v2.13.2/tests, web lint/check/test/build).
-No Docker locally: Engine-dependent tests run in CI only.
+`bash scripts/check.sh` must pass before every push. It mirrors the `lint`,
+`unit-tests` and `build` jobs of `.github/workflows/CI.yaml` (run one class
+with `bash scripts/check.sh lint|unit-tests|build`):
+
+- **lint:** gofmt, `npm --prefix web run format:check` (Prettier),
+  golangci-lint v2.13.2 (also `GOOS=linux` on other hosts; govet runs
+  inside it), `scripts/policy-check.sh`, `npm --prefix web run lint` (ESLint).
+- **unit-tests:** `go test ./...` and `npm --prefix web run test` (vitest).
+- **build:** web build + `web/scripts/verify-build.mjs`, `go build ./...`,
+  `scripts/build-static.sh` (static linux/amd64 + linux/arm64 binaries).
+
+CI (Forgejo Actions on code.neureka.dev) runs on pushes to `main` and manual
+dispatch only (no pull-request trigger); it also builds the amd64 images and,
+from `main`, publishes `code.neureka.dev/dockyard/dockyard-{manager,agent}:edge`.
+arm64 images are blocked until a native arm64 runner exists (never QEMU).
+The only tests are isolated unit tests (see "Tests"); nothing starts
+Docker, containers, browsers, real registries or restic.
 
 ## Package boundaries
 
@@ -66,9 +81,9 @@ No Docker locally: Engine-dependent tests run in CI only.
    202 + Location, #26). SSE streams write through `api.StartSSE`.
    Conventions: `docs/api/conventions.md`; streams: `docs/api/streams.md`.
 5. Run `bash scripts/generate.sh` and commit `api/openapi.json` and
-   `web/src/lib/api/schema.d.ts`. Breaking spec changes fail the
-   `api-contract` workflow unless the PR has the `api-breaking-change`
-   label (`docs/api/versioning.md`).
+   `web/src/lib/api/schema.d.ts`. Review the `api/openapi.json` diff for
+   breaking changes and follow `docs/api/versioning.md` (no automated
+   contract check).
 6. Agent protocol changes: keep `internal/protocol` and
    `docs/protocol/agent-v1.md` in sync (their tests compare them).
 7. Audit (#30) is automatic: `Register` records every non-GET call (action =
@@ -633,22 +648,17 @@ Guides: `docs/design/README.md` (tokens, components, copy, a11y),
 - **Copy:** buttons name the result and the toast repeats it ("Deployed
   Silo"); errors say what happened and what to do, no apology; empty states
   invite action; sentence case, no all-caps labels.
-- **Tests:** `*.spec.ts` (Node logic), `*.test.ts` (jsdom components with
-  `@testing-library/svelte`: roles, labels, keyboard, focus). E2E in
-  `e2e/tests/ui.spec.ts` and one spec per UI track (`e2e/tests/<track>*.spec.ts`,
-  e.g. `b1-environments.spec.ts`; they check empty states on a manager
-  without agents). Components reading queries: `web/src/test/QueryHarness.svelte`
-  with a stubbed `fetch`. New main routes go into `e2e/tests/a11y.spec.ts`
-  (axe: no serious/critical violations); live behaviour of screens into
-  `e2e/tests/live-ui.spec.ts` (devstack `-control` changes Engines directly).
-  e2e specs are Prettier-formatted like the web app (`scripts/web-check.sh`).
-  Every `routes.*` builder needs a page (`src/lib/routes.spec.ts`).
-- **Run and look:** `npm --prefix web run build && go run ./test/devstack`
-  (Docker-free manager + agents + seeded homelab; `-setup` for a fresh
-  instance; `docs/development.md`). Playwright: `E2E_BASE_URL=http://localhost:8080
-  npx playwright test tests/ui.spec.ts` in `e2e/`. Review screenshots at
-  1440×900 and 390×844 against #22 (`E2E_SCREENSHOTS_DIR`, outside the repo;
-  never commit the mockup or screenshots of it).
+- **Tests:** unit tests only: `*.spec.ts` (Node logic), `*.test.ts` (jsdom
+  components with `@testing-library/svelte`: roles, labels, keyboard,
+  focus). Components reading queries: `web/src/test/QueryHarness.svelte`
+  with a stubbed `fetch`. Every `routes.*` builder needs a page
+  (`src/lib/routes.spec.ts`). There are no browser, accessibility (axe) or
+  end-to-end suites; do not add them without an explicit request.
+- **Run and look:** `npm --prefix web run build`, then run the manager
+  (`go run ./cmd/dockyard-manager`, `docs/development.md`); it needs no
+  Docker, but environments need an agent on a Docker Engine. Review at
+  1440×900 and 390×844 against #22 (screenshots outside the repo; never
+  commit the mockup or screenshots of it).
 - **Resource pages (#6, #19, #33):** `$lib/features/resources`:
   `useEnvironmentScope()` (selected or all environments, create rights),
   cross-environment lists (`acrossEnvironments` in `$lib/api/multi-env.ts`;
@@ -680,23 +690,29 @@ Guides: `docs/design/README.md` (tokens, components, copy, a11y),
 
 ## Tests
 
-- Unit tests next to the code, Docker-free, deterministic: `go test ./...`.
-- Docker/Engine tests: `//go:build integration`; browser/proxy: `//go:build e2e`
-  (or under `test/`). They run in `.github/workflows/extended.yaml`.
+- The standard suite is format/lint plus isolated unit tests (owner decision,
+  2026-09-25). Unit tests live next to the code (`test/deploy` checks the
+  deploy example files), are Docker-free and deterministic: `go test ./...`
+  runs all of them. They may use in-process fakes (`enginefake`,
+  `restictest`, `regclient/regtest`, `streammux/muxtest`, `migrationtest`,
+  `containerio/ciotest`), `httptest` servers, temporary directories and
+  SQLite files under `t.TempDir()`; they never start containers or a Docker
+  Engine, browsers, real registries, restic or other external programs
+  (the restic runner's test re-executes the test binary as a fake), and
+  never leave the loopback interface.
+- Never add build-tagged (`integration`, `e2e`, ...), fuzz, race,
+  benchmark, performance, smoke, end-to-end or other extended tests or their
+  infrastructure without an explicit request; such a check stays outside
+  CI.
 - Time: production code takes a `clock.Clock` (`internal/clock`); tests use
   `testutil.FakeClock()` / `clock.NewFake`, `BlockUntilWaiters` + `Advance`.
   **No sleeps in assertions**, no `time.Now()` in logic tests depend on.
 - Helpers: `testutil.Logger(t)`, `testutil.CaptureLogger()`,
   `testutil.Context(t)`, `migrationtest.WithFailing(...)`.
-- Fuzz targets (`FuzzXxx`) keep a meaningful seed corpus via `f.Add`.
-- Crash tests (#26, `-tags faultinject`, Docker-free, run locally):
-  `internal/manager/jobs/faulttest` kills the manager or the agent at every
-  fault point; `TestKillRealExecutorsAtEveryStage` runs real executors
-  over `enginefake.Persist` / `restictest.Persist` (state files that outlive
-  the killed process). A job kind whose steps change the world should get a
-  real scenario there (seed, input, executors, check). Steps that need what
-  a completed step recorded read it from `sc.Output()`; a resumed attempt
-  gets it back (`Job.ResumeOutput`).
+- Job steps that need what a completed step recorded read it from
+  `sc.Output()`; a resumed attempt gets it back (`Job.ResumeOutput`).
+  Crash recovery is covered by the job engine's unit tests (journal
+  replay, `Recover`), not by killing processes.
 
 ## Logging
 
@@ -727,8 +743,9 @@ Guides: `docs/design/README.md` (tokens, components, copy, a11y),
   Identity events enrich the #30 audit record of the request (`auth.TrailAuditor`).
   Never add auth routes outside Huma, never log passwords, codes, seeds or
   tokens (canary tests in `internal/manager/app/identity*_test.go`).
-- New dependencies must pass `scripts/license-check.sh` and govulncheck; pin
-  exact versions. Pin GitHub Actions by commit SHA with a `# vX.Y.Z` comment.
+- New dependencies: review them with `scripts/license-check.sh` and
+  govulncheck by hand (neither runs in CI); pin exact versions. Pin workflow
+  actions by commit SHA with a `# vX.Y.Z` comment.
 
 ## Generated / pinned artifacts
 

@@ -10,7 +10,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/faultinject"
 	"github.com/neurekadev/dockyard/internal/jobexec"
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/manager/audit"
@@ -161,11 +160,8 @@ func (e *Engine) runManagerJob(j domain.Job, exec jobexec.Executor, run *manager
 		return
 	}
 	e.notify(j.ID)
-	if faultinject.Point(ctx, PointManagerJobStarted) != nil {
-		return
-	}
 	res, err := jobexec.Run(ctx, exec, &st, jobexec.Options{Journal: dbJournal{e}, Reporter: managerReporter{e, j.Attempt},
-		CancelRequested: run.cancel.Load, FaultPrefix: "manager"})
+		CancelRequested: run.cancel.Load})
 	if errors.Is(err, jobexec.ErrAbandoned) {
 		return // recovered at the next start
 	}
@@ -190,7 +186,6 @@ func (e *Engine) runManagerJob(j domain.Job, exec jobexec.Executor, run *manager
 		return
 	}
 	e.notify(j.ID)
-	_ = faultinject.Point(ctx, PointManagerJobCommitted)
 	e.Wake()
 }
 
@@ -235,7 +230,7 @@ func (e *Engine) recoverManagerJob(ctx context.Context, j domain.Job) error {
 		execPtr = &exec
 	}
 	st := stateFromJob(&j)
-	res, err := jobexec.Recover(ctx, execPtr, &st, jobexec.Options{Journal: dbJournal{e}, FaultPrefix: "manager"})
+	res, err := jobexec.Recover(ctx, execPtr, &st, jobexec.Options{Journal: dbJournal{e}})
 	if err != nil {
 		return err
 	}

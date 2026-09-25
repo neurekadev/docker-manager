@@ -91,7 +91,7 @@ func TestHostWithManagerAndAgent(t *testing.T) {
 		t.Errorf("manager identity %s %s", inst, id)
 	}
 	// A manager container without the label is found by its ID alone.
-	unlabeled := fe.AddContainer(engine.ContainerSpec{Name: "mgr", Image: "ghcr.io/neurekadev/dockyard-manager:edge"}, true)
+	unlabeled := fe.AddContainer(engine.ContainerSpec{Name: "mgr", Image: "code.neureka.dev/dockyard/dockyard-manager:edge"}, true)
 	g.SetManager("inst-1", unlabeled)
 	role(t, "unlabeled manager", identify(t, g, fe).Container(unlabeled), protection.RoleManager, true)
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Post-build checks for web/build/app (run by scripts/web-check.sh):
+// Post-build checks for web/build/app (run after `npm run build` by
+// scripts/check.sh and the build job of .github/workflows/CI.yaml):
 //
 //   1. Lazy loading: CodeMirror, ECharts and xterm.js modules live only in
 //      chunks that no entry chunk imports statically (dynamic import only).

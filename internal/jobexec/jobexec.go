@@ -18,10 +18,6 @@
 //     interrupted outcome: resumable only when the in-flight step (if any) is
 //     idempotent and no compensation had to run; a non-idempotent step with
 //     an unknown outcome is never retried and yields recovery guidance.
-//
-// Fault points (internal/faultinject) mark every stage boundary:
-// <prefix>.step.before.<step>, .step.started.<step>, .step.ran.<step>,
-// .step.after.<step> and <prefix>.compensation.before.<name>.
 package jobexec
 
 import (
@@ -33,7 +29,6 @@ import (
 	"strings"
 
 	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/faultinject"
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/protocol"
 )
@@ -155,8 +150,6 @@ type Options struct {
 	Reporter Reporter
 	// CancelRequested is polled before safe-point steps.
 	CancelRequested func() bool
-	// FaultPrefix prefixes fault point names ("agent", "manager").
-	FaultPrefix string
 }
 
 // Outcome states (ResultPayload.Outcome).
@@ -275,14 +268,6 @@ func (sc *StepContext) CancelRequested() bool {
 	return sc.opts.CancelRequested != nil && sc.opts.CancelRequested()
 }
 
-func point(ctx context.Context, o Options, stage, name string) error {
-	prefix := o.FaultPrefix
-	if prefix == "" {
-		prefix = "exec"
-	}
-	return faultinject.Point(ctx, prefix+"."+stage+"."+name)
-}
-
 // Run executes the attempt described by st (resuming after st.Completed)
 // and returns its outcome, which is also journaled in st.Outcome. It returns
 // ErrAbandoned when ctx ends mid-attempt; st then stays in flight.
@@ -303,10 +288,6 @@ func Run(ctx context.Context, exec Executor, st *State, o Options) (protocol.Res
 				Message: "cancelled before step " + step.Name}
 			break
 		}
-		if err := point(ctx, o, "step.before", step.Name); err != nil {
-			res = stepFailure(step, err)
-			break
-		}
 		st.CurrentStep, st.StepInFlight = step.Name, true
 		if err := o.Journal.Save(ctx, st); err != nil {
 			st.StepInFlight = false
@@ -315,17 +296,10 @@ func Run(ctx context.Context, exec Executor, st *State, o Options) (protocol.Res
 				Recovery: "The step did not start. Check the executor's state directory and run the job again."}
 			break
 		}
-		if err := point(ctx, o, "step.started", step.Name); err != nil {
-			return abandonOr(ctx, st, o, step, err)
-		}
 		if o.Reporter != nil {
 			o.Reporter.Progress(ctx, st, protocol.ProgressPayload{Step: step.Name, Percent: -1, Message: "step " + step.Name + " started"})
 		}
-		err := exec.Steps[step.Name](ctx, sc)
-		if err == nil {
-			err = point(ctx, o, "step.ran", step.Name)
-		}
-		if err != nil {
+		if err := exec.Steps[step.Name](ctx, sc); err != nil {
 			if ctx.Err() != nil {
 				// Shutdown mid-step: outcome unknown, leave it to Recover.
 				return protocol.ResultPayload{}, ErrAbandoned
@@ -354,10 +328,6 @@ func Run(ctx context.Context, exec Executor, st *State, o Options) (protocol.Res
 				Message: "could not journal completion of step " + step.Name + ": " + err.Error(), Recovery: step.Recovery}
 			break
 		}
-		if err := point(ctx, o, "step.after", step.Name); err != nil {
-			res = stepFailure(step, err)
-			break
-		}
 	}
 	if res == nil {
 		res = &protocol.ResultPayload{Outcome: OutcomeSucceeded}
@@ -374,17 +344,6 @@ func Run(ctx context.Context, exec Executor, st *State, o Options) (protocol.Res
 	if res.Outcome != OutcomeSucceeded && res.Outcome != OutcomePartial {
 		compensate(ctx, exec.Compensations, st, o, res)
 	}
-	return finish(ctx, st, o, *res)
-}
-
-func abandonOr(ctx context.Context, st *State, o Options, step jobspec.Step, err error) (protocol.ResultPayload, error) {
-	if ctx.Err() != nil {
-		return protocol.ResultPayload{}, ErrAbandoned
-	}
-	// An injected error after the step was journaled as in flight: the
-	// step did not run.
-	st.StepInFlight = false
-	res := stepFailure(step, err)
 	return finish(ctx, st, o, *res)
 }
 
@@ -432,7 +391,7 @@ func compensate(ctx context.Context, funcs map[string]CompensationFunc, st *Stat
 		var err error
 		if f := funcs[c.Name]; f == nil {
 			err = errors.New("no implementation available")
-		} else if err = point(ctx, o, "compensation.before", c.Name); err == nil {
+		} else {
 			err = f(ctx, c.Args)
 		}
 		if err != nil {
