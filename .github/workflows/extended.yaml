@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       suites:
-        description: 'Suites: "all" or a comma-separated list without spaces of race,fuzz,engine-matrix,compose-fixtures,storage,fs-security,fault-injection,secret-canary,e2e,smoke'
+        description: 'Suites: "all" or a comma-separated list without spaces of race,fuzz,engine-matrix,compose-fixtures,storage,fs-security,fault-injection,secret-canary,e2e,smoke,metrics-budget'
         type: string
         default: all
       fuzztime:
@@ -126,6 +126,35 @@ jobs:
         env:
           CGO_ENABLED: "1"
         run: go test -race -count=1 ./...
+
+  metrics-budget:
+    # The #5 scale budget (25 environments, 1 000 containers, 20 UI
+    # sessions): ingest, rollup and dashboard-query benchmarks of the
+    # metrics store with GOMAXPROCS=2 (a 2 vCPU manager), plus the storage
+    # footprint per row. Numbers: docs/architecture/metrics.md.
+    name: metrics-budget
+    if: github.event_name != 'workflow_dispatch' || inputs.suites == 'all' || contains(format(',{0},', inputs.suites), ',metrics-budget,')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Metrics store benchmarks (GOMAXPROCS=2)
+        run: |
+          go test -run '^TestScaleBudget$' -bench . -benchtime 10x -cpu 2 -count=1 -timeout 25m ./internal/manager/metrics/ 2>&1 \
+            | grep -v 'testutil.go' | tee metrics-budget.log
+          {
+            echo "### metrics-budget (GOMAXPROCS=2)"
+            echo
+            echo '```'
+            grep -E '^(Benchmark|ok|FAIL|---)' metrics-budget.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   fuzz:
     name: fuzz

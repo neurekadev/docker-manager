@@ -509,6 +509,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/capacity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an environment's capacity and current usage
+         * @description Cores, memory, filesystems (by role, never host paths) and the latest sample's usage. Values of an offline environment are the last known ones (see sampledAt and online).
+         */
+        get: operations["get-environment-capacity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream an environment's events (SSE)
+         * @description Server-sent events: `hello` (cursor), then `engine` (Docker events), `status` (online/offline/resync), `metrics` (new samples: refetch open charts) and `inventory` (Engine inventory refreshed), each with `id: <cursor>`. Every event is filtered by the capability of its resource; container events of a container the caller sees only minimally carry only name, exit code and health. Reconnect with Last-Event-ID to replay the retained events (newest 1 000 or 15 min); outside them the stream starts with `reset`. `: heartbeat` comments keep it alive. Wire contract: docs/api/streams.md.
+         */
+        get: operations["stream-environment-events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an environment's host metrics
+         * @description Host CPU, memory, load, network and per-filesystem disk series of a time range, downsampled to one value per step from the finest storage level still holding the range (10 s for 24 h, 1 min for 7 d, 15 min for 90 d). Missing samples (the agent was offline, a value unknown) are null, never zero. Units and flags: docs/architecture/metrics.md.
+         */
+        get: operations["get-environment-metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/system": {
         parameters: {
             query?: never;
@@ -518,7 +578,7 @@ export interface paths {
         };
         /**
          * Get an environment's system information
-         * @description The agent's last capabilities report: Engine identity and negotiated API version, agent version and window status, transport (plain-HTTP flag), verified file roots and diagnostics (#21, #27, #28). Live host metrics are #5.
+         * @description The agent's last capabilities report: Engine identity and negotiated API version, agent version and window status, transport (plain-HTTP flag), verified file roots and diagnostics (#21, #27, #28), plus the Engine inventory: host identity, capacity and Docker counts, refreshed on change (#5). Host metrics: GET …/metrics and …/capacity.
          */
         get: operations["get-environment-system"];
         put?: never;
@@ -976,6 +1036,26 @@ export interface paths {
          * @description Replaces the caller's recovery codes with ten new one-time codes, returned only in this response (stored as verifiers). Requires a recent step-up (a fresh sign-in counts). Recovery codes complete a password sign-in when TOTP or the passkey is lost. Available to limited enrollment sessions.
          */
         post: operations["create-my-recovery-codes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the cross-environment overview
+         * @description Every active environment the caller may see with its connection state; the latest host usage where the caller holds environment.metrics.read and Docker counts where it holds environment.system.read. Totals count only those.
+         */
+        get: operations["get-overview"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1480,6 +1560,16 @@ export interface components {
             /** @example 0.0.0-edge */
             managerVersion: string;
         };
+        CapacityDisk: {
+            /** Format: int64 */
+            freeBytes: number;
+            /** @example docker */
+            mount: string;
+            /** Format: int64 */
+            totalBytes: number;
+            /** Format: int64 */
+            usedBytes: number;
+        };
         CatalogCapability: {
             /** @description Less common: collapsed in editors until needed. */
             advanced: boolean;
@@ -1544,6 +1634,10 @@ export interface components {
             newPassword: string;
             /** @description Also revoke every API token of the account (#31). */
             revokeApiTokens?: boolean;
+        };
+        CloseEvent: {
+            /** @enum {string} */
+            reason: "permissions_changed" | "session_expired" | "max_age" | "shutdown";
         };
         CodeInputBody: {
             code: string;
@@ -1646,6 +1740,22 @@ export interface components {
             /** @description Set when the new default group grants access: every newly invited user gets it. */
             warning?: string;
         };
+        DockerCounts: {
+            /** Format: int64 */
+            containers: number;
+            /** Format: int64 */
+            containersPaused: number;
+            /** Format: int64 */
+            containersRunning: number;
+            /** Format: int64 */
+            containersStopped: number;
+            /** Format: int64 */
+            images: number;
+            /** Format: int64 */
+            networks: number;
+            /** Format: int64 */
+            volumes: number;
+        };
         EffectivePermission: {
             allowed: boolean;
             capability: string;
@@ -1669,6 +1779,20 @@ export interface components {
             /** @description The instance owner may do everything; entries are empty. */
             owner: boolean;
             userId?: string;
+        };
+        EngineEvent: {
+            /** @example die */
+            action: string;
+            /** Format: date-time */
+            at: string;
+            /** @description Allowlisted attributes (name, image, exitCode, signal, health); image and signal need the container's details. */
+            attributes: {
+                [key: string]: string;
+            };
+            /** @description Container and network name, volume name, image reference or ID. */
+            resourceId: string;
+            /** @enum {string} */
+            type: "container" | "image" | "volume" | "network" | "daemon";
         };
         EnrollmentRejection: {
             /** Format: date-time */
@@ -1747,16 +1871,119 @@ export interface components {
              */
             view: "minimal" | "full";
         };
+        EnvironmentCapacity: {
+            /**
+             * Format: double
+             * @description Busy share of all cores, 0..100.
+             */
+            cpuPercent?: number;
+            /**
+             * Format: int64
+             * @description Cores of the environment (Engine inventory or /proc).
+             */
+            cpus: number;
+            disks: components["schemas"]["CapacityDisk"][];
+            environmentId: string;
+            /** Format: double */
+            load1?: number;
+            /** Format: double */
+            load15?: number;
+            /** Format: double */
+            load5?: number;
+            /** Format: int64 */
+            memoryTotalBytes?: number;
+            /** Format: int64 */
+            memoryUsedBytes?: number;
+            /** Format: double */
+            networkRxBytesPerSecond?: number;
+            /**
+             * @description host: the host's interfaces; agent: only the agent container's namespace (see docs/architecture/metrics.md).
+             * @enum {string}
+             */
+            networkScope?: "host" | "agent";
+            /** Format: double */
+            networkTxBytesPerSecond?: number;
+            online: boolean;
+            /**
+             * Format: date-time
+             * @description Time of the latest sample; absent before the first.
+             */
+            sampledAt?: string;
+            /** Format: int64 */
+            uptimeSeconds?: number;
+        };
+        EnvironmentMetrics: {
+            environmentId: string;
+            /** Format: date-time */
+            from: string;
+            /** @description Some samples lacked containers (Engine unavailable or not every container sampled in time). */
+            incomplete: boolean;
+            /** @description The environment is online now; while offline no new samples arrive (gaps). */
+            online: boolean;
+            /**
+             * @description Storage level read: 10 s samples (24 h), 1 min rollups (7 d) or 15 min rollups (90 d).
+             * @enum {string}
+             */
+            resolution: "raw" | "1m" | "15m";
+            series: components["schemas"]["MetricSeries"][];
+            /** @description Some samples' agent timestamps were corrected for clock skew or clamped. */
+            skewCorrected: boolean;
+            /**
+             * Format: int64
+             * @description Bucket width: a multiple of the storage resolution.
+             */
+            stepSeconds: number;
+            /** @description Bucket start times. */
+            timestamps: string[];
+            /** Format: date-time */
+            to: string;
+        };
+        EnvironmentStatusEvent: {
+            /** Format: date-time */
+            at: string;
+            environmentId: string;
+            /** @description resync: reconnect or event_gap (refetch the environment's inventory). */
+            reason?: string;
+            /** @enum {string} */
+            status: "online" | "offline" | "resync" | "updated" | "archived" | "reattached";
+        };
+        EnvironmentStreamHello: {
+            /** @description Position of the stream; fetch snapshots now, events after it follow. */
+            cursor: string;
+            /** Format: int64 */
+            heartbeatMs: number;
+            /** @enum {string} */
+            version: "dockyard.environment-events/v1";
+        };
+        EnvironmentStreamReset: {
+            cursor: string;
+            /** @enum {string} */
+            reason: "server_restart" | "cursor_expired" | "gap" | "overflow";
+        };
         EnvironmentSystem: {
             /** @description Absent while detached. */
             agent?: components["schemas"]["SystemAgent"];
+            /**
+             * Format: double
+             * @description The agent clock's offset (manager minus agent) applied to its samples; absent within 2 s.
+             */
+            clockSkewSeconds?: number;
             /** @description Job kinds this agent executes. */
             commands: string[];
             diagnostics: components["schemas"]["SystemDiagnostic"][];
+            /** @description Docker object counts (Engine inventory; -1 = unknown). */
+            docker?: components["schemas"]["DockerCounts"];
             /** @description Absent before the agent's first session. */
             engine?: components["schemas"]["SystemEngine"];
             environmentId: string;
             features: string[];
+            /** @description Host identity and capacity (Engine inventory). */
+            host?: components["schemas"]["SystemHost"];
+            /**
+             * Format: date-time
+             * @description When the agent read the Engine inventory.
+             */
+            inventoryAt?: string;
             online: boolean;
             /**
              * Format: date-time
@@ -1853,6 +2080,11 @@ export interface components {
             title: string;
             /** @enum {string} */
             variant: "colocated" | "remote" | "remote_compose";
+        };
+        InventoryEvent: {
+            /** Format: date-time */
+            at: string;
+            environmentId: string;
         };
         Invitation: {
             /** Format: date-time */
@@ -2005,6 +2237,31 @@ export interface components {
              */
             type: "stack" | "container" | "volume" | "image" | "network" | "repository" | "path" | "destination_path";
         };
+        MetricSeries: {
+            /**
+             * @description Metric key; .max variants are the maximum within each bucket, the others the sample-weighted average.
+             * @example cpu.percent
+             */
+            key: string;
+            /**
+             * @description Filesystem role of disk series: docker (Docker's data root), stacks, bind-N. Never a host path.
+             * @example docker
+             */
+            mount?: string;
+            /** @enum {string} */
+            unit: "percent" | "bytes" | "bytes_per_second" | "load" | "count";
+            /** @description One value per timestamp; null where no sample exists (agent offline, value unknown). */
+            values: (number | null)[];
+        };
+        MetricsEvent: {
+            /** Format: date-time */
+            at: string;
+            /** @description Samples of containers the caller may chart arrived (container.metrics.read). */
+            containers: boolean;
+            environmentId: string;
+            /** @description Host samples arrived (environment.metrics.read). */
+            host: boolean;
+        };
         MyPermissions: {
             /** Format: int64 */
             catalogVersion: number;
@@ -2016,6 +2273,56 @@ export interface components {
             /** @description The instance owner may do everything; entries are empty. */
             owner: boolean;
             userId?: string;
+        };
+        Overview: {
+            environments: components["schemas"]["OverviewEnvironment"][];
+            totals: components["schemas"]["OverviewTotals"];
+        };
+        OverviewEnvironment: {
+            actions: string[];
+            /** @description Docker object counts (environment.system.read). */
+            docker?: components["schemas"]["DockerCounts"];
+            id: string;
+            name: string;
+            online: boolean;
+            /** @description Latest host usage (environment.metrics.read). */
+            usage?: components["schemas"]["OverviewUsage"];
+            /** @enum {string} */
+            view: "minimal" | "full";
+        };
+        OverviewTotals: {
+            /** Format: int64 */
+            containers: number;
+            /** Format: int64 */
+            containersRunning: number;
+            /**
+             * Format: int64
+             * @description Environments whose Docker counts are included (environment.system.read and a known inventory).
+             */
+            countedEnvironments: number;
+            /** Format: int64 */
+            environments: number;
+            /** Format: int64 */
+            offline: number;
+            /** Format: int64 */
+            online: number;
+        };
+        OverviewUsage: {
+            /** Format: double */
+            cpuPercent?: number;
+            /** Format: int64 */
+            diskTotalBytes?: number;
+            /**
+             * Format: int64
+             * @description Docker data-root filesystem.
+             */
+            diskUsedBytes?: number;
+            /** Format: int64 */
+            memoryTotalBytes?: number;
+            /** Format: int64 */
+            memoryUsedBytes?: number;
+            /** Format: date-time */
+            sampledAt: string;
         };
         PageAPIToken: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
@@ -2440,13 +2747,47 @@ export interface components {
             apiVersion: string;
             /** @example amd64 */
             arch: string;
+            /** @example 2 */
+            cgroupVersion?: string;
+            /** @description The Engine runs inside Docker Desktop (unsupported, #25). */
+            dockerDesktop?: boolean;
             id: string;
+            /**
+             * @description Highest API version the Engine serves (Engine inventory).
+             * @example 1.51
+             */
+            maxApiVersion?: string;
             minApiVersion?: string;
             /** @example linux */
             os: string;
             rootless: boolean;
+            /** @example overlay2 */
+            storageDriver?: string;
             /** @example 28.5.2 */
             version: string;
+        };
+        SystemHost: {
+            /** @example amd64 */
+            arch: string;
+            /** Format: int64 */
+            cpus: number;
+            /**
+             * @description Engine host name (the environment name is editable separately).
+             * @example nas
+             */
+            hostname: string;
+            kernelVersion?: string;
+            /** Format: int64 */
+            memoryBytes: number;
+            /** @example Debian GNU/Linux 12 (bookworm) */
+            operatingSystem?: string;
+            /** @example linux */
+            os: string;
+            /**
+             * Format: int64
+             * @description From the latest metrics sample.
+             */
+            uptimeSeconds?: number;
         };
         SystemRoot: {
             /** @enum {string} */
@@ -4623,6 +4964,222 @@ export interface operations {
             };
         };
     };
+    "get-environment-capacity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentCapacity"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "stream-environment-events": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Resume after this cursor (sent automatically by EventSource on reconnect). */
+                "Last-Event-ID"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["EnvironmentStreamHello"] | components["schemas"]["EnvironmentStreamReset"] | components["schemas"]["EngineEvent"] | components["schemas"]["EnvironmentStatusEvent"] | components["schemas"]["MetricsEvent"] | components["schemas"]["InventoryEvent"] | components["schemas"]["CloseEvent"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-environment-metrics": {
+        parameters: {
+            query?: {
+                /** @description Range start (RFC 3339; default: one hour before to). */
+                from?: string;
+                /** @description Range end (RFC 3339; default: now). */
+                to?: string;
+                /** @description Bucket width in seconds (0: automatic, about 300 points). Rounded up to the storage resolution; at most 1000 buckets. */
+                stepSeconds?: number;
+                /** @description Metric keys to return (default: all). */
+                series?: string[];
+            };
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentMetrics"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "get-environment-system": {
         parameters: {
             query?: never;
@@ -6620,6 +7177,44 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Overview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

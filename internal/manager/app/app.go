@@ -2,8 +2,10 @@
 //
 //	config → data dir → open DB → (snapshot) → migrate → secret key /
 //	instance → auth primitives → audit trail → identity → permissions → agents (all environments
-//	offline) → job engine recovery → HTTP handler → listener → serve (+ job
-//	engine loop, auth housekeeping, audit retention)
+//	offline) → job engine recovery → metrics database (own file and
+//	migrations) → observation → HTTP handler → listener → serve (+ job
+//	engine loop, auth housekeeping, audit retention, metrics collection,
+//	rollups and retention)
 //
 // Migrations always finish before any listener or background worker starts;
 // a migration failure aborts startup with the database unchanged.
@@ -39,6 +41,8 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/events"
 	"github.com/neurekadev/dockyard/internal/manager/idempotency"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
+	"github.com/neurekadev/dockyard/internal/manager/metrics"
+	"github.com/neurekadev/dockyard/internal/manager/observe"
 	"github.com/neurekadev/dockyard/internal/manager/permissions"
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
 	"github.com/neurekadev/dockyard/internal/manager/server"
@@ -85,6 +89,8 @@ type Manager struct {
 	events   *events.Bus
 	agents   *agents.Service
 	perms    *permissions.Service
+	metrics  *metrics.Store
+	observe  *observe.Service
 	handler  http.Handler
 }
 
@@ -239,6 +245,38 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	}
 	m.agents.AttachJobs(m.jobs)
 
+	// Observation (#5): metrics live in their own database file so sample
+	// writes never contend with jobs and auth; manager-state backups (#10)
+	// leave it out by default.
+	m.metrics, err = metrics.Open(ctx, metrics.Options{
+		Path: cfg.MetricsPath(), Clock: opts.Clock, Logger: log.With("component", "metrics"),
+		Retention: metrics.Retention{Raw: cfg.Metrics.RetentionRaw, Minute: cfg.Metrics.RetentionMinute, Quarter: cfg.Metrics.RetentionQuarter},
+		MaxBytes:  cfg.Metrics.MaxBytes, MaxSeries: cfg.Metrics.MaxSeries,
+	})
+	if err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
+	hub := m.agents.Hub()
+	m.observe = observe.New(observe.Options{Store: m.metrics, Agents: hub, Bus: m.events, Clock: opts.Clock,
+		Logger: log.With("component", "observe"), Environments: func() []string {
+			var ids []string
+			for _, s := range hub.Sessions() {
+				if s.Online {
+					ids = append(ids, s.EnvironmentID)
+				}
+			}
+			return ids
+		}})
+	if err := m.observe.Load(ctx); err != nil {
+		_ = m.metrics.Close()
+		m.jobs.Close()
+		return nil, err
+	}
+	hub.AddReconciler(func(ctx context.Context, s *agents.Session) error {
+		return m.observe.Reconcile(ctx, s.EnvironmentID())
+	})
+
 	srv, err := server.New(server.Options{
 		Logger: log,
 		Clock:  opts.Clock,
@@ -256,6 +294,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Agents:       m.agents,
 			Permissions:  m.perms,
 			APITokens:    m.identity,
+			Observe:      m.observe,
 		},
 		Agent:            m.agents.Handler(),
 		TrustedProxies:   cfg.TrustedProxies,
@@ -265,6 +304,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		Auth:             m.identity.Middleware,
 	})
 	if err != nil {
+		_ = m.metrics.Close()
 		m.jobs.Close()
 		return nil, err
 	}
@@ -352,6 +392,12 @@ func (m *Manager) Agents() *agents.Service { return m.agents }
 // deleting a resource.
 func (m *Manager) Permissions() *permissions.Service { return m.perms }
 
+// Metrics returns the metrics store (#5).
+func (m *Manager) Metrics() *metrics.Store { return m.metrics }
+
+// Observe returns the observation service (#5).
+func (m *Manager) Observe() *observe.Service { return m.observe }
+
 // Events returns the internal event bus.
 func (m *Manager) Events() *events.Bus { return m.events }
 
@@ -384,12 +430,26 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		defer close(sweepDone)
 		m.identity.RunStreamSweeper(engineCtx)
 	}()
+	// Observation (#5): collection, inventory refresh, the event journal,
+	// and metrics rollups/retention (bounded passes).
+	observeDone := make(chan struct{})
+	go func() {
+		defer close(observeDone)
+		m.observe.Run(engineCtx)
+	}()
+	metricsDone := make(chan struct{})
+	go func() {
+		defer close(metricsDone)
+		m.metrics.Run(engineCtx)
+	}()
 	defer func() {
 		stopEngine()
 		<-engineDone
 		<-authDone
 		<-auditDone
 		<-sweepDone
+		<-observeDone
+		<-metricsDone
 	}()
 	srv := server.HTTPServer(m.handler, m.opts.Logger)
 	errCh := make(chan error, 1)
@@ -418,7 +478,12 @@ func (m *Manager) Close() error {
 	if m.jobs != nil {
 		m.jobs.Close()
 	}
-	return m.db.Close()
+	var errs []error
+	if m.metrics != nil {
+		errs = append(errs, m.metrics.Close())
+	}
+	errs = append(errs, m.db.Close())
+	return errors.Join(errs...)
 }
 
 // Run starts the manager, binds the listener and serves until ctx ends.

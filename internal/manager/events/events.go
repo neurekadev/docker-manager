@@ -55,6 +55,14 @@ const (
 	// FilesInvalidated: paths changed under a watched file scope; with
 	// Overflow set (or no paths) the whole scope is invalid (#15, #23).
 	FilesInvalidated = "files.invalidated"
+
+	// MetricsSampled: new metric samples of an environment were stored
+	// (#5). Attributes["host"] is "true" when host values arrived; Members
+	// lists the containers with new samples.
+	MetricsSampled = "metrics.sampled"
+	// InventoryUpdated: an environment's Engine inventory (identity,
+	// capacity, Docker counts) was refreshed (#5).
+	InventoryUpdated = "inventory.updated"
 )
 
 // Resource types.
@@ -90,6 +98,10 @@ type Event struct {
 	Paths []string
 	// Overflow marks a file-scope invalidation that covers the whole scope.
 	Overflow bool
+	// Members are the resource IDs a batch event covers (metrics.sampled:
+	// container names). Internal: filter per member before anything leaves
+	// the manager.
+	Members []string
 }
 
 // Bus distributes events to subscribers. The zero value is not usable; call

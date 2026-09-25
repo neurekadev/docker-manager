@@ -33,6 +33,7 @@ const (
 	EnvLogFormat        = "DOCKYARD_LOG_FORMAT"
 	EnvStacksVolume     = "DOCKYARD_STACKS_VOLUME"
 	EnvStackRoots       = "DOCKYARD_STACK_ROOTS"
+	EnvHostProc         = "DOCKYARD_HOST_PROC"
 )
 
 // Defaults.
@@ -41,6 +42,8 @@ const (
 	DefaultDockerHost = "unix:///var/run/docker.sock"
 	// MaxEnvironmentNameLen bounds DOCKYARD_ENVIRONMENT_NAME.
 	MaxEnvironmentNameLen = 63
+	// DefaultHostProc is the procfs read for host telemetry (#5).
+	DefaultHostProc = "/proc"
 	// DefaultStacksVolume is the named volume holding stack projects (#28).
 	DefaultStacksVolume = "dockyard_stacks"
 	// MaxStackRoots bounds DOCKYARD_STACK_ROOTS.
@@ -71,6 +74,8 @@ type Config struct {
 	// StackRoots are extra host directories holding stacks, bind-mounted
 	// into the agent at their identical paths (absolute, cleaned, unique).
 	StackRoots []string
+	// HostProc is the procfs mount host telemetry is read from (#5).
+	HostProc string
 }
 
 // Load reads and validates the configuration, reporting all problems at once.
@@ -119,6 +124,11 @@ func Load(src envconfig.Source) (Config, error) {
 	}
 	if cfg.StackRoots, err = ParseStackRoots(src.String(EnvStackRoots, "")); err != nil {
 		errs = append(errs, fmt.Errorf("%s: %w", EnvStackRoots, err))
+	}
+
+	cfg.HostProc = path.Clean(src.String(EnvHostProc, DefaultHostProc))
+	if !path.IsAbs(cfg.HostProc) {
+		errs = append(errs, fmt.Errorf("%s: %q must be an absolute path", EnvHostProc, cfg.HostProc))
 	}
 
 	if cfg.LogLevel, err = logging.ParseLevel(src.String(EnvLogLevel, "info")); err != nil {

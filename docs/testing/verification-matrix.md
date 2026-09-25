@@ -107,7 +107,7 @@ Legend for "where": PR = `ci.yaml` PR suite; X:`job` = `extended.yaml` job.
 | --- | --- | --- | --- | --- | --- |
 | V62 | Fresh install | #2 | Smoke `wait-images` → `fresh-start` → `health-ready` | X:`smoke` | implemented |
 | V63 | Upgrade | #34 | Smoke variant: start the previous edge, upgrade to the new one, data intact | X:`smoke` | planned |
-| V64 | Two-host operation with live state convergence | #3, #5 | `StartEngines(t, 2, …)` (implemented, `TestEngineMultiHost`) + two agents | X:`engine-matrix` | partial |
+| V64 | Two-host operation with live state convergence | #3, #5 | `StartEngines(t, 2, …)` (implemented, `TestEngineMultiHost`) + two agents; `TestEngineObserveTwoEnvironments` (two agents on two DinD Engines: separate identity/capacity/counts, samples, Docker events per environment, offline gap without duplicates; written, not yet run in CI) | X:`engine-matrix` | partial |
 | V65 | Agent offline/reconnect | #3 | Fault injection: drop the agent connection, reconnect, state converges | X:`fault-injection` | planned |
 | V66 | Duplicate-agent rejection/replacement for one Engine | #3 | Two agents on one DinD Engine | X:`engine-matrix` | planned |
 | V67 | Stack revision restore | #7 | Engine test | X:`compose-fixtures` | planned |

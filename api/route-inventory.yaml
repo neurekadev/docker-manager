@@ -77,7 +77,7 @@ routes:
     scope: none
     owner: 5
     kind: json
-    status: planned
+    status: implemented
     notes: Aggregates count only resources the caller may see.
   - method: GET
     path: /api/v1/setup/status
@@ -720,7 +720,7 @@ routes:
     scope: environment
     owner: 5
     kind: stream
-    status: planned
+    status: implemented
     notes: "Docker Engine events, filtered per resource capability."
   - method: GET
     path: "/api/v1/environments/{environmentId}/metrics"
@@ -729,7 +729,7 @@ routes:
     scope: environment
     owner: 5
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/capacity"
     operationId: get-environment-capacity
@@ -737,7 +737,7 @@ routes:
     scope: environment
     owner: 5
     kind: json
-    status: planned
+    status: implemented
   - method: GET
     path: "/api/v1/environments/{environmentId}/containers"
     operationId: list-containers
@@ -835,6 +835,7 @@ routes:
     owner: 5
     kind: json
     status: planned
+    notes: "Storage and query exist (metrics.Store.Query, kind container, #5); the route needs #6's container identity routing and locator."
   - method: GET
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/logs"
     operationId: get-container-logs

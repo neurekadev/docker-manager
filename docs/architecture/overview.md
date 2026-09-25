@@ -47,6 +47,9 @@ in GitHub issues #1 (roadmap) and #25 (decision register).
 | `internal/manager/authz` | Authorization contract (#17): principals, `Resource`, `Authorizer`, per-request `Checker`, shaping (`ViewOf`), job targets, event filtering; subpackages `catalog` (capability catalog), `policy` (evaluator, corpus), `authztest` (test kit) | `domain`, `jobspec`, `events` |
 | `internal/manager/permissions` | Permission service (#17): rule storage, the manager's Authorizer, Locators, owner-only group/rule management, effective permissions, previews | `store`, `authz`, `audit` |
 | `internal/manager/auth` | Identity (#16): sessions middleware, sign-in/factor/invitation/user flows, owner guard and stream invalidation for #17; subpackages wrap the #18 libraries (`sessions`, `password`, `totp`, `passkey`, `csrf`, `throttle`), ADR 0003 | `api`, `store`, `authz`, `secrets`, `requestinfo` |
+| `internal/manager/metrics` | Metrics database (#5): idempotent ingest, 1 min/15 min rollups, retention and storage caps, downsampled queries, stored Engine inventories | `store`, `domain`, `db/metricsmigrations` |
+| `internal/manager/observe` | Observation (#5): metrics collector over the agent session, Engine inventory cache, per-environment event journal for `stream-environment-events` | `metrics`, `events`, `protocol`, `domain` |
+| `internal/agent/observe` | Agent telemetry (#5): procfs host sampler, container stats via the Engine adapter, bounded sample ring, `engine.info`, Docker event relay | `agent/engine`, `agent/session`, `protocol` |
 | `internal/jobspec` | Job kind catalog and lock definitions (shared by manager and agent) | `domain` |
 | `internal/jobexec` | Journaled step runner (shared by manager and agent) | `jobspec`, `protocol`, `faultinject` |
 | `internal/agent/jobs` | Agent job runner: fencing, fsync'd journal, reconnect report | `jobexec`, `protocol` |
@@ -95,4 +98,7 @@ domain types (`domain`) are separate and converted explicitly.
 
 One SQLite database (`dockyard.db`) in the manager data volume, WAL mode,
 single-connection writer. Migrations are Go files in `internal/db/migrations`.
-Sampled metrics will get a separate database file (#5).
+Sampled metrics live in a separate database file (`metrics.db`, own
+migrations in `internal/db/metricsmigrations`, #5) so sample writes never
+contend with jobs and auth; manager-state backups (#10) leave it out by
+default. See [metrics.md](metrics.md).

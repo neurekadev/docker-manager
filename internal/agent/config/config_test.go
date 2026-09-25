@@ -78,3 +78,18 @@ func TestLoadReportsAllErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestHostProc(t *testing.T) {
+	cfg, err := Load(envconfig.Map(map[string]string{EnvManagerURL: "https://d.example.com"}, nil))
+	if err != nil || cfg.HostProc != DefaultHostProc {
+		t.Fatalf("default %q %v", cfg.HostProc, err)
+	}
+	cfg, err = Load(envconfig.Map(map[string]string{EnvManagerURL: "https://d.example.com", EnvHostProc: "/host/proc/"}, nil))
+	if err != nil || cfg.HostProc != "/host/proc" {
+		t.Fatalf("custom %q %v", cfg.HostProc, err)
+	}
+	if _, err := Load(envconfig.Map(map[string]string{EnvManagerURL: "https://d.example.com", EnvHostProc: "host/proc"}, nil)); err == nil ||
+		!strings.Contains(err.Error(), EnvHostProc) {
+		t.Fatalf("relative path accepted: %v", err)
+	}
+}

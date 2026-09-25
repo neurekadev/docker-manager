@@ -479,6 +479,16 @@ func (r *Relay[T]) Publish(p T) bool {
 	return k.send(f) == nil
 }
 
+// Drop consumes a sequence number without sending anything: the producer
+// discarded items (rate limit, overflow), so the manager sees a gap and
+// resynchronizes. Without a session it does nothing (every reconnect
+// resynchronizes anyway).
+func (r *Relay[T]) Drop() {
+	if k := r.c.current.Load(); k != nil && k.ready.Load() {
+		r.seq(k).Add(1)
+	}
+}
+
 // prepareInvalidation bounds an invalidation: more than MaxPaths paths
 // become an overflow of the whole scope.
 func prepareInvalidation(p *protocol.FSInvalidationPayload) {
