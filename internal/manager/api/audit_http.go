@@ -13,6 +13,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/logging"
 	"github.com/neurekadev/dockyard/internal/manager/audit"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"github.com/neurekadev/dockyard/internal/manager/events"
 )
 
 // Audit by construction (#30). Register installs auditMiddleware and
@@ -167,11 +168,43 @@ func auditMiddleware(op Operation) func(huma.Context, func(huma.Context)) {
 		}()
 		next(c)
 		finished = true
-		recordRequest(ctx, deps.Audit, op, public, targets, draft, c)
+		ev, ok := recordRequest(ctx, deps.Audit, op, public, targets, draft, c)
+		if ok && !public && op.Method != http.MethodGet && ev.Outcome == domain.AuditSuccess && !c.replayed {
+			publishChanges(deps.Events, op, ev, c.status)
+		}
 	}
 }
 
-func recordRequest(ctx context.Context, rec audit.Recorder, op Operation, public bool, targets []pathTarget, draft *audit.Draft, c *auditCapture) {
+// publishChanges announces a successful mutation's targets on the event
+// bus (events.ResourceChanged), so live streams (#23) invalidate them:
+// policies, backups, registries, settings, groups, users, tokens, ...
+// Jobs and file operations have their own, more precise sources (the job
+// engine, the agent's file invalidations) and are left out.
+func publishChanges(bus *events.Bus, op Operation, ev domain.AuditEvent, status int) {
+	if bus == nil || strings.Contains(ev.Action, ".files.") {
+		return
+	}
+	kind := "update"
+	switch {
+	case op.Method == http.MethodDelete:
+		kind = "delete"
+	case status == http.StatusCreated:
+		kind = "create"
+	}
+	for _, t := range ev.Targets {
+		if t.Type == "" || t.ID == "" || t.Type == events.ResourceJob {
+			continue
+		}
+		env := t.EnvironmentID
+		if env == "" && t.Type != "environment" {
+			env = ev.EnvironmentID
+		}
+		bus.Publish(events.Event{Type: events.ResourceChanged, ResourceType: t.Type, ResourceID: t.ID, EnvironmentID: env,
+			Attributes: map[string]string{"action": ev.Action, "op": kind}})
+	}
+}
+
+func recordRequest(ctx context.Context, rec audit.Recorder, op Operation, public bool, targets []pathTarget, draft *audit.Draft, c *auditCapture) (domain.AuditEvent, bool) {
 	status := c.status
 	if status == 0 {
 		status = http.StatusOK
@@ -184,7 +217,7 @@ func recordRequest(ctx context.Context, rec audit.Recorder, op Operation, public
 	case ok:
 		ev.Actor = audit.ActorFor(p)
 	case !public && status == http.StatusUnauthorized:
-		return // refused by authentication before any effect; see above
+		return ev, false // refused by authentication before any effect; see above
 	default:
 		ev.Actor = domain.AuditActor{Kind: domain.AuditActorAnonymous}
 	}
@@ -222,6 +255,7 @@ func recordRequest(ctx context.Context, rec audit.Recorder, op Operation, public
 	if err := rec.Record(context.WithoutCancel(ctx), ev); err != nil {
 		logging.FromContext(ctx).Error("audit record failed", "operation", op.OperationID, "action", action, "error", err)
 	}
+	return ev, true
 }
 
 // auditHandler captures the handler's error class and the job a 202

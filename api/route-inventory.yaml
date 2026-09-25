@@ -86,7 +86,7 @@ routes:
     scope: none
     owner: 23
     kind: stream
-    status: planned
+    status: implemented
     notes: Multiplexed SSE invalidation stream; topics and events are filtered per subscriber (docs/api/streams.md).
   - method: GET
     path: /api/v1/overview

@@ -138,6 +138,12 @@ type Deps struct {
 	// Diagnostics serves the internal metrics endpoint and the support
 	// bundle (#34); nil answers them with 404 / 503.
 	Diagnostics DiagnosticsService
+	// Live is the live invalidation stream hub (#23); nil answers
+	// GET /live/stream with 503.
+	Live LiveHub
+	// FileWatch keeps volumes with an open file view watched while a live
+	// stream names them (#23); nil watches only stacks.
+	FileWatch FileWatch
 }
 
 func (d Deps) clock() clock.Clock {
@@ -209,6 +215,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerMaintenance(a, deps)
 	registerUpdates(a, deps)
 	registerBackups(a, deps)
+	registerLive(a, deps)
 	return a
 }
 

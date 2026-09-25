@@ -6871,6 +6871,253 @@
         ],
         "type": "object"
       },
+      "LiveAgentStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "online",
+              "offline"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "environmentId",
+          "status",
+          "at"
+        ],
+        "type": "object"
+      },
+      "LiveFileScope": {
+        "additionalProperties": false,
+        "properties": {
+          "environmentId": {
+            "type": "string"
+          },
+          "id": {
+            "description": "Stack ID, volume name, or the environment ID.",
+            "type": "string"
+          },
+          "kind": {
+            "description": "environment: every file scope of the environment.",
+            "enum": [
+              "stack",
+              "volume",
+              "environment"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "environmentId"
+        ],
+        "type": "object"
+      },
+      "LiveFilesChanged": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "overflow": {
+            "description": "Refresh every listing of the scope.",
+            "type": "boolean"
+          },
+          "paths": {
+            "description": "Root-relative changed entries or directories: refresh the listing of each path's directory and of the path itself.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/LiveFileScope"
+          }
+        },
+        "required": [
+          "scope",
+          "paths",
+          "overflow",
+          "at"
+        ],
+        "type": "object"
+      },
+      "LiveHello": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "Stream position. Fresh streams: fetch every open view now; events after it follow.",
+            "type": "string"
+          },
+          "heartbeatMs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "resumed": {
+            "description": "The Last-Event-ID/cursor was accepted: the missed events follow and cached data stays valid.",
+            "type": "boolean"
+          },
+          "topics": {
+            "description": "The topics this stream carries.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "enum": [
+              "dockyard.live/v1"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "cursor",
+          "heartbeatMs",
+          "topics",
+          "resumed"
+        ],
+        "type": "object"
+      },
+      "LiveInvalidate": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "created",
+              "updated",
+              "deleted"
+            ],
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "kind": {
+            "description": "Resource type (for example container, stack, backup_policy, inventory, metrics).",
+            "examples": [
+              "container"
+            ],
+            "type": "string"
+          },
+          "resourceId": {
+            "description": "Stable resource ID (container and network names, volume names, image references).",
+            "type": "string"
+          },
+          "revision": {
+            "description": "The resource's revision after the change, when it has one: ignore when not above the cached revision.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "topic": {
+            "examples": [
+              "containers"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "kind",
+          "resourceId",
+          "action",
+          "at"
+        ],
+        "type": "object"
+      },
+      "LiveJob": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "progressPercent": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revision": {
+            "description": "The job's event sequence: ignore when not above the cached one.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "kind",
+          "state",
+          "revision",
+          "at"
+        ],
+        "type": "object"
+      },
+      "LivePermissionsChanged": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at"
+        ],
+        "type": "object"
+      },
+      "LiveReset": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "environmentId": {
+            "description": "Only this environment's data is stale (its agent reconnected or lost events).",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "server_restart",
+              "cursor_expired",
+              "gap",
+              "overflow"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "cursor"
+        ],
+        "type": "object"
+      },
       "LogLineDTO": {
         "additionalProperties": false,
         "properties": {
@@ -32593,6 +32840,181 @@
         ],
         "x-dockyard-capability": "job.read",
         "x-dockyard-scope": "resource"
+      }
+    },
+    "/api/v1/live/stream": {
+      "get": {
+        "description": "The one multiplexed live stream per open UI tab (#23): `hello` (cursor; fetch open views), then `invalidate` (a resource changed: refetch it), `job` (job state and progress), `agent` (environment online/offline), `files.changed` (entries of a stack or volume changed), `reset` (discard cached data and refetch), `permissions.changed` + `close` (drop all cached data, refetch /me/permissions, reconnect). Each resumable event has `id: <cursor>`; reconnect with Last-Event-ID (or `cursor`) to replay what was missed (newest 10 000 events or 15 min). Every event is filtered by the caller's permissions: nothing about a resource the caller may not see, file names only with the scope's files-read capability. Events never carry resource bodies, file contents or secrets. `: heartbeat` comments keep it alive; at most 8 streams per user or token (429). Wire contract: docs/api/streams.md.",
+        "operationId": "stream-live-events",
+        "parameters": [
+          {
+            "description": "Resume after this cursor (sent automatically by EventSource on reconnect).",
+            "in": "header",
+            "name": "Last-Event-ID",
+            "schema": {
+              "description": "Resume after this cursor (sent automatically by EventSource on reconnect).",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Resume after this cursor when the client reconnects by itself and cannot set Last-Event-ID (a new EventSource). Last-Event-ID wins.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Resume after this cursor when the client reconnects by itself and cannot set Last-Event-ID (a new EventSource). Last-Event-ID wins.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated topics to receive (default: every topic). Unknown topics are 422; topics the caller may not see produce nothing.",
+            "explode": false,
+            "in": "query",
+            "name": "topics",
+            "schema": {
+              "description": "Comma-separated topics to receive (default: every topic). Unknown topics are 422; topics the caller may not see produce nothing.",
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only events of this environment (plus instance-wide ones such as jobs without an environment, policies and settings).",
+            "explode": false,
+            "in": "query",
+            "name": "environmentId",
+            "schema": {
+              "description": "Only events of this environment (plus instance-wide ones such as jobs without an environment, policies and settings).",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated stack IDs (at most 16): narrows file events to these stacks' project directories (open file views).",
+            "explode": false,
+            "in": "query",
+            "name": "stackId",
+            "schema": {
+              "description": "Comma-separated stack IDs (at most 16): narrows file events to these stacks' project directories (open file views).",
+              "maxLength": 1200,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated <environmentId>/<volume name> (at most 16): narrows file events to these volumes and keeps them watched while the stream is open (needs volume.files.read).",
+            "explode": false,
+            "in": "query",
+            "name": "volume",
+            "schema": {
+              "description": "Comma-separated <environmentId>/<volume name> (at most 16): narrows file events to these volumes and keeps them watched while the stream is open (needs volume.files.read).",
+              "maxLength": 4200,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "description": "Each data line is one of these payloads.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/LiveHello"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LiveInvalidate"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LiveJob"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LiveAgentStatus"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LiveFilesChanged"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LivePermissionsChanged"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LiveReset"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CloseEvent"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Event stream"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Stream live invalidations (SSE)",
+        "tags": [
+          "Live"
+        ],
+        "x-dockyard-capability": "authenticated",
+        "x-dockyard-scope": "none"
       }
     },
     "/api/v1/maintenance-defaults": {

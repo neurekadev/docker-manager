@@ -2284,6 +2284,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/live/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream live invalidations (SSE)
+         * @description The one multiplexed live stream per open UI tab (#23): `hello` (cursor; fetch open views), then `invalidate` (a resource changed: refetch it), `job` (job state and progress), `agent` (environment online/offline), `files.changed` (entries of a stack or volume changed), `reset` (discard cached data and refetch), `permissions.changed` + `close` (drop all cached data, refetch /me/permissions, reconnect). Each resumable event has `id: <cursor>`; reconnect with Last-Event-ID (or `cursor`) to replay what was missed (newest 10 000 events or 15 min). Every event is filtered by the caller's permissions: nothing about a resource the caller may not see, file names only with the scope's files-read capability. Events never carry resource bodies, file contents or secrets. `: heartbeat` comments keep it alive; at most 8 streams per user or token (429). Wire contract: docs/api/streams.md.
+         */
+        get: operations["stream-live-events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/maintenance-defaults": {
         parameters: {
             query?: never;
@@ -6295,6 +6315,91 @@ export interface components {
             keyState: components["schemas"]["RecoveryKeyState"];
             nextStep: string;
             recoveryKey: components["schemas"]["RecoveryKeyReveal"];
+        };
+        LiveAgentStatus: {
+            /** Format: date-time */
+            at: string;
+            environmentId: string;
+            /** @enum {string} */
+            status: "online" | "offline";
+        };
+        LiveFileScope: {
+            environmentId: string;
+            /** @description Stack ID, volume name, or the environment ID. */
+            id: string;
+            /**
+             * @description environment: every file scope of the environment.
+             * @enum {string}
+             */
+            kind: "stack" | "volume" | "environment";
+        };
+        LiveFilesChanged: {
+            /** Format: date-time */
+            at: string;
+            /** @description Refresh every listing of the scope. */
+            overflow: boolean;
+            /** @description Root-relative changed entries or directories: refresh the listing of each path's directory and of the path itself. */
+            paths: string[];
+            scope: components["schemas"]["LiveFileScope"];
+        };
+        LiveHello: {
+            /** @description Stream position. Fresh streams: fetch every open view now; events after it follow. */
+            cursor: string;
+            /** Format: int64 */
+            heartbeatMs: number;
+            /** @description The Last-Event-ID/cursor was accepted: the missed events follow and cached data stays valid. */
+            resumed: boolean;
+            /** @description The topics this stream carries. */
+            topics: string[];
+            /** @enum {string} */
+            version: "dockyard.live/v1";
+        };
+        LiveInvalidate: {
+            /** @enum {string} */
+            action: "created" | "updated" | "deleted";
+            /** Format: date-time */
+            at: string;
+            environmentId?: string;
+            /**
+             * @description Resource type (for example container, stack, backup_policy, inventory, metrics).
+             * @example container
+             */
+            kind: string;
+            /** @description Stable resource ID (container and network names, volume names, image references). */
+            resourceId: string;
+            /**
+             * Format: int64
+             * @description The resource's revision after the change, when it has one: ignore when not above the cached revision.
+             */
+            revision?: number;
+            /** @example containers */
+            topic: string;
+        };
+        LiveJob: {
+            /** Format: date-time */
+            at: string;
+            environmentId?: string;
+            jobId: string;
+            kind: string;
+            /** Format: int64 */
+            progressPercent?: number;
+            /**
+             * Format: int64
+             * @description The job's event sequence: ignore when not above the cached one.
+             */
+            revision: number;
+            state: string;
+        };
+        LivePermissionsChanged: {
+            /** Format: date-time */
+            at: string;
+        };
+        LiveReset: {
+            cursor: string;
+            /** @description Only this environment's data is stale (its agent reconnected or lost events). */
+            environmentId?: string;
+            /** @enum {string} */
+            reason: "server_restart" | "cursor_expired" | "gap" | "overflow";
         };
         LogLineDTO: {
             /** Format: date-time */
@@ -20850,6 +20955,85 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "stream-live-events": {
+        parameters: {
+            query?: {
+                /** @description Resume after this cursor when the client reconnects by itself and cannot set Last-Event-ID (a new EventSource). Last-Event-ID wins. */
+                cursor?: string;
+                /** @description Comma-separated topics to receive (default: every topic). Unknown topics are 422; topics the caller may not see produce nothing. */
+                topics?: string;
+                /** @description Only events of this environment (plus instance-wide ones such as jobs without an environment, policies and settings). */
+                environmentId?: string;
+                /** @description Comma-separated stack IDs (at most 16): narrows file events to these stacks' project directories (open file views). */
+                stackId?: string;
+                /** @description Comma-separated <environmentId>/<volume name> (at most 16): narrows file events to these volumes and keeps them watched while the stream is open (needs volume.files.read). */
+                volume?: string;
+            };
+            header?: {
+                /** @description Resume after this cursor (sent automatically by EventSource on reconnect). */
+                "Last-Event-ID"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["LiveHello"] | components["schemas"]["LiveInvalidate"] | components["schemas"]["LiveJob"] | components["schemas"]["LiveAgentStatus"] | components["schemas"]["LiveFilesChanged"] | components["schemas"]["LivePermissionsChanged"] | components["schemas"]["LiveReset"] | components["schemas"]["CloseEvent"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
