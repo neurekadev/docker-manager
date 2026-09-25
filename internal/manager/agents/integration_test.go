@@ -207,34 +207,37 @@ func TestEngineTwoAgentsEnrollAndServeJobs(t *testing.T) {
 	if err := eng.DispatchPending(ctx); err != nil {
 		t.Fatal(err)
 	}
+	waitJob := func(id string) {
+		waitCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		defer cancel()
+		changed, unsub := eng.Subscribe(id)
+		defer unsub()
+		for {
+			j, err := eng.Get(waitCtx, id)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if j.State.Terminal() {
+				if j.State != domain.JobSucceeded || j.DispatchedAt == nil || j.FencingToken == 0 {
+					t.Errorf("job %s: %s %s %q", id, j.State, j.ErrorClass, j.ErrorMessage)
+				}
+				return
+			}
+			select {
+			case <-changed:
+			case <-waitCtx.Done():
+				t.Errorf("job %s stuck in %s", id, j.State)
+				return
+			}
+		}
+	}
 	var wg sync.WaitGroup
 	for _, id := range jobIDs {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			waitCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-			defer cancel()
-			changed, unsub := eng.Subscribe(id)
-			defer unsub()
-			for {
-				j, err := eng.Get(waitCtx, id)
-				if err != nil {
-					t.Error(err)
-					return
-				}
-				if j.State.Terminal() {
-					if j.State != domain.JobSucceeded || j.DispatchedAt == nil || j.FencingToken == 0 {
-						t.Errorf("job %s: %s %s %q", id, j.State, j.ErrorClass, j.ErrorMessage)
-					}
-					return
-				}
-				select {
-				case <-changed:
-				case <-waitCtx.Done():
-					t.Errorf("job %s stuck in %s", id, j.State)
-					return
-				}
-			}
+			waitJob(id)
 		}()
 	}
 	wg.Wait()
@@ -245,6 +248,57 @@ func TestEngineTwoAgentsEnrollAndServeJobs(t *testing.T) {
 		}
 		if insp.Container.State == nil || !insp.Container.State.Running {
 			t.Errorf("web on %s not running after the restart", s.name)
+		}
+	}
+
+	// The #6 operations are reflected in each environment's Docker events
+	// (#5 relay): each restart reaches the manager's bus as a docker.event
+	// of its own environment, and a volume created through DockYard on one
+	// environment is an event of that environment only.
+	var dockerEvents []events.Event
+	waitDocker := func(what string, want func(events.Event) bool) {
+		t.Helper()
+		for _, e := range dockerEvents {
+			if want(e) {
+				return
+			}
+		}
+		deadline := time.After(2 * time.Minute)
+		for {
+			select {
+			case e := <-sub.C():
+				if e.Type != events.DockerEvent {
+					continue
+				}
+				dockerEvents = append(dockerEvents, e)
+				if want(e) {
+					return
+				}
+			case <-deadline:
+				t.Fatalf("timed out waiting for %s; Docker events seen: %+v", what, dockerEvents)
+			}
+		}
+	}
+	for _, env := range envByEngine {
+		waitDocker("the restart event of web on "+env.Name, func(e events.Event) bool {
+			return e.EnvironmentID == env.ID && e.ResourceType == "container" && e.ResourceID == "web" && e.Attributes["action"] == "restart"
+		})
+	}
+	alpha := envByEngine[all[0].engineID]
+	vj, err := m.Resources().CreateVolume(ctx, authz.Service(), alpha.ID, protocol.VolumeCreateInput{Name: "dy-events"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := eng.DispatchPending(ctx); err != nil {
+		t.Fatal(err)
+	}
+	waitJob(vj.ID)
+	waitDocker("the volume create event on "+alpha.Name, func(e events.Event) bool {
+		return e.EnvironmentID == alpha.ID && e.ResourceType == "volume" && e.ResourceID == "dy-events" && e.Attributes["action"] == "create"
+	})
+	for _, e := range dockerEvents {
+		if e.ResourceID == "dy-events" && e.EnvironmentID != alpha.ID {
+			t.Errorf("the volume event leaked into %s: %+v", e.EnvironmentID, e)
 		}
 	}
 
