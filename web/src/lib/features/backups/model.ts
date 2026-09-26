@@ -132,9 +132,17 @@ export function looksLikeRecoveryKey(input: string): boolean {
 	return /^DYRK(-[A-Z2-7]{4}){13}$/.test(normalizeRecoveryKey(input));
 }
 
-/** What a policy backs up: "the manager state, 2 stacks and 1 volume". */
-export function scopeText(p: Pick<BackupPolicy, 'includeManagerState' | 'scope'>): string {
-	const scope = p.scope === 'all' ? 'all environments' : 'one environment';
+/** Where a policy backs up: "all environments and the manager state", "prod". */
+export function scopeText(
+	p: Pick<BackupPolicy, 'includeManagerState' | 'scope' | 'environmentId'>,
+	environmentName?: (id: string) => string
+): string {
+	const scope =
+		p.scope === 'all'
+			? 'all environments'
+			: p.environmentId && environmentName
+				? environmentName(p.environmentId)
+				: 'one environment';
 	return p.includeManagerState ? `${scope} and the manager state` : scope;
 }
 
@@ -196,4 +204,60 @@ export function pathCrumbs(path: string): { name: string; path: string }[] {
 /** The job that runs a policy ID for a member, for links. */
 export function jobHref(id: string | undefined, job: (id: string) => string): string | undefined {
 	return id ? job(id) : undefined;
+}
+
+/** The Engine's label on volumes it created for anonymous mounts. */
+export const ANONYMOUS_VOLUME_LABEL = 'com.docker.volume.anonymous';
+const COMPOSE_PROJECT_LABEL = 'com.docker.compose.project';
+
+export interface CoveredVolume {
+	name: string;
+	anonymous: boolean;
+	/** The managed stack the volume belongs to; undefined: standalone. */
+	stackId?: string;
+}
+
+/**
+ * An environment's volumes as a backup policy covers them (#10): Docker
+ * Manager's own are left out (#32), and so are volumes of Compose projects
+ * that are no managed stack (the manager backs up neither); a volume
+ * belongs to a managed stack by its membership, its Compose project label
+ * or a stack container using it (the manager's rule); anonymous volumes
+ * carry the Engine's label.
+ */
+export function coveredVolumes(
+	volumes: {
+		name: string;
+		labels?: Record<string, string>;
+		protection?: unknown;
+		stack?: { stackId?: string; project: string };
+		usedBy?: { id: string }[];
+	}[],
+	stacks: { id: string; name: string }[],
+	containers: { id: string; labels?: Record<string, string> }[]
+): CoveredVolume[] {
+	const stackByName = new Map(stacks.map((s) => [s.name, s.id]));
+	const stackOfContainer = new Map<string, string>();
+	for (const c of containers) {
+		const id = stackByName.get(c.labels?.[COMPOSE_PROJECT_LABEL] ?? '');
+		if (id) stackOfContainer.set(c.id, id);
+	}
+	const out: CoveredVolume[] = [];
+	for (const v of volumes) {
+		if (v.protection) continue;
+		const stackId =
+			(v.stack?.stackId && stacks.some((s) => s.id === v.stack?.stackId)
+				? v.stack.stackId
+				: undefined) ??
+			stackByName.get(v.stack?.project ?? v.labels?.[COMPOSE_PROJECT_LABEL] ?? '') ??
+			(v.usedBy ?? []).map((c) => stackOfContainer.get(c.id)).find(Boolean);
+		if (v.stack && !stackId) continue;
+		out.push({ name: v.name, anonymous: ANONYMOUS_VOLUME_LABEL in (v.labels ?? {}), stackId });
+	}
+	return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** The exclusion key of a volume: environmentID/name for All Environments. */
+export function volumeKey(all: boolean, environmentId: string, name: string): string {
+	return all ? `${environmentId}/${name}` : name;
 }

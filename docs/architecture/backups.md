@@ -27,8 +27,12 @@ only production process execution in Docker Manager.
 - A **policy** covers one environment or all environments. Overlap is
   rejected (`backup_scope_overlap`). Every managed stack and standalone
   volume in its scope is selected at preview and run time unless its stack
-  ID or volume name is excluded. All-environments volume exclusions use
-  `environmentID/volumeName`. The policy also configures manager state
+  ID or volume name is excluded. Volume exclusions also apply to the
+  selected stacks' volumes (named and anonymous). All-environments volume
+  exclusions use `environmentID/volumeName`. Anonymous volumes (Engine
+  label `com.docker.volume.anonymous`, and a stack container's unnamed
+  mounts) are left out unless the policy's `anonymousVolumes` switch is on
+  (default off). The policy also configures manager state
   (owner only), container shutdown (off by default), a schedule (#13,
   starts disabled), and retention. A migrated stack is covered by the
   destination environment's policy. Existing snapshots retain their source

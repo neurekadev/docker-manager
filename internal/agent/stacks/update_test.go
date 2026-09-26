@@ -319,6 +319,71 @@ func TestUpdateRestartsDependentsAndPreservesStoppedServices(t *testing.T) {
 	}
 }
 
+// containerActions returns the Engine's start/stop events of the
+// project's containers as "action:service", in order.
+func (e *updateEnv) containerActions() []string {
+	var out []string
+	for _, ev := range e.eng.EmittedEvents() {
+		if ev.Type != "container" || (ev.Action != "start" && ev.Action != "stop") {
+			continue
+		}
+		out = append(out, ev.Action+":"+strings.TrimSuffix(strings.TrimPrefix(ev.Attributes["name"], "app-"), "-1"))
+	}
+	return out
+}
+
+// An automatic update follows the Compose file's depends_on: the dependent
+// declaring restart: true stops before its dependency and starts only
+// after the recreated dependency is healthy; a dependent without restart
+// propagation keeps running and a stopped one stays stopped.
+func TestUpdateFollowsDependsOnOrder(t *testing.T) {
+	e := newUpdateEnv(t)
+	e.eng.Publish(dbRef, dg("5"))
+	if _, err := e.eng.PullImage(testutil.Context(t), dbRef, engine.PullOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	e.eng.SetStartHealth(dbRef, "healthy")
+	start := len(e.containerActions())
+	res, out := e.run(e.input(protocol.UpdateService{Service: "db", Reference: dbRef, Digest: dg("5")}), nil)
+	if res.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("result %+v", res)
+	}
+	got := e.containerActions()[start:]
+	if want := []string{"stop:web", "stop:db", "start:db", "start:web"}; !slices.Equal(got, want) {
+		t.Fatalf("container actions %v, want %v (dependents stop first, dependencies start first)", got, want)
+	}
+	if !slices.Equal(out.Restarted, []string{"web"}) || outcome(out, "db") != protocol.UpdateUpdated {
+		t.Errorf("restarted %v outcomes %+v", out.Restarted, out.Services)
+	}
+}
+
+// An update that would need a stopped required dependency is refused
+// before anything is stopped or recreated (and nothing is quarantined).
+func TestUpdateRefusesWhenARequiredDependencyIsStopped(t *testing.T) {
+	e := newUpdateEnv(t)
+	if err := e.eng.StopContainer(testutil.Context(t), e.ids["db"], nil); err != nil {
+		t.Fatal(err)
+	}
+	e.eng.Publish(webRef, dg("8"))
+	start := len(e.containerActions())
+	res, out := e.run(e.input(protocol.UpdateService{Service: "web", Reference: webRef, Digest: dg("8")}), nil)
+	if res.Outcome != jobexec.OutcomeFailed {
+		t.Fatalf("result %+v", res)
+	}
+	if out.Quarantine {
+		t.Error("a refused update quarantined the digest")
+	}
+	if got := e.containerActions()[start:]; len(got) != 0 {
+		t.Errorf("container actions %v: nothing may be stopped or started", got)
+	}
+	if slices.ContainsFunc(e.c.calls, func(c string) bool { return strings.HasPrefix(c, "create:") }) {
+		t.Errorf("compose calls %v: nothing may be recreated", e.c.calls)
+	}
+	if c := e.container("web"); c.Details.ID != e.ids["web"] || !c.Details.State.Running {
+		t.Errorf("web %+v", c.Details.State)
+	}
+}
+
 func TestUpdateFailedHealthIsQuarantinedWithoutTouchingSources(t *testing.T) {
 	e := newUpdateEnv(t)
 	before := snapshotTree(t, e.dir)

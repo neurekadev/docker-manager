@@ -1,9 +1,13 @@
 <script lang="ts">
-	// Backups (#10): the shared backup history of the instance. Recent sets
-	// (partial ones stay partial, with each member's own snapshot time) and
-	// every snapshot, whoever configured the policy.
+	// Backups overview (#10): until backups run, the two setup steps (a
+	// repository with a confirmed Recovery Key, then a policy); afterwards
+	// how backups stand (KPIs), every policy with its last set, next run and
+	// a manual run, and the recent sets of the instance (partial ones stay
+	// partial, with each member's own snapshot time). Snapshots and
+	// repositories have their own tabs.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Archive from '@lucide/svelte/icons/archive';
+	import Check from '@lucide/svelte/icons/check';
 	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
 	import KeyRound from '@lucide/svelte/icons/key-round';
@@ -15,33 +19,27 @@
 	import { accessOf } from '$lib/shell/nav';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
-		Badge,
 		Button,
 		Card,
 		EmptyState,
 		KpiCard,
 		Notice,
-		Table,
+		Skeleton,
 		formatBytes,
 		formatDateTime,
-		formatRelative,
-		type Column
+		formatRelative
 	} from '$lib/ui';
 	import { can, has } from '$lib/features/common/access';
 	import { environmentName } from '$lib/features/common/data';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
-	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
+	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import BackupPolicyDialog from '$lib/features/backups/BackupPolicyDialog.svelte';
 	import BackupsHeader from '$lib/features/backups/BackupsHeader.svelte';
+	import PolicyCard from '$lib/features/backups/PolicyCard.svelte';
 	import SetsTable from '$lib/features/backups/SetsTable.svelte';
-	import {
-		CONSISTENCY_LABEL,
-		KIND_LABEL,
-		itemName,
-		recentSets,
-		type Backup
-	} from '$lib/features/backups/model';
+	import { recentSets } from '$lib/features/backups/model';
 	import {
 		backupPoliciesWithSetsQuery,
 		backupsQuery,
@@ -59,7 +57,22 @@
 		backupsQuery(environmentSelection.id ? { environmentId: environmentSelection.id } : {})
 	);
 	const envName = (id: string) => environmentName(envs.data, id);
+	const createDialog = urlDialog('create');
 
+	const canCreatePolicy = $derived(can(access, 'backup_policy.manage'));
+	const canAddRepository = $derived(access.owner || can(access, 'backup_repository.manage'));
+	const readyRepos = $derived((repos.data ?? []).filter((r) => r.state === 'ready'));
+	const awaiting = $derived(
+		(repos.data ?? []).filter((r) => r.state === 'awaiting_confirmation')
+	);
+	const policyList = $derived(
+		(policies.data ?? []).filter(
+			(p) =>
+				!environmentSelection.id ||
+				p.scope === 'all' ||
+				p.environmentId === environmentSelection.id
+		)
+	);
 	const sets = $derived(
 		recentSets(policies.data ?? []).filter(
 			(s) =>
@@ -67,83 +80,24 @@
 				s.members.some((m) => m.environmentId === environmentSelection.id)
 		)
 	);
-	const awaiting = $derived(
-		(repos.data ?? []).filter((r) => r.state === 'awaiting_confirmation')
-	);
 	const lastComplete = $derived(sets.find((s) => s.state === 'complete'));
 	const troubled = $derived(
 		sets.filter((s) => s.state === 'partial' || s.state === 'failed').length
 	);
 	const totalBytes = $derived((backups.data ?? []).reduce((n, b) => n + (b.bytes ?? 0), 0));
-
-	const columns: Column<Backup>[] = [
-		{
-			id: 'item',
-			header: 'Backup',
-			cell: itemCell,
-			sortValue: (b) => itemName(b),
-			stack: 'title'
-		},
-		{ id: 'state', header: 'State', cell: stateCell, width: '130px', stack: 'status' },
-		{
-			id: 'time',
-			header: 'Snapshot time',
-			cell: timeCell,
-			sortValue: (b) => b.snapshotTime,
-			width: '190px'
-		},
-		{
-			id: 'env',
-			header: 'Environment',
-			cell: envCell,
-			sortValue: (b) =>
-				b.kind === 'manager_state' || !b.environmentId ? '' : envName(b.environmentId),
-			width: '130px'
-		},
-		{ id: 'consistency', header: 'Consistency', cell: consistencyCell, width: '200px' },
-		{
-			id: 'size',
-			header: 'Size',
-			cell: sizeCell,
-			sortValue: (b) => b.bytes ?? null,
-			numeric: true,
-			width: '100px'
-		}
-	];
+	const setupDone = $derived(readyRepos.length > 0 && (policies.data ?? []).length > 0);
 </script>
-
-{#snippet itemCell(b: Backup)}
-	<NameCell
-		name={itemName(b)}
-		href={routes.backup(b.id)}
-		sub={[
-			b.kind && b.kind !== 'manager_state' ? KIND_LABEL[b.kind] : undefined,
-			policies.data?.find((p) => p.id === b.policyId)?.name
-		]
-			.filter(Boolean)
-			.join(', ') || undefined}
-	/>
-{/snippet}
-{#snippet stateCell(b: Backup)}
-	{#if b.state === 'complete'}<Badge tone="ok" dot>Complete</Badge>{:else}<Badge tone="warn" dot
-			>Partial</Badge
-		>{/if}
-{/snippet}
-{#snippet timeCell(b: Backup)}<span class="num">{formatDateTime(b.snapshotTime)}</span>{/snippet}
-{#snippet envCell(b: Backup)}{b.kind === 'manager_state' || !b.environmentId
-		? 'Manager'
-		: envName(b.environmentId)}{/snippet}
-{#snippet consistencyCell(b: Backup)}
-	{b.consistency ? CONSISTENCY_LABEL[b.consistency] : '—'}
-{/snippet}
-{#snippet sizeCell(b: Backup)}<span class="num">{formatBytes(b.bytes)}</span>{/snippet}
 
 <Page>
 	<BackupsHeader>
 		{#snippet actions()}
-			{#if can(access, 'backup_policy.manage') && (repos.data?.length ?? 0) > 0}
-				<Button variant="primary" icon={Plus} href={routes.backupPolicyNew()}
+			{#if canCreatePolicy && readyRepos.length > 0}
+				<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
 					>Create backup policy</Button
+				>
+			{:else if canAddRepository && (repos.data?.length ?? 0) === 0}
+				<Button variant="primary" icon={Plus} href={routes.backupRepositoryNew()}
+					>Add backup repository</Button
 				>
 			{/if}
 		{/snippet}
@@ -163,25 +117,67 @@
 		</Notice>
 	{/each}
 
-	{#if repos.data && repos.data.length === 0}
-		<Card>
-			<EmptyState
-				icon={DatabaseBackup}
-				color="teal"
-				title="No backups yet."
-				description="Add a backup repository on a local disk or S3 and save your Recovery Key, then create a policy that backs up the manager, stacks and volumes."
-				level={2}
-			>
-				{#snippet actions()}
-					{#if access.owner || can(access, 'backup_repository.manage')}
-						<Button variant="primary" icon={Plus} href={routes.backupRepositoryNew()}
-							>Add backup repository</Button
-						>
-					{/if}
-				{/snippet}
-			</EmptyState>
+	{#if repos.isPending || policies.isPending}
+		<Skeleton lines={4} height="72px" />
+	{:else if !setupDone}
+		<Card title="Set up backups">
+			<ol class="setup" role="list">
+				<li class:done={readyRepos.length > 0}>
+					<span class="marker" aria-hidden="true"
+						>{#if readyRepos.length > 0}<Check
+								size={14}
+								strokeWidth={2}
+							/>{:else}1{/if}</span
+					>
+					<div class="step">
+						<h3>Add a backup repository</h3>
+						<p class="muted">
+							A local disk on a host or an S3 bucket. Save the Recovery Key it shows:
+							every backup opens with it.
+						</p>
+						{#if readyRepos.length > 0}
+							<span class="state"
+								>Done: {readyRepos.map((r) => r.name).join(', ')}</span
+							>
+						{:else if awaiting.length}
+							<span class="state">Confirm the Recovery Key above to finish.</span>
+						{:else if canAddRepository}
+							<div>
+								<Button href={routes.backupRepositoryNew()}>Add repository</Button>
+							</div>
+						{:else}
+							<span class="state"
+								>Ask the owner of this Docker Manager to add one.</span
+							>
+						{/if}
+					</div>
+				</li>
+				<li class:done={(policies.data ?? []).length > 0}>
+					<span class="marker" aria-hidden="true">2</span>
+					<div class="step">
+						<h3>Create a backup policy</h3>
+						<p class="muted">
+							Covers all environments or one: every managed stack and volume is
+							included until you leave it out. Choose when it runs and how long
+							backups are kept.
+						</p>
+						{#if canCreatePolicy}
+							<div>
+								<Button
+									variant={readyRepos.length ? 'primary' : 'secondary'}
+									disabled={!readyRepos.length}
+									onclick={() => (createDialog.open = true)}
+									>Create backup policy</Button
+								>
+							</div>
+						{/if}
+					</div>
+				</li>
+			</ol>
 		</Card>
-	{:else}
+	{/if}
+
+	{#if setupDone}
 		<KpiRow>
 			<KpiCard
 				label="Last complete set"
@@ -220,64 +216,131 @@
 			/>
 		</KpiRow>
 
-		<Card title="Recent backup sets" padding="none">
-			<QueryView query={policies} errorTitle="The backup sets could not be loaded.">
-				{#snippet children(list)}
-					{#if list.length && sets.length}
-						<SetsTable
-							{sets}
-							label="Recent backup sets"
+		<Card
+			title="Policies"
+			subtitle="What is backed up, when it runs next and how the last run went."
+		>
+			{#snippet actions()}
+				<Button size="sm" variant="ghost" href={routes.backupPolicies()}
+					>All policies</Button
+				>
+			{/snippet}
+			{#if policyList.length}
+				<div class="policies">
+					{#each policyList as p (p.id)}
+						<PolicyCard
+							policy={p}
+							repositoryName={repos.data?.find((r) => r.id === p.repositoryId)?.name}
 							environmentName={envName}
-							canRetry={(id) =>
-								has(
-									policies.data?.find((p) => p.id === id),
-									'backup.run'
-								)}
 						/>
-					{:else}
-						<EmptyState
-							icon={DatabaseBackup}
-							color="teal"
-							title="No backup sets yet."
-							description="Run a backup policy, or turn its schedule on."
-							level={3}
-							compact
-						>
-							{#snippet actions()}
-								<Button href={routes.backupPolicies()}>Open policies</Button>
-							{/snippet}
-						</EmptyState>
-					{/if}
-				{/snippet}
-			</QueryView>
+					{/each}
+				</div>
+			{:else}
+				<EmptyState
+					icon={DatabaseBackup}
+					color="teal"
+					title="No policy covers this environment."
+					description="Create a policy for it, or for all environments."
+					level={3}
+					compact
+				/>
+			{/if}
 		</Card>
 
-		<Card title="Snapshots" padding="none">
-			<QueryView query={backups} errorTitle="The backups could not be loaded.">
-				{#snippet children(rows)}
-					<Table
-						label="Backup snapshots"
-						{rows}
-						{columns}
-						rowKey={(b) => b.id}
-						sort={{ column: 'time', direction: 'desc' }}
-						maxHeight="560px"
-					>
-						{#snippet empty()}
-							<EmptyState
-								icon={Archive}
-								color="slate"
-								title="No snapshots here."
-								description={environmentSelection.id
-									? 'Nothing from this environment is backed up yet. Add its stacks or volumes to a policy.'
-									: 'Snapshots appear after a policy runs.'}
-								level={3}
-								compact
-							/>
-						{/snippet}
-					</Table>
-				{/snippet}
+		<Card title="Recent backup sets" padding="none">
+			<QueryView query={policies} errorTitle="The backup sets could not be loaded.">
+				{#if sets.length}
+					<SetsTable
+						{sets}
+						label="Recent backup sets"
+						environmentName={envName}
+						canRetry={(id) =>
+							has(
+								policies.data?.find((p) => p.id === id),
+								'backup.run'
+							)}
+					/>
+				{:else}
+					<EmptyState
+						icon={DatabaseBackup}
+						color="teal"
+						title="No backup sets yet."
+						description="Back up a policy now, or turn its schedule on."
+						level={3}
+						compact
+					/>
+				{/if}
 			</QueryView>
 		</Card>
 	{/if}
 </Page>
+
+{#if createDialog.open}
+	<BackupPolicyDialog bind:open={createDialog.open} owner={!!perms.data?.owner} />
+{/if}
+
+<style>
+	.policies {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+		gap: var(--space-4);
+	}
+
+	.setup {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--space-4);
+		margin: 0;
+	}
+
+	.setup li {
+		display: flex;
+		gap: var(--space-3);
+		padding: var(--space-4);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+	}
+
+	.marker {
+		display: grid;
+		flex: none;
+		place-items: center;
+		width: 24px;
+		height: 24px;
+		border: 1px solid var(--accent);
+		border-radius: var(--radius-full);
+		background: var(--accent);
+		color: var(--text-on-accent);
+		font-size: 12px;
+		font-weight: var(--weight-semibold);
+	}
+
+	.done .marker {
+		border-color: var(--ok-border);
+		background: var(--ok-soft);
+		color: var(--ok);
+	}
+
+	.step {
+		display: grid;
+		gap: var(--space-2);
+		align-content: start;
+	}
+
+	.step h3 {
+		color: var(--text-strong);
+		font-size: var(--text-control);
+		font-weight: var(--weight-semibold);
+	}
+
+	.state {
+		color: var(--text-default);
+		font-size: var(--text-caption);
+	}
+
+	@media (max-width: 767px) {
+		.setup {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>

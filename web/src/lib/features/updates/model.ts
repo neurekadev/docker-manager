@@ -135,3 +135,47 @@ export function recoveryText(c: UpdateCandidate): string {
 		? `Pin the previous image in your own Compose file, e.g. ${repo}@${pin}, then deploy the stack. Docker Manager never edits your files.`
 		: 'Pin a known-good digest (image@sha256:…) in your own Compose file and deploy the stack. Docker Manager never edits your files.';
 }
+
+export type UpdateSummary = Schema<'UpdatePolicySummary'>;
+
+function plural(n: number, one: string, many: string): string {
+	return `${n} ${n === 1 ? one : many}`;
+}
+
+/** One target's state from its candidate summary (lists, policy targets). */
+export function summaryState(s: UpdateSummary | undefined, inactive = false): Presentation {
+	if (inactive) return { tone: 'neutral', label: 'Excluded' };
+	if (!s) return { tone: 'neutral', label: 'Not checked yet' };
+	const failures = s.failed + s.quarantined;
+	if (failures) return { tone: 'danger', label: plural(failures, 'failure', 'failures') };
+	if (s.available)
+		return { tone: 'warn', label: `${plural(s.available, 'update', 'updates')} available` };
+	if (!s.lastCheckAt) return { tone: 'neutral', label: 'Not checked yet' };
+	return { tone: 'ok', label: 'Up to date' };
+}
+
+/** Counts of targets by state and the newest check (KPI row of Updates). */
+export function summarizeTargets(summaries: (UpdateSummary | undefined)[]): {
+	withUpdates: number;
+	failing: number;
+	upToDate: number;
+	unchecked: number;
+	lastCheckAt?: string;
+} {
+	const out = {
+		withUpdates: 0,
+		failing: 0,
+		upToDate: 0,
+		unchecked: 0,
+		lastCheckAt: undefined as string | undefined
+	};
+	for (const s of summaries) {
+		if (!s || !s.lastCheckAt) out.unchecked++;
+		else if (s.failed + s.quarantined) out.failing++;
+		else if (s.available) out.withUpdates++;
+		else out.upToDate++;
+		if (s?.lastCheckAt && (!out.lastCheckAt || s.lastCheckAt > out.lastCheckAt))
+			out.lastCheckAt = s.lastCheckAt;
+	}
+	return out;
+}

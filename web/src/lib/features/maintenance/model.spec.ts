@@ -5,13 +5,16 @@ import {
 	ageText,
 	enabledRules,
 	joinAge,
+	lastRunTotals,
 	manualPruneProblem,
 	manualPruneRules,
 	normalizeRules,
 	ruleProblem,
 	ruleSummary,
+	rulesText,
 	runSummaryText,
 	splitAge,
+	type MaintenanceRule,
 	type PruneTarget
 } from './model';
 
@@ -148,5 +151,50 @@ describe('one-off prunes', () => {
 	it('needs at least one rule on', () => {
 		const off = manualPruneRules('networks').map((r) => ({ ...r, enabled: false }));
 		expect(manualPruneProblem(off, true)).toBe('Turn on at least one rule.');
+	});
+});
+
+describe('policy summaries', () => {
+	const rule = (category: MaintenanceRule['category'], enabled: boolean): MaintenanceRule => ({
+		category,
+		enabled,
+		minAgeHours: 720
+	});
+
+	it('names the categories of the turned-on rules', () => {
+		expect(rulesText({ rules: [rule('stopped_containers', false)] })).toBe('Every rule is off');
+		expect(rulesText({ rules: [rule('stopped_containers', true)] })).toBe('Stopped containers');
+		expect(
+			rulesText({
+				rules: [
+					rule('stopped_containers', true),
+					rule('dangling_images', true),
+					rule('unused_images', true)
+				]
+			})
+		).toMatch(/^Stopped containers, .+ and .+$/);
+	});
+
+	it('adds up the last runs and keeps the newest', () => {
+		const run = (finishedAt: string, removed: number, bytes: number, failed = 0) => ({
+			bytesReclaimed: bytes,
+			deferred: 0,
+			failed,
+			finishedAt,
+			jobId: 'j',
+			origin: 'manual' as const,
+			removed,
+			skipped: 0,
+			state: 'succeeded'
+		});
+		const out = lastRunTotals([
+			{ lastRun: run('2026-09-20T00:00:00Z', 3, 100) },
+			{ lastRun: run('2026-09-25T00:00:00Z', 2, 50, 1) },
+			{}
+		]);
+		expect(out.removed).toBe(5);
+		expect(out.bytes).toBe(150);
+		expect(out.failed).toBe(1);
+		expect(out.latest?.finishedAt).toBe('2026-09-25T00:00:00Z');
 	});
 });

@@ -136,6 +136,7 @@
 	bind:open={createOpen}
 	title="Create a group"
 	description="New groups start without access; choose their permissions next."
+	size="sm"
 >
 	<form id="group-form" onsubmit={create} novalidate>
 		<TextField

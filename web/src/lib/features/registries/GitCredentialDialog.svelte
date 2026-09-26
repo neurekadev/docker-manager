@@ -106,7 +106,7 @@
 	bind:open
 	title={credential ? `Edit ${credential.name}` : 'Add a Git credential'}
 	description="For builds from private repositories over HTTPS. Shared by the whole instance; builds get the token only while they run."
-	size="md"
+	size="lg"
 	dismissible={!busy}
 >
 	<form
@@ -134,13 +134,15 @@
 				error={fieldError(failure, 'body.host')}
 			/>
 		{/if}
-		<TextField
-			label="Repositories below"
-			mono
-			bind:value={pathPrefix}
-			placeholder="acme"
-			description="Optional. Only repositories under this path get the token; empty: every repository on the host."
-		/>
+		<div class="full">
+			<TextField
+				label="Repositories below"
+				mono
+				bind:value={pathPrefix}
+				placeholder="acme"
+				description="Optional. Only repositories under this path get the token; empty: every repository on the host."
+			/>
+		</div>
 		<TextField
 			label="Username"
 			mono
@@ -159,11 +161,13 @@
 				error={fieldError(failure, 'body.secret')}
 			/>
 		{/if}
-		<Checkbox
-			label="Allow plain HTTP"
-			description="Send the token to http:// repositories (trusted networks only)."
-			bind:checked={plainHttp}
-		/>
+		<div class="full">
+			<Checkbox
+				label="Allow plain HTTP"
+				description="Send the token to http:// repositories (trusted networks only)."
+				bind:checked={plainHttp}
+			/>
+		</div>
 		{#if failure && !fieldError(failure, 'body.name')}
 			<p class="error" role="alert">
 				{(failure as { status?: number }).status === 412
@@ -182,9 +186,15 @@
 
 <style>
 	.form {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--space-4) var(--space-5);
+		align-items: start;
+	}
+
+	.full,
+	.error {
+		grid-column: 1 / -1;
 	}
 
 	.error {
@@ -193,5 +203,11 @@
 		border-radius: var(--radius-sm);
 		background: var(--danger-soft);
 		color: var(--danger);
+	}
+
+	@media (max-width: 767px) {
+		.form {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 </style>

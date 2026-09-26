@@ -204,8 +204,12 @@ type BackupPolicy struct {
 	EnvironmentID string
 	ExcludeStacks []string
 	// ExcludeVolumes contains names for a single environment and
-	// environmentID/volumeName for All Environments.
+	// environmentID/volumeName for All Environments. It applies to
+	// standalone volumes and to the volumes of every selected stack.
 	ExcludeVolumes []string
+	// AnonymousVolumes also backs up anonymous volumes (default off): those
+	// of the selected stacks' containers and standalone ones.
+	AnonymousVolumes bool
 	// RepositoryID is the destination of every scope; EnvironmentRepos
 	// overrides it per environment (local repositories live on each
 	// environment's own agent).

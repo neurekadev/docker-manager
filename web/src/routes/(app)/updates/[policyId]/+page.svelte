@@ -1,11 +1,15 @@
 <script lang="ts">
-	// Environment update policy detail (#20): the stacks and standalone
-	// containers it covers with their candidate summary, schedules and
-	// window. Check runs a digest check on every target (never pulls);
-	// Preview updates shows what a run would do and applies it.
+	// Environment update policy detail (#20): how its targets stand (KPIs),
+	// the stacks and standalone containers it covers with their candidate
+	// summary, and its schedules and window. Check runs a digest check on
+	// every target (never pulls); Preview updates opens what a run would do
+	// in a dialog and applies it. Editing opens the policy dialog
+	// (routes.updatePolicyEdit() links here with it open).
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import CircleCheck from '@lucide/svelte/icons/circle-check';
+	import Clock from '@lucide/svelte/icons/clock';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Layers from '@lucide/svelte/icons/layers';
 	import PackageCheck from '@lucide/svelte/icons/package-check';
@@ -24,14 +28,18 @@
 		Button,
 		Card,
 		DestructiveConfirm,
+		Dialog,
 		EmptyState,
 		ErrorState,
 		IconButton,
+		KpiCard,
 		Menu,
 		Notice,
 		PageHeader,
 		Skeleton,
 		Table,
+		formatDateTime,
+		formatRelative,
 		toast,
 		type Column,
 		type MenuEntry
@@ -46,18 +54,23 @@
 	import Digest from '$lib/features/common/Digest.svelte';
 	import { actionError } from '$lib/features/common/errors';
 	import Facts from '$lib/features/common/Facts.svelte';
+	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import ScheduleSummary from '$lib/features/common/ScheduleSummary.svelte';
+	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import UpdatePolicyDialog from '$lib/features/updates/UpdatePolicyDialog.svelte';
 	import {
 		candidateStatus,
 		reasonLabel,
+		summarizeTargets,
+		summaryState,
 		windowText,
 		type UpdateCandidate
 	} from '$lib/features/updates/model';
 	import {
-		environmentUpdateKeys,
 		environmentUpdatePolicyQuery,
+		environmentUpdateTargetsQuery,
 		type EnvironmentUpdatePolicy
 	} from '$lib/features/updates/queries';
 
@@ -76,21 +89,14 @@
 	const perms = createQuery(() => myPermissionsQuery());
 	const envs = createQuery(() => environmentsQuery());
 	const stacks = createQuery(() => stacksQuery());
-	const targets = createQuery(() => ({
-		queryKey: environmentUpdateKeys.targets(id),
-		queryFn: async ({ signal }: { signal: AbortSignal }) =>
-			(
-				await unwrap(
-					api.GET('/api/v1/environment-update-policies/{policyId}/targets', {
-						params: { path: { policyId: id } },
-						signal
-					})
-				)
-			).items
-	}));
+	const targets = createQuery(() => environmentUpdateTargetsQuery(id));
 	const manage = $derived(can(accessOf(perms.data), 'update_policy.manage'));
+	const editDialog = urlDialog('edit');
+	const active = $derived((targets.data ?? []).filter((t) => !t.inactive));
+	const totals = $derived(summarizeTargets(active.map((t) => t.candidateSummary)));
 
 	let preview = $state<Preview | null>(null);
+	let previewOpen = $state(false);
 	let error = $state<unknown>(null);
 	let checking = $state(false);
 	let previewing = $state(false);
@@ -149,6 +155,7 @@
 					params: { path: { policyId: id } }
 				})
 			);
+			previewOpen = true;
 		} catch (e) {
 			error = e;
 		} finally {
@@ -171,6 +178,7 @@
 				})
 			);
 			preview = null;
+			previewOpen = false;
 			toast.success(`Started ${plural(out.jobs.length, 'update', 'updates')}`);
 			await qc.invalidateQueries({ queryKey: ['policies'] });
 		} catch (e) {
@@ -196,7 +204,11 @@
 	const menu = $derived.by<MenuEntry[]>(() =>
 		manage
 			? [
-					{ label: 'Edit policy', icon: Pencil, href: routes.updatePolicyEdit(id) },
+					{
+						label: 'Edit policy',
+						icon: Pencil,
+						onSelect: () => (editDialog.open = true)
+					},
 					{ separator: true },
 					{
 						label: 'Delete policy',
@@ -273,18 +285,8 @@
 {/snippet}
 {#snippet envCell(t: Target)}{environmentName(envs.data, t.environmentId)}{/snippet}
 {#snippet statusCell(t: Target)}
-	{@const s = t.candidateSummary}
-	{#if t.inactive}
-		<Badge tone="neutral">Excluded</Badge>
-	{:else if s.failed || s.quarantined}
-		<Badge tone="danger" dot>{plural(s.failed + s.quarantined, 'failure', 'failures')}</Badge>
-	{:else if s.available}
-		<Badge tone="warn" dot>{plural(s.available, 'update', 'updates')} available</Badge>
-	{:else if !s.lastCheckAt}
-		<Badge tone="neutral" dot>Not checked yet</Badge>
-	{:else}
-		<Badge tone="ok" dot>Up to date</Badge>
-	{/if}
+	{@const st = summaryState(t.candidateSummary, t.inactive)}
+	<Badge tone={st.tone} dot={!t.inactive}>{st.label}</Badge>
 {/snippet}
 {#snippet previewTargetCell(r: PreviewRow)}{r.target}{/snippet}
 {#snippet serviceCell(r: PreviewRow)}{r.item.service}{/snippet}
@@ -347,57 +349,44 @@
 				>
 			{/if}
 
-			{#if preview}
-				<Card
-					title="Update preview"
-					subtitle="What an update would change now. Applying pulls the new images and recreates the services that changed."
-					padding="none"
-				>
-					{#snippet actions()}
-						<Button variant="ghost" size="sm" onclick={() => (preview = null)}
-							>Close preview</Button
-						>
-						<Button
-							variant="primary"
-							size="sm"
-							loading={applying}
-							disabled={!previewRows.some(
-								(r) => r.item.eligible && r.item.status === 'update_available'
-							)}
-							onclick={apply}>Apply updates</Button
-						>
-					{/snippet}
-					{#if drifted.length}
-						<div class="inset">
-							<Notice
-								tone="warn"
-								icon={TriangleAlert}
-								title="Undeployed source changes"
-								live="none"
-							>
-								Deploy the source changes of {drifted
-									.map((t) => targetName(t.type, t.id))
-									.join(', ')} before updating; they are skipped until then.
-							</Notice>
-						</div>
-					{/if}
-					<Table
-						label="Update preview of {p.name}"
-						rows={previewRows}
-						columns={previewColumns}
-						rowKey={(r) => r.key}
-					>
-						{#snippet empty()}<EmptyState
-								icon={PackageCheck}
-								color="violet"
-								title="Nothing to update."
-								description="Check for updates first, or every target already runs the registry's digest."
-								level={3}
-								compact
-							/>{/snippet}
-					</Table>
-				</Card>
-			{/if}
+			<KpiRow>
+				<KpiCard
+					label="Covered"
+					value={String(active.length)}
+					secondary="{plural(
+						(targets.data ?? []).length - active.length,
+						'target',
+						'targets'
+					)} excluded"
+					icon={Layers}
+					color="violet"
+				/>
+				<KpiCard
+					label="Updates available"
+					value={String(totals.withUpdates)}
+					secondary={totals.withUpdates ? 'Preview them to apply' : 'Nothing waiting'}
+					icon={PackageCheck}
+					color="violet"
+					tone={totals.withUpdates ? 'warn' : undefined}
+				/>
+				<KpiCard
+					label="Failing"
+					value={String(totals.failing)}
+					secondary="Failed checks or quarantined digests"
+					icon={TriangleAlert}
+					color="rose"
+					tone={totals.failing ? 'danger' : undefined}
+				/>
+				<KpiCard
+					label="Last check"
+					value={totals.lastCheckAt ? formatRelative(totals.lastCheckAt) : 'Never'}
+					secondary={totals.lastCheckAt
+						? formatDateTime(totals.lastCheckAt)
+						: 'Check for updates to start'}
+					icon={Clock}
+					color="slate"
+				/>
+			</KpiRow>
 
 			<Card
 				title="Targets"
@@ -433,9 +422,16 @@
 				{/if}
 			</Card>
 
-			<Card title="Schedules">
+			<Card title="Settings">
+				{#snippet actions()}
+					{#if manage}<Button
+							size="sm"
+							icon={Pencil}
+							onclick={() => (editDialog.open = true)}>Edit policy</Button
+						>{/if}
+				{/snippet}
 				<Facts
-					columns={2}
+					columns={3}
 					items={[
 						{ label: 'Checks', render: checkSched },
 						{ label: 'Automatic updates', render: runSched },
@@ -459,6 +455,10 @@
 								]
 									.filter(Boolean)
 									.join(', ') || 'Nothing'
+						},
+						{
+							label: 'Order',
+							value: 'Dependencies first (depends_on); dependents declaring restart: true restart with them'
 						}
 					]}
 				/>
@@ -478,6 +478,64 @@
 					enabled={p.runSchedule.enabled}
 				/>
 			{/snippet}
+
+			<Dialog
+				bind:open={previewOpen}
+				title="Update preview"
+				description="What an update of {p.name} would change now. Applying pulls the new images and recreates the services that changed, dependencies first."
+				size="xl"
+				dismissible={!applying}
+			>
+				{#if drifted.length}
+					<div class="notice">
+						<Notice
+							tone="warn"
+							icon={TriangleAlert}
+							title="Undeployed source changes"
+							live="none"
+						>
+							Deploy the source changes of {drifted
+								.map((t) => targetName(t.type, t.id))
+								.join(', ')} before updating; they are skipped until then.
+						</Notice>
+					</div>
+				{/if}
+				<Table
+					label="Update preview of {p.name}"
+					rows={previewRows}
+					columns={previewColumns}
+					rowKey={(r) => r.key}
+					maxHeight="60vh"
+				>
+					{#snippet empty()}<EmptyState
+							icon={CircleCheck}
+							color="green"
+							title="Nothing to update."
+							description="Check for updates first, or every target already runs the registry's digest."
+							level={3}
+							compact
+						/>{/snippet}
+				</Table>
+				{#snippet footer()}
+					<Button
+						variant="ghost"
+						disabled={applying}
+						onclick={() => (previewOpen = false)}>Close</Button
+					>
+					<Button
+						variant="primary"
+						loading={applying}
+						disabled={!previewRows.some(
+							(r) => r.item.eligible && r.item.status === 'update_available'
+						)}
+						onclick={apply}>Apply updates</Button
+					>
+				{/snippet}
+			</Dialog>
+
+			{#if editDialog.open}
+				<UpdatePolicyDialog bind:open={editDialog.open} policy={p} />
+			{/if}
 
 			<DestructiveConfirm
 				bind:open={deleteOpen}
@@ -517,5 +575,9 @@
 
 	.inset {
 		padding: var(--space-4);
+	}
+
+	.notice {
+		margin-bottom: var(--space-4);
 	}
 </style>

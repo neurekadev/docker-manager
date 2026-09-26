@@ -143,7 +143,7 @@
 	bind:open
 	title={connection ? `Edit ${connection.name}` : 'Add a registry connection'}
 	description="Docker Manager uses it for pulls, deploys and update checks of matching images. It is shared by the whole instance, not a personal login."
-	size="md"
+	size="lg"
 	dismissible={!busy}
 >
 	<form
@@ -154,120 +154,126 @@
 			if (valid) void save();
 		}}
 	>
-		<TextField
-			label="Name"
-			required
-			bind:value={name}
-			placeholder="GHCR (acme pull token)"
-			error={fieldError(failure, 'body.name')}
-		/>
-		{#if !connection}
+		<section class="col" aria-labelledby="registry-login">
+			<h3 id="registry-login" class="section">Registry and credential</h3>
 			<TextField
-				label="Registry host"
-				mono
+				label="Name"
 				required
-				bind:value={host}
-				placeholder="ghcr.io"
-				description="docker.io for Docker Hub (its aliases are the same registry); host:port for self-hosted registries."
-				error={fieldError(failure, 'body.host')}
+				bind:value={name}
+				placeholder="GHCR (acme pull token)"
+				error={fieldError(failure, 'body.name')}
 			/>
-			<RadioGroup
-				label="Credential"
-				bind:value={credentialType}
-				options={[
-					{
-						value: 'token',
-						label: 'Access token',
-						description: 'Recommended: a read-only (pull) token.'
-					},
-					{
-						value: 'password',
-						label: 'Password',
-						description: 'Only where the registry has no tokens.'
-					}
-				]}
-			/>
+			{#if !connection}
+				<TextField
+					label="Registry host"
+					mono
+					required
+					bind:value={host}
+					placeholder="ghcr.io"
+					description="docker.io for Docker Hub (its aliases are the same registry); host:port for self-hosted registries."
+					error={fieldError(failure, 'body.host')}
+				/>
+				<RadioGroup
+					label="Credential"
+					bind:value={credentialType}
+					options={[
+						{
+							value: 'token',
+							label: 'Access token',
+							description: 'Recommended: a read-only (pull) token.'
+						},
+						{
+							value: 'password',
+							label: 'Password',
+							description: 'Only where the registry has no tokens.'
+						}
+					]}
+				/>
+				<TextField
+					label="Username"
+					mono
+					required
+					bind:value={username}
+					autocomplete="off"
+					error={fieldError(failure, 'body.username')}
+				/>
+				<PasswordField
+					label={credentialType === 'token' ? 'Access token' : 'Password'}
+					autocomplete="new-password"
+					required
+					bind:value={secret}
+					description="Shown only while you type it. Docker Manager stores it sealed and never displays it again; you'll see its fingerprint."
+					error={fieldError(failure, 'body.secret')}
+				/>
+			{:else}
+				<Notice
+					tone="info"
+					icon={KeyRound}
+					title="{connection.host}, {connection.username ?? 'no username'}"
+					live="none"
+				>
+					The credential {connection.secret?.fingerprint
+						? `(${connection.secret.fingerprint})`
+						: ''} is write-only. Use Rotate credential to replace it.
+				</Notice>
+			{/if}
+		</section>
+		<section class="col" aria-labelledby="registry-match">
+			<h3 id="registry-match" class="section">Which images use it</h3>
 			<TextField
-				label="Username"
+				label="Repositories"
 				mono
-				required
-				bind:value={username}
-				autocomplete="off"
-				error={fieldError(failure, 'body.username')}
+				bind:value={pattern}
+				placeholder="acme/*"
+				description="Optional. An exact repository or namespace/*; empty matches every repository on the host."
+				error={fieldError(failure, 'body.repositoryPattern')}
 			/>
-			<PasswordField
-				label={credentialType === 'token' ? 'Access token' : 'Password'}
-				autocomplete="new-password"
-				required
-				bind:value={secret}
-				description="Shown only while you type it. Docker Manager stores it sealed and never displays it again; you'll see its fingerprint."
-				error={fieldError(failure, 'body.secret')}
-			/>
-		{:else}
-			<Notice
-				tone="info"
-				icon={KeyRound}
-				title="{connection.host}, {connection.username ?? 'no username'}"
-				live="none"
-			>
-				The credential {connection.secret?.fingerprint
-					? `(${connection.secret.fingerprint})`
-					: ''} is write-only. Use Rotate credential to replace it.
-			</Notice>
-		{/if}
-		<TextField
-			label="Repositories"
-			mono
-			bind:value={pattern}
-			placeholder="acme/*"
-			description="Optional. An exact repository or namespace/*; empty matches every repository on the host."
-			error={fieldError(failure, 'body.repositoryPattern')}
-		/>
-		<Select
-			label="Use it for"
-			bind:value={binding}
-			options={[
-				{ value: 'none', label: 'Every environment and stack' },
-				{ value: 'environment', label: 'One environment' },
-				{ value: 'stack', label: 'One stack' }
-			]}
-			description="A bound connection wins over a general one for the same image."
-		/>
-		{#if binding === 'environment'}
 			<Select
-				label="Environment"
-				bind:value={environmentId}
+				label="Use it for"
+				bind:value={binding}
 				options={[
-					{ value: '', label: 'Choose an environment' },
-					...(envs.data ?? []).map((e) => ({ value: e.id, label: e.name }))
+					{ value: 'none', label: 'Every environment and stack' },
+					{ value: 'environment', label: 'One environment' },
+					{ value: 'stack', label: 'One stack' }
 				]}
+				description="A bound connection wins over a general one for the same image."
 			/>
-		{:else if binding === 'stack'}
-			<Select
-				label="Stack"
-				bind:value={stackId}
-				options={[
-					{ value: '', label: 'Choose a stack' },
-					...(stacks.data ?? []).map((s) => ({ value: s.id, label: s.name }))
-				]}
+			{#if binding === 'environment'}
+				<Select
+					label="Environment"
+					bind:value={environmentId}
+					options={[
+						{ value: '', label: 'Choose an environment' },
+						...(envs.data ?? []).map((e) => ({ value: e.id, label: e.name }))
+					]}
+				/>
+			{:else if binding === 'stack'}
+				<Select
+					label="Stack"
+					bind:value={stackId}
+					options={[
+						{ value: '', label: 'Choose a stack' },
+						...(stacks.data ?? []).map((s) => ({ value: s.id, label: s.name }))
+					]}
+				/>
+			{/if}
+			<TextField
+				label="Priority"
+				inputmode="numeric"
+				bind:value={priority}
+				description="Breaks ties between equally specific connections: higher wins. From -1000 to 1000."
+				error={Number.isInteger(prio)
+					? fieldError(failure, 'body.priority')
+					: 'Enter a whole number.'}
 			/>
-		{/if}
-		<TextField
-			label="Priority"
-			inputmode="numeric"
-			bind:value={priority}
-			description="Breaks ties between equally specific connections: higher wins. From -1000 to 1000."
-			error={Number.isInteger(prio)
-				? fieldError(failure, 'body.priority')
-				: 'Enter a whole number.'}
-		/>
-		{#if selfHosted || plainHttp}
-			<Checkbox
-				label="Plain HTTP"
-				description="Only for self-hosted registries without TLS on a trusted network."
-				bind:checked={plainHttp}
-			/>
-		{/if}
+			{#if selfHosted || plainHttp}
+				<Checkbox
+					label="Plain HTTP"
+					description="Only for self-hosted registries without TLS on a trusted network."
+					bind:checked={plainHttp}
+				/>
+			{/if}
+		</section>
 		{#if failure && !fieldError(failure, 'body.name') && !fieldError(failure, 'body.host')}
 			<p class="error" role="alert">
 				{(failure as { status?: number }).status === 412
@@ -290,16 +296,37 @@
 
 <style>
 	.form {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--space-4) var(--space-6);
+		align-items: start;
+	}
+
+	.col {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
+		min-width: 0;
+	}
+
+	.section {
+		color: var(--text-strong);
+		font-size: var(--text-control);
+		font-weight: var(--weight-semibold);
 	}
 
 	.error {
+		grid-column: 1 / -1;
 		padding: var(--space-2) var(--space-3);
 		border: 1px solid var(--danger-border);
 		border-radius: var(--radius-sm);
 		background: var(--danger-soft);
 		color: var(--danger);
+	}
+
+	@media (max-width: 767px) {
+		.form {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 </style>

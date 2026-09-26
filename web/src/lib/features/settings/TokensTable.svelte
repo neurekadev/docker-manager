@@ -191,6 +191,7 @@
 <Dialog
 	open={!!renaming}
 	title="Rename {renaming?.name ?? 'token'}"
+	size="sm"
 	onclose={() => (renaming = null)}
 >
 	<TextField label="Name" bind:value={newName} required />

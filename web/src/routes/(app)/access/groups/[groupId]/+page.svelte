@@ -322,7 +322,7 @@
 					onsave={saveRules}
 				/>
 
-				<Dialog bind:open={renameOpen} title="Rename {g.name}">
+				<Dialog bind:open={renameOpen} title="Rename {g.name}" size="sm">
 					<TextField label="Name" bind:value={newName} required />
 					{#if renameError}<Notice tone="danger" title="Not renamed" live="alert"
 							>{renameError}</Notice

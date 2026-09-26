@@ -10,6 +10,7 @@ import {
 } from './importModel';
 import {
 	RECOVERY_KEY_WARNING,
+	coveredVolumes,
 	hasRetentionRules,
 	incompleteMembers,
 	looksLikeRecoveryKey,
@@ -21,6 +22,7 @@ import {
 	repositoryLocation,
 	retentionText,
 	scopeText,
+	volumeKey,
 	type BackupPolicy,
 	type BackupRepository
 } from './model';
@@ -111,6 +113,38 @@ describe('backup sets', () => {
 		expect(scopeText({ includeManagerState: false, scope: 'environment' })).toBe(
 			'one environment'
 		);
+		expect(
+			scopeText(
+				{ includeManagerState: false, scope: 'environment', environmentId: 'e1' },
+				(id) => (id === 'e1' ? 'prod' : id)
+			)
+		).toBe('prod');
+	});
+
+	it('groups volumes into standalone and stack volumes, named or anonymous', () => {
+		const anon = { 'com.docker.volume.anonymous': '' };
+		const out = coveredVolumes(
+			[
+				{ name: 'media' },
+				{ name: 'shop_db', stack: { project: 'shop', stackId: 's1' } },
+				{ name: 'shop_cache', labels: { 'com.docker.compose.project': 'shop' } },
+				{ name: '3f2a', labels: anon, usedBy: [{ id: 'c1' }] },
+				{ name: '9c1b', labels: anon },
+				{ name: 'docker-manager-data', protection: { reason: 'own' } },
+				{ name: 'other_data', stack: { project: 'unmanaged' } }
+			],
+			[{ id: 's1', name: 'shop' }],
+			[{ id: 'c1', labels: { 'com.docker.compose.project': 'shop' } }]
+		);
+		expect(out).toEqual([
+			{ name: '3f2a', anonymous: true, stackId: 's1' },
+			{ name: '9c1b', anonymous: true, stackId: undefined },
+			{ name: 'media', anonymous: false, stackId: undefined },
+			{ name: 'shop_cache', anonymous: false, stackId: 's1' },
+			{ name: 'shop_db', anonymous: false, stackId: 's1' }
+		]);
+		expect(volumeKey(true, 'e1', 'media')).toBe('e1/media');
+		expect(volumeKey(false, 'e1', 'media')).toBe('media');
 	});
 });
 

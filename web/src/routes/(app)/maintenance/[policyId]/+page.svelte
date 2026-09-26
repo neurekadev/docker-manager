@@ -1,8 +1,10 @@
 <script lang="ts">
-	// Maintenance policy detail (#14): its rules and schedule, a preview of
-	// exactly what a run removes (with protected and excluded objects and
-	// why), and a manual run with confirmation and the "Run in background"
-	// choice. Both modes are the same durable job; leaving never cancels it.
+	// Maintenance policy detail (#14): its last run, rules and schedule, a
+	// preview of exactly what a run removes (with protected and excluded
+	// objects and why) in a dialog, and a manual run with confirmation and
+	// the "Run in background" choice. Both modes are the same durable job;
+	// leaving never cancels it. Editing opens the policy dialog
+	// (routes.maintenanceEdit() links here with it open).
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -23,6 +25,7 @@
 		Card,
 		ConfirmDialog,
 		DestructiveConfirm,
+		Dialog,
 		EmptyState,
 		IconButton,
 		JobProgress,
@@ -48,6 +51,8 @@
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import ScheduleSummary from '$lib/features/common/ScheduleSummary.svelte';
+	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import MaintenancePolicyDialog from '$lib/features/maintenance/MaintenancePolicyDialog.svelte';
 	import PrunePreviewView from '$lib/features/maintenance/PrunePreviewView.svelte';
 	import {
 		categoryLabel,
@@ -82,6 +87,8 @@
 	let environmentPreviews = $state<{ environmentId: string; preview: PrunePreview }[]>([]);
 	let environmentJobs = $state<Job[]>([]);
 	let previewing = $state(false);
+	let previewOpen = $state(false);
+	const editDialog = urlDialog('edit');
 	let previewError = $state<unknown>(null);
 	let runOpen = $state(false);
 	let background = $state(false);
@@ -91,6 +98,9 @@
 	async function loadPreview(p: MaintenancePolicy) {
 		previewing = true;
 		previewError = null;
+		preview = null;
+		environmentPreviews = [];
+		previewOpen = true;
 		try {
 			if (p.scope === 'all') {
 				environmentPreviews = (
@@ -190,7 +200,7 @@
 	function menuFor(p: MaintenancePolicy): MenuEntry[] {
 		if (!has(p, 'maintenance_policy.manage')) return [];
 		return [
-			{ label: 'Edit policy', icon: Pencil, href: routes.maintenanceEdit(p.id) },
+			{ label: 'Edit policy', icon: Pencil, onSelect: () => (editDialog.open = true) },
 			{ separator: true },
 			{
 				label: 'Delete policy',
@@ -277,9 +287,12 @@
 			{#if on.length === 0}
 				<Notice tone="info" title="Every rule is off" live="none">
 					This policy removes nothing until you turn on at least one rule.
-					{#if has(p, 'maintenance_policy.manage')}<a href={routes.maintenanceEdit(p.id)}
-							>Edit rules</a
-						>{/if}
+					{#snippet actions()}
+						{#if has(p, 'maintenance_policy.manage')}<Button
+								size="sm"
+								onclick={() => (editDialog.open = true)}>Edit rules</Button
+							>{/if}
+					{/snippet}
 				</Notice>
 			{/if}
 
@@ -354,35 +367,66 @@
 				</KpiRow>
 			{/if}
 
-			{#if previewError}
-				<Notice tone="danger" title="The preview could not be computed" live="alert">
-					{actionError(previewError)}
-				</Notice>
-			{/if}
-			{#each environmentPreviews as environmentPreview (environmentPreview.environmentId)}<Card
-					title="Preview: {environmentName(envs.data, environmentPreview.environmentId)}"
-					><PrunePreviewView preview={environmentPreview.preview} {info} /></Card
-				>{/each}
-			{#if previewing && !preview}
-				<Card title="Preview"><Skeleton lines={5} height="20px" /></Card>
-			{:else if preview}
-				<Card
-					title="Preview"
-					subtitle="What a run would remove now. A run checks every object again right before removing it."
-				>
-					{#snippet actions()}
-						{#if has(p, 'maintenance.run') && preview && preview.remove > 0}
-							<Button variant="danger-soft" size="sm" onclick={() => (runOpen = true)}
-								>Run now</Button
-							>
-						{/if}
-					{/snippet}
+			<Dialog
+				bind:open={previewOpen}
+				title="Preview of {p.name}"
+				description="What a run would remove now. A run checks every object again right before removing it."
+				size="xl"
+			>
+				{#if previewError}
+					<Notice tone="danger" title="The preview could not be computed" live="alert">
+						{actionError(previewError)}
+					</Notice>
+				{:else if previewing}
+					<Skeleton lines={6} height="20px" />
+				{:else if preview}
 					<PrunePreviewView {preview} {info} />
-				</Card>
-			{/if}
+				{:else}
+					<div class="env-previews">
+						{#each environmentPreviews as environmentPreview (environmentPreview.environmentId)}
+							<section
+								aria-label={environmentName(
+									envs.data,
+									environmentPreview.environmentId
+								)}
+							>
+								<h3 class="sub">
+									{environmentName(envs.data, environmentPreview.environmentId)}
+								</h3>
+								<PrunePreviewView preview={environmentPreview.preview} {info} />
+							</section>
+						{:else}
+							<p class="muted">No environment in scope could be previewed.</p>
+						{/each}
+					</div>
+				{/if}
+				{#snippet footer()}
+					<Button variant="ghost" onclick={() => (previewOpen = false)}>Close</Button>
+					{#if has(p, 'maintenance.run')}
+						<Button
+							variant="danger-soft"
+							disabled={previewing ||
+								!!previewError ||
+								on.length === 0 ||
+								(!!preview && preview.remove === 0)}
+							onclick={() => {
+								previewOpen = false;
+								runOpen = true;
+							}}>Run now</Button
+						>
+					{/if}
+				{/snippet}
+			</Dialog>
 
 			<Columns ratio="equal">
 				<Card title="Rules">
+					{#snippet actions()}
+						{#if has(p, 'maintenance_policy.manage')}<Button
+								size="sm"
+								icon={Pencil}
+								onclick={() => (editDialog.open = true)}>Edit policy</Button
+							>{/if}
+					{/snippet}
 					<ul class="rules" role="list">
 						{#each normalizeRules(p.rules) as r (r.category)}
 							<li>
@@ -453,6 +497,9 @@
 					bind:checked={background}
 				/>
 			</ConfirmDialog>
+			{#if editDialog.open}
+				<MaintenancePolicyDialog bind:open={editDialog.open} policy={p} />
+			{/if}
 			<DestructiveConfirm
 				bind:open={deleteOpen}
 				title="Delete maintenance policy {p.name}"
@@ -515,5 +562,14 @@
 
 	.sub-note {
 		margin-top: var(--space-3);
+	}
+
+	.env-previews {
+		display: grid;
+		gap: var(--space-5);
+	}
+
+	.env-previews .sub {
+		margin-top: 0;
 	}
 </style>

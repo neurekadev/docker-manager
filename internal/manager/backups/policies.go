@@ -78,6 +78,7 @@ type PolicyPatch struct {
 	EnvironmentID    *string
 	ExcludeStacks    *[]string
 	ExcludeVolumes   *[]string
+	AnonymousVolumes *bool
 	RepositoryID     *string
 	EnvironmentRepos *map[string]string
 	IncludeManager   *bool
@@ -118,6 +119,9 @@ func (s *Service) UpdatePolicy(ctx context.Context, id string, revision int64, p
 		}
 		if pp.ExcludeVolumes != nil {
 			p.ExcludeVolumes = *pp.ExcludeVolumes
+		}
+		if pp.AnonymousVolumes != nil {
+			p.AnonymousVolumes = *pp.AnonymousVolumes
 		}
 		if pp.RepositoryID != nil {
 			p.RepositoryID = *pp.RepositoryID
@@ -180,7 +184,7 @@ func policyAuditView(p domain.BackupPolicy) map[string]any {
 		vols = append(vols, v.EnvironmentID+"/"+v.Volume)
 	}
 	return map[string]any{"name": p.Name, "environmentId": p.EnvironmentID, "excludeStacks": p.ExcludeStacks, "excludeVolumes": p.ExcludeVolumes,
-		"repositoryId": p.RepositoryID, "environmentRepositories": p.EnvironmentRepos,
+		"anonymousVolumes": p.AnonymousVolumes, "repositoryId": p.RepositoryID, "environmentRepositories": p.EnvironmentRepos,
 		"includeManager": p.IncludeManager, "includeMetrics": p.IncludeMetrics, "stacks": stackIDs, "volumes": vols,
 		"shutdown": p.Shutdown, "cron": p.Cron, "timeZone": p.TimeZone, "enabled": p.Enabled, "retention": p.Retention}
 }
@@ -227,6 +231,13 @@ func (s *Service) validatePolicy(ctx context.Context, db bun.IDB, p *domain.Back
 	for _, v := range p.ExcludeVolumes {
 		if v == "" || (p.EnvironmentID == "" && !strings.Contains(v, "/")) || (p.EnvironmentID != "" && strings.Contains(v, "/")) {
 			return fieldErr("excludeVolumes", "use volume names for one environment and environmentID/volumeName for all environments")
+		}
+		name := v
+		if p.EnvironmentID == "" {
+			_, name, _ = strings.Cut(v, "/")
+		}
+		if !protocol.ValidVolumeName(name) {
+			return fieldErr("excludeVolumes", "%q is not a valid volume name", v)
 		}
 	}
 	if len(p.Stacks) > MaxPolicyStacks || len(p.Volumes) > MaxPolicyVolumes {
@@ -351,6 +362,8 @@ func (s *Service) backupScopeAvailable(ctx context.Context, db bun.IDB, envID, e
 // scopeSelections resolves current managed stacks and standalone volumes.
 // Old internal callers with explicit selections retain their exact scope;
 // the public policy API creates environment policies with empty selections.
+// The policy's volume exclusions and anonymous-volume switch apply to the
+// stacks' volumes too.
 func (s *Service) scopeSelections(ctx context.Context, p domain.BackupPolicy) (domain.BackupPolicy, error) {
 	if len(p.Stacks) > 0 || len(p.Volumes) > 0 {
 		return p, nil
@@ -368,46 +381,78 @@ func (s *Service) scopeSelections(ctx context.Context, p domain.BackupPolicy) (d
 		if err != nil {
 			return p, err
 		}
+		excluded := excludedVolumes(p, env.ID)
 		for _, stack := range stacks {
 			if !slices.Contains(p.ExcludeStacks, stack.ID) {
-				p.Stacks = append(p.Stacks, domain.BackupStackSelection{StackID: stack.ID})
+				p.Stacks = append(p.Stacks, domain.BackupStackSelection{StackID: stack.ID, VolumeExclude: excluded, AnonymousVolumes: p.AnonymousVolumes})
 			}
 		}
-		if s.volumes == nil {
-			continue
-		}
-		volumes, err := s.volumes.ListVolumes(ctx, env.ID)
+		names, err := s.standaloneVolumes(ctx, p, env.ID, stacks)
 		if err != nil {
 			return p, err
 		}
-		containers, err := s.volumes.ListContainers(ctx, env.ID)
-		if err != nil {
-			return p, err
-		}
-		stackNames := map[string]bool{}
-		for _, stack := range stacks {
-			stackNames[stack.Name] = true
-		}
-		managedContainer := map[string]bool{}
-		for _, container := range containers {
-			if stackNames[container.Labels[protocol.ComposeProjectLabel]] {
-				managedContainer[container.ID] = true
-			}
-		}
-		for _, volume := range volumes {
-			key := volume.Name
-			if p.EnvironmentID == "" {
-				key = env.ID + "/" + key
-			}
-			if volume.Stack != nil || volume.Protection != nil || stackNames[volume.Labels[protocol.ComposeProjectLabel]] ||
-				slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return managedContainer[ref.ID] }) ||
-				slices.Contains(p.ExcludeVolumes, key) {
-				continue
-			}
-			p.Volumes = append(p.Volumes, domain.BackupVolumeSelection{EnvironmentID: env.ID, Volume: volume.Name})
+		for _, name := range names {
+			p.Volumes = append(p.Volumes, domain.BackupVolumeSelection{EnvironmentID: env.ID, Volume: name})
 		}
 	}
 	return p, nil
+}
+
+// excludedVolumes returns the policy's excluded volume names in one
+// environment (All Environments policies key them environmentID/name).
+func excludedVolumes(p domain.BackupPolicy, environmentID string) []string {
+	var out []string
+	for _, key := range p.ExcludeVolumes {
+		if p.EnvironmentID == "" {
+			env, name, ok := strings.Cut(key, "/")
+			if !ok || env != environmentID {
+				continue
+			}
+			key = name
+		}
+		out = append(out, key)
+	}
+	return out
+}
+
+// standaloneVolumes lists the environment's volumes a scope-wide policy
+// selects: not Docker Manager's own, not a managed stack's (by label or by
+// a stack container using it), not excluded, and anonymous ones only when
+// the policy includes anonymous volumes.
+func (s *Service) standaloneVolumes(ctx context.Context, p domain.BackupPolicy, environmentID string, stacks []domain.Stack) ([]string, error) {
+	if s.volumes == nil {
+		return nil, nil
+	}
+	volumes, err := s.volumes.ListVolumes(ctx, environmentID)
+	if err != nil {
+		return nil, err
+	}
+	containers, err := s.volumes.ListContainers(ctx, environmentID)
+	if err != nil {
+		return nil, err
+	}
+	stackNames := map[string]bool{}
+	for _, stack := range stacks {
+		stackNames[stack.Name] = true
+	}
+	managedContainer := map[string]bool{}
+	for _, container := range containers {
+		if stackNames[container.Labels[protocol.ComposeProjectLabel]] {
+			managedContainer[container.ID] = true
+		}
+	}
+	excluded := excludedVolumes(p, environmentID)
+	var out []string
+	for _, volume := range volumes {
+		_, anonymous := volume.Labels[protocol.AnonymousVolumeLabel]
+		if volume.Stack != nil || volume.Protection != nil || stackNames[volume.Labels[protocol.ComposeProjectLabel]] ||
+			slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return managedContainer[ref.ID] }) ||
+			slices.Contains(excluded, volume.Name) || (anonymous && !p.AnonymousVolumes) {
+			continue
+		}
+		out = append(out, volume.Name)
+	}
+	return out, nil
 }
 
 // VolumeReference is a standalone volume a backup policy selects.
@@ -425,39 +470,17 @@ func (s *Service) VolumeReferences(ctx context.Context, environmentID string) ([
 	}
 	var out []VolumeReference
 	for _, p := range pols {
-		if len(p.Stacks) == 0 && len(p.Volumes) == 0 && (p.EnvironmentID == "" || p.EnvironmentID == environmentID) && s.volumes != nil {
-			volumes, err := s.volumes.ListVolumes(ctx, environmentID)
-			if err != nil {
-				return nil, err
-			}
-			containers, err := s.volumes.ListContainers(ctx, environmentID)
-			if err != nil {
-				return nil, err
-			}
+		if len(p.Stacks) == 0 && len(p.Volumes) == 0 && (p.EnvironmentID == "" || p.EnvironmentID == environmentID) {
 			stacks, err := store.ListStacks(ctx, s.db, domain.StackFilter{EnvironmentID: environmentID})
 			if err != nil {
 				return nil, err
 			}
-			stackNames := map[string]bool{}
-			for _, stack := range stacks {
-				stackNames[stack.Name] = true
+			names, err := s.standaloneVolumes(ctx, p, environmentID, stacks)
+			if err != nil {
+				return nil, err
 			}
-			managedContainer := map[string]bool{}
-			for _, container := range containers {
-				if stackNames[container.Labels[protocol.ComposeProjectLabel]] {
-					managedContainer[container.ID] = true
-				}
-			}
-			for _, volume := range volumes {
-				key := volume.Name
-				if p.EnvironmentID == "" {
-					key = environmentID + "/" + key
-				}
-				if volume.Stack == nil && volume.Protection == nil && !stackNames[volume.Labels[protocol.ComposeProjectLabel]] &&
-					!slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return managedContainer[ref.ID] }) &&
-					!slices.Contains(p.ExcludeVolumes, key) {
-					out = append(out, VolumeReference{Volume: volume.Name, PolicyName: p.Name})
-				}
+			for _, name := range names {
+				out = append(out, VolumeReference{Volume: name, PolicyName: p.Name})
 			}
 			continue
 		}

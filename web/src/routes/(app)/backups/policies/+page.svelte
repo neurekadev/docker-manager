@@ -1,16 +1,21 @@
 <script lang="ts">
 	// Backup policies (#10): what is backed up, where, when and for how
 	// long. Policies belong to the instance and keep running after their
-	// creator is disabled or removed.
+	// creator is disabled or removed. Creating one opens the setup wizard in
+	// a dialog (routes.backupPolicyNew() links here with it open).
 	import { createQuery } from '@tanstack/svelte-query';
 	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 	import Plus from '@lucide/svelte/icons/plus';
-	import { myPermissionsQuery } from '$lib/api/queries';
+	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { accessOf } from '$lib/shell/nav';
 	import { usePage } from '$lib/shell/page.svelte';
 	import { Badge, Button, Card, EmptyState, Table, formatDateTime, type Column } from '$lib/ui';
 	import { can } from '$lib/features/common/access';
+	import { countText } from '$lib/features/common/coverage';
+	import { environmentName } from '$lib/features/common/data';
+	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import BackupPolicyDialog from '$lib/features/backups/BackupPolicyDialog.svelte';
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
@@ -33,9 +38,13 @@
 	const access = $derived(accessOf(perms.data));
 	const policies = createQuery(() => backupPoliciesQuery());
 	const repos = createQuery(() => repositoriesQuery());
+	const envs = createQuery(() => environmentsQuery());
+	const envName = (id: string) => environmentName(envs.data, id);
+	const createDialog = urlDialog('create');
 
 	const columns: Column<BackupPolicy>[] = [
 		{ id: 'name', header: 'Policy', cell: nameCell, sortValue: (p) => p.name, stack: 'title' },
+		{ id: 'excluded', header: 'Left out', cell: excludedCell, width: '200px' },
 		{ id: 'last', header: 'Last set', cell: lastCell, width: '220px', stack: 'status' },
 		{ id: 'schedule', header: 'Schedule', cell: scheduleCell, width: '230px' },
 		{ id: 'retention', header: 'Retention', cell: retentionCell }
@@ -46,9 +55,20 @@
 	<NameCell
 		name={p.name}
 		href={routes.backupPolicy(p.id)}
-		sub="Backs up {scopeText(p)} to {repos.data?.find((r) => r.id === p.repositoryId)?.name ??
-			'a repository'}"
+		sub="Backs up {scopeText(p, envName)} to {repos.data?.find((r) => r.id === p.repositoryId)
+			?.name ?? 'a repository'}"
 	/>
+{/snippet}
+{#snippet excludedCell(p: BackupPolicy)}
+	<span class="muted"
+		>{countText(
+			[
+				[(p.excludeStacks ?? []).length, 'stack', 'stacks'],
+				[(p.excludeVolumes ?? []).length, 'volume', 'volumes']
+			],
+			'Nothing'
+		)}{p.anonymousVolumes ? '' : '; no anonymous volumes'}</span
+	>
 {/snippet}
 {#snippet lastCell(p: BackupPolicy)}
 	{@const s = p.recentSets?.[0]}
@@ -69,7 +89,7 @@
 	<BackupsHeader>
 		{#snippet actions()}
 			{#if can(access, 'backup_policy.manage')}
-				<Button variant="primary" icon={Plus} href={routes.backupPolicyNew()}
+				<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
 					>Create backup policy</Button
 				>
 			{/if}
@@ -99,7 +119,8 @@
 									<Button
 										variant="primary"
 										icon={Plus}
-										href={routes.backupPolicyNew()}>Create backup policy</Button
+										onclick={() => (createDialog.open = true)}
+										>Create backup policy</Button
 									>
 								{/if}
 							{/snippet}
@@ -110,3 +131,7 @@
 		</QueryView>
 	</Card>
 </Page>
+
+{#if createDialog.open}
+	<BackupPolicyDialog bind:open={createDialog.open} owner={!!perms.data?.owner} />
+{/if}

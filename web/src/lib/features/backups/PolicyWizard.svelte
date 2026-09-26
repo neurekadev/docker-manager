@@ -1,21 +1,21 @@
 <script lang="ts">
-	// Backup policy wizard (#10): destination → scope (manager state, stacks
-	// with volume and path rules, standalone volumes; previewed by the
-	// agents) → container shutdown (off by default; affected containers,
-	// stop order and downtime previewed) → schedule (#13, off until turned
-	// on) → retention (preview, recovery floor) → a first test backup.
-	// The policy is saved disabled after the destination step, so previews
-	// can run; nothing is backed up before the last step or its schedule.
+	// Backup policy wizard (#10), shown in BackupPolicyDialog: destination →
+	// scope (manager state; every managed stack and volume in scope,
+	// included until unchecked, stack volumes too; anonymous volumes only
+	// when turned on; previewed by the agents) → container shutdown (off by
+	// default; affected containers, stop order and downtime previewed) →
+	// schedule (#13, off until turned on) → retention (preview, recovery
+	// floor) → a first test backup. The policy is saved disabled after the
+	// destination step, so previews can run; nothing is backed up before the
+	// last step or its schedule.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
-	import { goto } from '$app/navigation';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import { api, unwrap, type Job } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import {
 		Button,
-		Checkbox,
 		CronField,
 		JobProgress,
 		Notice,
@@ -26,7 +26,7 @@
 		TextField,
 		toast
 	} from '$lib/ui';
-	import ChoiceGrid from '$lib/features/common/ChoiceGrid.svelte';
+	import CoverageList from '$lib/features/common/CoverageList.svelte';
 	import FieldGroup from '$lib/features/common/FieldGroup.svelte';
 	import Fields from '$lib/features/common/Fields.svelte';
 	import {
@@ -40,7 +40,7 @@
 	import { useUnsaved } from '$lib/features/common/unsaved.svelte';
 	import RetentionEditor from './RetentionEditor.svelte';
 	import ScopePreviewView from './ScopePreviewView.svelte';
-	import VolumeExclusions from './VolumeExclusions.svelte';
+	import VolumeCoverage from './VolumeCoverage.svelte';
 	import {
 		repositoryLocation,
 		type BackupPolicy,
@@ -50,7 +50,16 @@
 	} from './model';
 	import { backupKeys, repositoriesQuery } from './queries';
 
-	let { policy: initial, owner }: { policy?: BackupPolicy; owner: boolean } = $props();
+	let {
+		policy: initial,
+		owner,
+		ondone
+	}: {
+		policy?: BackupPolicy;
+		owner: boolean;
+		/** The wizard finished (Done) with the saved policy. */
+		ondone: (policy: BackupPolicy) => unknown;
+	} = $props();
 
 	const qc = useQueryClient();
 	const envs = createQuery(() => environmentsQuery());
@@ -70,6 +79,7 @@
 	let environmentId = $state(p0?.environmentId ?? '');
 	let excludeStacks = $state<string[]>(p0?.excludeStacks ?? []);
 	let excludeVolumes = $state<string[]>(p0?.excludeVolumes ?? []);
+	let anonymousVolumes = $state(p0?.anonymousVolumes ?? false);
 	let shutdown = $state(p0?.shutdown ?? false);
 	let enabled = $state(p0?.schedule?.enabled ?? false);
 	let cron = $state(p0?.schedule?.cron ?? '');
@@ -109,6 +119,7 @@
 			environmentId,
 			excludeStacks,
 			excludeVolumes,
+			anonymousVolumes,
 			shutdown,
 			enabled,
 			cron,
@@ -170,17 +181,6 @@
 		return !primary || (primary.kind === 'local' && primary.executor !== envId);
 	}
 
-	function isSelected(id: string) {
-		return excludeStacks.includes(id);
-	}
-	function toggleStack(id: string, on: boolean) {
-		touched = true;
-		excludeStacks = on
-			? [...new Set([...excludeStacks, id])]
-			: excludeStacks.filter((s) => s !== id);
-		scope = null;
-	}
-
 	function draft(): PolicyInput {
 		const er: Record<string, string> = {};
 		for (const [k, v] of Object.entries(envRepos)) if (v) er[k] = v;
@@ -190,6 +190,7 @@
 			environmentId: scopeMode === 'all' ? undefined : environmentId,
 			excludeStacks,
 			excludeVolumes,
+			anonymousVolumes,
 			repositoryId,
 			environmentRepositories: er,
 			includeManagerState: includeManager,
@@ -341,13 +342,14 @@
 		toast.success(`Saved backup policy ${policy.name}`, {
 			body: enabled ? undefined : 'Its schedule is off: backups run only when you start them.'
 		});
-		await goto(routes.backupPolicy(policy.id));
+		await ondone(policy);
 	}
 
 	// Scope previews go stale when the selection changes.
 	$effect(() => {
 		void excludeStacks;
 		void excludeVolumes;
+		void anonymousVolumes;
 		void includeManager;
 		untrack(() => (scope = null));
 	});
@@ -365,7 +367,7 @@
 >
 	{#snippet step(s)}
 		{#if s.id === 'destination'}
-			<Fields>
+			<Fields columns={2}>
 				<TextField
 					label="Name"
 					bind:value={name}
@@ -440,8 +442,8 @@
 					</FieldGroup>
 				{/if}
 				<FieldGroup
-					legend="Exclude stacks"
-					hint="Every managed stack in scope is backed up by default. Select a stack to exclude it."
+					legend="Stacks"
+					hint="Every managed stack in scope is backed up: its project directory and its volumes. Uncheck a stack to leave it out; stacks created later are included too."
 				>
 					{#if stacks.isPending}
 						<Skeleton lines={3} height="20px" />
@@ -449,33 +451,52 @@
 						<p class="muted">No stacks you can back up.</p>
 					{/if}
 					{#each Object.entries(stacksByEnv).filter( ([envId]) => involvedEnvs.includes(envId) ) as [envId, list] (envId)}
-						<p class="env">{envName(envId)}</p>
-						<ChoiceGrid min="200px">
-							{#each list as st (st.id)}
-								<Checkbox
-									label={st.displayName || st.name}
-									checked={isSelected(st.id)}
-									onchange={(e) => toggleStack(st.id, e.currentTarget.checked)}
-								/>
-							{/each}
-						</ChoiceGrid>
+						<div class="env-group">
+							<p class="env">{envName(envId)}</p>
+							<CoverageList
+								label="Stacks on {envName(envId)}"
+								min="200px"
+								items={list.map((st) => ({
+									key: st.id,
+									label: st.displayName || st.name
+								}))}
+								excluded={excludeStacks}
+								onchange={(v) => {
+									excludeStacks = v;
+									touched = true;
+								}}
+							/>
+						</div>
 					{/each}
 				</FieldGroup>
 				<FieldGroup
-					legend="Exclude standalone volumes"
-					hint="Every standalone volume in scope is backed up by default. Select a volume to exclude it."
+					legend="Volumes"
+					hint="The volumes of included stacks and every standalone volume are backed up. Uncheck a volume to leave it out."
 				>
+					<Switch
+						label="Back up anonymous volumes"
+						description="Off by default: anonymous volumes usually hold caches and scratch data that containers recreate. On: those of included stacks and standalone ones are backed up too."
+						bind:checked={anonymousVolumes}
+						onchange={() => (touched = true)}
+					/>
 					{#each activeEnvs.filter((e) => e.online && involvedEnvs.includes(e.id)) as e (e.id)}
-						<VolumeExclusions
+						<VolumeCoverage
 							environmentId={e.id}
 							environmentName={e.name}
 							all={scopeMode === 'all'}
 							excluded={excludeVolumes}
+							excludedStacks={excludeStacks}
+							anonymous={anonymousVolumes}
 							onchange={(v) => {
 								excludeVolumes = v;
 								touched = true;
 							}}
 						/>
+					{/each}
+					{#each activeEnvs.filter((e) => !e.online && involvedEnvs.includes(e.id)) as e (e.id)}
+						<p class="muted small">
+							{e.name} is offline: its volumes can't be listed. Saved exclusions are kept.
+						</p>
 					{/each}
 				</FieldGroup>
 				{#if involvedEnvs.length}
@@ -606,9 +627,13 @@
 	}
 
 	.env {
-		color: var(--text-muted);
-		font-size: var(--text-caption);
-		margin-top: var(--space-1);
+		color: var(--text-strong);
+		font-weight: var(--weight-medium);
+	}
+
+	.env-group {
+		display: grid;
+		gap: var(--space-1);
 	}
 
 	.preview-bar {

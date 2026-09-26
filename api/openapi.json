@@ -1758,6 +1758,10 @@
             },
             "type": "array"
           },
+          "anonymousVolumes": {
+            "description": "Also back up anonymous volumes (default off).",
+            "type": "boolean"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -1782,6 +1786,7 @@
             "type": "array"
           },
           "excludeVolumes": {
+            "description": "Volumes not backed up: standalone ones and those of the selected stacks.",
             "items": {
               "type": "string"
             },
@@ -1863,6 +1868,7 @@
           "scope",
           "excludeStacks",
           "excludeVolumes",
+          "anonymousVolumes",
           "enabled",
           "view",
           "actions",
@@ -10238,6 +10244,10 @@
       "PolicyInputBody": {
         "additionalProperties": false,
         "properties": {
+          "anonymousVolumes": {
+            "description": "Also back up anonymous volumes (default off).",
+            "type": "boolean"
+          },
           "environmentId": {
             "maxLength": 64,
             "type": "string"
@@ -10256,6 +10266,7 @@
             "type": "array"
           },
           "excludeVolumes": {
+            "description": "Volume names (environmentID/name for all environments) not backed up: standalone ones and those of the selected stacks.",
             "items": {
               "type": "string"
             },
@@ -14557,6 +14568,9 @@
       "UpdateBackupPolicyInputBody": {
         "additionalProperties": false,
         "properties": {
+          "anonymousVolumes": {
+            "type": "boolean"
+          },
           "environmentId": {
             "type": "string"
           },
@@ -19535,6 +19549,7 @@
                       "actions": [
                         "example"
                       ],
+                      "anonymousVolumes": false,
                       "createdAt": "2026-09-25T12:00:00Z",
                       "enabled": false,
                       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -19730,6 +19745,7 @@
                   "actions": [
                     "example"
                   ],
+                  "anonymousVolumes": false,
                   "createdAt": "2026-09-25T12:00:00Z",
                   "enabled": false,
                   "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -20119,6 +20135,7 @@
                   "actions": [
                     "example"
                   ],
+                  "anonymousVolumes": false,
                   "createdAt": "2026-09-25T12:00:00Z",
                   "enabled": false,
                   "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -20353,6 +20370,7 @@
                   "actions": [
                     "example"
                   ],
+                  "anonymousVolumes": false,
                   "createdAt": "2026-09-25T12:00:00Z",
                   "enabled": false,
                   "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",

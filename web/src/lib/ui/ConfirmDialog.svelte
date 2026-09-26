@@ -21,6 +21,8 @@
 		children?: Snippet;
 		/** Extra condition (e.g. typed confirmation) before confirming. */
 		canConfirm?: boolean;
+		/** md or lg when the dialog shows a preview (children) beside the message. */
+		size?: 'sm' | 'md' | 'lg';
 	}
 
 	let {
@@ -33,7 +35,8 @@
 		tone = 'default',
 		onconfirm,
 		children,
-		canConfirm = true
+		canConfirm = true,
+		size = 'sm'
 	}: Props = $props();
 
 	let busy = $state(false);
@@ -57,7 +60,7 @@
 	}
 </script>
 
-<Dialog bind:open {title} size="sm" alert dismissible={!busy}>
+<Dialog bind:open {title} {size} alert dismissible={!busy}>
 	{#if message}<p class="message">{message}</p>{/if}
 	{#if consequences.length}
 		<ul class="consequences">

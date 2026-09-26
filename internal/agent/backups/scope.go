@@ -295,9 +295,12 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 			}
 			seen[m.Name] = true
 			ss := protocol.ScopeSource{Kind: protocol.SourceAnonymous, Name: m.Name, Service: c.Labels[lifecycle.ComposeServiceLabel]}
-			if !it.Rules.AnonymousVolumes {
+			switch {
+			case !it.Rules.AnonymousVolumes:
 				ss.State, ss.Reason = protocol.SourceExcluded, "anonymous volumes are off (enable them in the policy)"
-			} else {
+			case slices.Contains(it.Rules.VolumeExclude, m.Name):
+				ss.State, ss.Reason = protocol.SourceExcluded, "excluded by the policy"
+			default:
 				s.includeVolume(ctx, eng, p, &ss, m.Name)
 			}
 			p.sources = append(p.sources, ss)

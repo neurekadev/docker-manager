@@ -19,6 +19,8 @@
 		stackTitle
 	} from '$lib/features/stacks/model';
 	import { stacksQuery, updatePoliciesQuery, type Stack } from '$lib/features/stacks/queries';
+	import CreateStackDialog from '$lib/features/stacks/CreateStackDialog.svelte';
+	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
 	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
 	import { routes } from '$lib/routes';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
@@ -45,6 +47,8 @@
 	const envs = createQuery(() => environmentsQuery());
 	const perms = createQuery(() => myPermissionsQuery());
 	const policies = createQuery(() => updatePoliciesQuery(envId));
+	// routes.newStack() opens the create dialog over this list.
+	const createDialog = urlDialog('create', ['environment']);
 
 	const envById = $derived(new Map((envs.data ?? []).map((e) => [e.id, e])));
 	const envName = $derived(envId ? (envById.get(envId)?.name ?? 'this environment') : null);
@@ -195,7 +199,7 @@
 				>
 			{/if}
 			{#if canCreate}
-				<Button variant="primary" icon={Plus} href={routes.newStack(envId)}
+				<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
 					>Create stack</Button
 				>
 			{/if}
@@ -261,7 +265,8 @@
 								{#snippet actions()}
 									{#if canCreate}<Button
 											variant="primary"
-											href={routes.newStack(envId)}>Create stack</Button
+											onclick={() => (createDialog.open = true)}
+											>Create stack</Button
 										>{/if}
 									{#if canImport}<Button href={routes.discoveredStacks(envId)}
 											>Import project</Button
@@ -274,6 +279,11 @@
 			{/if}
 		</Card>
 	{/if}
+
+	<CreateStackDialog
+		bind:open={createDialog.open}
+		environmentId={createDialog.param('environment') ?? envId}
+	/>
 </div>
 
 <style>

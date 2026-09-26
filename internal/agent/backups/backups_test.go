@@ -306,6 +306,11 @@ func TestScopeCorpus(t *testing.T) {
 		if s, _ := sourceState(p, protocol.SourceVolume, "app_dbdata"); s.State != protocol.SourceExcluded {
 			t.Errorf("volume not in include list: %+v", s)
 		}
+		// An excluded anonymous volume stays out even with anonymous volumes on.
+		p = e.svc.plan(ctx, stackItem(protocol.BackupRules{AnonymousVolumes: true, VolumeExclude: []string{e.anon}}), &repo, false)
+		if s, _ := sourceState(p, protocol.SourceAnonymous, e.anon); s.State != protocol.SourceExcluded || s.Reason != "excluded by the policy" {
+			t.Errorf("excluded anonymous volume: %+v", s)
+		}
 	})
 
 	t.Run("invalid rules", func(t *testing.T) {

@@ -1,12 +1,13 @@
 <script lang="ts">
-	// Two cards side by side on wide screens (a narrow facts column and a
-	// wide table, or two equal halves); stacked below 1024 px.
+	// Cards side by side on wide screens (a narrow facts column and a wide
+	// table, two equal halves or three thirds); stacked below 1024 px. Cards
+	// in a row share its height, so no card ends halfway down the row.
 	import type { Snippet } from 'svelte';
 
 	let {
 		ratio = 'narrow-wide',
 		children
-	}: { ratio?: 'narrow-wide' | 'equal'; children: Snippet } = $props();
+	}: { ratio?: 'narrow-wide' | 'equal' | 'thirds'; children: Snippet } = $props();
 </script>
 
 <div class="columns {ratio}">{@render children()}</div>
@@ -15,7 +16,7 @@
 	.columns {
 		display: grid;
 		gap: var(--space-4);
-		align-items: start;
+		align-items: stretch;
 		min-width: 0;
 	}
 
@@ -27,13 +28,18 @@
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
+	.thirds {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+
 	.columns > :global(*) {
 		min-width: 0;
 	}
 
 	@media (max-width: 1023px) {
 		.narrow-wide,
-		.equal {
+		.equal,
+		.thirds {
 			grid-template-columns: minmax(0, 1fr);
 		}
 	}

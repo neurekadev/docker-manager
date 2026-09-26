@@ -4,7 +4,7 @@
 //   /                                   Dashboard
 //   /environments[/{id}]                environments and environment detail
 //   /stacks[/{stackId}[/files|logs|terminal|revisions|policies|activity|migrate]]
-//   /stacks/new, /stacks/discovered (create; discovery and import)
+//   /stacks?create=1, /stacks/discovered (create dialog; discovery and import)
 //   /containers, /images, /volumes, /networks   lists (all or the selected environment)
 //   /containers/new, /containers/{env}/{name}[/logs|terminal]   create; detail tabs
 //   /images/{env}/{imageId}, /networks/{env}/{name}
@@ -13,8 +13,11 @@
 //   /registries[/git|/matches]          registry connections, Git credentials, match preview
 //   /jobs[/{jobId}], /schedules
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
-//   /backups[/{backupId}[/restore]|/policies[/new|/{id}]|/repositories[/new|/{id}]]
-//   /updates[/new|/{policyId}[/edit]], /maintenance[/new|/defaults|/{policyId}[/edit]]
+//   /backups[/{backupId}[/restore]|/snapshots|/policies[/{id}]|/repositories[/new|/{id}]]
+//   /updates[/{policyId}], /maintenance[/{policyId}]
+//   Create and edit forms of stacks and policies are dialogs over their
+//   list or detail page, opened by a query parameter (?create=1, ?edit=1,
+//   ?defaults=1) so links can open them.
 //   /access[/users/{id}|/groups[/{id}]|/invitations]
 //   /settings[/security|/tokens[/all]|/sign-in|/schedules|/audit|/diagnostics]
 //   /volumes/{env}/{volume}/files, /containers/{env}/{id}/logs|terminal,
@@ -44,8 +47,9 @@ export const routes = {
 	/** The stack's terminal with a service container preselected (#8). */
 	stackTerminal: (id: string, container?: string) =>
 		`/stacks/${e(id)}/terminal${container ? `?container=${e(container)}` : ''}`,
+	/** The stack list with the create dialog open. */
 	newStack: (environmentId?: string | null) =>
-		`/stacks/new${environmentId ? `?environment=${e(environmentId)}` : ''}`,
+		`/stacks?create=1${environmentId ? `&environment=${e(environmentId)}` : ''}`,
 	discoveredStacks: (environmentId?: string | null) =>
 		`/stacks/discovered${environmentId ? `?environment=${e(environmentId)}` : ''}`,
 	containers: () => '/containers',
@@ -81,21 +85,23 @@ export const routes = {
 	backups: () => '/backups',
 	backup: (id: string) => `/backups/${e(id)}`,
 	backupRestore: (id: string) => `/backups/${e(id)}/restore`,
+	backupSnapshots: () => '/backups/snapshots',
 	backupPolicies: () => '/backups/policies',
-	backupPolicyNew: () => '/backups/policies/new',
+	backupPolicyNew: () => '/backups/policies?create=1',
 	backupPolicy: (id: string) => `/backups/policies/${e(id)}`,
+	backupPolicyEdit: (id: string) => `/backups/policies/${e(id)}?edit=1`,
 	backupRepositories: () => '/backups/repositories',
 	backupRepositoryNew: () => '/backups/repositories/new',
 	backupRepository: (id: string) => `/backups/repositories/${e(id)}`,
 	updates: () => '/updates',
-	updatePolicyNew: () => '/updates/new',
+	updatePolicyNew: () => '/updates?create=1',
 	updatePolicy: (id: string) => `/updates/${e(id)}`,
-	updatePolicyEdit: (id: string) => `/updates/${e(id)}/edit`,
+	updatePolicyEdit: (id: string) => `/updates/${e(id)}?edit=1`,
 	maintenance: () => '/maintenance',
-	maintenanceNew: () => '/maintenance/new',
+	maintenanceNew: () => '/maintenance?create=1',
 	maintenancePolicy: (id: string) => `/maintenance/${e(id)}`,
-	maintenanceEdit: (id: string) => `/maintenance/${e(id)}/edit`,
-	maintenanceDefaults: () => '/maintenance/defaults',
+	maintenanceEdit: (id: string) => `/maintenance/${e(id)}?edit=1`,
+	maintenanceDefaults: () => '/maintenance?defaults=1',
 	jobs: () => '/jobs',
 	job: (id: string) => `/jobs/${e(id)}`,
 	schedules: () => '/schedules',

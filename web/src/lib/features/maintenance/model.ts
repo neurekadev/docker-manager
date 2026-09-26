@@ -127,6 +127,41 @@ export function runSummaryText(s: Schema<'MaintenanceRunSummary'>): string {
 	return parts.join(', ');
 }
 
+/** The categories a policy's turned-on rules clean, e.g. "Stopped containers and unused images". */
+export function rulesText(p: Pick<MaintenancePolicy, 'rules'>, info?: CategoryInfo[]): string {
+	const labels = enabledRules(p).map((r, i) => {
+		const l = categoryLabel(r.category, info);
+		return i === 0 ? l : l.charAt(0).toLowerCase() + l.slice(1);
+	});
+	if (!labels.length) return 'Every rule is off';
+	if (labels.length === 1) return labels[0];
+	return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+}
+
+/** Totals of the policies' last runs (Maintenance KPIs). */
+export function lastRunTotals(policies: Pick<MaintenancePolicy, 'lastRun'>[]): {
+	removed: number;
+	bytes: number;
+	failed: number;
+	latest?: Schema<'MaintenanceRunSummary'>;
+} {
+	const out = {
+		removed: 0,
+		bytes: 0,
+		failed: 0,
+		latest: undefined as Schema<'MaintenanceRunSummary'> | undefined
+	};
+	for (const p of policies) {
+		const r = p.lastRun;
+		if (!r) continue;
+		out.removed += r.removed;
+		out.bytes += r.bytesReclaimed;
+		out.failed += r.failed;
+		if (!out.latest || r.finishedAt > out.latest.finishedAt) out.latest = r;
+	}
+	return out;
+}
+
 /** What a resource page's one-off prune cleans (#14). */
 export type PruneTarget = 'containers' | 'images' | 'networks' | 'volumes' | 'build_cache';
 

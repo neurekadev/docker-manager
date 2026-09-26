@@ -1,13 +1,19 @@
 <script lang="ts">
-	// Backup policy detail (#10): scope, schedule and retention, recent sets
-	// with per-host snapshot times, a manual run, retention with its preview
-	// and confirmation, and editing through the setup wizard.
+	// Backup policy detail (#10): how it stands (last set, next run,
+	// retention, repository), what it covers and leaves out, its schedule
+	// and retention, recent sets with per-host snapshot times, a manual run,
+	// retention with its preview and confirmation. Editing opens the setup
+	// wizard in a dialog (routes.backupPolicyEdit() links here with it open).
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
+	import Clock from '@lucide/svelte/icons/clock';
+	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Eraser from '@lucide/svelte/icons/eraser';
+	import HardDrive from '@lucide/svelte/icons/hard-drive';
+	import History from '@lucide/svelte/icons/rotate-ccw-clock';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Play from '@lucide/svelte/icons/play';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -24,8 +30,11 @@
 		EmptyState,
 		IconButton,
 		JobProgress,
+		KpiCard,
 		Menu,
 		PageHeader,
+		formatDateTime,
+		formatRelative,
 		toast,
 		type MenuEntry
 	} from '$lib/ui';
@@ -39,16 +48,19 @@
 	import { actionError } from '$lib/features/common/errors';
 	import Columns from '$lib/features/common/Columns.svelte';
 	import Facts from '$lib/features/common/Facts.svelte';
+	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import ScheduleSummary from '$lib/features/common/ScheduleSummary.svelte';
-	import PolicyWizard from '$lib/features/backups/PolicyWizard.svelte';
+	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
+	import BackupPolicyDialog from '$lib/features/backups/BackupPolicyDialog.svelte';
 	import RetentionPreviewPanel from '$lib/features/backups/RetentionPreviewPanel.svelte';
 	import SetsTable from '$lib/features/backups/SetsTable.svelte';
 	import {
 		hasRetentionRules,
 		retentionText,
 		scopeText,
+		setState,
 		type BackupPolicy
 	} from '$lib/features/backups/model';
 	import { backupPolicyQuery, repositoriesQuery } from '$lib/features/backups/queries';
@@ -61,6 +73,7 @@
 	const envs = createQuery(() => environmentsQuery());
 	const stacks = createQuery(() => stacksQuery());
 	const envName = (e: string) => environmentName(envs.data, e);
+	const editDialog = urlDialog('edit');
 
 	usePage(() => ({
 		title: policy.data?.name ?? 'Backup policy',
@@ -71,7 +84,6 @@
 		]
 	}));
 
-	let editing = $state(false);
 	let running = $state(false);
 	let jobs = $state<Job[]>([]);
 	let retentionOpen = $state(false);
@@ -156,8 +168,7 @@
 				onSelect: () => (retentionOpen = true)
 			});
 		if (has(p, 'backup_policy.manage')) {
-			items.push({ label: 'Edit policy', icon: Pencil, onSelect: () => (editing = true) });
-			items.push({ separator: true });
+			if (items.length) items.push({ separator: true });
 			items.push({
 				label: 'Delete policy',
 				icon: Trash2,
@@ -171,8 +182,15 @@
 	function stackName(stackId: string) {
 		const s = stacks.data?.find((x) => x.id === stackId);
 		return s
-			? `${s.displayName || s.name} (${envName(s.environmentId)})`
+			? `${s.displayName || s.name}${s.environmentId ? ` (${envName(s.environmentId)})` : ''}`
 			: 'A stack you cannot see';
+	}
+
+	/** An excluded volume key (environmentID/name for all environments). */
+	function volumeName(p: BackupPolicy, key: string) {
+		if (p.scope !== 'all') return key;
+		const [env, ...rest] = key.split('/');
+		return `${rest.join('/')} (${envName(env)})`;
 	}
 </script>
 
@@ -185,11 +203,13 @@
 		{#snippet children(p: BackupPolicy)}
 			{@const menu = menuFor(p)}
 			{@const repo = repos.data?.find((r) => r.id === p.repositoryId)}
+			{@const last = p.recentSets?.[0]}
+			{@const explicit = p.stacks.length > 0 || p.volumes.length > 0}
 			<PageHeader
 				title={p.name}
 				icon={CalendarClock}
 				color="teal"
-				description="Backs up {scopeText(p)} to {repo?.name ?? 'its repository'}."
+				description="Backs up {scopeText(p, envName)} to {repo?.name ?? 'its repository'}."
 			>
 				{#snippet status()}
 					{#if p.schedule?.enabled}<Badge tone="ok" dot>Scheduled</Badge>{:else}<Badge dot
@@ -197,7 +217,12 @@
 						>{/if}
 				{/snippet}
 				{#snippet actions()}
-					{#if has(p, 'backup.run') && !editing}
+					{#if has(p, 'backup_policy.manage')}
+						<Button icon={Pencil} onclick={() => (editDialog.open = true)}
+							>Edit policy</Button
+						>
+					{/if}
+					{#if has(p, 'backup.run')}
 						<Button
 							variant="primary"
 							icon={Play}
@@ -205,7 +230,7 @@
 							onclick={() => run(p)}>Back up now</Button
 						>
 					{/if}
-					{#if menu.length && !editing}
+					{#if menu.length}
 						<Menu items={menu} label="More actions for {p.name}">
 							{#snippet trigger(props)}
 								<IconButton
@@ -220,126 +245,209 @@
 				{/snippet}
 			</PageHeader>
 
-			{#if editing}
-				<Card>
-					{#key p.id}<PolicyWizard policy={p} owner={!!perms.data?.owner} />{/key}
-				</Card>
-				<div>
-					<Button variant="ghost" onclick={() => (editing = false)}>Stop editing</Button>
-				</div>
-			{:else}
-				{#each jobs as j (j.id)}
-					<JobProgress
-						jobId={j.id}
-						title="{j.kind.startsWith('manager')
-							? 'Manager'
-							: envName(j.environmentId ?? '')}: {j.kind.replace('.', ' ')}"
-						onfinish={finished}
+			{#each jobs as j (j.id)}
+				<JobProgress
+					jobId={j.id}
+					title="{j.kind.startsWith('manager')
+						? 'Manager'
+						: envName(j.environmentId ?? '')}: {j.kind.replace('.', ' ')}"
+					onfinish={finished}
+				/>
+			{/each}
+
+			<KpiRow>
+				<KpiCard
+					label="Last set"
+					value={last ? setState(last.state).label : 'Never run'}
+					secondary={last
+						? `${formatRelative(last.startedAt)}, ${formatDateTime(last.startedAt)}`
+						: 'Back up now to create the first set'}
+					icon={DatabaseBackup}
+					color="teal"
+					tone={last
+						? last.state === 'complete'
+							? 'ok'
+							: last.state === 'pending'
+								? undefined
+								: 'warn'
+						: undefined}
+				/>
+				<KpiCard
+					label="Next run"
+					value={p.schedule?.enabled && p.schedule.nextRun
+						? formatRelative(p.schedule.nextRun)
+						: 'Not scheduled'}
+					secondary={p.schedule?.enabled && p.schedule.nextRun
+						? formatDateTime(p.schedule.nextRun)
+						: 'Backups run only when started'}
+					icon={Clock}
+					color="slate"
+				/>
+				<KpiCard
+					label="Retention"
+					value={hasRetentionRules(p.retention) ? 'Rules set' : 'Keep everything'}
+					secondary={p.retention?.afterBackup
+						? 'Applied after every backup'
+						: 'Applied by hand'}
+					icon={History}
+					color="violet"
+				/>
+				<KpiCard
+					label="Repository"
+					value={repo?.name ?? '—'}
+					secondary={Object.keys(p.environmentRepositories ?? {}).length
+						? 'Some environments use their own'
+						: 'For every environment'}
+					icon={HardDrive}
+					color="blue"
+				/>
+			</KpiRow>
+
+			<Columns ratio="equal">
+				<Card title="What is backed up">
+					<Facts
+						columns={1}
+						items={explicit
+							? [
+									{
+										label: 'Stacks',
+										value: p.stacks.length
+											? p.stacks.map((s) => stackName(s.stackId)).join(', ')
+											: 'None'
+									},
+									{
+										label: 'Standalone volumes',
+										value: p.volumes.length
+											? p.volumes
+													.map(
+														(v) =>
+															`${v.volume} (${envName(v.environmentId)})`
+													)
+													.join(', ')
+											: 'None'
+									},
+									{
+										label: 'Anonymous volumes',
+										value: p.stacks.some((s) => s.anonymousVolumes)
+											? 'Included for some stacks'
+											: 'Not backed up'
+									},
+									{
+										label: 'Manager state',
+										value: p.includeManagerState
+											? p.includeMetrics
+												? 'Yes, with metrics'
+												: 'Yes, without metrics'
+											: 'No'
+									},
+									{
+										label: 'Containers during backups',
+										value: p.shutdown
+											? 'Stopped, then started again'
+											: 'Keep running (live)'
+									}
+								]
+							: [
+									{
+										label: 'Environments',
+										value:
+											p.scope === 'all'
+												? 'All environments'
+												: envName(p.environmentId ?? '')
+									},
+									{
+										label: 'Stacks',
+										value: (p.excludeStacks ?? []).length
+											? `Every managed stack except ${p.excludeStacks.map(stackName).join(', ')}`
+											: 'Every managed stack, with its project directory and volumes'
+									},
+									{
+										label: 'Volumes',
+										value: (p.excludeVolumes ?? []).length
+											? `Stack and standalone volumes except ${p.excludeVolumes.map((v) => volumeName(p, v)).join(', ')}`
+											: 'Every stack and standalone volume'
+									},
+									{
+										label: 'Anonymous volumes',
+										value: p.anonymousVolumes ? 'Backed up' : 'Not backed up'
+									},
+									{
+										label: 'Manager state',
+										value: p.includeManagerState
+											? p.includeMetrics
+												? 'Yes, with metrics'
+												: 'Yes, without metrics'
+											: 'No'
+									},
+									{
+										label: 'Containers during backups',
+										value: p.shutdown
+											? 'Stopped, then started again'
+											: 'Keep running (live)'
+									}
+								]}
 					/>
-				{/each}
-
-				<Card title="Recent backup sets" padding="none">
-					{#if p.recentSets?.length}
-						<SetsTable
-							sets={p.recentSets.map((s) => ({
-								...s,
-								policyId: p.id,
-								policyName: p.name
-							}))}
-							label="Recent backup sets of {p.name}"
-							showPolicy={false}
-							environmentName={envName}
-							canRetry={() => has(p, 'backup.run')}
-						/>
-					{:else}
-						<EmptyState
-							icon={CalendarClock}
-							color="teal"
-							title="Not run yet."
-							description="Back up now to create the first set, or turn the schedule on."
-							level={3}
-							compact
-						/>
-					{/if}
 				</Card>
+				<Card title="Schedule and retention">
+					<Facts
+						columns={1}
+						items={[
+							{ label: 'Schedule', render: sched },
+							{ label: 'Retention', value: retentionText(p.retention) },
+							{
+								label: 'After every backup',
+								value: p.retention?.afterBackup
+									? 'Retention applied'
+									: 'Retention applied by hand'
+							},
+							{ label: 'Repository', value: repo?.name ?? '—' },
+							...Object.entries(p.environmentRepositories ?? {}).map(([env, r]) => ({
+								label: `Repository for ${envName(env)}`,
+								value: repos.data?.find((x) => x.id === r)?.name ?? '—'
+							}))
+						]}
+					/>
+				</Card>
+			</Columns>
+			{#snippet sched()}
+				{#if p.schedule}<ScheduleSummary
+						{...p.schedule}
+						nextRun={p.schedule.nextRun}
+					/>{/if}
+			{/snippet}
 
-				<Columns ratio="equal">
-					<Card title="What is backed up">
-						<Facts
-							columns={1}
-							items={[
-								{
-									label: 'Manager state',
-									value: p.includeManagerState
-										? p.includeMetrics
-											? 'Yes, with metrics'
-											: 'Yes, without metrics'
-										: 'No'
-								},
-								{
-									label: 'Stacks',
-									value: p.stacks.length
-										? p.stacks.map((s) => stackName(s.stackId)).join(', ')
-										: 'None'
-								},
-								{
-									label: 'Standalone volumes',
-									value: p.volumes.length
-										? p.volumes
-												.map(
-													(v) =>
-														`${v.volume} (${envName(v.environmentId)})`
-												)
-												.join(', ')
-										: 'None'
-								},
-								{
-									label: 'Anonymous volumes',
-									value: p.stacks.some((s) => s.anonymousVolumes)
-										? 'Included for some stacks'
-										: 'Not backed up'
-								},
-								{
-									label: 'Paths outside project directories',
-									value:
-										p.stacks.flatMap((s) => s.externalPaths ?? []).join(', ') ||
-										'None opted in',
-									mono: p.stacks.some((s) => s.externalPaths?.length)
-								},
-								{
-									label: 'Containers during backups',
-									value: p.shutdown
-										? 'Stopped, then started again'
-										: 'Keep running (live)'
-								}
-							]}
-						/>
-					</Card>
-					<Card title="Schedule and retention">
-						<Facts
-							columns={1}
-							items={[
-								{ label: 'Schedule', render: sched },
-								{ label: 'Retention', value: retentionText(p.retention) },
-								{
-									label: 'After every backup',
-									value: p.retention?.afterBackup
-										? 'Retention applied'
-										: 'Retention applied by hand'
-								},
-								{ label: 'Repository', value: repo?.name ?? '—' }
-							]}
-						/>
-					</Card>
-				</Columns>
-				{#snippet sched()}
-					{#if p.schedule}<ScheduleSummary
-							{...p.schedule}
-							nextRun={p.schedule.nextRun}
-						/>{/if}
-				{/snippet}
+			<Card title="Recent backup sets" padding="none">
+				{#if p.recentSets?.length}
+					<SetsTable
+						sets={p.recentSets.map((s) => ({
+							...s,
+							policyId: p.id,
+							policyName: p.name
+						}))}
+						label="Recent backup sets of {p.name}"
+						showPolicy={false}
+						environmentName={envName}
+						canRetry={() => has(p, 'backup.run')}
+					/>
+				{:else}
+					<EmptyState
+						icon={CalendarClock}
+						color="teal"
+						title="Not run yet."
+						description="Back up now to create the first set, or turn the schedule on."
+						level={3}
+						compact
+					/>
+				{/if}
+			</Card>
+
+			{#if editDialog.open}
+				<BackupPolicyDialog
+					bind:open={editDialog.open}
+					policy={p}
+					owner={!!perms.data?.owner}
+				/>
 			{/if}
-
 			<ConfirmDialog
 				bind:open={retentionOpen}
 				title="Apply the retention of {p.name}?"
@@ -351,6 +459,7 @@
 				]}
 				confirmLabel="Apply retention"
 				tone="danger"
+				size="lg"
 				onconfirm={() => applyRetention(p)}
 			>
 				<RetentionPreviewPanel policyId={p.id} auto />

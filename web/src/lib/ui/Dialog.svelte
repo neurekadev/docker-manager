@@ -2,7 +2,10 @@
 	// Dialog (#22; Bits UI Dialog): modal, focus trapped inside, Escape and an
 	// outside click close it (unless `dismissible` is false), and focus
 	// returns to the element that opened it. Full-screen below 768 px.
-	// `alert` gives role="alertdialog" (confirmations).
+	// `alert` gives role="alertdialog" (confirmations). Sizes: sm for
+	// confirmations and one-field prompts, md for short forms, lg for forms
+	// with several groups or a table, xl for editors laid out in columns
+	// (policies, stacks).
 	import type { Snippet } from 'svelte';
 	import X from '@lucide/svelte/icons/x';
 	import { AlertDialog, Dialog } from 'bits-ui';
@@ -13,7 +16,7 @@
 		open?: boolean;
 		title: string;
 		description?: string;
-		size?: 'sm' | 'md' | 'lg';
+		size?: 'sm' | 'md' | 'lg' | 'xl';
 		alert?: boolean;
 		dismissible?: boolean;
 		children?: Snippet;
@@ -146,13 +149,16 @@
 	}
 
 	:global(.dy-dialog.sm) {
-		max-width: 440px;
+		max-width: 480px;
 	}
 	:global(.dy-dialog.md) {
-		max-width: 560px;
+		max-width: 640px;
 	}
 	:global(.dy-dialog.lg) {
-		max-width: 800px;
+		max-width: 880px;
+	}
+	:global(.dy-dialog.xl) {
+		max-width: 1160px;
 	}
 
 	:global(.dy-dialog[data-state='open']) {

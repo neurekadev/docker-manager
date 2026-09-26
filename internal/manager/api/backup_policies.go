@@ -107,7 +107,8 @@ type BackupPolicy struct {
 	Scope                   string                  `json:"scope" enum:"all,environment"`
 	EnvironmentID           string                  `json:"environmentId,omitempty"`
 	ExcludeStacks           []string                `json:"excludeStacks"`
-	ExcludeVolumes          []string                `json:"excludeVolumes"`
+	ExcludeVolumes          []string                `json:"excludeVolumes" doc:"Volumes not backed up: standalone ones and those of the selected stacks."`
+	AnonymousVolumes        bool                    `json:"anonymousVolumes" doc:"Also back up anonymous volumes (default off)."`
 	Enabled                 bool                    `json:"enabled"`
 	View                    string                  `json:"view" enum:"minimal,full"`
 	Actions                 []string                `json:"actions"`
@@ -137,7 +138,7 @@ func newBackupPolicy(p domain.BackupPolicy, v authz.View) BackupPolicy {
 		return out
 	}
 	out.RepositoryID, out.EnvironmentRepositories = p.RepositoryID, p.EnvironmentRepos
-	out.ExcludeStacks, out.ExcludeVolumes = p.ExcludeStacks, p.ExcludeVolumes
+	out.ExcludeStacks, out.ExcludeVolumes, out.AnonymousVolumes = p.ExcludeStacks, p.ExcludeVolumes, p.AnonymousVolumes
 	if out.ExcludeStacks == nil {
 		out.ExcludeStacks = []string{}
 	}
@@ -191,7 +192,8 @@ type policyInputBody struct {
 	Scope                   string                  `json:"scope" enum:"all,environment"`
 	EnvironmentID           string                  `json:"environmentId,omitempty" maxLength:"64"`
 	ExcludeStacks           []string                `json:"excludeStacks,omitempty" maxItems:"256"`
-	ExcludeVolumes          []string                `json:"excludeVolumes,omitempty" maxItems:"256"`
+	ExcludeVolumes          []string                `json:"excludeVolumes,omitempty" maxItems:"256" doc:"Volume names (environmentID/name for all environments) not backed up: standalone ones and those of the selected stacks."`
+	AnonymousVolumes        bool                    `json:"anonymousVolumes,omitempty" doc:"Also back up anonymous volumes (default off)."`
 	RepositoryID            string                  `json:"repositoryId" minLength:"1" maxLength:"64"`
 	EnvironmentRepositories map[string]string       `json:"environmentRepositories,omitempty"`
 	IncludeManagerState     bool                    `json:"includeManagerState,omitempty" doc:"Back up the manager's state (owner only: manager backups are owner-only)."`
@@ -205,7 +207,7 @@ type policyInputBody struct {
 
 func (b policyInputBody) domain() domain.BackupPolicy {
 	p := domain.BackupPolicy{Name: b.Name, EnvironmentID: b.EnvironmentID, ExcludeStacks: b.ExcludeStacks, ExcludeVolumes: b.ExcludeVolumes,
-		RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
+		AnonymousVolumes: b.AnonymousVolumes, RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
 		IncludeManager: b.IncludeManagerState, IncludeMetrics: b.IncludeMetrics, Stacks: toStackSelections(b.Stacks),
 		Volumes: toVolumeSelections(b.Volumes), Shutdown: b.Shutdown, Retention: toRetention(b.Retention)}
 	if b.Schedule != nil {
@@ -373,6 +375,7 @@ type updateBackupPolicyInput struct {
 		EnvironmentID           *string                  `json:"environmentId,omitempty"`
 		ExcludeStacks           *[]string                `json:"excludeStacks,omitempty" maxItems:"256"`
 		ExcludeVolumes          *[]string                `json:"excludeVolumes,omitempty" maxItems:"256"`
+		AnonymousVolumes        *bool                    `json:"anonymousVolumes,omitempty"`
 		RepositoryID            *string                  `json:"repositoryId,omitempty" maxLength:"64"`
 		EnvironmentRepositories *map[string]string       `json:"environmentRepositories,omitempty"`
 		IncludeManagerState     *bool                    `json:"includeManagerState,omitempty"`
@@ -406,7 +409,7 @@ func (h *backupsAPI) updatePolicy(ctx context.Context, in *updateBackupPolicyInp
 		return nil, err
 	}
 	pp := backups.PolicyPatch{Name: b.Name, EnvironmentID: b.EnvironmentID, ExcludeStacks: b.ExcludeStacks, ExcludeVolumes: b.ExcludeVolumes,
-		RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
+		AnonymousVolumes: b.AnonymousVolumes, RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
 		IncludeManager: b.IncludeManagerState, IncludeMetrics: b.IncludeMetrics, Shutdown: b.Shutdown}
 	if s := b.Schedule; s != nil {
 		if err := ValidateSchedule(s.Cron, s.TimeZone, "body.schedule"); err != nil {

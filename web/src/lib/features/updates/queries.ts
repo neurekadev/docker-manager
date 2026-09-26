@@ -35,6 +35,24 @@ export function environmentUpdatePolicyQuery(id: string, client: ApiClient = api
 	});
 }
 
+export type EnvironmentTarget = Schema<'EnvironmentTarget'>;
+
+/** The stacks and containers an environment update policy covers. */
+export function environmentUpdateTargetsQuery(id: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: environmentUpdateKeys.targets(id),
+		queryFn: async ({ signal }): Promise<EnvironmentTarget[]> =>
+			(
+				await unwrap(
+					client.GET('/api/v1/environment-update-policies/{policyId}/targets', {
+						params: { path: { policyId: id } },
+						signal
+					})
+				)
+			).items
+	});
+}
+
 export const updateKeys = {
 	list: (environmentId: string | null) =>
 		liveKeys.list('policies', 'updates', environmentId ?? ''),

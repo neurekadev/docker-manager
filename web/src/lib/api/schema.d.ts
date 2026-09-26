@@ -4645,6 +4645,8 @@ export interface components {
         };
         BackupPolicy: {
             actions: string[];
+            /** @description Also back up anonymous volumes (default off). */
+            anonymousVolumes: boolean;
             /** Format: date-time */
             createdAt?: string;
             enabled: boolean;
@@ -4654,6 +4656,7 @@ export interface components {
                 [key: string]: string;
             };
             excludeStacks: string[];
+            /** @description Volumes not backed up: standalone ones and those of the selected stacks. */
             excludeVolumes: string[];
             id: string;
             includeManagerState: boolean;
@@ -7767,11 +7770,14 @@ export interface components {
             resourceType?: string;
         };
         PolicyInputBody: {
+            /** @description Also back up anonymous volumes (default off). */
+            anonymousVolumes?: boolean;
             environmentId?: string;
             environmentRepositories?: {
                 [key: string]: string;
             };
             excludeStacks?: string[];
+            /** @description Volume names (environmentID/name for all environments) not backed up: standalone ones and those of the selected stacks. */
             excludeVolumes?: string[];
             /** @description Back up the manager's state (owner only: manager backups are owner-only). */
             includeManagerState?: boolean;
@@ -9321,6 +9327,7 @@ export interface components {
             label?: string;
         };
         UpdateBackupPolicyInputBody: {
+            anonymousVolumes?: boolean;
             environmentId?: string;
             environmentRepositories?: {
                 [key: string]: string;
@@ -12085,6 +12092,7 @@ export interface operations {
                      *           "actions": [
                      *             "example"
                      *           ],
+                     *           "anonymousVolumes": false,
                      *           "createdAt": "2026-09-25T12:00:00Z",
                      *           "enabled": false,
                      *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -12251,6 +12259,7 @@ export interface operations {
                      *       "actions": [
                      *         "example"
                      *       ],
+                     *       "anonymousVolumes": false,
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
                      *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -12415,6 +12424,7 @@ export interface operations {
                      *       "actions": [
                      *         "example"
                      *       ],
+                     *       "anonymousVolumes": false,
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
                      *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -12685,6 +12695,7 @@ export interface operations {
                      *       "actions": [
                      *         "example"
                      *       ],
+                     *       "anonymousVolumes": false,
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
                      *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",

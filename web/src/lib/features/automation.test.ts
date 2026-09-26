@@ -9,6 +9,7 @@ import type { Account } from '$lib/api/client';
 import QueryHarness from '../../test/QueryHarness.svelte';
 import StepUpDialog from '$lib/auth/StepUpDialog.svelte';
 import { StepUpPrompt } from '$lib/auth/stepup.svelte';
+import CoverageList from './common/CoverageList.svelte';
 import RuleEditor from './maintenance/RuleEditor.svelte';
 import CandidatesTable from './updates/CandidatesTable.svelte';
 import RecoveryKeyChallenge from './backups/RecoveryKeyChallenge.svelte';
@@ -92,6 +93,40 @@ describe('RuleEditor (#14)', () => {
 		);
 		expect(screen.getByLabelText('Only remove objects older than')).toHaveValue(30);
 		expect(screen.getByRole('group', { name: 'Container states' })).toBeInTheDocument();
+	});
+});
+
+describe('CoverageList (#10, #20)', () => {
+	const items = [
+		{ key: 's1', label: 'silo' },
+		{ key: 's2', label: 'shop', description: 'prod' },
+		{ key: 's3', label: 'wiki' }
+	];
+
+	it('checks what the policy covers; unchecking adds the item to the exclusions', async () => {
+		const user = setup();
+		const onchange = vi.fn();
+		render(CoverageList, {
+			props: { label: 'Stacks covered', items, excluded: ['s3'], onchange }
+		});
+		const group = screen.getByRole('group', { name: 'Stacks covered' });
+		expect(within(group).getByRole('checkbox', { name: /^silo/ })).toBeChecked();
+		expect(within(group).getByRole('checkbox', { name: /^wiki/ })).not.toBeChecked();
+		expect(group).toHaveTextContent('2 of 3 included');
+		await user.click(within(group).getByRole('checkbox', { name: /^shop/ }));
+		expect(onchange).toHaveBeenLastCalledWith(['s3', 's2']);
+	});
+
+	it('includes everything again on request', async () => {
+		const user = setup();
+		const onchange = vi.fn();
+		const { rerender } = render(CoverageList, {
+			props: { label: 'Stacks covered', items, excluded: ['s1', 'other'], onchange }
+		});
+		await user.click(screen.getByRole('button', { name: 'Include all' }));
+		expect(onchange).toHaveBeenLastCalledWith(['other']);
+		await rerender({ label: 'Stacks covered', items, excluded: [], onchange });
+		expect(screen.queryByRole('button', { name: 'Include all' })).not.toBeInTheDocument();
 	});
 });
 

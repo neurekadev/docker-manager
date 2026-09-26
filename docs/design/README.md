@@ -168,6 +168,17 @@ everywhere; no all-caps labels, no tracked-out eyebrows.
 | 768–1023 px | off-canvas navigation drawer; breadcrumbs and search icon stay | table | centred |
 | < 768 px | drawer | **stacked row cards** (title and status first, key metrics as label/value pairs, actions last) | full screen |
 
+Pages use the full content width: side-by-side cards (`Columns`) share
+their row's height, lists are full-width tables, and a KPI row or card
+grid fills a row rather than one card sitting half-width beside empty
+space. Create and edit forms of stacks and policies (backups, updates,
+maintenance, the maintenance defaults) are dialogs over the list or detail
+page, laid out in columns (`Dialog size="xl"`), opened by a query
+parameter (`?create=1`, `?edit=1`, `?defaults=1`; `urlDialog` in
+`$lib/features/common`) so links and routes (`routes.updatePolicyNew()`)
+open them. Only long single-purpose flows (repository setup, restore,
+token creation) stay pages (`Page narrow`, 1120 px).
+
 Touch targets are at least 40 px on coarse pointers, and every right-click
 action (ContextMenu) has a visible alternative (the row's overflow Menu).
 The file manager (#15) shows tree and editor as switchable panes below
@@ -236,8 +247,8 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 
 | component | notes |
 | --- | --- |
-| `Dialog` | `open` (bindable), `title`, `description`, `size`, `footer` snippet, `trigger` snippet, `dismissible`, `alert` (Bits UI AlertDialog: `role="alertdialog"`). Focus trapped, Escape closes, focus returns to the opener; full screen < 768 px. |
-| `ConfirmDialog` | `message`, `consequences[]`, **`confirmLabel`** (the action, never "OK"), `tone`, async `onconfirm` (progress on the button, failures shown inline, stays open). |
+| `Dialog` | `open` (bindable), `title`, `description`, `size`, `footer` snippet, `trigger` snippet, `dismissible`, `alert` (Bits UI AlertDialog: `role="alertdialog"`). Focus trapped, Escape closes, focus returns to the opener; full screen < 768 px. Sizes: `sm` 480 px (confirmations, one-field prompts), `md` 640 px (short forms), `lg` 880 px (forms in two columns, previews), `xl` 1160 px (policy and stack editors laid out in columns). |
+| `ConfirmDialog` | `message`, `consequences[]`, **`confirmLabel`** (the action, never "OK"), `tone`, async `onconfirm` (progress on the button, failures shown inline, stays open), `size` (`sm`; `md`/`lg` when it shows a preview). |
 | `DestructiveConfirm` | Type-to-confirm (`confirmText`, usually the resource name), `consequences[]`, `affected: AffectedResource[]`, optional `extra` snippet (e.g. the archive dialog's "migrate stacks first" offer). |
 | `Drawer` | Side or bottom sheet (`side`, `size`, `hideTitle`); the narrow navigation, detail panes, the log drawer. |
 | `Popover` | Non-modal (`label`, `trigger` snippet): notices, environment switcher. |

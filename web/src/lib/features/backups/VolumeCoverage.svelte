@@ -1,0 +1,145 @@
+<script lang="ts">
+	// The volumes of one environment a backup policy (#10) covers: the
+	// volumes of the included stacks and the standalone ones, all included
+	// until unchecked (unchecking adds the volume to the policy's
+	// exclusions). Anonymous volumes appear only when the policy backs them
+	// up. Docker Manager's own volumes are never offered (#32).
+	import { createQuery } from '@tanstack/svelte-query';
+	import { Skeleton } from '$lib/ui';
+	import CoverageList from '$lib/features/common/CoverageList.svelte';
+	import { containersQuery, stacksQuery, volumesQuery } from '$lib/features/common/data';
+	import { coveredVolumes, volumeKey } from './model';
+
+	let {
+		environmentId,
+		environmentName,
+		all,
+		excluded,
+		excludedStacks,
+		anonymous,
+		onchange
+	}: {
+		environmentId: string;
+		environmentName: string;
+		all: boolean;
+		excluded: string[];
+		excludedStacks: string[];
+		anonymous: boolean;
+		onchange: (values: string[]) => void;
+	} = $props();
+
+	const volumes = createQuery(() => volumesQuery(environmentId));
+	const stacks = createQuery(() => stacksQuery(environmentId));
+	const containers = createQuery(() => containersQuery(environmentId));
+	const stackTitle = (id: string) => {
+		const s = stacks.data?.find((x) => x.id === id);
+		return s?.displayName || s?.name || 'Stack';
+	};
+	const list = $derived(
+		coveredVolumes(volumes.data ?? [], stacks.data ?? [], containers.data ?? [])
+	);
+	const hiddenAnonymous = $derived(anonymous ? 0 : list.filter((v) => v.anonymous).length);
+	const shown = $derived(list.filter((v) => anonymous || !v.anonymous));
+	const stackVolumes = $derived(
+		shown.filter((v) => v.stackId && !excludedStacks.includes(v.stackId))
+	);
+	const standalone = $derived(shown.filter((v) => !v.stackId));
+	const item = (v: (typeof list)[number], withStack: boolean) => ({
+		key: volumeKey(all, environmentId, v.name),
+		label: v.name,
+		description:
+			[withStack && v.stackId ? stackTitle(v.stackId) : '', v.anonymous ? 'anonymous' : '']
+				.filter(Boolean)
+				.join(', ') || undefined
+	});
+</script>
+
+<div class="env">
+	<p class="env-name">{environmentName}</p>
+	{#if volumes.isPending || stacks.isPending || containers.isPending}
+		<Skeleton lines={2} height="20px" />
+	{:else if volumes.isError || stacks.isError || containers.isError}
+		<p class="muted">
+			The volumes can't be listed right now (the environment may be offline). Saved exclusions
+			are kept.
+		</p>
+	{:else}
+		<div class="lists">
+			<div class="list">
+				<span class="list-title">Stack volumes</span>
+				{#if stackVolumes.length}
+					<CoverageList
+						label="Stack volumes on {environmentName}"
+						items={stackVolumes.map((v) => item(v, true))}
+						{excluded}
+						{onchange}
+					/>
+				{:else}
+					<p class="muted small">No volumes of included stacks.</p>
+				{/if}
+			</div>
+			<div class="list">
+				<span class="list-title">Standalone volumes</span>
+				{#if standalone.length}
+					<CoverageList
+						label="Standalone volumes on {environmentName}"
+						items={standalone.map((v) => item(v, false))}
+						{excluded}
+						{onchange}
+					/>
+				{:else}
+					<p class="muted small">No standalone volumes.</p>
+				{/if}
+			</div>
+		</div>
+		{#if hiddenAnonymous}
+			<p class="muted small">
+				{hiddenAnonymous}
+				{hiddenAnonymous === 1 ? 'anonymous volume is' : 'anonymous volumes are'} not backed up
+				(turn on anonymous volumes to include them).
+			</p>
+		{/if}
+	{/if}
+</div>
+
+<style>
+	.env {
+		display: grid;
+		gap: var(--space-3);
+		min-width: 0;
+	}
+
+	.env-name {
+		color: var(--text-strong);
+		font-weight: var(--weight-medium);
+	}
+
+	.lists {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--space-5);
+	}
+
+	.list {
+		display: grid;
+		gap: var(--space-1);
+		align-content: start;
+		min-width: 0;
+	}
+
+	.list-title {
+		color: var(--text-default);
+		font-size: var(--text-caption);
+		font-weight: var(--weight-medium);
+	}
+
+	.small {
+		font-size: var(--text-caption);
+	}
+
+	@media (max-width: 767px) {
+		.lists {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>

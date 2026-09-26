@@ -65,7 +65,7 @@
 				{@const last = p.recentSets?.[0]}
 				<li class="item">
 					<div class="head">
-						<a class="name" href={routes.backups()}>{p.name}</a>
+						<a class="name" href={routes.backupPolicy(p.id)}>{p.name}</a>
 						{#if p.enabled}<Badge tone="ok" dot>Scheduled</Badge>{:else}<Badge
 								>Manual only</Badge
 							>{/if}
@@ -82,7 +82,13 @@
 							{/if}
 						{/if}
 						<dt>Includes</dt>
-						<dd>The stack's project directory and named volumes</dd>
+						<dd>
+							The stack's project directory and named volumes{p.anonymousVolumes
+								? ', with its anonymous volumes'
+								: ''}{(p.excludeVolumes ?? []).length
+								? ', except the volumes the policy leaves out'
+								: ''}
+						</dd>
 						{#if p.shutdown}
 							<dt>During backups</dt>
 							<dd>Containers are stopped and started again</dd>

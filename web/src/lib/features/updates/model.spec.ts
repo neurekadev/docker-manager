@@ -6,6 +6,8 @@ import {
 	reasonLabel,
 	recoveryText,
 	runnable,
+	summarizeTargets,
+	summaryState,
 	summaryText,
 	windowText,
 	type UpdateCandidate,
@@ -118,5 +120,52 @@ describe('update window', () => {
 		expect(isClock('23:59')).toBe(true);
 		expect(isClock('24:00')).toBe(false);
 		expect(isClock('7:00')).toBe(false);
+	});
+});
+
+describe('target summaries', () => {
+	const sum = (s: Partial<Parameters<typeof summaryState>[0] & object>) => ({
+		available: 0,
+		failed: 0,
+		ineligible: 0,
+		quarantined: 0,
+		unchecked: 0,
+		upToDate: 0,
+		...s
+	});
+	const at = '2026-09-25T12:00:00Z';
+
+	it('ranks exclusions, failures, updates, unchecked and up to date', () => {
+		expect(summaryState(sum({ available: 2 }), true).label).toBe('Excluded');
+		expect(
+			summaryState(sum({ failed: 1, quarantined: 1, available: 3, lastCheckAt: at }))
+		).toEqual({
+			tone: 'danger',
+			label: '2 failures'
+		});
+		expect(summaryState(sum({ available: 1, lastCheckAt: at }))).toEqual({
+			tone: 'warn',
+			label: '1 update available'
+		});
+		expect(summaryState(sum({})).label).toBe('Not checked yet');
+		expect(summaryState(undefined).label).toBe('Not checked yet');
+		expect(summaryState(sum({ upToDate: 2, lastCheckAt: at })).tone).toBe('ok');
+	});
+
+	it('counts targets by state and keeps the newest check', () => {
+		const out = summarizeTargets([
+			sum({ available: 1, lastCheckAt: '2026-09-24T00:00:00Z' }),
+			sum({ failed: 1, lastCheckAt: at }),
+			sum({ upToDate: 3, lastCheckAt: '2026-09-20T00:00:00Z' }),
+			sum({}),
+			undefined
+		]);
+		expect(out).toEqual({
+			withUpdates: 1,
+			failing: 1,
+			upToDate: 1,
+			unchecked: 2,
+			lastCheckAt: at
+		});
 	});
 });
