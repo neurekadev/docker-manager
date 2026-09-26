@@ -152,7 +152,7 @@ export const PRUNE_TARGETS: Record<PruneTarget, PruneTargetInfo> = {
 		title: 'Prune images',
 		what: 'unused images',
 		categories: ['dangling_images', 'unused_images'],
-		start: 'dangling_images'
+		start: 'unused_images'
 	},
 	networks: {
 		title: 'Prune networks',
@@ -174,14 +174,15 @@ export const PRUNE_TARGETS: Record<PruneTarget, PruneTargetInfo> = {
 	}
 };
 
-/** A one-off prune's safety margin: nothing younger than a day by default. */
-export const MANUAL_PRUNE_MIN_AGE_HOURS = 24;
+/** A one-off prune removes objects of any age unless the user sets one. */
+export const MANUAL_PRUNE_MIN_AGE_HOURS = 0;
 
 /**
- * Safe starting rules of a one-off prune: only the target's least
- * destructive category is on (dangling images, anonymous volumes, exited
- * or dead containers, dangling build cache), older than a day. Volume
- * rules still need their own opt-in before the prune can run.
+ * Starting rules of a one-off prune, like the Docker CLI's prunes with
+ * `--all`: exited or dead containers, every unused image (dangling ones
+ * included), unused networks, anonymous volumes and all unused build
+ * cache, of any age. Named volumes start off, and volume rules still need
+ * their own opt-in before the prune can run.
  */
 export function manualPruneRules(target: PruneTarget): MaintenanceRule[] {
 	const t = PRUNE_TARGETS[target];
@@ -189,7 +190,8 @@ export function manualPruneRules(target: PruneTarget): MaintenanceRule[] {
 		category,
 		enabled: category === t.start,
 		minAgeHours: MANUAL_PRUNE_MIN_AGE_HOURS,
-		...(category === 'stopped_containers' ? { containerStates: ['exited', 'dead'] } : {})
+		...(category === 'stopped_containers' ? { containerStates: ['exited', 'dead'] } : {}),
+		...(category === 'build_cache' ? { buildCacheAll: true } : {})
 	}));
 }
 

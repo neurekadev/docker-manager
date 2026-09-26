@@ -1,8 +1,8 @@
 <script lang="ts">
 	// One-off prune from a resource page (#14): the button and its dialog.
-	// Starts from safe rules for the page's kind (only the least
-	// destructive category on, older than a day), editable for this prune
-	// only; a preview shows exactly what goes and what is protected, then
+	// Starts from the page's usual prune (all unused images or build cache,
+	// stopped containers, unused networks, anonymous volumes; any age),
+	// editable for this prune only; a preview shows exactly what goes and what is protected, then
 	// the prune.run job runs in place. Nothing is saved: recurring prunes
 	// are policies on the Maintenance page.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';

@@ -98,14 +98,14 @@ describe('PruneButton (#14)', () => {
 		expect(screen.queryByRole('button', { name: 'Prune images' })).not.toBeInTheDocument();
 	});
 
-	it('starts safe and previews before removing anything', async () => {
+	it('starts with all unused images and previews before removing anything', async () => {
 		const user = setup();
 		const calls = mount('images');
 		await user.click(screen.getByRole('button', { name: 'Prune images' }));
 		const dialog = await screen.findByRole('dialog', { name: 'Prune images' });
 		expect(dialog).toBeInTheDocument();
-		expect(await screen.findByRole('switch', { name: 'Dangling images' })).toBeChecked();
-		expect(screen.getByRole('switch', { name: 'Unused images' })).not.toBeChecked();
+		expect(await screen.findByRole('switch', { name: 'Dangling images' })).not.toBeChecked();
+		expect(screen.getByRole('switch', { name: 'Unused images' })).toBeChecked();
 
 		await user.click(screen.getByRole('button', { name: 'Preview' }));
 		const remove = await screen.findByRole('button', { name: /^Remove 2 objects/ });
@@ -113,8 +113,8 @@ describe('PruneButton (#14)', () => {
 		expect(previewCall?.url).toBe('/api/v1/environments/env-1/prune-previews');
 		expect(previewCall?.body).toEqual({
 			rules: [
-				{ category: 'dangling_images', enabled: true, minAgeHours: 24 },
-				{ category: 'unused_images', enabled: false, minAgeHours: 24 }
+				{ category: 'dangling_images', enabled: false, minAgeHours: 0 },
+				{ category: 'unused_images', enabled: true, minAgeHours: 0 }
 			]
 		});
 		expect(calls.some((c) => c.url.endsWith('/prunes'))).toBe(false);
@@ -122,7 +122,8 @@ describe('PruneButton (#14)', () => {
 		await user.click(remove);
 		await waitFor(() => expect(calls.some((c) => c.url.endsWith('/prunes'))).toBe(true));
 		const run = calls.find((c) => c.url.endsWith('/prunes'));
-		expect(run?.body).toMatchObject({ confirm: true, rules: previewCall?.body.rules });
+		const previewed = previewCall?.body as { rules: unknown[] } | undefined;
+		expect(run?.body).toMatchObject({ confirm: true, rules: previewed?.rules });
 	});
 
 	it('does not run volume rules before their data-loss opt-in', async () => {

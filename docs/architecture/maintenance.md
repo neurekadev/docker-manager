@@ -178,11 +178,12 @@ for a single prune of one environment without a policy:
   finish hook ignores jobs without a policy.
 - A repeated `Idempotency-Key` returns the prune it started (resolved by
   the service: the input is rebuilt on every call).
-- The UI starts from safe rules (`manualPruneRules`): only the page's
-  least destructive category is on (exited or dead containers, dangling
-  images, unused networks, anonymous volumes, dangling build cache), older
-  than 24 hours; every rule's options can be changed for this prune. A
-  preview is required before the prune button appears.
+- The UI starts from the page's usual prune (`manualPruneRules`), like the
+  Docker CLI's prunes with `--all`: exited or dead containers, every
+  unused image (dangling ones included), unused networks, anonymous
+  volumes (named volumes off; volume rules need their opt-in) and all
+  unused build cache, of any age. Every rule's options can be changed for
+  this prune. A preview is required before the prune button appears.
 
 ## Scheduling (#13)
 

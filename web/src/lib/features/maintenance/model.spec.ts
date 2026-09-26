@@ -115,11 +115,14 @@ describe('prune rules', () => {
 });
 
 describe('one-off prunes', () => {
-	it('starts with only the least destructive category on, older than a day', () => {
+	it('starts with one category on, of any age: all unused images and build cache', () => {
 		const images = manualPruneRules('images');
 		expect(images.map((r) => [r.category, r.enabled, r.minAgeHours])).toEqual([
-			['dangling_images', true, 24],
-			['unused_images', false, 24]
+			['dangling_images', false, 0],
+			['unused_images', true, 0]
+		]);
+		expect(manualPruneRules('build_cache')).toEqual([
+			{ category: 'build_cache', enabled: true, minAgeHours: 0, buildCacheAll: true }
 		]);
 		expect(manualPruneRules('containers')[0].containerStates).toEqual(['exited', 'dead']);
 		const volumes = manualPruneRules('volumes');
