@@ -159,6 +159,7 @@ type Container struct {
 	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for DockYard's own containers (#32): stop, pause, update and removal are refused."`
 	View          string              `json:"view" enum:"minimal,full" doc:"full: container.details.read; minimal: identity, state and the granted actions (#17)."`
 	Actions       []string            `json:"actions" doc:"Granted container capabilities (e.g. container.restart)."`
+	Update        string              `json:"update,omitempty" enum:"ineligible,unchecked,up_to_date,update_available,quarantined,check_failed,run_failed" doc:"Latest image update state when an update policy covers this container. Full view only."`
 
 	Image     string              `json:"image,omitempty" doc:"Full view."`
 	ImageID   string              `json:"imageId,omitempty"`
@@ -441,8 +442,36 @@ func (h *dockerAPI) listContainers(ctx context.Context, in *listContainersInput)
 		return nil, err
 	}
 	out := make([]Container, 0, len(page))
+	statuses := map[string]string{}
+	if h.updates != nil {
+		policies, err := h.updates.List(ctx, sc.env.ID, "", 0)
+		if err != nil {
+			return nil, Internal(err)
+		}
+		for _, policy := range policies {
+			candidates, err := h.updates.Candidates(ctx, policy.ID)
+			if err != nil {
+				return nil, Internal(err)
+			}
+			for _, candidate := range candidates {
+				key := policy.TargetID
+				if policy.TargetType == domain.UpdateTargetStack {
+					key += "/" + candidate.Service
+				}
+				statuses[key] = string(candidate.Status)
+			}
+		}
+	}
 	for _, it := range page {
-		out = append(out, newContainer(sc.env.ID, it.c, it.v, stacks, h.instance))
+		container := newContainer(sc.env.ID, it.c, it.v, stacks, h.instance)
+		if it.v.Full() && !protocol.UpdateExcluded(it.c.Labels) {
+			key := it.c.Name
+			if it.c.Stack != nil {
+				key = stacks[it.c.Stack.Project] + "/" + it.c.Stack.Service
+			}
+			container.Update = statuses[key]
+		}
+		out = append(out, container)
 	}
 	return &listContainersOutput{Body: NewPage(out, next, total)}, nil
 }
@@ -458,6 +487,30 @@ func (h *dockerAPI) getContainer(ctx context.Context, in *ContainerPath) (*conta
 	}
 	stacks := sc.stacks(ctx, h.svc)
 	out := newContainer(sc.env.ID, d.ContainerSummary, v, stacks, h.instance)
+	if v.Full() && h.updates != nil && !protocol.UpdateExcluded(d.Labels) {
+		typ, id, service := domain.UpdateTargetContainer, d.Name, d.Name
+		if d.Stack != nil {
+			typ, id, service = domain.UpdateTargetStack, stacks[d.Stack.Project], d.Stack.Service
+		}
+		if id != "" {
+			policy, err := h.updates.ForTarget(ctx, sc.env.ID, typ, id)
+			if err != nil {
+				return nil, Internal(err)
+			}
+			if policy != nil {
+				candidates, err := h.updates.Candidates(ctx, policy.ID)
+				if err != nil {
+					return nil, Internal(err)
+				}
+				for _, candidate := range candidates {
+					if candidate.Service == service {
+						out.Update = string(candidate.Status)
+						break
+					}
+				}
+			}
+		}
+	}
 	if !v.Full() {
 		return &containerOutput{Body: out}, nil
 	}

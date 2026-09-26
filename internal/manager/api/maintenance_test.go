@@ -125,13 +125,13 @@ func maintenanceRoutes(t *testing.T) []authztest.Call {
 		switch calls[i].OperationID {
 		case "create-maintenance-policy":
 			calls[i].Body = map[string]any{"environmentId": "env-1", "name": "x"}
-		case "create-maintenance-policy-run":
+		case "create-maintenance-policy-run", "run-maintenance-environments":
 			calls[i].Body = map[string]any{"confirm": true}
 		case "update-maintenance-defaults":
 			calls[i].Body = map[string]any{"rules": []map[string]any{{"category": "build_cache", "enabled": false, "minAgeHours": 24}}}
 		}
 	}
-	if len(calls) != 9 {
+	if len(calls) != 11 {
 		t.Fatalf("maintenance routes: %+v", calls)
 	}
 	return calls

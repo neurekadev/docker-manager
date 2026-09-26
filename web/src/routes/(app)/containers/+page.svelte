@@ -39,6 +39,7 @@
 	import Toolbar from '$lib/features/resources/Toolbar.svelte';
 	import { ChangeTracker } from '$lib/features/resources/changes.svelte';
 	import { containerActions } from '$lib/features/resources/container-actions';
+	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
 	import {
 		containerStatus,
 		filterContainers,
@@ -117,6 +118,12 @@
 			width: '140px',
 			stack: 'status'
 		},
+		{
+			id: 'update',
+			header: 'Image update',
+			cell: updateCell,
+			sortValue: (c) => c.update ?? ''
+		},
 		{ id: 'stack', header: 'Stack', cell: stackCell, sortValue: (c) => c.stack?.project ?? '' },
 		...(scope.single
 			? []
@@ -159,6 +166,7 @@
 {#snippet statusCell(c: Container)}
 	<StatusBadge status={containerStatus(c)} />
 {/snippet}
+{#snippet updateCell(c: Container)}<UpdateStatusBadge status={c.update} />{/snippet}
 {#snippet stackCell(c: Container)}
 	{#if c.stack}<StackBadge stack={c.stack} />{:else}<span class="muted">Standalone</span>{/if}
 {/snippet}

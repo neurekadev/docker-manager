@@ -1,7 +1,8 @@
 # Digest-driven updates (#20)
 
-An opted-in DockYard stack (all of its services, or a list, minus
-exclusions) or DockYard-managed standalone container follows the digest
+An environment update policy covers DockYard-managed stacks and standalone
+containers in one environment or all environments, minus explicit exclusions.
+Covered targets follow the digest
 behind its **existing explicit tag**. The tag text never changes, and no
 Compose, override or env file is ever written: checks and updates are
 runtime operations on the applied definition. There is no automatic
@@ -11,8 +12,8 @@ rollback in v1.
 | --- | --- |
 | `internal/manager/updates` | Policies (CRUD, validation, target checks), the digest model (candidates), the `update.check` manager executor, previews, runs, quarantine and history (finish hooks), the scheduler sources, the policy Locator. |
 | `internal/manager/updates/eligible` | Eligibility rules shared with the stack image status (#7); corpus `testdata/corpus.yaml`. |
-| `internal/manager/store` (`updates.go`) | `update_policies`, `update_candidates`, `update_quarantine`, `update_history` (migration `20260926001853_create_update_policies`). |
-| `internal/manager/api` (`updates.go`) | `/api/v1/update-policies...` and `GET /environments/{id}/containers/{id}/image-status`; `GET /stacks/{id}/image-status` shows the policy's state per service. |
+| `internal/manager/store` (`updates.go`, `environment_updates.go`) | Environment policy configuration, managed target records, candidates, quarantine and history. |
+| `internal/manager/api` (`environment_updates.go`, `updates.go`) | `/api/v1/environment-update-policies...`; target records are read-only through `/api/v1/update-policies...`. Image status is shown for containers and stack services. |
 | `internal/agent/stacks` (`update.go`) | The `update.run` executor (stacks and standalone containers). |
 | `internal/agent/lifecycle` (`update.go`) | `Update` (stop / recreate / start preserving the prior running state) and `Confirm` (health confirmation). |
 | `internal/agent/compose` | `Adapter.Create`: the Compose SDK's convergence without starting (recreates what diverged, e.g. a changed image ID). |
@@ -20,16 +21,24 @@ rollback in v1.
 
 ## Policies
 
-One policy per target (`409 update_policy_target_used`):
+Policies are scoped to **All Environments** or a **Single Environment**.
+Overlapping scopes are rejected (`409 update_scope_overlap`). The target
+records are created and refreshed as stacks and containers are discovered;
+users configure the environment policy, not those records. A policy may
+exclude stack IDs and standalone container names (an all-environments policy
+uses `environmentID/containerName`). A container with
+`dockyard.update.exclude=true` is also omitted.
 
-- **stack**: every service, or `services` (opt-in list), minus
-  `excludeServices`. DockYard's own Compose project is refused (#32).
+Covered targets:
+
+- **stack**: every service of every covered managed stack. DockYard's own
+  Compose project is refused (#32).
 - **container**: a DockYard-managed standalone container with a saved
   recreate specification (#6 `ManagedSpec`). Unmanaged containers, stack
   members and DockYard's own containers are refused
   (`409 update_target_ineligible`): they are never recreated automatically.
 
-Each policy has a **check schedule** (`update_check`, default `0 3 * * *`)
+Each environment policy has a **check schedule** (`update_check`, default `0 3 * * *`)
 and a **run schedule** (`update_run`, default `0 4 * * *`) from the #13
 instance defaults, each with its own expression, IANA zone and enabled
 flag. **Both start disabled**: nothing is checked or updated automatically
@@ -39,17 +48,10 @@ scheduled runs; the run source refuses runs outside it when due and again
 at dispatch (`outside_update_window`). Manual checks and runs are explicit
 user actions and ignore schedules and the window.
 
-**Migrated stacks (#35).** A stack policy follows its stack to another
-environment: `Service.StackMoved` is registered with
-`Migrations().OnStackMoved` and runs in the transaction that completes the
-migration. The policy keeps its ID (permission rules follow it),
-schedules, window, history and quarantined digests; its environment
-becomes the destination (so scheduled checks and runs are not refused as
-`target_not_found`), its candidates are reset to `unchecked` (only a new
-check, for the destination's platform, makes a digest runnable again) and
-a name already used in the destination gets a ` (moved)` suffix. The move
-is audited as `update_policy.move`. Policies on DockYard's own project and
-on standalone containers never move (containers are not migrated).
+**Migrated stacks (#35).** A moved stack is covered by the destination
+environment's policy on the next check. A policy scoped to its former
+environment no longer covers it. A fresh check establishes the destination's
+image baseline before any update can run.
 
 ## Eligibility (`eligible.Check`)
 
@@ -204,13 +206,11 @@ for overlap prevention.
 | `update.check` | checks and previews |
 | `update.run` | runs |
 
-Policies are located in their environment below their stack (or
-container). `update.check` and `update.run` are granted instance-wide, per
-environment, stack or container — the jobs' targets, on which the job
-engine checks them again — and a stack or container grant also covers its
-policy (shown minimally). Creating a
-policy also requires seeing its target. Other capabilities show id, name,
-environment and target.
+Single-environment policy capabilities can be granted in that environment;
+an All Environments policy requires the owner-only
+`update_policy.manage_all` capability. Target jobs carry the environment
+policy ID and are authorized again by the job engine against their stack or
+container target.
 
 ## Tests
 

@@ -199,6 +199,13 @@ type BackupRetention struct {
 type BackupPolicy struct {
 	ID   string
 	Name string
+	// EnvironmentID is empty for All Environments. Every managed stack and
+	// standalone volume in scope is selected at preview/run time.
+	EnvironmentID string
+	ExcludeStacks []string
+	// ExcludeVolumes contains names for a single environment and
+	// environmentID/volumeName for All Environments.
+	ExcludeVolumes []string
 	// RepositoryID is the destination of every scope; EnvironmentRepos
 	// overrides it per environment (local repositories live on each
 	// environment's own agent).
@@ -320,6 +327,7 @@ var (
 	ErrBackupRepositoryInUse    = errors.New("backup repository is used by a policy")
 	ErrBackupPolicyNotFound     = errors.New("backup policy not found")
 	ErrBackupPolicyNameUsed     = errors.New("backup policy name is taken")
+	ErrBackupScopeOverlap       = errors.New("a backup policy already covers this environment")
 	ErrBackupNotFound           = errors.New("backup not found")
 	ErrBackupSetNotFound        = errors.New("backup set not found")
 	// ErrRecoveryKeyMismatch: the re-entered Recovery Key does not match.

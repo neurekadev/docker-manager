@@ -65,7 +65,7 @@ func TestBackupImportFromARemountedLocalRepository(t *testing.T) {
 	var pol struct {
 		ID string `json:"id"`
 	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Manager", "repositoryId": id,
+	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Manager", "scope": "all", "repositoryId": id,
 		"includeManagerState": true}).json(t, &pol)
 	if jobs := old.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil)); len(jobs) != 1 {
 		t.Fatalf("jobs %v", jobs)
@@ -192,9 +192,8 @@ func TestBackupImportIntoAFreshManager(t *testing.T) {
 	var pol struct {
 		ID string `json:"id"`
 	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Nightly", "repositoryId": id,
-		"includeManagerState": true, "stacks": []map[string]any{{"stackId": stackProd}, {"stackId": stackEdge}},
-		"volumes": []map[string]any{{"environmentId": prod.agent.env, "volume": "uploads"}, {"environmentId": edge.agent.env, "volume": "uploads"}},
+	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Nightly", "scope": "all", "repositoryId": id,
+		"includeManagerState": true,
 	}).json(t, &pol)
 	if jobs := old.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil)); len(jobs) != 3 {
 		t.Fatalf("jobs %v", jobs)

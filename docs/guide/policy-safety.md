@@ -9,7 +9,7 @@ itself, so they keep working when the user who created them leaves.
 
 | Policy | Starts | Needs before it acts |
 | --- | --- | --- |
-| Image updates (per stack or managed container) | check and run schedules **off** | an enabled policy, a successful digest check, then a run |
+| Image updates (all environments or one environment, with target exclusions) | check and run schedules **off** | an enabled policy, a successful digest check, then a run |
 | Docker prune | every rule and the schedule **off**; volume rules need their own opt-in | an enabled rule; manual runs need a confirmation |
 | Backups | schedule **off**, container shutdown **off** | a confirmed Recovery Key and an enabled schedule (or *Back up now*) |
 | Repository verification | suggested weekly, per repository | an enabled schedule |

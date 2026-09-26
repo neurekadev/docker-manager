@@ -9,6 +9,7 @@
 	import {
 		capacityQuery,
 		stackMetricsQuery,
+		stackImageStatusQuery,
 		stackServicesQuery
 	} from '$lib/features/stacks/queries';
 	import ServicesTable from '$lib/features/stacks/ServicesTable.svelte';
@@ -22,6 +23,7 @@
 	const title = $derived(stackTitle(stack));
 
 	const services = createQuery(() => ({ ...stackServicesQuery(ctx.id), enabled: full }));
+	const imageStatuses = createQuery(() => ({ ...stackImageStatusQuery(ctx.id), enabled: full }));
 	const containerNames = $derived(
 		(services.data?.services ?? [])
 			.flatMap((s) => s.containers.map((c) => c.name ?? ''))
@@ -150,6 +152,7 @@
 			<ServicesTable
 				{stack}
 				services={ordered}
+				imageStatuses={imageStatuses.data}
 				{usage}
 				serviceAddress={ctx.environment?.serviceAddress}
 				onoperate={ask}

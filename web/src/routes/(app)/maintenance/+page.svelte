@@ -70,7 +70,9 @@
 		<Badge tone={n ? 'accent' : 'neutral'}>{n} of 7</Badge>
 	{:else}<span class="muted">—</span>{/if}
 {/snippet}
-{#snippet envCell(p: MaintenancePolicy)}{environmentName(envs.data, p.environmentId)}{/snippet}
+{#snippet envCell(p: MaintenancePolicy)}{p.scope === 'all'
+		? 'All Environments'
+		: environmentName(envs.data, p.environmentId)}{/snippet}
 {#snippet scheduleCell(p: MaintenancePolicy)}
 	{#if p.schedule}<ScheduleSummary compact {...p.schedule} />{:else}<span class="muted">—</span
 		>{/if}

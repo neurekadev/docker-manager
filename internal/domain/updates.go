@@ -44,7 +44,11 @@ type UpdateWindow struct {
 
 // UpdatePolicy opts one target into digest-driven updates.
 type UpdatePolicy struct {
-	ID            string
+	ID string
+	// ParentID identifies the environment policy that manages this target.
+	// Empty marks a policy created before environment policies existed.
+	ParentID      string
+	Inactive      bool
 	EnvironmentID string
 	Name          string
 	TargetType    UpdateTargetType
@@ -59,6 +63,26 @@ type UpdatePolicy struct {
 	Window          *UpdateWindow
 	// WaitTimeoutSeconds bounds dependency waits and the health
 	// confirmation of a run (0: the agent's default).
+	WaitTimeoutSeconds int
+	Revision           int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+// EnvironmentUpdatePolicy controls automatic updates for one environment,
+// or every environment when EnvironmentID is empty. Targets are discovered
+// when checks and runs are scheduled, so new stacks and containers are covered.
+type EnvironmentUpdatePolicy struct {
+	ID            string
+	EnvironmentID string
+	Name          string
+	ExcludeStacks []string
+	// ExcludeContainers contains container names for a single environment;
+	// global policies use environmentID/containerName pairs.
+	ExcludeContainers  []string
+	Check              UpdateSchedule
+	Run                UpdateSchedule
+	Window             *UpdateWindow
 	WaitTimeoutSeconds int
 	Revision           int64
 	CreatedAt          time.Time
@@ -256,6 +280,7 @@ var (
 	ErrUpdatePolicyNotFound   = errors.New("update policy not found")
 	ErrUpdatePolicyTargetUsed = errors.New("the target already has an update policy")
 	ErrUpdatePolicyNameTaken  = errors.New("another update policy in this environment already uses this name")
+	ErrUpdateScopeOverlap     = errors.New("an update policy already covers this environment")
 )
 
 // UpdateError is a refused update operation with a stable code.

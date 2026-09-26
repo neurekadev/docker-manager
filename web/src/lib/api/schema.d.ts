@@ -842,6 +842,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environment-update-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List environment update policies */
+        get: operations["list-environment-update-policies"];
+        put?: never;
+        /**
+         * Create an environment update policy
+         * @description Covers all environments or one environment, including future eligible stacks and DockYard-managed standalone containers. Scopes cannot overlap; schedules start disabled unless enabled.
+         */
+        post: operations["create-environment-update-policy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environment-update-policies/{policyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get an environment update policy */
+        get: operations["get-environment-update-policy"];
+        put?: never;
+        post?: never;
+        /** Delete an environment update policy */
+        delete: operations["delete-environment-update-policy"];
+        options?: never;
+        head?: never;
+        /** Edit an environment update policy */
+        patch: operations["update-environment-update-policy"];
+        trace?: never;
+    };
+    "/api/v1/environment-update-policies/{policyId}/checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check every covered target for image updates */
+        post: operations["check-environment-update-policy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environment-update-policies/{policyId}/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview updates across an environment policy */
+        post: operations["preview-environment-update-policy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environment-update-policies/{policyId}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply previewed updates across an environment policy */
+        post: operations["run-environment-update-policy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environment-update-policies/{policyId}/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List covered update targets */
+        get: operations["list-environment-update-targets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments": {
         parameters: {
             query?: never;
@@ -2380,6 +2488,40 @@ export interface paths {
         patch: operations["update-maintenance-policy"];
         trace?: never;
     };
+    "/api/v1/maintenance-policies/{policyId}/environment-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview a maintenance policy across its environments */
+        post: operations["preview-maintenance-environments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance-policies/{policyId}/environment-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run a maintenance policy across its environments */
+        post: operations["run-maintenance-environments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/maintenance-policies/{policyId}/previews": {
         parameters: {
             query?: never;
@@ -3613,11 +3755,7 @@ export interface paths {
          */
         get: operations["list-update-policies"];
         put?: never;
-        /**
-         * Create an update policy
-         * @description Opts a stack or a DockYard-managed standalone container (with a saved recreate specification) into digest-driven updates. One policy per target. Check and run schedules default to the instance's update_check/update_run defaults and are disabled until enabled: nothing is checked or updated automatically before. DockYard's own project and containers are refused (409 update_target_ineligible). 409 update_policy_target_used, update_policy_name_taken.
-         */
-        post: operations["create-update-policy"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3638,18 +3776,10 @@ export interface paths {
         get: operations["get-update-policy"];
         put?: never;
         post?: never;
-        /**
-         * Delete an update policy
-         * @description Removes the policy, its candidates, quarantine and history (the audit trail and job history stay). If-Match required.
-         */
-        delete: operations["delete-update-policy"];
+        delete?: never;
         options?: never;
         head?: never;
-        /**
-         * Edit an update policy
-         * @description Changes name, opted-in and excluded services, schedules (enable/disable, cron, zone), window and wait timeout. If-Match required. The target cannot change (create another policy).
-         */
-        patch: operations["update-update-policy"];
+        patch?: never;
         trace?: never;
     };
     "/api/v1/update-policies/{policyId}/candidates": {
@@ -4478,10 +4608,13 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
             enabled: boolean;
+            environmentId?: string;
             /** @description Per-environment repository (local repositories live on each environment's agent). */
             environmentRepositories?: {
                 [key: string]: string;
             };
+            excludeStacks: string[];
+            excludeVolumes: string[];
             id: string;
             includeManagerState: boolean;
             /** @description Include the metrics database (excluded by default). */
@@ -4494,6 +4627,8 @@ export interface components {
             /** Format: int64 */
             revision?: number;
             schedule?: components["schemas"]["BackupSchedule"];
+            /** @enum {string} */
+            scope: "all" | "environment";
             /** @description Stop the affected containers during backups (default off). */
             shutdown: boolean;
             stacks: components["schemas"]["BackupStackSelection"][];
@@ -4924,6 +5059,11 @@ export interface components {
             /** @description The Engine's description, e.g. "Up 3 hours". */
             status?: string;
             /**
+             * @description Latest image update state when an update policy covers this container. Full view only.
+             * @enum {string}
+             */
+            update?: "ineligible" | "unchecked" | "up_to_date" | "update_available" | "quarantined" | "check_failed" | "run_failed";
+            /**
              * @description full: container.details.read; minimal: identity, state and the granted actions (#17).
              * @enum {string}
              */
@@ -5320,12 +5460,14 @@ export interface components {
         };
         CreateMaintenancePolicyInputBody: {
             description?: string;
-            environmentId: string;
+            environmentId?: string;
             /** @example Weekly cleanup */
             name: string;
             /** @description Rules to set; categories not given start with the maintenance defaults (all disabled unless the defaults were changed). */
             rules?: components["schemas"]["MaintenanceRule"][];
             schedule?: components["schemas"]["MaintenanceScheduleInput"];
+            /** @enum {string} */
+            scope?: "all" | "environment";
         };
         CreateNetworkInputBody: {
             attachable?: boolean;
@@ -5413,21 +5555,6 @@ export interface components {
         CreateStackOutputBody: {
             stack: components["schemas"]["Stack"];
             validation: components["schemas"]["StackValidation"];
-        };
-        CreateUpdatePolicyInputBody: {
-            /** @description Default: the instance's update_check default, disabled. */
-            checkSchedule?: components["schemas"]["UpdateScheduleInput"];
-            environmentId: string;
-            excludeServices?: string[];
-            name: string;
-            /** @description Default: the instance's update_run default, disabled. */
-            runSchedule?: components["schemas"]["UpdateScheduleInput"];
-            /** @description Opt in only these services (default: every service). */
-            services?: string[];
-            target: components["schemas"]["UpdateTarget"];
-            /** Format: int64 */
-            waitTimeoutSeconds?: number;
-            window?: components["schemas"]["UpdateWindow"];
         };
         CreateUpdateRunInputBody: {
             /**
@@ -5829,6 +5956,26 @@ export interface components {
             /** Format: date-time */
             to: string;
         };
+        EnvironmentPolicyBody: {
+            checkSchedule?: components["schemas"]["UpdateScheduleInput"];
+            environmentId?: string;
+            excludeContainers?: string[];
+            excludeStacks?: string[];
+            name: string;
+            runSchedule?: components["schemas"]["UpdateScheduleInput"];
+            /** @enum {string} */
+            scope: "all" | "environment";
+            /** Format: int64 */
+            waitTimeoutSeconds?: number;
+            window?: components["schemas"]["UpdateWindow"];
+        };
+        EnvironmentPolicyJobsOutputBody: {
+            jobs: components["schemas"]["Job"][];
+        };
+        EnvironmentPolicyRunInputBody: {
+            /** @example e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 */
+            fingerprint: string;
+        };
         EnvironmentPreview: {
             downtime?: string;
             environmentId: string;
@@ -5838,6 +5985,19 @@ export interface components {
             errorClass?: string;
             items?: components["schemas"]["ScopePreviewItem"][];
             repositoryId: string;
+        };
+        EnvironmentPreviewOutputBody: {
+            fingerprint: string;
+            targets: components["schemas"]["EnvironmentPreviewTarget"][];
+        };
+        EnvironmentPreviewTarget: {
+            environmentId: string;
+            id: string;
+            items: components["schemas"]["UpdateCandidate"][];
+            policyId: string;
+            sourceDrift: boolean;
+            /** @enum {string} */
+            type: "stack" | "container";
         };
         EnvironmentRemovalPreview: {
             /**
@@ -5924,6 +6084,41 @@ export interface components {
             roots: components["schemas"]["SystemRoot"][];
             streams: string[];
             transport?: components["schemas"]["AgentTransport"];
+        };
+        EnvironmentTarget: {
+            candidateSummary: components["schemas"]["UpdatePolicySummary"];
+            environmentId: string;
+            id: string;
+            inactive: boolean;
+            /** @example 0190a6e0-1122-7788-aabb-ccddeeff0011 */
+            policyId: string;
+            /** @enum {string} */
+            type: "stack" | "container";
+        };
+        EnvironmentTargetsOutputBody: {
+            items: components["schemas"]["EnvironmentTarget"][];
+        };
+        EnvironmentUpdatePolicy: {
+            checkSchedule: components["schemas"]["UpdateScheduleInput"];
+            /** Format: date-time */
+            createdAt: string;
+            environmentId?: string;
+            /** @description Container names; for all environments, environmentID/containerName. */
+            excludeContainers: string[];
+            /** @description Stack IDs excluded from automatic updates. */
+            excludeStacks: string[];
+            id: string;
+            name: string;
+            /** Format: int64 */
+            revision: number;
+            runSchedule: components["schemas"]["UpdateScheduleInput"];
+            /** @enum {string} */
+            scope: "all" | "environment";
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            waitTimeoutSeconds: number;
+            window?: components["schemas"]["UpdateWindow"];
         };
         Error: {
             /**
@@ -6655,6 +6850,20 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        MaintenanceEnvironmentJobsOutputBody: {
+            jobs: components["schemas"]["Job"][];
+        };
+        MaintenanceEnvironmentPreviewItem: {
+            environmentId: string;
+            preview: components["schemas"]["PrunePreview"];
+        };
+        MaintenanceEnvironmentPreviewOutputBody: {
+            items: components["schemas"]["MaintenanceEnvironmentPreviewItem"][];
+        };
+        MaintenanceEnvironmentRunInputBody: {
+            /** @example true */
+            confirm: boolean;
+        };
         MaintenancePolicy: {
             actions: string[];
             /** Format: date-time */
@@ -6672,6 +6881,8 @@ export interface components {
             rules?: components["schemas"]["MaintenanceRule"][];
             /** @description Full view. */
             schedule?: components["schemas"]["MaintenanceSchedule"];
+            /** @enum {string} */
+            scope: "all" | "environment";
             /** Format: date-time */
             updatedAt?: string;
             /** @enum {string} */
@@ -7160,6 +7371,17 @@ export interface components {
              */
             total?: number;
         };
+        PageEnvironmentUpdatePolicy: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["EnvironmentUpdatePolicy"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageGitCredential: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["GitCredential"][];
@@ -7442,20 +7664,6 @@ export interface components {
             requiredFactors?: "none" | "totp" | "passkey" | "either" | "both";
             strictPasswords?: boolean;
         };
-        PatchUpdatePolicyInputBody: {
-            /** @description Replaces the whole schedule (cron and timeZone required). */
-            checkSchedule?: components["schemas"]["UpdateScheduleInput"];
-            /** @description Remove the update window. */
-            clearWindow?: boolean;
-            excludeServices?: string[];
-            name?: string;
-            /** @description Replaces the whole schedule (cron and timeZone required). */
-            runSchedule?: components["schemas"]["UpdateScheduleInput"];
-            services?: string[];
-            /** Format: int64 */
-            waitTimeoutSeconds?: number;
-            window?: components["schemas"]["UpdateWindow"];
-        };
         PatchUserInputBody: {
             /** @example Ada Lovelace */
             displayName?: string;
@@ -7515,9 +7723,12 @@ export interface components {
             resourceType?: string;
         };
         PolicyInputBody: {
+            environmentId?: string;
             environmentRepositories?: {
                 [key: string]: string;
             };
+            excludeStacks?: string[];
+            excludeVolumes?: string[];
             /** @description Back up the manager's state (owner only: manager backups are owner-only). */
             includeManagerState?: boolean;
             includeMetrics?: boolean;
@@ -7526,6 +7737,8 @@ export interface components {
             retention?: components["schemas"]["BackupRetention"];
             /** @description Default: the instance default of the backup kind, disabled. */
             schedule?: components["schemas"]["BackupSchedule"];
+            /** @enum {string} */
+            scope: "all" | "environment";
             shutdown?: boolean;
             stacks?: components["schemas"]["BackupStackSelection"][];
             volumes?: components["schemas"]["BackupVolumeSelection"][];
@@ -9055,9 +9268,12 @@ export interface components {
             label?: string;
         };
         UpdateBackupPolicyInputBody: {
+            environmentId?: string;
             environmentRepositories?: {
                 [key: string]: string;
             };
+            excludeStacks?: string[];
+            excludeVolumes?: string[];
             includeManagerState?: boolean;
             includeMetrics?: boolean;
             name?: string;
@@ -11818,7 +12034,14 @@ export interface operations {
                      *           ],
                      *           "createdAt": "2026-09-25T12:00:00Z",
                      *           "enabled": false,
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "environmentRepositories": {},
+                     *           "excludeStacks": [
+                     *             "example"
+                     *           ],
+                     *           "excludeVolumes": [
+                     *             "example"
+                     *           ],
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "includeManagerState": false,
                      *           "includeMetrics": false,
@@ -11866,6 +12089,7 @@ export interface operations {
                      *             "nextRun": "2026-09-25T12:00:00Z",
                      *             "timeZone": "Europe/Berlin"
                      *           },
+                     *           "scope": "all",
                      *           "shutdown": false,
                      *           "stacks": [
                      *             {
@@ -11954,7 +12178,8 @@ export interface operations {
                  *         "cron": "0 2 * * *",
                  *         "enabled": false,
                  *         "timeZone": "Europe/Berlin"
-                 *       }
+                 *       },
+                 *       "scope": "all"
                  *     }
                  */
                 "application/json": components["schemas"]["PolicyInputBody"];
@@ -11975,7 +12200,14 @@ export interface operations {
                      *       ],
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "environmentRepositories": {},
+                     *       "excludeStacks": [
+                     *         "example"
+                     *       ],
+                     *       "excludeVolumes": [
+                     *         "example"
+                     *       ],
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "includeManagerState": false,
                      *       "includeMetrics": false,
@@ -12023,6 +12255,7 @@ export interface operations {
                      *         "nextRun": "2026-09-25T12:00:00Z",
                      *         "timeZone": "Europe/Berlin"
                      *       },
+                     *       "scope": "all",
                      *       "shutdown": false,
                      *       "stacks": [
                      *         {
@@ -12131,7 +12364,14 @@ export interface operations {
                      *       ],
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "environmentRepositories": {},
+                     *       "excludeStacks": [
+                     *         "example"
+                     *       ],
+                     *       "excludeVolumes": [
+                     *         "example"
+                     *       ],
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "includeManagerState": false,
                      *       "includeMetrics": false,
@@ -12179,6 +12419,7 @@ export interface operations {
                      *         "nextRun": "2026-09-25T12:00:00Z",
                      *         "timeZone": "Europe/Berlin"
                      *       },
+                     *       "scope": "all",
                      *       "shutdown": false,
                      *       "stacks": [
                      *         {
@@ -12393,7 +12634,14 @@ export interface operations {
                      *       ],
                      *       "createdAt": "2026-09-25T12:00:00Z",
                      *       "enabled": false,
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "environmentRepositories": {},
+                     *       "excludeStacks": [
+                     *         "example"
+                     *       ],
+                     *       "excludeVolumes": [
+                     *         "example"
+                     *       ],
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "includeManagerState": false,
                      *       "includeMetrics": false,
@@ -12441,6 +12689,7 @@ export interface operations {
                      *         "nextRun": "2026-09-25T12:00:00Z",
                      *         "timeZone": "Europe/Berlin"
                      *       },
+                     *       "scope": "all",
                      *       "shutdown": false,
                      *       "stacks": [
                      *         {
@@ -13002,7 +13251,8 @@ export interface operations {
                  *           "cron": "0 2 * * *",
                  *           "enabled": false,
                  *           "timeZone": "Europe/Berlin"
-                 *         }
+                 *         },
+                 *         "scope": "all"
                  *       }
                  *     }
                  */
@@ -15249,6 +15499,1137 @@ export interface operations {
             };
         };
     };
+    "list-environment-update-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "checkSchedule": {
+                     *             "cron": "0 3 * * *",
+                     *             "enabled": false,
+                     *             "timeZone": "Europe/Berlin"
+                     *           },
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "excludeContainers": [
+                     *             "example"
+                     *           ],
+                     *           "excludeStacks": [
+                     *             "example"
+                     *           ],
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "web",
+                     *           "revision": 1,
+                     *           "runSchedule": {
+                     *             "cron": "0 3 * * *",
+                     *             "enabled": false,
+                     *             "timeZone": "Europe/Berlin"
+                     *           },
+                     *           "scope": "all",
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "waitTimeoutSeconds": 1,
+                     *           "window": {
+                     *             "days": [
+                     *               1
+                     *             ],
+                     *             "end": "05:00",
+                     *             "start": "02:00"
+                     *           }
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PageEnvironmentUpdatePolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-environment-update-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "checkSchedule": {
+                 *         "cron": "0 3 * * *",
+                 *         "enabled": false,
+                 *         "timeZone": "Europe/Berlin"
+                 *       },
+                 *       "name": "web",
+                 *       "runSchedule": {
+                 *         "cron": "0 3 * * *",
+                 *         "enabled": false,
+                 *         "timeZone": "Europe/Berlin"
+                 *       },
+                 *       "scope": "all",
+                 *       "window": {
+                 *         "end": "05:00",
+                 *         "start": "02:00"
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["EnvironmentPolicyBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "checkSchedule": {
+                     *         "cron": "0 3 * * *",
+                     *         "enabled": false,
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "excludeContainers": [
+                     *         "example"
+                     *       ],
+                     *       "excludeStacks": [
+                     *         "example"
+                     *       ],
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "web",
+                     *       "revision": 1,
+                     *       "runSchedule": {
+                     *         "cron": "0 3 * * *",
+                     *         "enabled": false,
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "scope": "all",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "waitTimeoutSeconds": 1,
+                     *       "window": {
+                     *         "days": [
+                     *           1
+                     *         ],
+                     *         "end": "05:00",
+                     *         "start": "02:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["EnvironmentUpdatePolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-environment-update-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "checkSchedule": {
+                     *         "cron": "0 3 * * *",
+                     *         "enabled": false,
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "excludeContainers": [
+                     *         "example"
+                     *       ],
+                     *       "excludeStacks": [
+                     *         "example"
+                     *       ],
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "web",
+                     *       "revision": 1,
+                     *       "runSchedule": {
+                     *         "cron": "0 3 * * *",
+                     *         "enabled": false,
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "scope": "all",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "waitTimeoutSeconds": 1,
+                     *       "window": {
+                     *         "days": [
+                     *           1
+                     *         ],
+                     *         "end": "05:00",
+                     *         "start": "02:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["EnvironmentUpdatePolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-environment-update-policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-environment-update-policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "checkSchedule": {
+                 *         "cron": "0 3 * * *",
+                 *         "enabled": false,
+                 *         "timeZone": "Europe/Berlin"
+                 *       },
+                 *       "name": "web",
+                 *       "runSchedule": {
+                 *         "cron": "0 3 * * *",
+                 *         "enabled": false,
+                 *         "timeZone": "Europe/Berlin"
+                 *       },
+                 *       "scope": "all",
+                 *       "window": {
+                 *         "end": "05:00",
+                 *         "start": "02:00"
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["EnvironmentPolicyBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "checkSchedule": {
+                     *         "cron": "0 3 * * *",
+                     *         "enabled": false,
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "excludeContainers": [
+                     *         "example"
+                     *       ],
+                     *       "excludeStacks": [
+                     *         "example"
+                     *       ],
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "web",
+                     *       "revision": 1,
+                     *       "runSchedule": {
+                     *         "cron": "0 3 * * *",
+                     *         "enabled": false,
+                     *         "timeZone": "Europe/Berlin"
+                     *       },
+                     *       "scope": "all",
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "waitTimeoutSeconds": 1,
+                     *       "window": {
+                     *         "days": [
+                     *           1
+                     *         ],
+                     *         "end": "05:00",
+                     *         "start": "02:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["EnvironmentUpdatePolicy"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "check-environment-update-policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "jobs": [
+                     *         {
+                     *           "attempt": 1,
+                     *           "blockedBy": {
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "reason": "lock"
+                     *           },
+                     *           "cancelRequested": false,
+                     *           "cancellable": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "error": {
+                     *             "class": "agent_offline",
+                     *             "message": "example",
+                     *             "recovery": "example"
+                     *           },
+                     *           "executor": "agent",
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "items": [
+                     *             {
+                     *               "message": "example",
+                     *               "name": "web",
+                     *               "status": "succeeded"
+                     *             }
+                     *           ],
+                     *           "kind": "stack.deploy",
+                     *           "locks": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "mode": "shared",
+                     *               "name": "web",
+                     *               "scope": "host"
+                     *             }
+                     *           ],
+                     *           "locksHeld": false,
+                     *           "origin": "manual",
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "progress": {
+                     *             "message": "example",
+                     *             "percent": 1,
+                     *             "step": "example"
+                     *           },
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "queued",
+                     *           "targets": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "type": "stack"
+                     *             }
+                     *           ],
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["EnvironmentPolicyJobsOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "preview-environment-update-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "fingerprint": "example",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "items": [
+                     *             {
+                     *               "candidateDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *               "candidateIndexDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *               "checkJobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "checkedAt": "2026-09-25T12:00:00Z",
+                     *               "currentDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *               "currentImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "eligible": false,
+                     *               "errorClass": "example",
+                     *               "errorMessage": "example",
+                     *               "guidance": "example",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "nonVersionTag": false,
+                     *               "platform": "example",
+                     *               "previousDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *               "reason": "build_only",
+                     *               "reasonMessage": "example",
+                     *               "reference": "nginx:1.27",
+                     *               "registry": "example",
+                     *               "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "repository": "example",
+                     *               "retryAfterSeconds": 1,
+                     *               "service": "web",
+                     *               "sourceHashAfter": "example",
+                     *               "sourceHashBefore": "example",
+                     *               "status": "ineligible",
+                     *               "tag": "example"
+                     *             }
+                     *           ],
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "sourceDrift": false,
+                     *           "type": "stack"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["EnvironmentPreviewOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "run-environment-update-policy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                 *     }
+                 */
+                "application/json": components["schemas"]["EnvironmentPolicyRunInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "jobs": [
+                     *         {
+                     *           "attempt": 1,
+                     *           "blockedBy": {
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "reason": "lock"
+                     *           },
+                     *           "cancelRequested": false,
+                     *           "cancellable": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "error": {
+                     *             "class": "agent_offline",
+                     *             "message": "example",
+                     *             "recovery": "example"
+                     *           },
+                     *           "executor": "agent",
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "items": [
+                     *             {
+                     *               "message": "example",
+                     *               "name": "web",
+                     *               "status": "succeeded"
+                     *             }
+                     *           ],
+                     *           "kind": "stack.deploy",
+                     *           "locks": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "mode": "shared",
+                     *               "name": "web",
+                     *               "scope": "host"
+                     *             }
+                     *           ],
+                     *           "locksHeld": false,
+                     *           "origin": "manual",
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "progress": {
+                     *             "message": "example",
+                     *             "percent": 1,
+                     *             "step": "example"
+                     *           },
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "queued",
+                     *           "targets": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "type": "stack"
+                     *             }
+                     *           ],
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["EnvironmentPolicyJobsOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-environment-update-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "candidateSummary": {
+                     *             "available": 1,
+                     *             "failed": 1,
+                     *             "ineligible": 1,
+                     *             "lastCheckAt": "2026-09-25T12:00:00Z",
+                     *             "quarantined": 1,
+                     *             "unchecked": 1,
+                     *             "upToDate": 1
+                     *           },
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "inactive": false,
+                     *           "policyId": "0190a6e0-1122-7788-aabb-ccddeeff0011",
+                     *           "type": "stack"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["EnvironmentTargetsOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-environments": {
         parameters: {
             query?: {
@@ -16719,6 +18100,7 @@ export interface operations {
                      *           },
                      *           "state": "running",
                      *           "status": "example",
+                     *           "update": "ineligible",
                      *           "view": "minimal"
                      *         }
                      *       ],
@@ -17110,6 +18492,7 @@ export interface operations {
                      *       },
                      *       "state": "running",
                      *       "status": "example",
+                     *       "update": "ineligible",
                      *       "view": "minimal"
                      *     }
                      */
@@ -27701,6 +29084,7 @@ export interface operations {
                      *             ],
                      *             "timeZone": "Europe/Berlin"
                      *           },
+                     *           "scope": "all",
                      *           "updatedAt": "2026-09-25T12:00:00Z",
                      *           "view": "minimal"
                      *         }
@@ -27752,7 +29136,6 @@ export interface operations {
             content: {
                 /**
                  * @example {
-                 *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                  *       "name": "Weekly cleanup",
                  *       "rules": [
                  *         {
@@ -27854,6 +29237,7 @@ export interface operations {
                      *         ],
                      *         "timeZone": "Europe/Berlin"
                      *       },
+                     *       "scope": "all",
                      *       "updatedAt": "2026-09-25T12:00:00Z",
                      *       "view": "minimal"
                      *     }
@@ -28016,6 +29400,7 @@ export interface operations {
                      *         ],
                      *         "timeZone": "Europe/Berlin"
                      *       },
+                     *       "scope": "all",
                      *       "updatedAt": "2026-09-25T12:00:00Z",
                      *       "view": "minimal"
                      *     }
@@ -28265,6 +29650,7 @@ export interface operations {
                      *         ],
                      *         "timeZone": "Europe/Berlin"
                      *       },
+                     *       "scope": "all",
                      *       "updatedAt": "2026-09-25T12:00:00Z",
                      *       "view": "minimal"
                      *     }
@@ -28328,6 +29714,264 @@ export interface operations {
             };
             /** @description Precondition Required */
             428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "preview-maintenance-environments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "preview": {
+                     *             "at": "2026-09-25T12:00:00Z",
+                     *             "bytes": 1,
+                     *             "categories": [
+                     *               {
+                     *                 "bytes": 1,
+                     *                 "category": "dangling_images",
+                     *                 "excluded": 1,
+                     *                 "items": [
+                     *                   {
+                     *                     "bytes": 1,
+                     *                     "decision": "remove",
+                     *                     "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                     "name": "web",
+                     *                     "reason": "example",
+                     *                     "since": "2026-09-25T12:00:00Z"
+                     *                   }
+                     *                 ],
+                     *                 "protected": 1,
+                     *                 "remove": 1,
+                     *                 "retained": 1,
+                     *                 "truncated": false,
+                     *                 "unknownSizes": 1
+                     *               }
+                     *             ],
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "notes": [
+                     *               "example"
+                     *             ],
+                     *             "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "remove": 1
+                     *           }
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["MaintenanceEnvironmentPreviewOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "run-maintenance-environments": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "confirm": true
+                 *     }
+                 */
+                "application/json": components["schemas"]["MaintenanceEnvironmentRunInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "jobs": [
+                     *         {
+                     *           "attempt": 1,
+                     *           "blockedBy": {
+                     *             "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "reason": "lock"
+                     *           },
+                     *           "cancelRequested": false,
+                     *           "cancellable": false,
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "error": {
+                     *             "class": "agent_offline",
+                     *             "message": "example",
+                     *             "recovery": "example"
+                     *           },
+                     *           "executor": "agent",
+                     *           "finishedAt": "2026-09-25T12:00:00Z",
+                     *           "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *           "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "items": [
+                     *             {
+                     *               "message": "example",
+                     *               "name": "web",
+                     *               "status": "succeeded"
+                     *             }
+                     *           ],
+                     *           "kind": "stack.deploy",
+                     *           "locks": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "mode": "shared",
+                     *               "name": "web",
+                     *               "scope": "host"
+                     *             }
+                     *           ],
+                     *           "locksHeld": false,
+                     *           "origin": "manual",
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "progress": {
+                     *             "message": "example",
+                     *             "percent": 1,
+                     *             "step": "example"
+                     *           },
+                     *           "startedAt": "2026-09-25T12:00:00Z",
+                     *           "state": "queued",
+                     *           "targets": [
+                     *             {
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "type": "stack"
+                     *             }
+                     *           ],
+                     *           "updatedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["MaintenanceEnvironmentJobsOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -37604,251 +39248,6 @@ export interface operations {
             };
         };
     };
-    "create-update-policy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "checkSchedule": {
-                 *         "cron": "0 3 * * *",
-                 *         "enabled": false,
-                 *         "timeZone": "Europe/Berlin"
-                 *       },
-                 *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                 *       "name": "web",
-                 *       "runSchedule": {
-                 *         "cron": "0 3 * * *",
-                 *         "enabled": false,
-                 *         "timeZone": "Europe/Berlin"
-                 *       },
-                 *       "target": {
-                 *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                 *         "type": "stack"
-                 *       },
-                 *       "window": {
-                 *         "end": "05:00",
-                 *         "start": "02:00"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["CreateUpdatePolicyInputBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    ETag?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "actions": [
-                     *         "example"
-                     *       ],
-                     *       "checkSchedule": {
-                     *         "cron": "example",
-                     *         "enabled": false,
-                     *         "invalidReason": "example",
-                     *         "nextRun": {
-                     *           "at": "2026-09-25T12:00:00Z",
-                     *           "dst": "none",
-                     *           "dstNote": "example",
-                     *           "local": "2026-03-08T02:30",
-                     *           "utc": "2026-09-25T12:00:00Z"
-                     *         },
-                     *         "recentRuns": [
-                     *           {
-                     *             "catchUp": false,
-                     *             "errorClass": "example",
-                     *             "jobs": [
-                     *               {
-                     *                 "blockedReason": "example",
-                     *                 "errorClass": "example",
-                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *                 "kind": "example",
-                     *                 "state": "example"
-                     *               }
-                     *             ],
-                     *             "missedCount": 1,
-                     *             "missedFrom": "2026-09-25T12:00:00Z",
-                     *             "outcome": "pending",
-                     *             "reason": "example",
-                     *             "result": "example",
-                     *             "scheduledFor": "2026-09-25T12:00:00Z"
-                     *           }
-                     *         ],
-                     *         "timeZone": "example"
-                     *       },
-                     *       "createdAt": "2026-09-25T12:00:00Z",
-                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "excludeServices": [
-                     *         "example"
-                     *       ],
-                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "name": "web",
-                     *       "quarantine": [
-                     *         {
-                     *           "createdAt": "2026-09-25T12:00:00Z",
-                     *           "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
-                     *           "errorClass": "example",
-                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "service": "example"
-                     *         }
-                     *       ],
-                     *       "recentHistory": [
-                     *         {
-                     *           "at": "2026-09-25T12:00:00Z",
-                     *           "errorClass": "example",
-                     *           "fromDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
-                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "outcome": "updated",
-                     *           "reference": "nginx:1.27",
-                     *           "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "service": "example",
-                     *           "sourceHashAfter": "example",
-                     *           "sourceHashBefore": "example",
-                     *           "toDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60"
-                     *         }
-                     *       ],
-                     *       "revision": 1,
-                     *       "runSchedule": {
-                     *         "cron": "example",
-                     *         "enabled": false,
-                     *         "invalidReason": "example",
-                     *         "nextRun": {
-                     *           "at": "2026-09-25T12:00:00Z",
-                     *           "dst": "none",
-                     *           "dstNote": "example",
-                     *           "local": "2026-03-08T02:30",
-                     *           "utc": "2026-09-25T12:00:00Z"
-                     *         },
-                     *         "recentRuns": [
-                     *           {
-                     *             "catchUp": false,
-                     *             "errorClass": "example",
-                     *             "jobs": [
-                     *               {
-                     *                 "blockedReason": "example",
-                     *                 "errorClass": "example",
-                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *                 "kind": "example",
-                     *                 "state": "example"
-                     *               }
-                     *             ],
-                     *             "missedCount": 1,
-                     *             "missedFrom": "2026-09-25T12:00:00Z",
-                     *             "outcome": "pending",
-                     *             "reason": "example",
-                     *             "result": "example",
-                     *             "scheduledFor": "2026-09-25T12:00:00Z"
-                     *           }
-                     *         ],
-                     *         "timeZone": "example"
-                     *       },
-                     *       "services": [
-                     *         "example"
-                     *       ],
-                     *       "summary": {
-                     *         "available": 1,
-                     *         "failed": 1,
-                     *         "ineligible": 1,
-                     *         "lastCheckAt": "2026-09-25T12:00:00Z",
-                     *         "quarantined": 1,
-                     *         "unchecked": 1,
-                     *         "upToDate": 1
-                     *       },
-                     *       "target": {
-                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *         "type": "stack"
-                     *       },
-                     *       "updatedAt": "2026-09-25T12:00:00Z",
-                     *       "view": "minimal",
-                     *       "waitTimeoutSeconds": 1,
-                     *       "window": {
-                     *         "days": [
-                     *           1
-                     *         ],
-                     *         "end": "05:00",
-                     *         "start": "02:00"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["UpdatePolicy"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
     "get-update-policy": {
         parameters: {
             query?: never;
@@ -38024,374 +39423,6 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "delete-update-policy": {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
-                "If-Match"?: string;
-            };
-            path: {
-                /** @description Update policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Precondition Failed */
-            412: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Precondition Required */
-            428: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    "update-update-policy": {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
-                "If-Match"?: string;
-            };
-            path: {
-                /** @description Update policy ID. */
-                policyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "checkSchedule": {
-                 *         "cron": "0 3 * * *",
-                 *         "enabled": false,
-                 *         "timeZone": "Europe/Berlin"
-                 *       },
-                 *       "runSchedule": {
-                 *         "cron": "0 3 * * *",
-                 *         "enabled": false,
-                 *         "timeZone": "Europe/Berlin"
-                 *       },
-                 *       "window": {
-                 *         "end": "05:00",
-                 *         "start": "02:00"
-                 *       }
-                 *     }
-                 */
-                "application/json": components["schemas"]["PatchUpdatePolicyInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    ETag?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "actions": [
-                     *         "example"
-                     *       ],
-                     *       "checkSchedule": {
-                     *         "cron": "example",
-                     *         "enabled": false,
-                     *         "invalidReason": "example",
-                     *         "nextRun": {
-                     *           "at": "2026-09-25T12:00:00Z",
-                     *           "dst": "none",
-                     *           "dstNote": "example",
-                     *           "local": "2026-03-08T02:30",
-                     *           "utc": "2026-09-25T12:00:00Z"
-                     *         },
-                     *         "recentRuns": [
-                     *           {
-                     *             "catchUp": false,
-                     *             "errorClass": "example",
-                     *             "jobs": [
-                     *               {
-                     *                 "blockedReason": "example",
-                     *                 "errorClass": "example",
-                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *                 "kind": "example",
-                     *                 "state": "example"
-                     *               }
-                     *             ],
-                     *             "missedCount": 1,
-                     *             "missedFrom": "2026-09-25T12:00:00Z",
-                     *             "outcome": "pending",
-                     *             "reason": "example",
-                     *             "result": "example",
-                     *             "scheduledFor": "2026-09-25T12:00:00Z"
-                     *           }
-                     *         ],
-                     *         "timeZone": "example"
-                     *       },
-                     *       "createdAt": "2026-09-25T12:00:00Z",
-                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "excludeServices": [
-                     *         "example"
-                     *       ],
-                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "name": "web",
-                     *       "quarantine": [
-                     *         {
-                     *           "createdAt": "2026-09-25T12:00:00Z",
-                     *           "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
-                     *           "errorClass": "example",
-                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "service": "example"
-                     *         }
-                     *       ],
-                     *       "recentHistory": [
-                     *         {
-                     *           "at": "2026-09-25T12:00:00Z",
-                     *           "errorClass": "example",
-                     *           "fromDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
-                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "outcome": "updated",
-                     *           "reference": "nginx:1.27",
-                     *           "registryConnectionId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *           "service": "example",
-                     *           "sourceHashAfter": "example",
-                     *           "sourceHashBefore": "example",
-                     *           "toDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60"
-                     *         }
-                     *       ],
-                     *       "revision": 1,
-                     *       "runSchedule": {
-                     *         "cron": "example",
-                     *         "enabled": false,
-                     *         "invalidReason": "example",
-                     *         "nextRun": {
-                     *           "at": "2026-09-25T12:00:00Z",
-                     *           "dst": "none",
-                     *           "dstNote": "example",
-                     *           "local": "2026-03-08T02:30",
-                     *           "utc": "2026-09-25T12:00:00Z"
-                     *         },
-                     *         "recentRuns": [
-                     *           {
-                     *             "catchUp": false,
-                     *             "errorClass": "example",
-                     *             "jobs": [
-                     *               {
-                     *                 "blockedReason": "example",
-                     *                 "errorClass": "example",
-                     *                 "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *                 "kind": "example",
-                     *                 "state": "example"
-                     *               }
-                     *             ],
-                     *             "missedCount": 1,
-                     *             "missedFrom": "2026-09-25T12:00:00Z",
-                     *             "outcome": "pending",
-                     *             "reason": "example",
-                     *             "result": "example",
-                     *             "scheduledFor": "2026-09-25T12:00:00Z"
-                     *           }
-                     *         ],
-                     *         "timeZone": "example"
-                     *       },
-                     *       "services": [
-                     *         "example"
-                     *       ],
-                     *       "summary": {
-                     *         "available": 1,
-                     *         "failed": 1,
-                     *         "ineligible": 1,
-                     *         "lastCheckAt": "2026-09-25T12:00:00Z",
-                     *         "quarantined": 1,
-                     *         "unchecked": 1,
-                     *         "upToDate": 1
-                     *       },
-                     *       "target": {
-                     *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *         "type": "stack"
-                     *       },
-                     *       "updatedAt": "2026-09-25T12:00:00Z",
-                     *       "view": "minimal",
-                     *       "waitTimeoutSeconds": 1,
-                     *       "window": {
-                     *         "days": [
-                     *           1
-                     *         ],
-                     *         "end": "05:00",
-                     *         "start": "02:00"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["UpdatePolicy"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Precondition Failed */
-            412: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Precondition Required */
-            428: {
                 headers: {
                     [name: string]: unknown;
                 };

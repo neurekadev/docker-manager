@@ -614,6 +614,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	// Container update policies read containers, saved recreate
 	// specifications and protection through the resource service (#6, #32).
 	m.updates.SetResources(m.resources)
+	m.backups.SetVolumes(m.resources)
 	hub.AddReconciler(func(ctx context.Context, s *agents.Session) error {
 		// Self-protection (#32): the agent learns which manager it serves
 		// and which container is that manager (co-located or not).

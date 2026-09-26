@@ -32,6 +32,7 @@
 	import MetricChart from '$lib/features/resources/MetricChart.svelte';
 	import { joinCommand, portHref, portText, uniquePorts } from '$lib/features/resources/model';
 	import { can } from '$lib/features/resources/permissions';
+	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
 	type Mount = NonNullable<Container['mounts']>[number];
@@ -177,6 +178,7 @@
 {#snippet mountMode(m: Mount)}{m.readOnly ? 'Read-only' : 'Read-write'}{/snippet}
 
 {#if c}
+	{#if c.update}<div class="update-status"><UpdateStatusBadge status={c.update} /></div>{/if}
 	{#if c.view !== 'full'}
 		<Notice tone="info" title="You can see this container's status" live="none">
 			Its configuration needs the "View container details" permission. Ask the owner of this
@@ -406,6 +408,9 @@
 {/if}
 
 <style>
+	.update-status {
+		margin-bottom: var(--space-4);
+	}
 	.kpis {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));

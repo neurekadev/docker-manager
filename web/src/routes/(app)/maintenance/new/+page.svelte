@@ -33,6 +33,9 @@
 			level={2}
 		/>
 	{:else}
-		<PolicyForm environmentId={environmentSelection.id} />
+		<PolicyForm
+			environmentId={environmentSelection.id}
+			allowAll={can(accessOf(perms.data), 'maintenance_policy.manage_all')}
+		/>
 	{/if}
 </Page>

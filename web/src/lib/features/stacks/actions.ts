@@ -2,7 +2,7 @@
 // job carries a fresh Idempotency-Key (a retried click never runs twice);
 // edits carry If-Match with the stack's revision. Callers invalidate the
 // affected queries (stackKeys) after success; nothing retries on its own.
-import { api, unwrap, unwrapEmpty, type ApiClient, type Job, type Schema } from '$lib/api/client';
+import { api, unwrap, type ApiClient, type Job, type Schema } from '$lib/api/client';
 import type { Stack } from './queries';
 
 export type DeployMode = 'deploy' | 'pull' | 'build';
@@ -220,40 +220,6 @@ export async function restartSource(
 }
 
 // Updates (#20).
-
-export function createUpdatePolicy(
-	body: Schema<'CreateUpdatePolicyInputBody'>,
-	client: ApiClient = api
-): Promise<Schema<'UpdatePolicy'>> {
-	return unwrap(client.POST('/api/v1/update-policies', { body }));
-}
-
-export function patchUpdatePolicy(
-	policy: Pick<Schema<'UpdatePolicy'>, 'id' | 'revision'>,
-	body: Schema<'PatchUpdatePolicyInputBody'>,
-	client: ApiClient = api
-): Promise<Schema<'UpdatePolicy'>> {
-	return unwrap(
-		client.PATCH('/api/v1/update-policies/{policyId}', {
-			params: {
-				path: { policyId: policy.id },
-				header: { 'If-Match': etag(policy.revision) }
-			},
-			body
-		})
-	);
-}
-
-export async function deleteUpdatePolicy(
-	policy: Pick<Schema<'UpdatePolicy'>, 'id' | 'revision'>,
-	client: ApiClient = api
-): Promise<void> {
-	await unwrapEmpty(
-		client.DELETE('/api/v1/update-policies/{policyId}', {
-			params: { path: { policyId: policy.id }, header: { 'If-Match': etag(policy.revision) } }
-		})
-	);
-}
 
 export function checkUpdates(policyId: string, client: ApiClient = api): Promise<Job> {
 	return unwrap(

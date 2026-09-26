@@ -28,8 +28,9 @@
 
 	let {
 		policy,
-		environmentId: initialEnv = null
-	}: { policy?: MaintenancePolicy; environmentId?: string | null } = $props();
+		environmentId: initialEnv = null,
+		allowAll = true
+	}: { policy?: MaintenancePolicy; environmentId?: string | null; allowAll?: boolean } = $props();
 
 	const qc = useQueryClient();
 	const p = untrack(() => policy);
@@ -48,6 +49,11 @@
 	let touched = $state(false);
 	let busy = $state(false);
 	let error = $state<unknown>(null);
+	$effect(() => {
+		if (!editing && !allowAll && !environmentId) {
+			environmentId = (envs.data ?? []).find((e) => e.status !== 'archived')?.id ?? '';
+		}
+	});
 
 	// A new policy starts with the instance defaults.
 	let seeded = false;
@@ -59,25 +65,21 @@
 		cron = d.cron;
 		zone = d.timeZone;
 	});
-	$effect(() => {
-		if (!environmentId && envs.data?.length === 1) environmentId = envs.data[0].id;
-	});
 
 	useUnsaved(
 		() => `Maintenance policy ${name || 'draft'}`,
 		() => touched && !busy
 	);
 
-	const envOptions = $derived(
-		(envs.data ?? [])
+	const envOptions = $derived([
+		...(allowAll || p?.environmentId === '' ? [{ value: '', label: 'All Environments' }] : []),
+		...(envs.data ?? [])
 			.filter((e) => e.status !== 'archived')
 			.map((e) => ({ value: e.id, label: e.online ? e.name : `${e.name} (offline)` }))
-	);
+	]);
 	const fields = $derived(fieldErrors(error));
 	const problems = $derived(rules.map(ruleProblem).filter(Boolean));
-	const canSave = $derived(
-		!!name.trim() && !!environmentId && problems.length === 0 && !!cron.trim()
-	);
+	const canSave = $derived(!!name.trim() && problems.length === 0 && !!cron.trim());
 
 	// Without settings.read the defaults are unknown here: send only the
 	// rules the user changed and let the server start the rest from them.
@@ -104,6 +106,7 @@
 							name: name.trim(),
 							description: description.trim() || undefined,
 							environmentId,
+							scope: environmentId ? 'environment' : 'all',
 							rules: createRules(),
 							schedule
 						}
@@ -174,15 +177,15 @@
 				/>
 				{#if editing}
 					<p class="muted">
-						Runs on one environment; create another policy for a different one.
+						Runs on {environmentId ? 'one environment' : 'All Environments'}. Create
+						another policy to change scope.
 					</p>
 				{:else}
 					<Select
 						label="Environment"
 						options={envOptions}
 						bind:value={environmentId}
-						placeholder="Choose an environment"
-						required
+						placeholder="All Environments"
 						error={fields['body.environmentId']}
 					/>
 				{/if}

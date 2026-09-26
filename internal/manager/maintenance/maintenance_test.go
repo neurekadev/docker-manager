@@ -191,11 +191,33 @@ func TestDefaultsAreSafe(t *testing.T) {
 	if again, _ := f.svc.Get(f.ctx, p.ID); len(domain.EnabledRules(again.Rules)) != 0 {
 		t.Fatal("changing the defaults changed an existing policy")
 	}
-	if p2 := f.create(t, "env-1"); len(domain.EnabledRules(p2.Rules)) != 1 || p2.Rules[0].MinAge != time.Hour {
+	if p2 := f.create(t, "env-2"); len(domain.EnabledRules(p2.Rules)) != 1 || p2.Rules[0].MinAge != time.Hour {
 		t.Fatalf("policy after the defaults changed: %+v", p2.Rules)
 	}
 	if _, _, err := f.svc.UpdateDefaults(f.ctx, 1, nil); !errors.Is(err, domain.ErrRevisionMismatch) {
 		t.Fatalf("stale defaults update: %v", err)
+	}
+}
+
+func TestAllEnvironmentsPolicyFansOutWithoutOverlap(t *testing.T) {
+	f := newFixture(t)
+	rule := domain.MaintenanceRule{Category: domain.PruneDanglingImages, Enabled: true, MinAge: time.Hour}
+	p := f.create(t, "", rule)
+	if _, err := f.svc.Create(f.ctx, domain.MaintenancePolicyCreate{EnvironmentID: "env-1", Name: "overlap", Rules: []domain.MaintenanceRule{rule}}); !errors.Is(err, domain.ErrMaintenanceScopeOverlap) {
+		t.Fatalf("overlapping policy: %v", err)
+	}
+	previews, err := f.svc.PreviewEnvironments(f.ctx, p)
+	if err != nil || len(previews) != 2 {
+		t.Fatalf("previews %+v: %v", previews, err)
+	}
+	on := true
+	_, p, err = f.svc.Update(f.ctx, p.ID, p.Revision, domain.MaintenancePolicyPatch{ScheduleEnabled: &on})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqs, err := f.svc.PolicySource().Jobs(f.ctx, scheduler.Due{PolicyID: p.ID})
+	if err != nil || len(reqs) != 2 || reqs[0].EnvironmentID == reqs[1].EnvironmentID {
+		t.Fatalf("scheduled requests %+v: %v", reqs, err)
 	}
 }
 
@@ -258,8 +280,8 @@ func TestRuleValidation(t *testing.T) {
 	}
 	f.create(t, "env-1")
 	p, _ := f.svc.List(f.ctx, "env-1", "", 0)
-	if _, err := f.svc.Create(f.ctx, domain.MaintenancePolicyCreate{EnvironmentID: "env-1", Name: p[0].Name}); !errors.Is(err, domain.ErrMaintenancePolicyNameTaken) {
-		t.Errorf("duplicate name: %v", err)
+	if _, err := f.svc.Create(f.ctx, domain.MaintenancePolicyCreate{EnvironmentID: "env-1", Name: p[0].Name}); !errors.Is(err, domain.ErrMaintenanceScopeOverlap) {
+		t.Errorf("overlapping scope: %v", err)
 	}
 }
 

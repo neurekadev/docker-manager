@@ -168,6 +168,7 @@ type MaintenanceDefaults struct {
 var (
 	ErrMaintenancePolicyNotFound  = errors.New("maintenance policy not found")
 	ErrMaintenancePolicyNameTaken = errors.New("maintenance policy name taken")
+	ErrMaintenanceScopeOverlap    = errors.New("a maintenance policy already covers this environment")
 	// ErrMaintenancePolicyEmpty: a run needs at least one enabled rule.
 	ErrMaintenancePolicyEmpty = errors.New("the maintenance policy has no enabled rule")
 )

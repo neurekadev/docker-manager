@@ -2,10 +2,38 @@
 // 'policies' (resource type update_policy): a policy change or a finished
 // check/run job refreshes these keys.
 import { queryOptions } from '@tanstack/svelte-query';
-import { api, unwrap, type ApiClient } from '$lib/api/client';
+import { api, unwrap, type ApiClient, type Schema } from '$lib/api/client';
 import { liveKeys } from '$lib/live/keys';
 import { fetchAllPages } from '$lib/features/common/data';
 import type { UpdateCandidate, UpdatePolicy } from './model';
+
+export type EnvironmentUpdatePolicy = Schema<'EnvironmentUpdatePolicy'>;
+export const environmentUpdateKeys = {
+	list: () => liveKeys.list('policies', 'environment-updates'),
+	detail: (id: string) => liveKeys.item('policies', 'environment-update', id),
+	targets: (id: string) => liveKeys.item('policies', 'environment-update-targets', id)
+};
+
+export function environmentUpdatePoliciesQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: environmentUpdateKeys.list(),
+		queryFn: async ({ signal }): Promise<EnvironmentUpdatePolicy[]> =>
+			(await unwrap(client.GET('/api/v1/environment-update-policies', { signal }))).items
+	});
+}
+
+export function environmentUpdatePolicyQuery(id: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: environmentUpdateKeys.detail(id),
+		queryFn: ({ signal }): Promise<EnvironmentUpdatePolicy> =>
+			unwrap(
+				client.GET('/api/v1/environment-update-policies/{policyId}', {
+					params: { path: { policyId: id } },
+					signal
+				})
+			)
+	});
+}
 
 export const updateKeys = {
 	list: (environmentId: string | null) =>

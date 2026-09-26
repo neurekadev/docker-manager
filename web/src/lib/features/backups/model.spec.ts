@@ -105,18 +105,11 @@ describe('backup sets', () => {
 	});
 
 	it('describes what a policy backs up', () => {
-		expect(
-			scopeText({ includeManagerState: true, stacks: [{ stackId: 'a' }], volumes: [] })
-		).toBe('the manager state and 1 stack');
-		expect(
-			scopeText({
-				includeManagerState: true,
-				stacks: [{ stackId: 'a' }, { stackId: 'b' }],
-				volumes: [{ environmentId: 'e', volume: 'v' }]
-			})
-		).toBe('the manager state, 2 stacks and 1 volume');
-		expect(scopeText({ includeManagerState: false, stacks: [], volumes: [] })).toBe(
-			'nothing yet'
+		expect(scopeText({ includeManagerState: true, scope: 'all' })).toBe(
+			'all environments and the manager state'
+		);
+		expect(scopeText({ includeManagerState: false, scope: 'environment' })).toBe(
+			'one environment'
 		);
 	});
 });

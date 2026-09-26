@@ -25,6 +25,8 @@ type updatePolicyRow struct {
 	bun.BaseModel `bun:"table:update_policies"`
 
 	ID                 string    `bun:"id,pk"`
+	ParentID           string    `bun:"parent_id,notnull"`
+	Active             int       `bun:"active,notnull"`
 	EnvironmentID      string    `bun:"environment_id,notnull"`
 	Name               string    `bun:"name,notnull"`
 	NameKey            string    `bun:"name_key,notnull"`
@@ -57,7 +59,7 @@ func fromUpdatePolicy(p *domain.UpdatePolicy) updatePolicyRow {
 	if excluded == nil {
 		excluded = []string{}
 	}
-	return updatePolicyRow{ID: p.ID, EnvironmentID: p.EnvironmentID, Name: p.Name, NameKey: NameKey(p.Name), TargetType: string(p.TargetType),
+	return updatePolicyRow{ID: p.ID, ParentID: p.ParentID, Active: b2i(!p.Inactive), EnvironmentID: p.EnvironmentID, Name: p.Name, NameKey: NameKey(p.Name), TargetType: string(p.TargetType),
 		TargetID: p.TargetID, Services: mustJSON(services), ExcludeServices: mustJSON(excluded), CheckCron: p.Check.Cron,
 		CheckTimeZone: p.Check.TimeZone, CheckEnabled: b2i(p.Check.Enabled), RunCron: p.Run.Cron, RunTimeZone: p.Run.TimeZone,
 		RunEnabled: b2i(p.Run.Enabled), RunWindow: window, WaitTimeoutSeconds: p.WaitTimeoutSeconds, Revision: p.Revision,
@@ -65,7 +67,7 @@ func fromUpdatePolicy(p *domain.UpdatePolicy) updatePolicyRow {
 }
 
 func (r updatePolicyRow) toDomain() domain.UpdatePolicy {
-	p := domain.UpdatePolicy{ID: r.ID, EnvironmentID: r.EnvironmentID, Name: r.Name, TargetType: domain.UpdateTargetType(r.TargetType),
+	p := domain.UpdatePolicy{ID: r.ID, ParentID: r.ParentID, Inactive: r.Active == 0, EnvironmentID: r.EnvironmentID, Name: r.Name, TargetType: domain.UpdateTargetType(r.TargetType),
 		TargetID: r.TargetID, Check: domain.UpdateSchedule{Cron: r.CheckCron, TimeZone: r.CheckTimeZone, Enabled: r.CheckEnabled == 1},
 		Run:                domain.UpdateSchedule{Cron: r.RunCron, TimeZone: r.RunTimeZone, Enabled: r.RunEnabled == 1},
 		WaitTimeoutSeconds: r.WaitTimeoutSeconds, Revision: r.Revision, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC()}
@@ -177,7 +179,7 @@ func ListUpdatePolicies(ctx context.Context, db bun.IDB, environmentID, afterID 
 // container name) in an environment ("" = any).
 func UpdatePoliciesForTarget(ctx context.Context, db bun.IDB, environmentID string, typ domain.UpdateTargetType, targetID string) ([]domain.UpdatePolicy, error) {
 	var rows []updatePolicyRow
-	q := db.NewSelect().Model(&rows).Where("target_type = ?", string(typ)).Where("target_id = ?", targetID).Order("id ASC")
+	q := db.NewSelect().Model(&rows).Where("target_type = ?", string(typ)).Where("target_id = ?", targetID).Where("active = 1").Order("id ASC")
 	if environmentID != "" {
 		q = q.Where("environment_id = ?", environmentID)
 	}
@@ -187,6 +189,20 @@ func UpdatePoliciesForTarget(ctx context.Context, db bun.IDB, environmentID stri
 	out := make([]domain.UpdatePolicy, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, r.toDomain())
+	}
+	return out, nil
+}
+
+// UpdatePoliciesForParent returns managed target policies, including inactive
+// targets whose history is retained after an exclusion or removal.
+func UpdatePoliciesForParent(ctx context.Context, db bun.IDB, parentID string) ([]domain.UpdatePolicy, error) {
+	var rows []updatePolicyRow
+	if err := db.NewSelect().Model(&rows).Where("parent_id = ?", parentID).Order("id ASC").Scan(ctx); err != nil {
+		return nil, fmt.Errorf("store: list managed update policies: %w", err)
+	}
+	out := make([]domain.UpdatePolicy, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.toDomain())
 	}
 	return out, nil
 }

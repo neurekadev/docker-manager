@@ -207,9 +207,9 @@ func capabilities() []Capability {
 	)
 
 	// Updates (#20).
-	// Checks and runs are jobs on the policy's stack or container: grants
-	// are scoped there (a stack grant also covers the stack's policy).
-	updateScope := res(TypeStack, TypeContainer)
+	// Environment policies authorize checks and runs in their environment;
+	// target jobs still accept grants scoped to stacks or containers.
+	updateScope := res(TypeUpdatePolicy, TypeStack, TypeContainer)
 	add(
 		normal("update_policy.read", TypeUpdatePolicy, "View update policies", "See update policies, candidates and their state.", res(TypeUpdatePolicy)),
 		adv(normal("update_policy.manage", TypeUpdatePolicy, "Manage update policies", "Create, edit and delete update policies.", res(TypeUpdatePolicy))),
@@ -283,6 +283,8 @@ func capabilities() []Capability {
 		ownerOnly("git_credential.manage", "Manage Git credentials", "Create, rotate and delete Git credentials."),
 		ownerOnly("api_tokens.manage", "Manage other users' API tokens", "List and revoke API tokens of every user."),
 		ownerOnly("manager.backup", "Back up the manager", "Back up DockYard's own state (database, keys)."),
+		ownerOnly("update_policy.manage_all", "Manage updates across all environments", "Create and change an update policy covering current and future environments."),
+		ownerOnly("maintenance_policy.manage_all", "Manage maintenance across all environments", "Create and change a maintenance policy covering current and future environments."),
 		ownerOnly("backup.import", "Import backup repositories", "Import an existing repository into a fresh manager (first-run recovery)."),
 		ownerOnly("system.restore", "Restore the manager", "Restore DockYard itself from a manager backup."),
 		ownerOnly("system.support_bundle", "Download support bundles", "Download a diagnostics bundle: versions, redacted configuration, recent logs, agent states and audit chain verification (never secrets)."),

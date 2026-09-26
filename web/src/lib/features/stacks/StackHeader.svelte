@@ -372,7 +372,7 @@
 {/if}
 
 {#if canUpdate}
-	<UpdateDrawer bind:open={updating} {stack} {tray} />
+	<UpdateDrawer bind:open={updating} {stack} />
 {/if}
 
 <style>

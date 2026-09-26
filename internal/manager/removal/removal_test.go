@@ -68,12 +68,12 @@ func (s *seed) seedEverything() {
 	s.must(store.InsertManagedContainer(s.ctx, s.db, domain.ManagedContainer{ID: ids.New(), EnvironmentID: "nas", Name: "cache",
 		CreateJobID: "job-create", CreatedAt: s.now}, "sealed"))
 	sched := domain.UpdateSchedule{Cron: "0 3 * * *", TimeZone: "UTC"}
-	for _, u := range []domain.UpdatePolicy{
-		{ID: "up-shop", EnvironmentID: "nas", Name: "Shop updates", TargetType: domain.UpdateTargetStack, TargetID: "st-shop"},
-		{ID: "up-other", EnvironmentID: "cloud", Name: "Other updates", TargetType: domain.UpdateTargetStack, TargetID: "st-other"},
+	for _, u := range []domain.EnvironmentUpdatePolicy{
+		{ID: "up-shop", EnvironmentID: "nas", Name: "NAS updates"},
+		{ID: "up-other", EnvironmentID: "cloud", Name: "Cloud updates"},
 	} {
 		u.Check, u.Run, u.Revision, u.CreatedAt, u.UpdatedAt = sched, sched, 1, s.now, s.now
-		s.must(store.InsertUpdatePolicy(s.ctx, s.db, &u))
+		s.must(store.InsertEnvironmentUpdatePolicy(s.ctx, s.db, u))
 	}
 	s.must(store.InsertMaintenancePolicy(s.ctx, s.db, &domain.MaintenancePolicy{ID: "mp-nas", EnvironmentID: "nas", Name: "Weekly prune",
 		Cron: "0 3 * * 0", TimeZone: "UTC", Revision: 1, CreatedAt: s.now, UpdatedAt: s.now}))
@@ -89,10 +89,10 @@ func (s *seed) seedEverything() {
 	}
 	s.must(store.UpsertBackupLocation(s.ctx, s.db, "repo-s3", backup.EnvironmentScope("nas"), store.LocationUpdate{Initialized: true}, s.now))
 	s.must(store.UpsertBackupLocation(s.ctx, s.db, "repo-s3", backup.EnvironmentScope("cloud"), store.LocationUpdate{Initialized: true}, s.now))
-	s.must(store.InsertBackupPolicy(s.ctx, s.db, &domain.BackupPolicy{ID: "bp-nightly", Name: "Nightly", RepositoryID: "repo-s3",
-		Stacks: []domain.BackupStackSelection{{StackID: "st-shop"}}, Cron: "0 2 * * *", TimeZone: "UTC", Revision: 1, CreatedAt: s.now, UpdatedAt: s.now}))
-	s.must(store.InsertBackupPolicy(s.ctx, s.db, &domain.BackupPolicy{ID: "bp-cloud", Name: "Cloud only", RepositoryID: "repo-s3",
-		Stacks: []domain.BackupStackSelection{{StackID: "st-other"}}, Cron: "0 2 * * *", TimeZone: "UTC", Revision: 1, CreatedAt: s.now, UpdatedAt: s.now}))
+	s.must(store.InsertBackupPolicy(s.ctx, s.db, &domain.BackupPolicy{ID: "bp-nightly", EnvironmentID: "nas", Name: "Nightly", RepositoryID: "repo-s3",
+		Cron: "0 2 * * *", TimeZone: "UTC", Revision: 1, CreatedAt: s.now, UpdatedAt: s.now}))
+	s.must(store.InsertBackupPolicy(s.ctx, s.db, &domain.BackupPolicy{ID: "bp-cloud", EnvironmentID: "cloud", Name: "Cloud only", RepositoryID: "repo-s3",
+		Cron: "0 2 * * *", TimeZone: "UTC", Revision: 1, CreatedAt: s.now, UpdatedAt: s.now}))
 	if _, err := store.InsertBackupSet(s.ctx, s.db, &domain.BackupSet{ID: "set-1", PolicyID: "bp-nightly", PolicyName: "Nightly",
 		Origin: domain.OriginScheduled, State: backup.StateComplete, StartedAt: s.now, UpdatedAt: s.now}); err != nil {
 		s.t.Fatal(err)

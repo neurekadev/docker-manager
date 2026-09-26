@@ -205,6 +205,9 @@ func (s *Service) request(ctx context.Context, pol domain.MaintenancePolicy) (jo
 // idempotency key returns the run it started; a second run while one is
 // active is refused.
 func (s *Service) Run(ctx context.Context, p authz.Principal, pol domain.MaintenancePolicy, key string) (domain.Job, error) {
+	if pol.EnvironmentID == "" {
+		return domain.Job{}, fieldErr("environmentId", "use the environment-runs endpoint for All Environments")
+	}
 	if key != "" {
 		existing, found, err := store.FindJobByIdempotencyKey(ctx, s.opts.DB, &domain.Job{IdempotencyKey: key, InitiatorUserID: p.UserID,
 			InitiatorTokenID: p.TokenID})
@@ -238,6 +241,62 @@ func (s *Service) Run(ctx context.Context, p authz.Principal, pol domain.Mainten
 	req.Principal, req.IdempotencyKey = p, key
 	j, _, err := s.opts.Jobs.Enqueue(ctx, req)
 	return j, err
+}
+
+// PreviewEnvironments previews each currently active environment in scope.
+func (s *Service) PreviewEnvironments(ctx context.Context, pol domain.MaintenancePolicy) (map[string]protocol.PrunePreviewOutput, error) {
+	envs, err := s.ScopeEnvironments(ctx, pol.EnvironmentID)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]protocol.PrunePreviewOutput, len(envs))
+	for _, env := range envs {
+		target := pol
+		target.EnvironmentID = env.ID
+		preview, err := s.Preview(ctx, target, nil, false)
+		if err != nil {
+			return nil, err
+		}
+		out[env.ID] = preview
+	}
+	return out, nil
+}
+
+// RunEnvironments starts one prune job per active environment in scope.
+func (s *Service) RunEnvironments(ctx context.Context, principal authz.Principal, pol domain.MaintenancePolicy, key string) ([]domain.Job, error) {
+	if len(domain.EnabledRules(pol.Rules)) == 0 {
+		return nil, domain.ErrMaintenancePolicyEmpty
+	}
+	envs, err := s.ScopeEnvironments(ctx, pol.EnvironmentID)
+	if err != nil {
+		return nil, err
+	}
+	if len(envs) > scheduler.MaxJobsPerRun {
+		return nil, fieldErr("environmentId", "too many environments for one run")
+	}
+	active, err := store.ActivePolicyJob(ctx, s.opts.DB, pol.ID, []domain.JobKind{jobspec.PruneRun}, nil)
+	if err != nil {
+		return nil, err
+	}
+	if active != "" {
+		return nil, &domain.MaintenanceRunActiveError{JobID: active}
+	}
+	out := make([]domain.Job, 0, len(envs))
+	for _, env := range envs {
+		target := pol
+		target.EnvironmentID = env.ID
+		req, err := s.request(ctx, target)
+		if err != nil {
+			return out, err
+		}
+		req.Principal, req.IdempotencyKey = principal, key+"/"+env.ID
+		job, _, err := s.opts.Jobs.Enqueue(ctx, req)
+		if err != nil {
+			return out, err
+		}
+		out = append(out, job)
+	}
+	return out, nil
 }
 
 // PolicySource returns the scheduler.PolicySource of prune policies
@@ -281,7 +340,7 @@ func (ps policySource) valid(ctx context.Context, policyID string) (domain.Maint
 	if !pol.ScheduleEnabled {
 		return pol, scheduler.Reject(scheduler.RejectPolicyDisabled, "the policy's schedule is disabled")
 	}
-	if _, err := ps.s.activeEnvironment(ctx, pol.EnvironmentID); err != nil {
+	if _, err := ps.s.ScopeEnvironments(ctx, pol.EnvironmentID); err != nil {
 		if errors.Is(err, domain.ErrEnvironmentNotFound) {
 			return pol, scheduler.Reject(scheduler.RejectTargetNotFound, "the policy's environment no longer exists")
 		}
@@ -301,11 +360,24 @@ func (ps policySource) Jobs(ctx context.Context, due scheduler.Due) ([]jobs.Requ
 	if err != nil {
 		return nil, err
 	}
-	req, err := ps.s.request(ctx, pol)
+	envs, err := ps.s.ScopeEnvironments(ctx, pol.EnvironmentID)
 	if err != nil {
 		return nil, err
 	}
-	return []jobs.Request{req}, nil
+	if len(envs) > scheduler.MaxJobsPerRun {
+		return nil, scheduler.Reject("too_many_environments", "too many environments for one scheduled prune")
+	}
+	out := make([]jobs.Request, 0, len(envs))
+	for _, env := range envs {
+		target := pol
+		target.EnvironmentID = env.ID
+		req, err := ps.s.request(ctx, target)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, req)
+	}
+	return out, nil
 }
 
 // onRunFinished records the latest run's summary on its policy (inside the

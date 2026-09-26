@@ -31,10 +31,13 @@
 	import type { StackOperation } from './actions';
 	import { openTarget, runningOf, servicePorts, serviceUsage, type StackUsage } from './model';
 	import type { Stack, StackServiceStatus } from './queries';
+	import type { StackImageStatus } from './queries';
+	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
 
 	interface Props {
 		stack: Stack;
 		services: StackServiceStatus[];
+		imageStatuses?: StackImageStatus[];
 		usage: StackUsage | null;
 		serviceAddress?: string;
 		/** Starts start/stop/restart of one service (after confirming). */
@@ -42,7 +45,15 @@
 		readOnly?: boolean;
 	}
 
-	let { stack, services, usage, serviceAddress, onoperate, readOnly = false }: Props = $props();
+	let {
+		stack,
+		services,
+		imageStatuses = [],
+		usage,
+		serviceAddress,
+		onoperate,
+		readOnly = false
+	}: Props = $props();
 	const can = (a: string) => stack.actions.includes(a);
 
 	function statusOf(s: StackServiceStatus): string {
@@ -120,6 +131,12 @@
 			width: '120px'
 		},
 		{
+			id: 'update',
+			header: 'Image update',
+			cell: updateCell,
+			sortValue: (s) => imageStatuses.find((i) => i.service === s.name)?.update ?? ''
+		},
+		{
 			id: 'containers',
 			header: 'Containers',
 			cell: containersCell,
@@ -173,6 +190,9 @@
 	</span>
 {/snippet}
 {#snippet statusCell(s: StackServiceStatus)}<StatusBadge status={statusOf(s)} />{/snippet}
+{#snippet updateCell(s: StackServiceStatus)}
+	<UpdateStatusBadge status={imageStatuses.find((i) => i.service === s.name)?.update} />
+{/snippet}
 {#snippet containersCell(s: StackServiceStatus)}
 	{@const r = runningOf(s)}
 	<span class="num" class:ok={r.total > 0 && r.running === r.total}>{r.running} / {r.total}</span>

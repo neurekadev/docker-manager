@@ -14,6 +14,28 @@ func fieldOf(err error) string {
 	return ""
 }
 
+func TestUpdateExcluded(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		labels map[string]string
+		want   bool
+	}{
+		{"absent", nil, false},
+		{"enabled", map[string]string{LabelUpdateExclude: "true"}, true},
+		{"case insensitive", map[string]string{LabelUpdateExclude: "TRUE"}, true},
+		{"disabled", map[string]string{LabelUpdateExclude: "false"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := UpdateExcluded(tc.labels); got != tc.want {
+				t.Fatalf("UpdateExcluded() = %t, want %t", got, tc.want)
+			}
+		})
+	}
+	if err := ValidateLabels("labels", map[string]string{LabelUpdateExclude: "true"}); err != nil {
+		t.Fatalf("update exclusion label must be user-settable: %v", err)
+	}
+}
+
 // TestContainerSpecValidation: the v1 create form accepts the common
 // options and refuses reserved labels, the Docker socket, malformed ports,
 // mounts, networks and environment entries (without echoing values).

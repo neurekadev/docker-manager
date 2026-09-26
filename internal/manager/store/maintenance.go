@@ -134,6 +134,9 @@ func InsertMaintenancePolicy(ctx context.Context, db bun.IDB, p *domain.Maintena
 		return err
 	}
 	if _, err := db.NewInsert().Model(&row).Exec(ctx); err != nil {
+		if uniqueViolation(err, "maintenance_policy_scope") || uniqueViolation(err, "maintenance_policies.environment_id") {
+			return domain.ErrMaintenanceScopeOverlap
+		}
 		if uniqueViolation(err, "maintenance_policies.environment_id") {
 			return domain.ErrMaintenancePolicyNameTaken
 		}
@@ -215,7 +218,7 @@ func ListMaintenancePolicies(ctx context.Context, db bun.IDB, environmentID, aft
 	var rows []maintenancePolicyRow
 	q := db.NewSelect().Model(&rows).Order("id ASC")
 	if environmentID != "" {
-		q = q.Where("environment_id = ?", environmentID)
+		q = q.Where("(environment_id = ? OR environment_id = '')", environmentID)
 	}
 	if afterID != "" {
 		q = q.Where("id > ?", afterID)
