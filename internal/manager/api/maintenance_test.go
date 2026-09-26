@@ -107,6 +107,25 @@ func (f *fakeMaintenance) Run(_ context.Context, p authz.Principal, pol domain.M
 	return j, nil
 }
 
+func (f *fakeMaintenance) PreviewManual(ctx context.Context, env string, rules []domain.MaintenanceRule) (protocol.PrunePreviewOutput, error) {
+	if len(domain.EnabledRules(rules)) == 0 {
+		return protocol.PrunePreviewOutput{}, &domain.FieldError{Field: "rules", Message: "turn on at least one rule"}
+	}
+	return f.Preview(ctx, domain.MaintenancePolicy{EnvironmentID: env}, rules, false)
+}
+
+func (f *fakeMaintenance) RunManual(_ context.Context, p authz.Principal, env string, rules []domain.MaintenanceRule, key string) (domain.Job, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if j, ok := f.runs["manual/"+key]; ok && key != "" {
+		return j, nil
+	}
+	j := domain.Job{ID: "job-manual-" + key, Kind: jobspec.PruneRun, EnvironmentID: env, State: domain.JobQueued,
+		Origin: domain.OriginManual, InitiatorUserID: p.UserID, CreatedAt: time.Unix(0, 0).UTC(), UpdatedAt: time.Unix(0, 0).UTC()}
+	f.runs["manual/"+key] = j
+	return j, nil
+}
+
 func (f *fakeMaintenance) ScheduleStatus(context.Context, string, int) (domain.Schedule, []domain.ScheduleRun, bool, error) {
 	return domain.Schedule{}, nil, false, nil
 }
@@ -254,5 +273,59 @@ func TestMaintenanceRunAndPreviewRoutes(t *testing.T) {
 		Headers: map[string]string{"If-Match": `"1"`}, Body: map[string]any{"rules": []map[string]any{{"category": "unused_images", "enabled": true}}}})
 	if r.Status != http.StatusUnprocessableEntity {
 		t.Fatalf("rule without minAgeHours: %d %s", r.Status, r.Body)
+	}
+}
+
+// TestManualPruneRoutes: one-off prunes of an environment need
+// maintenance.preview / maintenance.run in the environment (a grant on a
+// policy is not enough), a visible environment, confirmation and at least
+// one enabled rule.
+func TestManualPruneRoutes(t *testing.T) {
+	pol := authztest.New().Owner("olga").
+		Member("pete", "previewers").Group("previewers", "allow maintenance.preview @env:env-1").
+		Member("rex", "runners").Group("runners", "allow maintenance.run @env:env-1", "allow environment.read @env:env-1").
+		Member("paula", "policy").Group("policy", "allow maintenance.run @maintenance_policy:pol-a", "allow environment.read @env:env-1").
+		Member("rita", "nobody")
+	h := maintenanceHandler(t, pol)
+	rules := []map[string]any{{"category": "dangling_images", "enabled": true, "minAgeHours": 24}}
+	preview := authztest.Call{Method: http.MethodPost, Path: "/api/v1/environments/env-1/prune-previews", Body: map[string]any{"rules": rules}}
+	run := authztest.Call{Method: http.MethodPost, Path: "/api/v1/environments/env-1/prunes",
+		Body: map[string]any{"rules": rules, "confirm": true}, Headers: map[string]string{"Idempotency-Key": "k1"}}
+
+	for user, want := range map[string][2]int{
+		"olga":  {http.StatusOK, http.StatusAccepted},
+		"pete":  {http.StatusOK, http.StatusForbidden},
+		"rex":   {http.StatusForbidden, http.StatusAccepted},
+		"paula": {http.StatusForbidden, http.StatusForbidden},
+		"rita":  {http.StatusNotFound, http.StatusNotFound},
+	} {
+		if r := authztest.Do(t, h, user, preview); r.Status != want[0] {
+			t.Errorf("preview as %s: %d %s", user, r.Status, r.Body)
+		}
+		if r := authztest.Do(t, h, user, run); r.Status != want[1] {
+			t.Errorf("run as %s: %d %s", user, r.Status, r.Body)
+		}
+	}
+
+	r := authztest.Do(t, h, "olga", preview)
+	var pv PrunePreview
+	if json.Unmarshal(r.Body, &pv) != nil || pv.Remove != 1 || pv.EnvironmentID != "env-1" || pv.PolicyID != "" {
+		t.Fatalf("preview body: %s", r.Body)
+	}
+	unconfirmed := run
+	unconfirmed.Body = map[string]any{"rules": rules}
+	if r := authztest.Do(t, h, "olga", unconfirmed); r.Status != http.StatusConflict || !strings.Contains(string(r.Body), CodePruneConfirmationRequired) {
+		t.Fatalf("unconfirmed run: %d %s", r.Status, r.Body)
+	}
+	empty := preview
+	empty.Body = map[string]any{"rules": []map[string]any{{"category": "dangling_images", "enabled": false, "minAgeHours": 24}}}
+	if r := authztest.Do(t, h, "olga", empty); r.Status != http.StatusUnprocessableEntity {
+		t.Fatalf("no enabled rule: %d %s", r.Status, r.Body)
+	}
+	var first, again Job
+	_ = json.Unmarshal(authztest.Do(t, h, "olga", run).Body, &first)
+	_ = json.Unmarshal(authztest.Do(t, h, "olga", run).Body, &again)
+	if first.ID == "" || first.ID != again.ID {
+		t.Fatalf("repeated key started %q and %q", first.ID, again.ID)
 	}
 }

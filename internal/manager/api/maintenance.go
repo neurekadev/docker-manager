@@ -45,6 +45,8 @@ type MaintenanceService interface {
 	Delete(ctx context.Context, id string, revision int64) error
 	Preview(ctx context.Context, pol domain.MaintenancePolicy, rules []domain.MaintenanceRule, allRules bool) (protocol.PrunePreviewOutput, error)
 	Run(ctx context.Context, p authz.Principal, pol domain.MaintenancePolicy, idempotencyKey string) (domain.Job, error)
+	PreviewManual(ctx context.Context, envID string, rules []domain.MaintenanceRule) (protocol.PrunePreviewOutput, error)
+	RunManual(ctx context.Context, p authz.Principal, envID string, rules []domain.MaintenanceRule, idempotencyKey string) (domain.Job, error)
 	ScheduleStatus(ctx context.Context, policyID string, runs int) (domain.Schedule, []domain.ScheduleRun, bool, error)
 }
 
@@ -476,6 +478,26 @@ type runMaintenancePolicyInput struct {
 	}
 }
 
+// manualPruneRules are the rules of a one-off prune: only the categories
+// given take part (enabled ones), nothing is saved.
+type manualPruneRules struct {
+	Rules []MaintenanceRule `json:"rules" minItems:"1" maxItems:"7" doc:"The rules of this prune only (one per category); categories not given are not pruned. At least one must be enabled."`
+}
+
+type previewManualPruneInput struct {
+	EnvironmentID string `path:"environmentId" maxLength:"64" doc:"Environment ID."`
+	Body          manualPruneRules
+}
+
+type runManualPruneInput struct {
+	EnvironmentID string `path:"environmentId" maxLength:"64" doc:"Environment ID."`
+	IdempotencyKeyParam
+	Body struct {
+		Rules   []MaintenanceRule `json:"rules" minItems:"1" maxItems:"7" doc:"The rules of this prune only (one per category); categories not given are not pruned. At least one must be enabled."`
+		Confirm bool              `json:"confirm,omitempty" example:"true" doc:"Must be true: the prune deletes its candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise)."`
+	}
+}
+
 type maintenanceDefaultsOutput struct {
 	ETagHeader
 	Body MaintenanceDefaults
@@ -747,6 +769,62 @@ func (h *maintenanceAPI) runEnvironments(ctx context.Context, in *maintenanceEnv
 	return out, nil
 }
 
+// manualScope checks a one-off prune of an environment: the environment
+// is visible and the caller holds the capability on it (where the job
+// engine authorizes a prune.run without targets).
+func (h *maintenanceAPI) manualScope(ctx context.Context, env string, capability Capability) (MaintenanceService, authz.Principal, error) {
+	c, p, err := CheckerFor(ctx, h.authz)
+	if err != nil {
+		return nil, p, err
+	}
+	res := authz.EnvironmentResource(env)
+	if !authz.ViewOf(c, res).Visible() {
+		return nil, p, NotFound("environment not found")
+	}
+	if !c.Can(string(capability), res).Allowed {
+		return nil, p, Forbidden("not permitted: " + string(capability) + " in this environment")
+	}
+	svc, err := h.service()
+	return svc, p, err
+}
+
+func (h *maintenanceAPI) previewManual(ctx context.Context, in *previewManualPruneInput) (*prunePreviewOutput, error) {
+	svc, _, err := h.manualScope(ctx, in.EnvironmentID, CapMaintenancePreview)
+	if err != nil {
+		return nil, err
+	}
+	out, err := svc.PreviewManual(ctx, in.EnvironmentID, pruneRulesOf(in.Body.Rules))
+	if err != nil {
+		return nil, maintenanceError(err)
+	}
+	res := newPrunePreview(domain.MaintenancePolicy{EnvironmentID: in.EnvironmentID}, out)
+	audit.SetDetail(ctx, "candidates", res.Remove)
+	return &prunePreviewOutput{Body: res}, nil
+}
+
+func (h *maintenanceAPI) runManual(ctx context.Context, in *runManualPruneInput) (*JobAccepted, error) {
+	svc, p, err := h.manualScope(ctx, in.EnvironmentID, CapMaintenanceRun)
+	if err != nil {
+		return nil, err
+	}
+	if !in.Body.Confirm {
+		return nil, Conflict(CodePruneConfirmationRequired,
+			"a prune deletes its candidates and cannot be undone; review a preview and repeat the request with confirm: true")
+	}
+	rules := pruneRulesOf(in.Body.Rules)
+	job, err := svc.RunManual(ctx, p, in.EnvironmentID, rules, in.IdempotencyKey)
+	if err != nil {
+		return nil, maintenanceError(err)
+	}
+	categories := []string{}
+	for _, r := range domain.EnabledRules(rules) {
+		categories = append(categories, r.Category)
+	}
+	audit.SetDetail(ctx, "categories", categories)
+	audit.SetDetail(ctx, "job_id", job.ID)
+	return Accepted(job), nil
+}
+
 func (h *maintenanceAPI) defaults(ctx context.Context, _ *struct{}) (*maintenanceDefaultsOutput, error) {
 	svc, err := h.service()
 	if err != nil {
@@ -909,6 +987,33 @@ func registerMaintenance(a huma.API, deps Deps) {
 		},
 		Capability: CapMaintenanceRun, Scope: ScopeResource, Idempotency: IdempotencyJob,
 	}, h.run)
+
+	envPath := BasePath + "/environments/{environmentId}"
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "create-prune-preview", Method: http.MethodPost, Path: envPath + "/prune-previews",
+			Summary: "Preview a one-off prune",
+			Description: "Asks the environment's agent which objects a prune with these rules would remove now, with the same " +
+				"protections as policies (#32, stacks, saved specifications, backups). Nothing is removed or saved. 503 " +
+				"environment_offline when the agent is not connected.",
+			Tags: []string{tagMaintenance}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict,
+				http.StatusUnprocessableEntity, http.StatusServiceUnavailable, http.StatusGatewayTimeout},
+		},
+		Capability: CapMaintenancePreview, Scope: ScopeEnvironment,
+	}, h.previewManual)
+
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "create-prune", Method: http.MethodPost, Path: envPath + "/prunes",
+			Summary: "Run a one-off prune",
+			Description: "Starts a prune.run job (202 + job) with these rules only, without a policy: candidates are recomputed and " +
+				"each is revalidated right before its targeted removal. Needs confirm: true (409 prune_confirmation_required); " +
+				"enabling a volume rule needs volumeOptIn.",
+			Tags: []string{tagMaintenance}, DefaultStatus: http.StatusAccepted, Errors: []int{http.StatusForbidden, http.StatusNotFound,
+				http.StatusConflict, http.StatusUnprocessableEntity},
+		},
+		Capability: CapMaintenanceRun, Scope: ScopeEnvironment, Idempotency: IdempotencyJob,
+	}, h.runManual)
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "preview-maintenance-environments", Method: http.MethodPost, Path: path + "/{policyId}/environment-previews",

@@ -29,6 +29,7 @@
 		type MenuEntry
 	} from '$lib/ui';
 	import CreateObjectDialog from '$lib/features/resources/CreateObjectDialog.svelte';
+	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import ObjectRemoveHost from '$lib/features/resources/ObjectRemoveHost.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
@@ -230,6 +231,7 @@
 				: 'your environments'}, and the containers that use it."
 		>
 			{#snippet actions()}
+				<PruneButton target="volumes" {scope} />
 				{#if creatable.length}
 					<Button variant="primary" icon={Plus} onclick={() => (createOpen = true)}
 						>Create volume</Button

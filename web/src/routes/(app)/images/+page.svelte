@@ -30,6 +30,7 @@
 		type Column,
 		type MenuEntry
 	} from '$lib/ui';
+	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import ImageActionHost from '$lib/features/resources/ImageActionHost.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
@@ -212,6 +213,7 @@
 				: 'your environments'}, with the containers that use them."
 		>
 			{#snippet actions()}
+				<PruneButton target="images" {scope} />
 				{#if scope.hasAny('image.build')}
 					<Button variant="secondary" icon={Hammer} href={routes.builds()}>Builds</Button>
 				{/if}

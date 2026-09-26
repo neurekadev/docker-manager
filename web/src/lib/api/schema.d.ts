@@ -1631,6 +1631,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/prune-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a one-off prune
+         * @description Asks the environment's agent which objects a prune with these rules would remove now, with the same protections as policies (#32, stacks, saved specifications, backups). Nothing is removed or saved. 503 environment_offline when the agent is not connected.
+         */
+        post: operations["create-prune-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/prunes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a one-off prune
+         * @description Starts a prune.run job (202 + job) with these rules only, without a policy: candidates are recomputed and each is revalidated right before its targeted removal. Needs confirm: true (409 prune_confirmation_required); enabling a volume rule needs volumeOptIn.
+         */
+        post: operations["create-prune"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/removal-previews": {
         parameters: {
             query?: never;
@@ -6975,6 +7015,10 @@ export interface components {
             notes: string[];
             repositoryId: string;
         };
+        ManualPruneRules: {
+            /** @description The rules of this prune only (one per category); categories not given are not pruned. At least one must be enabled. */
+            rules: components["schemas"]["MaintenanceRule"][];
+        };
         MetadataStackInputBody: {
             /** @description Needs <root>.files.chmod. */
             chmod?: components["schemas"]["ChmodDTO"];
@@ -8409,6 +8453,15 @@ export interface components {
              * @example true
              */
             confirm?: boolean;
+        };
+        RunManualPruneInputBody: {
+            /**
+             * @description Must be true: the prune deletes its candidates and a completed deletion cannot be undone (409 prune_confirmation_required otherwise).
+             * @example true
+             */
+            confirm?: boolean;
+            /** @description The rules of this prune only (one per category); categories not given are not pruned. At least one must be enabled. */
+            rules: components["schemas"]["MaintenanceRule"][];
         };
         RunPolicyInputBody: {
             /**
@@ -22611,6 +22664,305 @@ export interface operations {
             };
             /** @description Gateway Timeout */
             504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-prune-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "rules": [
+                 *         {
+                 *           "category": "stopped_containers",
+                 *           "enabled": false,
+                 *           "minAgeHours": 720
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["ManualPruneRules"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "at": "2026-09-25T12:00:00Z",
+                     *       "bytes": 1,
+                     *       "categories": [
+                     *         {
+                     *           "bytes": 1,
+                     *           "category": "dangling_images",
+                     *           "excluded": 1,
+                     *           "items": [
+                     *             {
+                     *               "bytes": 1,
+                     *               "decision": "remove",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "name": "web",
+                     *               "reason": "example",
+                     *               "since": "2026-09-25T12:00:00Z"
+                     *             }
+                     *           ],
+                     *           "protected": 1,
+                     *           "remove": 1,
+                     *           "retained": 1,
+                     *           "truncated": false,
+                     *           "unknownSizes": 1
+                     *         }
+                     *       ],
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "notes": [
+                     *         "example"
+                     *       ],
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "remove": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PrunePreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-prune": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "confirm": true,
+                 *       "rules": [
+                 *         {
+                 *           "category": "stopped_containers",
+                 *           "enabled": false,
+                 *           "minAgeHours": 720
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["RunManualPruneInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

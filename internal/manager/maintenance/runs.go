@@ -9,6 +9,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/neurekadev/dockyard/internal/domain"
+	"github.com/neurekadev/dockyard/internal/ids"
 	"github.com/neurekadev/dockyard/internal/jobspec"
 	"github.com/neurekadev/dockyard/internal/manager/authz"
 	"github.com/neurekadev/dockyard/internal/manager/jobs"
@@ -240,6 +241,74 @@ func (s *Service) Run(ctx context.Context, p authz.Principal, pol domain.Mainten
 	}
 	req.Principal, req.IdempotencyKey = p, key
 	j, _, err := s.opts.Jobs.Enqueue(ctx, req)
+	return j, err
+}
+
+// ManualPolicyPrefix starts the synthetic policy ID of a one-off prune's
+// agent input: agents require a policy ID, the job itself has none.
+const ManualPolicyPrefix = "manual-"
+
+// manualPolicy is the transient policy of a one-off prune of an
+// environment (a resource page's "Prune"): the given rules, no schedule,
+// nothing stored.
+func manualPolicy(env string, rules []domain.MaintenanceRule) domain.MaintenancePolicy {
+	return domain.MaintenancePolicy{ID: ManualPolicyPrefix + ids.New(), EnvironmentID: env,
+		Rules: domain.CompleteRules(rules, nil)}
+}
+
+// checkManual validates the rules of a one-off prune (at least one enabled;
+// requireOptIn for runs) and the environment (exists, not archived).
+func (s *Service) checkManual(ctx context.Context, env string, rules []domain.MaintenanceRule, requireOptIn bool) error {
+	if err := ValidateRules(rules, requireOptIn); err != nil {
+		return err
+	}
+	if len(domain.EnabledRules(rules)) == 0 {
+		return fieldErr("rules", "turn on at least one rule")
+	}
+	_, err := s.activeEnvironment(ctx, env)
+	return err
+}
+
+// PreviewManual asks the environment's agent what a one-off prune with
+// these rules would remove now. Nothing is stored or removed.
+func (s *Service) PreviewManual(ctx context.Context, env string, rules []domain.MaintenanceRule) (protocol.PrunePreviewOutput, error) {
+	if err := s.checkManual(ctx, env, rules, false); err != nil {
+		return protocol.PrunePreviewOutput{}, err
+	}
+	pol := manualPolicy(env, rules)
+	return s.Preview(ctx, pol, nil, false)
+}
+
+// RunManual starts a one-off prune of an environment with the given rules
+// for principal p (the caller has confirmed it): a prune.run job without
+// policy or targets, authorized on the environment. Volume rules need
+// their opt-in. A repeated idempotency key returns the run it started (the
+// input is rebuilt on every call, so the key is resolved here, not by
+// the engine's input hash).
+func (s *Service) RunManual(ctx context.Context, p authz.Principal, env string, rules []domain.MaintenanceRule, key string) (domain.Job, error) {
+	if key != "" {
+		existing, found, err := store.FindJobByIdempotencyKey(ctx, s.opts.DB, &domain.Job{IdempotencyKey: key, InitiatorUserID: p.UserID,
+			InitiatorTokenID: p.TokenID})
+		if err != nil {
+			return domain.Job{}, err
+		}
+		if found {
+			if existing.Kind == jobspec.PruneRun && existing.PolicyID == "" && existing.EnvironmentID == env {
+				return existing, nil
+			}
+			return domain.Job{}, domain.ErrJobIdempotencyConflict
+		}
+	}
+	if err := s.checkManual(ctx, env, rules, true); err != nil {
+		return domain.Job{}, err
+	}
+	pol := manualPolicy(env, rules)
+	in, err := s.input(ctx, pol, pol.Rules, false)
+	if err != nil {
+		return domain.Job{}, err
+	}
+	j, _, err := s.opts.Jobs.Enqueue(ctx, jobs.Request{Kind: jobspec.PruneRun, EnvironmentID: env, Input: in, Principal: p,
+		IdempotencyKey: key})
 	return j, err
 }
 

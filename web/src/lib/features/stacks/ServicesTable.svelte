@@ -134,7 +134,8 @@
 			id: 'update',
 			header: 'Image update',
 			cell: updateCell,
-			sortValue: (s) => imageStatuses.find((i) => i.service === s.name)?.update ?? ''
+			sortValue: (s) => imageStatuses.find((i) => i.service === s.name)?.update ?? '',
+			width: '150px'
 		},
 		{
 			id: 'containers',
@@ -314,7 +315,7 @@
 
 	.image {
 		display: block;
-		max-width: clamp(120px, 12vw, 260px);
+		max-width: clamp(180px, 22vw, 440px);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;

@@ -126,3 +126,82 @@ export function runSummaryText(s: Schema<'MaintenanceRunSummary'>): string {
 	parts.push(`${formatBytes(s.bytesReclaimed)} reclaimed`);
 	return parts.join(', ');
 }
+
+/** What a resource page's one-off prune cleans (#14). */
+export type PruneTarget = 'containers' | 'images' | 'networks' | 'volumes' | 'build_cache';
+
+export interface PruneTargetInfo {
+	/** Dialog title and button label. */
+	title: string;
+	/** What goes, for sentences: "Pruned unused images on Silo". */
+	what: string;
+	/** The categories the page offers, least destructive first. */
+	categories: Category[];
+	/** The one category turned on to start with. */
+	start: Category;
+}
+
+export const PRUNE_TARGETS: Record<PruneTarget, PruneTargetInfo> = {
+	containers: {
+		title: 'Prune containers',
+		what: 'stopped containers',
+		categories: ['stopped_containers'],
+		start: 'stopped_containers'
+	},
+	images: {
+		title: 'Prune images',
+		what: 'unused images',
+		categories: ['dangling_images', 'unused_images'],
+		start: 'dangling_images'
+	},
+	networks: {
+		title: 'Prune networks',
+		what: 'unused networks',
+		categories: ['unused_networks'],
+		start: 'unused_networks'
+	},
+	volumes: {
+		title: 'Prune volumes',
+		what: 'unused volumes',
+		categories: ['anonymous_volumes', 'named_volumes'],
+		start: 'anonymous_volumes'
+	},
+	build_cache: {
+		title: 'Prune build cache',
+		what: 'build cache',
+		categories: ['build_cache'],
+		start: 'build_cache'
+	}
+};
+
+/** A one-off prune's safety margin: nothing younger than a day by default. */
+export const MANUAL_PRUNE_MIN_AGE_HOURS = 24;
+
+/**
+ * Safe starting rules of a one-off prune: only the target's least
+ * destructive category is on (dangling images, anonymous volumes, exited
+ * or dead containers, dangling build cache), older than a day. Volume
+ * rules still need their own opt-in before the prune can run.
+ */
+export function manualPruneRules(target: PruneTarget): MaintenanceRule[] {
+	const t = PRUNE_TARGETS[target];
+	return t.categories.map((category) => ({
+		category,
+		enabled: category === t.start,
+		minAgeHours: MANUAL_PRUNE_MIN_AGE_HOURS,
+		...(category === 'stopped_containers' ? { containerStates: ['exited', 'dead'] } : {})
+	}));
+}
+
+/**
+ * Why the rules can't be previewed (forPreview) or run (null: fine). A
+ * preview evaluates volume rules without their opt-in; a run needs it.
+ */
+export function manualPruneProblem(rules: MaintenanceRule[], forPreview: boolean): string | null {
+	if (!rules.some((r) => r.enabled)) return 'Turn on at least one rule.';
+	for (const r of rules) {
+		const p = ruleProblem(forPreview ? { ...r, volumeOptIn: true } : r);
+		if (p) return p;
+	}
+	return null;
+}

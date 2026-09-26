@@ -12,7 +12,7 @@ call after revalidating it.
 | `internal/domain` (`maintenance.go`) | Policies, rules, categories, the shipped suggestions (`SuggestedMaintenanceRules`), defaults, run summaries. |
 | `internal/manager/maintenance` | CRUD, validation (volume opt-in), the instance's default rules, previews (agent request), manual runs, the scheduler's `PolicySource`, the `prune.run` finish hook, protections the manager knows. |
 | `internal/manager/store` (`maintenance.go`) | `maintenance_policies`, `maintenance_defaults` (migration `20260925233517_create_maintenance_policies`). |
-| `internal/manager/api` (`maintenance.go`) | `/api/v1/maintenance-policies` (CRUD, `/previews`, `/runs`) and `/api/v1/maintenance-defaults`. |
+| `internal/manager/api` (`maintenance.go`) | `/api/v1/maintenance-policies` (CRUD, `/previews`, `/runs`), `/api/v1/maintenance-defaults` and the one-off `/api/v1/environments/{id}/prune-previews` and `/prunes`. |
 | `internal/protocol` (`maintenance.go`) | `PruneInput` (the `maintenance.preview` request and the `prune.run` job input), preview and run output. |
 | `internal/agent/prune` | Planning (candidates and decisions), the `maintenance.preview` handler and the `prune.run` executor (revalidation, targeted removals, per-item results, cancellation between items). |
 | `internal/agent/engine` (`prune.go`) | Adapter additions: `ListBuildCache`, `RemoveBuildCache` (one record ID, never the whole cache), `VolumeUsage`; `ContainerFilter.Size`, `Container.SizeRw` and `Container.Networks`. |
@@ -155,6 +155,34 @@ it fails without having touched anything.
 The job's audit record (`job.finished`, #30) carries the item list. The
 finish hook stores the latest run's summary on the policy (`lastRun`:
 state, origin, removed, skipped, failed, deferred, bytes reclaimed).
+
+## One-off prunes
+
+The Containers, Images, Volumes, Networks and Builds pages have a
+"Prune" button (`web/src/lib/features/maintenance/PruneButton.svelte`)
+for a single prune of one environment without a policy:
+
+- `POST /environments/{id}/prune-previews {rules}` and
+  `POST /environments/{id}/prunes {rules, confirm: true}` (202 + job,
+  `Idempotency-Key`) take the rules of this prune only; categories not
+  given are not pruned, at least one rule must be enabled, and enabling a
+  volume rule needs its `volumeOptIn` (previews evaluate volume rules
+  without it). Nothing is saved.
+- Authorization: `maintenance.preview` / `maintenance.run` on the
+  environment (instance or environment rules; a grant on a policy is not
+  enough). The job is a `prune.run` without policy and without targets, so
+  the job engine authorizes it on the environment, too.
+- The agent input carries the same protections as a policy run and a
+  synthetic policy ID (`manual-<uuid>`, `maintenance.ManualPolicyPrefix`):
+  agents require one, and N-1 agents must keep accepting the input. The
+  finish hook ignores jobs without a policy.
+- A repeated `Idempotency-Key` returns the prune it started (resolved by
+  the service: the input is rebuilt on every call).
+- The UI starts from safe rules (`manualPruneRules`): only the page's
+  least destructive category is on (exited or dead containers, dangling
+  images, unused networks, anonymous volumes, dangling build cache), older
+  than 24 hours; every rule's options can be changed for this prune. A
+  preview is required before the prune button appears.
 
 ## Scheduling (#13)
 

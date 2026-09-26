@@ -32,6 +32,7 @@
 		type MenuEntry
 	} from '$lib/ui';
 	import ContainerActionHost from '$lib/features/resources/ContainerActionHost.svelte';
+	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
@@ -122,7 +123,8 @@
 			id: 'update',
 			header: 'Image update',
 			cell: updateCell,
-			sortValue: (c) => c.update ?? ''
+			sortValue: (c) => c.update ?? '',
+			width: '150px'
 		},
 		{ id: 'stack', header: 'Stack', cell: stackCell, sortValue: (c) => c.stack?.project ?? '' },
 		...(scope.single
@@ -158,7 +160,7 @@
 {#snippet nameCell(c: Container)}
 	<div class="name-cell">
 		<a class="name" href={routes.container(c.environmentId, c.name)}>{c.name}</a>
-		{#if c.image}<span class="sub mono">{c.image}</span>{/if}
+		{#if c.image}<span class="sub mono" title={c.image}>{c.image}</span>{/if}
 		{#if c.protection}<span class="tag"><ProtectionBadge protection={c.protection} /></span
 			>{/if}
 	</div>
@@ -215,6 +217,7 @@
 				: 'your environments'}, running or not."
 		>
 			{#snippet actions()}
+				<PruneButton target="containers" {scope} />
 				{#if creatable.length}
 					<Button
 						variant="primary"
@@ -374,7 +377,7 @@
 	}
 
 	.sub {
-		max-width: 34ch;
+		max-width: 60ch;
 		color: var(--text-muted);
 		font-size: var(--text-caption);
 		overflow: hidden;

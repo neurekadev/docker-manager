@@ -471,3 +471,55 @@ func TestPreviewMapsAgentErrors(t *testing.T) {
 		t.Fatalf("includeDisabled previews every rule: %+v", in.Rules)
 	}
 }
+
+// TestManualPrune: a one-off prune runs exactly the given rules with the
+// policies' protections, as a job without policy or targets (authorized on
+// the environment); volume rules need their opt-in, a repeated key returns
+// the same run, empty rule sets and archived environments are refused.
+func TestManualPrune(t *testing.T) {
+	f := newFixture(t)
+	rules := []domain.MaintenanceRule{{Category: domain.PruneDanglingImages, Enabled: true, MinAge: 24 * time.Hour},
+		{Category: domain.PruneUnusedImages, MinAge: 24 * time.Hour}}
+	j, err := f.svc.RunManual(f.ctx, f.user, "env-1", rules, "m1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.Kind != jobspec.PruneRun || j.PolicyID != "" || j.EnvironmentID != "env-1" || len(j.Targets) != 0 || j.Origin != domain.OriginManual {
+		t.Fatalf("job %+v", j)
+	}
+	var in protocol.PruneInput
+	if err := json.Unmarshal(j.Input, &in); err != nil {
+		t.Fatal(err)
+	}
+	if len(in.Rules) != 1 || in.Rules[0].Category != domain.PruneDanglingImages || in.Rules[0].MinAgeSeconds != 24*3600 ||
+		len(in.PolicyID) <= len(ManualPolicyPrefix) || in.PolicyID[:len(ManualPolicyPrefix)] != ManualPolicyPrefix || len(in.Protect.Projects) != 1 {
+		t.Fatalf("input %+v", in)
+	}
+	again, err := f.svc.RunManual(f.ctx, f.user, "env-1", rules, "m1")
+	if err != nil || again.ID != j.ID {
+		t.Fatalf("repeated key: %v %s != %s", err, again.ID, j.ID)
+	}
+	if _, err := f.svc.RunManual(f.ctx, f.user, "env-2", rules, "m1"); !errors.Is(err, domain.ErrJobIdempotencyConflict) {
+		t.Fatalf("key reused for another environment: %v", err)
+	}
+
+	volume := []domain.MaintenanceRule{{Category: domain.PruneAnonymousVolumes, Enabled: true, MinAge: 24 * time.Hour}}
+	var fe *domain.FieldError
+	if _, err := f.svc.RunManual(f.ctx, f.user, "env-1", volume, ""); !errors.As(err, &fe) || fe.Field != "rules.anonymous_volumes.volumeOptIn" {
+		t.Fatalf("volume rule without opt-in: %v", err)
+	}
+	if _, err := f.svc.PreviewManual(f.ctx, "env-1", volume); err != nil {
+		t.Fatalf("previews evaluate volume rules without the opt-in: %v", err)
+	}
+	volume[0].VolumeOptIn = true
+	if _, err := f.svc.RunManual(f.ctx, f.user, "env-1", volume, ""); err != nil {
+		t.Fatalf("volume rule with opt-in: %v", err)
+	}
+	off := []domain.MaintenanceRule{{Category: domain.PruneDanglingImages, MinAge: 24 * time.Hour}}
+	if _, err := f.svc.PreviewManual(f.ctx, "env-1", off); !errors.As(err, &fe) || fe.Field != "rules" {
+		t.Fatalf("no enabled rule: %v", err)
+	}
+	if _, err := f.svc.RunManual(f.ctx, f.user, "env-old", rules, ""); !errors.Is(err, domain.ErrEnvironmentArchived) {
+		t.Fatalf("archived environment: %v", err)
+	}
+}
