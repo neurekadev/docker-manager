@@ -1782,6 +1782,24 @@ routes:
     owner: 14
     kind: json
     status: implemented
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/prune-previews"
+    operationId: create-prune-preview
+    capability: maintenance.preview
+    scope: environment
+    owner: 14
+    kind: json
+    status: implemented
+    notes: One-off prune preview with explicit rules (resource pages); nothing saved.
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/prunes"
+    operationId: create-prune
+    capability: maintenance.run
+    scope: environment
+    owner: 14
+    kind: json
+    status: implemented
+    notes: 202 + job; Idempotency-Key; confirm; one-off rules without a policy.
   - method: GET
     path: /api/v1/backup-repositories
     operationId: list-backup-repositories

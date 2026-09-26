@@ -21,6 +21,7 @@
 		type Column
 	} from '$lib/ui';
 	import BuildsHeader from '$lib/features/builds/BuildsHeader.svelte';
+	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import { repoLabel } from '$lib/features/builds/source';
 	import Page from '$lib/features/resources/Page.svelte';
 	import { compactDuration } from '$lib/features/resources/model';
@@ -125,7 +126,9 @@
 			description="Images built from Git repositories on {scope.single
 				? scope.targets[0]?.name
 				: 'your environments'}."
-		/>
+		>
+			{#snippet extra()}<PruneButton target="build_cache" {scope} />{/snippet}
+		</BuildsHeader>
 		{#if list.isError}
 			<ErrorState
 				error={list.error}

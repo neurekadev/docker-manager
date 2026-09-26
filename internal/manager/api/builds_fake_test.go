@@ -50,6 +50,9 @@ func (emptyBuilds) RunDefinition(context.Context, authz.Principal, string, strin
 // sampleBodies are valid request bodies of routes with required fields,
 // so authorization (not validation) decides in route sweeps.
 var sampleBodies = map[string]any{
+	"create-prune-preview": map[string]any{"rules": []map[string]any{{"category": "dangling_images", "enabled": true, "minAgeHours": 24}}},
+	"create-prune": map[string]any{"rules": []map[string]any{{"category": "dangling_images", "enabled": true, "minAgeHours": 24}},
+		"confirm": true},
 	"create-image-build": map[string]any{"gitUrl": "https://git.example.com/acme/app.git", "tags": []string{"acme/app:1"}},
 	"create-build-definition": map[string]any{"name": "app", "source": map[string]any{
 		"gitUrl": "https://git.example.com/acme/app.git", "tags": []string{"acme/app:1"}}},

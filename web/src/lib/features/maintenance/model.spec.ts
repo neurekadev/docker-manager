@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
 	CATEGORIES,
+	PRUNE_TARGETS,
 	ageText,
 	enabledRules,
 	joinAge,
+	manualPruneProblem,
+	manualPruneRules,
 	normalizeRules,
 	ruleProblem,
 	ruleSummary,
 	runSummaryText,
-	splitAge
+	splitAge,
+	type PruneTarget
 } from './model';
 
 describe('prune rules', () => {
@@ -107,5 +111,39 @@ describe('prune rules', () => {
 				state: 'partial'
 			})
 		).toBe('Removed 3, 1 failed, 5 MB reclaimed');
+	});
+});
+
+describe('one-off prunes', () => {
+	it('starts with only the least destructive category on, older than a day', () => {
+		const images = manualPruneRules('images');
+		expect(images.map((r) => [r.category, r.enabled, r.minAgeHours])).toEqual([
+			['dangling_images', true, 24],
+			['unused_images', false, 24]
+		]);
+		expect(manualPruneRules('containers')[0].containerStates).toEqual(['exited', 'dead']);
+		const volumes = manualPruneRules('volumes');
+		expect(volumes.find((r) => r.category === 'named_volumes')?.enabled).toBe(false);
+		expect(volumes.every((r) => !r.volumeOptIn)).toBe(true);
+		for (const t of Object.keys(PRUNE_TARGETS) as PruneTarget[]) {
+			expect(manualPruneRules(t).filter((r) => r.enabled)).toHaveLength(1);
+		}
+	});
+
+	it('previews volume rules without the opt-in but runs them only with it', () => {
+		const volumes = manualPruneRules('volumes');
+		expect(manualPruneProblem(volumes, true)).toBeNull();
+		expect(manualPruneProblem(volumes, false)).toMatch(/deletes their data/);
+		expect(
+			manualPruneProblem(
+				volumes.map((r) => ({ ...r, volumeOptIn: true })),
+				false
+			)
+		).toBeNull();
+	});
+
+	it('needs at least one rule on', () => {
+		const off = manualPruneRules('networks').map((r) => ({ ...r, enabled: false }));
+		expect(manualPruneProblem(off, true)).toBe('Turn on at least one rule.');
 	});
 });
