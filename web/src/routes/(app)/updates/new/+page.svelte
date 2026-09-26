@@ -19,7 +19,7 @@
 <Page narrow>
 	<PageHeader
 		title="Create update policy"
-		description="Choose All Environments or one environment, then exclude individual stacks and containers as needed."
+		description="Choose all environments or one environment, then exclude individual stacks and containers as needed."
 	/>
 	{#if perms.isPending}<Skeleton lines={6} height="36px" />
 	{:else if !can(accessOf(perms.data), 'update_policy.manage')}<DeniedState

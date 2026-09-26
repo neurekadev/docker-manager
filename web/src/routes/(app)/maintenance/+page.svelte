@@ -71,7 +71,7 @@
 	{:else}<span class="muted">—</span>{/if}
 {/snippet}
 {#snippet envCell(p: MaintenancePolicy)}{p.scope === 'all'
-		? 'All Environments'
+		? 'All environments'
 		: environmentName(envs.data, p.environmentId)}{/snippet}
 {#snippet scheduleCell(p: MaintenancePolicy)}
 	{#if p.schedule}<ScheduleSummary compact {...p.schedule} />{:else}<span class="muted">—</span

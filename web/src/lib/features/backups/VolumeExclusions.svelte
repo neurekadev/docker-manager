@@ -1,7 +1,11 @@
 <script lang="ts">
+	// Standalone named volumes of one environment a backup policy (#10)
+	// leaves out: volumes that belong to no stack. DockYard's own volumes
+	// are never offered (#32); stack volumes follow their stack.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { containersQuery, stacksQuery, volumesQuery } from '$lib/features/common/data';
 	import { Checkbox, Skeleton } from '$lib/ui';
+	import ChoiceGrid from '$lib/features/common/ChoiceGrid.svelte';
 	let {
 		environmentId,
 		environmentName,
@@ -41,21 +45,32 @@
 	}
 </script>
 
-<p>{environmentName}</p>
-{#if volumes.isPending || stacks.isPending || containers.isPending}<Skeleton
-		lines={2}
-		height="20px"
-	/>
-{:else if volumes.isError || stacks.isError || containers.isError}<p>
-		Volumes could not be loaded. Saved exclusions are retained.
+<p class="env">{environmentName}</p>
+{#if volumes.isPending || stacks.isPending || containers.isPending}
+	<Skeleton lines={2} height="20px" />
+{:else if volumes.isError || stacks.isError || containers.isError}
+	<p class="muted">
+		The volumes can't be listed right now (the environment may be offline). Saved exclusions are
+		kept.
 	</p>
-{:else if !standalone.length}<p>No standalone volumes.</p>
+{:else if !standalone.length}
+	<p class="muted">No standalone volumes.</p>
 {:else}
-	{#each standalone as volume (volume.name)}
-		<Checkbox
-			label="Exclude {volume.name}"
-			checked={excluded.includes(all ? `${environmentId}/${volume.name}` : volume.name)}
-			onchange={(e) => toggle(volume.name, e.currentTarget.checked)}
-		/>
-	{/each}
+	<ChoiceGrid min="220px">
+		{#each standalone as volume (volume.name)}
+			<Checkbox
+				label={volume.name}
+				checked={excluded.includes(all ? `${environmentId}/${volume.name}` : volume.name)}
+				onchange={(e) => toggle(volume.name, e.currentTarget.checked)}
+			/>
+		{/each}
+	</ChoiceGrid>
 {/if}
+
+<style>
+	.env {
+		color: var(--text-muted);
+		font-size: var(--text-caption);
+		margin-top: var(--space-1);
+	}
+</style>

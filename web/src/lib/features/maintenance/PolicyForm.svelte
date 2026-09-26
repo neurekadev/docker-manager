@@ -72,7 +72,7 @@
 	);
 
 	const envOptions = $derived([
-		...(allowAll || p?.environmentId === '' ? [{ value: '', label: 'All Environments' }] : []),
+		...(allowAll || p?.environmentId === '' ? [{ value: '', label: 'All environments' }] : []),
 		...(envs.data ?? [])
 			.filter((e) => e.status !== 'archived')
 			.map((e) => ({ value: e.id, label: e.online ? e.name : `${e.name} (offline)` }))
@@ -177,7 +177,7 @@
 				/>
 				{#if editing}
 					<p class="muted">
-						Runs on {environmentId ? 'one environment' : 'All Environments'}. Create
+						Runs on {environmentId ? 'one environment' : 'all environments'}. Create
 						another policy to change scope.
 					</p>
 				{:else}
@@ -185,7 +185,7 @@
 						label="Environment"
 						options={envOptions}
 						bind:value={environmentId}
-						placeholder="All Environments"
+						placeholder="All environments"
 						error={fields['body.environmentId']}
 					/>
 				{/if}

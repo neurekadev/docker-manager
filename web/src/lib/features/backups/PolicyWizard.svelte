@@ -376,8 +376,8 @@
 				<Select
 					label="Environments"
 					options={[
-						{ value: 'all', label: 'All Environments' },
-						{ value: 'environment', label: 'Single Environment' }
+						{ value: 'all', label: 'All environments' },
+						{ value: 'environment', label: 'One environment' }
 					]}
 					bind:value={scopeMode}
 					disabled={!!policy}
@@ -453,7 +453,7 @@
 						<ChoiceGrid min="200px">
 							{#each list as st (st.id)}
 								<Checkbox
-									label={`Exclude ${st.displayName || st.name}`}
+									label={st.displayName || st.name}
 									checked={isSelected(st.id)}
 									onchange={(e) => toggleStack(st.id, e.currentTarget.checked)}
 								/>

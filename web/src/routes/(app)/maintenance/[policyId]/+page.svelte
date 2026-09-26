@@ -232,7 +232,7 @@
 						icon: Server,
 						label:
 							p.scope === 'all'
-								? 'All Environments'
+								? 'All environments'
 								: environmentName(envs.data, p.environmentId)
 					},
 					{ label: `${on.length} of 7 rules on` }
@@ -291,16 +291,25 @@
 					onfinish={finished}
 				/>
 			{/if}
-			{#if environmentJobs.length > 1}<Card title="Environment jobs"
-					><ul>
-						{#each environmentJobs as environmentJob (environmentJob.id)}<li>
-								<a href={routes.job(environmentJob.id)}
-									>{environmentName(envs.data, environmentJob.environmentId)} — Open
-									job</a
+			{#if environmentJobs.length > 1}
+				<Card title="Environment jobs" subtitle="One prune job per environment in scope.">
+					<ul class="env-jobs" role="list">
+						{#each environmentJobs as environmentJob (environmentJob.id)}
+							<li>
+								<span class="env-name"
+									>{environmentName(
+										envs.data,
+										environmentJob.environmentId
+									)}</span
 								>
-							</li>{/each}
-					</ul></Card
-				>{/if}
+								<a href={routes.job(environmentJob.id)}
+									><StatusBadge status={environmentJob.state} kind="job" /></a
+								>
+							</li>
+						{/each}
+					</ul>
+				</Card>
+			{/if}
 
 			{#if p.lastRun}
 				<KpiRow>
@@ -428,7 +437,7 @@
 				title="Run {p.name} now?"
 				message={preview
 					? `Removes ${preview.remove} ${preview.remove === 1 ? 'object' : 'objects'} on ${environmentName(envs.data, p.environmentId)}, about ${formatBytes(preview.bytes)}.`
-					: `Removes what the turned-on rules find on ${p.scope === 'all' ? 'All Environments' : environmentName(envs.data, p.environmentId)} now.`}
+					: `Removes what the turned-on rules find on ${p.scope === 'all' ? 'all environments' : environmentName(envs.data, p.environmentId)} now.`}
 				consequences={[
 					...on.map((r) => ruleSummary(r, info)),
 					'Every object is checked again right before it is removed; protected objects are always kept.',
@@ -461,6 +470,29 @@
 </Page>
 
 <style>
+	.env-jobs {
+		display: grid;
+		gap: var(--space-2);
+	}
+
+	.env-jobs li {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		padding-top: var(--space-2);
+		border-top: 1px solid var(--border-subtle);
+	}
+
+	.env-jobs li:first-child {
+		padding-top: 0;
+		border-top: none;
+	}
+
+	.env-name {
+		color: var(--text-strong);
+	}
+
 	.rules,
 	.runs {
 		display: grid;

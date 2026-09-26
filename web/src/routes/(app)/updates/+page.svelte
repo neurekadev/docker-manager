@@ -41,7 +41,7 @@
 		href={routes.updatePolicy(p.id)}
 	/>{/snippet}
 {#snippet scopeCell(p: EnvironmentUpdatePolicy)}{p.scope === 'all'
-		? 'All Environments'
+		? 'All environments'
 		: environmentName(envs.data, p.environmentId)}{/snippet}
 {#snippet checkCell(p: EnvironmentUpdatePolicy)}<ScheduleSummary
 		compact
@@ -79,7 +79,7 @@
 				>
 					{#snippet empty()}<EmptyState
 							title="No update policies yet."
-							description="Create a policy for All Environments or a Single Environment."
+							description="Create a policy for all environments or one environment."
 							level={3}
 							compact
 						/>{/snippet}
