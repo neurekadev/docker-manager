@@ -40,16 +40,13 @@
 	import { useUnsaved } from '$lib/features/common/unsaved.svelte';
 	import RetentionEditor from './RetentionEditor.svelte';
 	import ScopePreviewView from './ScopePreviewView.svelte';
-	import StackScopeEditor from './StackScopeEditor.svelte';
-	import VolumePicker from './VolumePicker.svelte';
+	import VolumeExclusions from './VolumeExclusions.svelte';
 	import {
 		repositoryLocation,
 		type BackupPolicy,
 		type BackupRetention,
 		type PolicyInput,
-		type ScopePreview,
-		type StackSelection,
-		type VolumeSelection
+		type ScopePreview
 	} from './model';
 	import { backupKeys, repositoriesQuery } from './queries';
 
@@ -69,8 +66,10 @@
 	let envRepos = $state<Record<string, string>>({ ...(p0?.environmentRepositories ?? {}) });
 	let includeManager = $state(p0?.includeManagerState ?? untrack(() => owner));
 	let includeMetrics = $state(p0?.includeMetrics ?? false);
-	let selStacks = $state<StackSelection[]>(p0?.stacks ?? []);
-	let selVolumes = $state<VolumeSelection[]>(p0?.volumes ?? []);
+	let scopeMode = $state<'all' | 'environment'>(p0?.scope ?? 'all');
+	let environmentId = $state(p0?.environmentId ?? '');
+	let excludeStacks = $state<string[]>(p0?.excludeStacks ?? []);
+	let excludeVolumes = $state<string[]>(p0?.excludeVolumes ?? []);
 	let shutdown = $state(p0?.shutdown ?? false);
 	let enabled = $state(p0?.schedule?.enabled ?? false);
 	let cron = $state(p0?.schedule?.cron ?? '');
@@ -106,8 +105,10 @@
 			envRepos,
 			includeManager,
 			includeMetrics,
-			selStacks,
-			selVolumes,
+			scopeMode,
+			environmentId,
+			excludeStacks,
+			excludeVolumes,
 			shutdown,
 			enabled,
 			cron,
@@ -142,14 +143,9 @@
 		return m;
 	});
 	const activeEnvs = $derived((envs.data ?? []).filter((e) => e.status !== 'archived'));
-	const involvedEnvs = $derived([
-		...new Set([
-			...selStacks
-				.map((s) => stacksList.find((x) => x.id === s.stackId)?.environmentId)
-				.filter((x): x is string => !!x),
-			...selVolumes.map((v) => v.environmentId)
-		])
-	]);
+	const involvedEnvs = $derived(
+		activeEnvs.filter((e) => scopeMode === 'all' || e.id === environmentId).map((e) => e.id)
+	);
 
 	function envRepoOptions(envId: string) {
 		return [
@@ -175,27 +171,14 @@
 	}
 
 	function isSelected(id: string) {
-		return selStacks.some((s) => s.stackId === id);
+		return excludeStacks.includes(id);
 	}
 	function toggleStack(id: string, on: boolean) {
 		touched = true;
-		selStacks = on
-			? [...selStacks, { stackId: id, anonymousVolumes: false }]
-			: selStacks.filter((s) => s.stackId !== id);
+		excludeStacks = on
+			? [...new Set([...excludeStacks, id])]
+			: excludeStacks.filter((s) => s !== id);
 		scope = null;
-	}
-	function setOptIn(stackId: string, path: string, on: boolean) {
-		touched = true;
-		selStacks = selStacks.map((s) =>
-			s.stackId !== stackId
-				? s
-				: {
-						...s,
-						externalPaths: on
-							? [...new Set([...(s.externalPaths ?? []), path])]
-							: (s.externalPaths ?? []).filter((x) => x !== path)
-					}
-		);
 	}
 
 	function draft(): PolicyInput {
@@ -203,13 +186,15 @@
 		for (const [k, v] of Object.entries(envRepos)) if (v) er[k] = v;
 		return {
 			name: name.trim(),
+			scope: scopeMode,
+			environmentId: scopeMode === 'all' ? undefined : environmentId,
+			excludeStacks,
+			excludeVolumes,
 			repositoryId,
 			environmentRepositories: er,
 			includeManagerState: includeManager,
 			includeMetrics: includeManager && includeMetrics,
 			shutdown,
-			stacks: selStacks,
-			volumes: selVolumes,
 			schedule: { cron, timeZone: zone, enabled },
 			retention
 		};
@@ -272,10 +257,9 @@
 
 	const canAdvance = $derived(
 		current === 0
-			? !!name.trim() && !!repositoryId
+			? !!name.trim() && !!repositoryId && (scopeMode === 'all' || !!environmentId)
 			: current === 1
-				? (includeManager || selStacks.length > 0 || selVolumes.length > 0) &&
-					involvedEnvs.every((e) => !needsEnvRepo(e))
+				? involvedEnvs.every((e) => !needsEnvRepo(e))
 				: current === 3
 					? !!cron.trim()
 					: current === 4
@@ -296,6 +280,8 @@
 						api.POST('/api/v1/backup-policies', {
 							body: {
 								name: name.trim(),
+								scope: scopeMode,
+								environmentId: scopeMode === 'all' ? undefined : environmentId,
 								repositoryId,
 								includeManagerState: includeManager
 							}
@@ -360,8 +346,8 @@
 
 	// Scope previews go stale when the selection changes.
 	$effect(() => {
-		void selStacks;
-		void selVolumes;
+		void excludeStacks;
+		void excludeVolumes;
 		void includeManager;
 		untrack(() => (scope = null));
 	});
@@ -387,6 +373,25 @@
 					placeholder="Nightly"
 					error={fieldErrors(error)['body.name']}
 				/>
+				<Select
+					label="Environments"
+					options={[
+						{ value: 'all', label: 'All Environments' },
+						{ value: 'environment', label: 'Single Environment' }
+					]}
+					bind:value={scopeMode}
+					disabled={!!policy}
+				/>
+				{#if scopeMode === 'environment'}
+					<Select
+						label="Environment"
+						options={activeEnvs.map((e) => ({ value: e.id, label: e.name }))}
+						bind:value={environmentId}
+						placeholder="Choose an environment"
+						required
+						disabled={!!policy}
+					/>
+				{/if}
 				{#if repos.isPending}
 					<Skeleton lines={1} height="36px" />
 				{:else if readyRepos.length === 0}
@@ -435,20 +440,20 @@
 					</FieldGroup>
 				{/if}
 				<FieldGroup
-					legend="Stacks"
-					hint="The project directory with its Compose files, .env and relative bind data, plus the stack's named volumes."
+					legend="Exclude stacks"
+					hint="Every managed stack in scope is backed up by default. Select a stack to exclude it."
 				>
 					{#if stacks.isPending}
 						<Skeleton lines={3} height="20px" />
 					{:else if stacksList.length === 0}
 						<p class="muted">No stacks you can back up.</p>
 					{/if}
-					{#each Object.entries(stacksByEnv) as [envId, list] (envId)}
+					{#each Object.entries(stacksByEnv).filter( ([envId]) => involvedEnvs.includes(envId) ) as [envId, list] (envId)}
 						<p class="env">{envName(envId)}</p>
 						<ChoiceGrid min="200px">
 							{#each list as st (st.id)}
 								<Checkbox
-									label={st.displayName || st.name}
+									label={`Exclude ${st.displayName || st.name}`}
 									checked={isSelected(st.id)}
 									onchange={(e) => toggleStack(st.id, e.currentTarget.checked)}
 								/>
@@ -456,27 +461,18 @@
 						</ChoiceGrid>
 					{/each}
 				</FieldGroup>
-				{#each selStacks as sel, i (sel.stackId)}
-					{@const st = stacksList.find((x) => x.id === sel.stackId)}
-					{#if st}
-						<StackScopeEditor
-							bind:value={selStacks[i]}
-							stack={st}
-							onchange={() => (touched = true)}
-						/>
-					{/if}
-				{/each}
 				<FieldGroup
-					legend="Standalone volumes"
-					hint="Named volumes that belong to no stack."
+					legend="Exclude standalone volumes"
+					hint="Every standalone volume in scope is backed up by default. Select a volume to exclude it."
 				>
-					{#each activeEnvs.filter((e) => e.online) as e (e.id)}
-						<VolumePicker
+					{#each activeEnvs.filter((e) => e.online && involvedEnvs.includes(e.id)) as e (e.id)}
+						<VolumeExclusions
 							environmentId={e.id}
 							environmentName={e.name}
-							selected={selVolumes}
+							all={scopeMode === 'all'}
+							excluded={excludeVolumes}
 							onchange={(v) => {
-								selVolumes = v;
+								excludeVolumes = v;
 								touched = true;
 							}}
 						/>
@@ -513,15 +509,7 @@
 						live="alert">{scopeError}</Notice
 					>{/if}
 				{#if scope}
-					<ScopePreviewView
-						preview={scope}
-						showShutdown={false}
-						optedIn={(id, path) =>
-							!!selStacks
-								.find((x) => x.stackId === id)
-								?.externalPaths?.includes(path)}
-						onOptIn={setOptIn}
-					/>
+					<ScopePreviewView preview={scope} showShutdown={false} />
 				{/if}
 			</Fields>
 		{:else if s.id === 'shutdown'}

@@ -65,8 +65,7 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	var pol struct {
 		ID string `json:"id"`
 	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Nightly", "repositoryId": repo.Repository.ID,
-		"stacks":   []map[string]any{{"stackId": b.stackID}},
+	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Nightly", "scope": "all", "repositoryId": repo.Repository.ID,
 		"schedule": map[string]any{"cron": "*/5 * * * *", "timeZone": "UTC", "enabled": true}}).json(t, &pol)
 	backupRuns := func() int {
 		t.Helper()
@@ -94,12 +93,12 @@ func TestArchiveAndReattachThroughTheManager(t *testing.T) {
 	if got := b.runJob(js[0].ID); got.State != domain.JobSucceeded {
 		t.Fatalf("backup: %s %s", got.State, got.ErrorMessage)
 	}
-	// An update policy on the stack (checks enabled).
+	// An environment update policy (checks enabled).
 	now := b.clk.Now().UTC()
-	up := domain.UpdatePolicy{ID: "0190a6e0-0000-7000-8000-00000000u001", EnvironmentID: env, Name: "App updates",
-		TargetType: domain.UpdateTargetStack, TargetID: b.stackID, Check: domain.UpdateSchedule{Cron: "0 3 * * *", TimeZone: "UTC", Enabled: true},
-		Run: domain.UpdateSchedule{Cron: "0 4 * * *", TimeZone: "UTC"}, Revision: 1, CreatedAt: now, UpdatedAt: now}
-	if err := store.InsertUpdatePolicy(ctx, b.m.DB(), &up); err != nil {
+	up := domain.EnvironmentUpdatePolicy{ID: "0190a6e0-0000-7000-8000-00000000u001", EnvironmentID: env, Name: "App updates",
+		Check: domain.UpdateSchedule{Cron: "0 3 * * *", TimeZone: "UTC", Enabled: true},
+		Run:   domain.UpdateSchedule{Cron: "0 4 * * *", TimeZone: "UTC"}, Revision: 1, CreatedAt: now, UpdatedAt: now}
+	if err := store.InsertEnvironmentUpdatePolicy(ctx, b.m.DB(), up); err != nil {
 		t.Fatal(err)
 	}
 	if err := b.m.Updates().CheckSource().Validate(ctx, up.ID); err != nil {

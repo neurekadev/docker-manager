@@ -132,20 +132,10 @@ export function looksLikeRecoveryKey(input: string): boolean {
 	return /^DYRK(-[A-Z2-7]{4}){13}$/.test(normalizeRecoveryKey(input));
 }
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
 /** What a policy backs up: "the manager state, 2 stacks and 1 volume". */
-export function scopeText(
-	p: Pick<BackupPolicy, 'includeManagerState' | 'stacks' | 'volumes'>
-): string {
-	const parts: string[] = [];
-	if (p.includeManagerState) parts.push('the manager state');
-	if (p.stacks?.length) parts.push(plural(p.stacks.length, 'stack', 'stacks'));
-	if (p.volumes?.length) parts.push(plural(p.volumes.length, 'volume', 'volumes'));
-	if (!parts.length) return 'nothing yet';
-	return parts.length === 1
-		? parts[0]
-		: `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+export function scopeText(p: Pick<BackupPolicy, 'includeManagerState' | 'scope'>): string {
+	const scope = p.scope === 'all' ? 'all environments' : 'one environment';
+	return p.includeManagerState ? `${scope} and the manager state` : scope;
 }
 
 /** Every recent set of the given policies, newest first. */

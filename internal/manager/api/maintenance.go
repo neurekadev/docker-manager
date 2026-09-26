@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -45,6 +46,36 @@ type MaintenanceService interface {
 	Preview(ctx context.Context, pol domain.MaintenancePolicy, rules []domain.MaintenanceRule, allRules bool) (protocol.PrunePreviewOutput, error)
 	Run(ctx context.Context, p authz.Principal, pol domain.MaintenancePolicy, idempotencyKey string) (domain.Job, error)
 	ScheduleStatus(ctx context.Context, policyID string, runs int) (domain.Schedule, []domain.ScheduleRun, bool, error)
+}
+
+type maintenanceEnvironmentService interface {
+	PreviewEnvironments(ctx context.Context, pol domain.MaintenancePolicy) (map[string]protocol.PrunePreviewOutput, error)
+	RunEnvironments(ctx context.Context, principal authz.Principal, pol domain.MaintenancePolicy, key string) ([]domain.Job, error)
+}
+
+type maintenanceEnvironmentPreviewInput struct {
+	PolicyID string `path:"policyId" maxLength:"64"`
+}
+type maintenanceEnvironmentRunInput struct {
+	PolicyID string `path:"policyId" maxLength:"64"`
+	IdempotencyKeyParam
+	Body struct {
+		Confirm bool `json:"confirm" example:"true"`
+	}
+}
+type maintenanceEnvironmentPreviewItem struct {
+	EnvironmentID string       `json:"environmentId"`
+	Preview       PrunePreview `json:"preview"`
+}
+type maintenanceEnvironmentPreviewOutput struct {
+	Body struct {
+		Items []maintenanceEnvironmentPreviewItem `json:"items"`
+	}
+}
+type maintenanceEnvironmentJobsOutput struct {
+	Body struct {
+		Jobs []Job `json:"jobs"`
+	}
 }
 
 // MaintenanceRule is one category rule of a policy.
@@ -177,6 +208,7 @@ type MaintenanceRunSummary struct {
 // id, name, environment and enabled.
 type MaintenancePolicy struct {
 	ID            string                 `json:"id"`
+	Scope         string                 `json:"scope" enum:"all,environment"`
 	EnvironmentID string                 `json:"environmentId"`
 	Name          string                 `json:"name"`
 	Enabled       bool                   `json:"enabled" doc:"Automatic (scheduled) runs are enabled."`
@@ -196,7 +228,11 @@ func policyResource(p domain.MaintenancePolicy) authz.Resource {
 }
 
 func (h *maintenanceAPI) newPolicy(ctx context.Context, p domain.MaintenancePolicy, v authz.View) MaintenancePolicy {
-	out := MaintenancePolicy{ID: p.ID, EnvironmentID: p.EnvironmentID, Name: p.Name, Enabled: p.ScheduleEnabled, View: v.Level.String(),
+	scope := "environment"
+	if p.EnvironmentID == "" {
+		scope = "all"
+	}
+	out := MaintenancePolicy{ID: p.ID, Scope: scope, EnvironmentID: p.EnvironmentID, Name: p.Name, Enabled: p.ScheduleEnabled, View: v.Level.String(),
 		Actions: Actions(v)}
 	if v.Has(string(CapMaintenancePolicyManage)) {
 		out.Revision = p.Revision
@@ -298,6 +334,8 @@ func maintenanceError(err error) error {
 		return NotFound("maintenance policy not found")
 	case errors.Is(err, domain.ErrMaintenancePolicyNameTaken):
 		return Conflict(CodeMaintenancePolicyNameTaken, "another maintenance policy in this environment already uses this name")
+	case errors.Is(err, domain.ErrMaintenanceScopeOverlap):
+		return Conflict("maintenance_scope_overlap", "a maintenance policy already covers this environment")
 	case errors.Is(err, domain.ErrMaintenancePolicyEmpty):
 		return Conflict(CodeMaintenancePolicyEmpty, "the policy has no enabled rule; enable at least one rule before running it")
 	case errors.As(err, &active):
@@ -390,7 +428,8 @@ type maintenancePolicyListOutput struct{ Body Page[MaintenancePolicy] }
 
 type createMaintenancePolicyInput struct {
 	Body struct {
-		EnvironmentID string                    `json:"environmentId" minLength:"1" maxLength:"64"`
+		Scope         string                    `json:"scope,omitempty" enum:"all,environment"`
+		EnvironmentID string                    `json:"environmentId,omitempty" maxLength:"64"`
 		Name          string                    `json:"name" minLength:"1" maxLength:"100" example:"Weekly cleanup"`
 		Description   string                    `json:"description,omitempty" maxLength:"1000"`
 		Schedule      *maintenanceScheduleInput `json:"schedule,omitempty"`
@@ -497,10 +536,23 @@ func (h *maintenanceAPI) create(ctx context.Context, in *createMaintenancePolicy
 		return nil, err
 	}
 	env := in.Body.EnvironmentID
-	if !authz.ViewOf(c, authz.EnvironmentResource(env)).Visible() {
+	if in.Body.Scope == "all" && env != "" {
+		return nil, Invalid("invalid maintenance scope", Field("body.environmentId", "leave empty for all environments"))
+	}
+	if in.Body.Scope == "environment" && env == "" {
+		return nil, Invalid("invalid maintenance scope", Field("body.environmentId", "choose an environment"))
+	}
+	if in.Body.Scope != "" && in.Body.Scope != "all" && in.Body.Scope != "environment" {
+		return nil, Invalid("invalid maintenance scope", Field("body.scope", "choose all or environment"))
+	}
+	if env == "" {
+		if !c.Can("maintenance_policy.manage_all", authz.Instance()).Allowed {
+			return nil, Forbidden("only the owner can manage maintenance across all environments")
+		}
+	} else if !authz.ViewOf(c, authz.EnvironmentResource(env)).Visible() {
 		return nil, NotFound("environment not found")
 	}
-	if !c.Can(string(CapMaintenancePolicyManage), authz.InEnvironment(catalog.TypeMaintenancePolicy, env)).Allowed {
+	if env != "" && !c.Can(string(CapMaintenancePolicyManage), authz.InEnvironment(catalog.TypeMaintenancePolicy, env)).Allowed {
 		return nil, Forbidden("not permitted: maintenance_policy.manage in this environment")
 	}
 	cr := domain.MaintenancePolicyCreate{EnvironmentID: env, Name: in.Body.Name, Description: in.Body.Description, Rules: pruneRulesOf(in.Body.Rules)}
@@ -595,6 +647,9 @@ func (h *maintenanceAPI) preview(ctx context.Context, in *previewMaintenancePoli
 	if err != nil {
 		return nil, err
 	}
+	if p.EnvironmentID == "" {
+		return nil, Conflict("maintenance_global_preview", "use environment-previews to preview this All Environments policy")
+	}
 	if !c.Can(string(CapMaintenancePreview), policyResource(p)).Allowed {
 		return nil, Forbidden("not permitted to preview this maintenance policy (maintenance.preview)")
 	}
@@ -624,6 +679,9 @@ func (h *maintenanceAPI) run(ctx context.Context, in *runMaintenancePolicyInput)
 		return nil, Conflict(CodePruneConfirmationRequired,
 			"a prune run deletes the policy's candidates and cannot be undone; review a preview and repeat the request with confirm: true")
 	}
+	if p.EnvironmentID == "" {
+		return nil, Conflict("maintenance_global_run", "use environment-runs to run this All Environments policy")
+	}
 	job, err := svc.Run(ctx, pr, p, in.IdempotencyKey)
 	if err != nil {
 		return nil, maintenanceError(err)
@@ -631,6 +689,62 @@ func (h *maintenanceAPI) run(ctx context.Context, in *runMaintenancePolicyInput)
 	audit.SetDetail(ctx, "background", in.Body.Background)
 	audit.SetDetail(ctx, "job_id", job.ID)
 	return Accepted(job), nil
+}
+
+func (h *maintenanceAPI) previewEnvironments(ctx context.Context, in *maintenanceEnvironmentPreviewInput) (*maintenanceEnvironmentPreviewOutput, error) {
+	svc, c, _, p, _, err := h.policy(ctx, in.PolicyID)
+	if err != nil {
+		return nil, err
+	}
+	if !c.Can(string(CapMaintenancePreview), policyResource(p)).Allowed {
+		return nil, Forbidden("not permitted to preview this maintenance policy")
+	}
+	batch, ok := svc.(maintenanceEnvironmentService)
+	if !ok {
+		return nil, Unavailable(CodeUnavailable, "environment maintenance preview is not available")
+	}
+	previews, err := batch.PreviewEnvironments(ctx, p)
+	if err != nil {
+		return nil, maintenanceError(err)
+	}
+	out := &maintenanceEnvironmentPreviewOutput{}
+	out.Body.Items = []maintenanceEnvironmentPreviewItem{}
+	for env, preview := range previews {
+		target := p
+		target.EnvironmentID = env
+		out.Body.Items = append(out.Body.Items, maintenanceEnvironmentPreviewItem{EnvironmentID: env, Preview: newPrunePreview(target, preview)})
+	}
+	slices.SortFunc(out.Body.Items, func(a, b maintenanceEnvironmentPreviewItem) int {
+		return strings.Compare(a.EnvironmentID, b.EnvironmentID)
+	})
+	return out, nil
+}
+
+func (h *maintenanceAPI) runEnvironments(ctx context.Context, in *maintenanceEnvironmentRunInput) (*maintenanceEnvironmentJobsOutput, error) {
+	svc, c, principal, p, _, err := h.policy(ctx, in.PolicyID)
+	if err != nil {
+		return nil, err
+	}
+	if !c.Can(string(CapMaintenanceRun), policyResource(p)).Allowed {
+		return nil, Forbidden("not permitted to run this maintenance policy")
+	}
+	if !in.Body.Confirm {
+		return nil, Conflict(CodePruneConfirmationRequired, "review a preview and repeat with confirm: true")
+	}
+	batch, ok := svc.(maintenanceEnvironmentService)
+	if !ok {
+		return nil, Unavailable(CodeUnavailable, "environment maintenance runs are not available")
+	}
+	jobs, err := batch.RunEnvironments(ctx, principal, p, in.IdempotencyKey)
+	if err != nil {
+		return nil, maintenanceError(err)
+	}
+	out := &maintenanceEnvironmentJobsOutput{}
+	out.Body.Jobs = make([]Job, 0, len(jobs))
+	for _, job := range jobs {
+		out.Body.Jobs = append(out.Body.Jobs, NewJob(job))
+	}
+	return out, nil
 }
 
 func (h *maintenanceAPI) defaults(ctx context.Context, _ *struct{}) (*maintenanceDefaultsOutput, error) {
@@ -795,4 +909,15 @@ func registerMaintenance(a huma.API, deps Deps) {
 		},
 		Capability: CapMaintenanceRun, Scope: ScopeResource, Idempotency: IdempotencyJob,
 	}, h.run)
+
+	Register(a, Operation{Operation: huma.Operation{
+		OperationID: "preview-maintenance-environments", Method: http.MethodPost, Path: path + "/{policyId}/environment-previews",
+		Summary: "Preview a maintenance policy across its environments", Tags: []string{tagMaintenance},
+		Errors: policyErrs,
+	}, Capability: CapMaintenancePreview, Scope: ScopeResource}, h.previewEnvironments)
+	Register(a, Operation{Operation: huma.Operation{
+		OperationID: "run-maintenance-environments", Method: http.MethodPost, Path: path + "/{policyId}/environment-runs",
+		Summary: "Run a maintenance policy across its environments", Tags: []string{tagMaintenance},
+		Errors: policyErrs,
+	}, Capability: CapMaintenanceRun, Scope: ScopeResource, Idempotency: IdempotencyStored}, h.runEnvironments)
 }

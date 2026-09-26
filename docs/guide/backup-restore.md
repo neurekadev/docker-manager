@@ -34,8 +34,10 @@ one thing you must keep outside DockYard.
    bucket (endpoint, bucket, prefix, key pair; write-only, never shown
    again). *Test connection* checks access and Object Lock.
 2. Save and confirm the Recovery Key.
-3. **Backups → Policies → Create backup policy**: what to back up
-   (manager state, stacks, volumes; path and volume filters), where, the
+3. **Backups → Policies → Create backup policy**: choose All Environments
+   or a Single Environment. All managed stacks and standalone volumes are
+   included by default; exclude specific stacks or volumes as needed. Choose
+   whether to include manager state, where to store backups, the
    schedule (off until you turn it on), retention (a minimum number of
    snapshots is always kept), and whether to **stop containers during the
    backup** (off by default). With shutdown on, containers are stopped in

@@ -58,13 +58,16 @@ func (s *Service) Preview(ctx context.Context, environmentID string) (domain.Env
 		add(domain.EnvironmentDependent{Kind: domain.DependentManagedContainer, ID: m.ID, Name: m.Name, OnArchive: domain.OnArchiveKept,
 			Detail: "saved recreate specification kept", ResourceType: catalog.TypeContainer, ResourceID: m.Name})
 	}
-	updates, err := store.ListUpdatePolicies(ctx, s.db, env.ID, "", 0)
+	updates, err := store.ListEnvironmentUpdatePolicies(ctx, s.db)
 	if err != nil {
 		return p, err
 	}
 	for _, u := range updates {
+		if u.EnvironmentID != "" && u.EnvironmentID != env.ID {
+			continue
+		}
 		add(domain.EnvironmentDependent{Kind: domain.DependentUpdatePolicy, ID: u.ID, Name: u.Name, OnArchive: domain.OnArchivePaused,
-			Detail:       fmt.Sprintf("targets %s %s", u.TargetType, targetName(string(u.TargetType), u.TargetID, stackIDs)),
+			Detail:       "this host is skipped while it is archived",
 			ResourceType: catalog.TypeUpdatePolicy, ResourceID: u.ID})
 	}
 	backupPolicies, err := s.backupPolicies(ctx, env.ID, stackIDs)
@@ -167,13 +170,6 @@ func (s *Service) Preview(ctx context.Context, environmentID string) (domain.Env
 	return p, nil
 }
 
-func targetName(typ, id string, stacks map[string]string) string {
-	if typ == "stack" && stacks[id] != "" {
-		return stacks[id]
-	}
-	return id
-}
-
 func ruleText(r domain.PermissionRule) string {
 	scope := "environment"
 	if r.Scope.Kind == domain.ScopeKindResource {
@@ -192,7 +188,7 @@ func (s *Service) backupPolicies(ctx context.Context, envID string, stacks map[s
 	var out []domain.BackupPolicy
 	for _, p := range all {
 		_, named := p.EnvironmentRepos[envID]
-		hit := named
+		hit := named || p.EnvironmentID == "" || p.EnvironmentID == envID
 		for _, st := range p.Stacks {
 			hit = hit || stacks[st.StackID] != ""
 		}

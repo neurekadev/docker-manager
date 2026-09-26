@@ -262,6 +262,31 @@ func (s *Service) activeEnvironment(ctx context.Context, id string) (domain.Envi
 	return env, nil
 }
 
+// ScopeEnvironments resolves a policy's current active environments.
+func (s *Service) ScopeEnvironments(ctx context.Context, environmentID string) ([]domain.Environment, error) {
+	if environmentID != "" {
+		env, err := s.activeEnvironment(ctx, environmentID)
+		if err != nil {
+			return nil, err
+		}
+		return []domain.Environment{env}, nil
+	}
+	return store.ListEnvironments(ctx, s.opts.DB, domain.EnvironmentFilter{Statuses: []domain.EnvironmentStatus{domain.EnvironmentActive}})
+}
+
+func (s *Service) scopeAvailable(ctx context.Context, db bun.IDB, environmentID, except string) error {
+	policies, err := store.ListMaintenancePolicies(ctx, db, "", "", 0)
+	if err != nil {
+		return err
+	}
+	for _, p := range policies {
+		if p.ID != except && (environmentID == "" || p.EnvironmentID == "" || p.EnvironmentID == environmentID) {
+			return domain.ErrMaintenanceScopeOverlap
+		}
+	}
+	return nil
+}
+
 // Create stores a new policy. Empty schedule fields take the instance's
 // schedule defaults (#13), missing rules the maintenance defaults; the
 // schedule stays disabled unless the request enables it.
@@ -272,7 +297,7 @@ func (s *Service) Create(ctx context.Context, c domain.MaintenancePolicyCreate) 
 	if err := ValidateRules(c.Rules, true); err != nil {
 		return domain.MaintenancePolicy{}, err
 	}
-	if _, err := s.activeEnvironment(ctx, c.EnvironmentID); err != nil {
+	if _, err := s.ScopeEnvironments(ctx, c.EnvironmentID); err != nil {
 		return domain.MaintenancePolicy{}, err
 	}
 	cronExpr, tz, err := s.opts.Scheduler.Default(ctx, scheduler.KindPrune)
@@ -299,7 +324,12 @@ func (s *Service) Create(ctx context.Context, c domain.MaintenancePolicyCreate) 
 	if err := ValidateRules(p.Rules, true); err != nil {
 		return domain.MaintenancePolicy{}, err
 	}
-	if err := store.InsertMaintenancePolicy(ctx, s.opts.DB, &p); err != nil {
+	if err := s.opts.DB.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if err := s.scopeAvailable(ctx, tx, c.EnvironmentID, ""); err != nil {
+			return err
+		}
+		return store.InsertMaintenancePolicy(ctx, tx, &p)
+	}); err != nil {
 		return domain.MaintenancePolicy{}, err
 	}
 	s.opts.Scheduler.Notify()
@@ -354,7 +384,7 @@ func (s *Service) Update(ctx context.Context, id string, revision int64, patch d
 	if err := scheduler.ValidateSpec(after.Cron, after.TimeZone); err != nil {
 		return before, after, err
 	}
-	if _, err := s.activeEnvironment(ctx, after.EnvironmentID); err != nil {
+	if _, err := s.ScopeEnvironments(ctx, after.EnvironmentID); err != nil {
 		return before, after, err
 	}
 	after.Revision, after.UpdatedAt = before.Revision+1, s.now()

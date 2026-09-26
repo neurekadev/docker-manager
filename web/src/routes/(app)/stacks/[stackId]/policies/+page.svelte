@@ -9,5 +9,5 @@
 	const stack = $derived(ctx.stack!);
 </script>
 
-<UpdatePolicyCard {stack} tray={ctx.tray} />
+<UpdatePolicyCard {stack} />
 <BackupPoliciesCard {stack} />

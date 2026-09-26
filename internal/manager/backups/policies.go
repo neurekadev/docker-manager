@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -57,7 +58,12 @@ func (s *Service) CreatePolicy(ctx context.Context, p domain.BackupPolicy) (doma
 	if err := s.validatePolicy(ctx, s.db, &p); err != nil {
 		return domain.BackupPolicy{}, err
 	}
-	if err := store.InsertBackupPolicy(ctx, s.db, &p); err != nil {
+	if err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if err := s.backupScopeAvailable(ctx, tx, p.EnvironmentID, ""); err != nil {
+			return err
+		}
+		return store.InsertBackupPolicy(ctx, tx, &p)
+	}); err != nil {
 		return domain.BackupPolicy{}, err
 	}
 	audit.AddTarget(ctx, domain.AuditTarget{Type: catalog.TypeBackupPolicy, ID: p.ID})
@@ -69,6 +75,9 @@ func (s *Service) CreatePolicy(ctx context.Context, p domain.BackupPolicy) (doma
 // PolicyPatch edits a policy (nil = unchanged).
 type PolicyPatch struct {
 	Name             *string
+	EnvironmentID    *string
+	ExcludeStacks    *[]string
+	ExcludeVolumes   *[]string
 	RepositoryID     *string
 	EnvironmentRepos *map[string]string
 	IncludeManager   *bool
@@ -100,6 +109,15 @@ func (s *Service) UpdatePolicy(ctx context.Context, id string, revision int64, p
 		before = p
 		if pp.Name != nil {
 			p.Name = *pp.Name
+		}
+		if pp.EnvironmentID != nil && *pp.EnvironmentID != p.EnvironmentID {
+			return fieldErr("environmentId", "create another policy to change its scope")
+		}
+		if pp.ExcludeStacks != nil {
+			p.ExcludeStacks = *pp.ExcludeStacks
+		}
+		if pp.ExcludeVolumes != nil {
+			p.ExcludeVolumes = *pp.ExcludeVolumes
 		}
 		if pp.RepositoryID != nil {
 			p.RepositoryID = *pp.RepositoryID
@@ -161,7 +179,8 @@ func policyAuditView(p domain.BackupPolicy) map[string]any {
 	for _, v := range p.Volumes {
 		vols = append(vols, v.EnvironmentID+"/"+v.Volume)
 	}
-	return map[string]any{"name": p.Name, "repositoryId": p.RepositoryID, "environmentRepositories": p.EnvironmentRepos,
+	return map[string]any{"name": p.Name, "environmentId": p.EnvironmentID, "excludeStacks": p.ExcludeStacks, "excludeVolumes": p.ExcludeVolumes,
+		"repositoryId": p.RepositoryID, "environmentRepositories": p.EnvironmentRepos,
 		"includeManager": p.IncludeManager, "includeMetrics": p.IncludeMetrics, "stacks": stackIDs, "volumes": vols,
 		"shutdown": p.Shutdown, "cron": p.Cron, "timeZone": p.TimeZone, "enabled": p.Enabled, "retention": p.Retention}
 }
@@ -192,8 +211,23 @@ func (s *Service) validatePolicy(ctx context.Context, db bun.IDB, p *domain.Back
 	for f, msg := range rules.Validate() {
 		return fieldErr("retention."+f, "%s", msg)
 	}
-	if !p.IncludeManager && len(p.Stacks) == 0 && len(p.Volumes) == 0 {
-		return fieldErr("stacks", "select the manager state, at least one stack or at least one volume")
+	if p.EnvironmentID != "" {
+		if _, err := s.environment(ctx, p.EnvironmentID); err != nil {
+			return fieldErr("environmentId", "unknown environment")
+		}
+	}
+	if len(p.ExcludeStacks) > 256 || len(p.ExcludeVolumes) > 256 {
+		return fieldErr("excludeStacks", "at most 256 stack and volume exclusions")
+	}
+	for _, v := range p.ExcludeStacks {
+		if v == "" {
+			return fieldErr("excludeStacks", "stack IDs cannot be empty")
+		}
+	}
+	for _, v := range p.ExcludeVolumes {
+		if v == "" || (p.EnvironmentID == "" && !strings.Contains(v, "/")) || (p.EnvironmentID != "" && strings.Contains(v, "/")) {
+			return fieldErr("excludeVolumes", "use volume names for one environment and environmentID/volumeName for all environments")
+		}
 	}
 	if len(p.Stacks) > MaxPolicyStacks || len(p.Volumes) > MaxPolicyVolumes {
 		return fieldErr("stacks", "at most %d stacks and %d volumes", MaxPolicyStacks, MaxPolicyVolumes)
@@ -301,6 +335,81 @@ func (s *Service) validatePolicy(ctx context.Context, db bun.IDB, p *domain.Back
 	return nil
 }
 
+func (s *Service) backupScopeAvailable(ctx context.Context, db bun.IDB, envID, except string) error {
+	policies, err := store.ListBackupPolicies(ctx, db, "", 0)
+	if err != nil {
+		return err
+	}
+	for _, p := range policies {
+		if p.ID != except && (envID == "" || p.EnvironmentID == "" || p.EnvironmentID == envID) {
+			return domain.ErrBackupScopeOverlap
+		}
+	}
+	return nil
+}
+
+// scopeSelections resolves current managed stacks and standalone volumes.
+// Old internal callers with explicit selections retain their exact scope;
+// the public policy API creates environment policies with empty selections.
+func (s *Service) scopeSelections(ctx context.Context, p domain.BackupPolicy) (domain.BackupPolicy, error) {
+	if len(p.Stacks) > 0 || len(p.Volumes) > 0 {
+		return p, nil
+	}
+	envs, err := store.ListEnvironments(ctx, s.db, domain.EnvironmentFilter{Statuses: []domain.EnvironmentStatus{domain.EnvironmentActive}})
+	if err != nil {
+		return p, err
+	}
+	p.Stacks, p.Volumes = nil, nil
+	for _, env := range envs {
+		if p.EnvironmentID != "" && p.EnvironmentID != env.ID {
+			continue
+		}
+		stacks, err := store.ListStacks(ctx, s.db, domain.StackFilter{EnvironmentID: env.ID})
+		if err != nil {
+			return p, err
+		}
+		for _, stack := range stacks {
+			if !slices.Contains(p.ExcludeStacks, stack.ID) {
+				p.Stacks = append(p.Stacks, domain.BackupStackSelection{StackID: stack.ID})
+			}
+		}
+		if s.volumes == nil {
+			continue
+		}
+		volumes, err := s.volumes.ListVolumes(ctx, env.ID)
+		if err != nil {
+			return p, err
+		}
+		containers, err := s.volumes.ListContainers(ctx, env.ID)
+		if err != nil {
+			return p, err
+		}
+		stackNames := map[string]bool{}
+		for _, stack := range stacks {
+			stackNames[stack.Name] = true
+		}
+		managedContainer := map[string]bool{}
+		for _, container := range containers {
+			if stackNames[container.Labels[protocol.ComposeProjectLabel]] {
+				managedContainer[container.ID] = true
+			}
+		}
+		for _, volume := range volumes {
+			key := volume.Name
+			if p.EnvironmentID == "" {
+				key = env.ID + "/" + key
+			}
+			if volume.Stack != nil || volume.Protection != nil || stackNames[volume.Labels[protocol.ComposeProjectLabel]] ||
+				slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return managedContainer[ref.ID] }) ||
+				slices.Contains(p.ExcludeVolumes, key) {
+				continue
+			}
+			p.Volumes = append(p.Volumes, domain.BackupVolumeSelection{EnvironmentID: env.ID, Volume: volume.Name})
+		}
+	}
+	return p, nil
+}
+
 // VolumeReference is a standalone volume a backup policy selects.
 type VolumeReference struct {
 	Volume     string
@@ -316,6 +425,42 @@ func (s *Service) VolumeReferences(ctx context.Context, environmentID string) ([
 	}
 	var out []VolumeReference
 	for _, p := range pols {
+		if len(p.Stacks) == 0 && len(p.Volumes) == 0 && (p.EnvironmentID == "" || p.EnvironmentID == environmentID) && s.volumes != nil {
+			volumes, err := s.volumes.ListVolumes(ctx, environmentID)
+			if err != nil {
+				return nil, err
+			}
+			containers, err := s.volumes.ListContainers(ctx, environmentID)
+			if err != nil {
+				return nil, err
+			}
+			stacks, err := store.ListStacks(ctx, s.db, domain.StackFilter{EnvironmentID: environmentID})
+			if err != nil {
+				return nil, err
+			}
+			stackNames := map[string]bool{}
+			for _, stack := range stacks {
+				stackNames[stack.Name] = true
+			}
+			managedContainer := map[string]bool{}
+			for _, container := range containers {
+				if stackNames[container.Labels[protocol.ComposeProjectLabel]] {
+					managedContainer[container.ID] = true
+				}
+			}
+			for _, volume := range volumes {
+				key := volume.Name
+				if p.EnvironmentID == "" {
+					key = environmentID + "/" + key
+				}
+				if volume.Stack == nil && volume.Protection == nil && !stackNames[volume.Labels[protocol.ComposeProjectLabel]] &&
+					!slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return managedContainer[ref.ID] }) &&
+					!slices.Contains(p.ExcludeVolumes, key) {
+					out = append(out, VolumeReference{Volume: volume.Name, PolicyName: p.Name})
+				}
+			}
+			continue
+		}
 		for _, v := range p.Volumes {
 			if v.EnvironmentID == environmentID {
 				out = append(out, VolumeReference{Volume: v.Volume, PolicyName: p.Name})
@@ -355,6 +500,11 @@ type envPlan struct {
 
 // planItems groups a policy's selections by environment (sorted).
 func (s *Service) planItems(ctx context.Context, db bun.IDB, p domain.BackupPolicy) ([]envPlan, error) {
+	var err error
+	p, err = s.scopeSelections(ctx, p)
+	if err != nil {
+		return nil, err
+	}
 	byEnv := map[string]*envPlan{}
 	get := func(env string) (*envPlan, error) {
 		if e, ok := byEnv[env]; ok {

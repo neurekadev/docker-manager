@@ -24,24 +24,18 @@ only production process execution in DockYard.
   `dockyard-env-<environmentId>` for an environment's data. A local
   repository serves only its own executor's scope; an S3 repository serves
   every scope. Ownership, locking and retention stay per location.
-- A **policy** selects the manager state (owner only), managed stacks and
-  standalone volumes across environments, the container-shutdown toggle
-  (default off), a schedule (#13, starts disabled) and retention. Stacks
-  are selected by ID, so a policy follows a stack migrated to another
-  environment (#35; with local repositories the destination environment
-  needs its own repository in `environmentRepositories`, else the next run
-  refuses that member: it is recorded `failed` with class
-  `repository_not_serving_environment`, the rest of the set runs, the
-  scope preview shows the same class and a warning, and the local
-  repository is never handed to another executor's agent). The
-  `Service.StackMoved` hook (`Migrations().OnStackMoved`, in the
-  migration's completing transaction) audits `backup_policy.stack_moved`
-  per policy with whether a repository can hold the destination's data.
-  Snapshots taken before the move keep the source's repository, scope and
-  environment. Docker maintenance (#14) never prunes a standalone volume a
-  policy selects (`Maintenance().SetBackupReferences`); stack volumes are
-  protected as part of DockYard stacks, and a local repository on a volume
-  mounted into DockYard's agent is DockYard's own (#32).
+- A **policy** covers one environment or all environments. Overlap is
+  rejected (`backup_scope_overlap`). Every managed stack and standalone
+  volume in its scope is selected at preview and run time unless its stack
+  ID or volume name is excluded. All-environments volume exclusions use
+  `environmentID/volumeName`. The policy also configures manager state
+  (owner only), container shutdown (off by default), a schedule (#13,
+  starts disabled), and retention. A migrated stack is covered by the
+  destination environment's policy. Existing snapshots retain their source
+  location. Docker maintenance (#14) protects covered standalone volumes
+  (`Maintenance().SetBackupReferences`); stack volumes are protected as part
+  of DockYard stacks, and a local repository mounted into DockYard's agent
+  is DockYard's own (#32).
 - A **run** of a policy is one **backup set**: a `backup.run` job per
   environment and, with the manager state, a `manager.backup` job queued
   last. Each member (stack, volume, manager state) is its own snapshot with

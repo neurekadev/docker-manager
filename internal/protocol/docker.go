@@ -31,6 +31,9 @@ const (
 	// LabelSpec is the ID of the saved recreate specification of a
 	// DockYard-managed standalone container (manager side, used by #20).
 	LabelSpec = LabelPrefix + "spec"
+	// LabelUpdateExclude is a user-set opt-out from automatic image updates.
+	// It deliberately sits outside the reserved DockYard prefix.
+	LabelUpdateExclude = "dockyard.update.exclude"
 
 	// ManagedStandalone is the LabelManaged value of standalone containers.
 	ManagedStandalone = "standalone"
@@ -42,6 +45,11 @@ const (
 	ComposeWorkingDirLabel = "com.docker.compose.project.working_dir"
 	ComposeOneoffLabel     = "com.docker.compose.oneoff"
 )
+
+// UpdateExcluded reports whether a container has opted out of automatic updates.
+func UpdateExcluded(labels map[string]string) bool {
+	return strings.EqualFold(labels[LabelUpdateExclude], "true")
+}
 
 // ContainerPort is a container port and its host binding.
 type ContainerPort struct {

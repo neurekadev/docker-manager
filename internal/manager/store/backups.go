@@ -175,6 +175,12 @@ func (r backupRepositoryRow) toDomain() domain.BackupRepository {
 func InsertBackupRepository(ctx context.Context, db bun.IDB, r *domain.BackupRepository, sealed BackupRepositorySealed) error {
 	row := fromBackupRepository(r, sealed)
 	if _, err := db.NewInsert().Model(&row).Exec(ctx); err != nil {
+		if uniqueViolation(err, "backup_policy_scope") || uniqueViolation(err, "backup_policies.environment_id") {
+			return domain.ErrBackupScopeOverlap
+		}
+		if uniqueViolation(err, "backup_policies.environment_id") || uniqueViolation(err, "backup_policy_scope") {
+			return domain.ErrBackupScopeOverlap
+		}
 		if uniqueViolation(err, "backup_repositories.name_key") {
 			return domain.ErrBackupRepositoryNameUsed
 		}
@@ -427,6 +433,9 @@ type backupPolicyRow struct {
 	ID               string    `bun:"id,pk"`
 	Name             string    `bun:"name,notnull"`
 	NameKey          string    `bun:"name_key,notnull"`
+	EnvironmentID    string    `bun:"environment_id,notnull"`
+	ExcludeStacks    string    `bun:"exclude_stacks,notnull"`
+	ExcludeVolumes   string    `bun:"exclude_volumes,notnull"`
 	RepositoryID     string    `bun:"repository_id,notnull"`
 	EnvironmentRepos string    `bun:"environment_repos,notnull"`
 	IncludeManager   int       `bun:"include_manager,notnull"`
@@ -463,7 +472,8 @@ func fromBackupPolicy(p *domain.BackupPolicy) backupPolicyRow {
 	if volumes == nil {
 		volumes = []domain.BackupVolumeSelection{}
 	}
-	return backupPolicyRow{ID: p.ID, Name: p.Name, NameKey: NameKey(p.Name), RepositoryID: p.RepositoryID,
+	return backupPolicyRow{ID: p.ID, Name: p.Name, NameKey: NameKey(p.Name), EnvironmentID: p.EnvironmentID,
+		ExcludeStacks: jsonText(p.ExcludeStacks), ExcludeVolumes: jsonText(p.ExcludeVolumes), RepositoryID: p.RepositoryID,
 		EnvironmentRepos: jsonText(repos), IncludeManager: b2i(p.IncludeManager), IncludeMetrics: b2i(p.IncludeMetrics),
 		Stacks: jsonText(stacks), Volumes: jsonText(volumes), Shutdown: b2i(p.Shutdown), Cron: p.Cron, TimeZone: p.TimeZone,
 		Enabled: b2i(p.Enabled), Retention: jsonText(p.Retention), Revision: p.Revision, CreatedAt: p.CreatedAt.UTC(),
@@ -471,10 +481,12 @@ func fromBackupPolicy(p *domain.BackupPolicy) backupPolicyRow {
 }
 
 func (r backupPolicyRow) toDomain() domain.BackupPolicy {
-	p := domain.BackupPolicy{ID: r.ID, Name: r.Name, RepositoryID: r.RepositoryID, IncludeManager: r.IncludeManager == 1,
+	p := domain.BackupPolicy{ID: r.ID, Name: r.Name, EnvironmentID: r.EnvironmentID, RepositoryID: r.RepositoryID, IncludeManager: r.IncludeManager == 1,
 		IncludeMetrics: r.IncludeMetrics == 1, Shutdown: r.Shutdown == 1, Cron: r.Cron, TimeZone: r.TimeZone, Enabled: r.Enabled == 1,
 		Revision: r.Revision, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC()}
 	_ = json.Unmarshal([]byte(r.EnvironmentRepos), &p.EnvironmentRepos)
+	_ = json.Unmarshal([]byte(r.ExcludeStacks), &p.ExcludeStacks)
+	_ = json.Unmarshal([]byte(r.ExcludeVolumes), &p.ExcludeVolumes)
 	_ = json.Unmarshal([]byte(r.Stacks), &p.Stacks)
 	_ = json.Unmarshal([]byte(r.Volumes), &p.Volumes)
 	_ = json.Unmarshal([]byte(r.Retention), &p.Retention)

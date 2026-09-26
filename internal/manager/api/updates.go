@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -374,40 +373,6 @@ type updatePolicyOutput struct {
 
 type updatePolicyListOutput struct{ Body Page[UpdatePolicy] }
 
-type createUpdatePolicyInput struct {
-	Body struct {
-		EnvironmentID      string               `json:"environmentId" minLength:"1" maxLength:"64"`
-		Name               string               `json:"name" minLength:"1" maxLength:"100"`
-		Target             UpdateTarget         `json:"target"`
-		Services           []string             `json:"services,omitempty" maxItems:"64" doc:"Opt in only these services (default: every service)."`
-		ExcludeServices    []string             `json:"excludeServices,omitempty" maxItems:"64"`
-		CheckSchedule      *UpdateScheduleInput `json:"checkSchedule,omitempty" doc:"Default: the instance's update_check default, disabled."`
-		RunSchedule        *UpdateScheduleInput `json:"runSchedule,omitempty" doc:"Default: the instance's update_run default, disabled."`
-		Window             *UpdateWindow        `json:"window,omitempty"`
-		WaitTimeoutSeconds int                  `json:"waitTimeoutSeconds,omitempty" minimum:"0" maximum:"3600"`
-	}
-}
-
-type patchUpdatePolicyInput struct {
-	PolicyID string `path:"policyId" maxLength:"64" doc:"Update policy ID."`
-	IfMatchParam
-	Body struct {
-		Name               *string              `json:"name,omitempty" minLength:"1" maxLength:"100"`
-		Services           *[]string            `json:"services,omitempty" maxItems:"64"`
-		ExcludeServices    *[]string            `json:"excludeServices,omitempty" maxItems:"64"`
-		CheckSchedule      *UpdateScheduleInput `json:"checkSchedule,omitempty" doc:"Replaces the whole schedule (cron and timeZone required)."`
-		RunSchedule        *UpdateScheduleInput `json:"runSchedule,omitempty" doc:"Replaces the whole schedule (cron and timeZone required)."`
-		Window             *UpdateWindow        `json:"window,omitempty"`
-		ClearWindow        bool                 `json:"clearWindow,omitempty" doc:"Remove the update window."`
-		WaitTimeoutSeconds *int                 `json:"waitTimeoutSeconds,omitempty" minimum:"0" maximum:"3600"`
-	}
-}
-
-type deleteUpdatePolicyInput struct {
-	PolicyID string `path:"policyId" maxLength:"64" doc:"Update policy ID."`
-	IfMatchParam
-}
-
 type createUpdateCheckInput struct {
 	PolicyID string `path:"policyId" maxLength:"64" doc:"Update policy ID."`
 	IdempotencyKeyParam
@@ -542,69 +507,6 @@ func windowInput(in *UpdateWindow) *domain.UpdateWindow {
 	return &domain.UpdateWindow{Days: append([]int{}, in.Days...), Start: in.Start, End: in.End}
 }
 
-// targetVisible requires the caller to see the policy's target (404).
-func (h *updatesAPI) targetVisible(ctx context.Context, c authz.Checker, env string, t UpdateTarget) error {
-	switch t.Type {
-	case string(domain.UpdateTargetStack):
-		if h.stacks == nil {
-			return Unavailable(CodeUnavailable, "the stack service is not available")
-		}
-		st, err := h.stacks.Get(ctx, t.ID)
-		if err != nil || st.EnvironmentID != env || !authz.ViewOf(c, stackResource(st)).Visible() {
-			return Invalid("invalid update policy", Field("body.target.id", "no such stack in this environment"))
-		}
-	case string(domain.UpdateTargetContainer):
-		if h.docker == nil || h.docker.svc == nil {
-			return Unavailable(CodeUnavailable, "the Docker resource service is not available")
-		}
-		sc, err := h.docker.environment(ctx, env, true)
-		if err != nil {
-			return err
-		}
-		if _, _, err := h.docker.visibleContainer(ctx, sc, t.ID); err != nil {
-			var ae *Error
-			if errors.As(err, &ae) && ae.GetStatus() == http.StatusNotFound {
-				return Invalid("invalid update policy", Field("body.target.id", "no such container in this environment"))
-			}
-			return err
-		}
-	}
-	return nil
-}
-
-func (h *updatesAPI) create(ctx context.Context, in *createUpdatePolicyInput) (*updatePolicyOutput, error) {
-	c, _, err := h.checker(ctx)
-	if err != nil {
-		return nil, err
-	}
-	env := in.Body.EnvironmentID
-	if !authz.ViewOf(c, authz.EnvironmentResource(env)).Visible() {
-		return nil, NotFound("environment not found")
-	}
-	if !c.Can(string(CapUpdatePolicyManage), authz.InEnvironment(catalog.TypeUpdatePolicy, env)).Allowed {
-		return nil, Forbidden("not permitted: " + string(CapUpdatePolicyManage) + " in this environment")
-	}
-	if err := h.targetVisible(ctx, c, env, in.Body.Target); err != nil {
-		return nil, err
-	}
-	p, err := h.svc.Create(ctx, updates.NewPolicy{EnvironmentID: env, Name: in.Body.Name, TargetType: domain.UpdateTargetType(in.Body.Target.Type),
-		TargetID: in.Body.Target.ID, Services: in.Body.Services, ExcludeServices: in.Body.ExcludeServices,
-		Check: scheduleInput(in.Body.CheckSchedule), Run: scheduleInput(in.Body.RunSchedule), Window: windowInput(in.Body.Window),
-		WaitTimeoutSeconds: in.Body.WaitTimeoutSeconds})
-	if err != nil {
-		return nil, updateError(err)
-	}
-	audit.AddTarget(ctx, domain.AuditTarget{Type: catalog.TypeUpdatePolicy, ID: p.ID, EnvironmentID: p.EnvironmentID})
-	audit.SetDetail(ctx, "target", string(p.TargetType)+":"+p.TargetID)
-	audit.SetDetail(ctx, "checkEnabled", p.Check.Enabled)
-	audit.SetDetail(ctx, "runEnabled", p.Run.Enabled)
-	body, err := h.newPolicy(ctx, p, authz.ViewOf(c, updatePolicyResource(p)))
-	if err != nil {
-		return nil, Internal(err)
-	}
-	return &updatePolicyOutput{ETagHeader: ETagHeader{ETag: RevisionETag(p.Revision)}, Body: body}, nil
-}
-
 func (h *updatesAPI) get(ctx context.Context, in *updatePolicyIDInput) (*updatePolicyOutput, error) {
 	c, _, err := h.checker(ctx)
 	if err != nil {
@@ -627,69 +529,6 @@ func (h *updatesAPI) get(ctx context.Context, in *updatePolicyIDInput) (*updateP
 		out.ETag = RevisionETag(body.Revision)
 	}
 	return out, nil
-}
-
-// auditPolicy is the audited shape of a policy (settings, never secrets).
-func auditPolicy(p domain.UpdatePolicy) map[string]any {
-	m := map[string]any{"name": p.Name, "services": p.Services, "excludeServices": p.ExcludeServices,
-		"checkCron": p.Check.Cron, "checkTimeZone": p.Check.TimeZone, "checkEnabled": p.Check.Enabled,
-		"runCron": p.Run.Cron, "runTimeZone": p.Run.TimeZone, "runEnabled": p.Run.Enabled, "waitTimeoutSeconds": p.WaitTimeoutSeconds}
-	if p.Window != nil {
-		m["window"] = p.Window.Start + "-" + p.Window.End
-	}
-	return m
-}
-
-func (h *updatesAPI) update(ctx context.Context, in *patchUpdatePolicyInput) (*updatePolicyOutput, error) {
-	c, _, p, _, err := h.policy(ctx, in.PolicyID, CapUpdatePolicyManage)
-	if err != nil {
-		return nil, err
-	}
-	if err := in.CheckIfMatch(RevisionETag(p.Revision)); err != nil {
-		return nil, err
-	}
-	patch := domain.UpdatePolicyPatch{Name: in.Body.Name, Services: in.Body.Services, ExcludeServices: in.Body.ExcludeServices,
-		Window: windowInput(in.Body.Window), ClearWindow: in.Body.ClearWindow, WaitTimeoutSeconds: in.Body.WaitTimeoutSeconds}
-	for field, sc := range map[string]*UpdateScheduleInput{"checkSchedule": in.Body.CheckSchedule, "runSchedule": in.Body.RunSchedule} {
-		if sc != nil && (strings.TrimSpace(sc.Cron) == "" || strings.TrimSpace(sc.TimeZone) == "") {
-			return nil, Invalid("invalid update policy", Field("body."+field, "cron and timeZone are required"))
-		}
-	}
-	patch.Check, patch.Run = scheduleInput(in.Body.CheckSchedule), scheduleInput(in.Body.RunSchedule)
-	before, after, err := h.svc.Update(ctx, p.ID, p.Revision, patch)
-	if errors.Is(err, domain.ErrRevisionMismatch) {
-		return nil, stale(before.Revision)
-	}
-	if err != nil {
-		return nil, updateError(err)
-	}
-	audit.SetDiff(ctx, auditPolicy(before), auditPolicy(after))
-	body, err := h.newPolicy(ctx, after, authz.ViewOf(c, updatePolicyResource(after)))
-	if err != nil {
-		return nil, Internal(err)
-	}
-	return &updatePolicyOutput{ETagHeader: ETagHeader{ETag: RevisionETag(after.Revision)}, Body: body}, nil
-}
-
-func (h *updatesAPI) delete(ctx context.Context, in *deleteUpdatePolicyInput) (*struct{}, error) {
-	_, _, p, _, err := h.policy(ctx, in.PolicyID, CapUpdatePolicyManage)
-	if err != nil {
-		return nil, err
-	}
-	if err := in.CheckIfMatch(RevisionETag(p.Revision)); err != nil {
-		return nil, err
-	}
-	if err := h.svc.Delete(ctx, p.ID, p.Revision); err != nil {
-		if errors.Is(err, domain.ErrRevisionMismatch) {
-			cur, gerr := h.svc.Get(ctx, p.ID)
-			if gerr != nil {
-				return nil, updateError(gerr)
-			}
-			return nil, stale(cur.Revision)
-		}
-		return nil, updateError(err)
-	}
-	return nil, nil
 }
 
 func (h *updatesAPI) check(ctx context.Context, in *createUpdateCheckInput) (*JobAccepted, error) {
@@ -830,6 +669,7 @@ func (h *updatesAPI) containerImageStatus(ctx context.Context, in *ContainerPath
 }
 
 func registerUpdates(a huma.API, deps Deps) {
+	registerEnvironmentUpdates(a, deps)
 	h := &updatesAPI{svc: deps.Updates, authz: authz.OrDenyAll(deps.Authorizer), stacks: deps.Stacks, docker: newDockerAPI(deps)}
 	base := BasePath + "/update-policies"
 	one := base + "/{policyId}"
@@ -847,33 +687,11 @@ func registerUpdates(a huma.API, deps Deps) {
 	}, Capability: CapUpdatePolicyRead, Scope: ScopeResource}, h.list)
 
 	Register(a, Operation{Operation: huma.Operation{
-		OperationID: "create-update-policy", Method: http.MethodPost, Path: base, Summary: "Create an update policy",
-		Description: "Opts a stack or a DockYard-managed standalone container (with a saved recreate specification) into digest-driven " +
-			"updates. One policy per target. Check and run schedules default to the instance's update_check/update_run defaults and are " +
-			"disabled until enabled: nothing is checked or updated automatically before. DockYard's own project and containers are " +
-			"refused (409 update_target_ineligible). 409 update_policy_target_used, update_policy_name_taken.",
-		Tags: []string{tagUpdates}, DefaultStatus: http.StatusCreated, Errors: mutate,
-	}, Capability: CapUpdatePolicyManage, Scope: ScopeEnvironment}, h.create)
-
-	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "get-update-policy", Method: http.MethodGet, Path: one, Summary: "Get an update policy",
 		Description: "The policy with its schedules (next run, recent runs), candidate summary, quarantined digests and applied digest " +
 			"history (full view).",
 		Tags: []string{tagUpdates}, Errors: read,
 	}, Capability: CapUpdatePolicyRead, Scope: ScopeResource}, h.get)
-
-	Register(a, Operation{Operation: huma.Operation{
-		OperationID: "update-update-policy", Method: http.MethodPatch, Path: one, Summary: "Edit an update policy",
-		Description: "Changes name, opted-in and excluded services, schedules (enable/disable, cron, zone), window and wait timeout. " +
-			"If-Match required. The target cannot change (create another policy).",
-		Tags: []string{tagUpdates}, Errors: append(mutate, http.StatusPreconditionFailed, http.StatusPreconditionRequired),
-	}, Capability: CapUpdatePolicyManage, Scope: ScopeResource}, h.update)
-
-	Register(a, Operation{Operation: huma.Operation{
-		OperationID: "delete-update-policy", Method: http.MethodDelete, Path: one, Summary: "Delete an update policy",
-		Description: "Removes the policy, its candidates, quarantine and history (the audit trail and job history stay). If-Match required.",
-		Tags:        []string{tagUpdates}, DefaultStatus: http.StatusNoContent, Errors: append(mutate, http.StatusPreconditionFailed, http.StatusPreconditionRequired),
-	}, Capability: CapUpdatePolicyManage, Scope: ScopeResource}, h.delete)
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "create-update-policy-check", Method: http.MethodPost, Path: one + "/checks", Summary: "Check for updates",

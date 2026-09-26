@@ -41,6 +41,7 @@ import (
 	"github.com/neurekadev/dockyard/internal/manager/scheduler"
 	"github.com/neurekadev/dockyard/internal/manager/secrets"
 	"github.com/neurekadev/dockyard/internal/manager/store"
+	"github.com/neurekadev/dockyard/internal/protocol"
 	"github.com/neurekadev/dockyard/internal/restic"
 	"github.com/neurekadev/dockyard/internal/streammux"
 )
@@ -59,6 +60,12 @@ type Environments interface {
 // Stacks looks up stacks (implemented by *stacks.Service).
 type Stacks interface {
 	Get(ctx context.Context, id string) (domain.Stack, error)
+}
+
+// Volumes discovers standalone Docker volumes for environment policies.
+type Volumes interface {
+	ListVolumes(ctx context.Context, environmentID string) ([]protocol.VolumeInfo, error)
+	ListContainers(ctx context.Context, environmentID string) ([]protocol.ContainerSummary, error)
 }
 
 // OwnerGuard enforces owner-only Recovery Key administration
@@ -102,6 +109,7 @@ type Options struct {
 	Agents       AgentHub
 	Environments Environments
 	Stacks       Stacks
+	Volumes      Volumes
 	Guard        OwnerGuard
 	Audit        *audit.Log
 	InstanceID   string
@@ -146,9 +154,10 @@ type Options struct {
 
 // Service is the backup service.
 type Service struct {
-	opts Options
-	db   *bun.DB
-	log  *slog.Logger
+	opts    Options
+	db      *bun.DB
+	log     *slog.Logger
+	volumes Volumes
 
 	wake chan struct{}
 
@@ -157,6 +166,9 @@ type Service struct {
 	importMu sync.Mutex
 	imports  map[string]*importSecrets
 }
+
+// SetVolumes installs the resource inventory after the manager wires Docker.
+func (s *Service) SetVolumes(v Volumes) { s.volumes = v }
 
 // New returns the service and registers its job executors and finish
 // hooks on the engine (call before the engine's Recover).
@@ -176,7 +188,7 @@ func New(opts Options) (*Service, error) {
 	if opts.Build.Version == "" {
 		opts.Build = buildinfo.Get()
 	}
-	s := &Service{opts: opts, db: opts.DB, log: opts.Logger, wake: make(chan struct{}, 1), imports: map[string]*importSecrets{}}
+	s := &Service{opts: opts, db: opts.DB, log: opts.Logger, volumes: opts.Volumes, wake: make(chan struct{}, 1), imports: map[string]*importSecrets{}}
 	for _, x := range s.executors() {
 		if err := opts.Jobs.RegisterManagerExecutor(x); err != nil {
 			return nil, err

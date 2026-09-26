@@ -79,6 +79,8 @@
 	}));
 
 	let preview = $state<PrunePreview | null>(null);
+	let environmentPreviews = $state<{ environmentId: string; preview: PrunePreview }[]>([]);
+	let environmentJobs = $state<Job[]>([]);
 	let previewing = $state(false);
 	let previewError = $state<unknown>(null);
 	let runOpen = $state(false);
@@ -90,6 +92,16 @@
 		previewing = true;
 		previewError = null;
 		try {
+			if (p.scope === 'all') {
+				environmentPreviews = (
+					await unwrap(
+						api.POST('/api/v1/maintenance-policies/{policyId}/environment-previews', {
+							params: { path: { policyId: p.id } }
+						})
+					)
+				).items;
+				return;
+			}
 			preview = await unwrap(
 				api.POST('/api/v1/maintenance-policies/{policyId}/previews', {
 					params: { path: { policyId: p.id } },
@@ -106,6 +118,21 @@
 	async function run(p: MaintenancePolicy) {
 		const bg = background;
 		try {
+			if (p.scope === 'all') {
+				environmentJobs = (
+					await unwrap(
+						api.POST('/api/v1/maintenance-policies/{policyId}/environment-runs', {
+							params: {
+								path: { policyId: p.id },
+								header: { 'Idempotency-Key': newIdempotencyKey() }
+							},
+							body: { confirm: true }
+						})
+					)
+				).jobs;
+				job = environmentJobs[0] ?? null;
+				return;
+			}
 			job = await unwrap(
 				api.POST('/api/v1/maintenance-policies/{policyId}/runs', {
 					params: {
@@ -201,7 +228,13 @@
 				description={p.description ||
 					'A prune policy: only the rules turned on below remove anything.'}
 				meta={[
-					{ icon: Server, label: environmentName(envs.data, p.environmentId) },
+					{
+						icon: Server,
+						label:
+							p.scope === 'all'
+								? 'All Environments'
+								: environmentName(envs.data, p.environmentId)
+					},
 					{ label: `${on.length} of 7 rules on` }
 				]}
 			>
@@ -258,6 +291,16 @@
 					onfinish={finished}
 				/>
 			{/if}
+			{#if environmentJobs.length > 1}<Card title="Environment jobs"
+					><ul>
+						{#each environmentJobs as environmentJob (environmentJob.id)}<li>
+								<a href={routes.job(environmentJob.id)}
+									>{environmentName(envs.data, environmentJob.environmentId)} — Open
+									job</a
+								>
+							</li>{/each}
+					</ul></Card
+				>{/if}
 
 			{#if p.lastRun}
 				<KpiRow>
@@ -307,6 +350,10 @@
 					{actionError(previewError)}
 				</Notice>
 			{/if}
+			{#each environmentPreviews as environmentPreview (environmentPreview.environmentId)}<Card
+					title="Preview: {environmentName(envs.data, environmentPreview.environmentId)}"
+					><PrunePreviewView preview={environmentPreview.preview} {info} /></Card
+				>{/each}
 			{#if previewing && !preview}
 				<Card title="Preview"><Skeleton lines={5} height="20px" /></Card>
 			{:else if preview}
@@ -381,7 +428,7 @@
 				title="Run {p.name} now?"
 				message={preview
 					? `Removes ${preview.remove} ${preview.remove === 1 ? 'object' : 'objects'} on ${environmentName(envs.data, p.environmentId)}, about ${formatBytes(preview.bytes)}.`
-					: `Removes what the turned-on rules find on ${environmentName(envs.data, p.environmentId)} now.`}
+					: `Removes what the turned-on rules find on ${p.scope === 'all' ? 'All Environments' : environmentName(envs.data, p.environmentId)} now.`}
 				consequences={[
 					...on.map((r) => ruleSummary(r, info)),
 					'Every object is checked again right before it is removed; protected objects are always kept.',

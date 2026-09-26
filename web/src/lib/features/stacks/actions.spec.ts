@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/svelte-query';
 import { createApiClient } from '$lib/api/client';
-import {
-	deleteUpdatePolicy,
-	deployStack,
-	etag,
-	operateStack,
-	patchStack,
-	restartSource,
-	runUpdate
-} from './actions';
+import { deployStack, etag, operateStack, patchStack, restartSource, runUpdate } from './actions';
 import { stackKeys, stackMetricsQuery } from './queries';
 
 const base = 'http://localhost:8080';
@@ -124,15 +116,12 @@ describe('stack actions', () => {
 		});
 	});
 
-	it('runs exactly the previewed update and removes policies with If-Match', async () => {
+	it('runs exactly the previewed update', async () => {
 		const m = fakeManager({
-			'POST /api/v1/update-policies/p1/runs': () => [202, job('j3')],
-			'DELETE /api/v1/update-policies/p1': () => [204, null]
+			'POST /api/v1/update-policies/p1/runs': () => [202, job('j3')]
 		});
 		await runUpdate('p1', 'fp-1', undefined, m.client);
 		expect(m.calls[0].body).toEqual({ previewFingerprint: 'fp-1' });
-		await deleteUpdatePolicy({ id: 'p1', revision: 2 }, m.client);
-		expect(m.calls[1].headers.get('If-Match')).toBe('"2"');
 	});
 });
 

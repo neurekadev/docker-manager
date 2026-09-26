@@ -1,478 +1,243 @@
 <script lang="ts">
-	// Update policy detail (#20): candidates with running and registry
-	// digests, quarantined digests with the manual recovery (pin @sha256 in
-	// your own source), schedules, window and the applied digest history.
-	// Check runs a digest check (never pulls); Preview update shows what a
-	// run would do and applies it.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import Ban from '@lucide/svelte/icons/ban';
-	import CircleArrowUp from '@lucide/svelte/icons/circle-arrow-up';
-	import CircleCheck from '@lucide/svelte/icons/circle-check';
-	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import PackageCheck from '@lucide/svelte/icons/package-check';
-	import Pencil from '@lucide/svelte/icons/pencil';
-	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
-	import ShieldAlert from '@lucide/svelte/icons/shield-alert';
-	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import Layers from '@lucide/svelte/icons/layers';
-	import Server from '@lucide/svelte/icons/server';
-	import { api, unwrap, unwrapEmpty, type Job } from '$lib/api/client';
+	import { api, unwrap, unwrapEmpty, type Schema } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
-	import {
-		Badge,
-		Button,
-		Card,
-		DestructiveConfirm,
-		EmptyState,
-		IconButton,
-		JobProgress,
-		KpiCard,
-		Menu,
-		Notice,
-		OfflineEnvironment,
-		PageHeader,
-		Table,
-		formatDateTime,
-		formatRelative,
-		toast,
-		type Column,
-		type MenuEntry
-	} from '$lib/ui';
-	import { has } from '$lib/features/common/access';
+	import { Button, Card, Notice, PageHeader, toast } from '$lib/ui';
 	import {
 		environmentName,
 		ifMatch,
 		newIdempotencyKey,
 		stacksQuery
 	} from '$lib/features/common/data';
-	import Digest from '$lib/features/common/Digest.svelte';
 	import { actionError } from '$lib/features/common/errors';
-	import Columns from '$lib/features/common/Columns.svelte';
-	import Facts from '$lib/features/common/Facts.svelte';
-	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import ScheduleSummary from '$lib/features/common/ScheduleSummary.svelte';
-	import CandidatesTable from '$lib/features/updates/CandidatesTable.svelte';
-	import UpdatePreviewDialog from '$lib/features/updates/UpdatePreviewDialog.svelte';
 	import {
-		recoveryText,
-		summaryText,
-		windowText,
-		type UpdateCandidate,
-		type UpdatePolicy
-	} from '$lib/features/updates/model';
-	import { candidatesQuery, updateKeys, updatePolicyQuery } from '$lib/features/updates/queries';
+		environmentUpdateKeys,
+		environmentUpdatePolicyQuery
+	} from '$lib/features/updates/queries';
 
-	type History = NonNullable<UpdatePolicy['recentHistory']>[number];
-
+	type Preview = Schema<'EnvironmentPreviewOutputBody'>;
 	const id = $derived(page.params.policyId ?? '');
 	const qc = useQueryClient();
-	const policy = createQuery(() => updatePolicyQuery(id));
-	const candidates = createQuery(() => candidatesQuery(id));
+	const policy = createQuery(() => environmentUpdatePolicyQuery(id));
 	const envs = createQuery(() => environmentsQuery());
 	const stacks = createQuery(() => stacksQuery());
-
-	const p = $derived(policy.data);
-	const env = $derived(envs.data?.find((e) => e.id === p?.environmentId));
-	const stack = $derived(
-		p?.target.type === 'stack' ? stacks.data?.find((s) => s.id === p.target.id) : undefined
-	);
-	const targetLabel = $derived(
-		p
-			? p.target.type === 'stack'
-				? stack?.displayName || stack?.name || 'Stack'
-				: p.target.id
-			: ''
-	);
-
+	const targets = createQuery(() => ({
+		queryKey: environmentUpdateKeys.targets(id),
+		queryFn: async ({ signal }: { signal: AbortSignal }) =>
+			(
+				await unwrap(
+					api.GET('/api/v1/environment-update-policies/{policyId}/targets', {
+						params: { path: { policyId: id } },
+						signal
+					})
+				)
+			).items
+	}));
+	let preview = $state<Preview | null>(null);
+	let error = $state<unknown>(null);
+	let busy = $state(false);
+	let confirmDelete = $state(false);
 	usePage(() => ({
-		title: p?.name ?? 'Update policy',
+		title: policy.data?.name ?? 'Update policy',
 		crumbs: [
 			{ label: 'Updates', href: routes.updates() },
-			{ label: p?.name ?? 'Update policy' }
+			{ label: policy.data?.name ?? 'Update policy' }
 		]
 	}));
-
-	let checkJob = $state<Job | null>(null);
-	let checking = $state(false);
-	let actionErr = $state<string | null>(null);
-	let previewOpen = $state(false);
-	let deleteOpen = $state(false);
-
+	function targetName(type: string, id: string): string {
+		if (type === 'container') return id;
+		const stack = stacks.data?.find((s) => s.id === id);
+		return stack?.displayName || stack?.name || id;
+	}
 	async function check() {
-		if (!p) return;
-		checking = true;
-		actionErr = null;
+		busy = true;
+		error = null;
 		try {
-			checkJob = await unwrap(
-				api.POST('/api/v1/update-policies/{policyId}/checks', {
+			const out = await unwrap(
+				api.POST('/api/v1/environment-update-policies/{policyId}/checks', {
 					params: {
-						path: { policyId: p.id },
+						path: { policyId: id },
 						header: { 'Idempotency-Key': newIdempotencyKey() }
 					}
 				})
 			);
+			toast.success(`Checking ${out.jobs.length} targets`);
+			await qc.invalidateQueries({ queryKey: ['policies'] });
 		} catch (e) {
-			actionErr = actionError(e);
+			error = e;
 		} finally {
-			checking = false;
+			busy = false;
 		}
 	}
-
-	function checked(j: Job) {
-		void qc.invalidateQueries({ queryKey: updateKeys.detail(id) });
-		void qc.invalidateQueries({ queryKey: ['policies', 'list'] });
-		if (j.state === 'succeeded')
-			toast.success(`Checked ${p?.name ?? 'the policy'} for updates`);
-		else
-			toast.error('The check did not finish', {
-				body: j.error?.recovery ?? j.error?.message
-			});
+	async function loadPreview() {
+		busy = true;
+		error = null;
+		try {
+			preview = await unwrap(
+				api.POST('/api/v1/environment-update-policies/{policyId}/previews', {
+					params: { path: { policyId: id } }
+				})
+			);
+		} catch (e) {
+			error = e;
+		} finally {
+			busy = false;
+		}
 	}
-
+	async function run() {
+		if (!preview) return;
+		busy = true;
+		error = null;
+		try {
+			const out = await unwrap(
+				api.POST('/api/v1/environment-update-policies/{policyId}/runs', {
+					params: {
+						path: { policyId: id },
+						header: { 'Idempotency-Key': newIdempotencyKey() }
+					},
+					body: { fingerprint: preview.fingerprint }
+				})
+			);
+			preview = null;
+			toast.success(`Started ${out.jobs.length} update jobs`);
+			await qc.invalidateQueries({ queryKey: ['policies'] });
+		} catch (e) {
+			error = e;
+		} finally {
+			busy = false;
+		}
+	}
 	async function remove() {
+		const p = policy.data;
 		if (!p) return;
-		await unwrapEmpty(
-			api.DELETE('/api/v1/update-policies/{policyId}', {
-				params: { path: { policyId: p.id }, header: { 'If-Match': ifMatch(p.revision) } }
-			})
-		);
-		toast.success(`Deleted update policy ${p.name}`);
-		await qc.invalidateQueries({ queryKey: ['policies', 'list'] });
-		await goto(routes.updates());
-	}
-
-	const menu = $derived.by<MenuEntry[]>(() => {
-		const items: MenuEntry[] = [];
-		if (!p) return items;
-		if (has(p, 'update_policy.manage')) {
-			items.push({ label: 'Edit policy', icon: Pencil, href: routes.updatePolicyEdit(p.id) });
-			items.push({ separator: true });
-			items.push({
-				label: 'Delete policy',
-				icon: Trash2,
-				tone: 'danger',
-				onSelect: () => (deleteOpen = true)
-			});
+		busy = true;
+		error = null;
+		try {
+			await unwrapEmpty(
+				api.DELETE('/api/v1/environment-update-policies/{policyId}', {
+					params: { path: { policyId: id }, header: { 'If-Match': ifMatch(p.revision) } }
+				})
+			);
+			await qc.invalidateQueries({ queryKey: ['policies'] });
+			toast.success('Update policy deleted');
+			await goto(routes.updates());
+		} catch (e) {
+			error = e;
+		} finally {
+			busy = false;
 		}
-		return items;
-	});
-
-	const quarantined = $derived(
-		(candidates.data ?? []).filter(
-			(c) => c.status === 'quarantined' || c.status === 'run_failed'
-		)
-	);
-
-	const historyColumns: Column<History>[] = [
-		{
-			id: 'at',
-			header: 'When',
-			cell: atCell,
-			sortValue: (h) => h.at,
-			width: '170px',
-			stack: 'meta'
-		},
-		{
-			id: 'service',
-			header: 'Service',
-			cell: svcCell,
-			sortValue: (h) => h.service,
-			stack: 'title'
-		},
-		{ id: 'outcome', header: 'Outcome', cell: outcomeCell, width: '140px', stack: 'status' },
-		{ id: 'digests', header: 'Digest', cell: digestsCell },
-		{ id: 'job', header: 'Job', cell: jobCell, width: '90px' }
-	];
-	const OUTCOME: Record<
-		History['outcome'],
-		{ tone: 'ok' | 'neutral' | 'danger'; label: string }
-	> = {
-		updated: { tone: 'ok', label: 'Updated' },
-		unchanged: { tone: 'neutral', label: 'Unchanged' },
-		kept_stopped: { tone: 'neutral', label: 'Kept stopped' },
-		failed: { tone: 'danger', label: 'Failed' }
-	};
+	}
 </script>
 
-{#snippet atCell(h: History)}<span class="num">{formatDateTime(h.at)}</span>{/snippet}
-{#snippet svcCell(h: History)}{h.service}{/snippet}
-{#snippet outcomeCell(h: History)}
-	<Badge tone={OUTCOME[h.outcome].tone} dot>{OUTCOME[h.outcome].label}</Badge>
-{/snippet}
-{#snippet digestsCell(h: History)}
-	<span class="pair">
-		<Digest value={h.fromDigest} copy={false} />
-		<span class="muted" aria-hidden="true">→</span>
-		<span class="sr-only">to</span>
-		<Digest value={h.toDigest} copy={false} />
-	</span>
-{/snippet}
-{#snippet jobCell(h: History)}
-	{#if h.jobId}<a href={routes.job(h.jobId)}>Details</a>{:else}<span class="muted">—</span>{/if}
-{/snippet}
-
 <Page>
-	<QueryView
-		query={policy}
-		errorTitle="The update policy could not be loaded."
-		notFoundTitle="This update policy does not exist."
-		notFoundDescription="It was deleted, or you no longer have access to it."
-	>
-		{#snippet children(p: UpdatePolicy)}
-			{@const s = summaryText(p)}
+	<QueryView query={policy} errorTitle="The update policy could not be loaded.">
+		{#snippet children(p)}
 			<PageHeader
 				title={p.name}
-				icon={PackageCheck}
-				color="violet"
-				description="Follows the digests behind the tags {p.target.type === 'stack'
-					? 'of a stack'
-					: 'of a DockYard-managed container'}. Your Compose files and tags never change."
-				meta={[
-					{ icon: p.target.type === 'stack' ? Layers : PackageCheck, label: targetLabel },
-					{ icon: Server, label: environmentName(envs.data, p.environmentId) },
-					{
-						label: p.summary?.lastCheckAt
-							? `Checked ${formatRelative(p.summary.lastCheckAt)}`
-							: 'Never checked'
-					}
-				]}
+				description={p.scope === 'all'
+					? 'All Environments'
+					: environmentName(envs.data, p.environmentId)}
 			>
-				{#snippet status()}<Badge tone={s.tone} dot>{s.text}</Badge>{/snippet}
-				{#snippet actions()}
-					{#if has(p, 'update.check')}
-						<Button
-							icon={RefreshCw}
-							loading={checking}
-							onclick={check}
-							disabled={!!checkJob && !checkJob.finishedAt}>Check for updates</Button
-						>
-					{/if}
-					{#if has(p, 'update.check') || has(p, 'update.run')}
-						<Button variant="primary" onclick={() => (previewOpen = true)}
-							>Preview update</Button
-						>
-					{/if}
-					{#if menu.length}
-						<Menu items={menu} label="More actions for {p.name}">
-							{#snippet trigger(props)}
-								<IconButton
-									{...props}
-									label="More actions"
-									icon={Ellipsis}
-									variant="secondary"
-								/>
-							{/snippet}
-						</Menu>
-					{/if}
-				{/snippet}
+				{#snippet actions()}<Button href={routes.updatePolicyEdit(id)}>Edit policy</Button
+					>{/snippet}
 			</PageHeader>
-
-			{#if env && !env.online}
-				<OfflineEnvironment name={env.name} since={env.connectionChangedAt} />
-			{/if}
-			{#if actionErr}
-				<Notice tone="danger" title="The check did not start" live="alert"
-					>{actionErr}</Notice
-				>
-			{/if}
-			{#if checkJob}
-				<JobProgress
-					jobId={checkJob.id}
-					title="Check {p.name} for updates"
-					onfinish={checked}
-				/>
-			{/if}
-
-			<KpiRow>
-				<KpiCard
-					label="Updates available"
-					icon={CircleArrowUp}
-					color="violet"
-					value={String(p.summary?.available ?? 0)}
-					tone={p.summary?.available ? 'warn' : undefined}
-					secondary="Newer digest behind the tag"
-				/>
-				<KpiCard
-					label="Up to date"
-					icon={CircleCheck}
-					color="green"
-					value={String(p.summary?.upToDate ?? 0)}
-					secondary="Running the registry's digest"
-				/>
-				<KpiCard
-					label="Not eligible"
-					icon={Ban}
-					color="slate"
-					value={String(p.summary?.ineligible ?? 0)}
-					secondary="Pinned, built or excluded"
-				/>
-				<KpiCard
-					label="Quarantined or failed"
-					icon={ShieldAlert}
-					color="rose"
-					value={String((p.summary?.quarantined ?? 0) + (p.summary?.failed ?? 0))}
-					tone={(p.summary?.quarantined ?? 0) + (p.summary?.failed ?? 0)
-						? 'danger'
-						: undefined}
-					secondary="Never retried automatically"
-				/>
-			</KpiRow>
-
-			<Card title="Services" padding="none">
-				<QueryView query={candidates} errorTitle="The candidates could not be loaded.">
-					{#snippet children(rows: UpdateCandidate[])}
-						{#if rows.length}
-							<CandidatesTable
-								candidates={rows}
-								label="Update candidates of {p.name}"
-							/>
-						{:else}
-							<EmptyState
-								icon={PackageCheck}
-								color="violet"
-								title="Nothing checked yet."
-								description="Check for updates to compare each tag's digest in the registry with what runs on the host."
-								level={3}
-								compact
-							/>
-						{/if}
-					{/snippet}
-				</QueryView>
+			{#if error}<Notice tone="danger" title="Action failed">{actionError(error)}</Notice
+				>{/if}
+			<Card title="Schedule">
+				<p>
+					Checks: <ScheduleSummary
+						compact
+						cron={p.checkSchedule.cron ?? ''}
+						timeZone={p.checkSchedule.timeZone ?? ''}
+						enabled={p.checkSchedule.enabled}
+					/>
+				</p>
+				<p>
+					Automatic updates: <ScheduleSummary
+						compact
+						cron={p.runSchedule.cron ?? ''}
+						timeZone={p.runSchedule.timeZone ?? ''}
+						enabled={p.runSchedule.enabled}
+					/>
+				</p>
 			</Card>
-
-			{#if quarantined.length}
-				<Card title="Quarantined digests">
-					<Notice
-						tone="danger"
-						icon={ShieldAlert}
-						title="Failed updates are not rolled back"
-						live="none"
-					>
-						DockYard will not apply these digests again. To go back to a working image,
-						pin it by digest in your own Compose file and deploy the stack.
-					</Notice>
-					<ul class="quarantine" role="list">
-						{#each quarantined as c (c.id)}
+			<Card
+				title="Targets"
+				subtitle="Managed stacks and standalone containers are included unless excluded."
+			>
+				{#if targets.isPending}<p>Loading targets…</p>
+				{:else if targets.isError}<p>Targets could not be loaded.</p>
+				{:else if !targets.data?.length}<p>
+						No eligible managed stacks or containers are in this scope.
+					</p>
+				{:else}
+					<ul>
+						{#each targets.data as target (target.policyId)}
 							<li>
-								<div class="q-head">
-									<strong>{c.service}</strong>
-									<Digest value={c.candidateDigest} tone="danger" />
-									{#if c.errorClass}<Badge tone="danger"
-											>{c.errorClass.replaceAll('_', ' ')}</Badge
-										>{/if}
-								</div>
-								<p>{recoveryText(c)}</p>
+								{environmentName(envs.data, target.environmentId)} / {targetName(
+									target.type,
+									target.id
+								)} — {target.inactive
+									? 'Excluded'
+									: `${target.candidateSummary.available} updates available, ${target.candidateSummary.upToDate} up to date`}
 							</li>
 						{/each}
 					</ul>
+				{/if}
+				<div class="actions">
+					<Button onclick={check} disabled={busy}>Check updates</Button><Button
+						onclick={loadPreview}
+						disabled={busy}>Preview updates</Button
+					>
+				</div>
+			</Card>
+			{#if preview}
+				<Card
+					title="Update preview"
+					subtitle="Review the candidates before applying updates."
+				>
+					{#each preview.targets as target (target.policyId)}
+						<h3>
+							{environmentName(envs.data, target.environmentId)} / {targetName(
+								target.type,
+								target.id
+							)}
+						</h3>
+						{#if target.sourceDrift}<p>
+								Deploy this stack's source changes before updating.
+							</p>{/if}
+						<ul>
+							{#each target.items as item (item.id)}<li>
+									{item.service}: {item.status}
+								</li>{/each}
+						</ul>
+					{/each}
+					<Button variant="primary" onclick={run} disabled={busy}>Apply updates</Button>
 				</Card>
 			{/if}
-
-			<Columns>
-				<Card title="Schedules">
-					<Facts
-						columns={1}
-						items={[
-							{ label: 'Checks', render: checkSched },
-							{ label: 'Automatic updates', render: runSched },
-							{ label: 'Update window', value: windowText(p.window) },
-							{
-								label: 'Health wait',
-								value: p.waitTimeoutSeconds
-									? `${p.waitTimeoutSeconds} s`
-									: 'Default'
-							},
-							{
-								label: 'Services',
-								value: p.excludeServices?.length
-									? `All except ${p.excludeServices.join(', ')}`
-									: p.services?.length
-										? p.services.join(', ')
-										: 'All services'
-							}
-						]}
-					/>
-				</Card>
-				<Card title="Update history" padding="none">
-					{#if p.recentHistory?.length}
-						<Table
-							label="Update history of {p.name}"
-							rows={p.recentHistory}
-							columns={historyColumns}
-							rowKey={(h) => `${h.at}-${h.service}`}
-							sort={{ column: 'at', direction: 'desc' }}
-						/>
-					{:else}
-						<EmptyState
-							icon={PackageCheck}
-							color="slate"
-							title="No updates applied yet."
-							description="Applied and failed updates appear here with their digests."
-							level={3}
-							compact
-						/>
-					{/if}
-				</Card>
-			</Columns>
-
-			{#snippet checkSched()}
-				{#if p.checkSchedule}<ScheduleSummary {...p.checkSchedule} />{/if}
-			{/snippet}
-			{#snippet runSched()}
-				{#if p.runSchedule}<ScheduleSummary {...p.runSchedule} />{/if}
-			{/snippet}
-
-			<UpdatePreviewDialog bind:open={previewOpen} policy={p} canRun={has(p, 'update.run')} />
-			<DestructiveConfirm
-				bind:open={deleteOpen}
-				title="Delete update policy {p.name}"
-				consequences={[
-					'Removes the policy, its candidates, quarantine list and update history.',
-					'Nothing is checked or updated for this target afterwards.',
-					'Containers, images and your Compose files are not touched; the audit log and job history stay.'
-				]}
-				confirmText={p.name}
-				confirmLabel="Delete policy"
-				onconfirm={remove}
-			/>
+			<Card title="Delete policy">
+				{#if confirmDelete}<p>Delete {p.name} and stop its automatic checks and updates?</p>
+					<Button onclick={remove} disabled={busy}>Confirm delete</Button>
+				{:else}<Button onclick={() => (confirmDelete = true)}>Delete policy</Button>{/if}
+			</Card>
 		{/snippet}
 	</QueryView>
 </Page>
 
 <style>
-	.pair {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-1);
-	}
-
-	.quarantine {
-		display: grid;
-		gap: var(--space-3);
-		margin-top: var(--space-3);
-	}
-
-	.quarantine li {
-		padding-top: var(--space-3);
-		border-top: 1px solid var(--border-subtle);
-		overflow-wrap: anywhere;
-	}
-
-	.q-head {
+	.actions {
 		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--space-2);
-		margin-bottom: var(--space-1);
+		gap: 0.75rem;
+		margin-top: 1rem;
 	}
-
-	.q-head strong {
-		color: var(--text-strong);
+	h3 {
+		margin-top: 1rem;
 	}
 </style>

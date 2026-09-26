@@ -173,29 +173,14 @@ func TestUpdatePolicyRoutes(t *testing.T) {
 		p.RunSchedule == nil || p.RunSchedule.Enabled || p.Summary == nil || p.Summary.Quarantined != 1 {
 		t.Fatalf("get: %d %s", r.Status, r.Body)
 	}
-	r = do(authztest.Call{Method: http.MethodPost, Path: "/api/v1/update-policies", Body: map[string]any{
-		"environmentId": "env-1", "name": "Again", "target": map[string]any{"type": "stack", "id": "st-1"}}})
-	if r.Status != http.StatusConflict || !strings.Contains(string(r.Body), CodeUpdatePolicyTargetUsed) {
-		t.Fatalf("second policy for the target: %d %s", r.Status, r.Body)
-	}
-	r = do(authztest.Call{Method: http.MethodPost, Path: "/api/v1/update-policies", Body: map[string]any{
-		"environmentId": "env-1", "name": "Other", "target": map[string]any{"type": "stack", "id": "st-missing"}}})
-	if r.Status != http.StatusUnprocessableEntity {
-		t.Fatalf("unknown target: %d %s", r.Status, r.Body)
-	}
-	// Enable the run schedule (If-Match required).
-	body := map[string]any{"runSchedule": map[string]any{"cron": "0 4 * * *", "timeZone": "UTC", "enabled": true}}
-	if r := do(authztest.Call{Method: http.MethodPatch, Path: "/api/v1/update-policies/pol-1", Body: body}); r.Status != http.StatusPreconditionRequired {
-		t.Fatalf("patch without If-Match: %d", r.Status)
-	}
-	r = do(authztest.Call{Method: http.MethodPatch, Path: "/api/v1/update-policies/pol-1", Body: body, Headers: map[string]string{"If-Match": `"3"`}})
-	if r.Status != http.StatusOK || r.Header.Get("ETag") != `"4"` || !svc.policies["pol-1"].Run.Enabled {
-		t.Fatalf("patch: %d %s", r.Status, r.Body)
-	}
-	r = do(authztest.Call{Method: http.MethodPatch, Path: "/api/v1/update-policies/pol-1", Headers: map[string]string{"If-Match": `"4"`},
-		Body: map[string]any{"checkSchedule": map[string]any{"cron": "0 3 * * *", "enabled": true}}})
-	if r.Status != http.StatusUnprocessableEntity {
-		t.Fatalf("partial schedule: %d %s", r.Status, r.Body)
+	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodDelete} {
+		path := "/api/v1/update-policies/pol-1"
+		if method == http.MethodPost {
+			path = "/api/v1/update-policies"
+		}
+		if r := do(authztest.Call{Method: method, Path: path}); r.Status != http.StatusMethodNotAllowed {
+			t.Fatalf("legacy policy mutation %s: %d", method, r.Status)
+		}
 	}
 	if r := do(authztest.Call{Method: http.MethodPost, Path: "/api/v1/update-policies/pol-1/checks"}); r.Status != http.StatusAccepted || svc.checks != 1 {
 		t.Fatalf("check: %d %s", r.Status, r.Body)
@@ -226,9 +211,6 @@ func TestUpdatePolicyRoutes(t *testing.T) {
 		if r.Status != http.StatusConflict || !strings.Contains(string(r.Body), `"`+code+`"`) {
 			t.Errorf("%s: %d %s", code, r.Status, r.Body)
 		}
-	}
-	if r := do(authztest.Call{Method: http.MethodDelete, Path: "/api/v1/update-policies/pol-1", Headers: map[string]string{"If-Match": `"4"`}}); r.Status != http.StatusNoContent {
-		t.Fatalf("delete: %d %s", r.Status, r.Body)
 	}
 }
 
@@ -267,9 +249,8 @@ func TestUpdatePolicyAuthorization(t *testing.T) {
 	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &page) != nil || len(page.Items) != 0 {
 		t.Fatalf("stranger list: %d %s", r.Status, r.Body)
 	}
-	if r := authztest.Do(t, h, "rae", authztest.Call{Method: http.MethodPost, Path: "/api/v1/update-policies", Body: map[string]any{
-		"environmentId": "env-1", "name": "Mine", "target": map[string]any{"type": "stack", "id": "st-1"}}}); r.Status != http.StatusNotFound && r.Status != http.StatusForbidden {
-		t.Fatalf("reader create: %d", r.Status)
+	if r := authztest.Do(t, h, "rae", authztest.Call{Method: http.MethodPost, Path: "/api/v1/update-policies"}); r.Status != http.StatusMethodNotAllowed {
+		t.Fatalf("legacy create: %d", r.Status)
 	}
 }
 

@@ -158,6 +158,7 @@ func newContainerRefs(cs []protocol.ContainerRef) []ContainerRef {
 // dockerAPI serves the Docker resource routes.
 type dockerAPI struct {
 	svc      DockerService
+	updates  UpdateService
 	agents   AgentService
 	observe  ObserveService
 	authz    authz.Authorizer
@@ -165,7 +166,7 @@ type dockerAPI struct {
 }
 
 func newDockerAPI(deps Deps) *dockerAPI {
-	return &dockerAPI{svc: deps.Docker, agents: deps.Agents, observe: deps.Observe, authz: authz.OrDenyAll(deps.Authorizer), instance: deps.InstanceID}
+	return &dockerAPI{svc: deps.Docker, updates: deps.Updates, agents: deps.Agents, observe: deps.Observe, authz: authz.OrDenyAll(deps.Authorizer), instance: deps.InstanceID}
 }
 
 // scope is one request's environment, checker and principal.

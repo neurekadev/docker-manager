@@ -26,7 +26,11 @@
 	const title = $derived(stackTitle(stack));
 	const policies = createQuery(() => backupPoliciesQuery());
 	const mine = $derived(
-		(policies.data ?? []).filter((p) => p.stacks?.some((s) => s.stackId === stack.id))
+		(policies.data ?? []).filter(
+			(p) =>
+				(p.scope === 'all' || p.environmentId === stack.environmentId) &&
+				!(p.excludeStacks ?? []).includes(stack.id)
+		)
 	);
 	const hidden = $derived((policies.data ?? []).some((p) => p.view === 'minimal'));
 </script>
@@ -50,15 +54,14 @@
 			color="teal"
 			title="No backup policy includes {title}."
 			description={hidden
-				? 'Policies you can only see by name are not checked here. Add the stack to a policy on the Backups page.'
-				: 'Add it to a backup policy on the Backups page to keep snapshots of its files and volumes.'}
+				? 'Policies you can only see by name are not checked here.'
+				: 'Create an environment backup policy or remove this stack from its exclusions.'}
 			level={3}
 			compact
 		/>
 	{:else}
 		<ul class="list" role="list">
 			{#each mine as p (p.id)}
-				{@const sel = p.stacks.find((s) => s.stackId === stack.id)}
 				{@const last = p.recentSets?.[0]}
 				<li class="item">
 					<div class="head">
@@ -79,15 +82,7 @@
 							{/if}
 						{/if}
 						<dt>Includes</dt>
-						<dd>
-							{sel?.volumeInclude?.length
-								? `Volumes ${sel.volumeInclude.join(', ')}`
-								: 'Every named volume'}{sel?.volumeExclude?.length
-								? `, except ${sel.volumeExclude.join(', ')}`
-								: ''}; the project directory{sel?.anonymousVolumes
-								? '; anonymous volumes'
-								: ''}
-						</dd>
+						<dd>The stack's project directory and named volumes</dd>
 						{#if p.shutdown}
 							<dt>During backups</dt>
 							<dd>Containers are stopped and started again</dd>

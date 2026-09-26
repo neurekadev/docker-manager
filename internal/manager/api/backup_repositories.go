@@ -125,6 +125,8 @@ func backupError(err error) error {
 		return Conflict(CodeBackupRepositoryNameTaken, "another backup repository already uses this name")
 	case errors.Is(err, domain.ErrBackupPolicyNameUsed):
 		return Conflict(CodeBackupPolicyNameTaken, "another backup policy already uses this name")
+	case errors.Is(err, domain.ErrBackupScopeOverlap):
+		return Conflict("backup_scope_overlap", "a backup policy already covers this environment")
 	case errors.Is(err, domain.ErrBackupRepositoryInUse):
 		return Conflict(CodeBackupRepositoryInUse, "a backup policy uses this repository; change or delete the policy first")
 	case errors.Is(err, domain.ErrRecoveryKeyNotConfirmed):

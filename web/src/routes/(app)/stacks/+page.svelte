@@ -19,6 +19,7 @@
 		stackTitle
 	} from '$lib/features/stacks/model';
 	import { stacksQuery, updatePoliciesQuery, type Stack } from '$lib/features/stacks/queries';
+	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
 	import { routes } from '$lib/routes';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { usePage } from '$lib/shell/page.svelte';
@@ -47,11 +48,21 @@
 
 	const envById = $derived(new Map((envs.data ?? []).map((e) => [e.id, e])));
 	const envName = $derived(envId ? (envById.get(envId)?.name ?? 'this environment') : null);
-	const updates = $derived(
-		new Set(
+	const updateStates = $derived(
+		new Map(
 			(policies.data ?? [])
-				.filter((p) => p.target.type === 'stack' && (p.summary?.available ?? 0) > 0)
-				.map((p) => p.target.id)
+				.filter((p) => p.target.type === 'stack')
+				.map((p) => {
+					const s = p.summary;
+					const status =
+						(s?.available ?? 0) > 0
+							? 'update_available'
+							: (s?.upToDate ?? 0) > 0 &&
+								  !(s?.failed || s?.unchecked || s?.quarantined)
+								? 'up_to_date'
+								: undefined;
+					return [p.target.id, status] as const;
+				})
 		)
 	);
 	const canCreate = $derived(
@@ -158,8 +169,8 @@
 				><Badge tone="warn" dot>Undeployed changes</Badge></a
 			>
 		{/if}
-		{#if updates.has(s.id)}<Badge tone="warn" dot>Update available</Badge>{/if}
-		{#if !s.undeployedChanges && !updates.has(s.id)}<span class="muted">—</span>{/if}
+		<UpdateStatusBadge status={updateStates.get(s.id)} />
+		{#if !s.undeployedChanges && !updateStates.get(s.id)}<span class="muted">—</span>{/if}
 	</span>
 {/snippet}
 {#snippet deployedCell(s: Stack)}

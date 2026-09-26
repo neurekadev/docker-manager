@@ -106,6 +106,9 @@ same change.
 | `git_credential_revoked` | 409 | no | The Git credential selected for the repository is revoked; DockYard never falls back to anonymous access. Set a new token or select another credential. | #33 |
 | `build_definition_name_taken` | 409 | no | Another build definition in this environment already uses this name. | #33 |
 | `maintenance_policy_name_taken` | 409 | no | Another maintenance policy in this environment already uses this name. | #14 |
+| `maintenance_scope_overlap` | 409 | no | A maintenance policy already covers this environment. | #14 |
+| `maintenance_global_preview` | 409 | no | Use environment-previews for an All Environments maintenance policy. | #14 |
+| `maintenance_global_run` | 409 | no | Use environment-runs for an All Environments maintenance policy. | #14 |
 | `maintenance_policy_empty` | 409 | no | The maintenance policy has no enabled rule; enable at least one rule before running it. | #14 |
 | `maintenance_run_active` | 409 | no | A run of the maintenance policy is still queued or running; follow that job instead of starting another run. | #14 |
 | `prune_confirmation_required` | 409 | no | A manual prune run deletes resources and cannot be undone: review a preview and repeat the request with `confirm: true`. | #14 |
@@ -138,12 +141,14 @@ same change.
 | `migration_source_in_use` | 409 | no | A DockYard stack on the source environment manages the migrated project again (it was imported back); its files are not removed. | #35 |
 | `update_policy_target_used` | 409 | no | The stack or container already has an update policy (one per target); edit that policy. | #20 |
 | `update_policy_name_taken` | 409 | no | Another update policy in the environment already uses this name. | #20 |
+| `update_scope_overlap` | 409 | no | An update policy already covers this environment; remove it before creating an overlapping policy. | #20 |
 | `update_target_ineligible` | 409 | no | The target cannot follow digests: DockYard's own project or containers (#32), a container without a saved recreate specification, or a stack member; the message says which. | #20 |
 | `no_update_candidates` | 409 | no | Nothing to update: no checked candidate with a new host-platform digest (run a check first; quarantined and failed candidates are not applied). | #20 |
 | `update_source_drift` | 409 | no | The stack's definition on disk differs from the applied revision (undeployed changes); deploy it first. An update never deploys an edit or writes a file. | #20 |
 | `update_preview_stale` | 409 | no | The candidates, digests or the stack's definition changed since the given preview; preview again. | #20 |
 | `backup_repository_name_taken` | 409 | no | Another backup repository already uses this name. | #10 |
 | `backup_policy_name_taken` | 409 | no | Another backup policy already uses this name. | #10 |
+| `backup_scope_overlap` | 409 | no | A backup policy already covers this environment. | #10 |
 | `backup_repository_in_use` | 409 | no | A backup policy uses the repository; change or delete the policy first. | #10 |
 | `recovery_key_not_confirmed` | 409 | no | The Recovery Key has not been confirmed (re-entered) for the repository yet; confirm it before policies can use or enable it. | #10 |
 | `key_rotation_in_progress` | 409 | no | A Recovery Key rotation is still moving repository locations to the new key; wait until no location is pending. | #10 |

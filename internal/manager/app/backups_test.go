@@ -22,6 +22,7 @@ import (
 	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
 	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
 	"github.com/neurekadev/dockyard/internal/agent/protect"
+	agentresources "github.com/neurekadev/dockyard/internal/agent/resources"
 	"github.com/neurekadev/dockyard/internal/agent/session"
 	"github.com/neurekadev/dockyard/internal/agent/state"
 	"github.com/neurekadev/dockyard/internal/agent/storage"
@@ -180,6 +181,10 @@ func (b *backupEnv) enrollHost(ctx context.Context, o hostOpts, fe *enginefake.E
 	svc := agentbackups.New(agentbackups.Options{Engine: func() engine.Engine { return fe }, Loader: func() agentbackups.Loader { return loaderFunc{} },
 		Storage: func() *storage.Result { return res }, Guard: guard, Restic: b.opener, LocalRoots: o.localRoots, Clock: e.clk, Logger: agentLog,
 		WaitTimeout: time.Second})
+	requests := svc.Requests()
+	resourceRequests := agentresources.New(agentresources.Options{Engine: func() engine.Engine { return fe }, Guard: guard, Logger: agentLog}).Requests()
+	requests[protocol.ReqVolumeList] = resourceRequests[protocol.ReqVolumeList]
+	requests[protocol.ReqContainerList] = resourceRequests[protocol.ReqContainerList]
 
 	sub := e.m.Events().Subscribe(256, func(ev events.Event) bool { return ev.Type == events.EnvironmentOnline })
 	defer sub.Close()
@@ -231,10 +236,10 @@ func (b *backupEnv) enrollHost(ctx context.Context, o hostOpts, fe *enginefake.E
 				cmds = append(cmds, string(x.Kind))
 			}
 			return protocol.CapabilitiesPayload{AgentVersion: buildinfo.Get().Version, Protocols: []string{protocol.Version}, OS: "linux",
-				Arch: "amd64", Engine: info, Commands: cmds, Requests: []string{}, Streams: []string{},
+				Arch: "amd64", Engine: info, Commands: cmds, Requests: []string{protocol.ReqVolumeList, protocol.ReqContainerList}, Streams: []string{},
 				Transport: protocol.TransportInfo{ManagerURL: e.srv.URL, PlainHTTP: true}}, true
 		},
-		Requests: svc.Requests(), Streams: svc.Streams(),
+		Requests: requests, Streams: svc.Streams(),
 		Backoff: session.Backoff{Min: time.Second, Max: time.Minute, ResetAfter: time.Minute, Rand: func() float64 { return 0 }},
 	})
 	runCtx, cancel := context.WithCancel(context.Background())
@@ -348,8 +353,7 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backup-repositories", nil)
 
 	// Policies cannot be enabled before the key is confirmed.
-	policy := map[string]any{"name": "Nightly", "repositoryId": id, "includeManagerState": true,
-		"stacks": []map[string]any{{"stackId": b.stackID}}, "volumes": []map[string]any{{"environmentId": env, "volume": "uploads"}},
+	policy := map[string]any{"name": "Nightly", "scope": "environment", "environmentId": env, "repositoryId": id, "includeManagerState": true,
 		"schedule":  map[string]any{"cron": "0 2 * * *", "timeZone": "UTC", "enabled": true},
 		"retention": map[string]any{"daily": 7, "minKeep": 2}}
 	owner.fail(http.StatusConflict, "recovery_key_not_confirmed", http.MethodPost, "/api/v1/backup-policies", policy)
@@ -401,6 +405,8 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 	if !pol.Enabled {
 		t.Fatalf("policy %+v", pol)
 	}
+	owner.fail(http.StatusConflict, "backup_scope_overlap", http.MethodPost, "/api/v1/backup-policies",
+		map[string]any{"name": "Overlapping", "scope": "all", "repositoryId": id})
 
 	// Scope preview from the agent.
 	var pv struct {
@@ -596,8 +602,8 @@ func TestBackupAuthorizationAndSessionOnlyKeyAdministration(t *testing.T) {
 	var pol struct {
 		ID string `json:"id"`
 	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Data", "repositoryId": id,
-		"includeManagerState": true, "stacks": []map[string]any{{"stackId": b.stackID}}}).json(t, &pol)
+	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Data", "scope": "all", "repositoryId": id,
+		"includeManagerState": true}).json(t, &pol)
 	b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil))
 	var page struct {
 		Items []struct {
@@ -628,7 +634,7 @@ func TestBackupAuthorizationAndSessionOnlyKeyAdministration(t *testing.T) {
 		map[string]any{"recoveryKey": repo.RecoveryKey.Key, "backedUp": true})
 	rita.fail(http.StatusForbidden, "forbidden", http.MethodPost, "/api/v1/backup-repositories/"+id+"/key-rotations", nil)
 	// Including the manager state is owner-only.
-	rita.fail(http.StatusForbidden, "forbidden", http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "X", "repositoryId": id,
+	rita.fail(http.StatusForbidden, "forbidden", http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "X", "scope": "all", "repositoryId": id,
 		"includeManagerState": true})
 	// And API tokens never reach Recovery Key administration.
 	_, secret := rita.createToken("ci", "allow backup_repository.manage @all")
@@ -704,9 +710,8 @@ func TestRestoresThroughTheAPI(t *testing.T) {
 	var pol struct {
 		ID string `json:"id"`
 	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "All", "repositoryId": id,
-		"includeManagerState": true, "stacks": []map[string]any{{"stackId": b.stackID}},
-		"volumes": []map[string]any{{"environmentId": b.agent.env, "volume": "uploads"}}}).json(t, &pol)
+	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "All", "scope": "all", "repositoryId": id,
+		"includeManagerState": true}).json(t, &pol)
 	b.runJobs(owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil))
 	var page struct {
 		Items []struct {
@@ -841,8 +846,10 @@ func TestBackupPartialSetRetryAndIdempotency(t *testing.T) {
 	var pol struct {
 		ID string `json:"id"`
 	}
-	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Vols", "repositoryId": id,
-		"volumes": []map[string]any{{"environmentId": b.agent.env, "volume": "uploads"}, {"environmentId": b.agent.env, "volume": "later"}}}).json(t, &pol)
+	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Vols", "scope": "environment", "environmentId": b.agent.env, "repositoryId": id,
+		"excludeStacks": []string{b.stackID}}).json(t, &pol)
+	// The volume is discoverable, but its data path is unavailable until the retry.
+	b.fe.AddVolume("later", nil)
 	type run struct {
 		Set struct {
 			ID      string `json:"id"`
@@ -886,7 +893,6 @@ func TestBackupPartialSetRetryAndIdempotency(t *testing.T) {
 		t.Fatalf("set state %s", set.Set.State)
 	}
 	// The missing volume appears; retry only it.
-	b.fe.AddVolume("later", nil)
 	later := filepath.Join(b.volumes, "later", "_data")
 	writeFile(t, filepath.Join(later, "x"), "x")
 	b.fe.SetVolumeMountpoint("later", filepath.ToSlash(later))
@@ -922,9 +928,9 @@ func TestScheduledBackupSurvivesCreatorRemoval(t *testing.T) {
 	var pol struct {
 		ID string `json:"id"`
 	}
-	rita.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Rita's", "repositoryId": id,
-		"volumes":  []map[string]any{{"environmentId": b.agent.env, "volume": "uploads"}},
-		"schedule": map[string]any{"cron": "*/5 * * * *", "timeZone": "UTC", "enabled": true}}).json(t, &pol)
+	rita.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", map[string]any{"name": "Rita's", "scope": "environment", "environmentId": b.agent.env, "repositoryId": id,
+		"excludeStacks": []string{b.stackID},
+		"schedule":      map[string]any{"cron": "*/5 * * * *", "timeZone": "UTC", "enabled": true}}).json(t, &pol)
 	ctx := testutil.Context(t)
 	if err := b.m.Scheduler().Tick(ctx); err != nil {
 		t.Fatal(err)

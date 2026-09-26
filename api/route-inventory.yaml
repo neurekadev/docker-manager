@@ -1572,35 +1572,86 @@ routes:
     owner: 20
     kind: json
     status: implemented
+  - method: GET
+    path: /api/v1/environment-update-policies
+    operationId: list-environment-update-policies
+    capability: authenticated
+    scope: none
+    owner: 20
+    kind: json
+    status: implemented
   - method: POST
-    path: /api/v1/update-policies
-    operationId: create-update-policy
-    capability: update_policy.manage
-    scope: environment
+    path: /api/v1/environment-update-policies
+    operationId: create-environment-update-policy
+    capability: authenticated
+    scope: none
     owner: 20
     kind: json
     status: implemented
   - method: GET
-    path: "/api/v1/update-policies/{policyId}"
-    operationId: get-update-policy
-    capability: update_policy.read
-    scope: resource
+    path: "/api/v1/environment-update-policies/{policyId}"
+    operationId: get-environment-update-policy
+    capability: authenticated
+    scope: none
     owner: 20
     kind: json
     status: implemented
   - method: PATCH
-    path: "/api/v1/update-policies/{policyId}"
-    operationId: update-update-policy
-    capability: update_policy.manage
-    scope: resource
+    path: "/api/v1/environment-update-policies/{policyId}"
+    operationId: update-environment-update-policy
+    capability: authenticated
+    scope: none
     owner: 20
     kind: json
     status: implemented
     notes: If-Match.
   - method: DELETE
+    path: "/api/v1/environment-update-policies/{policyId}"
+    operationId: delete-environment-update-policy
+    capability: authenticated
+    scope: none
+    owner: 20
+    kind: json
+    status: implemented
+    notes: If-Match.
+  - method: GET
+    path: "/api/v1/environment-update-policies/{policyId}/targets"
+    operationId: list-environment-update-targets
+    capability: authenticated
+    scope: none
+    owner: 20
+    kind: json
+    status: implemented
+  - method: POST
+    path: "/api/v1/environment-update-policies/{policyId}/checks"
+    operationId: check-environment-update-policy
+    capability: authenticated
+    scope: none
+    owner: 20
+    kind: json
+    status: implemented
+    notes: Returns one job per covered target.
+  - method: POST
+    path: "/api/v1/environment-update-policies/{policyId}/previews"
+    operationId: preview-environment-update-policy
+    capability: authenticated
+    scope: none
+    owner: 20
+    kind: json
+    status: implemented
+  - method: POST
+    path: "/api/v1/environment-update-policies/{policyId}/runs"
+    operationId: run-environment-update-policy
+    capability: authenticated
+    scope: none
+    owner: 20
+    kind: json
+    status: implemented
+    notes: Requires the preview fingerprint; returns one job per target.
+  - method: GET
     path: "/api/v1/update-policies/{policyId}"
-    operationId: delete-update-policy
-    capability: update_policy.manage
+    operationId: get-update-policy
+    capability: update_policy.read
     scope: resource
     owner: 20
     kind: json
@@ -1715,6 +1766,22 @@ routes:
     kind: json
     status: implemented
     notes: 202 + job; Idempotency-Key; background preference.
+  - method: POST
+    path: "/api/v1/maintenance-policies/{policyId}/environment-previews"
+    operationId: preview-maintenance-environments
+    capability: maintenance.preview
+    scope: resource
+    owner: 14
+    kind: json
+    status: implemented
+  - method: POST
+    path: "/api/v1/maintenance-policies/{policyId}/environment-runs"
+    operationId: run-maintenance-environments
+    capability: maintenance.run
+    scope: resource
+    owner: 14
+    kind: json
+    status: implemented
   - method: GET
     path: /api/v1/backup-repositories
     operationId: list-backup-repositories

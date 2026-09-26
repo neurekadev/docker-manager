@@ -208,6 +208,14 @@ func (s *Service) updatePull(ctx context.Context, sc *jobexec.StepContext) error
 		return err
 	}
 	for _, u := range in.Services {
+		for _, c := range list {
+			if c.Labels[lifecycle.ComposeServiceLabel] == u.Service && protocol.UpdateExcluded(c.Labels) {
+				return updateRefusal(protocol.UpdateClassRecreated, "Remove the update exclusion label and check again.",
+					"service %s has dockyard.update.exclude=true", u.Service)
+			}
+		}
+	}
+	for _, u := range in.Services {
 		r := protocol.UpdateServiceResult{Service: u.Service, Reference: u.Reference, Outcome: protocol.UpdatePending}
 		for _, c := range list {
 			if c.Labels[lifecycle.ComposeServiceLabel] != u.Service {
@@ -468,6 +476,10 @@ func (s *Service) containerPull(ctx context.Context, sc *jobexec.StepContext, en
 	}
 	if err := s.checkStandalone(ctx, eng, in, d); err != nil {
 		return err
+	}
+	if protocol.UpdateExcluded(d.Labels) {
+		return updateRefusal(protocol.UpdateClassRecreated, "Remove the update exclusion label and check again.",
+			"container %s has dockyard.update.exclude=true", c.Name)
 	}
 	u := in.Services[0]
 	r := protocol.UpdateServiceResult{Service: c.Name, Reference: u.Reference, FromImageID: d.ImageID, WasRunning: d.State.Running,

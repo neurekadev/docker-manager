@@ -1,6 +1,6 @@
 # Docker maintenance: prune policies (#14)
 
-Users define per-environment prune policies with one rule per resource
+Users define prune policies for one environment or all environments, with one rule per resource
 category, preview exactly what a run would remove, and run them manually
 or on their own cron schedule (#13). DockYard never calls the Engine's
 broad prune endpoints: the agent lists the objects, filters them with the
@@ -19,7 +19,10 @@ call after revalidating it.
 
 ## Policies and rules
 
-A policy belongs to one environment and has a name, its own schedule
+A policy covers one environment or all environments. Overlapping scopes
+are rejected (`maintenance_scope_overlap`). An all-environments preview and
+run resolves every current active environment and reports a result per
+environment. Each policy has a name, its own schedule
 (`cron`, `timeZone`, `enabled`, prefilled from the prune default of the
 schedule defaults, `0 3 * * 0`) and exactly one rule per category. The
 enabled rules together are the policy's "system cleanup": an explicit

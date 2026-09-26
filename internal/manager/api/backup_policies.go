@@ -104,6 +104,10 @@ func newBackupSet(s domain.BackupSet) BackupSetSummary {
 type BackupPolicy struct {
 	ID                      string                  `json:"id"`
 	Name                    string                  `json:"name" example:"Nightly system backup"`
+	Scope                   string                  `json:"scope" enum:"all,environment"`
+	EnvironmentID           string                  `json:"environmentId,omitempty"`
+	ExcludeStacks           []string                `json:"excludeStacks"`
+	ExcludeVolumes          []string                `json:"excludeVolumes"`
 	Enabled                 bool                    `json:"enabled"`
 	View                    string                  `json:"view" enum:"minimal,full"`
 	Actions                 []string                `json:"actions"`
@@ -123,12 +127,23 @@ type BackupPolicy struct {
 }
 
 func newBackupPolicy(p domain.BackupPolicy, v authz.View) BackupPolicy {
-	out := BackupPolicy{ID: p.ID, Name: p.Name, Enabled: p.Enabled, View: v.Level.String(), Actions: Actions(v),
+	scope := "environment"
+	if p.EnvironmentID == "" {
+		scope = "all"
+	}
+	out := BackupPolicy{ID: p.ID, Name: p.Name, Scope: scope, EnvironmentID: p.EnvironmentID, Enabled: p.Enabled, View: v.Level.String(), Actions: Actions(v),
 		Stacks: []BackupStackSelection{}, Volumes: []BackupVolumeSelection{}}
 	if !v.Full() {
 		return out
 	}
 	out.RepositoryID, out.EnvironmentRepositories = p.RepositoryID, p.EnvironmentRepos
+	out.ExcludeStacks, out.ExcludeVolumes = p.ExcludeStacks, p.ExcludeVolumes
+	if out.ExcludeStacks == nil {
+		out.ExcludeStacks = []string{}
+	}
+	if out.ExcludeVolumes == nil {
+		out.ExcludeVolumes = []string{}
+	}
 	out.IncludeManagerState, out.IncludeMetrics, out.Shutdown = p.IncludeManager, p.IncludeMetrics, p.Shutdown
 	for _, s := range p.Stacks {
 		out.Stacks = append(out.Stacks, BackupStackSelection{StackID: s.StackID, VolumeInclude: s.VolumeInclude, VolumeExclude: s.VolumeExclude,
@@ -173,6 +188,10 @@ func toRetention(r *BackupRetention) domain.BackupRetention {
 // policyInputBody is the editable part of a policy.
 type policyInputBody struct {
 	Name                    string                  `json:"name" minLength:"1" maxLength:"100"`
+	Scope                   string                  `json:"scope" enum:"all,environment"`
+	EnvironmentID           string                  `json:"environmentId,omitempty" maxLength:"64"`
+	ExcludeStacks           []string                `json:"excludeStacks,omitempty" maxItems:"256"`
+	ExcludeVolumes          []string                `json:"excludeVolumes,omitempty" maxItems:"256"`
 	RepositoryID            string                  `json:"repositoryId" minLength:"1" maxLength:"64"`
 	EnvironmentRepositories map[string]string       `json:"environmentRepositories,omitempty"`
 	IncludeManagerState     bool                    `json:"includeManagerState,omitempty" doc:"Back up the manager's state (owner only: manager backups are owner-only)."`
@@ -185,7 +204,8 @@ type policyInputBody struct {
 }
 
 func (b policyInputBody) domain() domain.BackupPolicy {
-	p := domain.BackupPolicy{Name: b.Name, RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
+	p := domain.BackupPolicy{Name: b.Name, EnvironmentID: b.EnvironmentID, ExcludeStacks: b.ExcludeStacks, ExcludeVolumes: b.ExcludeVolumes,
+		RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
 		IncludeManager: b.IncludeManagerState, IncludeMetrics: b.IncludeMetrics, Stacks: toStackSelections(b.Stacks),
 		Volumes: toVolumeSelections(b.Volumes), Shutdown: b.Shutdown, Retention: toRetention(b.Retention)}
 	if b.Schedule != nil {
@@ -320,6 +340,15 @@ func (h *backupsAPI) createPolicy(ctx context.Context, in *createBackupPolicyInp
 	if err := requireManagerStateOwner(c, in.Body.IncludeManagerState); err != nil {
 		return nil, err
 	}
+	if in.Body.Scope != "all" && in.Body.Scope != "environment" {
+		return nil, Invalid("invalid backup scope", Field("body.scope", "choose all or environment"))
+	}
+	if (in.Body.Scope == "all") != (in.Body.EnvironmentID == "") {
+		return nil, Invalid("invalid backup scope", Field("body.environmentId", "choose one environment or leave empty for all"))
+	}
+	if len(in.Body.Stacks) > 0 || len(in.Body.Volumes) > 0 {
+		return nil, Invalid("invalid backup scope", Field("body.stacks", "use exclusions; managed stacks and standalone volumes are included by default"))
+	}
 	if s := in.Body.Schedule; s != nil && (s.Cron != "" || s.TimeZone != "") {
 		if err := ValidateSchedule(s.Cron, s.TimeZone, "body.schedule"); err != nil {
 			return nil, err
@@ -341,6 +370,9 @@ type updateBackupPolicyInput struct {
 	IfMatchParam
 	Body struct {
 		Name                    *string                  `json:"name,omitempty" minLength:"1" maxLength:"100"`
+		EnvironmentID           *string                  `json:"environmentId,omitempty"`
+		ExcludeStacks           *[]string                `json:"excludeStacks,omitempty" maxItems:"256"`
+		ExcludeVolumes          *[]string                `json:"excludeVolumes,omitempty" maxItems:"256"`
 		RepositoryID            *string                  `json:"repositoryId,omitempty" maxLength:"64"`
 		EnvironmentRepositories *map[string]string       `json:"environmentRepositories,omitempty"`
 		IncludeManagerState     *bool                    `json:"includeManagerState,omitempty"`
@@ -362,6 +394,9 @@ func (h *backupsAPI) updatePolicy(ctx context.Context, in *updateBackupPolicyInp
 		return nil, err
 	}
 	b := in.Body
+	if b.Stacks != nil || b.Volumes != nil {
+		return nil, Invalid("invalid backup scope", Field("body.stacks", "use exclusions; managed stacks and standalone volumes are included by default"))
+	}
 	include := p.IncludeManager
 	if b.IncludeManagerState != nil {
 		include = *b.IncludeManagerState
@@ -370,16 +405,9 @@ func (h *backupsAPI) updatePolicy(ctx context.Context, in *updateBackupPolicyInp
 	if err := requireManagerStateOwner(c, include); err != nil {
 		return nil, err
 	}
-	pp := backups.PolicyPatch{Name: b.Name, RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
+	pp := backups.PolicyPatch{Name: b.Name, EnvironmentID: b.EnvironmentID, ExcludeStacks: b.ExcludeStacks, ExcludeVolumes: b.ExcludeVolumes,
+		RepositoryID: b.RepositoryID, EnvironmentRepos: b.EnvironmentRepositories,
 		IncludeManager: b.IncludeManagerState, IncludeMetrics: b.IncludeMetrics, Shutdown: b.Shutdown}
-	if b.Stacks != nil {
-		sel := toStackSelections(*b.Stacks)
-		pp.Stacks = &sel
-	}
-	if b.Volumes != nil {
-		sel := toVolumeSelections(*b.Volumes)
-		pp.Volumes = &sel
-	}
 	if s := b.Schedule; s != nil {
 		if err := ValidateSchedule(s.Cron, s.TimeZone, "body.schedule"); err != nil {
 			return nil, err

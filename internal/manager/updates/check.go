@@ -73,6 +73,10 @@ func (s *Service) checkStep(ctx context.Context, sc *jobexec.StepContext) error 
 	if err != nil {
 		return err
 	}
+	if p.Inactive {
+		return &classed{class: domain.UpdateErrTargetIneligible, recovery: "Remove the target exclusion and check again.",
+			err: errors.New("the target is excluded from automatic updates")}
+	}
 	out, cands, err := s.Check(ctx, p, sc.JobID)
 	for _, c := range cands {
 		status := domain.ItemSucceeded
@@ -234,6 +238,18 @@ func (s *Service) checkStack(ctx context.Context, p domain.UpdatePolicy, jobID s
 	}
 	services := slices.Clone(st.Services)
 	slices.SortFunc(services, func(a, b domain.StackServiceDef) int { return strings.Compare(a.Name, b.Name) })
+	excludedByLabel := map[string]bool{}
+	if s.opts.Resources != nil {
+		containers, err := s.opts.Resources.ListContainers(ctx, p.EnvironmentID)
+		if err != nil {
+			return nil, out, err
+		}
+		for _, container := range containers {
+			if container.Stack != nil && container.Stack.Project == st.Name && protocol.UpdateExcluded(container.Labels) {
+				excludedByLabel[container.Stack.Service] = true
+			}
+		}
+	}
 	var cands []domain.UpdateCandidate
 	for _, def := range services {
 		c := reset(prev[def.Name], p.ID, def.Name)
@@ -243,6 +259,8 @@ func (s *Service) checkStack(ctx context.Context, p domain.UpdatePolicy, jobID s
 			c.Reference, c.Platform, c.AppliedDigest, c.AppliedImageID = img.Image, img.Platform, img.Digest, img.ImageID
 		}
 		switch {
+		case excludedByLabel[def.Name]:
+			ineligible(&c, domain.UpdateReasonExcluded, "A container of this service has dockyard.update.exclude=true.")
 		case !selected(p, def.Name):
 			ineligible(&c, domain.UpdateReasonExcluded, "The service is not opted in by this policy (excluded or not listed).")
 		case !applyEligibility(&c, eligible.Check(eligible.Subject{Reference: c.Reference, Build: def.Build, PullPolicy: def.PullPolicy})):
@@ -298,6 +316,10 @@ func (s *Service) checkContainer(ctx context.Context, p domain.UpdatePolicy, job
 	}
 	if reason, msg := s.containerIneligible(ctx, p.EnvironmentID, d); reason != "" {
 		ineligible(&c, reason, msg)
+		return []domain.UpdateCandidate{c}, nil
+	}
+	if protocol.UpdateExcluded(d.Labels) {
+		ineligible(&c, domain.UpdateReasonExcluded, "The container has dockyard.update.exclude=true.")
 		return []domain.UpdateCandidate{c}, nil
 	}
 	_, spec, err := s.opts.Resources.ManagedSpec(ctx, p.EnvironmentID, d.Labels)
