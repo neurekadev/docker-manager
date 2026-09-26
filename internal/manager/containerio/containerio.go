@@ -501,51 +501,76 @@ type clientMessage struct {
 	Rows uint   `json:"rows"`
 }
 
-// Attach upgrades the request and relays the session until it ends.
+// Attach upgrades the request and relays the session until it ends. The
+// session is claimed before the upgrade: a client that sees its upgrade
+// succeed owns the session, and any attachment racing with it (even one
+// dialed right after the upgrade response) is refused with 4409. A failed
+// upgrade gives the claim (and the ticket) back.
 func (s *Service) Attach(ctx context.Context, w http.ResponseWriter, r *http.Request, a api.ExecAttach) {
 	var patterns []string
 	if s.opts.PublicURL != nil {
 		patterns = []string{s.opts.PublicURL.Host}
 	}
-	c, err := ws.Accept(w, r, ws.Options{Subprotocols: []string{api.ExecSubprotocol}, RequireSubprotocol: true, OriginPatterns: patterns,
-		ReadLimit: maxClientMessageBytes, PingInterval: s.opts.PingInterval, Clock: s.opts.Clock})
-	if err != nil {
-		return // the response was written
-	}
-	defer func() { _ = c.CloseNow() }()
+	var refuse websocket.StatusCode
+	var refusal string
 	x, err := s.lookup(a)
 	if err != nil {
-		_ = c.Close(closeUnknown, "exec session unknown or ended")
-		return
+		refuse, refusal = closeUnknown, "exec session unknown or ended"
 	}
-	h := sha256.Sum256([]byte(a.Ticket))
-	x.mu.Lock()
-	switch {
-	case x.ended || !s.opts.Clock.Now().Before(x.expires) && !x.attached:
-		x.mu.Unlock()
-		_ = c.Close(closeUnknown, "exec session expired or ended")
-		return
-	case x.attached:
-		x.mu.Unlock()
-		_ = c.Close(closeAlreadyAttached, "exec session already attached")
-		return
-	case subtle.ConstantTimeCompare(h[:], x.ticketHash[:]) != 1:
-		x.mu.Unlock()
-		_ = c.Close(closeUnknown, "invalid attach ticket")
-		return
-	}
-	x.attached = true
-	x.ticketHash = [32]byte{} // one use
-	x.allowed = a.Allowed
-	rctx, cancel := context.WithCancelCause(ctx)
+	var rctx context.Context
+	var cancel context.CancelCauseFunc
 	var once sync.Once
 	var endCode websocket.StatusCode
 	var endReason string
-	x.stop = func(code websocket.StatusCode, reason string) {
-		once.Do(func() { endCode, endReason = code, reason })
-		cancel(errStopped)
+	var ticketHash [32]byte
+	if x != nil {
+		h := sha256.Sum256([]byte(a.Ticket))
+		x.mu.Lock()
+		switch {
+		case x.ended || !s.opts.Clock.Now().Before(x.expires) && !x.attached:
+			refuse, refusal = closeUnknown, "exec session expired or ended"
+		case x.attached:
+			refuse, refusal = closeAlreadyAttached, "exec session already attached"
+		case subtle.ConstantTimeCompare(h[:], x.ticketHash[:]) != 1:
+			refuse, refusal = closeUnknown, "invalid attach ticket"
+		default:
+			ticketHash = x.ticketHash
+			x.attached = true
+			x.ticketHash = [32]byte{} // one use
+			x.allowed = a.Allowed
+			rctx, cancel = context.WithCancelCause(ctx)
+			x.stop = func(code websocket.StatusCode, reason string) {
+				once.Do(func() { endCode, endReason = code, reason })
+				cancel(errStopped)
+			}
+		}
+		x.mu.Unlock()
 	}
-	x.mu.Unlock()
+	c, err := ws.Accept(w, r, ws.Options{Subprotocols: []string{api.ExecSubprotocol}, RequireSubprotocol: true, OriginPatterns: patterns,
+		ReadLimit: maxClientMessageBytes, PingInterval: s.opts.PingInterval, Clock: s.opts.Clock})
+	if err != nil {
+		if refuse == 0 {
+			// The response was written without an upgrade: nobody attached.
+			// A session stopped meanwhile (deleted) ends; otherwise the
+			// client may attach again with its ticket.
+			x.mu.Lock()
+			stopped := rctx.Err() != nil
+			if !x.ended && !stopped {
+				x.attached, x.ticketHash, x.stop = false, ticketHash, nil
+			}
+			x.mu.Unlock()
+			cancel(nil)
+			if stopped {
+				s.forget(x, true)
+			}
+		}
+		return
+	}
+	defer func() { _ = c.CloseNow() }()
+	if refuse != 0 {
+		_ = c.Close(refuse, refusal)
+		return
+	}
 	started := s.opts.Clock.Now()
 	// WebSocket reads and writes use their own context: cancelling the
 	// context of a coder/websocket operation drops the connection without a

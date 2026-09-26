@@ -23,6 +23,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/containerio"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
@@ -509,6 +510,37 @@ func TestExecSessionEndToEnd(t *testing.T) {
 	if strings.Contains(f.logs.String(), canary) || strings.Contains(f.audit.dump(), canary) ||
 		strings.Contains(f.logs.String(), strings.ToUpper(canary)) {
 		t.Fatal("terminal I/O reached the logs or the audit trail")
+	}
+}
+
+// TestExecFailedUpgradeKeepsTheTicket: the session is claimed before the
+// WebSocket upgrade (so an attachment racing with a successful one is
+// always refused); an upgrade that fails gives the claim and the one-use
+// ticket back.
+func TestExecFailedUpgradeKeepsTheTicket(t *testing.T) {
+	f := newFixture(t)
+	f.eng.SetProcess(func(stdin io.Reader, stdout, _ io.Writer) int {
+		_, _ = stdout.Write([]byte("hi"))
+		return 0
+	})
+	s := f.create("alice", "", map[string]any{})
+	// A plain request: the upgrade fails before any connection exists.
+	w := httptest.NewRecorder()
+	a := api.ExecAttach{Principal: authz.Principal{Kind: authz.KindUser, UserID: "alice"}, EnvironmentID: env1,
+		ContainerID: "web", SessionID: s.ID, Ticket: s.Ticket, Allowed: func(context.Context) bool { return true }}
+	f.svc.Attach(f.ctx, w, httptest.NewRequest(http.MethodGet, s.StreamURL, nil), a)
+	if w.Code != http.StatusUpgradeRequired {
+		t.Fatalf("status %d, want 426", w.Code)
+	}
+	if err := f.svc.CheckAttach(f.ctx, a); err != nil {
+		t.Fatalf("the ticket was used up by the failed upgrade: %v", err)
+	}
+	c, _, err := f.attach("alice", "", s, s.Ticket)
+	if err != nil {
+		t.Fatalf("attach after the failed upgrade: %v", err)
+	}
+	if out, _, code := readUntilClose(t, f.ctx, c); !strings.Contains(string(out), "hi") || code != websocket.StatusNormalClosure {
+		t.Fatalf("output %q close %d", out, code)
 	}
 }
 
