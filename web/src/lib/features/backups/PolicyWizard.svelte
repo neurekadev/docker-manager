@@ -5,19 +5,20 @@
 	// when turned on; previewed by the agents) → container shutdown (off by
 	// default; affected containers, stop order and downtime previewed) →
 	// schedule (#13, off until turned on) → retention (preview, recovery
-	// floor) → a first test backup. The policy is saved disabled after the
-	// destination step, so previews can run; nothing is backed up before the
-	// last step or its schedule.
+	// floor). Nothing is saved before the last step: a new policy is
+	// created with every setting at once (optionally followed by a first
+	// backup), an edited one is saved once; previews of a new policy use
+	// the draft preview.
 	import { untrack } from 'svelte';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
-	import { api, unwrap, type Job } from '$lib/api/client';
+	import { api, unwrap } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import {
 		Button,
+		Checkbox,
 		CronField,
-		JobProgress,
 		Notice,
 		Select,
 		Skeleton,
@@ -48,7 +49,7 @@
 		type PolicyInput,
 		type ScopePreview
 	} from './model';
-	import { backupKeys, repositoriesQuery } from './queries';
+	import { backupKeys, backupPoliciesQuery, repositoriesQuery } from './queries';
 
 	let {
 		policy: initial,
@@ -64,6 +65,7 @@
 	const qc = useQueryClient();
 	const envs = createQuery(() => environmentsQuery());
 	const repos = createQuery(() => repositoriesQuery());
+	const policies = createQuery(() => backupPoliciesQuery());
 	const stacks = createQuery(() => stacksQuery());
 	const schedDefaults = createQuery(() => scheduleDefaultsQuery());
 	const envName = (id: string) => environmentName(envs.data, id);
@@ -94,8 +96,7 @@
 	let scopeLoading = $state(false);
 	let scopeError = $state<string | null>(null);
 	let saved = $state(false);
-	let runJobs = $state<Job[]>([]);
-	let running = $state(false);
+	let runFirst = $state(false);
 
 	$effect(() => {
 		if (zone || schedDefaults.isPending) return;
@@ -202,37 +203,69 @@
 	}
 
 	async function previewScope() {
-		if (!policy) return;
 		scopeLoading = true;
 		scopeError = null;
 		try {
 			scope = await unwrap(
-				api.POST('/api/v1/backup-policies/{policyId}/scope-previews', {
-					params: { path: { policyId: policy.id } },
-					body: { draft: draft() }
-				})
+				policy
+					? api.POST('/api/v1/backup-policies/{policyId}/scope-previews', {
+							params: { path: { policyId: policy.id } },
+							body: { draft: draft() }
+						})
+					: api.POST('/api/v1/backup-policy-scope-previews', { body: draft() })
 			);
 		} catch (e) {
-			scopeError = actionError(e);
+			scopeError = actionError(e, {
+				backup_scope_overlap:
+					'Another backup policy already covers these environments. Edit that policy, or choose another environment.'
+			});
 		} finally {
 			scopeLoading = false;
 		}
 	}
 
-	async function save(fields?: Partial<PolicyInput>) {
-		if (!policy) return;
-		const body = fields ?? draft();
-		policy = await unwrap(
-			api.PATCH('/api/v1/backup-policies/{policyId}', {
-				params: {
-					path: { policyId: policy.id },
-					header: { 'If-Match': ifMatch(policy.revision) }
-				},
-				body
-			})
-		);
-		qc.setQueryData(backupKeys.policy(policy.id), policy);
+	/** An existing policy (other than this one) covering the chosen scope. */
+	const overlapping = $derived(
+		(policies.data ?? []).find(
+			(p) =>
+				p.id !== policy?.id &&
+				(scopeMode === 'all' || p.scope === 'all' || p.environmentId === environmentId)
+		)
+	);
+
+	// Creates the policy or saves the edits: the only write of the wizard.
+	async function save(): Promise<BackupPolicy> {
+		const saved = policy
+			? await unwrap(
+					api.PATCH('/api/v1/backup-policies/{policyId}', {
+						params: {
+							path: { policyId: policy.id },
+							header: { 'If-Match': ifMatch(policy.revision) }
+						},
+						body: draft()
+					})
+				)
+			: await unwrap(api.POST('/api/v1/backup-policies', { body: draft() }));
+		qc.setQueryData(backupKeys.policy(saved.id), saved);
 		await qc.invalidateQueries({ queryKey: ['policies', 'list'] });
+		return saved;
+	}
+
+	function failure(e: unknown): Error {
+		error = e;
+		return new Error(
+			Object.keys(fieldErrors(e)).length
+				? Object.values(fieldErrors(e)).join(' ')
+				: actionError(e, {
+						backup_policy_name_taken:
+							'Another backup policy has this name. Choose a different name.',
+						backup_scope_overlap:
+							'Another backup policy already covers these environments. Edit that policy, or choose another environment.',
+						recovery_key_not_confirmed:
+							'Confirm the Recovery Key of every repository this policy uses before turning its schedule on.'
+					}),
+			{ cause: e }
+		);
 	}
 
 	const steps = [
@@ -252,8 +285,13 @@
 			description: 'Back up live, or stop the affected containers meanwhile.'
 		},
 		{ id: 'schedule', label: 'Schedule', description: 'When backups run automatically.' },
-		{ id: 'retention', label: 'Retention', description: 'Which old backups are forgotten.' },
-		{ id: 'test', label: 'First backup', description: 'Save the policy and try it once.' }
+		{
+			id: 'retention',
+			label: 'Retention',
+			description: p0
+				? 'Which old backups are forgotten. Saving applies every change.'
+				: 'Which old backups are forgotten. Creating saves the policy.'
+		}
 	];
 
 	const canAdvance = $derived(
@@ -274,75 +312,44 @@
 
 	async function onnext(step: { id: string }) {
 		error = null;
-		try {
-			if (step.id === 'destination') {
-				if (!policy) {
-					policy = await unwrap(
-						api.POST('/api/v1/backup-policies', {
-							body: {
-								name: name.trim(),
-								scope: scopeMode,
-								environmentId: scopeMode === 'all' ? undefined : environmentId,
-								repositoryId,
-								includeManagerState: includeManager
-							}
-						})
-					);
-					await qc.invalidateQueries({ queryKey: ['policies', 'list'] });
-				} else {
-					await save({ name: name.trim(), repositoryId });
-				}
-			}
-			if (step.id === 'shutdown' && shutdown && !scope?.shutdown) await previewScope();
-			if (step.id === 'retention') {
-				await save();
-				saved = true;
-				touched = false;
-			}
-		} catch (e) {
-			error = e;
+		if (step.id === 'destination' && overlapping) {
 			throw new Error(
-				Object.keys(fieldErrors(e)).length
-					? Object.values(fieldErrors(e)).join(' ')
-					: actionError(e, {
-							backup_policy_name_taken:
-								'Another backup policy has this name. Choose a different name.',
-							recovery_key_not_confirmed:
-								'Confirm the Recovery Key of every repository this policy uses before turning its schedule on.'
-						}),
-				{ cause: e }
+				`${overlapping.name} already covers ${overlapping.scope === 'all' ? 'all environments' : envName(overlapping.environmentId ?? '')}: policies can't overlap. Edit that policy, or choose another environment.`
 			);
 		}
-	}
-
-	async function runFirst() {
-		if (!policy) return;
-		running = true;
-		try {
-			const run = await unwrap(
-				api.POST('/api/v1/backup-policies/{policyId}/runs', {
-					params: {
-						path: { policyId: policy.id },
-						header: { 'Idempotency-Key': newIdempotencyKey() }
-					},
-					body: {}
-				})
-			);
-			runJobs = run.jobs;
-			toast.info(`Started a backup of ${policy.name}`);
-		} catch (e) {
-			toast.error('The backup did not start', { body: actionError(e) });
-		} finally {
-			running = false;
-		}
+		if (step.id === 'shutdown' && shutdown && !scope?.shutdown) await previewScope();
 	}
 
 	async function finish() {
-		if (!policy) return;
-		toast.success(`Saved backup policy ${policy.name}`, {
+		let out: BackupPolicy;
+		try {
+			out = await save();
+		} catch (e) {
+			throw failure(e);
+		}
+		policy = out;
+		saved = true;
+		touched = false;
+		if (runFirst) {
+			try {
+				await unwrap(
+					api.POST('/api/v1/backup-policies/{policyId}/runs', {
+						params: {
+							path: { policyId: out.id },
+							header: { 'Idempotency-Key': newIdempotencyKey() }
+						},
+						body: {}
+					})
+				);
+				toast.info(`Started the first backup of ${out.name}`);
+			} catch (e) {
+				toast.error('The first backup did not start', { body: actionError(e) });
+			}
+		}
+		toast.success(`${initial ? 'Saved' : 'Created'} backup policy ${out.name}`, {
 			body: enabled ? undefined : 'Its schedule is off: backups run only when you start them.'
 		});
-		await ondone(policy);
+		await ondone(out);
 	}
 
 	// Scope previews go stale when the selection changes.
@@ -362,8 +369,7 @@
 	{onnext}
 	onfinish={finish}
 	{canAdvance}
-	nextLabel={current === 0 && !policy ? 'Create policy' : current === 4 ? 'Save policy' : 'Next'}
-	finishLabel="Done"
+	finishLabel={initial ? 'Save changes' : 'Create policy'}
 >
 	{#snippet step(s)}
 		{#if s.id === 'destination'}
@@ -420,7 +426,8 @@
 				{/each}
 				{#if !policy}
 					<p class="muted small">
-						Creating saves the policy with its schedule off. Nothing is backed up yet.
+						Nothing is saved until the last step. New policies start with their schedule
+						off.
 					</p>
 				{/if}
 			</Fields>
@@ -508,7 +515,9 @@
 							<Select
 								label="Repository for {envName(envId)}"
 								options={envRepoOptions(envId)}
-								bind:value={envRepos[envId]}
+								bind:value={
+									() => envRepos[envId] ?? '', (v) => (envRepos[envId] = v)
+								}
 								error={needsEnvRepo(envId)
 									? `${primary?.name ?? 'The policy’s repository'} can't hold ${envName(envId)}'s data. Choose a repository on ${envName(envId)} or an S3 repository.`
 									: null}
@@ -517,7 +526,7 @@
 					</FieldGroup>
 				{/if}
 				<div class="preview-bar">
-					<Button onclick={previewScope} loading={scopeLoading} disabled={!policy}
+					<Button onclick={previewScope} loading={scopeLoading}
 						>Preview what gets backed up</Button
 					>
 					<span class="muted small"
@@ -588,34 +597,21 @@
 					/>{/if}
 			</Fields>
 		{:else if s.id === 'retention'}
-			<RetentionEditor
-				bind:value={retention}
-				policyId={policy?.id}
-				onchange={() => (touched = true)}
-			/>
-		{:else if s.id === 'test'}
 			<Fields>
-				<Notice tone="info" title="The policy is saved" live="status">
-					{enabled
-						? 'Its schedule is on.'
-						: 'Its schedule is off: backups run only when you start them.'}
-					Run it once now to check that everything can be read and stored.
-				</Notice>
-				{#if runJobs.length === 0}
-					<div>
-						<Button variant="primary" loading={running} onclick={runFirst}
-							>Run first backup</Button
-						>
-					</div>
-				{/if}
-				{#each runJobs as j (j.id)}
-					<JobProgress
-						jobId={j.id}
-						title="Back up {j.environmentId
-							? envName(j.environmentId)
-							: 'Docker Manager'}"
+				<RetentionEditor
+					bind:value={retention}
+					policyId={policy?.id}
+					onchange={() => (touched = true)}
+				/>
+				{#if !initial}
+					<Checkbox
+						label="Run the first backup after creating"
+						description={shutdown
+							? 'Checks that everything can be read and stored. The affected containers stop while it runs.'
+							: 'Checks that everything can be read and stored.'}
+						bind:checked={runFirst}
 					/>
-				{/each}
+				{/if}
 			</Fields>
 		{/if}
 	{/snippet}

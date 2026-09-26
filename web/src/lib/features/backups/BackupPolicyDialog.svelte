@@ -1,8 +1,8 @@
 <script lang="ts">
 	// Create or edit a backup policy (#10) in a dialog: the setup wizard over
-	// the Backups pages instead of a page of its own. A new policy is saved
-	// (schedule off) after its first step, so closing half-way keeps it,
-	// disabled, in the list. Render it only while open ({#if}).
+	// the Backups pages instead of a page of its own. Nothing is saved before
+	// the wizard's last step, so closing half-way leaves no policy behind.
+	// Render it only while open ({#if}).
 	import { goto } from '$app/navigation';
 	import { routes } from '$lib/routes';
 	import { Dialog } from '$lib/ui';

@@ -553,6 +553,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/backup-policy-scope-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview the scope of an unsaved backup policy
+         * @description The scope preview of create-backup-policy-scope-preview for a policy that does not exist yet (the body of create-backup-policy): nothing is stored. Refuses a scope another policy already covers (409 backup_scope_overlap).
+         */
+        post: operations["create-backup-policy-draft-scope-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/backup-repositories": {
         parameters: {
             query?: never;
@@ -13427,6 +13447,164 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-backup-policy-draft-scope-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "web",
+                 *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "retention": {
+                 *         "daily": 7
+                 *       },
+                 *       "schedule": {
+                 *         "cron": "0 2 * * *",
+                 *         "enabled": false,
+                 *         "timeZone": "Europe/Berlin"
+                 *       },
+                 *       "scope": "all"
+                 *     }
+                 */
+                "application/json": components["schemas"]["PolicyInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "environments": [
+                     *         {
+                     *           "downtime": "example",
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "environmentName": "nas",
+                     *           "errorClass": "example",
+                     *           "items": [
+                     *             {
+                     *               "affectedContainers": [
+                     *                 {
+                     *                   "name": "web",
+                     *                   "project": "example",
+                     *                   "protected": "example",
+                     *                   "running": false,
+                     *                   "service": "example",
+                     *                   "stopOrder": 1
+                     *                 }
+                     *               ],
+                     *               "conflicts": [
+                     *                 "example"
+                     *               ],
+                     *               "error": "example",
+                     *               "errorClass": "example",
+                     *               "estimateComplete": false,
+                     *               "estimatedBytes": 1,
+                     *               "estimatedFiles": 1,
+                     *               "excludes": [
+                     *                 "example"
+                     *               ],
+                     *               "item": "example",
+                     *               "kind": "example",
+                     *               "paths": [
+                     *                 "config/app.conf"
+                     *               ],
+                     *               "sources": [
+                     *                 {
+                     *                   "kind": "example",
+                     *                   "name": "web",
+                     *                   "path": "config/app.conf",
+                     *                   "reason": "example",
+                     *                   "service": "example",
+                     *                   "state": "example"
+                     *                 }
+                     *               ],
+                     *               "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "volume": "example",
+                     *               "volumes": [
+                     *                 "example"
+                     *               ],
+                     *               "warnings": [
+                     *                 "example"
+                     *               ]
+                     *             }
+                     *           ],
+                     *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *         }
+                     *       ],
+                     *       "manager": {
+                     *         "databaseBytes": 1,
+                     *         "metricsBytes": 1,
+                     *         "metricsIncluded": false,
+                     *         "notes": [
+                     *           "example"
+                     *         ],
+                     *         "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *       },
+                     *       "shutdown": false,
+                     *       "warnings": [
+                     *         "example"
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ScopePreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

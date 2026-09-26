@@ -125,7 +125,10 @@ selected (#32). A local repository inside (or containing) a source is
 refused (`repository_inside_source`), as is a local location outside the
 agent's `DOCKER_AGENT_BACKUP_LOCAL_ROOTS`.
 
-The **scope preview** (`POST /backup-policies/{id}/scope-previews`) asks each
+The **scope preview** (`POST /backup-policies/{id}/scope-previews`, or
+`POST /backup-policy-scope-previews` with the create body for a policy the
+wizard has not saved yet: the UI saves a policy only at its last step, and
+the draft preview refuses a scope another policy covers) asks each
 agent for the effective sources with states and reasons, excludes, the
 estimated size (bounded walk), and with shutdown on the containers that stop
 in their stop order, the downtime warning and the conflicts a shutdown

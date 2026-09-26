@@ -216,6 +216,20 @@ func (b policyInputBody) domain() domain.BackupPolicy {
 	return p
 }
 
+// checkScope validates the scope of a new policy (or a draft of one).
+func (b policyInputBody) checkScope() error {
+	if b.Scope != "all" && b.Scope != "environment" {
+		return Invalid("invalid backup scope", Field("body.scope", "choose all or environment"))
+	}
+	if (b.Scope == "all") != (b.EnvironmentID == "") {
+		return Invalid("invalid backup scope", Field("body.environmentId", "choose one environment or leave empty for all"))
+	}
+	if len(b.Stacks) > 0 || len(b.Volumes) > 0 {
+		return Invalid("invalid backup scope", Field("body.stacks", "use exclusions; managed stacks and standalone volumes are included by default"))
+	}
+	return nil
+}
+
 type backupPolicyIDInput struct {
 	PolicyID string `path:"policyId" maxLength:"64" doc:"Backup policy ID."`
 }
@@ -342,14 +356,8 @@ func (h *backupsAPI) createPolicy(ctx context.Context, in *createBackupPolicyInp
 	if err := requireManagerStateOwner(c, in.Body.IncludeManagerState); err != nil {
 		return nil, err
 	}
-	if in.Body.Scope != "all" && in.Body.Scope != "environment" {
-		return nil, Invalid("invalid backup scope", Field("body.scope", "choose all or environment"))
-	}
-	if (in.Body.Scope == "all") != (in.Body.EnvironmentID == "") {
-		return nil, Invalid("invalid backup scope", Field("body.environmentId", "choose one environment or leave empty for all"))
-	}
-	if len(in.Body.Stacks) > 0 || len(in.Body.Volumes) > 0 {
-		return nil, Invalid("invalid backup scope", Field("body.stacks", "use exclusions; managed stacks and standalone volumes are included by default"))
+	if err := in.Body.checkScope(); err != nil {
+		return nil, err
 	}
 	if s := in.Body.Schedule; s != nil && (s.Cron != "" || s.TimeZone != "") {
 		if err := ValidateSchedule(s.Cron, s.TimeZone, "body.schedule"); err != nil {
@@ -530,6 +538,34 @@ func (h *backupsAPI) previewScope(ctx context.Context, in *scopePreviewInput) (*
 		draft = &d
 	}
 	out, err := svc.PreviewScope(ctx, p.ID, draft)
+	if err != nil {
+		return nil, backupError(err)
+	}
+	return &scopePreviewOutput{Body: newScopePreview(out)}, nil
+}
+
+type draftScopePreviewInput struct {
+	Body policyInputBody
+}
+
+// previewDraftScope previews the scope of a policy that is not saved yet
+// (the create wizard saves only at its end).
+func (h *backupsAPI) previewDraftScope(ctx context.Context, in *draftScopePreviewInput) (*scopePreviewOutput, error) {
+	svc, c, _, err := h.checker(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !c.Can(string(CapBackupPolicyManage), authz.Instance()).Allowed {
+		return nil, Forbidden("not permitted: " + string(CapBackupPolicyManage))
+	}
+	if err := requireManagerStateOwner(c, in.Body.IncludeManagerState); err != nil {
+		return nil, err
+	}
+	if err := in.Body.checkScope(); err != nil {
+		return nil, err
+	}
+	d := in.Body.domain()
+	out, err := svc.PreviewScope(ctx, "", &d)
 	if err != nil {
 		return nil, backupError(err)
 	}
@@ -748,6 +784,17 @@ func registerBackupPolicies(a huma.API, h *backupsAPI) {
 		},
 		Capability: CapBackupPolicyManage, Scope: ScopeInstance,
 	}, h.createPolicy)
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "create-backup-policy-draft-scope-preview", Method: http.MethodPost,
+			Path:    BasePath + "/backup-policy-scope-previews",
+			Summary: "Preview the scope of an unsaved backup policy",
+			Description: "The scope preview of create-backup-policy-scope-preview for a policy that does not exist yet (the body of " +
+				"create-backup-policy): nothing is stored. Refuses a scope another policy already covers (409 backup_scope_overlap).",
+			Tags: []string{tagBackups}, Errors: []int{http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity},
+		},
+		Capability: CapBackupPolicyManage, Scope: ScopeInstance,
+	}, h.previewDraftScope)
 	Register(a, Operation{
 		Operation: huma.Operation{
 			OperationID: "get-backup-policy", Method: http.MethodGet, Path: BasePath + "/backup-policies/{policyId}",

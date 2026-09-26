@@ -401,11 +401,25 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 			NextRun *time.Time `json:"nextRun"`
 		} `json:"schedule"`
 	}
+	// The create wizard previews its draft before anything is saved.
+	var draft struct {
+		Environments []struct {
+			ErrorClass string `json:"errorClass"`
+			Items      []protocol.ScopePreviewItem
+		} `json:"environments"`
+	}
+	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backup-policy-scope-previews", policy).json(t, &draft)
+	if len(draft.Environments) != 1 || draft.Environments[0].ErrorClass != "" || len(draft.Environments[0].Items) != 2 {
+		t.Fatalf("draft preview %+v", draft)
+	}
 	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies", policy).json(t, &pol)
 	if !pol.Enabled {
 		t.Fatalf("policy %+v", pol)
 	}
 	owner.fail(http.StatusConflict, "backup_scope_overlap", http.MethodPost, "/api/v1/backup-policies",
+		map[string]any{"name": "Overlapping", "scope": "all", "repositoryId": id})
+	// A draft overlapping the saved policy is refused before it is saved.
+	owner.fail(http.StatusConflict, "backup_scope_overlap", http.MethodPost, "/api/v1/backup-policy-scope-previews",
 		map[string]any{"name": "Overlapping", "scope": "all", "repositoryId": id})
 
 	// Scope preview from the agent.

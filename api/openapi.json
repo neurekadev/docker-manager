@@ -21446,6 +21446,209 @@
         "x-docker-manager-scope": "resource"
       }
     },
+    "/api/v1/backup-policy-scope-previews": {
+      "post": {
+        "description": "The scope preview of create-backup-policy-scope-preview for a policy that does not exist yet (the body of create-backup-policy): nothing is stored. Refuses a scope another policy already covers (409 backup_scope_overlap).",
+        "operationId": "create-backup-policy-draft-scope-preview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "name": "web",
+                "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                "retention": {
+                  "daily": 7
+                },
+                "schedule": {
+                  "cron": "0 2 * * *",
+                  "enabled": false,
+                  "timeZone": "Europe/Berlin"
+                },
+                "scope": "all"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PolicyInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "environments": [
+                    {
+                      "downtime": "example",
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "environmentName": "nas",
+                      "errorClass": "example",
+                      "items": [
+                        {
+                          "affectedContainers": [
+                            {
+                              "name": "web",
+                              "project": "example",
+                              "protected": "example",
+                              "running": false,
+                              "service": "example",
+                              "stopOrder": 1
+                            }
+                          ],
+                          "conflicts": [
+                            "example"
+                          ],
+                          "error": "example",
+                          "errorClass": "example",
+                          "estimateComplete": false,
+                          "estimatedBytes": 1,
+                          "estimatedFiles": 1,
+                          "excludes": [
+                            "example"
+                          ],
+                          "item": "example",
+                          "kind": "example",
+                          "paths": [
+                            "config/app.conf"
+                          ],
+                          "sources": [
+                            {
+                              "kind": "example",
+                              "name": "web",
+                              "path": "config/app.conf",
+                              "reason": "example",
+                              "service": "example",
+                              "state": "example"
+                            }
+                          ],
+                          "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                          "volume": "example",
+                          "volumes": [
+                            "example"
+                          ],
+                          "warnings": [
+                            "example"
+                          ]
+                        }
+                      ],
+                      "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                    }
+                  ],
+                  "manager": {
+                    "databaseBytes": 1,
+                    "metricsBytes": 1,
+                    "metricsIncluded": false,
+                    "notes": [
+                      "example"
+                    ],
+                    "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                  },
+                  "shutdown": false,
+                  "warnings": [
+                    "example"
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ScopePreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Preview the scope of an unsaved backup policy",
+        "tags": [
+          "Backups"
+        ],
+        "x-docker-manager-audit": "backup_policy.manage",
+        "x-docker-manager-capability": "backup_policy.manage",
+        "x-docker-manager-scope": "instance"
+      }
+    },
     "/api/v1/backup-repositories": {
       "get": {
         "description": "Destinations in creation order, filtered per item (#17): backup_repository.read shows one in full, any other capability on it only id, name, kind and state. Credentials and the Recovery Key are never returned.",

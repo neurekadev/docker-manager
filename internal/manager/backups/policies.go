@@ -615,6 +615,13 @@ func (s *Service) PreviewScope(ctx context.Context, id string, draft *domain.Bac
 		if err := s.validatePolicy(ctx, s.db, &p); err != nil {
 			return ScopePreview{}, err
 		}
+		// A policy being created (no ID yet) must not overlap another one:
+		// say so now rather than when it is saved.
+		if p.ID == "" {
+			if err := s.backupScopeAvailable(ctx, s.db, p.EnvironmentID, ""); err != nil {
+				return ScopePreview{}, err
+			}
+		}
 	} else if p, err = store.GetBackupPolicy(ctx, s.db, id); err != nil {
 		return ScopePreview{}, err
 	}

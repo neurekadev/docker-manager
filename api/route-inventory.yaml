@@ -1894,6 +1894,14 @@ routes:
     owner: 10
     kind: json
     status: implemented
+  - method: POST
+    path: /api/v1/backup-policy-scope-previews
+    operationId: create-backup-policy-draft-scope-preview
+    capability: backup_policy.manage
+    scope: instance
+    owner: 10
+    kind: json
+    status: implemented
   - method: GET
     path: "/api/v1/backup-policies/{policyId}"
     operationId: get-backup-policy
