@@ -13,7 +13,7 @@ Docker is **not** required locally, and no automated check needs it: the
 tests are isolated unit tests with in-memory fakes. Only the image builds
 need Docker; they run in CI.
 
-The code lives at `https://code.neureka.dev/dockyard/dockyard` (Forgejo);
+The code lives at `https://code.neureka.dev/docker-manager/docker-manager` (Forgejo);
 the GitHub issues of `neurekadev/dockyard` stay the written record of the
 roadmap and decisions.
 
@@ -58,8 +58,8 @@ the move to Forgejo.
 
 ```bash
 # terminal 1: manager on http://localhost:8080 (plain http allowed for localhost)
-DOCKYARD_PUBLIC_URL=http://localhost:8080 DOCKYARD_DATA_DIR=./data \
-  DOCKYARD_LOG_FORMAT=text go run ./cmd/dockyard-manager
+DOCKER_MANAGER_PUBLIC_URL=http://localhost:8080 DOCKER_MANAGER_DATA_DIR=./data \
+  DOCKER_MANAGER_LOG_FORMAT=text go run ./cmd/docker-manager
 
 # terminal 2 (optional): Vite dev server with HMR, proxies /api to :8080
 npm --prefix web run dev

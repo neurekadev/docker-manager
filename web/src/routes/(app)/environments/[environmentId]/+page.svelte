@@ -233,7 +233,7 @@
 			<Notice
 				tone={e.compatibility === 'unsupported' ? 'danger' : 'warn'}
 				title={e.compatibility === 'unsupported'
-					? `The agent ${e.agentVersion ?? ''} is too old: DockYard refuses it`
+					? `The agent ${e.agentVersion ?? ''} is too old: Docker Manager refuses it`
 					: `The agent ${e.agentVersion ?? ''} is outdated`}
 				live="none"
 			>

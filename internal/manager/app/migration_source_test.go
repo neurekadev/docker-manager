@@ -9,15 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/migration/migrationtest"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration/migrationtest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // TestMigrationCutOverFollowUps (#35 with #14, #20): through the real
@@ -25,7 +25,7 @@ import (
 //   - a scheduled update run queued against the source while the migration
 //     holds the stack lock is refused at dispatch with target_moved instead
 //     of pulling and recreating the stopped source containers;
-//   - the stopped source (no longer a DockYard stack) survives a prune run
+//   - the stopped source (no longer a Docker Manager stack) survives a prune run
 //     with every rule enabled (volumes opted in) and the Docker resource
 //     routes refuse to delete its volume and network, until the source
 //     removal is confirmed.

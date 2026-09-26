@@ -1,4 +1,4 @@
-// Package backups is the manager side of DockYard backups (#10, #24):
+// Package backups is the manager side of Docker Manager backups (#10, #24):
 // repositories (destinations) and their physical locations, the instance
 // Recovery Key, policies, runs as backup sets, the snapshot index, the
 // manager-state snapshot and portable manifests, the scheduler sources of
@@ -29,21 +29,21 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
-	"github.com/neurekadev/dockyard/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 )
 
 // AgentHub reaches agents (implemented by *agents.Hub).
@@ -126,7 +126,7 @@ type Options struct {
 	// SecretKeyFile is the manager's secret-protection key file (restores).
 	SecretKeyFile string
 	// LocalRoots are the directories local manager repositories may live
-	// in (DOCKYARD_BACKUP_LOCAL_ROOTS).
+	// in (DOCKER_MANAGER_BACKUP_LOCAL_ROOTS).
 	LocalRoots []string
 	// Migrations lists the applied migrations of the manager database
 	// (the schema recorded in manager-state snapshots).

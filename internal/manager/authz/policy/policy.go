@@ -1,4 +1,4 @@
-// Package policy is DockYard's deterministic authorization evaluator (#17,
+// Package policy is Docker Manager's deterministic authorization evaluator (#17,
 // ADR 0003: no Casbin). It is a pure function over one principal's rules
 // and the requested resource's scope chain:
 //
@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
 )
 
 // Effect is a rule's effect.

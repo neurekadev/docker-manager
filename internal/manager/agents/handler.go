@@ -12,15 +12,15 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/authsep"
-	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
-	"github.com/neurekadev/dockyard/internal/manager/server"
-	"github.com/neurekadev/dockyard/internal/manager/server/ws"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/ws"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // AttemptLimits are per-secret attempt limits on top of the per-IP

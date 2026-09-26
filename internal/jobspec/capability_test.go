@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 )
 
 func TestCapabilities(t *testing.T) {

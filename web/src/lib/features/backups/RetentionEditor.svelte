@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Retention of a backup policy (#10): keep rules like restic's, a
 	// minimum recovery floor per stack/volume (the newest is never
-	// forgotten), and a preview of exactly which snapshots would go. DockYard
+	// forgotten), and a preview of exactly which snapshots would go. Docker Manager
 	// computes the decision, so the preview and the run agree.
 	import { Switch, TextField } from '$lib/ui';
 	import FieldGroup from '$lib/features/common/FieldGroup.svelte';

@@ -29,16 +29,16 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/manager/agents"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Agents sends named requests to an environment's agent
@@ -86,7 +86,7 @@ type Options struct {
 	Registries Registries
 	// Systems reads agents' reported roots (file manager roots, #15).
 	Systems Systems
-	// Protection reports whether a Compose project is DockYard's own
+	// Protection reports whether a Compose project is Docker Manager's own
 	// (#32; resources.Service); its deploy, stop, restart, down and removal
 	// are refused. nil: no check (tests).
 	Protection ProjectProtection
@@ -372,7 +372,7 @@ func statesFrom(in []protocol.ServiceState) []domain.StackServiceState {
 }
 
 // importLabelMeta fills empty service display metadata from the
-// dev.neureka.dockyard.* labels (never overwriting the user's metadata).
+// dev.neureka.docker-manager.* labels (never overwriting the user's metadata).
 func importLabelMeta(st *domain.Stack, services []protocol.ComposeService) {
 	if st.ServiceMeta == nil {
 		st.ServiceMeta = map[string]domain.DisplayMeta{}

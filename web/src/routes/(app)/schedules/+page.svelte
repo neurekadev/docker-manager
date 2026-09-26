@@ -137,7 +137,7 @@
 {/snippet}
 {#snippet envCell(s: Schedule)}
 	{#if s.environmentId}{names.get(s.environmentId) ?? s.environmentId.slice(0, 8)}{:else}<span
-			class="muted">DockYard</span
+			class="muted">Docker Manager</span
 		>{/if}
 {/snippet}
 {#snippet cronCell(s: Schedule)}

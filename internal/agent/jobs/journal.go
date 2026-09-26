@@ -11,7 +11,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/neurekadev/dockyard/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
 )
 
 // Journal file layout inside the agent state directory.

@@ -3,9 +3,9 @@ package stacks_test
 import (
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/stacks"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/stacks"
 )
 
 // TestLiveServicesPublishOnlyChanges: reading the services records the

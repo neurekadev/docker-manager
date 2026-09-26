@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/state"
-	"github.com/neurekadev/dockyard/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
 )
 
-// HandoverResult is what `dockyard-agent enroll` reports.
+// HandoverResult is what `docker-agent enroll` reports.
 type HandoverResult struct {
 	// Enrollment is the outcome for the handed-over token (nil while the
 	// agent has not picked it up).

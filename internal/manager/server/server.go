@@ -22,10 +22,10 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
-	"github.com/neurekadev/dockyard/internal/manager/server/sse"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/sse"
 )
 
 // AgentBasePath prefixes the private agent routes.
@@ -40,14 +40,14 @@ type Options struct {
 	// UI is the embedded SvelteKit build (web.Assets()).
 	UI fs.FS
 	// TrustedProxies are the reverse proxies whose X-Forwarded-For/Proto/Host
-	// headers are honored (DOCKYARD_TRUSTED_PROXIES, #27).
+	// headers are honored (DOCKER_MANAGER_TRUSTED_PROXIES, #27).
 	TrustedProxies []netip.Prefix
-	// PublicURL and LocalDevelopment describe DOCKYARD_PUBLIC_URL (for the
+	// PublicURL and LocalDevelopment describe DOCKER_MANAGER_PUBLIC_URL (for the
 	// secure-origin check, requestinfo.CheckSecureOrigin).
 	PublicURL        *url.URL
 	LocalDevelopment bool
 	// StreamHeartbeat is the SSE heartbeat and WebSocket ping interval
-	// (DOCKYARD_STREAM_HEARTBEAT; default sse.DefaultHeartbeat).
+	// (DOCKER_MANAGER_STREAM_HEARTBEAT; default sse.DefaultHeartbeat).
 	StreamHeartbeat time.Duration
 	// Agent serves /agent/v1/* (enrollment and session, #3). Nil answers
 	// every agent route with 404. It always runs behind the agent guard
@@ -113,7 +113,7 @@ func New(opts Options) (*Server, error) {
 	return &Server{Handler: h, API: humaAPI}, nil
 }
 
-// HTTPServer wraps a handler with DockYard's connection timeouts. There is
+// HTTPServer wraps a handler with Docker Manager's connection timeouts. There is
 // deliberately no WriteTimeout: SSE and WebSocket streams are long-lived and
 // enforce their own deadlines.
 func HTTPServer(h http.Handler, logger *slog.Logger) *http.Server {

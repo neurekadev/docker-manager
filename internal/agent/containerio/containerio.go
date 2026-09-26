@@ -22,11 +22,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 )
 
 // Engine is the part of the Engine adapter the service needs.

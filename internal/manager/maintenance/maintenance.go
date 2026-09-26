@@ -6,9 +6,9 @@
 //
 // Runs are prune.run jobs of the #26 engine: the job input carries the
 // policy's enabled rules and every object the manager knows must survive
-// (the Compose projects and images of DockYard stacks, the images, volumes
+// (the Compose projects and images of Docker Manager stacks, the images, volumes
 // and networks of saved container specifications, backup destinations);
-// the agent adds DockYard's own objects (#32), lists the Engine, and
+// the agent adds Docker Manager's own objects (#32), lists the Engine, and
 // revalidates every candidate right before its targeted removal.
 //
 // Safety defaults: every rule and every schedule starts disabled; a volume
@@ -29,16 +29,16 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/resources"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/resources"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // JobEngine is the part of the #26 engine the service uses.
@@ -66,7 +66,7 @@ type Scheduler interface {
 	Status(ctx context.Context, kind, policyID string, runs int) (domain.Schedule, []domain.ScheduleRun, bool, error)
 }
 
-// Stacks lists DockYard stacks (#7).
+// Stacks lists Docker Manager stacks (#7).
 type Stacks interface {
 	List(ctx context.Context, f domain.StackFilter) ([]domain.Stack, error)
 }

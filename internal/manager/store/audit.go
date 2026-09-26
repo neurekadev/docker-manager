@@ -10,7 +10,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 )
 
 // Audit trail storage (#30). internal/manager/audit owns the rules

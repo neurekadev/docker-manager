@@ -1,6 +1,6 @@
-// Package ids generates DockYard's stable resource identifiers.
+// Package ids generates Docker Manager's stable resource identifiers.
 //
-// Every DockYard-owned record (instance, user, environment, stack, job, ...)
+// Every Docker Manager-owned record (instance, user, environment, stack, job, ...)
 // uses a UUIDv7 string: time-ordered (good SQLite index locality), opaque to
 // clients and never derived from Docker IDs, host names or file paths.
 package ids

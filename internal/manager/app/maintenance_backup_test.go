@@ -6,19 +6,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // TestPruneKeepsWhatBackupsRelyOn (#14 × #10, #32): the backup service
 // installs Maintenance().SetBackupReferences, so a standalone volume a
 // backup policy selects is never a prune candidate (shown as protected
 // with the policy's name, also while no container uses it), and a local
-// backup repository on a volume mounted into DockYard's agent is never
+// backup repository on a volume mounted into the Docker Agent is never
 // one either. Neither survives by accident: an equally old, unreferenced
 // volume is removed by the same run.
 func TestPruneKeepsWhatBackupsRelyOn(t *testing.T) {
@@ -30,7 +30,7 @@ func TestPruneKeepsWhatBackupsRelyOn(t *testing.T) {
 		fe.SetVolumeCreated(v, old)
 	}
 	// The agent keeps a local backup repository on a named volume.
-	fe.AddContainer(engine.ContainerSpec{Name: "dockyard-agent", Image: "nginx:1.27", Labels: map[string]string{protocol.LabelRole: "agent"},
+	fe.AddContainer(engine.ContainerSpec{Name: "docker-agent", Image: "nginx:1.27", Labels: map[string]string{protocol.LabelRole: "agent"},
 		Mounts: []engine.MountSpec{{Type: "volume", Source: "restic_repo", Target: "/backups"}}}, true)
 	a := e.connectAgent("Maint", fe)
 	owner, _ := e.setupOwner()
@@ -67,7 +67,7 @@ func TestPruneKeepsWhatBackupsRelyOn(t *testing.T) {
 	if r, ok := reasons["protected photos"]; !ok || !strings.Contains(r, "Photos nightly") {
 		t.Errorf("the backed-up volume is not protected by its policy: %v", reasons)
 	}
-	// The repository volume is in use by DockYard's (protected) agent
+	// The repository volume is in use by Docker Manager's (protected) agent
 	// container: never a candidate.
 	if _, ok := reasons["remove restic_repo"]; ok {
 		t.Errorf("the local repository volume is a prune candidate: %v", reasons)

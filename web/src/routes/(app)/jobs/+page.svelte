@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Jobs (#26): everything DockYard did or is doing, newest first, with
+	// Jobs (#26): everything Docker Manager did or is doing, newest first, with
 	// filters for state, kind, environment and origin (kept in the URL).
 	// The list refreshes live on job events; "Load more" follows the cursor.
 	import { page } from '$app/state';
@@ -104,7 +104,7 @@
 	<div class="page">
 		<PageHeader
 			title="Jobs"
-			description="Everything DockYard did or is doing: deploys, pulls, updates, backups, prunes and file operations."
+			description="Everything Docker Manager did or is doing: deploys, pulls, updates, backups, prunes and file operations."
 		/>
 
 		<div class="filters" role="group" aria-label="Filter jobs">

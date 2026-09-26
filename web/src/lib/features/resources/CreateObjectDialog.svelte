@@ -161,7 +161,7 @@
 			bind:value={driver}
 			placeholder={kind === 'volume' ? 'local' : 'bridge'}
 			description={kind === 'volume'
-				? 'Optional. Only local volumes support files, watching and backups in DockYard.'
+				? 'Optional. Only local volumes support files, watching and backups in Docker Manager.'
 				: 'Optional. Default bridge.'}
 		/>
 		{#if kind === 'network'}
@@ -191,7 +191,7 @@
 			mono
 			rows={2}
 			bind:value={labelsText}
-			description="Optional. One key=value per line; dev.neureka.dockyard.* and com.docker.compose.* are reserved."
+			description="Optional. One key=value per line; dev.neureka.docker-manager.* and com.docker.compose.* are reserved."
 			error={labels.invalid.length
 				? `Line ${labels.invalid.join(', ')}: use key=value.`
 				: fieldError(failure?.cause, 'body.labels')}

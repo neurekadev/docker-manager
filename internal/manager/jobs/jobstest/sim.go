@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 )
 
 // Effects records simulated side effects as "<jobID>:<step>" and

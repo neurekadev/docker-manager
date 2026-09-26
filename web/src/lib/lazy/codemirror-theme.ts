@@ -1,4 +1,4 @@
-// DockYard's CodeMirror theme (#22): the mockup's editor colours (keys in
+// Docker Manager's CodeMirror theme (#22): the mockup's editor colours (keys in
 // blue, strings amber, URLs red, muted punctuation, JetBrains Mono) on the
 // panel surface. Loaded only through import() from ./index.ts.
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
@@ -96,4 +96,4 @@ const highlight = HighlightStyle.define([
 ]);
 
 /** The theme and highlighting as one extension. */
-export const dockyardEditorTheme = [theme, syntaxHighlighting(highlight)];
+export const dockerManagerEditorTheme = [theme, syntaxHighlighting(highlight)];

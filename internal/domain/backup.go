@@ -273,7 +273,7 @@ type BackupSet struct {
 	UpdatedAt time.Time
 }
 
-// BackupSnapshot is one restic snapshot DockYard knows (a "backup").
+// BackupSnapshot is one restic snapshot Docker Manager knows (a "backup").
 type BackupSnapshot struct {
 	ID               string
 	SetID            string

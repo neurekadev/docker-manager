@@ -1,17 +1,17 @@
 # Backup and restore
 
-DockYard backs up with [restic](https://restic.net) (0.19.1, shipped in
+Docker Manager backs up with [restic](https://restic.net) (0.19.1, shipped in
 both images) to local directories or S3-compatible storage. A backup can
-hold DockYard's own state (the manager database and its secret key),
+hold Docker Manager's own state (the manager database and its secret key),
 stacks (their project directory: Compose files, `.env` and relative bind
 directories next to `compose.yaml`) and volumes. Reference:
 [architecture/backups.md](../architecture/backups.md).
 
 ## The Recovery Key
 
-One **Recovery Key** per DockYard instance encrypts every repository
-DockYard creates: the manager's and every host's, local and S3. It is the
-one thing you must keep outside DockYard.
+One **Recovery Key** per Docker Manager instance encrypts every repository
+Docker Manager creates: the manager's and every host's, local and S3. It is the
+one thing you must keep outside Docker Manager.
 
 - It is generated with the first repository and **shown once**
   (`DYRK-…`). Store it in a password manager or on paper, away from the
@@ -19,7 +19,7 @@ one thing you must keep outside DockYard.
 - Before a repository is used you **confirm** it by typing it again
   (*Confirm the key*). Confirming proves you copied it, not that it is
   stored safely.
-- DockYard never shows, logs or audits it again (only its fingerprint
+- Docker Manager never shows, logs or audits it again (only its fingerprint
   `rk_…`).
 - Lost key = lost backups: restic encryption cannot be bypassed by anyone.
 - Rotate it (owner, *Recovery Key* → rotate) if it may have leaked. Each
@@ -29,8 +29,8 @@ one thing you must keep outside DockYard.
 ## Set up backups
 
 1. **Backups → Repositories → Add repository** (owner): a local directory
-   on the manager (below `DOCKYARD_BACKUP_LOCAL_ROOTS`), a local directory
-   on a host (below that agent's `DOCKYARD_BACKUP_LOCAL_ROOTS`), or an S3
+   on the manager (below `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS`), a local directory
+   on a host (below that agent's `DOCKER_AGENT_BACKUP_LOCAL_ROOTS`), or an S3
    bucket (endpoint, bucket, prefix, key pair; write-only, never shown
    again). *Test connection* checks access and Object Lock.
 2. Save and confirm the Recovery Key.
@@ -70,9 +70,9 @@ secrets).
 Manager state is only restored into a **fresh** manager, never over a
 running one:
 
-1. Deploy DockYard again with an empty `dockyard_data` volume
+1. Deploy Docker Manager again with an empty `docker-manager_data` volume
    ([Deployment](deployment.md)). For a local repository, mount it at a
-   path below `DOCKYARD_BACKUP_LOCAL_ROOTS`.
+   path below `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS`.
 2. On the setup screen choose **Import from backup**. Enter the
    destination (for S3 a new key pair is fine) and the Recovery Key;
    *Check access*, *Show backups*, pick a backup set and import. The
@@ -85,10 +85,10 @@ running one:
 
 Errors explain what to do: a wrong key (`backup_import_key_rejected`), a
 set written after a key rotation (enter the previous key too), a damaged
-manifest (pick another set), a newer DockYard version (install it first).
+manifest (pick another set), a newer Docker Manager version (install it first).
 If the manager repository itself is lost, host repositories are plain
 restic repositories encrypted with the same Recovery Key: `restic
-snapshots --tag dockyard-manifest` lists what they hold.
+snapshots --tag docker-manager-manifest` lists what they hold.
 
 ## Test your backups
 

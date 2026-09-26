@@ -11,9 +11,9 @@ type TransportInfo struct {
 	// the internal URL on the manager's Docker network.
 	ManagerURL string `json:"managerUrl"`
 	// PlainHTTP is true when the agent uses an http:// manager URL
-	// (DOCKYARD_MANAGER_ALLOW_HTTP=true). The host page shows it as a warning.
+	// (DOCKER_AGENT_MANAGER_ALLOW_HTTP=true). The host page shows it as a warning.
 	PlainHTTP bool `json:"plainHttp"`
-	// CustomCA is true when DOCKYARD_MANAGER_CA_FILE adds private CA roots.
+	// CustomCA is true when DOCKER_AGENT_MANAGER_CA_FILE adds private CA roots.
 	CustomCA bool `json:"customCa"`
 }
 

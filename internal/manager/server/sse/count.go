@@ -6,7 +6,7 @@ import (
 )
 
 // open counts the event streams being served (the diagnostics metric
-// dockyard_sse_streams, #34). The HTTP layer tracks every response whose
+// docker_manager_sse_streams, #34). The HTTP layer tracks every response whose
 // Content-Type is ContentType, so both the Huma adapter and plain handlers
 // are counted without their cooperation.
 var open atomic.Int64

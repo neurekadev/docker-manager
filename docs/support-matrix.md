@@ -1,6 +1,6 @@
 # Support matrix
 
-What DockYard v1 supports, with the evidence behind it (#12). Engine
+What Docker Manager v1 supports, with the evidence behind it (#12). Engine
 integration design: [architecture/engine-integration.md](architecture/engine-integration.md).
 Decisions are recorded in #25 (Q2 host boundary, Q5 file watching, Q9
 topology, Q16 root containers).
@@ -8,7 +8,7 @@ topology, Q16 root containers).
 ## Verification status
 
 Since 2026-09-25 the code lives on Forgejo
-(`https://code.neureka.dev/dockyard/dockyard`) and CI
+(`https://code.neureka.dev/docker-manager/docker-manager`) and CI
 (`.github/workflows/CI.yaml`, Forgejo Actions) runs only format/lint,
 isolated deterministic unit tests (in-memory fakes) and a test-free build.
 The former GitHub CI's Docker-backed suites (Engine matrix, Compose
@@ -41,7 +41,7 @@ files) and the build of both executables for linux/amd64 and linux/arm64.
 | --- | --- | --- |
 | Host OS / CPU | Linux on amd64; linux/arm64 executables are built, but no arm64 images are published yet | Windows Engines, other architectures |
 | Docker Engine | standalone Engine ≥ 25.0 (API ≥ 1.44); 25.0.5, 28.5.2 and 29.8.1 passed the former Engine matrix (not re-verified) | < 25.0 (refused), rootless Engines, Docker Desktop, NAS vendor Engines, Swarm, Kubernetes |
-| Containers | both DockYard containers run as **root (UID 0)** | running them as a non-root user |
+| Containers | both Docker Manager containers run as **root (UID 0)** | running them as a non-root user |
 | Deployment | one public HTTPS origin behind an operator's TLS reverse proxy (Caddy, Traefik, nginx examples); agents dial out | extra domain names or ports for agents; agents that listen |
 | Agents | one agent per Engine; co-located on the internal URL or remote over HTTPS | standby agents / failover (post-v1) |
 | Browsers | current Chromium-based browsers, Firefox and Safari (build target below) | older browsers; Firefox cannot install the PWA |
@@ -70,8 +70,8 @@ files) and the build of both executables for linux/amd64 and linux/arm64.
 
 | Artifact | Contents | Published as |
 | --- | --- | --- |
-| `dockyard-manager` executable | API, embedded web UI, SQLite store, job engine; CGO-free, static | `code.neureka.dev/dockyard/dockyard-manager:edge` (linux/amd64 only; BuildKit provenance and SBOM attestations) |
-| `dockyard-agent` executable | Docker/Compose adapter, files, backups; CGO-free, static; no web UI, no listener | `code.neureka.dev/dockyard/dockyard-agent:edge` (linux/amd64 only; BuildKit provenance and SBOM attestations) |
+| `docker-manager` executable | API, embedded web UI, SQLite store, job engine; CGO-free, static | `code.neureka.dev/docker-manager/docker-manager:edge` (linux/amd64 only; BuildKit provenance and SBOM attestations) |
+| `docker-agent` executable | Docker/Compose adapter, files, backups; CGO-free, static; no web UI, no listener | `code.neureka.dev/docker-manager/docker-agent:edge` (linux/amd64 only; BuildKit provenance and SBOM attestations) |
 | restic | 0.19.1, SHA-256 verified per architecture (`deploy/docker/*.Dockerfile`), in both images | inside the images only |
 
 Only the rolling `:edge` tag is published from `main`; there are no git
@@ -106,10 +106,10 @@ One public origin (for example `https://docker.example.com`) behind an
 operator-managed TLS-terminating reverse proxy serves the web app,
 `/api/v1` and `/agent/v1`. The manager listens on plain HTTP on the
 internal network only and honours forwarded headers only from
-`DOCKYARD_TRUSTED_PROXIES`. Remote agents dial the same origin over HTTPS
+`DOCKER_MANAGER_TRUSTED_PROXIES`. Remote agents dial the same origin over HTTPS
 (certificate validated, redirects refused); an agent on the manager's
 Docker network may use the internal URL with the explicit
-`DOCKYARD_MANAGER_ALLOW_HTTP` opt-in. Example proxy configurations: Caddy
+`DOCKER_AGENT_MANAGER_ALLOW_HTTP` opt-in. Example proxy configurations: Caddy
 2.11, Traefik 3.7 and nginx 1.30 in `deploy/`. `test/deploy` checks the
 example files statically (topology, pinning, volumes, proxy settings,
 known variables); the proxies are not exercised end to end by automated
@@ -135,7 +135,7 @@ behaviour, accessibility and PWA installation are checked by hand.
 
 ## Manager/agent protocol compatibility
 
-- The agent protocol is `dockyard.agent/v1` ([protocol/agent-v1.md](protocol/agent-v1.md)),
+- The agent protocol is `docker-manager.agent/v1` ([protocol/agent-v1.md](protocol/agent-v1.md)),
   versioned separately from `/api/v1`.
 - **Version window:** a manager serves agents of its own minor release and
   of the previous one (N-1). An agent newer than its manager, older than
@@ -235,7 +235,7 @@ automated tests any more**.
 | profiles | supported (`ProjectSpec.Profiles`) |
 | named volumes and networks (local drivers) | supported |
 | relative bind mounts (`./data`) | resolved against the project directory; correct Engine paths require the #28 identical-path layout |
-| Compose `configs` / `secrets` from files | supported by the SDK (file-based; no DockYard secret store, #25) |
+| Compose `configs` / `secrets` from files | supported by the SDK (file-based; no Docker Manager secret store, #25) |
 | `include` / `extends` with local files | supported |
 | remote `include` (Git, OCI) | not loadable (no remote loaders) |
 | `post_start` / `pre_stop` hooks | run by the SDK through the Engine's exec API |
@@ -243,7 +243,7 @@ automated tests any more**.
 | top-level `version:` | accepted with an "obsolete" warning |
 | `use_api_socket` | **rejected**: would mount the Docker socket and copy registry credentials into the container |
 | `provider` services, `models` | **rejected**: they execute external plugins / Docker Model Runner |
-| `develop` / watch | ignored by deploy (DockYard's own watcher is #23) |
+| `develop` / watch | ignored by deploy (Docker Manager's own watcher is #23) |
 
 ### Stack operations (#7)
 
@@ -277,12 +277,12 @@ and registry are not verified by automated tests any more.
 
 - The Compose SDK reaches BuildKit only through the buildx CLI plugin (bake)
   and otherwise falls back to the deprecated legacy builder, which also
-  shells out to `git` for Git contexts. DockYard therefore builds images
+  shells out to `git` for Git contexts. Docker Manager therefore builds images
   itself with the Moby client's BuildKit API; bake-only features (service
   build contexts, multi-platform, build secrets/SSH, cache export) are not
   available in v1.
 - Compose v5.5.1's own go.mod asks for Moby client v0.5.1 / API v1.55.0;
-  DockYard pins v0.6.0 / v1.56.0 (minimal version selection); the former
+  Docker Manager pins v0.6.0 / v1.56.0 (minimal version selection); the former
   Engine and Compose suites verified the combination (not re-verified since
   their removal). The Moby client is pre-1.0: bump the SDK modules together
   and re-test against real Engines by hand.
@@ -311,10 +311,10 @@ by automated tests**.
 
 | layout | status | evidence |
 | --- | --- | --- |
-| default data root, `/var/lib/docker/volumes` identical mount, stacks in `dockyard_stacks` | supported | formerly `TestComposeStacksVolumeDefaultDataRoot` (removed): a stack with `./data`, `env_file` and a local build context deployed from the stacks volume inside the agent image |
+| default data root, `/var/lib/docker/volumes` identical mount, stacks in `docker-manager_stacks` | supported | formerly `TestComposeStacksVolumeDefaultDataRoot` (removed): a stack with `./data`, `env_file` and a local build context deployed from the stacks volume inside the agent image |
 | custom data root with the matching identical mount | supported | formerly `TestComposeStacksVolumeCustomDataRoot` (`--data-root /srv/docker-data`) and `TestComposeAgentVerifiesStorageAtStartup` (removed); unit tests (`internal/agent/storage`) |
 | default mount on a custom data root / volume directory mounted from another path | refused (`storage_mount_missing` / `storage_path_mismatch`) | formerly `TestComposeMisconfiguredMountRefused` (removed); unit tests (`internal/agent/storage`) |
-| extra stack roots (`DOCKYARD_STACK_ROOTS`) at identical paths | supported; a mismatched root is refused on its own (`storage_root_mismatch`) | formerly `TestComposeStackRoots` (removed); unit tests (`internal/agent/storage`) |
+| extra stack roots (`DOCKER_AGENT_STACK_ROOTS`) at identical paths | supported; a mismatched root is refused on its own (`storage_root_mismatch`) | formerly `TestComposeStackRoots` (removed); unit tests (`internal/agent/storage`) |
 | rootless Engine, Docker Desktop | refused (`storage_rootless_engine`, `storage_docker_desktop`) | unit tests (`internal/agent/storage`) |
 
 **Volume drivers (decision for #25 Q2/Q5):** only **local-driver volumes
@@ -327,8 +327,8 @@ not under the volume directory, or only while a container mounts it. A
 short-lived helper container per operation was the alternative; it is
 deferred past v1. The file manager (#15) additionally refuses the stacks
 volume as a volume (stacks are browsed per stack, where the Compose source
-rules apply) and every volume mounted by DockYard's own containers (label
-`dev.neureka.dockyard.role`), answering `409 volume_files_unsupported`
+rules apply) and every volume mounted by Docker Manager's own containers (label
+`dev.neureka.docker-manager.role`), answering `409 volume_files_unsupported`
 ([files.md](api/files.md#volumes)).
 
 ## File watching (#23)
@@ -346,7 +346,7 @@ Implementation: `internal/agent/watch`; protocol:
 | local filesystems of the Docker data root (ext4, xfs, btrfs, zfs, …) | inotify, one kernel watch per directory, debounced 200 ms; a safety reconciliation every 10 min and right after a kernel queue overflow | visible within 2 s at p95 |
 | NFS, SMB/CIFS, FUSE, Ceph, Lustre, GPFS, 9p, AFS (statfs magic) | polled: bounded reconciliation scan every 30 s | within 60 s |
 | scopes beyond the watch budget, or an agent without kernel notifications | polled like remote filesystems (`reason: watch_limit` / `notify_unavailable` in the `files.watch` answer and the manager log) | within 60 s |
-| non-local volume drivers, DockYard's own volumes, the stacks volume as a volume | not watched (not served by the file manager, #28) | — |
+| non-local volume drivers, Docker Manager's own volumes, the stacks volume as a volume | not watched (not served by the file manager, #28) | — |
 
 **Measured latency** (`TestRealFilesystemLatency`, `internal/agent/watch`:
 file create, append, rename and delete in a root and a nested directory,
@@ -367,14 +367,14 @@ the watcher to open views is covered by unit tests only.
 **Watch limits.** inotify watches are per user and shared by every root
 process on the host (containers included): `fs.inotify.max_user_watches`
 defaults to 8 192 on older kernels and scales with memory (up to 1 048 576)
-since Linux 5.11. The agent uses at most `DOCKYARD_WATCH_MAX` watches,
+since Linux 5.11. The agent uses at most `DOCKER_AGENT_WATCH_MAX` watches,
 default half the kernel limit, clamped to 1 024 – 524 288 (8 192 when the
 limit cannot be read). One watch per directory of every watched scope;
 nested scopes share watches. A scope that does not fit is polled as a whole
 and holds no watches; the kernel's own `ENOSPC` is treated the same. Each
 watch costs about 1 KiB of unswappable kernel memory. For large trees raise
 the host limit (`sysctl fs.inotify.max_user_watches=524288`) and
-`DOCKYARD_WATCH_MAX`.
+`DOCKER_AGENT_WATCH_MAX`.
 
 **Scan budgets.** A reconciliation scan walks at most 200 000 entries per
 scope (without following symlinks) and keeps one 64-bit hash per

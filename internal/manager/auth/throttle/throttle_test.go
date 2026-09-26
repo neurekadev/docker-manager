@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 func TestFailuresConsumeAndRefill(t *testing.T) {

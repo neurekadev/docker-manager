@@ -6,15 +6,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/jobs/jobstest"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs/jobstest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 // auditedHarness is a harness whose engine records into a real audit log.

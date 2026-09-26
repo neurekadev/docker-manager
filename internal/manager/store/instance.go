@@ -9,8 +9,8 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
 )
 
 // instanceRow is the database model for the singleton instance row.

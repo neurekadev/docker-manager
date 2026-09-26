@@ -1,4 +1,4 @@
-// Package logging configures DockYard's structured log/slog output and carries
+// Package logging configures Docker Manager's structured log/slog output and carries
 // request-scoped loggers through contexts.
 //
 // Rules (see CLAUDE.md): never log secrets, tokens, credentials, passwords,
@@ -14,13 +14,13 @@ import (
 	"strings"
 )
 
-// Format names accepted by DOCKYARD_LOG_FORMAT.
+// Format names accepted by DOCKER_MANAGER_LOG_FORMAT and DOCKER_AGENT_LOG_FORMAT.
 const (
 	FormatJSON = "json"
 	FormatText = "text"
 )
 
-// ParseLevel parses DOCKYARD_LOG_LEVEL values: debug, info, warn, error.
+// ParseLevel parses DOCKER_MANAGER_LOG_LEVEL and DOCKER_AGENT_LOG_LEVEL values: debug, info, warn, error.
 func ParseLevel(s string) (slog.Level, error) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "", "info":
@@ -36,7 +36,7 @@ func ParseLevel(s string) (slog.Level, error) {
 	}
 }
 
-// ParseFormat parses DOCKYARD_LOG_FORMAT values: json (default) or text.
+// ParseFormat parses DOCKER_MANAGER_LOG_FORMAT and DOCKER_AGENT_LOG_FORMAT values: json (default) or text.
 func ParseFormat(s string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "", FormatJSON:

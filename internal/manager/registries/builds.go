@@ -4,8 +4,8 @@ import (
 	"context"
 	"sort"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // BuildCredentials returns the registry connections offered to a build in

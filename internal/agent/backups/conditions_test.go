@@ -6,13 +6,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // Dependency conditions on the way back up (#7 Done-when 1: "dependency

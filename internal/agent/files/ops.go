@@ -16,7 +16,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // List reads one page of a directory listing.
@@ -283,7 +283,7 @@ func openTarget(r *scopeRoot, rel string) (*target, error) {
 func tempName() string {
 	var b [8]byte
 	_, _ = rand.Read(b[:])
-	return ".dockyard-" + hex.EncodeToString(b[:]) + ".tmp"
+	return ".docker-manager-" + hex.EncodeToString(b[:]) + ".tmp"
 }
 
 // precondition says which existing file a replacement may overwrite.

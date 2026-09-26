@@ -13,17 +13,17 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/imageref"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/imageref"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // ActionQuarantine is the audit action of a quarantined candidate digest.
@@ -88,7 +88,7 @@ func (s *Service) planRun(ctx context.Context, p domain.UpdatePolicy, selection 
 		pl.drift = st.Applied == nil || st.UndeployedChanges()
 		if s.opts.Resources != nil {
 			if pr, err := s.opts.Resources.ProjectProtection(ctx, st.EnvironmentID, st.Name); err == nil && protection.Excluded(pr) {
-				return nil, &domain.UpdateError{Code: domain.UpdateErrTargetIneligible, Message: "DockYard's own Compose project is never updated"}
+				return nil, &domain.UpdateError{Code: domain.UpdateErrTargetIneligible, Message: "Docker Manager's own Compose project is never updated"}
 			}
 		}
 	case domain.UpdateTargetContainer:

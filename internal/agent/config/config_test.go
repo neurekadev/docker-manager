@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/envconfig"
+	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
 )
 
 func TestLoadDefaults(t *testing.T) {
@@ -24,11 +24,11 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestRefusesPlainHTTPWithoutOptIn(t *testing.T) {
-	_, err := Load(envconfig.Map(map[string]string{EnvManagerURL: "http://dockyard-manager:8080"}, nil))
+	_, err := Load(envconfig.Map(map[string]string{EnvManagerURL: "http://docker-manager:8080"}, nil))
 	if err == nil || !strings.Contains(err.Error(), "refusing plain-HTTP") || !strings.Contains(err.Error(), EnvManagerAllowHTTP) {
 		t.Fatalf("err = %v", err)
 	}
-	cfg, err := Load(envconfig.Map(map[string]string{EnvManagerURL: "http://dockyard-manager:8080", EnvManagerAllowHTTP: "true"}, nil))
+	cfg, err := Load(envconfig.Map(map[string]string{EnvManagerURL: "http://docker-manager:8080", EnvManagerAllowHTTP: "true"}, nil))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,7 +2,7 @@
 
 Nothing destructive or automatic happens until you turn it on. Every
 policy has an explicit schedule (five-field cron plus a time zone), a
-preview, a run history and audit records; scheduled runs run as DockYard
+preview, a run history and audit records; scheduled runs run as Docker Manager
 itself, so they keep working when the user who created them leaves.
 
 ## Defaults at a glance
@@ -28,7 +28,7 @@ policy.
   such tags change meaning). `image@sha256:…` references and build-only
   services are **ineligible** and shown as such, as are services with
   `pull_policy: always`.
-- DockYard never edits your `compose.yaml`, override or `.env` files: an
+- Docker Manager never edits your `compose.yaml`, override or `.env` files: an
   update pulls and recreates only the changed services from the deployed
   revision; if the files changed on disk and were not deployed, the run is
   refused until you deploy or revert them.
@@ -47,8 +47,8 @@ policy.
 - Categories: stopped containers, dangling and unused images, unused
   networks, anonymous and named volumes (separately opted in), build
   cache.
-- Never pruned: DockYard's own containers, images and volumes; the
-  projects and images of DockYard stacks; containers with a saved DockYard
+- Never pruned: Docker Manager's own containers, images and volumes; the
+  projects and images of Docker Manager stacks; containers with a saved Docker Manager
   recreate specification; anything a backup or a migration still needs.
 - **Preview** shows exactly what a run would remove. A run re-checks each
   object right before removing it, removes at most 300 objects (the rest
@@ -79,4 +79,4 @@ policy.
 Enabling, editing and running policies are separate permissions (for
 example `update_policy.manage`, `update.run`, `maintenance.run`, `backup.restore`);
 restores and prune runs are marked high risk in the permission editor.
-Protected DockYard objects are refused for everyone, the owner included.
+Protected Docker Manager objects are refused for everyone, the owner included.

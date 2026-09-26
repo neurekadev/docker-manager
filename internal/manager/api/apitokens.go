@@ -9,8 +9,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 )
 
 // API token routes (#31). The flows live in internal/manager/auth
@@ -97,7 +97,7 @@ type createAPITokenInput struct {
 type createAPITokenOutput struct {
 	Body struct {
 		APIToken APIToken `json:"apiToken"`
-		Token    string   `json:"token" doc:"The token value (dy_...). Shown only in this response; DockYard stores a verifier. Send it as Authorization: Bearer <token>."`
+		Token    string   `json:"token" doc:"The token value (dy_...). Shown only in this response; Docker Manager stores a verifier. Send it as Authorization: Bearer <token>."`
 	}
 }
 
@@ -197,7 +197,7 @@ func registerAPITokens(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "create-my-api-token", Method: http.MethodPost, Path: BasePath + "/me/api-tokens",
 			Summary: "Create an API token", DefaultStatus: http.StatusCreated,
-			Description: "Creates a token for scripts and integrations and returns its value once (DockYard keeps a verifier). " +
+			Description: "Creates a token for scripts and integrations and returns its value once (Docker Manager keeps a verifier). " +
 				"The token carries exactly the listed grants, each of which you must hold now; every request with it is evaluated " +
 				"as these grants intersected with your current permissions, so later permission changes narrow it at once. " +
 				"Owner administration, sign-in and factor flows and token management are never reachable with a token, and a " +

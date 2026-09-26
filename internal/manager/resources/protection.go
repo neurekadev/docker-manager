@@ -4,19 +4,19 @@ import (
 	"context"
 	"errors"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Self-protection on the manager side (#32). The agent annotates its
 // inventory with protocol.Protection and refuses on its own; the manager
 // refuses first, from the annotation and from what it knows itself: the
-// DockYard role labels of the deploy examples and its own container ID.
+// Docker Manager role labels of the deploy examples and its own container ID.
 // Other workstreams call these helpers (and internal/protection) to leave
-// DockYard's resources out of prune candidates (#14), automatic updates
+// Docker Manager's resources out of prune candidates (#14), automatic updates
 // (#20), backup/restore shutdown plans (#10), bulk selections and
-// migrations (#35), and to refuse deploy/down/stop of DockYard's own Compose
+// migrations (#35), and to refuse deploy/down/stop of Docker Manager's own Compose
 // project (#7).
 
 // ContainerProtection returns the effective protection of a container of
@@ -27,18 +27,18 @@ func (s *Service) ContainerProtection(c protocol.ContainerSummary) *protocol.Pro
 	}
 	switch {
 	case s.opts.ManagerContainerID != "" && c.ID == s.opts.ManagerContainerID:
-		return &protocol.Protection{Role: protection.RoleManager, Reason: "the DockYard manager of this installation: the UI and API run in it",
+		return &protocol.Protection{Role: protection.RoleManager, Reason: "the Docker Manager of this installation: the UI and API run in it",
 			Self: true, RestartAllowed: true}
 	case c.Labels[protocol.LabelRole] == protection.RoleAgent:
-		return &protocol.Protection{Role: protection.RoleAgent, Reason: "a DockYard agent container", RestartAllowed: true}
+		return &protocol.Protection{Role: protection.RoleAgent, Reason: "a Docker Agent container", RestartAllowed: true}
 	case c.Labels[protocol.LabelRole] == protection.RoleManager:
-		return &protocol.Protection{Role: protection.RoleManager, Reason: "a DockYard manager container", RestartAllowed: true}
+		return &protocol.Protection{Role: protection.RoleManager, Reason: "a Docker Manager container", RestartAllowed: true}
 	}
 	return nil
 }
 
 // ProjectProtection returns the protection of a Compose project of the
-// environment: DockYard's own project (a DockYard container belongs to it)
+// environment: Docker Manager's own project (a Docker Manager container belongs to it)
 // is protected; #7 refuses deploy, down and stop on it with
 // protection.Check(p, protection.Deploy|Down|Stop, false).
 func (s *Service) ProjectProtection(ctx context.Context, env, project string) (*protocol.Protection, error) {
@@ -51,14 +51,14 @@ func (s *Service) ProjectProtection(ctx context.Context, env, project string) (*
 			continue
 		}
 		if p := s.ContainerProtection(c); p != nil {
-			return &protocol.Protection{Role: protection.RoleProject, Reason: "DockYard's own Compose project " + project}, nil
+			return &protocol.Protection{Role: protection.RoleProject, Reason: "Docker Manager's own Compose project " + project}, nil
 		}
 	}
 	return nil, nil
 }
 
 // ProtectedContainers returns the environment's containers split into
-// those bulk operations may touch and DockYard's own (with reasons): the
+// those bulk operations may touch and Docker Manager's own (with reasons): the
 // exclusion list of prune, update, backup shutdown and bulk selections.
 func (s *Service) ProtectedContainers(ctx context.Context, env string) (kept []protocol.ContainerSummary,
 	excluded []protection.Exclusion[protocol.ContainerSummary], err error) {
@@ -89,12 +89,12 @@ var containerActions = map[domain.JobKind]protection.Action{
 	"container.update": protection.Update,
 }
 
-// checkContainer refuses an action on one of DockYard's own containers.
+// checkContainer refuses an action on one of Docker Manager's own containers.
 func (s *Service) checkContainer(c protocol.ContainerSummary, kind domain.JobKind, confirmed bool) error {
 	return refusal(protection.Check(s.ContainerProtection(c), containerActions[kind], confirmed))
 }
 
-// checkMounts refuses mounting DockYard's own volumes into a new container.
+// checkMounts refuses mounting Docker Manager's own volumes into a new container.
 func (s *Service) checkMounts(ctx context.Context, env string, mounts []protocol.MountSpec) error {
 	for _, m := range mounts {
 		if m.Type != "volume" || m.Source == "" {

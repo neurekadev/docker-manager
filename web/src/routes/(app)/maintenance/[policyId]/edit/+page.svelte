@@ -37,7 +37,7 @@
 			{:else}
 				<DeniedState
 					title="You can't edit this policy."
-					description="Ask the owner of this DockYard for the Manage maintenance policies permission."
+					description="Ask the owner of this Docker Manager for the Manage maintenance policies permission."
 					level={2}
 				/>
 			{/if}

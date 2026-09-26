@@ -11,13 +11,13 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authsep"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/policy"
-	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/policy"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // API tokens (#31): a separately controlled credential type for scripts

@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/manager/auth/password"
-	"github.com/neurekadev/dockyard/internal/manager/auth/totp"
-	"github.com/neurekadev/dockyard/internal/manager/store/storetest"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/password"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/totp"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store/storetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 var cheapParams = &password.Params{Memory: 64, Iterations: 1, Parallelism: 1, SaltLength: 16, KeyLength: 32}
@@ -33,7 +33,7 @@ func TestNewKitValidates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if k.RP.ID() != "docker.example.com" || k.Sessions.Cookie.Name != "__Host-dockyard_session" || k.CSRF == nil || k.IPLimit == nil || k.AccountLimit == nil {
+	if k.RP.ID() != "docker.example.com" || k.Sessions.Cookie.Name != "__Host-docker_manager_session" || k.CSRF == nil || k.IPLimit == nil || k.AccountLimit == nil {
 		t.Fatalf("kit %+v", k)
 	}
 	if k.IdleTimeout != time.Hour || k.Lifetime != 24*time.Hour || k.Sessions.IdleTimeout != 0 || k.Sessions.Lifetime != 24*time.Hour {

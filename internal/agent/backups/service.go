@@ -1,4 +1,4 @@
-// Package backups is the agent side of DockYard backups (#10): the
+// Package backups is the agent side of Docker Manager backups (#10): the
 // backup.run, backup.retention and backup.verify executors, the
 // backup.scope_preview / backup.snapshots / backup.contents requests and
 // the backup.file stream. The agent runs restic (internal/restic) against
@@ -10,8 +10,8 @@
 // files, .env, workspace and every relative bind source inside it) and its
 // named volumes; anonymous volumes only when enabled; bind sources outside
 // the project directory only when the policy opts in AND the path is in
-// DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST. Symlinks never lead a source out of
-// its root, DockYard's own volumes are never selected (#32), and a local
+// DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST. Symlinks never lead a source out of
+// its root, Docker Manager's own volumes are never selected (#32), and a local
 // repository may not lie inside any source.
 package backups
 
@@ -27,19 +27,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/compose"
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/agent/protect"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
-	"github.com/neurekadev/dockyard/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 )
 
 // Loader loads Compose projects (*compose.Adapter implements it).
@@ -54,15 +54,15 @@ type Options struct {
 	Engine  func() engine.Engine
 	Loader  func() Loader
 	Storage func() *storage.Result
-	// Guard identifies DockYard's own containers and volumes (#32).
+	// Guard identifies Docker Manager's own containers and volumes (#32).
 	Guard *protect.Guard
 	// Restic runs restic (default: the pinned binary).
 	Restic restic.Opener
 	// LocalRoots are the directories local repositories on this agent may
-	// live in (DOCKYARD_BACKUP_LOCAL_ROOTS).
+	// live in (DOCKER_AGENT_BACKUP_LOCAL_ROOTS).
 	LocalRoots []string
 	// ExternalAllowlist lists host paths outside project directories that
-	// policies may opt into (DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST).
+	// policies may opt into (DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST).
 	ExternalAllowlist []string
 	Clock             clock.Clock
 	Logger            *slog.Logger
@@ -175,7 +175,7 @@ func (s *Service) location(ref protocol.BackupRepositoryRef, cred *protocol.Repo
 	return ref.Destination.Location(ref.Scope, cred.S3()), nil
 }
 
-// allowedLocal requires a local destination below DOCKYARD_BACKUP_LOCAL_ROOTS
+// allowedLocal requires a local destination below DOCKER_AGENT_BACKUP_LOCAL_ROOTS
 // and outside Docker's data root and the stack roots (they are sources).
 func (s *Service) allowedLocal(p string) error {
 	op := osPath(p)
@@ -187,7 +187,7 @@ func (s *Service) allowedLocal(p string) error {
 	}
 	if !ok {
 		return &session.HandlerError{Code: protocol.CodePathNotAllowed,
-			Message: "the local backup location is outside this agent's backup roots (DOCKYARD_BACKUP_LOCAL_ROOTS)"}
+			Message: "the local backup location is outside this agent's backup roots (DOCKER_AGENT_BACKUP_LOCAL_ROOTS)"}
 	}
 	if res := s.storage(); res != nil {
 		for _, r := range res.Roots {

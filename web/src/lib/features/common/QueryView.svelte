@@ -36,7 +36,7 @@
 		query,
 		errorTitle,
 		deniedTitle = "You don't have access to this.",
-		deniedDescription = 'Ask the owner of this DockYard to grant it.',
+		deniedDescription = 'Ask the owner of this Docker Manager to grant it.',
 		notFoundTitle = 'Not found.',
 		notFoundDescription = 'It was deleted, or you no longer have access to it.',
 		lines = 4,

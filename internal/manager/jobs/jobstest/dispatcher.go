@@ -6,8 +6,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Dispatcher queues frames per environment instead of sending them. Every

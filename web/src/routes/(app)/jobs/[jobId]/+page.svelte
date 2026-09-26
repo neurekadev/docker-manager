@@ -171,9 +171,7 @@
 					<dd class="mono">{j.kind}</dd>
 					<dt>Runs on</dt>
 					<dd>
-						{j.executor === 'agent'
-							? 'The environment’s agent'
-							: 'The DockYard manager'}
+						{j.executor === 'agent' ? 'The environment’s agent' : 'The Docker Manager'}
 					</dd>
 					<dt>Duration</dt>
 					<dd class="num">{jobDuration(j) || '—'}</dd>

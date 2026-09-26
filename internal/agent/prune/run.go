@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Executor returns the prune.run executor: collect_candidates computes the

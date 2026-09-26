@@ -9,10 +9,10 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/permissions"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/permissions"
 )
 
 // Authorization routes (#17): the permission catalog, the caller's
@@ -108,7 +108,7 @@ type PermissionScope struct {
 	Kind          string `json:"kind" enum:"instance,environment,resource" doc:"instance: all resources of the capability's type (also future ones); environment: all of them in one environment; resource: one resource (a stack or service also covers its current and future children)."`
 	EnvironmentID string `json:"environmentId,omitempty" maxLength:"128" doc:"environment scopes; and resource scopes of types named per environment (container, image, volume, network)."`
 	ResourceType  string `json:"resourceType,omitempty" maxLength:"64" example:"container"`
-	ResourceID    string `json:"resourceId,omitempty" maxLength:"1024" doc:"DockYard ID (stack, agent, policy, ...), Docker name (container, image, volume, network) or <stackId>/<service> for services."`
+	ResourceID    string `json:"resourceId,omitempty" maxLength:"1024" doc:"Docker Manager ID (stack, agent, policy, ...), Docker name (container, image, volume, network) or <stackId>/<service> for services."`
 }
 
 // PermissionRule allows or denies one capability at one scope.
@@ -542,7 +542,7 @@ func registerPermissions(a huma.API, deps Deps) {
 			OperationID: "delete-group", Method: http.MethodDelete, Path: BasePath + "/groups/{groupId}",
 			Summary: "Delete a group", DefaultStatus: http.StatusNoContent,
 			Description: "Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group " +
-				"(choose another default first); 409 group_not_empty while users are in it (move them first: DockYard never moves users " +
+				"(choose another default first); 409 group_not_empty while users are in it (move them first: Docker Manager never moves users " +
 				"implicitly, so deleting a group never changes anyone's access). Requires If-Match." + stepUp + " " + ownerOnly,
 			Tags: []string{tagGroups}, Security: cookieOnly, Errors: editErrs,
 		},

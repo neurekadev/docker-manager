@@ -8,13 +8,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/authztest"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/authz/policy"
-	"github.com/neurekadev/dockyard/internal/manager/updates"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/policy"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/updates"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // fakeUpdates is an in-memory UpdateService for the HTTP mapping and

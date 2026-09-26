@@ -21,10 +21,10 @@ import (
 	"github.com/moby/moby/api/types/container"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginetest"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 func TestPullImageSendsPerOperationAuth(t *testing.T) {
@@ -56,7 +56,7 @@ func TestPullImageSendsPerOperationAuth(t *testing.T) {
 	}
 	defer c.Close()
 	ctx := testutil.Context(t)
-	auth := &RegistryAuth{ServerAddress: "registry.example:5000", Username: "dockyard", Password: logging.Secret(password)}
+	auth := &RegistryAuth{ServerAddress: "registry.example:5000", Username: "docker-manager", Password: logging.Secret(password)}
 
 	var progress []Progress
 	res, err := c.PullImage(ctx, "registry.example:5000/app:v1", PullOptions{Auth: auth, Progress: func(p Progress) { progress = append(progress, p) }})
@@ -74,7 +74,7 @@ func TestPullImageSendsPerOperationAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Username != "dockyard" || got.Password != password || got.ServerAddress != "registry.example:5000" {
+	if got.Username != "docker-manager" || got.Password != password || got.ServerAddress != "registry.example:5000" {
 		t.Errorf("X-Registry-Auth = %+v", got)
 	}
 

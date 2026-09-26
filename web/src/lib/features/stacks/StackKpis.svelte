@@ -140,7 +140,7 @@
 						<span class="mono" title={applied.hash}>{shortHash(applied.hash)}</span>
 					{/if}
 				{:else}
-					Not deployed by DockYard yet
+					Not deployed by Docker Manager yet
 				{/if}
 			{/snippet}
 		</KpiCard>

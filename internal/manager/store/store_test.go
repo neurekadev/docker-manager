@@ -13,23 +13,23 @@ import (
 	"github.com/uptrace/bun/driver/sqliteshim"
 	"github.com/uptrace/bun/migrate"
 
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/migrationtest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/migrationtest"
 )
 
 func TestDriverIsPureGo(t *testing.T) {
 	// sqliteshim selects modernc.org/sqlite ("sqlite") on linux/amd64,
 	// linux/arm64 and windows/amd64 regardless of cgo, unless the cgosqlite
-	// build tag is set. DockYard must never link the cgo driver.
+	// build tag is set. Docker Manager must never link the cgo driver.
 	if got := sqliteshim.DriverName(); got != "sqlite" {
 		t.Fatalf("sqliteshim driver = %q, want modernc %q", got, "sqlite")
 	}
 }
 
 func TestDSN(t *testing.T) {
-	dsn := DSN("/data/dockyard.db")
-	for _, want := range []string{"/data/dockyard.db?", "_txlock=immediate", "_pragma=busy_timeout(5000)", "_pragma=journal_mode(WAL)", "_pragma=foreign_keys(1)", "_pragma=synchronous(NORMAL)"} {
+	dsn := DSN("/data/docker-manager.db")
+	for _, want := range []string{"/data/docker-manager.db?", "_txlock=immediate", "_pragma=busy_timeout(5000)", "_pragma=journal_mode(WAL)", "_pragma=foreign_keys(1)", "_pragma=synchronous(NORMAL)"} {
 		if !strings.Contains(dsn, want) {
 			t.Errorf("DSN %q lacks %q", dsn, want)
 		}
@@ -39,7 +39,7 @@ func TestDSN(t *testing.T) {
 func openTemp(t *testing.T) (*bun.DB, string) {
 	t.Helper()
 	dir := t.TempDir()
-	db, err := Open(testutil.Context(t), filepath.Join(dir, "dockyard.db"))
+	db, err := Open(testutil.Context(t), filepath.Join(dir, "docker-manager.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

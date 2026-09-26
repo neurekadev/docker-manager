@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Restore wizard (#10): choose the scope (stack definition and files,
 	// volumes, or one file; system and manager restores go through a fresh
-	// DockYard), preview exactly what is written and which containers stop,
+	// Docker Manager), preview exactly what is written and which containers stop,
 	// confirm, then follow the restore to a success, partial or failure
 	// result. A stack restore never redeploys: it offers the deploy.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -158,7 +158,7 @@
 			throw new Error(
 				actionError(e, {
 					manager_restore_required:
-						'Manager state is restored by importing it into a fresh DockYard, not over this one.'
+						'Manager state is restored by importing it into a fresh Docker Manager, not over this one.'
 				}),
 				{ cause: e }
 			);
@@ -206,11 +206,11 @@
 					: ''}."
 			/>
 			{#if b.kind === 'manager_state'}
-				<Card title="Restore the manager on a new DockYard">
+				<Card title="Restore the manager on a new Docker Manager">
 					<ol class="steps" role="list">
 						<li>
-							Start a new DockYard with an empty data volume (keep this one running or
-							stopped; it is not touched).
+							Start a new Docker Manager with an empty data volume (keep this one
+							running or stopped; it is not touched).
 						</li>
 						<li>Open its setup page and choose <strong>Import from backup</strong>.</li>
 						<li>
@@ -358,7 +358,7 @@
 										{#if result.state === 'succeeded'}
 											<Notice tone="info" title="Restored" live="status">
 												{scope === 'stack'
-													? 'The definition on disk is the restored one. Deploy the stack to run it; DockYard never deploys on its own.'
+													? 'The definition on disk is the restored one. Deploy the stack to run it; Docker Manager never deploys on its own.'
 													: 'The data is back in place.'}
 												{#snippet actions()}
 													{#if scope === 'stack' && b.stackId}<Button

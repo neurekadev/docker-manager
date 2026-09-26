@@ -13,22 +13,22 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/migration/migrationtest"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	agentstacks "github.com/neurekadev/dockyard/internal/agent/stacks"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/store/storetest"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/streammux"
-	"github.com/neurekadev/dockyard/internal/streammux/muxtest"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration/migrationtest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	agentstacks "code.neureka.dev/docker-manager/docker-manager/internal/agent/stacks"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store/storetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux/muxtest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // The harness runs the manager's migration service against two simulated
@@ -189,7 +189,7 @@ func (f fakeEnvironments) EnvironmentSystem(ctx context.Context, id string) (dom
 	a := f.a.envs[id]
 	f.a.mu.Unlock()
 	c := protocol.CapabilitiesPayload{Requests: slices.Sorted(maps.Keys(a.requests)), Streams: slices.Sorted(maps.Keys(a.streams)),
-		Transport: protocol.TransportInfo{ManagerURL: "https://dockyard.example", PlainHTTP: a.plain}}
+		Transport: protocol.TransportInfo{ManagerURL: "https://docker-manager.example", PlainHTTP: a.plain}}
 	b, _ := json.Marshal(c)
 	return domain.EnvironmentSystem{Environment: env, Agent: &domain.Agent{ID: "agent-" + id, EnvironmentID: id, Capabilities: string(b)}}, nil
 }

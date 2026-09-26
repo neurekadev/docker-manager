@@ -9,7 +9,7 @@ import InstanceCard from './InstanceCard.svelte';
 import type { InstanceSettings } from './queries';
 
 const settings: InstanceSettings = {
-	name: 'DockYard',
+	name: 'Docker Manager',
 	instanceId: '0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f',
 	revision: 1,
 	updatedAt: '2026-09-25T12:00:00Z',
@@ -28,8 +28,10 @@ const setup = () => userEvent.setup({ pointerEventsCheck: 0 });
 describe('InstanceCard (#4)', () => {
 	it('shows the name, version and the read-only deployment settings', () => {
 		render(InstanceCard, { props: { settings, version: 'edge (build abc)', onsave: vi.fn() } });
-		expect(screen.getByRole('heading', { name: 'About this DockYard' })).toBeInTheDocument();
-		expect(screen.getByText('DockYard')).toBeInTheDocument();
+		expect(
+			screen.getByRole('heading', { name: 'About this Docker Manager' })
+		).toBeInTheDocument();
+		expect(screen.getByText('Docker Manager')).toBeInTheDocument();
 		expect(screen.getByText('https://docker.example.com')).toBeInTheDocument();
 		expect(screen.getByText('1 address range')).toBeInTheDocument();
 		expect(screen.getByText('2 GB')).toBeInTheDocument();
@@ -44,10 +46,10 @@ describe('InstanceCard (#4)', () => {
 		render(InstanceCard, { props: { settings, canEdit: true, onsave } });
 		await user.click(screen.getByRole('button', { name: 'Rename' }));
 		const field = screen.getByRole('textbox', { name: /Name/ });
-		expect(field).toHaveValue('DockYard');
+		expect(field).toHaveValue('Docker Manager');
 		await user.clear(field);
 		await user.type(field, '   ');
-		await user.click(screen.getByRole('button', { name: 'Rename DockYard' }));
+		await user.click(screen.getByRole('button', { name: 'Rename Docker Manager' }));
 		expect(onsave).not.toHaveBeenCalled();
 		expect(screen.getByText('Enter a name.')).toBeInTheDocument();
 		await user.clear(field);
@@ -74,13 +76,13 @@ describe('InstanceCard (#4)', () => {
 		);
 		render(InstanceCard, { props: { settings, canEdit: true, onsave } });
 		await user.click(screen.getByRole('button', { name: 'Rename' }));
-		await user.click(screen.getByRole('button', { name: 'Rename DockYard' }));
-		expect(onsave).toHaveBeenCalledWith('DockYard');
+		await user.click(screen.getByRole('button', { name: 'Rename Docker Manager' }));
+		expect(onsave).toHaveBeenCalledWith('Docker Manager');
 		expect(
 			await screen.findByText('the name must be 1-64 characters without control characters')
 		).toBeInTheDocument();
 		expect(screen.getByRole('textbox', { name: /Name/ })).toBeInTheDocument();
 		await user.click(screen.getByRole('button', { name: 'Cancel' }));
-		expect(screen.getByText('DockYard')).toBeInTheDocument();
+		expect(screen.getByText('Docker Manager')).toBeInTheDocument();
 	});
 });

@@ -64,8 +64,8 @@
 		</p>
 		{#if m.skewCorrected}
 			<Notice tone="info" title="Some timestamps were corrected" live="none">
-				The agent's clock differs from the manager's; DockYard shifted its samples to the
-				manager's time.
+				The agent's clock differs from the manager's; Docker Manager shifted its samples to
+				the manager's time.
 			</Notice>
 		{/if}
 		<div class="grid">

@@ -12,19 +12,19 @@ import (
 // deployment intent (last applied revision, applied images) next to the
 // last observed Engine state, so the three are distinguishable.
 
-// StackDeploymentStatus is the manager's record of what DockYard last did
+// StackDeploymentStatus is the manager's record of what Docker Manager last did
 // to a stack (not the live Engine state, see StackEngineState).
 type StackDeploymentStatus string
 
 // Deployment statuses.
 const (
-	// StackUndeployed: DockYard has never deployed it (created, not yet
+	// StackUndeployed: Docker Manager has never deployed it (created, not yet
 	// deployed).
 	StackUndeployed StackDeploymentStatus = "undeployed"
 	// StackDeployed: the last deploy (or start/restart) succeeded, or an
 	// adopted project was running when imported.
 	StackDeployed StackDeploymentStatus = "deployed"
-	// StackStopped: stopped by DockYard (containers kept).
+	// StackStopped: stopped by Docker Manager (containers kept).
 	StackStopped StackDeploymentStatus = "stopped"
 	// StackDown: taken down (containers and networks removed).
 	StackDown StackDeploymentStatus = "down"
@@ -78,7 +78,7 @@ const (
 	StackRootBind   = "bind"
 )
 
-// DisplayMeta is DockYard display metadata of a stack or service. It is
+// DisplayMeta is Docker Manager display metadata of a stack or service. It is
 // stored in the manager and never written to Compose files (#22).
 type DisplayMeta struct {
 	Description string
@@ -138,7 +138,7 @@ type Stack struct {
 	ID            string
 	EnvironmentID string
 	// Name is the Compose project name (also the project directory name for
-	// stacks created by DockYard).
+	// stacks created by Docker Manager).
 	Name string
 	// DisplayName, Description and Icon are display metadata.
 	DisplayName string
@@ -156,7 +156,7 @@ type Stack struct {
 	Origin      string
 	Status      StackDeploymentStatus
 	// Applied is the last revision deployed successfully (nil: never
-	// deployed by DockYard).
+	// deployed by Docker Manager).
 	Applied   *RevisionRef
 	AppliedAt *time.Time
 	// Observed is the newest revision seen on disk.
@@ -192,7 +192,7 @@ type RevisionRef struct {
 }
 
 // UndeployedChanges reports whether the definition on disk differs from
-// the last applied revision (true when DockYard never deployed it).
+// the last applied revision (true when Docker Manager never deployed it).
 func (s Stack) UndeployedChanges() bool {
 	if s.Observed == nil {
 		return false

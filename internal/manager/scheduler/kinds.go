@@ -7,10 +7,10 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
 )
 
 // Schedule kinds. A kind is one kind of scheduled policy work with its own
@@ -35,7 +35,7 @@ type Kind struct {
 	Key string
 	// Label is the plain-language name.
 	Label string
-	// Suggested is DockYard's shipped default expression (editable per
+	// Suggested is Docker Manager's shipped default expression (editable per
 	// instance in the schedule defaults, per policy in the policy).
 	Suggested string
 	// CatchUp says what happens to runs missed while the manager was not

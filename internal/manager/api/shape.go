@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 )
 
 // Response shaping (#17). The contract every resource route follows:

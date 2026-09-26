@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 func TestForReference(t *testing.T) {

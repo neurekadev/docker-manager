@@ -5,10 +5,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/agent/regauth"
-	"github.com/neurekadev/dockyard/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/regauth"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
 )
 
 // stepError is a classified stack job failure (jobexec.ClassedError): the
@@ -40,7 +40,7 @@ var stackRecoveries = map[string]string{
 		"start again.",
 	string(engine.CodeInvalidProject): "The Compose definition does not load. Fix it (validate it first) and deploy again; " +
 		"the last applied revision is unchanged.",
-	string(engine.CodeUnsupportedFeature): "The Compose definition uses a feature DockYard does not support (see the support matrix). " +
+	string(engine.CodeUnsupportedFeature): "The Compose definition uses a feature Docker Manager does not support (see the support matrix). " +
 		"Remove it and deploy again.",
 	string(engine.CodeUnauthorized): "The registry refused the credentials (or requires them). Check the registry connection for " +
 		"the image (or add one for a private image) and deploy again.",
@@ -55,7 +55,7 @@ var stackRecoveries = map[string]string{
 	lifecycle.CodeDependencyMissing: "A required dependency has no containers. Deploy the stack.",
 	lifecycle.CodeNoContainers:      "The service has no containers on this Engine. Deploy the stack first.",
 	classCredentialUnavailable: "The job named a registry connection but its credential was not delivered. Check the registry " +
-		"connection and deploy again; DockYard never pulls anonymously instead.",
+		"connection and deploy again; Docker Manager never pulls anonymously instead.",
 	classNothingToBuild: "Only services with a build section can be built. Add a build section to the Compose definition or " +
 		"select services that have one.",
 }

@@ -13,8 +13,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 const bootScript = `
@@ -22,13 +22,13 @@ const bootScript = `
 `
 
 var testUI = fstest.MapFS{
-	"index.html":                           {Data: []byte("<!doctype html><html><head><script>" + bootScript + "</script></head><body>DockYard</body></html>")},
+	"index.html":                           {Data: []byte("<!doctype html><html><head><script>" + bootScript + "</script></head><body>Docker Manager</body></html>")},
 	"robots.txt":                           {Data: []byte("User-agent: *\nDisallow: /\n")},
 	"_app/version.json":                    {Data: []byte(`{"version":"1"}`)},
 	"_app/immutable/entry/start.abc123.js": {Data: []byte("export const start = () => {};")},
 	"_app/immutable/assets/app.def456.css": {Data: []byte("body{}")},
 	"service-worker.js":                    {Data: []byte("self.addEventListener('fetch', () => {});")},
-	"manifest.webmanifest":                 {Data: []byte(`{"name":"DockYard","start_url":"/","scope":"/","display":"standalone"}`)},
+	"manifest.webmanifest":                 {Data: []byte(`{"name":"Docker Manager","start_url":"/","scope":"/","display":"standalone"}`)},
 	"icons/pwa-192x192.png":                {Data: []byte("PNG placeholder")},
 	"favicon.ico":                          {Data: []byte{0, 0, 1, 0}},
 }
@@ -67,7 +67,7 @@ func TestDeepLinkServesIndex(t *testing.T) {
 		if cc := rec.Header().Get("Cache-Control"); cc != CacheRevalidate {
 			t.Errorf("%s: cache-control %q, want %q", p, cc, CacheRevalidate)
 		}
-		if !strings.Contains(rec.Body.String(), "DockYard") {
+		if !strings.Contains(rec.Body.String(), "Docker Manager") {
 			t.Errorf("%s: body is not the app shell", p)
 		}
 	}
@@ -288,7 +288,7 @@ func TestPWABuildOnlyPathsNeverFallBackToHTML(t *testing.T) {
 	logger, _ := testutil.CaptureLogger()
 	// A build without PWA files (e.g. the placeholder page).
 	s, err := New(Options{Logger: logger, Clock: testutil.FakeClock(), UI: fstest.MapFS{
-		"index.html": {Data: []byte("<!doctype html><title>DockYard</title>")},
+		"index.html": {Data: []byte("<!doctype html><title>Docker Manager</title>")},
 	}})
 	if err != nil {
 		t.Fatal(err)

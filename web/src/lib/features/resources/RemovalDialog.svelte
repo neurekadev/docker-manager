@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Removing an image, volume or network (#6: clear deletion consequences,
-	// usage checks; #32: DockYard's own objects are refused). Shows the
+	// usage checks; #32: Docker Manager's own objects are refused). Shows the
 	// server's removal preview: blockers (with the reason each request would
 	// get) or the consequences, confirmed by typing the name.
 	import type { Schema } from '$lib/api/client';
@@ -39,8 +39,8 @@
 					{sentence(b.message)}
 					{#if b.code === 'protected'}
 						<span class="muted"
-							>DockYard never removes its own {kind}s, for anyone; use Docker on the
-							host if you really need to.</span
+							>Docker Manager never removes its own {kind}s, for anyone; use Docker on
+							the host if you really need to.</span
 						>
 					{/if}
 				</li>

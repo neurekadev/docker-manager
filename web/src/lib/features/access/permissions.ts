@@ -156,7 +156,7 @@ export function scopeConsequence(
 ): string {
 	switch (node.scope.kind) {
 		case 'instance':
-			return 'Rules here apply to every resource of their type in every environment, including ones added later. Actions DockYard adds in the future are never included automatically.';
+			return 'Rules here apply to every resource of their type in every environment, including ones added later. Actions Docker Manager adds in the future are never included automatically.';
 		case 'environment':
 			return `Rules here apply to every resource of their type on ${environmentName ?? 'this environment'}, including ones created later.`;
 	}

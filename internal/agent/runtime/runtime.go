@@ -8,12 +8,12 @@
 // identity for the hello/capabilities frame of the session protocol (#3).
 //
 // Once the Engine identity is known, the control loop (control.go) enrolls
-// with a one-use token (DOCKYARD_ENROLLMENT_TOKEN(_FILE) or one handed over
-// by `dockyard-agent enroll` through the state directory), stores the
+// with a one-use token (DOCKER_AGENT_ENROLLMENT_TOKEN(_FILE) or one handed over
+// by `docker-agent enroll` through the state directory), stores the
 // credential (internal/agent/state) and keeps the manager session up
 // (internal/agent/session) with the job runner (internal/agent/jobs) wired
 // in. The loop reports liveness and the connection state through a health
-// file in the state directory, which `dockyard-agent healthcheck` checks
+// file in the state directory, which `docker-agent healthcheck` checks
 // for freshness.
 package runtime
 
@@ -34,33 +34,33 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/neurekadev/dockyard/internal/agent/backups"
-	"github.com/neurekadev/dockyard/internal/agent/builds"
-	"github.com/neurekadev/dockyard/internal/agent/compose"
-	"github.com/neurekadev/dockyard/internal/agent/config"
-	"github.com/neurekadev/dockyard/internal/agent/containerio"
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/files"
-	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
-	"github.com/neurekadev/dockyard/internal/agent/migration"
-	"github.com/neurekadev/dockyard/internal/agent/observe"
-	"github.com/neurekadev/dockyard/internal/agent/protect"
-	"github.com/neurekadev/dockyard/internal/agent/prune"
-	"github.com/neurekadev/dockyard/internal/agent/resources"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/stacks"
-	"github.com/neurekadev/dockyard/internal/agent/state"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/agent/transport"
-	"github.com/neurekadev/dockyard/internal/agent/watch"
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
-	"github.com/neurekadev/dockyard/internal/selfid"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/backups"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/builds"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/containerio"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/files"
+	agentjobs "code.neureka.dev/docker-manager/docker-manager/internal/agent/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/observe"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/prune"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/resources"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/stacks"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/transport"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/watch"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/selfid"
 )
 
 // Health file settings.
@@ -83,8 +83,8 @@ const (
 )
 
 // ErrNotRoot is returned when the agent is not running as UID 0.
-var ErrNotRoot = errors.New("dockyard-agent must run as root (UID 0): it needs to read and write container-owned files " +
-	"in Docker volumes for browsing, backup and restore. Running DockYard containers as a non-root user is not supported " +
+var ErrNotRoot = errors.New("docker-agent must run as root (UID 0): it needs to read and write container-owned files " +
+	"in Docker volumes for browsing, backup and restore. Running Docker Manager containers as a non-root user is not supported " +
 	"(remove any `user:` override from the agent service)")
 
 // Options configures Run.
@@ -118,7 +118,7 @@ type Options struct {
 	// (selfid.Detect, #32); tests set it.
 	SelfContainerID string
 	// Observe runs the host/container sampler and the Docker event relay
-	// and serves engine.info and host.metrics (#5). The dockyard-agent
+	// and serves engine.info and host.metrics (#5). The docker-agent
 	// command sets it; focused tests leave it off.
 	Observe bool
 	// Streams are the stream handlers by kind ("Allowed streams").
@@ -199,7 +199,7 @@ type Agent struct {
 	status    string
 	identity  *state.Credential
 
-	// guard identifies DockYard's own resources (#32).
+	// guard identifies Docker Manager's own resources (#32).
 	guard *protect.Guard
 
 	healthMu    sync.Mutex
@@ -289,7 +289,7 @@ func New(opts Options) (*Agent, error) {
 	for _, x := range a.opts.Executors {
 		own[x.Kind] = true
 	}
-	// DockYard's own Compose project is never deployed, stopped or taken
+	// Docker Manager's own Compose project is never deployed, stopped or taken
 	// down through a stack job (#32).
 	for _, x := range a.guard.GuardStacks(a.Engine, st.Executors()) {
 		if !own[x.Kind] {
@@ -391,7 +391,7 @@ func (a *Agent) addResources() {
 	if stacks == "" {
 		stacks = config.DefaultStacksVolume
 	}
-	// DockYard's own resources (#32): the agent refuses to stop or remove
+	// Docker Manager's own resources (#32): the agent refuses to stop or remove
 	// itself, the co-located manager and their data, whatever the manager
 	// sends.
 	a.guard = protect.New(protect.Options{SelfContainerID: self, StacksVolume: stacks, Logger: a.log})
@@ -415,7 +415,7 @@ func (a *Agent) addResources() {
 		}
 	}
 	// Prune policies (#14): the maintenance.preview request and the
-	// prune.run executor share the guard, so DockYard's own resources are
+	// prune.run executor share the guard, so Docker Manager's own resources are
 	// never candidates.
 	pr := prune.New(prune.Options{
 		Engine:          a.Engine,
@@ -714,7 +714,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	// The transport validates the TLS trust (system roots plus the optional
-	// DOCKYARD_MANAGER_CA_FILE) before anything is sent to the manager.
+	// DOCKER_AGENT_MANAGER_CA_FILE) before anything is sent to the manager.
 	tr, err := transport.New(cfg)
 	if err != nil {
 		return err
@@ -751,7 +751,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	a.client.SetRunner(runner)
 
 	info := buildinfo.Get()
-	log.Info("starting dockyard-agent",
+	log.Info("starting docker-agent",
 		"version", info.Version, "commit", info.Commit,
 		"manager_url", cfg.ManagerURL.String(), "docker_host", cfg.DockerHost,
 		"environment_name", cfg.EnvironmentName, "state_dir", cfg.StateDir, "install_id", installID,
@@ -759,10 +759,10 @@ func (a *Agent) Run(ctx context.Context) error {
 	if ti.Flagged() {
 		// Reported to the manager in the capabilities (protocol.TransportInfo,
 		// #3) so the host page flags this environment.
-		log.Warn("manager URL uses plain HTTP (DOCKYARD_MANAGER_ALLOW_HTTP=true); only acceptable on the manager's internal Docker network")
+		log.Warn("manager URL uses plain HTTP (DOCKER_AGENT_MANAGER_ALLOW_HTTP=true); only acceptable on the manager's internal Docker network")
 	}
 	if cred == nil && cfg.EnrollmentToken == "" {
-		log.Warn("agent is not enrolled: set DOCKYARD_ENROLLMENT_TOKEN or hand it a token with `dockyard-agent enroll`")
+		log.Warn("agent is not enrolled: set DOCKER_AGENT_ENROLLMENT_TOKEN or hand it a token with `docker-agent enroll`")
 	}
 	defer a.closeEngine()
 	var control sync.WaitGroup
@@ -805,7 +805,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Info("dockyard-agent stopping")
+			log.Info("docker-agent stopping")
 			return nil
 		case <-retryC:
 			if a.connect(ctx) {
@@ -1046,7 +1046,7 @@ func writeHealth(stateDir string, st HealthState) error {
 		_ = os.Remove(tmp.Name())
 		return fmt.Errorf("write health file: %w", err)
 	}
-	// A concurrent reader (`dockyard-agent enroll`, the healthcheck) can make
+	// A concurrent reader (`docker-agent enroll`, the healthcheck) can make
 	// the rename fail on some platforms for a moment: retry briefly.
 	var rerr error
 	for range 5 {

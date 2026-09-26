@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
 )
 
 var root = filepath.Join("..", "..", "..", "..")
@@ -104,11 +104,11 @@ type fakeCatalog map[string]bool
 func (c fakeCatalog) Has(k string) bool { return c[k] }
 
 const miniSpec = `{"openapi":"3.1.0","paths":{
- "/api/v1/things":{"get":{"operationId":"list-things","x-dockyard-capability":"thing.read","x-dockyard-scope":"resource",
+ "/api/v1/things":{"get":{"operationId":"list-things","x-docker-manager-capability":"thing.read","x-docker-manager-scope":"resource",
    "responses":{"200":{"content":{"application/json":{}}}}}},
- "/api/v1/things/{thingId}/events":{"get":{"operationId":"stream-thing-events","x-dockyard-capability":"thing.read","x-dockyard-scope":"resource",
+ "/api/v1/things/{thingId}/events":{"get":{"operationId":"stream-thing-events","x-docker-manager-capability":"thing.read","x-docker-manager-scope":"resource",
    "responses":{"200":{"content":{"text/event-stream":{}}}}}},
- "/api/v1/extra":{"post":{"operationId":"create-extra","x-dockyard-capability":"authenticated","x-dockyard-scope":"none","responses":{}}}
+ "/api/v1/extra":{"post":{"operationId":"create-extra","x-docker-manager-capability":"authenticated","x-docker-manager-scope":"none","responses":{}}}
 }}`
 
 // TestReconcileCatchesDrift proves each rule fails when violated.

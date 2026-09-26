@@ -62,13 +62,13 @@
 <Dialog
 	bind:open
 	title="Rotate the Recovery Key"
-	description="A new key replaces the current one for every repository of this DockYard."
+	description="A new key replaces the current one for every repository of this Docker Manager."
 	size="lg"
 	dismissible={!started}
 >
 	{#if !started}
 		<ul class="points" role="list">
-			<li>DockYard generates a new Recovery Key and shows it once.</li>
+			<li>Docker Manager generates a new Recovery Key and shows it once.</li>
 			<li>
 				It becomes current when you re-enter it. Each repository location then moves to it
 				the next time it is used; verification jobs start at once.
@@ -85,7 +85,7 @@
 		<SecretReveal
 			secret={started.recoveryKey.key}
 			label="new Recovery Key"
-			filename="dockyard-recovery-key-new.txt"
+			filename="docker-manager-recovery-key-new.txt"
 			fingerprint={started.recoveryKey.fingerprint}
 			description={RECOVERY_KEY_WARNING}
 			confirmLabel="I saved it, continue"

@@ -1,4 +1,4 @@
-// Package lifecycle is DockYard's shared dependency-aware lifecycle for
+// Package lifecycle is Docker Manager's shared dependency-aware lifecycle for
 // Compose services (#7): stop in reverse dependency order, start
 // dependencies first and wait for their depends_on conditions
 // (service_started, service_healthy, service_completed_successfully) with
@@ -32,10 +32,10 @@ const (
 
 // Labels read (and, for DependsOnLabel, written by the Compose adapter).
 const (
-	// DependsOnLabel is DockYard's dependency label on every service
+	// DependsOnLabel is Docker Manager's dependency label on every service
 	// container it deploys: "service:condition:restart:required,..." (the
 	// Compose label below lacks `required`).
-	DependsOnLabel = "dev.neureka.dockyard.depends_on"
+	DependsOnLabel = "dev.neureka.docker-manager.depends_on"
 	// ComposeDependsOnLabel is Compose's "service:condition:restart,..."
 	// label (containers deployed by other Compose clients).
 	ComposeDependsOnLabel = "com.docker.compose.depends_on"

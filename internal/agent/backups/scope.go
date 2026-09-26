@@ -10,14 +10,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/agent/compose"
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/agent/protect"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/stacks"
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/stacks"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // itemPlan is the resolved scope of one item.
@@ -41,7 +41,7 @@ type itemPlan struct {
 	warnings  []string
 	err       error
 
-	// all is every container of the Engine and prot DockYard's own
+	// all is every container of the Engine and prot Docker Manager's own
 	// objects among them (#32), read once per plan.
 	all  []engine.Container
 	prot *protect.Set
@@ -197,7 +197,7 @@ func (s *Service) planStack(ctx context.Context, eng engine.Engine, p *itemPlan,
 		case !optedIn[path] && !optedIn[rp]:
 			src.State, src.Reason = protocol.SourceRequiresOpt, "outside the project directory: requires an explicit opt-in in the policy"
 		case !s.allowlisted(rp):
-			src.State, src.Reason = protocol.SourceBlocked, "opted in, but not allowed by this agent's DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST"
+			src.State, src.Reason = protocol.SourceBlocked, "opted in, but not allowed by this agent's DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST"
 		case s.insideDockerRoot(rp):
 			src.State, src.Reason = protocol.SourceBlocked, "inside Docker's data root: select the volume instead"
 		default:
@@ -306,7 +306,7 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 }
 
 // includeVolume adds a volume's data directory when it is supported and
-// not DockYard's own.
+// not Docker Manager's own.
 func (s *Service) includeVolume(ctx context.Context, eng engine.Engine, p *itemPlan, ss *protocol.ScopeSource, name string) {
 	v, err := eng.InspectVolume(ctx, name)
 	if engine.IsCode(err, engine.CodeNotFound) {
@@ -320,7 +320,7 @@ func (s *Service) includeVolume(ctx context.Context, eng engine.Engine, p *itemP
 	ss.Path = filepath.ToSlash(osPath(v.Mountpoint))
 	if p.prot != nil {
 		if prot := p.prot.Volume(v.Name, v.Labels); prot != nil {
-			ss.State, ss.Reason = protocol.SourceExcluded, "DockYard's own volume: "+prot.Reason
+			ss.State, ss.Reason = protocol.SourceExcluded, "Docker Manager's own volume: "+prot.Reason
 			return
 		}
 	}
@@ -422,9 +422,9 @@ func (s *Service) planShutdown(ctx context.Context, eng engine.Engine, p *itemPl
 	}
 	order := map[string]int{}
 	if len(prot) > 0 {
-		// DockYard's own project is never stopped (#32): the run backs the
+		// Docker Manager's own project is never stopped (#32): the run backs the
 		// whole project up live, so no container of it gets a stop order.
-		p.conflicts = append(p.conflicts, fmt.Sprintf("stack %s contains DockYard's own containers; it is backed up live", p.project))
+		p.conflicts = append(p.conflicts, fmt.Sprintf("stack %s contains Docker Manager's own containers; it is backed up live", p.project))
 	} else {
 		for i, svc := range g.StopOrder(runningServices) {
 			order[svc] = i + 1

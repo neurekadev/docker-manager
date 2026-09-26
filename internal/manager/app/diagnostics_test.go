@@ -12,13 +12,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/manager/config"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 // unzip returns the files of a zip body.
@@ -91,7 +91,7 @@ func TestSupportBundleHasNoSecrets(t *testing.T) {
 	b.m.opts.Logger.Info("diagnostics test marker")
 
 	r := owner.must(http.StatusOK, http.MethodGet, "/api/v1/support-bundle", nil)
-	if r.header.Get("Content-Type") != "application/zip" || !strings.Contains(r.header.Get("Content-Disposition"), "dockyard-support-") {
+	if r.header.Get("Content-Type") != "application/zip" || !strings.Contains(r.header.Get("Content-Disposition"), "docker-manager-support-") {
 		t.Fatalf("headers %v", r.header)
 	}
 	files := unzip(t, r.body)
@@ -163,7 +163,7 @@ func TestSupportBundleHasNoSecrets(t *testing.T) {
 }
 
 // TestMetricsEndpointOffByDefaultAndGated (#34): the Prometheus endpoint
-// answers 404 unless DOCKYARD_METRICS_ENABLED; when enabled it needs
+// answers 404 unless DOCKER_MANAGER_METRICS_ENABLED; when enabled it needs
 // system.metrics.read (a monitoring API token works, one without the grant
 // does not) and serves the internal metrics in the text format.
 func TestMetricsEndpointOffByDefaultAndGated(t *testing.T) {
@@ -185,9 +185,9 @@ func TestMetricsEndpointOffByDefaultAndGated(t *testing.T) {
 		t.Fatalf("content type %q", ct)
 	}
 	body := string(r.body)
-	for _, want := range []string{"# TYPE dockyard_job_queue_depth gauge", "dockyard_job_queue_depth 0", "dockyard_agent_sessions 0",
-		`dockyard_environments{status="active",online="false"} 0`, "dockyard_sse_streams", "dockyard_event_bus_subscribers",
-		`dockyard_database_size_bytes{database="main"}`, "dockyard_audit_chain_records", `dockyard_build_info{version="` + buildinfo.Get().Version} {
+	for _, want := range []string{"# TYPE docker_manager_job_queue_depth gauge", "docker_manager_job_queue_depth 0", "docker_manager_agent_sessions 0",
+		`docker_manager_environments{status="active",online="false"} 0`, "docker_manager_sse_streams", "docker_manager_event_bus_subscribers",
+		`docker_manager_database_size_bytes{database="main"}`, "docker_manager_audit_chain_records", `docker_manager_build_info{version="` + buildinfo.Get().Version} {
 		if !strings.Contains(body, want) {
 			t.Errorf("metrics lack %q:\n%s", want, body)
 		}

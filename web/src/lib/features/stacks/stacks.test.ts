@@ -102,7 +102,7 @@ function stack(over: Partial<Stack> = {}): Stack {
 		location: {
 			root: 'stacks',
 			dir: 'silo',
-			hostPath: '/var/lib/docker/volumes/dockyard_stacks/_data/silo'
+			hostPath: '/var/lib/docker/volumes/docker-manager_stacks/_data/silo'
 		},
 		services: [
 			{ name: 'web', image: 'nginx', build: false, dependsOn: [] },
@@ -152,7 +152,7 @@ describe('StackHeader', () => {
 		const location = screen.getByText('homelab · silo');
 		expect(location.closest('li')).toHaveAttribute(
 			'title',
-			'/var/lib/docker/volumes/dockyard_stacks/_data/silo'
+			'/var/lib/docker/volumes/docker-manager_stacks/_data/silo'
 		);
 		expect(screen.getByRole('button', { name: 'Copy host path' })).toBeInTheDocument();
 

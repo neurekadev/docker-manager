@@ -14,11 +14,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/manager/auth/passkey"
-	"github.com/neurekadev/dockyard/internal/manager/auth/totp"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/passkey"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/totp"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 func newID() string { return ids.New() }

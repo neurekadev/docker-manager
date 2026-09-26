@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Edit details (#22, #7): the stack's display name, description and
-	// icon plus each service's description and icon. DockYard metadata only
+	// icon plus each service's description and icon. Docker Manager metadata only
 	// (PATCH /stacks/{id} with If-Match); Compose files are never touched.
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { untrack } from 'svelte';
@@ -78,7 +78,7 @@
 <Dialog
 	bind:open
 	title="Edit details of {stackTitle(initial)}"
-	description="Details are stored in DockYard. Compose files are never changed."
+	description="Details are stored in Docker Manager. Compose files are never changed."
 	size="md"
 	dismissible={!saving}
 >

@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Where backups live (#10): a local directory on the manager or on one
-	// environment's agent (below DOCKYARD_BACKUP_LOCAL_ROOTS there), or an S3
+	// environment's agent (below DOCKER_AGENT_BACKUP_LOCAL_ROOTS there), or an S3
 	// bucket and prefix. S3 secrets are write-only: typed here, never shown.
 	import { PasswordField, RadioGroup, Select, Switch, TextField } from '$lib/ui';
 	import Fields from '$lib/features/common/Fields.svelte';
@@ -21,7 +21,7 @@
 		executors,
 		errors = {},
 		credentialsOptional = false,
-		localDescription = 'An absolute directory below DOCKYARD_BACKUP_LOCAL_ROOTS of the host that writes it, outside every directory it backs up.'
+		localDescription = 'An absolute directory below the backup roots of the host that writes it (DOCKER_MANAGER_BACKUP_LOCAL_ROOTS or DOCKER_AGENT_BACKUP_LOCAL_ROOTS), outside every directory it backs up.'
 	}: Props = $props();
 </script>
 
@@ -58,7 +58,7 @@
 			label="Directory"
 			mono
 			bind:value={value.path}
-			placeholder="/backups/dockyard"
+			placeholder="/backups/docker-manager"
 			description={localDescription}
 			required
 			error={errors['body.path']}
@@ -92,7 +92,7 @@
 				mono
 				description="Optional. A folder inside the bucket."
 				bind:value={value.prefix}
-				placeholder="dockyard"
+				placeholder="docker-manager"
 				error={errors['body.prefix']}
 			/>
 			<TextField
@@ -111,7 +111,7 @@
 				bind:value={value.secretAccessKey}
 				autocomplete="off"
 				required={!credentialsOptional}
-				description="Write-only: DockYard never shows it again."
+				description="Write-only: Docker Manager never shows it again."
 				error={errors['body.secretAccessKey']}
 			/>
 		</Fields>

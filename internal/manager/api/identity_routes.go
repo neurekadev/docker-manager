@@ -6,7 +6,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 )
 
 type identityAPI struct {
@@ -46,7 +46,7 @@ func registerSetup(a huma.API, h *identityAPI) {
 			OperationID: "get-setup-status", Method: http.MethodGet, Path: BasePath + "/setup/status",
 			Summary: "First-run setup status",
 			Description: "Whether the instance owner exists, and whether this request could complete setup " +
-				"(it must reach DockYard over HTTPS on DOCKYARD_PUBLIC_URL; explanation says what to fix otherwise).",
+				"(it must reach Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL; explanation says what to fix otherwise).",
 			Tags: []string{tagSetup}, Errors: []int{http.StatusServiceUnavailable},
 		},
 		Capability: CapabilityPublic, Scope: ScopeNone,
@@ -75,7 +75,7 @@ func registerSetup(a huma.API, h *identityAPI) {
 			OperationID: "create-setup-owner", Method: http.MethodPost, Path: BasePath + "/setup/owner",
 			Summary: "Create the instance owner (first-run setup)", DefaultStatus: http.StatusCreated,
 			Description: "Single-use and race-safe: of concurrent requests exactly one creates the owner, the others get 409 setup_complete, " +
-				"as does every later request. Refused with 403 insecure_origin unless the request reached DockYard over HTTPS on DOCKYARD_PUBLIC_URL " +
+				"as does every later request. Refused with 403 insecure_origin unless the request reached Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL " +
 				"(through a trusted reverse proxy) or the explicit http://localhost development mode is used. " +
 				"Signs the owner in: sets the session cookie and returns the session.",
 			Tags: []string{tagSetup}, Errors: []int{http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity, http.StatusTooManyRequests},
@@ -103,7 +103,7 @@ func registerSignIn(a huma.API, h *identityAPI) {
 				"Answers the session: authenticated, second_factor_required (send one of factors) or enrollment_required " +
 				"(a limited session that may only enroll the factors the policy requires). Unknown accounts, wrong passwords and disabled " +
 				"accounts all answer 401 invalid_credentials with the same cost. Failed attempts are throttled per client IP and per account (429). " +
-				"Sets the session cookie (__Host-dockyard_session, HttpOnly, Secure, SameSite=Strict); the token changes at every privilege change.",
+				"Sets the session cookie (__Host-docker_manager_session, HttpOnly, Secure, SameSite=Strict); the token changes at every privilege change.",
 			Tags: []string{tagAuth}, Errors: errsSignIn,
 		},
 		Capability: CapabilityPublic, Scope: ScopeNone,
@@ -203,7 +203,7 @@ func registerSignIn(a huma.API, h *identityAPI) {
 		Operation: huma.Operation{
 			OperationID: "create-password-reset-redemption", Method: http.MethodPost, Path: BasePath + "/auth/password-resets/redemptions",
 			Summary: "Set a new password with a reset code",
-			Description: "Redeems an owner-issued password-reset code, or an owner-recovery code from `dockyard-manager owner-recovery` (which also removes " +
+			Description: "Redeems an owner-issued password-reset code, or an owner-recovery code from `docker-manager owner-recovery` (which also removes " +
 				"the owner's TOTP, passkeys and recovery codes). Codes are single use; unknown, expired and used codes answer 400 invalid_code alike. " +
 				"A password that fails the policy answers 422 and leaves the code valid. Every session of the account ends; sign in afterwards.",
 			Tags: []string{tagAuth}, DefaultStatus: http.StatusNoContent,
@@ -251,7 +251,7 @@ func registerSignIn(a huma.API, h *identityAPI) {
 		Operation: huma.Operation{
 			OperationID: "create-passkey-authentication-verification", Method: http.MethodPost, Path: BasePath + "/auth/passkeys/authentication-verifications",
 			Summary: "Finish a passkey sign-in",
-			Description: "Verifies the assertion against the pending challenge, DockYard's RP ID and origin (DOCKYARD_PUBLIC_URL), user verification and " +
+			Description: "Verifies the assertion against the pending challenge, Docker Manager's RP ID and origin (DOCKER_MANAGER_PUBLIC_URL), user verification and " +
 				"the signature counter, then signs in (or completes the pending sign-in or step-up). Failures answer 401 invalid_credentials.",
 			Tags: []string{tagAuth}, Errors: errsSignIn,
 		},
@@ -365,7 +365,7 @@ func registerFactors(a huma.API, h *identityAPI) {
 			OperationID: "create-passkey-registration-options", Method: http.MethodPost, Path: BasePath + "/auth/passkeys/registration-options",
 			Summary: "Begin passkey registration",
 			Description: "Returns WebAuthn creation options for navigator.credentials.create(): a discoverable credential with user verification for " +
-				"the relying party of DOCKYARD_PUBLIC_URL (RP ID = its host name). Passkeys stop working if that host name changes. " + enroll,
+				"the relying party of DOCKER_MANAGER_PUBLIC_URL (RP ID = its host name). Passkeys stop working if that host name changes. " + enroll,
 			Tags: []string{tagAuth}, Security: cookieOnly, Errors: []int{http.StatusForbidden},
 		},
 		Capability: CapabilityAuthenticated, Scope: ScopeNone,

@@ -1,7 +1,7 @@
 // Package password hashes and checks passwords (#16, #18).
 //
 // Hashing uses alexedwards/argon2id (Argon2id from golang.org/x/crypto,
-// PHC-encoded with salt and parameters); DockYard never implements KDF
+// PHC-encoded with salt and parameters); Docker Manager never implements KDF
 // primitives. Parameters are versioned: every encoded hash carries the
 // parameters it was made with, Verify reports when they differ from the
 // current set, and callers re-hash after a successful sign-in
@@ -93,7 +93,7 @@ func NewHasher(o Options) (*Hasher, error) {
 	return h, nil
 }
 
-// Normalize returns the NFKC form DockYard hashes and checks.
+// Normalize returns the NFKC form Docker Manager hashes and checks.
 func Normalize(pw string) string { return norm.NFKC.String(pw) }
 
 func (h *Hasher) acquire(ctx context.Context) error {

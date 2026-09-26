@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/enroll"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/state"
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/enroll"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Agent connection states written to the health file (Status).
@@ -30,13 +30,13 @@ const (
 )
 
 // DefaultTokenPoll is how often the agent looks for an enrollment token
-// handed over by `dockyard-agent enroll`.
+// handed over by `docker-agent enroll`.
 const DefaultTokenPoll = 2 * time.Second
 
 // control enrolls the agent when it has a usable token and keeps its
 // session up. Token sources, in order: a token handed over through the
-// state directory (`dockyard-agent enroll`, also while enrolled: the new
-// token wins), then DOCKYARD_ENROLLMENT_TOKEN(_FILE) while not enrolled.
+// state directory (`docker-agent enroll`, also while enrolled: the new
+// token wins), then DOCKER_AGENT_ENROLLMENT_TOKEN(_FILE) while not enrolled.
 // Used or refused tokens are remembered (state.MarkTokenUsed) and never
 // retried.
 func (a *Agent) control(ctx context.Context) {
@@ -47,7 +47,7 @@ func (a *Agent) control(ctx context.Context) {
 	}
 	envToken := strings.TrimSpace(string(a.opts.Config.EnrollmentToken))
 	if envToken != "" && !strings.HasPrefix(envToken, protocol.EnrollmentTokenPrefix) {
-		a.log.Error("DOCKYARD_ENROLLMENT_TOKEN is not an enrollment token (they start with " + protocol.EnrollmentTokenPrefix + "); ignoring it")
+		a.log.Error("DOCKER_AGENT_ENROLLMENT_TOKEN is not an enrollment token (they start with " + protocol.EnrollmentTokenPrefix + "); ignoring it")
 		envToken = ""
 	}
 	refused := &tokenSet{} // refused in this process (e.g. version), not persisted
@@ -98,7 +98,7 @@ func (a *Agent) control(ctx context.Context) {
 		case errors.As(err, &stop) && stop.Unauthorized():
 			a.setStatus(StatusUnauthorized)
 			a.log.Error("the manager no longer accepts this agent's credential (the agent was removed or replaced, or its "+
-				"environment archived); hand it a new enrollment token with `dockyard-agent enroll`", "reason", stop.Reason)
+				"environment archived); hand it a new enrollment token with `docker-agent enroll`", "reason", stop.Reason)
 			if err := a.store.ClearCredential(); err != nil {
 				a.log.Error("cannot remove the revoked credential", "error", err)
 			}
@@ -168,7 +168,7 @@ func (a *Agent) nextToken(notEnrolled bool, envToken string, refused *tokenSet) 
 	if used, err := a.store.TokenUsed(envToken); err != nil || used {
 		if used {
 			refused.add(envToken) // stay quiet about it from now on
-			a.log.Info("DOCKYARD_ENROLLMENT_TOKEN was already used by this agent; remove it from the configuration and hand over a new token with `dockyard-agent enroll`")
+			a.log.Info("DOCKER_AGENT_ENROLLMENT_TOKEN was already used by this agent; remove it from the configuration and hand over a new token with `docker-agent enroll`")
 		}
 		return ""
 	}
@@ -259,7 +259,7 @@ func truncate(s string, n int) string {
 	return s
 }
 
-func userAgent() string { return "dockyard-agent/" + buildinfo.Get().Version }
+func userAgent() string { return "docker-agent/" + buildinfo.Get().Version }
 
 // waitForToken waits until a usable token appears. withCredential: the
 // agent still holds a credential (only handed-over tokens count).

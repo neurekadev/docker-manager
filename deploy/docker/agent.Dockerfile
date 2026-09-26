@@ -1,4 +1,4 @@
-# DockYard agent image: static Go binary plus a pinned, checksum-verified
+# Docker Agent image: static Go binary plus a pinned, checksum-verified
 # restic. No web UI, no Docker/Compose CLI, no listening port.
 #
 # Every builder stage runs on $BUILDPLATFORM and cross-compiles, and the
@@ -49,26 +49,26 @@ ARG GIT_DATE=unknown
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOOS=linux GOARCH="${TARGETARCH}" go build -trimpath \
-      -ldflags "-s -w -X github.com/neurekadev/dockyard/internal/buildinfo.Version=${GIT_TAG} -X github.com/neurekadev/dockyard/internal/buildinfo.Commit=${GIT_HASH} -X github.com/neurekadev/dockyard/internal/buildinfo.Date=${GIT_DATE}" \
-      -o /out/dockyard-agent ./cmd/dockyard-agent
+      -ldflags "-s -w -X code.neureka.dev/docker-manager/docker-manager/internal/buildinfo.Version=${GIT_TAG} -X code.neureka.dev/docker-manager/docker-manager/internal/buildinfo.Commit=${GIT_HASH} -X code.neureka.dev/docker-manager/docker-manager/internal/buildinfo.Date=${GIT_DATE}" \
+      -o /out/docker-agent ./cmd/docker-agent
 
 # ---------------------------------------------------------------- runtime
 FROM ${RUNTIME_IMAGE}
 ARG GIT_TAG=0.0.0-edge
 ARG GIT_HASH=unknown
 ARG GIT_DATE=unknown
-LABEL org.opencontainers.image.title="dockyard-agent" \
-      org.opencontainers.image.description="DockYard agent: outbound-only connector for a Docker Engine" \
-      org.opencontainers.image.source="https://code.neureka.dev/dockyard/dockyard" \
+LABEL org.opencontainers.image.title="docker-agent" \
+      org.opencontainers.image.description="Docker Agent: outbound-only connector for a Docker Engine" \
+      org.opencontainers.image.source="https://code.neureka.dev/docker-manager/docker-manager" \
       org.opencontainers.image.version="${GIT_TAG}" \
       org.opencontainers.image.revision="${GIT_HASH}" \
       org.opencontainers.image.created="${GIT_DATE}"
-COPY --from=build /out/dockyard-agent /usr/local/bin/dockyard-agent
+COPY --from=build /out/docker-agent /usr/local/bin/docker-agent
 COPY --from=restic /restic /usr/local/bin/restic
-ENV DOCKYARD_AGENT_STATE_DIR=/var/lib/dockyard-agent
-# DockYard containers run as root (UID 0); the agent refuses to start otherwise (#28).
+ENV DOCKER_AGENT_STATE_DIR=/var/lib/docker-agent
+# Docker Manager containers run as root (UID 0); the agent refuses to start otherwise (#28).
 USER 0:0
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD ["/usr/local/bin/dockyard-agent", "healthcheck"]
-ENTRYPOINT ["/usr/local/bin/dockyard-agent"]
+    CMD ["/usr/local/bin/docker-agent", "healthcheck"]
+ENTRYPOINT ["/usr/local/bin/docker-agent"]
 CMD ["run"]

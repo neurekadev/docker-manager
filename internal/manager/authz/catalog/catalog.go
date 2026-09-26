@@ -1,4 +1,4 @@
-// Package catalog is DockYard's versioned permission catalog (#17): every
+// Package catalog is Docker Manager's versioned permission catalog (#17): every
 // grantable action as a stable capability key with its resource grouping,
 // plain-language label, compatible scopes, risk hint and owner-only flag.
 //
@@ -90,7 +90,7 @@ type ResourceType struct {
 	// NamedPerEnvironment: the resource ID (a Docker name) is unique only
 	// within its environment, so a rule on one resource records the
 	// environment too. Stacks, services, agents, policies and definitions
-	// have global DockYard IDs; their rules follow them when they move.
+	// have global Docker Manager IDs; their rules follow them when they move.
 	NamedPerEnvironment bool
 	// Parents are the resource types that may contain a resource of this
 	// type (nearest first): rules on a parent apply to its children.

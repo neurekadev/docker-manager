@@ -864,7 +864,7 @@ func CheckAgentVersion(managerVersion, agentVersion string) (string, error) {
 	a, okA := parseSemver(agentVersion)
 	switch {
 	case !okM || !okA:
-		return "", fmt.Errorf("%w: cannot compare agent %q with manager %q; run the same DockYard build on both", ErrVersionUnsupported, agentVersion, managerVersion)
+		return "", fmt.Errorf("%w: cannot compare agent %q with manager %q; run the same Docker Manager build on both", ErrVersionUnsupported, agentVersion, managerVersion)
 	case a.major != m.major:
 		return "", fmt.Errorf("%w: agent %s and manager %s differ in major version; upgrade the older one", ErrVersionUnsupported, agentVersion, managerVersion)
 	case a.minor > m.minor:

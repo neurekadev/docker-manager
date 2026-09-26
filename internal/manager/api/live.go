@@ -13,11 +13,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/live"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/live"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // The live invalidation stream (#23): GET /api/v1/live/stream. One
@@ -56,7 +56,7 @@ type streamLiveEventsInput struct {
 
 // LiveHello opens the live stream.
 type LiveHello struct {
-	Version     string   `json:"version" enum:"dockyard.live/v1"`
+	Version     string   `json:"version" enum:"docker-manager.live/v1"`
 	Cursor      string   `json:"cursor" doc:"Stream position. Fresh streams: fetch every open view now; events after it follow."`
 	HeartbeatMs int64    `json:"heartbeatMs"`
 	Topics      []string `json:"topics" doc:"The topics this stream carries."`

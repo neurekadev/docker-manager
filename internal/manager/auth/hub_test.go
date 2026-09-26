@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 )
 
 // TestHubSeparatesSessionsAndTokens: ending a user's sessions leaves the

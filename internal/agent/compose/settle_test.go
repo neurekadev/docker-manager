@@ -7,9 +7,9 @@ import (
 
 	"github.com/docker/compose/v5/pkg/api"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginetest"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // Engines before 26 may still list a container as running right after a

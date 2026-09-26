@@ -1,4 +1,4 @@
-// Package backup holds what the manager and the agents share about DockYard
+// Package backup holds what the manager and the agents share about Docker Manager
 // backups (#10, #24): the layout of physical restic repositories under a
 // backup repository (destination), snapshot tags, the portable backup-set
 // manifest stored inside the repositories, and the retention algorithm.
@@ -14,14 +14,14 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
-// A DockYard backup repository is a destination: a local directory on one
+// A Docker Manager backup repository is a destination: a local directory on one
 // executor's persistent mount, or an S3 bucket/prefix. Below it, every
 // scope has its own restic repository so ownership, locking and retention
-// stay separate (#10): the manager's state in "dockyard-manager", each
-// environment's stack and volume data in "dockyard-env-<environmentId>".
+// stay separate (#10): the manager's state in "docker-manager", each
+// environment's stack and volume data in "docker-manager-env-<environmentId>".
 
 // ScopeManager is the scope of manager-state snapshots.
 const ScopeManager = "manager"
@@ -52,18 +52,18 @@ func ValidScope(scope string) bool {
 // ScopeDir is the directory (or key prefix) of a scope's restic repository.
 func ScopeDir(scope string) string {
 	if id, ok := ScopeEnvironment(scope); ok {
-		return "dockyard-env-" + id
+		return "docker-manager-env-" + id
 	}
-	return "dockyard-manager"
+	return "docker-manager"
 }
 
 // ScopeOfDir maps a scope directory back to its scope ("" when it is not
 // one).
 func ScopeOfDir(dir string) string {
-	if dir == "dockyard-manager" {
+	if dir == "docker-manager" {
 		return ScopeManager
 	}
-	if id, ok := strings.CutPrefix(dir, "dockyard-env-"); ok && scopeIDRE.MatchString(id) {
+	if id, ok := strings.CutPrefix(dir, "docker-manager-env-"); ok && scopeIDRE.MatchString(id) {
 		return EnvironmentScope(id)
 	}
 	return ""
@@ -93,7 +93,7 @@ type Destination struct {
 var bucketRE = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
 
 // AbsPath reports whether p is a clean, slash-separated absolute path
-// other than the root. DockYard's executors are Linux; on Windows (tests
+// other than the root. Docker Manager's executors are Linux; on Windows (tests
 // and development only) a drive-absolute path like C:/x is accepted too.
 func AbsPath(p string) bool {
 	if p == "" || strings.Contains(p, "\\") || path.Clean(p) != p || p == "/" {
@@ -127,7 +127,7 @@ func (d Destination) Validate() error {
 		if d.Prefix != "" {
 			if strings.HasPrefix(d.Prefix, "/") || strings.HasSuffix(d.Prefix, "/") || path.Clean(d.Prefix) != d.Prefix ||
 				strings.Contains(d.Prefix, "..") || strings.ContainsAny(d.Prefix, "\\?#") || len(d.Prefix) > 512 {
-				return errors.New("prefix must be a relative key prefix like backups/dockyard (no leading or trailing slash)")
+				return errors.New("prefix must be a relative key prefix like backups/docker-manager (no leading or trailing slash)")
 			}
 		}
 		if len(d.Region) > 64 {

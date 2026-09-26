@@ -10,10 +10,10 @@ import (
 )
 
 // Docker maintenance: prune policies (#14). The manager sends a policy's
-// enabled rules plus the objects it knows must survive (DockYard stacks,
+// enabled rules plus the objects it knows must survive (Docker Manager stacks,
 // saved container specifications, backup destinations) to the agent: in
 // the maintenance.preview request and as the input of prune.run jobs. The
-// agent lists the Engine's objects, applies the rules, DockYard's
+// agent lists the Engine's objects, applies the rules, Docker Manager's
 // self-protection (#32) and the manager's protections, and removes each
 // candidate with a targeted call after revalidating it. It never calls a
 // broad Engine prune endpoint.
@@ -123,7 +123,7 @@ type ProtectedRef struct {
 
 // PruneProtection are the objects the manager knows must survive.
 type PruneProtection struct {
-	// Projects are the Compose projects of DockYard stacks: their
+	// Projects are the Compose projects of Docker Manager stacks: their
 	// containers, networks and volumes are never candidates.
 	Projects []ProtectedRef `json:"projects,omitempty"`
 	// Images are image references (normalized by the agent) or IDs used
@@ -270,7 +270,7 @@ func MatchLabel(labels map[string]string, filter string) bool {
 const (
 	// PruneRemove: a candidate the run removes (after revalidation).
 	PruneRemove = "remove"
-	// PruneProtected: DockYard's own, part of a DockYard stack or saved
+	// PruneProtected: Docker Manager's own, part of a Docker Manager stack or saved
 	// container specification, a backup destination or a predefined
 	// Docker network; never removed.
 	PruneProtected = "protected"

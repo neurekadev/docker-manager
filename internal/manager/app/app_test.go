@@ -17,19 +17,19 @@ import (
 
 	"github.com/uptrace/bun/migrate"
 
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/config"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/migrationtest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/migrationtest"
 )
 
-var testUI = fstest.MapFS{"index.html": {Data: []byte("<!doctype html><title>DockYard</title>")}}
+var testUI = fstest.MapFS{"index.html": {Data: []byte("<!doctype html><title>Docker Manager</title>")}}
 
 func testConfig(dataDir string) config.Config {
 	return config.Config{
@@ -155,7 +155,7 @@ func TestFreshStartServesAndRestartDoesNotReplay(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &ready); err != nil || ready.Status != "ready" || len(ready.Checks) != 2 {
 		t.Fatalf("ready body %s (%v)", body, err)
 	}
-	if code, body := get(t, m.base+"/stacks/deep/link"); code != http.StatusOK || !strings.Contains(body, "DockYard") {
+	if code, body := get(t, m.base+"/stacks/deep/link"); code != http.StatusOK || !strings.Contains(body, "Docker Manager") {
 		t.Fatalf("deep link: %d %s", code, body)
 	}
 	if err := m.stop(); err != nil {
@@ -277,7 +277,7 @@ func TestAuditTrailWired(t *testing.T) {
 	if rep, err := m.Audit().Verify(ctx); err != nil || !rep.OK || rep.Checked != 1 {
 		t.Fatalf("verify %+v %v", rep, err)
 	}
-	// DOCKYARD_AUDIT_LOG_MIRROR mirrors records to the structured log.
+	// DOCKER_MANAGER_AUDIT_LOG_MIRROR mirrors records to the structured log.
 	if !strings.Contains(logs.String(), `"component":"audit_mirror"`) || !strings.Contains(logs.String(), `"action":"job.queued"`) {
 		t.Fatalf("mirror missing: %s", logs)
 	}

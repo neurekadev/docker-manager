@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Volume detail (#6): header with usage and actions (migrate #35,
-	// remove with consequences), what DockYard refuses and why (#32, managed
+	// remove with consequences), what Docker Manager refuses and why (#32, managed
 	// stacks, non-local drivers #28), and the tabs: Overview here, Files
 	// (#15 volume file manager) as a child route.
 	import type { Snippet } from 'svelte';
@@ -173,13 +173,18 @@
 				title={protectionLabel(v.protection)}
 				live="none"
 			>
-				{sentence(v.protection.reason)} DockYard never removes or migrates it and keeps it out
-				of the file manager, for everyone including the owner. Use Docker on the host if you really
-				need to.
+				{sentence(v.protection.reason)} Docker Manager never removes or migrates it and keeps
+				it out of the file manager, for everyone including the owner. Use Docker on the host if
+				you really need to.
 			</Notice>
 		{:else if !access.local}
-			<Notice tone="warn" icon={TriangleAlert} title="Read-only in DockYard" live="none">
-				{access.reason} Containers can still use it; DockYard lists it and can remove it.
+			<Notice
+				tone="warn"
+				icon={TriangleAlert}
+				title="Read-only in Docker Manager"
+				live="none"
+			>
+				{access.reason} Containers can still use it; Docker Manager lists it and can remove it.
 			</Notice>
 		{/if}
 		{#if job}<JobProgress watcher={job} variant="inline" notices={null} />{/if}

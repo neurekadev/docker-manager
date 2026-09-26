@@ -11,15 +11,15 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/gitremote"
-	"github.com/neurekadev/dockyard/internal/gitremote/gittest"
-	"github.com/neurekadev/dockyard/internal/manager/gitcreds"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/gitremote"
+	"code.neureka.dev/docker-manager/docker-manager/internal/gitremote/gittest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/gitcreds"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 type guard struct {
@@ -61,7 +61,7 @@ func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	ctx := testutil.Context(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "dockyard.db")
+	path := filepath.Join(dir, "docker-manager.db")
 	db, err := store.Open(ctx, path)
 	if err != nil {
 		t.Fatal(err)

@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/regauth"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/regauth"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Executors returns the job executors of the Docker resource kinds (#6).
@@ -96,7 +96,7 @@ func (s *Service) createContainer(ctx context.Context, sc *jobexec.StepContext) 
 }
 
 // EngineSpec converts a validated create-container form (#6) and the
-// DockYard ownership labels into the Engine adapter's specification. The
+// Docker Manager ownership labels into the Engine adapter's specification. The
 // update of a managed standalone container (#20) recreates it from the
 // same saved form through this function.
 func EngineSpec(spec protocol.ContainerSpec, ownership map[string]string) engine.ContainerSpec {
@@ -207,7 +207,7 @@ func (s *Service) containerStep(fn func(ctx context.Context, eng engine.Engine, 
 			return refuse(ClassRecreated, "Refresh the inventory and run the operation on the current container.",
 				"container %s is no longer named %s", shortID(in.ID), in.Name)
 		}
-		// DockYard's own containers (#32), whatever the manager decided.
+		// Docker Manager's own containers (#32), whatever the manager decided.
 		set, err := s.protected(ctx, eng)
 		if err != nil {
 			return engineErr(err)
@@ -287,12 +287,12 @@ func (s *Service) unpause(ctx context.Context, eng engine.Engine, sc *jobexec.St
 	return done(ctx, sc, in.Name, "unpaused")
 }
 
-// stackManaged refuses direct edits of a DockYard-managed stack's
+// stackManaged refuses direct edits of a Docker Manager-managed stack's
 // containers (#6): they would be undone or conflict with the next deploy.
 func (s *Service) stackManaged(labels map[string]string, what string) error {
 	if st := s.stackOf(labels); st != nil && st.Managed {
 		return refuse(ClassStackManaged, "Change the stack's Compose definition and redeploy it, or use the stack's own operations.",
-			"%s belongs to the DockYard-managed stack %q; direct changes would conflict with the stack", what, st.Project)
+			"%s belongs to the Docker Manager-managed stack %q; direct changes would conflict with the stack", what, st.Project)
 	}
 	return nil
 }
@@ -494,7 +494,7 @@ func (s *Service) removeVolume(ctx context.Context, sc *jobexec.StepContext) err
 	}
 	if st := objectStack(v.Labels, s.managedProjects(cs)); st != nil && st.Managed {
 		return refuse(ClassStackManaged, "Remove the volume from the stack's Compose definition (or remove the stack) instead.",
-			"volume %s belongs to the DockYard-managed stack %q", in.Name, st.Project)
+			"volume %s belongs to the Docker Manager-managed stack %q", in.Name, st.Project)
 	}
 	if users := usersByVolume(cs)[v.Name]; len(users) > 0 {
 		return refuse(ClassVolumeInUse, "Remove the containers using the volume first.",
@@ -573,7 +573,7 @@ func (s *Service) removeNetwork(ctx context.Context, sc *jobexec.StepContext) er
 	}
 	if st := objectStack(n.Labels, s.managedProjects(cs)); st != nil && st.Managed {
 		return refuse(ClassStackManaged, "Remove the network from the stack's Compose definition (or remove the stack) instead.",
-			"network %s belongs to the DockYard-managed stack %q", in.Name, st.Project)
+			"network %s belongs to the Docker Manager-managed stack %q", in.Name, st.Project)
 	}
 	if len(n.Containers) > 0 {
 		return refuse(ClassNetworkInUse, "Disconnect or remove the attached containers first.",
@@ -608,7 +608,7 @@ func shortID(id string) string {
 	return id
 }
 
-// checkMounts refuses mounts that would expose DockYard's own data (#32):
+// checkMounts refuses mounts that would expose Docker Manager's own data (#32):
 // its volumes (manager data, agent state, stacks, backup repositories) and
 // bind mounts of the Engine's data root, a directory inside it or one of
 // its ancestors (every volume lives there).
@@ -632,7 +632,7 @@ func (s *Service) checkMounts(ctx context.Context, eng engine.Engine, mounts []p
 		case "bind":
 			if root := set.DockerRootDir; root != "" && (pathWithin(m.Source, root) || pathWithin(root, m.Source)) {
 				return &protection.Refusal{Code: protection.CodeProtected, Action: protection.Mount,
-					Reason: "refused to bind " + m.Source + ": it is or contains the Docker data root, which holds DockYard's own volumes"}
+					Reason: "refused to bind " + m.Source + ": it is or contains the Docker data root, which holds Docker Manager's own volumes"}
 			}
 		}
 	}

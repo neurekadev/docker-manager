@@ -206,7 +206,7 @@
 							icon={Server}
 							color="blue"
 							title="No environments yet."
-							description="Add an environment: run the DockYard agent on a Docker host and enroll it."
+							description="Add an environment: run the Docker Agent on a Docker host and enroll it."
 							level={3}
 						>
 							{#snippet actions()}

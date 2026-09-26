@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/manager/backups/s3probe"
-	"github.com/neurekadev/dockyard/internal/manager/backups/s3probe/s3probetest"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups/s3probe"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups/s3probe/s3probetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 func TestProbeCapabilitiesAndObjectLock(t *testing.T) {
@@ -17,7 +17,7 @@ func TestProbeCapabilitiesAndObjectLock(t *testing.T) {
 	secret := set.New(canary.S3SecretKey, "secret")
 	fake := s3probetest.New(t, access, "backups")
 	now := func() time.Time { return time.Date(2026, 9, 25, 2, 0, 0, 0, time.UTC) }
-	target := s3probe.Target{Endpoint: fake.URL, Bucket: "backups", Prefix: "dockyard", PathStyle: true, AccessKeyID: access, SecretAccessKey: secret}
+	target := s3probe.Target{Endpoint: fake.URL, Bucket: "backups", Prefix: "docker-manager", PathStyle: true, AccessKeyID: access, SecretAccessKey: secret}
 
 	r := s3probe.Probe(testutil.Context(t), fake.Client(), target, now)
 	if r.Class != "" || !*r.CanWrite || !*r.CanRead || !*r.CanDelete || r.ObjectLock == nil || *r.ObjectLock {

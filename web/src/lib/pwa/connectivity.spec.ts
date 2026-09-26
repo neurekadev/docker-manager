@@ -32,7 +32,7 @@ describe('Connectivity', () => {
 
 		c.observe({ ok: false, error: new ApiRequestError('HTTP 502', 502) });
 		expect(c.managerReachable).toBe(false);
-		// A DockYard error body proves the manager answered, even with 503.
+		// A Docker Manager error body proves the manager answered, even with 503.
 		c.observe({
 			ok: false,
 			error: new ApiRequestError('starting', 503, {
@@ -63,8 +63,8 @@ describe('web app manifest', () => {
 	it('is installable and scoped to the whole origin', () => {
 		expect(webManifest).toMatchObject({
 			id: '/',
-			name: 'DockYard',
-			short_name: 'DockYard',
+			name: 'Docker Manager',
+			short_name: 'Docker Manager',
 			start_url: '/',
 			scope: '/',
 			display: 'standalone'

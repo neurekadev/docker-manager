@@ -7,10 +7,10 @@
 //
 // The service also
 //   - validates inputs before a job exists (422 instead of a failed job),
-//     refuses conflicting edits of DockYard-managed stack containers
+//     refuses conflicting edits of Docker Manager-managed stack containers
 //     (stack_managed) and removals of objects in use;
 //   - saves the recreate specification of standalone containers created
-//     through DockYard (sealed, table managed_containers) for automatic
+//     through Docker Manager (sealed, table managed_containers) for automatic
 //     updates (#20) and labels them with its ID and the manager instance;
 //   - forgets the exact permission rules of objects it removed (#17) and
 //     keeps a small cache of Compose stack membership for the permission
@@ -35,12 +35,12 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Requester sends named requests to an environment's agent
@@ -73,13 +73,13 @@ type RegistryResolver interface {
 	Select(ctx context.Context, req domain.RegistrySelectRequest) (domain.RegistrySelection, error)
 }
 
-// StackResolver maps the Compose projects of an environment to DockYard
-// stack IDs (#7). Projects it returns are DockYard-managed stacks.
+// StackResolver maps the Compose projects of an environment to Docker Manager
+// stack IDs (#7). Projects it returns are Docker Manager-managed stacks.
 type StackResolver interface {
 	StackIDs(ctx context.Context, environmentID string) (map[string]string, error)
 }
 
-// RetainedProjects maps the Compose projects of an environment DockYard
+// RetainedProjects maps the Compose projects of an environment Docker Manager
 // keeps although no stack manages them to the reason (the stopped sources
 // of migrated stacks until their removal is confirmed, #35,
 // migrations.Service.RetainedProjects). Their containers, volumes and
@@ -94,7 +94,7 @@ type Options struct {
 	Jobs        JobEngine
 	Permissions Forgetter
 	// InstanceID is the manager instance ID, set as ownership label on
-	// containers DockYard creates.
+	// containers Docker Manager creates.
 	InstanceID string
 	// ManagerContainerID is the manager's own container ID (selfid, #32;
 	// "" when it does not run in a container).
@@ -243,7 +243,7 @@ const followUpTimeout = 30 * time.Second
 // afterSuccess runs fn once the job succeeded (never when it fails or is
 // cancelled). The watcher lives until the job ends or the service closes;
 // a manager restart in between skips fn (the rules or record it would
-// drop stay until the resource's next removal through DockYard).
+// drop stay until the resource's next removal through Docker Manager).
 func (s *Service) afterSuccess(jobID string, fn func(ctx context.Context)) {
 	ch, cancel := s.opts.Jobs.Subscribe(jobID)
 	s.wg.Add(1)

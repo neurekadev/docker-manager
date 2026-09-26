@@ -17,18 +17,18 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/jobs/jobstest"
-	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs/jobstest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // auditAuthz allows everything except for user "eve".
@@ -279,7 +279,7 @@ func TestMutationsPublishResourceChanged(t *testing.T) {
 func TestAuditRecordShape(t *testing.T) {
 	f := newAuditFixture(t, auditAuthz{})
 	registerAuditTestOps(f.api)
-	ua := "dockyard-cli/1.0"
+	ua := "docker-manager-cli/1.0"
 
 	// Selector operation: concrete action, path + handler targets, diff,
 	// API-token actor, client IP, user agent, request ID.
@@ -456,7 +456,7 @@ func TestRegisterAuditRules(t *testing.T) {
 }
 
 // TestEveryServedMutatingOperationIsAudited walks the served OpenAPI
-// document: every non-GET operation must declare x-dockyard-audit, and
+// document: every non-GET operation must declare x-docker-manager-audit, and
 // calling it (as any caller, with any outcome) must append exactly one
 // record carrying that action and the operation ID. Unaudited GETs must not
 // record anything. The route inventory counterpart (every cataloged
@@ -617,7 +617,7 @@ func TestAuditExport(t *testing.T) {
 
 	rec := f.do(http.MethodGet, BasePath+"/audit/exports?format=ndjson", "", "X-Test-User", "owner")
 	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/x-ndjson" ||
-		!strings.Contains(rec.Header().Get("Content-Disposition"), `attachment; filename="dockyard-audit-`) {
+		!strings.Contains(rec.Header().Get("Content-Disposition"), `attachment; filename="docker-manager-audit-`) {
 		t.Fatalf("ndjson export %d %v", rec.Code, rec.Header())
 	}
 	sc := bufio.NewScanner(rec.Body)

@@ -11,7 +11,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 )
 
 // Backup persistence (#10, #24). Sealed values (the Recovery Key slots, S3

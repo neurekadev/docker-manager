@@ -46,7 +46,7 @@ Paths are relative to `/api/v1`.
   no` on SSE (proxies must not buffer), `Content-Type: text/event-stream`.
   The service worker never caches streams (#23).
 - **Heartbeats:** SSE sends a `: heartbeat` comment every 15 s; exec
-  WebSockets are pinged every 15 s (`DOCKYARD_STREAM_HEARTBEAT`, one
+  WebSockets are pinged every 15 s (`DOCKER_MANAGER_STREAM_HEARTBEAT`, one
   implementation each: `internal/manager/server/sse`, `internal/manager/server/ws`).
   Both are shorter than common proxy idle timeouts (#27,
   [deployment.md](../deployment.md#timeouts-and-heartbeats)).
@@ -116,7 +116,7 @@ Topics: `environments`, `agents`, `containers`, `images`, `volumes`,
 
 | event | id | data | client action |
 | --- | --- | --- | --- |
-| `hello` | — | `{version: "dockyard.live/v1", cursor, heartbeatMs, topics, resumed}` | `resumed: false`: (re)fetch every open view (the snapshot), then apply events after `cursor`; `resumed: true`: the missed events follow, cached data stays valid |
+| `hello` | — | `{version: "docker-manager.live/v1", cursor, heartbeatMs, topics, resumed}` | `resumed: false`: (re)fetch every open view (the snapshot), then apply events after `cursor`; `resumed: true`: the missed events follow, cached data stays valid |
 | `invalidate` | cursor | `{topic, kind, resourceId, environmentId?, revision?, action: created\|updated\|deleted, at}` | Invalidate queries for that resource and its lists; `revision` (when the resource has one) may be compared with the cached one |
 | `job` | cursor | `{jobId, kind, state, environmentId?, progressPercent?, revision, at}` | Update job badges and lists; open `/jobs/{jobId}/events/stream` for detail |
 | `agent` | cursor | `{environmentId, status: online\|offline, at}` | Show connection state; data of an offline environment is stale |
@@ -188,7 +188,7 @@ tokens) → `invalidate` on `policies`, `backups`, `registries`, `images`,
 
 External create/modify/rename/delete events in stack and volume roots
 (reported by the agent watcher, [agent-v1.md](../protocol/agent-v1.md#fs_invalidation-and-rescan-15-23))
-and changes made through DockYard's file manager arrive as:
+and changes made through Docker Manager's file manager arrive as:
 
 ```json
 {"scope":{"kind":"stack","id":"0190…","environmentId":"0190…"},"paths":["compose.yaml"],"overflow":false,"at":"…"}
@@ -270,7 +270,7 @@ event is then filtered per subscriber with the #17 event rules
 
 | event | id | data | who receives it |
 | --- | --- | --- | --- |
-| `hello` | — | `{version: "dockyard.environment-events/v1", cursor, heartbeatMs}` | everyone, first |
+| `hello` | — | `{version: "docker-manager.environment-events/v1", cursor, heartbeatMs}` | everyone, first |
 | `reset` | — | `{reason: server_restart\|cursor_expired\|gap\|overflow, cursor}` | after `hello` when `Last-Event-ID` cannot be resumed, or when the manager lost events |
 | `engine` | cursor | `{type, action, resourceId, attributes, at}` | holders of any capability on the resource (containers and networks by name). For a container seen only minimally (e.g. metrics-only or restart-only) `attributes` keep only `name`, `exitCode` and `health`; `image` and `signal` need `container.details.read`. |
 | `status` | cursor | `{environmentId, status: online\|offline\|resync\|updated\|archived\|reattached, reason?, at}` | everyone who sees the environment; `resync` (reason `reconnect` or `event_gap`) means refetch the environment's inventory |
@@ -335,22 +335,22 @@ precision is applied by the agent, the Engine only filters whole seconds).
 Terminals are authorized with `api.AuthorizeExec` only: `container.exec`
 on the container, which an API token must hold in its own grants (#31);
 no other capability (restart, metrics, logs, details) opens a terminal. The
-command runs inside the container through the Engine's exec API; DockYard
+command runs inside the container through the Engine's exec API; Docker Manager
 never offers a shell on the host.
 
 1. `POST …/containers/{containerId}/exec-sessions` with `{command?: [argv…]
    (default ["/bin/sh"]), tty?: true, cols?: 80, rows?: 24, workingDir?,
-   user?}` → `201 {id, streamUrl, subprotocol: "dockyard.exec.v1", ticket,
+   user?}` → `201 {id, streamUrl, subprotocol: "docker-manager.exec.v1", ticket,
    expiresAt}`. The container must be running and not paused (`409` otherwise). Limits: 4 open sessions per principal, 8 per container
    (`429 rate_limited`). The session start is audited (`container.exec` with the session
    ID and whether a TTY was requested; never the command's output).
 2. `GET {streamUrl}` upgrades to a WebSocket. The client offers two
-   subprotocols: `dockyard.exec.v1` and `dockyard.ticket.<ticket>` (browsers
+   subprotocols: `docker-manager.exec.v1` and `docker-manager.ticket.<ticket>` (browsers
    cannot set headers on WebSockets; the ticket never goes into the URL).
    The ticket is one-use, bound to the session and to the principal that
    created it, and expires with `expiresAt` (60 s after creation; the
    session is discarded if nobody attached). The server selects
-   `dockyard.exec.v1`. Cookie-authenticated upgrades must carry an `Origin`
+   `docker-manager.exec.v1`. Cookie-authenticated upgrades must carry an `Origin`
    equal to the manager's public origin (`403` otherwise). A wrong, reused
    or expired ticket, or a session that is not the caller's, is refused
    with `404` before the upgrade (browsers only see a failed handshake,
@@ -427,7 +427,7 @@ appear in responses. Details and the other file routes:
   default, `application/zip` / `application/gzip`), no `Content-Length`, no
   `Range`. Symlinks are stored only when they resolve inside the root;
   escaping symlinks, hard-linked and special files are skipped and listed in
-  a final `DOCKYARD-SKIPPED.txt` entry.
+  a final `DOCKER-MANAGER-SKIPPED.txt` entry.
 - Limits (agent): 10 GiB per download or archive, 100 000 entries.
 - The manager waits for the first bytes before answering, so refusals
   (`404`, `409 file_unsupported`, `413`, …) are ordinary JSON errors. A
@@ -441,14 +441,14 @@ appear in responses. Details and the other file routes:
 
 - Body: raw bytes, `Content-Type: application/octet-stream` (`415`
   otherwise), `Content-Length` required (`411 length_required`), at most
-  `DOCKYARD_FILES_MAX_UPLOAD_MB` (default and maximum 2048 MiB, `413`; the
+  `DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` (default and maximum 2048 MiB, `413`; the
   proxy body limit must allow it, #27).
 - Preconditions, exactly one: `If-None-Match: *` creates only (`412` if the
   name exists); `If-Match: <ETag>` replaces exactly that revision (`412` with
   the current `ETag` otherwise); `conflict=overwrite|skip|keep_both` (skip
   answers `201` with `skipped: true` and writes nothing; keep_both picks
   `name (1).ext`); none → `428`.
-- Optional `X-DockYard-Content-SHA256` (hex) is verified before the file is
+- Optional `X-Docker-Manager-Content-SHA256` (hex) is verified before the file is
   committed (`422 content_digest_mismatch`). The agent checks the
   precondition before storing anything, writes a temporary file in the
   target directory, verifies size and digest, re-checks the precondition and
@@ -477,16 +477,16 @@ cleanly. The export requires `audit.export` and is itself audited.
 ## Internal metrics (`get-system-metrics`)
 
 `GET /system/metrics` answers `text/plain; version=0.0.4` (the Prometheus
-text exposition format) with DockYard's own metrics: `dockyard_build_info`,
-`dockyard_jobs{state}` (unfinished jobs), `dockyard_job_queue_depth`,
-`dockyard_jobs_unfinished_by_kind{kind}`, `dockyard_agent_sessions`,
-`dockyard_environments{status,online}`, `dockyard_agents{compatibility}`,
-`dockyard_sse_streams`, `dockyard_event_bus_subscribers`,
-`dockyard_database_size_bytes{database}`, `dockyard_audit_chain_records`,
-`dockyard_audit_chain_head_seq`, `go_goroutines` and
+text exposition format) with Docker Manager's own metrics: `docker_manager_build_info`,
+`docker_manager_jobs{state}` (unfinished jobs), `docker_manager_job_queue_depth`,
+`docker_manager_jobs_unfinished_by_kind{kind}`, `docker_manager_agent_sessions`,
+`docker_manager_environments{status,online}`, `docker_manager_agents{compatibility}`,
+`docker_manager_sse_streams`, `docker_manager_event_bus_subscribers`,
+`docker_manager_database_size_bytes{database}`, `docker_manager_audit_chain_records`,
+`docker_manager_audit_chain_head_seq`, `go_goroutines` and
 `go_memstats_heap_alloc_bytes` (#34). Labels carry only enumerations, never
 names chosen by users. It is off by default: `404 not_found` unless the
-manager runs with `DOCKYARD_METRICS_ENABLED=true`. It needs
+manager runs with `DOCKER_MANAGER_METRICS_ENABLED=true`. It needs
 `system.metrics.read` (instance scope): create an API token with only that
 grant for the scraper (`Authorization: Bearer …`). Host and container
 metrics are the JSON routes of #5, not this endpoint.
@@ -494,8 +494,8 @@ metrics are the JSON routes of #5, not this endpoint.
 ## Support bundle (`get-support-bundle`)
 
 `GET /support-bundle` streams an `application/zip` attachment
-(`dockyard-support-<UTC time>.zip`) for troubleshooting (#34): `README.txt`,
-`versions.json`, `configuration.json` (the effective `DOCKYARD_*` settings;
+(`docker-manager-support-<UTC time>.zip`) for troubleshooting (#34): `README.txt`,
+`versions.json`, `configuration.json` (the effective `DOCKER_MANAGER_*` settings;
 secrets are files whose paths only are listed), `support-matrix.json`
 (per-environment checks against the supported host boundary),
 `agents.json`, `audit-chain.json` (the audit hash chain verification),

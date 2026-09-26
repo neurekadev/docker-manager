@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Networks (#6): every network of the selected environment (or all),
 	// its driver, subnets and flags; predefined networks (bridge, host,
-	// none) and DockYard's own (#32) are marked, and their removal is
+	// none) and Docker Manager's own (#32) are marked, and their removal is
 	// refused by the server with the reason.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
@@ -185,7 +185,7 @@
 	<DeniedState
 		level={1}
 		title="You don't have access to networks."
-		description="Ask the owner of this DockYard to grant access."
+		description="Ask the owner of this Docker Manager to grant access."
 	/>
 {:else}
 	<Page>

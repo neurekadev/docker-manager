@@ -80,29 +80,29 @@ export function sentence(text: string): string {
 	return /[.!?]$/.test(cap) ? cap : `${cap}.`;
 }
 
-/** Short label of DockYard's own resources (#32). */
+/** Short label of Docker Manager's own resources (#32). */
 export function protectionLabel(p: Protection): string {
 	switch (p.role) {
 		case 'agent':
-			return p.self ? "This environment's DockYard agent" : 'A DockYard agent';
+			return p.self ? "This environment's Docker Agent" : 'A Docker Agent';
 		case 'manager':
-			return p.self ? 'The DockYard manager' : 'A DockYard manager';
-		case 'dockyard_project':
-			return "Part of DockYard's own deployment";
-		case 'dockyard_image':
-			return 'An image DockYard runs from';
+			return p.self ? 'The Docker Manager' : 'A Docker Manager';
+		case 'docker_manager_project':
+			return "Part of Docker Manager's own deployment";
+		case 'docker_manager_image':
+			return 'An image Docker Manager runs from';
 		case 'manager_data':
-			return "DockYard's data volume";
+			return "Docker Manager's data volume";
 		case 'agent_state':
-			return "The DockYard agent's state volume";
+			return "The Docker Agent's state volume";
 		case 'stacks':
-			return 'The DockYard stacks volume';
-		case 'dockyard_volume':
-			return 'A volume DockYard uses';
-		case 'dockyard_network':
-			return 'A network DockYard uses';
+			return 'The Docker Manager stacks volume';
+		case 'docker_manager_volume':
+			return 'A volume Docker Manager uses';
+		case 'docker_manager_network':
+			return 'A network Docker Manager uses';
 	}
-	return 'A DockYard system resource';
+	return 'A Docker Manager system resource';
 }
 
 /** The subject of a refused action on a protected resource. */
@@ -110,13 +110,13 @@ function protectedSubject(p: Protection | undefined, name: string): string {
 	if (!p) return name;
 	switch (p.role) {
 		case 'agent':
-			return p.self ? "DockYard's own agent" : `The DockYard agent ${name}`;
+			return p.self ? "Docker Manager's own agent" : `The Docker Agent ${name}`;
 		case 'manager':
-			return p.self ? "DockYard's manager" : `The DockYard manager ${name}`;
+			return p.self ? 'Docker Manager itself' : `The Docker Manager ${name}`;
 		case 'stacks':
 			return 'The stacks volume';
 		case 'manager_data':
-			return "DockYard's data volume";
+			return "Docker Manager's data volume";
 		case 'agent_state':
 			return "The agent's state volume";
 	}
@@ -143,7 +143,7 @@ export class RefusalError extends Error {
 }
 
 const HOST_ESCAPE =
-	'DockYard never changes its own containers, images and volumes; use Docker on the host if you really need to.';
+	'Docker Manager never changes its own containers, images and volumes; use Docker on the host if you really need to.';
 
 export interface RefusalContext {
 	kind: ResourceKind;
@@ -160,13 +160,13 @@ function forCode(code: string | undefined, raw: string, ctx: RefusalContext): Re
 		case 'protected':
 			return {
 				code,
-				title: `${protectedSubject(ctx.protection, name)} can't be ${PAST[verb]} from DockYard.`,
+				title: `${protectedSubject(ctx.protection, name)} can't be ${PAST[verb]} from Docker Manager.`,
 				body: `${message} ${HOST_ESCAPE}`
 			};
 		case 'stack_managed':
 			return {
 				code,
-				title: `${name} belongs to a stack DockYard manages.`,
+				title: `${name} belongs to a stack Docker Manager manages.`,
 				body: "Change it through its stack instead: edit the stack's files and deploy."
 			};
 		case 'container_running':
@@ -253,7 +253,7 @@ export function registryGuidance(errorClass: string | undefined): string | undef
 		case 'ambiguous_registry_connection':
 			return 'Several registry connections match this image equally well. Choose one.';
 		case 'registry_connection_revoked':
-			return 'The matching registry connection is revoked; DockYard never falls back to anonymous pulls. Rotate its credential or remove it.';
+			return 'The matching registry connection is revoked; Docker Manager never falls back to anonymous pulls. Rotate its credential or remove it.';
 	}
 	return undefined;
 }

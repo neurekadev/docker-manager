@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/permissions"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/permissions"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // StackIDs maps the Compose project names of an environment's stacks to

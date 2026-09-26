@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 )
 
 // Identity routes (#16): first-run setup, sign-in, factors, invitations,
@@ -88,7 +88,7 @@ type AccountFactors struct {
 	RecoveryCodesRemaining int  `json:"recoveryCodesRemaining" doc:"Unused one-time recovery codes."`
 }
 
-// Account is a DockYard account.
+// Account is a Docker Manager account.
 type Account struct {
 	ID                 string         `json:"id" example:"0190a6e0-0000-7000-8000-000000000001"`
 	Username           string         `json:"username" example:"alice"`
@@ -191,7 +191,7 @@ func newInvitation(i domain.Invitation, now time.Time) Invitation {
 
 // IssuedCode is a one-time code, shown only in this response.
 type IssuedCode struct {
-	Code      string    `json:"code" doc:"The one-time code. Shown only here; DockYard stores a verifier, not the code."`
+	Code      string    `json:"code" doc:"The one-time code. Shown only here; Docker Manager stores a verifier, not the code."`
 	URL       string    `json:"url" example:"https://docker.example.com/reset#code=R7QK-2M4P-X9WT" doc:"Link on the public origin that redeems the code (the code is in the URL fragment)."`
 	ExpiresAt time.Time `json:"expiresAt"`
 }
@@ -258,11 +258,11 @@ func identityError(err error) error {
 	case errors.Is(err, domain.ErrMethodNotAllowed):
 		return NewError(http.StatusForbidden, CodeSignInMethodNotAllowed, "the instance sign-in policy does not accept this sign-in method; sign in with your password")
 	case errors.Is(err, domain.ErrSetupComplete):
-		return Conflict(CodeSetupComplete, "DockYard is already set up; sign in instead")
+		return Conflict(CodeSetupComplete, "Docker Manager is already set up; sign in instead")
 	case errors.Is(err, domain.ErrUsernameTaken):
 		return Conflict(CodeUsernameTaken, "this username is taken")
 	case errors.Is(err, domain.ErrOwnerProtected):
-		return Conflict(CodeOwnerProtected, "the instance owner cannot be changed this way; the owner uses owner recovery (dockyard-manager owner-recovery)")
+		return Conflict(CodeOwnerProtected, "the instance owner cannot be changed this way; the owner uses owner recovery (docker-manager owner-recovery)")
 	case errors.Is(err, domain.ErrFactorRequired):
 		return Conflict(CodeFactorRequired, "the sign-in policy needs this factor; add another one first")
 	case errors.Is(err, domain.ErrTOTPAlreadyEnabled):
@@ -300,7 +300,7 @@ type sessionOutput struct{ Body Session }
 type setupStatusOutput struct {
 	Body struct {
 		SetupComplete bool               `json:"setupComplete" example:"false" doc:"The instance owner exists; setup routes are closed."`
-		SecureOrigin  bool               `json:"secureOrigin" doc:"This request reached DockYard over HTTPS on its public URL, so setup can complete."`
+		SecureOrigin  bool               `json:"secureOrigin" doc:"This request reached Docker Manager over HTTPS on its public URL, so setup can complete."`
 		Explanation   string             `json:"explanation,omitempty" doc:"Why setup cannot complete over this request, and how to fix it."`
 		BackupImport  *SetupBackupImport `json:"backupImport,omitempty" doc:"The newest backup import (#24) while setup is open."`
 	}
@@ -348,7 +348,7 @@ type passwordResetRedemptionInput struct {
 type totpEnrollmentOutput struct {
 	Body struct {
 		Secret    string    `json:"secret" example:"JBSWY3DPEHPK3PXP" doc:"Base32 secret for manual entry. Shown only in this response."`
-		URI       string    `json:"uri" example:"otpauth://totp/DockYard:olga?secret=JBSWY3DPEHPK3PXP&issuer=DockYard" doc:"otpauth:// URI for a QR code. Shown only in this response."`
+		URI       string    `json:"uri" example:"otpauth://totp/Docker Manager:olga?secret=JBSWY3DPEHPK3PXP&issuer=Docker Manager" doc:"otpauth:// URI for a QR code. Shown only in this response."`
 		ExpiresAt time.Time `json:"expiresAt" doc:"Confirm a code before this time."`
 	}
 }

@@ -12,21 +12,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/compose"
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/agent/protect"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
-	"github.com/neurekadev/dockyard/internal/restic/restictest"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic/restictest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 // recEngine records container stops and starts in order and lets tests
@@ -198,8 +198,8 @@ func newEnv(t *testing.T) *env {
 	write(t, filepath.Join(up, "a.jpg"), "jpeg")
 	write(t, filepath.Join(up, "thumbs", "a.png"), "png")
 	fake.SetVolumeMountpoint("uploads", filepath.ToSlash(up))
-	fake.AddVolume("dockyard_stacks", nil)
-	e.guard = protect.New(protect.Options{StacksVolume: "dockyard_stacks", Logger: testutil.Logger(t)})
+	fake.AddVolume("docker-manager_stacks", nil)
+	e.guard = protect.New(protect.Options{StacksVolume: "docker-manager_stacks", Logger: testutil.Logger(t)})
 	e.store = restictest.New(func() time.Time { return time.Date(2026, 9, 25, 2, 0, 0, 0, time.UTC) })
 	e.svc = New(Options{Engine: func() engine.Engine { return e.eng }, Loader: func() Loader { return loader{} },
 		Storage: func() *storage.Result { return e.res }, Guard: e.guard, Restic: e.store,
@@ -230,7 +230,7 @@ func sourceState(p itemPlan, kind, match string) (protocol.ScopeSource, bool) {
 // TestScopeCorpus is the #10 filter corpus: relative binds beside
 // compose.yaml are included, ../data and absolute paths need an opt-in
 // (and the agent allowlist), anonymous volumes are off by default,
-// exclusions and volume rules apply, DockYard's own volumes and symlink
+// exclusions and volume rules apply, Docker Manager's own volumes and symlink
 // escapes never are.
 func TestScopeCorpus(t *testing.T) {
 	e := newEnv(t)
@@ -325,17 +325,17 @@ func TestScopeCorpus(t *testing.T) {
 		}
 		// And the agent refuses it as a location at all when outside its roots.
 		if err := e.svc.allowedLocal(nested.Destination.Path); err == nil {
-			t.Error("a location outside DOCKYARD_BACKUP_LOCAL_ROOTS was allowed")
+			t.Error("a location outside DOCKER_AGENT_BACKUP_LOCAL_ROOTS was allowed")
 		}
 		if err := e.svc.allowedLocal(filepath.ToSlash(e.backups)); err != nil {
 			t.Errorf("allowed root refused: %v", err)
 		}
 	})
 
-	t.Run("dockyard volume and standalone volume", func(t *testing.T) {
-		p := e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "dockyard_stacks"}, &repo, false)
-		if p.err == nil || !strings.Contains(p.err.Error(), "DockYard") {
-			t.Errorf("DockYard's stacks volume: %v", p.err)
+	t.Run("docker-manager volume and standalone volume", func(t *testing.T) {
+		p := e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "docker-manager_stacks"}, &repo, false)
+		if p.err == nil || !strings.Contains(p.err.Error(), "Docker Manager") {
+			t.Errorf("Docker Manager's stacks volume: %v", p.err)
 		}
 		p = e.svc.plan(ctx, protocol.BackupItem{Kind: backup.MemberVolume, Volume: "uploads", Rules: protocol.BackupRules{PathExcludes: []string{"thumbs"}}}, &repo, false)
 		if p.err != nil || len(p.paths) != 1 || !strings.HasSuffix(filepath.ToSlash(p.paths[0]), "uploads/_data") || len(p.excludes) != 1 {

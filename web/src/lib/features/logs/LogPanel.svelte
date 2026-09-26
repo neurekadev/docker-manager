@@ -48,7 +48,7 @@
 		if (status === 403)
 			return {
 				status,
-				message: `You can't read these logs. Ask the owner of this DockYard for “View logs”.`
+				message: `You can't read these logs. Ask the owner of this Docker Manager for “View logs”.`
 			};
 		if (status === 404) return { status, message: 'The container does not exist anymore.' };
 		if (status === 503)
@@ -158,7 +158,7 @@
 				: routes.logsWindow({ environmentId: t.environmentId, containerId: t.containerId });
 		window.open(
 			url,
-			`dockyard-logs-${t.kind === 'stack' ? t.stackId : t.containerId}`,
+			`docker-manager-logs-${t.kind === 'stack' ? t.stackId : t.containerId}`,
 			'popup,width=1100,height=680'
 		);
 	}

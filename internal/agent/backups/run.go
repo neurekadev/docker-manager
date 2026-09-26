@@ -10,14 +10,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // backup.run (#10):
@@ -170,7 +170,7 @@ func (s *Service) stepStopContainers(ctx context.Context, sc *jobexec.StepContex
 		running []string
 	}
 	var stops []stop
-	// live are stack members backed up while running (DockYard's own
+	// live are stack members backed up while running (Docker Manager's own
 	// project): their snapshots stay marked live.
 	live := map[string]bool{}
 	for _, it := range in.Items {
@@ -196,8 +196,8 @@ func (s *Service) stepStopContainers(ctx context.Context, sc *jobexec.StepContex
 			}
 		}
 		if len(protected) > 0 {
-			// DockYard's own project is never stopped (#32).
-			rep.Conflicts = append(rep.Conflicts, fmt.Sprintf("stack %s contains DockYard's own containers; it is backed up live", p.project))
+			// Docker Manager's own project is never stopped (#32).
+			rep.Conflicts = append(rep.Conflicts, fmt.Sprintf("stack %s contains Docker Manager's own containers; it is backed up live", p.project))
 			live[it.Key()] = true
 			continue
 		}
@@ -289,7 +289,7 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 			_ = sc.SetOutput(ctx, out)
 			continue
 		}
-		tags := []string{backup.TagDockYard, backup.SetTag(in.SetID), backup.ItemTag(it.Key())}
+		tags := []string{backup.TagDockerManager, backup.SetTag(in.SetID), backup.ItemTag(it.Key())}
 		if in.PolicyID != "" {
 			tags = append(tags, backup.PolicyTag(in.PolicyID))
 		}

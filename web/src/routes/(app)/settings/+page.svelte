@@ -62,7 +62,7 @@
 		if (!current) return;
 		const saved = await saveInstanceName(current, name);
 		qc.setQueryData(settingsKeys.instance, saved);
-		toast.success(`Renamed DockYard to ${saved.name}`);
+		toast.success(`Renamed Docker Manager to ${saved.name}`);
 	}
 	const activeTokens = $derived((tokens.data ?? []).filter((t) => t.status === 'active').length);
 </script>
@@ -70,7 +70,7 @@
 <Page>
 	<SettingsHeader
 		title="Settings"
-		description="Your profile, sign-in security and API tokens, and the settings of this DockYard."
+		description="Your profile, sign-in security and API tokens, and the settings of this Docker Manager."
 	/>
 
 	<section class="group" aria-labelledby="settings-account">
@@ -99,7 +99,7 @@
 
 	{#if access.owner || can(access, 'settings.read') || can(access, 'audit.read')}
 		<section class="group" aria-labelledby="settings-instance">
-			<h2 id="settings-instance">This DockYard</h2>
+			<h2 id="settings-instance">This Docker Manager</h2>
 			<div class="grid">
 				{#if access.owner}
 					<SettingsLink
@@ -160,16 +160,16 @@
 			onsave={rename}
 		/>
 	{:else if can(access, 'settings.read') && !instance.isError}
-		<Card title="About this DockYard"><Skeleton lines={3} /></Card>
+		<Card title="About this Docker Manager"><Skeleton lines={3} /></Card>
 	{:else if can(access, 'settings.read')}
 		<ErrorState
 			error={instance.error}
-			title="The settings of this DockYard could not be loaded."
+			title="The settings of this Docker Manager could not be loaded."
 			onretry={() => instance.refetch()}
 			retrying={instance.isFetching}
 		/>
 	{:else}
-		<Card title="About this DockYard">
+		<Card title="About this Docker Manager">
 			{#if health.data}
 				<p class="about">
 					<Info size={16} aria-hidden="true" />

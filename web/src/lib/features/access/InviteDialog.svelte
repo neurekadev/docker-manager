@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Invite a user (#16): one click creates a single-use invite link, shown
-	// once (DockYard keeps a verifier, not the code). The person opens it and
+	// once (Docker Manager keeps a verifier, not the code). The person opens it and
 	// registers their own account, which joins the default group. Options:
 	// bind the link to an email address, change its expiry. No email is
 	// sent: hand the link over yourself.
@@ -83,12 +83,12 @@
 		<SecretReveal
 			secret={issued.url}
 			label="invite link"
-			filename="dockyard-invite-link.txt"
+			filename="docker-manager-invite-link.txt"
 			description="Send this link to the person you invite: it opens a form to create their account. It works once and expires {formatDateTime(
 				issued.expiresAt
 			)}{issued.invitation.email
 				? `, only for ${issued.invitation.email}`
-				: ''}. DockYard sends no email and cannot show the link again."
+				: ''}. Docker Manager sends no email and cannot show the link again."
 			acknowledgeLabel="I copied or sent the invite link"
 			confirmLabel="Done"
 			onconfirm={() => {

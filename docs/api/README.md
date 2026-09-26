@@ -1,6 +1,6 @@
-# DockYard API
+# Docker Manager API
 
-Everything the DockYard web UI does, it does through this API; there are no
+Everything the Docker Manager web UI does, it does through this API; there are no
 UI-only privileged endpoints and no Docker Engine API proxy (#4). An
 independent client (script, CLI, integration) uses exactly the same routes
 with an API token.
@@ -34,7 +34,7 @@ administration); public operations have none.
 ### `cookieSession` — browsers (#16)
 
 - `POST /api/v1/auth/session` signs in (password, then TOTP / passkey /
-  recovery code as required) and sets the cookie `__Host-dockyard_session`:
+  recovery code as required) and sets the cookie `__Host-docker_manager_session`:
   `HttpOnly; Secure; SameSite=Strict; Path=/`, no `Domain` (pinned to the one
   origin). `DELETE /api/v1/auth/session` signs out. Passkeys sign in
   without a username (`/auth/passkeys/authentication-options` →
@@ -46,7 +46,7 @@ administration); public operations have none.
   privilege change; sessions end after 1 h idle / 24 h.
 - **Cross-site protection:** requests with unsafe methods authenticated by
   the cookie must come from the manager's own origin — the manager checks
-  `Origin` (and `Sec-Fetch-Site`) against `DOCKYARD_PUBLIC_URL` and rejects
+  `Origin` (and `Sec-Fetch-Site`) against `DOCKER_MANAGER_PUBLIC_URL` and rejects
   others with `403 cross_origin_request` (Go's `CrossOriginProtection`). WebSocket upgrades are checked the same way.
 - **Step-up:** sensitive changes (security settings, permissions, passwords,
   factor removal, Recovery Key flows) additionally require a recent
@@ -59,7 +59,7 @@ administration); public operations have none.
 
 - `Authorization: Bearer dy_<id>_<secret>`. Tokens are created in the UI or
   with `POST /api/v1/me/api-tokens` (needs `api_tokens.create` — the owner
-  always has it — and a recent step-up); the value is shown once, DockYard
+  always has it — and a recent step-up); the value is shown once, Docker Manager
   keeps a verifier. Each token has a name, an expiry (required; at most the
   instance maximum, 90 days by default; non-expiring only when the owner
   allows it) and an explicit list of grants (catalog capabilities at
@@ -101,16 +101,16 @@ refused once an owner exists).
 
 ## Authorization metadata in OpenAPI
 
-Every operation carries DockYard extensions (checked by
+Every operation carries Docker Manager extensions (checked by
 `TestOpenAPICompleteness` and reconciled by `TestRouteInventory`):
 
 | extension | values | meaning |
 | --- | --- | --- |
-| `x-dockyard-capability` | `public`, `authenticated`, `owner`, a key such as `container.restart`, or a selector such as `stack.{action}` | what the caller needs. `owner` surfaces (users, groups, invitations, security policy, credential administration) are never delegable (#16, #17). |
-| `x-dockyard-capability-values` | list of keys | for a selector: the concrete capabilities; the request body picks one (e.g. `action: restart` needs `stack.restart`) |
-| `x-dockyard-scope` | `none`, `instance`, `environment`, `resource` | where the capability is evaluated: nowhere (public/authenticated), manager-wide, on the environment in the path or body, or on the individual resource (and, for lists, per item) |
-| `x-dockyard-idempotency` | `stored`, `job` | the operation honours `Idempotency-Key` ([conventions](conventions.md#retries-and-idempotency-keys)) |
-| `x-dockyard-audit` | an action key such as `stack.deploy` or `invitation.create` | every call is recorded in the audit trail under this action (every non-GET operation, and GET operations such as downloads and exports; #30, [audit](../architecture/audit.md)) |
+| `x-docker-manager-capability` | `public`, `authenticated`, `owner`, a key such as `container.restart`, or a selector such as `stack.{action}` | what the caller needs. `owner` surfaces (users, groups, invitations, security policy, credential administration) are never delegable (#16, #17). |
+| `x-docker-manager-capability-values` | list of keys | for a selector: the concrete capabilities; the request body picks one (e.g. `action: restart` needs `stack.restart`) |
+| `x-docker-manager-scope` | `none`, `instance`, `environment`, `resource` | where the capability is evaluated: nowhere (public/authenticated), manager-wide, on the environment in the path or body, or on the individual resource (and, for lists, per item) |
+| `x-docker-manager-idempotency` | `stored`, `job` | the operation honours `Idempotency-Key` ([conventions](conventions.md#retries-and-idempotency-keys)) |
+| `x-docker-manager-audit` | an action key such as `stack.deploy` or `invitation.create` | every call is recorded in the audit trail under this action (every non-GET operation, and GET operations such as downloads and exports; #30, [audit](../architecture/audit.md)) |
 
 Capability keys come from the permission catalog (`GET
 /api/v1/permission-catalog`, #17). A client can show or hide actions from

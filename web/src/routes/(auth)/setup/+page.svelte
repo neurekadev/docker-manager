@@ -57,11 +57,11 @@
 	}
 </script>
 
-<svelte:head><title>Set up DockYard</title></svelte:head>
+<svelte:head><title>Set up Docker Manager</title></svelte:head>
 
 <div class="stack">
 	<header>
-		<h1>Set up DockYard</h1>
+		<h1>Set up Docker Manager</h1>
 		<p class="lead">
 			Create the owner account. The owner can do everything and invites everyone else.
 		</p>
@@ -74,12 +74,12 @@
 			<Notice
 				tone="danger"
 				icon={ShieldAlert}
-				title="Finish setup on DockYard's public URL"
+				title="Finish setup on Docker Manager's public URL"
 				live="alert"
 			>
 				<p>
 					{status?.explanation ??
-						'This request did not reach DockYard over HTTPS on DOCKYARD_PUBLIC_URL.'}
+						'This request did not reach Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL.'}
 				</p>
 				<p class="hint">Fix the address or the proxy, then reload this page.</p>
 			</Notice>
@@ -92,7 +92,7 @@
 			<Notice
 				tone="danger"
 				icon={ShieldAlert}
-				title="Finish setup on DockYard's public URL"
+				title="Finish setup on Docker Manager's public URL"
 				live="alert"
 			>
 				{error.message}
@@ -124,7 +124,7 @@
 				<TextField
 					label="Email"
 					type="email"
-					description="Optional. DockYard sends no email."
+					description="Optional. Docker Manager sends no email."
 					bind:value={email}
 					autocomplete="email"
 					error={field('email')}
@@ -156,7 +156,7 @@
 			</fieldset>
 		</form>
 		<div class="import">
-			<p class="hint">Recovering an existing DockYard from its backups?</p>
+			<p class="hint">Recovering an existing Docker Manager from its backups?</p>
 			<Button href={routes.setupImport()} icon={DatabaseBackup} block disabled={insecure}
 				>Import from backup</Button
 			>

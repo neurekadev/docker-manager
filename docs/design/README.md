@@ -1,11 +1,11 @@
-# DockYard design system (#22)
+# Docker Manager design system (#22)
 
 The web UI's visual language and component library. The source is the #22
 mockup (stack detail "Silo", dark, wide desktop; attached to the issue only,
 never committed) and the design decisions in #25 Q8: **dark-only v1**, no
 "PRO" badge, and the narrow-layout rules below. Everything here is code in
 `web/src/lib/design` (tokens, hues) and `web/src/lib/ui` (components); the
-live gallery is **`/design`** in any running DockYard (public, sample data
+live gallery is **`/design`** in any running Docker Manager (public, sample data
 only).
 
 - [Principles](#principles)
@@ -154,7 +154,7 @@ everywhere; no all-caps labels, no tracked-out eyebrows.
 
 ```
 ┌────────────┬──────────────────────────────────────────────────────┐
-│ DockYard   │ ☰  homelab / Stacks / Silo   … [Search… ⌘K]  🔔 (U) │ 52 px
+│ Docker Manager   │ ☰  homelab / Stacks / Silo   … [Search… ⌘K]  🔔 (U) │ 52 px
 │ [Env ▾]    ├──────────────────────────────────────────────────────┤
 │ nav        │ page content, 24 px side padding                     │
 └────────────┴──────────────────────────────────────────────────────┘

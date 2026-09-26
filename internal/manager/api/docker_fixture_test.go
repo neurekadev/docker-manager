@@ -11,22 +11,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	agentres "github.com/neurekadev/dockyard/internal/agent/resources"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/authztest"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/observe"
-	"github.com/neurekadev/dockyard/internal/manager/resources"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/manager/store/storetest"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	agentres "code.neureka.dev/docker-manager/docker-manager/internal/agent/resources"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/observe"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/resources"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store/storetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // The Docker resource routes (#6) run here against the real manager
@@ -36,7 +36,7 @@ import (
 // that authorizes like the real one (the kind's capabilities on every
 // target). App-level tests with a real agent session: internal/manager/app.
 
-const stacksRoot = "/var/lib/docker/volumes/dockyard_stacks/_data"
+const stacksRoot = "/var/lib/docker/volumes/docker-manager_stacks/_data"
 
 // isDockerRoute reports whether a path is a Docker resource route of an
 // environment.
@@ -202,7 +202,7 @@ func (s stackIDs) StackIDs(_ context.Context, env string) (map[string]string, er
 
 // dockerFixture: env-1 ("NAS") and env-2 ("Cloud"), each with its own fake
 // Engine holding a container named "web" (different IDs), plus on env-1 a
-// DockYard-managed stack "shop" (web + db with volume and network), an
+// Docker Manager-managed stack "shop" (web + db with volume and network), an
 // unused volume and network, and a standalone "db" container.
 type dockerFixture struct {
 	t       *testing.T

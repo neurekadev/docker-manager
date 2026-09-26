@@ -33,9 +33,9 @@ export function stackIcon(s: Pick<Stack, 'icon'>): { icon: string; color: TileCo
 }
 
 /**
- * The status shown in badges: the live Engine state when DockYard last
+ * The status shown in badges: the live Engine state when Docker Manager last
  * deployed the stack (running, partial, stopped, not running), otherwise
- * what DockYard last did (failed deploy, down, not deployed).
+ * what Docker Manager last did (failed deploy, down, not deployed).
  */
 export function stackStatus(s: Pick<Stack, 'status' | 'engine'>): string {
 	switch (s.status) {
@@ -89,7 +89,7 @@ export function statusSummary(s: Pick<Stack, 'status' | 'engine' | 'services'>):
 		case 'failed':
 			return 'The last deploy failed';
 		case 'undeployed':
-			return 'Never deployed by DockYard';
+			return 'Never deployed by Docker Manager';
 		case 'down':
 			return 'Containers and networks removed';
 		case 'stopped':
@@ -368,7 +368,7 @@ const FINDING_TITLES: Record<string, string> = {
 	containers_running: 'Containers still running',
 	device_mapping: 'Device mapping',
 	directory_conflict: 'Project directory exists',
-	dockyard_resource: "DockYard's own resource",
+	docker_manager_resource: "Docker Manager's own resource",
 	environment_offline: 'Environment offline',
 	external_bind_path: 'Bind path outside the project',
 	external_network_missing: 'External network missing',

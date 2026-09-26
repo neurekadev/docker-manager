@@ -137,7 +137,7 @@ type ScheduleDefault struct {
 	Kind  string
 	Label string
 	Cron  string
-	// Suggested is DockYard's shipped suggestion.
+	// Suggested is Docker Manager's shipped suggestion.
 	Suggested string
 	CatchUp   ScheduleCatchUp
 }

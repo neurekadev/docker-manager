@@ -55,11 +55,11 @@
 	}
 </script>
 
-<svelte:head><title>Accept invitation · DockYard</title></svelte:head>
+<svelte:head><title>Accept invitation · Docker Manager</title></svelte:head>
 
 <div class="stack">
 	<header>
-		<h1>Join DockYard</h1>
+		<h1>Join Docker Manager</h1>
 		<p class="lead">Create your account. The owner decides what you can see and do.</p>
 	</header>
 

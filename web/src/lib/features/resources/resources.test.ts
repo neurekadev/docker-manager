@@ -1,6 +1,6 @@
 // Components of the resource pages (#6, #32): refusals are shown with the
 // server's reason, removals list their consequences or blockers, and
-// DockYard's own objects are marked.
+// Docker Manager's own objects are marked.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
@@ -14,14 +14,14 @@ const setup = () => userEvent.setup({ pointerEventsCheck: 0 });
 
 const agentProtection = {
 	role: 'agent' as const,
-	reason: 'the DockYard agent connected to this environment: stopping or removing it cuts DockYard off from this host',
+	reason: 'the Docker Agent connected to this environment: stopping or removing it cuts Docker Manager off from this host',
 	self: true,
 	restartAllowed: false
 };
 
 const agent: Container = {
 	id: 'c1',
-	name: 'dockyard-agent',
+	name: 'docker-agent',
 	environmentId: 'e1',
 	state: 'running',
 	view: 'full',
@@ -38,12 +38,12 @@ function json(status: number, body: unknown) {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe('container actions on DockYard itself (#32)', () => {
+describe('container actions on Docker Manager itself (#32)', () => {
 	it('shows the refusal of stopping the connected agent with the reason', async () => {
 		const fetch = vi.fn(async () =>
 			json(409, {
 				code: 'protected',
-				message: `refused to stop a protected DockYard resource: ${agentProtection.reason}`,
+				message: `refused to stop a protected Docker Manager resource: ${agentProtection.reason}`,
 				requestId: 'r1',
 				retryable: false,
 				details: []
@@ -53,14 +53,16 @@ describe('container actions on DockYard itself (#32)', () => {
 		const user = setup();
 		render(ActionHostHarness, { props: { container: agent, verb: 'stop' } });
 		await user.click(screen.getByRole('button', { name: 'Request stop' }));
-		const dialog = await screen.findByRole('alertdialog', { name: 'Stop dockyard-agent?' });
+		const dialog = await screen.findByRole('alertdialog', { name: 'Stop docker-agent?' });
 		await user.click(within(dialog).getByRole('button', { name: 'Stop container' }));
 		const alert = await within(dialog).findByRole('alert');
-		expect(alert).toHaveTextContent("DockYard's own agent can't be stopped from DockYard.");
-		expect(alert).toHaveTextContent('cuts DockYard off from this host');
+		expect(alert).toHaveTextContent(
+			"Docker Manager's own agent can't be stopped from Docker Manager."
+		);
+		expect(alert).toHaveTextContent('cuts Docker Manager off from this host');
 		const req = fetch.mock.calls[0] as unknown as [Request];
 		expect(new URL(req[0].url).pathname).toBe(
-			'/api/v1/environments/e1/containers/dockyard-agent/stop'
+			'/api/v1/environments/e1/containers/docker-agent/stop'
 		);
 	});
 
@@ -76,7 +78,7 @@ describe('container actions on DockYard itself (#32)', () => {
 							blockers: [
 								{
 									code: 'protected',
-									message: `DockYard's own resource: ${agentProtection.reason}`
+									message: `Docker Manager's own resource: ${agentProtection.reason}`
 								}
 							],
 							consequences: [
@@ -91,9 +93,9 @@ describe('container actions on DockYard itself (#32)', () => {
 		render(ActionHostHarness, { props: { container: agent, verb: 'remove' } });
 		await user.click(screen.getByRole('button', { name: 'Request remove' }));
 		const dialog = await screen.findByRole('alertdialog', {
-			name: "dockyard-agent can't be removed"
+			name: "docker-agent can't be removed"
 		});
-		expect(dialog).toHaveTextContent('cuts DockYard off from this host');
+		expect(dialog).toHaveTextContent('cuts Docker Manager off from this host');
 		expect(dialog).toHaveTextContent('use Docker on the host');
 		expect(within(dialog).queryByRole('button', { name: /Remove/ })).toBeNull();
 	});
@@ -156,10 +158,10 @@ describe('RemovalDialog (#6 deletion consequences)', () => {
 });
 
 describe('marks and notices', () => {
-	it('marks DockYard system resources with the reason for assistive technology', () => {
+	it('marks Docker Manager system resources with the reason for assistive technology', () => {
 		render(ProtectionBadge, { props: { protection: agentProtection } });
-		expect(screen.getByText(/DockYard system/)).toHaveTextContent(
-			'DockYard system: the DockYard agent connected to this environment'
+		expect(screen.getByText(/Docker Manager system/)).toHaveTextContent(
+			'Docker Manager system: the Docker Agent connected to this environment'
 		);
 	});
 

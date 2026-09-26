@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/manager/authz/authztest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
 )
 
 // GET /search (#4, #22): every hit is filtered like the resource's own

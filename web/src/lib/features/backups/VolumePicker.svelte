@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Standalone named volumes of one environment for a backup policy (#10):
-	// volumes that belong to no stack. DockYard's own volumes are never
+	// volumes that belong to no stack. Docker Manager's own volumes are never
 	// offered (#32); stack volumes are chosen with their stack.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { Checkbox } from '$lib/ui';

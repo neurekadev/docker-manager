@@ -339,7 +339,7 @@
 				icon={User}
 				color="blue"
 				description={u.owner
-					? 'The owner of this DockYard: every permission, always.'
+					? 'The owner of this Docker Manager: every permission, always.'
 					: `Member of ${group?.name ?? 'a group'}.`}
 				meta={[{ label: u.username, mono: true }, ...(u.email ? [{ label: u.email }] : [])]}
 			>
@@ -555,12 +555,12 @@
 					<SecretReveal
 						secret={resetLink.url}
 						label="password reset link"
-						filename="dockyard-password-reset.txt"
+						filename="docker-manager-password-reset.txt"
 						description="Send it to {displayName(
 							u
 						)}. It works once and expires {formatDateTime(
 							resetLink.expiresAt
-						)}. DockYard cannot show it again."
+						)}. Docker Manager cannot show it again."
 						confirmLabel="Done"
 						onconfirm={() => {
 							resetLink = null;

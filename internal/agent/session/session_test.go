@@ -8,8 +8,8 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 func TestBackoffFullJitter(t *testing.T) {

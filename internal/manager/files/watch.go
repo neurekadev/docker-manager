@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/agents"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // The manager side of the scoped file watcher (#23): Watcher decides what

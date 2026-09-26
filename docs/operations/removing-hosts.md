@@ -32,7 +32,7 @@ or `replace:<agentId>` while the old agent is still active.
    listed to the owner only. The preview also offers **migrating** the
    host's stacks and volumes first (#35: `POST
    /api/v1/stacks/{stackId}/migration-previews`, `…/migrations`, and the
-   volume equivalents) so they keep running under DockYard elsewhere.
+   volume equivalents) so they keep running under Docker Manager elsewhere.
 
 2. **Archive** — `DELETE /api/v1/environments/{environmentId}` with
    `If-Match` (`environment.remove`, the only removal in v1). The host
@@ -42,7 +42,7 @@ or `replace:<agentId>` while the old agent is still active.
    permission rules scoped to it are removed in the same transaction (the
    affected users' streams end). History, audit records, stacks, policies,
    backup repositories, sets and snapshots are kept. Rules on stacks and
-   policies (DockYard IDs) stay with those records.
+   policies (Docker Manager IDs) stay with those records.
 
 ## Re-attach an archived environment
 
@@ -51,8 +51,8 @@ Enroll an agent for the **same Docker Engine** with an enrollment of intent
 confirmation, #25):
 
 ```bash
-docker compose exec -T dockyard-manager dockyard-manager enrollment create -intent reattach:<environmentId>
-printf '%s\n' "$TOKEN" | docker compose exec -T dockyard-agent dockyard-agent enroll
+docker compose exec -T docker-manager docker-manager enrollment create -intent reattach:<environmentId>
+printf '%s\n' "$TOKEN" | docker compose exec -T docker-agent docker-agent enroll
 ```
 
 (or `POST /api/v1/agent-enrollments {"intent": "reattach:<environmentId>"}`).

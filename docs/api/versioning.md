@@ -4,11 +4,11 @@
 
 - The public API version is the path prefix: `/api/v1`. `info.version` in
   the OpenAPI document is `v1`. There is no per-request version header.
-- DockYard ships only rolling `edge` images from `main` (#25); there are no
+- Docker Manager ships only rolling `edge` images from `main` (#25); there are no
   semver releases or tags. The web UI is built from the same commit as the
   manager, so it always matches. **External clients** (API tokens, #31) are
   why the contract must not break silently.
-- The agent protocol `dockyard.agent/v1` is versioned separately; its rules
+- The agent protocol `docker-manager.agent/v1` is versioned separately; its rules
   and the N-1 agent window are in [agent-v1.md](../protocol/agent-v1.md#version-window-34).
 
 ## Compatible changes (allowed any time)
@@ -35,7 +35,7 @@ Anything that can break an existing, correct client, for example:
 - removing a response member or making it optional;
 - changing authentication requirements of an existing operation.
 
-Changes to `x-dockyard-capability` or `x-dockyard-scope` are authorization
+Changes to `x-docker-manager-capability` or `x-docker-manager-scope` are authorization
 changes: they are visible in review through the route inventory
 (`TestRouteInventory` requires the inventory to change with them) and must
 be agreed with #17.

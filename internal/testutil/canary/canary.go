@@ -185,7 +185,7 @@ func Generate(kind Kind) string {
 		// RFC 4648 base32, 32 characters (160 bits) like typical TOTP seeds.
 		return "CANARY" + randBase32(26)
 	case RecoveryKey:
-		// Shaped like a DockYard Recovery Key (#10): grouped base32.
+		// Shaped like a Docker Manager Recovery Key (#10): grouped base32.
 		return "DYRK-CANARY-" + randBase32(4) + "-" + randBase32(4) + "-" + randBase32(4) + "-" + randBase32(4)
 	}
 	return "canary-" + string(kind) + "-" + randHex(12)

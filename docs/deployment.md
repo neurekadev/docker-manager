@@ -1,6 +1,6 @@
 # Deployment topology
 
-How DockYard runs behind an operator-managed reverse proxy on **one public
+How Docker Manager runs behind an operator-managed reverse proxy on **one public
 origin** (#27), how agents connect, and a complete two-environment example.
 Configuration reference: [configuration.md](configuration.md). The
 ready-to-run examples live in [`deploy/`](../deploy/README.md).
@@ -10,7 +10,7 @@ ready-to-run examples live in [`deploy/`](../deploy/README.md).
 ```
                           https://docker.example.com
  browsers (PWA) ─┐   ┌──────────────────────────────┐         ┌──────────────────────┐
- API clients ────┼──▶│ reverse proxy (TLS, HTTP/2)  │──http──▶│ dockyard-manager     │
+ API clients ────┼──▶│ reverse proxy (TLS, HTTP/2)  │──http──▶│ docker-manager     │
  remote agents ──┘   │ Caddy / Traefik / nginx      │  :8080  │ /        PWA         │
    (dial out)        └──────────────────────────────┘         │ /api/v1  API, SSE    │
                                                      ┌──http─▶│ /agent/v1 agents (WS)│
@@ -19,7 +19,7 @@ ready-to-run examples live in [`deploy/`](../deploy/README.md).
 
 - The manager serves plain HTTP on one listener (`:8080`). It never
   terminates TLS; your proxy does, with one route that forwards everything.
-- `DOCKYARD_PUBLIC_URL` is that origin (`https://…`, no path). It defines
+- `DOCKER_MANAGER_PUBLIC_URL` is that origin (`https://…`, no path). It defines
   the passkey RP ID, cookie scope, Origin checks, the PWA scope and the URL in
   agent install commands. Changing the host name later invalidates passkeys
   (#16).
@@ -38,22 +38,22 @@ check each row.
 | WebSocket upgrades | agent sessions, container exec | automatic | automatic | `Upgrade`/`Connection` headers |
 | No response buffering for streams | SSE must arrive as written | `flush_interval -1` (and automatic for `text/event-stream`) | automatic | the manager sends `X-Accel-Buffering: no` on every stream; keep `proxy_buffering` on for the rest |
 | Idle/read timeout above the heartbeat | quiet streams must not be cut | `read_timeout 60s` | entry point `readTimeout=0s` (see below) | `proxy_read_timeout 60s` |
-| Pass the `Host` header (with port) | Origin/WebSocket checks against `DOCKYARD_PUBLIC_URL` | default | `passHostHeader: true` | `Host $http_host` |
+| Pass the `Host` header (with port) | Origin/WebSocket checks against `DOCKER_MANAGER_PUBLIC_URL` | default | `passHostHeader: true` | `Host $http_host` |
 | Set `X-Forwarded-For/Proto/Host`, overwrite client values | client IP, https detection | default (client values ignored) | default (untrusted client values replaced) | `$remote_addr` (replaced, not appended), `$scheme`, `$http_host` |
-| Body size ≥ the manager's maximum upload/archive size (#15) | uploads, archives, restores | `request_body max_size` (`DOCKYARD_MAX_BODY_SIZE`, 1GB) | no limit by default | `client_max_body_size` (`DOCKYARD_MAX_BODY_SIZE`, 1024m); `proxy_request_buffering off` streams uploads |
-| Proxy address trusted by the manager | forwarded headers are honored only from `DOCKYARD_TRUSTED_PROXIES` | Docker's default address pools (below) | same | same |
+| Body size ≥ the manager's maximum upload/archive size (#15) | uploads, archives, restores | `request_body max_size` (`DOCKER_MANAGER_MAX_BODY_SIZE`, 1GB) | no limit by default | `client_max_body_size` (`DOCKER_MANAGER_MAX_BODY_SIZE`, 1024m); `proxy_request_buffering off` streams uploads |
+| Proxy address trusted by the manager | forwarded headers are honored only from `DOCKER_MANAGER_TRUSTED_PROXIES` | Docker's default address pools (below) | same | same |
 
 ### Trusted proxies
 
 The manager honors `X-Forwarded-For`, `X-Forwarded-Proto`,
 `X-Forwarded-Host` and an inbound `X-Request-ID` only when the TCP peer is
-listed in `DOCKYARD_TRUSTED_PROXIES`; from anyone else they are ignored,
+listed in `DOCKER_MANAGER_TRUSTED_PROXIES`; from anyone else they are ignored,
 and they are removed from every request before a handler sees it. The
 client IP is the rightmost `X-Forwarded-For` entry that is not itself a
 trusted proxy, so addresses a client prepends are never used.
 
-The examples put the proxy and the manager on the `dockyard` network
-without a fixed address or subnet and default `DOCKYARD_TRUSTED_PROXIES` to
+The examples put the proxy and the manager on the `docker-manager` network
+without a fixed address or subnet and default `DOCKER_MANAGER_TRUSTED_PROXIES` to
 Docker's default address pools, `172.16.0.0/12,192.168.0.0/16`: whatever
 address Docker gives the proxy lies in them. Override it in `.env`:
 
@@ -61,12 +61,12 @@ address Docker gives the proxy lies in them. Override it in `.env`:
   can then set forwarded headers (fake its client IP for rate limits and
   audit, claim https), and so can processes on the host itself (they reach
   the container through the network's gateway address). In the examples
-  the manager publishes no port and its only network, `dockyard`, holds
-  DockYard and its proxy alone. If other, untrusted containers join it, or
+  the manager publishes no port and its only network, `docker-manager`, holds
+  Docker Manager and its proxy alone. If other, untrusted containers join it, or
   you attach the manager to a network shared with other applications (an
   existing proxy's network, for example), narrow the value to the proxy's
-  network or address, e.g. the `dockyard` subnet (`docker network inspect
-  dockyard -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}'`).
+  network or address, e.g. the `docker-manager` subnet (`docker network inspect
+  docker-manager -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}'`).
 - If your Engine allocates networks from other `default-address-pools`
   (`daemon.json`), list those ranges instead.
 - Clients whose own address lies in these ranges (a LAN in
@@ -76,7 +76,7 @@ address Docker gives the proxy lies in them. Override it in `.env`:
   load balancer) in front, forward its chain
   (`$proxy_add_x_forwarded_for`) and trust its addresses as well.
 
-Without the right `DOCKYARD_TRUSTED_PROXIES` the manager sees every request
+Without the right `DOCKER_MANAGER_TRUSTED_PROXIES` the manager sees every request
 as plain HTTP from the proxy's address: rate limits then apply to all
 clients together, audit entries show the proxy, and first-run setup is
 refused (below).
@@ -84,10 +84,10 @@ refused (below).
 ### Timeouts and heartbeats
 
 The manager sends an SSE `: heartbeat` comment and a WebSocket ping every
-`DOCKYARD_STREAM_HEARTBEAT` (default 15 s, at most 55 s). Proxy idle/read
+`DOCKER_MANAGER_STREAM_HEARTBEAT` (default 15 s, at most 55 s). Proxy idle/read
 timeouts must be comfortably longer; 60 s (nginx's default) is fine.
 
-- **nginx:** `proxy_read_timeout`/`proxy_send_timeout` (`DOCKYARD_PROXY_READ_TIMEOUT`,
+- **nginx:** `proxy_read_timeout`/`proxy_send_timeout` (`DOCKER_MANAGER_PROXY_READ_TIMEOUT`,
   60 s). They also bound idle WebSockets; pings keep them alive.
 - **Caddy:** `transport http { read_timeout }` (same variable, 60 s). Caddy
   has no default; the example sets one so a dead manager is noticed.
@@ -115,8 +115,8 @@ bodies and frames, and times out unauthenticated requests. If your agents
 connect from known networks you can also allow only those at the proxy:
 
 - Caddy: uncomment the `@agent_blocked` matcher in `deploy/caddy/Caddyfile`.
-- Traefik: uncomment the `dockyard-agent-endpoint` router and the
-  `agent-allowlist` `ipAllowList` middleware in `deploy/traefik/dynamic/dockyard.yml`.
+- Traefik: uncomment the `docker-agent-endpoint` router and the
+  `agent-allowlist` `ipAllowList` middleware in `deploy/traefik/dynamic/docker-manager.yml`.
 - nginx: add a `location /agent/v1/` block with `allow …; deny all;` and the
   same proxy settings as `location /`.
 
@@ -135,10 +135,10 @@ diagnostics (logs and request IDs, health, metrics, support bundle) in
 
 ## Agents
 
-| Agent | `DOCKYARD_MANAGER_URL` | Notes |
+| Agent | `DOCKER_AGENT_MANAGER_URL` | Notes |
 | --- | --- | --- |
-| co-located (same Docker network as the manager) | `http://dockyard-manager:8080` | requires `DOCKYARD_MANAGER_ALLOW_HTTP=true`; skips the proxy; reported as a plain-HTTP connection and flagged on the host page |
-| remote (any other host) | the public origin, `https://docker.example.com` | certificate validated against the system roots plus `DOCKYARD_MANAGER_CA_FILE` (private PKI); never use plain HTTP across networks |
+| co-located (same Docker network as the manager) | `http://docker-manager:8080` | requires `DOCKER_AGENT_MANAGER_ALLOW_HTTP=true`; skips the proxy; reported as a plain-HTTP connection and flagged on the host page |
+| remote (any other host) | the public origin, `https://docker.example.com` | certificate validated against the system roots plus `DOCKER_AGENT_MANAGER_CA_FILE` (private PKI); never use plain HTTP across networks |
 
 The agent always dials out; it opens no port. It never follows redirects
 from the manager (so tokens cannot be forwarded to another origin or
@@ -156,14 +156,14 @@ Docker Engine resolves a stack's relative bind mounts (`./data`),
 `env_file` entries and build contexts on the **host**. The agent runs in a
 container, so it must see those files at the same paths:
 
-- Stacks live in the named volume `dockyard_stacks` (one directory per
-  stack; `DOCKYARD_STACKS_VOLUME` selects another local volume).
+- Stacks live in the named volume `docker-manager_stacks` (one directory per
+  stack; `DOCKER_AGENT_STACKS_VOLUME` selects another local volume).
 - The agent mounts Docker's volume directory at its identical path:
   `/var/lib/docker/volumes:/var/lib/docker/volumes`, plus the stacks volume
   at its own mountpoint (every example in `deploy/` does this). No other
-  host paths are needed; DockYard's own state lives in named volumes.
+  host paths are needed; Docker Manager's own state lives in named volumes.
 - Extra host directories with stacks (e.g. `/opt/stacks`) can be registered
-  with `DOCKYARD_STACK_ROOTS=/opt/stacks` and must be bind-mounted at the
+  with `DOCKER_AGENT_STACK_ROOTS=/opt/stacks` and must be bind-mounted at the
   identical path (`/opt/stacks:/opt/stacks`).
 
 At startup (and whenever the Engine comes back) the agent **verifies**
@@ -182,8 +182,8 @@ else (containers, images, logs, …) keeps working.
 | `storage_path_mismatch` | mounted, but from a different host path | use the identical path on both sides |
 | `storage_read_only` / `storage_not_writable` | read-only mount, or the agent is not root | read-write mount; the agent runs as UID 0 |
 | `storage_path_not_visible` | the directory does not exist inside the agent | check the mount |
-| `storage_stacks_volume_missing` / `storage_stacks_volume_not_local` | the stacks volume does not exist / is not a local volume | declare it with the local driver (the examples' `stacks` volume in the project `dockyard` is `dockyard_stacks`) |
-| `storage_root_mismatch` | a `DOCKYARD_STACK_ROOTS` entry is not mounted at its identical path (only that root is refused) | bind-mount it at the same path |
+| `storage_stacks_volume_missing` / `storage_stacks_volume_not_local` | the stacks volume does not exist / is not a local volume | declare it with the local driver (the examples' `stacks` volume in the project `docker-manager` is `docker-manager_stacks`) |
+| `storage_root_mismatch` | a `DOCKER_AGENT_STACK_ROOTS` entry is not mounted at its identical path (only that root is refused) | bind-mount it at the same path |
 | `storage_self_unknown` | the agent cannot identify its own container | do not override the agent's `hostname` |
 | `storage_rootless_engine` / `storage_docker_desktop` | unsupported Engines ([support matrix](support-matrix.md)) | use a rootful Linux Engine |
 
@@ -196,7 +196,7 @@ your data root.
 which the default container policy denies. On enforcing hosts run the agent
 with `security_opt: ["label=disable"]` instead of relabeling: do **not** add
 `:z`/`:Z` to `/var/lib/docker/volumes` (it would relabel every volume on the
-host) or to the socket. Stack roots from `DOCKYARD_STACK_ROOTS` that stack
+host) or to the socket. Stack roots from `DOCKER_AGENT_STACK_ROOTS` that stack
 containers also bind-mount can use the shared label (`/opt/stacks:/opt/stacks:z`)
 so both the agent and the stack containers may read them; never use the
 private `:Z` label there.
@@ -212,41 +212,41 @@ directory (or only while mounted); v1 lists them read-only with the reason
 and excludes them from file browsing, watching and backup
 ([support matrix](support-matrix.md)).
 
-## DockYard's own containers (#32)
+## Docker Manager's own containers (#32)
 
-DockYard protects itself: through its UI, API, API tokens, policies and
+Docker Manager protects itself: through its UI, API, API tokens, policies and
 jobs it never stops, pauses, updates or removes the connected agent, never
 stops or removes the manager (a restart needs an explicit confirmation),
 never removes the manager data, agent state or stacks volumes or the images
-DockYard runs, and leaves them out of prune, update, backup-shutdown and
+Docker Manager runs, and leaves them out of prune, update, backup-shutdown and
 bulk selections. The instance owner cannot override this; use Docker on the
 host if you really must.
 
 The agent finds its own container by itself. The co-located manager is
 found by its container ID, which the manager reports to its agents; keep the
-`dev.neureka.dockyard.role: manager` / `agent` labels of the deploy
+`dev.neureka.docker-manager.role: manager` / `agent` labels of the deploy
 examples on your containers too, so both are also recognized when that
 detection is not possible (custom setups, other installations on the same
-host). Every other container of DockYard's own Compose project (for example
+host). Every other container of Docker Manager's own Compose project (for example
 the reverse proxy of the examples) is protected with them. Details:
 [architecture/self-protection.md](architecture/self-protection.md).
 
 ## First-run setup over HTTPS
 
 Creating the owner account (#16) needs a secure context. The manager refuses
-to complete setup unless the request reached `DOCKYARD_PUBLIC_URL` over
+to complete setup unless the request reached `DOCKER_MANAGER_PUBLIC_URL` over
 HTTPS: directly over TLS or, behind a proxy, with `X-Forwarded-Proto: https`
 from a trusted proxy, and addressed to the public host. The error explains
 what is wrong, for example:
 
 - you opened the manager's internal address (`http://server:8080`) instead
   of the public origin;
-- the proxy is not in `DOCKYARD_TRUSTED_PROXIES`, so the manager cannot see
+- the proxy is not in `DOCKER_MANAGER_TRUSTED_PROXIES`, so the manager cannot see
   that the browser used HTTPS;
-- `DOCKYARD_PUBLIC_URL` is not https.
+- `DOCKER_MANAGER_PUBLIC_URL` is not https.
 
 The only exception is local development: with
-`DOCKYARD_PUBLIC_URL=http://localhost:<port>` (or `127.0.0.1`/`[::1]`) the
+`DOCKER_MANAGER_PUBLIC_URL=http://localhost:<port>` (or `127.0.0.1`/`[::1]`) the
 manager runs in its explicit localhost development mode and accepts plain
 HTTP requests addressed to that host. Never expose such an instance to a
 network. (The check is `requestinfo.CheckSecureOrigin`.)
@@ -272,15 +272,15 @@ finish).
   grace period only an owner factor or password reset helps. The owner has
   no deadline and is never locked out.
 - **Sessions** end after 1 h of inactivity and 24 h at most
-  (`DOCKYARD_SESSION_IDLE_TIMEOUT`, `DOCKYARD_SESSION_LIFETIME`); disabling
+  (`DOCKER_MANAGER_SESSION_IDLE_TIMEOUT`, `DOCKER_MANAGER_SESSION_LIFETIME`); disabling
   a user, a factor or password reset, and "sign out everywhere" end the
   user's sessions and open live streams immediately.
 - **Lost factors:** a user completes a password sign-in with one of their
   ten one-time recovery codes, or asks the owner for a factor reset (TOTP,
   passkeys and recovery codes removed; sign in with the password and enroll
   again) or a password reset link.
-- **Passkeys** are bound to the host name of `DOCKYARD_PUBLIC_URL`. Moving
-  DockYard to another host name makes existing passkeys unusable: users
+- **Passkeys** are bound to the host name of `DOCKER_MANAGER_PUBLIC_URL`. Moving
+  Docker Manager to another host name makes existing passkeys unusable: users
   sign in with password (+ TOTP or a recovery code) and register new
   passkeys, or the owner resets their factors.
 
@@ -289,7 +289,7 @@ finish).
 If the owner lost their password or factors, run on the manager's host:
 
 ```sh
-docker exec dockyard-manager dockyard-manager owner-recovery
+docker exec docker-manager docker-manager owner-recovery
 ```
 
 It prints a one-time owner-recovery code and link (valid 1 hour), signs the
@@ -307,11 +307,11 @@ Two Docker hosts, each one Environment:
 - **host A** runs the manager, the proxy and a co-located agent;
 - **host B** runs only an agent that connects through the public origin.
 
-Everything DockYard stores lives in named volumes: `dockyard_data`
-(manager database, snapshots, secret key), `dockyard_agent` (agent
-credential and job journal) and `dockyard_stacks` (stack project
+Everything Docker Manager stores lives in named volumes: `docker-manager_data`
+(manager database, snapshots, secret key), `docker-manager_agent` (agent
+credential and job journal) and `docker-manager_stacks` (stack project
 directories), declared as `data`, `agent` and `stacks` in the Compose
-project `dockyard` of every example (remote agents included). The only
+project `docker-manager` of every example (remote agents included). The only
 host paths are the Docker socket and Docker's volume directory, mounted at
 the **identical path** (`/var/lib/docker/volumes`) so stack and volume
 paths mean the same inside the agent and on the Engine (#28).
@@ -321,8 +321,8 @@ paths mean the same inside the agent and on the Engine (#28).
 ```bash
 cd deploy/caddy                 # or deploy/traefik, deploy/nginx
 cp .env.example .env
-# .env: DOCKYARD_HOST=docker.example.com
-#       DOCKYARD_TLS=admin@example.com       (Caddy ACME; see the example for other modes)
+# .env: DOCKER_MANAGER_HOST=docker.example.com
+#       DOCKER_MANAGER_TLS=admin@example.com       (Caddy ACME; see the example for other modes)
 docker compose up -d
 docker compose ps               # manager, agent and proxy healthy/running
 ```
@@ -333,13 +333,13 @@ hand it to the running agent on stdin — it never appears in a URL, a
 process list or the container configuration:
 
 ```bash
-docker compose exec -T dockyard-manager dockyard-manager enrollment create -name host-a
+docker compose exec -T docker-manager docker-manager enrollment create -name host-a
 # prints the token (shown once) and the install commands
-printf '%s\n' "$TOKEN" | docker compose exec -T dockyard-agent dockyard-agent enroll
+printf '%s\n' "$TOKEN" | docker compose exec -T docker-agent docker-agent enroll
 # enrolled: agent …, environment …; the environment is online
 ```
 
-(Putting the token into `.env` as `DOCKYARD_ENROLLMENT_TOKEN` and running
+(Putting the token into `.env` as `DOCKER_AGENT_ENROLLMENT_TOKEN` and running
 `docker compose up -d` works as well; remove it again afterwards.)
 
 **Host B:**
@@ -347,9 +347,9 @@ printf '%s\n' "$TOKEN" | docker compose exec -T dockyard-agent dockyard-agent en
 ```bash
 cd deploy/remote-agent
 cp .env.example .env
-# .env: DOCKYARD_MANAGER_URL=https://docker.example.com
-#       DOCKYARD_ENROLLMENT_TOKEN=<token created on host A>
-#       DOCKYARD_ENVIRONMENT_NAME=host-b
+# .env: DOCKER_AGENT_MANAGER_URL=https://docker.example.com
+#       DOCKER_AGENT_ENROLLMENT_TOKEN=<token created on host A>
+#       DOCKER_AGENT_ENVIRONMENT_NAME=host-b
 docker compose up -d
 ```
 
@@ -364,14 +364,14 @@ Docker socket (and the volume directory, #28) to manage the host, and
 anyone who controls the agent — or its credential and the manager — can
 run anything on that host. Protect the manager like root on every enrolled
 host: restrict who can reach `/agent/v1` (optionally allowlist agent IPs at
-the proxy), keep `DOCKYARD_MANAGER_ALLOW_HTTP` to the internal network,
+the proxy), keep `DOCKER_AGENT_MANAGER_ALLOW_HTTP` to the internal network,
 remove agents you no longer use (their credential stops working at once)
 and rotate agent credentials if you suspect exposure. See Docker's
 [daemon attack surface](https://docs.docker.com/engine/security/#docker-daemon-attack-surface)
 and [protect daemon access](https://docs.docker.com/engine/security/protect-access/).
 
-For a private PKI, copy the CA bundle into the `dockyard_agent_ca` volume
-and set `DOCKYARD_MANAGER_CA_FILE=/etc/dockyard/ca/ca.pem` (see the comment
+For a private PKI, copy the CA bundle into the `docker-manager_agent_ca` volume
+and set `DOCKER_AGENT_MANAGER_CA_FILE=/etc/docker-manager/ca/ca.pem` (see the comment
 in `deploy/remote-agent/compose.yaml`).
 
 Both environments then appear (`GET /api/v1/environments`, and in the UI
@@ -398,7 +398,7 @@ with #22); host A's agent is marked as using the internal plain-HTTP URL
   the one SSE implementation; Huma operations use its adapter
   `api.StartSSE`; `internal/manager/server/ws` (`Accept`, bounded read
   limit, `KeepAlive` pings) for every WebSocket. Both use
-  `DOCKYARD_STREAM_HEARTBEAT`.
+  `DOCKER_MANAGER_STREAM_HEARTBEAT`.
 - Agent side: `internal/agent/transport` builds the HTTP/WebSocket client
   (TLS roots, CA bundle, no redirects) and `protocol.TransportInfo`, which
   the session reports in the capabilities (`internal/agent/session`).

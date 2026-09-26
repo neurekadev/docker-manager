@@ -3,7 +3,7 @@ package engine
 import (
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
 )
 
 // Domain-neutral types of the adapter. They carry no SDK types, so code

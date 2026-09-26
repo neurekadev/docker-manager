@@ -56,7 +56,7 @@ describe('unwrap', () => {
 		).resolves.toBeUndefined();
 	});
 
-	it('throws the DockYard error shape', async () => {
+	it('throws the Docker Manager error shape', async () => {
 		const f = fakeFetch(503, apiError, 'application/problem+json');
 		const err = await unwrap(createApiClient(f.impl, base).GET('/api/v1/health')).catch(
 			(e) => e
@@ -66,7 +66,7 @@ describe('unwrap', () => {
 		expect(err.network).toBe(false);
 	});
 
-	it('falls back to the HTTP status for non-DockYard error bodies', async () => {
+	it('falls back to the HTTP status for non-Docker Manager error bodies', async () => {
 		const f = fakeFetch(502, { oops: true });
 		const err = await unwrap(createApiClient(f.impl, base).GET('/api/v1/health')).catch(
 			(e) => e

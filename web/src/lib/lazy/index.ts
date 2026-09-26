@@ -5,7 +5,7 @@
 // (scripts/verify-build.mjs) fails if any of them lands in a statically
 // imported chunk. Views import these helpers (or the $lib/ui wrappers
 // CodeEditor, Sparkline, TerminalView), never the libraries. Every mount
-// applies DockYard's theme (#22): ./codemirror-theme.ts, ./echarts-theme.ts,
+// applies Docker Manager's theme (#22): ./codemirror-theme.ts, ./echarts-theme.ts,
 // TERMINAL_THEME in ./palette.ts.
 import type { StreamParser } from '@codemirror/language';
 import type { Extension } from '@codemirror/state';
@@ -106,7 +106,7 @@ async function languageSupport(language: EditorLanguage): Promise<Extension> {
 /**
  * CodeMirror 6 for the file editor (#15): line numbers, undo/redo, search
  * and replace (Mod-f, or openSearch()), bracket matching, the language's
- * highlighting, DockYard's theme. Tab keeps moving focus (no tab trap).
+ * highlighting, Docker Manager's theme. Tab keeps moving focus (no tab trap).
  */
 export async function mountCodeEditor(
 	parent: HTMLElement,
@@ -126,7 +126,7 @@ export async function mountCodeEditor(
 	const extensions = [
 		basicSetup,
 		language.of(lang),
-		theme.dockyardEditorTheme,
+		theme.dockerManagerEditorTheme,
 		readOnly.of(EditorState.readOnly.of(!!opts.readOnly)),
 		EditorView.contentAttributes.of({ 'aria-label': opts.label ?? 'Editor' }),
 		EditorView.updateListener.of((u) => {
@@ -234,8 +234,8 @@ export async function mountLineChart(
 	points: SeriesPoint[],
 	unit = ''
 ): Promise<LineChart> {
-	const { init, DOCKYARD_ECHARTS_THEME } = await import('./echarts');
-	const chart = init(el, DOCKYARD_ECHARTS_THEME, { renderer: 'canvas' });
+	const { init, DOCKER_MANAGER_ECHARTS_THEME } = await import('./echarts');
+	const chart = init(el, DOCKER_MANAGER_ECHARTS_THEME, { renderer: 'canvas' });
 	chart.setOption(lineOption([{ name, points }], unit));
 	return {
 		destroy: () => chart.dispose(),
@@ -320,8 +320,8 @@ export async function mountTimeSeries(
 	el: HTMLElement,
 	opts: TimeSeriesOptions
 ): Promise<TimeSeriesChart> {
-	const { init, DOCKYARD_ECHARTS_THEME } = await import('./echarts');
-	const chart = init(el, DOCKYARD_ECHARTS_THEME, { renderer: 'canvas' });
+	const { init, DOCKER_MANAGER_ECHARTS_THEME } = await import('./echarts');
+	const chart = init(el, DOCKER_MANAGER_ECHARTS_THEME, { renderer: 'canvas' });
 	chart.setOption(timeSeriesOption(opts));
 	return {
 		destroy: () => chart.dispose(),
@@ -340,8 +340,8 @@ export async function mountSparkline(
 	values: (number | null)[],
 	color: string = CHART_COLORS.series[0]
 ): Promise<Sparkline> {
-	const { init, DOCKYARD_ECHARTS_THEME } = await import('./echarts');
-	const chart = init(el, DOCKYARD_ECHARTS_THEME, { renderer: 'canvas' });
+	const { init, DOCKER_MANAGER_ECHARTS_THEME } = await import('./echarts');
+	const chart = init(el, DOCKER_MANAGER_ECHARTS_THEME, { renderer: 'canvas' });
 	const option = (vs: (number | null)[]) => ({
 		animation: false,
 		grid: { left: 0, right: 0, top: 2, bottom: 2, containLabel: false },

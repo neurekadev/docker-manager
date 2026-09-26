@@ -12,18 +12,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/agent/protect"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
-const stacksRoot = "/var/lib/docker/volumes/dockyard_stacks/_data"
+const stacksRoot = "/var/lib/docker/volumes/docker-manager_stacks/_data"
 
 var (
 	now    = time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
@@ -54,7 +54,7 @@ func newWorld(t *testing.T) *world {
 	w.ids["app-old"] = fe.AddImage("app:old")     // unused, old: unused_images candidate
 	w.ids["app-new"] = fe.AddImage("app:new")     // unused, recent: retained
 	w.ids["dangling"] = fe.AddImage()             // dangling, old: dangling_images candidate
-	w.ids["stackimg"] = fe.AddImage("shop/api:2") // referenced by a DockYard stack (manager protection)
+	w.ids["stackimg"] = fe.AddImage("shop/api:2") // referenced by a Docker Manager stack (manager protection)
 	w.ids["keep"] = fe.AddLabeledImage(map[string]string{"keep": "true"}, "keep:1")
 	w.ids["exited-img"] = fe.AddImage("tool:1") // used only by a stopped candidate container
 	for _, k := range []string{"nginx", "app-old", "dangling", "stackimg", "keep", "exited-img"} {
@@ -80,7 +80,7 @@ func newWorld(t *testing.T) *world {
 	fe.AddVolume("newdata", nil)
 	fe.AddVolume("backup_repo", nil)
 	fe.AddVolume("shop_data", map[string]string{protocol.ComposeProjectLabel: "shop"})
-	fe.AddVolume("dockyard_stacks", nil)
+	fe.AddVolume("docker-manager_stacks", nil)
 	fe.AddVolume("used_data", nil)
 	for _, v := range fe.VolumeNames() {
 		fe.SetVolumeCreated(v, old)
@@ -109,9 +109,9 @@ func newWorld(t *testing.T) *world {
 	stopped("spec-ctr", "nginx:1.27", map[string]string{protocol.LabelManaged: protocol.ManagedStandalone, protocol.LabelSpec: "spec-1"}, old)
 	fe.AddContainer(engine.ContainerSpec{Name: "never-started", Image: "nginx:1.27"}, false)
 	fe.SetContainerTimes("never-started", old, time.Time{})
-	// DockYard's own manager, stopped, with its data volume: protected (#32).
-	stopped("dockyard-manager", "nginx:1.27", map[string]string{protocol.LabelRole: "manager"}, old, func(s *engine.ContainerSpec) {
-		s.Mounts = []engine.MountSpec{{Type: "volume", Source: "dockyard_data", Target: protect.ManagerDataDir}}
+	// Docker Manager's own manager, stopped, with its data volume: protected (#32).
+	stopped("docker-manager", "nginx:1.27", map[string]string{protocol.LabelRole: "manager"}, old, func(s *engine.ContainerSpec) {
+		s.Mounts = []engine.MountSpec{{Type: "volume", Source: "docker-manager_data", Target: protect.ManagerDataDir}}
 	})
 
 	// Build cache.
@@ -131,7 +131,7 @@ func newWorld(t *testing.T) *world {
 }
 
 func (w *world) service(t *testing.T) *Service {
-	guard := protect.New(protect.Options{StacksVolume: "dockyard_stacks", Logger: testutil.Logger(t)})
+	guard := protect.New(protect.Options{StacksVolume: "docker-manager_stacks", Logger: testutil.Logger(t)})
 	return New(Options{Engine: func() engine.Engine { return w.fe }, Guard: guard, Clock: clock.NewFake(now), Logger: testutil.Logger(t),
 		ManagedStackDir: func(dir string) bool { return strings.HasPrefix(dir, stacksRoot+"/") }})
 }
@@ -156,10 +156,10 @@ func withRule(rules []protocol.PruneRule, category string, fn func(*protocol.Pru
 }
 
 // managerProtection is what the manager sends for this world: the
-// DockYard stack "shop", its image and a backup destination volume.
+// Docker Manager stack "shop", its image and a backup destination volume.
 func managerProtection() protocol.PruneProtection {
 	return protocol.PruneProtection{
-		Projects: []protocol.ProtectedRef{{Ref: "shop", Reason: "part of DockYard stack shop"}},
+		Projects: []protocol.ProtectedRef{{Ref: "shop", Reason: "part of Docker Manager stack shop"}},
 		Images:   []protocol.ProtectedRef{{Ref: "docker.io/shop/api:2", Reason: "used by the definition of stack shop"}},
 		Volumes:  []protocol.ProtectedRef{{Ref: "backup_repo", Reason: "backup destination (#10)"}},
 		Networks: []protocol.ProtectedRef{{Ref: "spec-net", Reason: "used by the saved specification of container api"}},
@@ -217,7 +217,7 @@ func TestPreviewEveryCategory(t *testing.T) {
 	p := preview(t, s, input(rules))
 	got := decisions(p)
 	want := map[string][]string{
-		protocol.PruneStoppedContainers: {"excluded excluded-by-name", "protected dockyard-manager", "protected shop-db-1", "protected spec-ctr",
+		protocol.PruneStoppedContainers: {"excluded excluded-by-name", "protected docker-manager", "protected shop-db-1", "protected spec-ctr",
 			"remove old-exited", "retained new-exited"},
 		protocol.PruneDanglingImages: {"remove " + shortID(w.ids["dangling"])},
 		// tool:1 is only used by old-exited, a candidate removed first.
@@ -225,7 +225,7 @@ func TestPreviewEveryCategory(t *testing.T) {
 		protocol.PruneUnusedNetworks: {"protected bridge", "protected host", "protected none", "protected shop_backend", "protected spec-net",
 			"remove unused-net"},
 		protocol.PruneAnonymousVolumes: {"remove anon1"},
-		protocol.PruneNamedVolumes: {"protected backup_repo", "protected dockyard_stacks", "protected shop_data", "remove olddata",
+		protocol.PruneNamedVolumes: {"protected backup_repo", "protected docker-manager_stacks", "protected shop_data", "remove olddata",
 			"retained newdata"},
 		protocol.PruneBuildCache: {"remove RUN step bc-leaf", "remove RUN step bc-root", "retained RUN step bc-new"},
 	}
@@ -241,12 +241,12 @@ func TestPreviewEveryCategory(t *testing.T) {
 	}
 	for _, it := range containers.Items {
 		switch it.Name {
-		case "dockyard-manager":
-			if !strings.Contains(it.Reason, "DockYard manager") {
+		case "docker-manager":
+			if !strings.Contains(it.Reason, "Docker Manager") {
 				t.Errorf("manager reason: %q", it.Reason)
 			}
 		case "shop-db-1":
-			if !strings.Contains(it.Reason, "DockYard stack") {
+			if !strings.Contains(it.Reason, "Docker Manager stack") {
 				t.Errorf("stack reason: %q", it.Reason)
 			}
 		case "old-exited":
@@ -386,7 +386,7 @@ func statuses(out protocol.PruneRunOutput) map[string]string {
 }
 
 // TestRunRemovesCandidatesOnly: the run removes exactly the previewed
-// candidates; DockYard's own objects, stack members, saved specifications,
+// candidates; Docker Manager's own objects, stack members, saved specifications,
 // backup destinations, excluded and recent objects all survive.
 func TestRunRemovesCandidatesOnly(t *testing.T) {
 	w := newWorld(t)
@@ -404,7 +404,7 @@ func TestRunRemovesCandidatesOnly(t *testing.T) {
 	if out.BytesReclaimed != 3667 {
 		t.Fatalf("bytes reclaimed = %d", out.BytesReclaimed)
 	}
-	if got := w.fe.ContainerNames(); !slices.Equal(got, []string{"dockyard-manager", "excluded-by-name", "never-started", "new-exited", "shop-db-1",
+	if got := w.fe.ContainerNames(); !slices.Equal(got, []string{"docker-manager", "excluded-by-name", "never-started", "new-exited", "shop-db-1",
 		"spec-ctr", "web"}) {
 		t.Errorf("containers left: %v", got)
 	}
@@ -419,7 +419,7 @@ func TestRunRemovesCandidatesOnly(t *testing.T) {
 			t.Errorf("image %s was removed", k)
 		}
 	}
-	if got := w.fe.VolumeNames(); !slices.Equal(got, []string{"backup_repo", "dockyard_data", "dockyard_stacks", "newdata", "shop_data", "used_data"}) {
+	if got := w.fe.VolumeNames(); !slices.Equal(got, []string{"backup_repo", "docker-manager_data", "docker-manager_stacks", "newdata", "shop_data", "used_data"}) {
 		t.Errorf("volumes left: %v", got)
 	}
 	if got := w.fe.NetworkNames(); !slices.Equal(got, []string{"bridge", "host", "none", "shop_backend", "spec-net", "used-net"}) {
@@ -523,7 +523,7 @@ func TestRevalidationRace(t *testing.T) {
 	}
 }
 
-// TestRaceBecameProtected: a candidate that became one of DockYard's own
+// TestRaceBecameProtected: a candidate that became one of Docker Manager's own
 // objects before its deletion (here: the manager announced that the
 // stopped container is its own container) survives with the reason.
 func TestRaceBecameProtected(t *testing.T) {
@@ -537,16 +537,16 @@ func TestRaceBecameProtected(t *testing.T) {
 	}}
 	_, out := runJob(t, s, input(allRules()), &runOpts{rep: rep})
 	for _, it := range out.Items {
-		if it.Name == "old-exited" && (it.Status != protocol.PruneItemSkipped || !strings.HasPrefix(it.Reason, "protected: the DockYard manager")) {
+		if it.Name == "old-exited" && (it.Status != protocol.PruneItemSkipped || !strings.HasPrefix(it.Reason, "protected: the Docker Manager")) {
 			t.Fatalf("old-exited: %+v", it)
 		}
 	}
 	if !slices.Contains(w.fe.ContainerNames(), "old-exited") {
-		t.Fatal("the DockYard container was removed")
+		t.Fatal("the Docker Manager container was removed")
 	}
-	// Its image is DockYard's image now: skipped as in use / protected.
+	// Its image is Docker Manager's image now: skipped as in use / protected.
 	if _, ok := w.fe.Images()[w.ids["exited-img"]]; !ok {
-		t.Fatal("the DockYard image was removed")
+		t.Fatal("the Docker Manager image was removed")
 	}
 }
 
@@ -611,7 +611,7 @@ func (f *failingEngine) RemoveContainer(ctx context.Context, id string, o engine
 func TestEngineLossAndRetry(t *testing.T) {
 	w := newWorld(t)
 	fe := &failingEngine{Engine: w.fe, after: 2}
-	guard := protect.New(protect.Options{StacksVolume: "dockyard_stacks", Logger: testutil.Logger(t)})
+	guard := protect.New(protect.Options{StacksVolume: "docker-manager_stacks", Logger: testutil.Logger(t)})
 	s := New(Options{Engine: func() engine.Engine { return fe }, Guard: guard, Clock: clock.NewFake(now), Logger: testutil.Logger(t),
 		ManagedStackDir: func(dir string) bool { return strings.HasPrefix(dir, stacksRoot+"/") }})
 	in := input(allRules())

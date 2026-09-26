@@ -27,11 +27,11 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/neurekadev/dockyard/internal/agent/state"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 )
 
 // Backoff is the reconnect policy: exponential from Min to Max with full

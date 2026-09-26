@@ -12,11 +12,11 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Container logs and exec terminals (#8). Logs need container.logs.read,
@@ -33,10 +33,10 @@ const (
 
 // ExecSubprotocol is the WebSocket subprotocol of exec sessions;
 // ExecTicketPrefix prefixes the one-use attach ticket offered as a second
-// subprotocol ("dockyard.ticket.<ticket>", never in the URL).
+// subprotocol ("docker-manager.ticket.<ticket>", never in the URL).
 const (
-	ExecSubprotocol  = "dockyard.exec.v1"
-	ExecTicketPrefix = "dockyard.ticket."
+	ExecSubprotocol  = "docker-manager.exec.v1"
+	ExecTicketPrefix = "docker-manager.ticket."
 )
 
 // ContainerIOService serves container logs and exec sessions
@@ -154,8 +154,8 @@ type ExecSessionCreate struct {
 type ExecSessionDTO struct {
 	ID          string    `json:"id"`
 	StreamURL   string    `json:"streamUrl" doc:"WebSocket URL path of the session (same origin)."`
-	Subprotocol string    `json:"subprotocol" example:"dockyard.exec.v1"`
-	Ticket      string    `json:"ticket" doc:"One-use attach ticket: offer it as the WebSocket subprotocol dockyard.ticket.<ticket> next to dockyard.exec.v1. Bound to this session and caller; expires with expiresAt."`
+	Subprotocol string    `json:"subprotocol" example:"docker-manager.exec.v1"`
+	Ticket      string    `json:"ticket" doc:"One-use attach ticket: offer it as the WebSocket subprotocol docker-manager.ticket.<ticket> next to docker-manager.exec.v1. Bound to this session and caller; expires with expiresAt."`
 	ExpiresAt   time.Time `json:"expiresAt" doc:"Attach before this time (60 s)."`
 }
 
@@ -172,7 +172,7 @@ type ExecSessionPath struct {
 
 type streamExecInput struct {
 	ExecSessionPath
-	Protocols string `header:"Sec-WebSocket-Protocol" maxLength:"512" doc:"dockyard.exec.v1 and dockyard.ticket.<ticket>."`
+	Protocols string `header:"Sec-WebSocket-Protocol" maxLength:"512" doc:"docker-manager.exec.v1 and docker-manager.ticket.<ticket>."`
 }
 
 type createExecOutput struct{ Body ExecSessionDTO }
@@ -492,8 +492,8 @@ func registerContainerIO(a huma.API, deps Deps) {
 			OperationID: "create-container-exec-session", Method: http.MethodPost, Path: base + "/exec-sessions",
 			Summary: "Open a terminal in a container",
 			Description: "Creates an exec session running command inside the container (never on the host) and a one-use attach ticket; " +
-				"attach within 60 s with GET …/exec-sessions/{sessionId}/stream (WebSocket, subprotocols dockyard.exec.v1 and " +
-				"dockyard.ticket.<ticket>). Needs container.exec (API tokens only with container.exec in their own grants). 409 when the " +
+				"attach within 60 s with GET …/exec-sessions/{sessionId}/stream (WebSocket, subprotocols docker-manager.exec.v1 and " +
+				"docker-manager.ticket.<ticket>). Needs container.exec (API tokens only with container.exec in their own grants). 409 when the " +
 				"container is not running, 429 beyond 4 terminals per user or 8 per container.",
 			Tags: []string{tagContainers}, DefaultStatus: http.StatusCreated,
 			Errors: append(errs, http.StatusConflict, http.StatusTooManyRequests),
@@ -505,8 +505,8 @@ func registerContainerIO(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "stream-container-exec-session", Method: http.MethodGet, Path: base + "/exec-sessions/{sessionId}/stream",
 			Summary: "Attach a terminal (WebSocket)",
-			Description: "Upgrades to a WebSocket (subprotocol dockyard.exec.v1; the ticket from the create call as subprotocol " +
-				"dockyard.ticket.<ticket>). Binary frames: 0+stdin to the process, 1+stdout / 2+stderr from it; text frames: " +
+			Description: "Upgrades to a WebSocket (subprotocol docker-manager.exec.v1; the ticket from the create call as subprotocol " +
+				"docker-manager.ticket.<ticket>). Binary frames: 0+stdin to the process, 1+stdout / 2+stderr from it; text frames: " +
 				"{\"type\":\"resize\",\"cols\",\"rows\"} from the client, {\"type\":\"exit\",\"code\"} and {\"type\":\"error\",...} from the " +
 				"server. Close codes and limits: docs/api/streams.md.",
 			Tags: []string{tagContainers}, Errors: errs,

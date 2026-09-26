@@ -18,13 +18,13 @@ import (
 	"github.com/coder/websocket"
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/authsep"
-	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
-	"github.com/neurekadev/dockyard/internal/manager/server/ws"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/ws"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // seen records what a handler observed.
@@ -150,7 +150,7 @@ func TestForwardedHeadersOnlyFromTrustedProxies(t *testing.T) {
 
 	// Trusted proxy: client IP, scheme and host from the headers; a
 	// client-prepended XFF entry is skipped; the proxy's request ID is kept.
-	tp.do(http.MethodGet, "http://dockyard-manager:8080/agent/v1/probe", "10.0.0.2:4000",
+	tp.do(http.MethodGet, "http://docker-manager:8080/agent/v1/probe", "10.0.0.2:4000",
 		"X-Forwarded-For", "1.2.3.4, 198.51.100.7", "X-Forwarded-Proto", "https",
 		"X-Forwarded-Host", "docker.example.com", RequestIDHeader, "proxy-req-1")
 	_, info, reqID, hdr = tp.agent.get()
@@ -178,7 +178,7 @@ func TestCookiesNeverAuthenticateAgentRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rec := tp.do(http.MethodGet, "/agent/v1/session", "203.0.113.5:1", "Cookie", "dockyard_session=fake-session-cookie")
+	rec := tp.do(http.MethodGet, "/agent/v1/session", "203.0.113.5:1", "Cookie", "docker_manager_session=fake-session-cookie")
 	calls, _, _, hdr := tp.agent.get()
 	if calls != 1 || hdr.Get("Cookie") != "" || rec.Code != http.StatusNoContent {
 		t.Fatalf("calls %d cookie %q status %d", calls, hdr.Get("Cookie"), rec.Code)
@@ -218,7 +218,7 @@ func TestAgentCredentialsNeverAuthenticateAPIRoutes(t *testing.T) {
 		}
 	}
 	// Other credentials still reach the API (and its authenticator).
-	for _, hdr := range [][]string{{"Authorization", "Bearer dyt_fake-api-token"}, {"Cookie", "dockyard_session=fake"}} {
+	for _, hdr := range [][]string{{"Authorization", "Bearer dyt_fake-api-token"}, {"Cookie", "docker_manager_session=fake"}} {
 		if rec := tp.do(http.MethodGet, "/api/v1/test/probe", "203.0.113.5:1", hdr...); rec.Code != http.StatusNoContent && rec.Code != http.StatusOK {
 			t.Fatalf("%v: %d %s", hdr, rec.Code, rec.Body.String())
 		}

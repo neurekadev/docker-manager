@@ -12,12 +12,12 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
 )
 
 const tagStacks = "Stacks"
@@ -94,7 +94,7 @@ type StackServiceDef struct {
 	Image       string            `json:"image" example:"nginx:1.27" doc:"Resolved image reference."`
 	Build       bool              `json:"build" doc:"The service has a build section (#33)."`
 	DependsOn   []StackDependency `json:"dependsOn"`
-	Description string            `json:"description,omitempty" doc:"DockYard display metadata (never written to Compose files)."`
+	Description string            `json:"description,omitempty" doc:"Docker Manager display metadata (never written to Compose files)."`
 	Icon        string            `json:"icon,omitempty" doc:"Lucide icon name override."`
 }
 
@@ -163,7 +163,7 @@ type Stack struct {
 	ID            string   `json:"id" example:"0190a6e0-7777-7000-8000-000000000007"`
 	EnvironmentID string   `json:"environmentId"`
 	Name          string   `json:"name" example:"shop" doc:"Compose project name."`
-	Status        string   `json:"status" enum:"undeployed,deployed,stopped,down,failed" doc:"What DockYard last did to the stack (not the live Engine state, see engine)."`
+	Status        string   `json:"status" enum:"undeployed,deployed,stopped,down,failed" doc:"What Docker Manager last did to the stack (not the live Engine state, see engine)."`
 	View          string   `json:"view" enum:"minimal,full"`
 	Actions       []string `json:"actions" doc:"Granted stack capabilities."`
 	Revision      int64    `json:"revision,omitempty" doc:"Metadata revision (the ETag); full view or with stack.manage."`
@@ -177,7 +177,7 @@ type Stack struct {
 	Services    []StackServiceDef `json:"services,omitempty" doc:"Services of the last deploy (or of the definition before the first deploy)."`
 	// Revisions of the three distinguishable states (#7): what was last
 	// deployed, what is on disk, and the last failed deploy.
-	AppliedRevision   *StackRevisionRef   `json:"appliedRevision,omitempty" doc:"Last revision deployed successfully by DockYard (absent: never deployed by DockYard)."`
+	AppliedRevision   *StackRevisionRef   `json:"appliedRevision,omitempty" doc:"Last revision deployed successfully by Docker Manager (absent: never deployed by Docker Manager)."`
 	SourceRevision    *StackRevisionRef   `json:"sourceRevision,omitempty" doc:"Newest revision observed on disk."`
 	FailedRevision    *StackRevisionRef   `json:"failedRevision,omitempty" doc:"Revision of the last failed deploy (cleared by a successful one)."`
 	UndeployedChanges bool                `json:"undeployedChanges,omitempty" doc:"The definition on disk differs from the last applied revision."`
@@ -468,7 +468,7 @@ func stackErr(err error) error {
 	case isRegistryErr(err):
 		return registryError(err)
 	case errors.As(err, new(*domain.DockerError)):
-		return dockerErr(err) // #32: DockYard's own Compose project
+		return dockerErr(err) // #32: Docker Manager's own Compose project
 	}
 	return JobErrorFor(err)
 }
@@ -983,7 +983,7 @@ type StackServiceStatus struct {
 type StackServices struct {
 	Live       bool                 `json:"live" doc:"Read from the Engine now; false: the environment is offline and the last observed state is shown."`
 	ObservedAt *time.Time           `json:"observedAt,omitempty"`
-	Drift      bool                 `json:"drift" doc:"The Engine state differs from what DockYard last applied."`
+	Drift      bool                 `json:"drift" doc:"The Engine state differs from what Docker Manager last applied."`
 	Services   []StackServiceStatus `json:"services"`
 }
 
@@ -1199,7 +1199,7 @@ type DiscoveredStack struct {
 	Services   []DiscoveredStackService `json:"services"`
 	Adoptable  bool                     `json:"adoptable" doc:"Can be imported in place from its real files."`
 	Reason     string                   `json:"reason,omitempty" doc:"Why it cannot be adopted in place (import it with an explicit Compose source)."`
-	StackID    string                   `json:"stackId,omitempty" doc:"The DockYard stack already managing it."`
+	StackID    string                   `json:"stackId,omitempty" doc:"The Docker Manager stack already managing it."`
 }
 
 type discoveredInput struct {
@@ -1301,14 +1301,14 @@ func registerStacks(a huma.API, deps Deps) {
 		OperationID: "create-stack", Method: http.MethodPost, Path: stacks, Summary: "Create a stack", DefaultStatus: http.StatusCreated,
 		Description: "Validates the definition on the environment's agent, writes compose.yaml (and the optional override and .env) into " +
 			"a new project directory <name> of the environment's stacks volume and records it as the first revision. Nothing existing " +
-			"is overwritten: 409 stack_name_taken (DockYard stack), compose_project_exists (a Compose project of that name runs on the " +
+			"is overwritten: 409 stack_name_taken (Docker Manager stack), compose_project_exists (a Compose project of that name runs on the " +
 			"Engine: import it), stack_directory_exists (the directory exists). 422 invalid_definition lists the findings. Does not deploy.",
 		Tags: []string{tagStacks}, Errors: mutate,
 	}, Capability: CapStackCreate, Scope: ScopeEnvironment}, h.create)
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "get-stack", Method: http.MethodGet, Path: one, Summary: "Get a stack",
-		Description: "The stack's deployment status (what DockYard last did), last applied revision and images, the newest revision " +
+		Description: "The stack's deployment status (what Docker Manager last did), last applied revision and images, the newest revision " +
 			"observed on disk (undeployedChanges when they differ), the failed revision and recovery guidance after a failed deploy, and " +
 			"the Engine state as last observed. While the environment is offline the last known state is returned with readOnly.",
 		Tags: []string{tagStacks}, Errors: read,
@@ -1316,7 +1316,7 @@ func registerStacks(a huma.API, deps Deps) {
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "update-stack", Method: http.MethodPatch, Path: one, Summary: "Edit a stack's display metadata",
-		Description: "Display name, description, Lucide icon override and per-service metadata, stored in DockYard and never written " +
+		Description: "Display name, description, Lucide icon override and per-service metadata, stored in Docker Manager and never written " +
 			"to Compose files. Requires If-Match.",
 		Tags: []string{tagStacks}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound,
 			http.StatusPreconditionFailed, http.StatusUnprocessableEntity, http.StatusPreconditionRequired},
@@ -1325,7 +1325,7 @@ func registerStacks(a huma.API, deps Deps) {
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "delete-stack", Method: http.MethodDelete, Path: one, Summary: "Delete a stack",
 		Description: "Starts a stack.remove job (202): the stack is taken down (containers and networks removed; named volumes and the " +
-			"project directory are kept on the host) and, when that succeeds, removed from DockYard with its revisions and the " +
+			"project directory are kept on the host) and, when that succeeds, removed from Docker Manager with its revisions and the " +
 			"permission rules naming it.",
 		Tags: []string{tagStacks}, Errors: jobErrs, DefaultStatus: http.StatusAccepted,
 	}, Capability: CapStackRemove, Scope: ScopeResource, Idempotency: IdempotencyJob}, h.remove)
@@ -1393,7 +1393,7 @@ func registerStacks(a huma.API, deps Deps) {
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "list-stack-services", Method: http.MethodGet, Path: one + "/services", Summary: "List a stack's services",
 		Description: "Services of the applied definition joined with their containers on the Engine (live while the environment is " +
-			"online, else the last observed state with live false), with drift from DockYard's intent. Container image, ports, " +
+			"online, else the last observed state with live false), with drift from Docker Manager's intent. Container image, ports, " +
 			"restart policy and resources need container.details.read on the container; per-service metrics are #5's.",
 		Tags: []string{tagStacks}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusBadGateway, http.StatusGatewayTimeout},
 	}, Capability: CapStackRead, Scope: ScopeResource}, h.services)
@@ -1425,7 +1425,7 @@ func registerStacks(a huma.API, deps Deps) {
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "list-discovered-stacks", Method: http.MethodGet, Path: envStacks + "/discovered", Summary: "List discovered Compose projects",
 		Description: "Compose projects the Engine knows from container labels, read-only: whether each can be adopted in place (its " +
-			"directory is under the stacks volume or a registered root) and the DockYard stack already managing it. Labels never " +
+			"directory is under the stacks volume or a registered root) and the Docker Manager stack already managing it. Labels never " +
 			"reconstruct a Compose source.",
 		Tags: []string{tagStacks}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict,
 			http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout},
@@ -1437,7 +1437,7 @@ func registerStacks(a huma.API, deps Deps) {
 		Description: "Adopts a discovered project. Without source, in place: its real files become the first revision (409 " +
 			"stack_not_adoptable when its directory is outside the stacks volume and registered roots). With source, the given " +
 			"definition is written into a new directory <projectName> of the stacks volume. Never overwrites: 409 stack_name_taken " +
-			"when DockYard already manages the project, stack_directory_exists when the directory exists.",
+			"when Docker Manager already manages the project, stack_directory_exists when the directory exists.",
 		Tags: []string{tagStacks}, Errors: mutate,
 	}, Capability: CapStackImport, Scope: ScopeEnvironment}, h.importStack)
 }

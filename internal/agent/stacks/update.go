@@ -9,17 +9,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/compose"
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/agent/regauth"
-	"github.com/neurekadev/dockyard/internal/agent/resources"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/imageref"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/regauth"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/resources"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/imageref"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Digest-driven updates (#20): update.run pulls the unchanged tagged
@@ -27,7 +27,7 @@ import (
 // replaces what changed, preserving the prior running state. For a stack
 // it recreates through the Compose SDK from exactly the applied definition
 // bytes (their hash is asserted before, during and after the run: the
-// agent never writes them); for a DockYard-managed standalone container it
+// agent never writes them); for a Docker Manager-managed standalone container it
 // recreates from the saved specification. There is no automatic rollback:
 // a failure after containers were replaced asks the manager to quarantine
 // the candidate digests and tells the operator how to pin the previous
@@ -64,11 +64,11 @@ func updateOutput(sc *jobexec.StepContext) (protocol.UpdateRunOutput, error) {
 
 // Recovery guidance of update failures.
 const (
-	recoverySourceChanged = "The Compose definition on disk is not the revision DockYard last deployed (or it changed during the update). " +
-		"DockYard never edits it: review the change, deploy the stack, then run the update again."
+	recoverySourceChanged = "The Compose definition on disk is not the revision Docker Manager last deployed (or it changed during the update). " +
+		"Docker Manager never edits it: review the change, deploy the stack, then run the update again."
 	recoveryCandidateChanged = "The tag moved to another digest after the check. Nothing was recreated; run an update check again and " +
 		"review the new candidate."
-	recoveryRecreated = "The container was replaced, renamed or is no longer DockYard-managed since the update was planned. " +
+	recoveryRecreated = "The container was replaced, renamed or is no longer Docker Manager-managed since the update was planned. " +
 		"Refresh the inventory and check the policy's target."
 )
 
@@ -211,7 +211,7 @@ func (s *Service) updatePull(ctx context.Context, sc *jobexec.StepContext) error
 		for _, c := range list {
 			if c.Labels[lifecycle.ComposeServiceLabel] == u.Service && protocol.UpdateExcluded(c.Labels) {
 				return updateRefusal(protocol.UpdateClassRecreated, "Remove the update exclusion label and check again.",
-					"service %s has dockyard.update.exclude=true", u.Service)
+					"service %s has docker-manager.update.exclude=true", u.Service)
 			}
 		}
 	}
@@ -255,7 +255,7 @@ func (s *Service) updatePull(ctx context.Context, sc *jobexec.StepContext) error
 		return herr
 	case after != before:
 		return updateRefusal(protocol.UpdateClassSourceChanged, recoverySourceChanged,
-			"the definition on disk changed during the pull (%s -> %s); DockYard did not write it", short(before), short(after))
+			"the definition on disk changed during the pull (%s -> %s); Docker Manager did not write it", short(before), short(after))
 	}
 	return nil
 }
@@ -293,7 +293,7 @@ func (s *Service) updateRecreate(ctx context.Context, sc *jobexec.StepContext) e
 	}
 	if err != nil || snap.Hash != out.SourceHashBefore {
 		return updateRefusal(protocol.UpdateClassSourceChanged, recoverySourceChanged,
-			"the definition on disk changed before the recreate (%s -> %s); DockYard did not write it", short(out.SourceHashBefore), short(snap.Hash))
+			"the definition on disk changed before the recreate (%s -> %s); Docker Manager did not write it", short(out.SourceHashBefore), short(snap.Hash))
 	}
 	var nodes []lifecycle.Service
 	for _, svc := range p.Services {
@@ -434,7 +434,7 @@ func (s *Service) updateConfirm(ctx context.Context, sc *jobexec.StepContext) er
 		return herr
 	case after != out.SourceHashBefore:
 		return updateRefusal(protocol.UpdateClassSourceChanged, recoverySourceChanged,
-			"the definition on disk changed during the update (%s -> %s); DockYard did not write it", short(out.SourceHashBefore), short(after))
+			"the definition on disk changed during the update (%s -> %s); Docker Manager did not write it", short(out.SourceHashBefore), short(after))
 	}
 	for _, r := range out.Services {
 		if r.Outcome == protocol.UpdateUpdated {
@@ -448,12 +448,12 @@ func (s *Service) updateConfirm(ctx context.Context, sc *jobexec.StepContext) er
 // Standalone containers.
 
 // checkStandalone refuses a container that is not the planned
-// DockYard-managed standalone container, or that is DockYard's own.
+// Docker Manager-managed standalone container, or that is Docker Manager's own.
 func (s *Service) checkStandalone(ctx context.Context, eng engine.Engine, in protocol.UpdateRunInput, d engine.ContainerDetails) error {
 	c := in.Container
 	if d.Name != c.Name || d.Labels[protocol.LabelManaged] != protocol.ManagedStandalone ||
 		d.Labels[protocol.LabelSpec] != c.Ownership[protocol.LabelSpec] || d.Labels[protocol.ComposeProjectLabel] != "" {
-		return updateRefusal(protocol.UpdateClassRecreated, recoveryRecreated, "container %s is not the planned DockYard-managed standalone container", c.Name)
+		return updateRefusal(protocol.UpdateClassRecreated, recoveryRecreated, "container %s is not the planned Docker Manager-managed standalone container", c.Name)
 	}
 	if s.opts.Guard == nil {
 		return nil
@@ -479,7 +479,7 @@ func (s *Service) containerPull(ctx context.Context, sc *jobexec.StepContext, en
 	}
 	if protocol.UpdateExcluded(d.Labels) {
 		return updateRefusal(protocol.UpdateClassRecreated, "Remove the update exclusion label and check again.",
-			"container %s has dockyard.update.exclude=true", c.Name)
+			"container %s has docker-manager.update.exclude=true", c.Name)
 	}
 	u := in.Services[0]
 	r := protocol.UpdateServiceResult{Service: c.Name, Reference: u.Reference, FromImageID: d.ImageID, WasRunning: d.State.Running,
@@ -504,7 +504,7 @@ func asideName(c *protocol.UpdateContainer) string {
 	if len(id) > 12 {
 		id = id[:12]
 	}
-	return c.Name + "-dockyard-update-" + id
+	return c.Name + "-docker-manager-update-" + id
 }
 
 // containerRecreate replaces the container: the old one is stopped and

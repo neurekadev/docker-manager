@@ -20,7 +20,7 @@ import (
 const (
 	// RootStacks is the environment's stacks volume (#28).
 	RootStacks = "stacks"
-	// RootBind is a registered stack root (DOCKYARD_STACK_ROOTS, #28).
+	// RootBind is a registered stack root (DOCKER_AGENT_STACK_ROOTS, #28).
 	RootBind = "bind"
 )
 
@@ -223,7 +223,7 @@ type ComposeService struct {
 	Build     bool                `json:"build,omitempty"`
 	DependsOn []ComposeDependency `json:"dependsOn,omitempty"`
 	Profiles  []string            `json:"profiles,omitempty"`
-	// Description and Icon come from the dev.neureka.dockyard.description /
+	// Description and Icon come from the dev.neureka.docker-manager.description /
 	// .icon labels; the manager imports them as display metadata once.
 	Description string `json:"description,omitempty"`
 	Icon        string `json:"icon,omitempty"`
@@ -391,7 +391,7 @@ type ComposeServicesOutput struct {
 
 // StackJobInput is the input of every stack.* job kind.
 type StackJobInput struct {
-	// StackID is the DockYard stack (for logs; the agent does not need it).
+	// StackID is the Docker Manager stack (for logs; the agent does not need it).
 	StackID string     `json:"stackId"`
 	Stack   ProjectRef `json:"stack"`
 	// Services narrows start/stop/restart/deploy (empty = all).

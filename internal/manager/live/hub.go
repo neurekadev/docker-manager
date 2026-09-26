@@ -40,14 +40,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Version is the stream's schema version (the hello event's version).
-const Version = "dockyard.live/v1"
+const Version = "docker-manager.live/v1"
 
 // Defaults (docs/api/streams.md).
 const (

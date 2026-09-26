@@ -12,8 +12,8 @@ func TestAssetsHaveIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("index.html missing (real build: %v): %v", built, err)
 	}
-	if !strings.Contains(string(b), "DockYard") {
-		t.Fatalf("index.html does not mention DockYard")
+	if !strings.Contains(string(b), "Docker Manager") {
+		t.Fatalf("index.html does not mention Docker Manager")
 	}
 	if built {
 		// The real build is the installable PWA (#11): service worker, web app

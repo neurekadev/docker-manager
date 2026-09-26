@@ -11,25 +11,25 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/envconfig"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/app"
-	"github.com/neurekadev/dockyard/internal/manager/config"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/migrationtest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/app"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/migrationtest"
 )
 
 // TestOwnerRecoveryCommand: owner-recovery against a data directory prints
 // a one-time code and link, and refuses before first-run setup.
 func TestOwnerRecoveryCommand(t *testing.T) {
 	dir := t.TempDir()
-	vars := map[string]string{"DOCKYARD_PUBLIC_URL": "https://docker.example.com", "DOCKYARD_DATA_DIR": dir}
-	if code, _, stderr := runCmd([]string{"owner-recovery"}, vars); code != exitFail || !strings.Contains(stderr, "no DockYard database") {
+	vars := map[string]string{"DOCKER_MANAGER_PUBLIC_URL": "https://docker.example.com", "DOCKER_MANAGER_DATA_DIR": dir}
+	if code, _, stderr := runCmd([]string{"owner-recovery"}, vars); code != exitFail || !strings.Contains(stderr, "no Docker Manager database") {
 		t.Fatalf("empty data dir: %d %q", code, stderr)
 	}
 	cfg, err := config.Load(envconfig.Map(vars, nil))
@@ -37,7 +37,7 @@ func TestOwnerRecoveryCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := testutil.Context(t)
-	m, err := app.Start(ctx, app.Options{Config: cfg, Logger: testutil.Logger(t), UI: fstest.MapFS{"index.html": {Data: []byte("<!doctype html><title>DockYard</title>")}}})
+	m, err := app.Start(ctx, app.Options{Config: cfg, Logger: testutil.Logger(t), UI: fstest.MapFS{"index.html": {Data: []byte("<!doctype html><title>Docker Manager</title>")}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,10 +79,10 @@ func runCmd(args []string, vars map[string]string) (int, string, string) {
 
 func TestServeRejectsInvalidConfig(t *testing.T) {
 	code, _, stderr := runCmd([]string{"serve"}, map[string]string{})
-	if code != exitConfig || !strings.Contains(stderr, "DOCKYARD_PUBLIC_URL is required") {
+	if code != exitConfig || !strings.Contains(stderr, "DOCKER_MANAGER_PUBLIC_URL is required") {
 		t.Fatalf("code %d stderr %q", code, stderr)
 	}
-	code, _, stderr = runCmd(nil, map[string]string{"DOCKYARD_PUBLIC_URL": "http://docker.example.com"})
+	code, _, stderr = runCmd(nil, map[string]string{"DOCKER_MANAGER_PUBLIC_URL": "http://docker.example.com"})
 	if code != exitConfig || !strings.Contains(stderr, "must use https") {
 		t.Fatalf("code %d stderr %q", code, stderr)
 	}
@@ -102,10 +102,10 @@ func TestOpenAPIAndVersion(t *testing.T) {
 		t.Fatal("xml accepted")
 	}
 	code, out, _ = runCmd([]string{"version"}, nil)
-	if code != exitOK || !strings.HasPrefix(out, "dockyard-manager ") {
+	if code != exitOK || !strings.HasPrefix(out, "docker-manager ") {
 		t.Fatalf("version: %d %q", code, out)
 	}
-	if code, _, stderr := runCmd([]string{"owner-recovery"}, nil); code != exitConfig || !strings.Contains(stderr, "DOCKYARD_PUBLIC_URL") {
+	if code, _, stderr := runCmd([]string{"owner-recovery"}, nil); code != exitConfig || !strings.Contains(stderr, "DOCKER_MANAGER_PUBLIC_URL") {
 		t.Fatalf("owner-recovery without configuration: exit %d %q", code, stderr)
 	}
 	if code, _, _ := runCmd([]string{"frobnicate"}, nil); code != exitConfig {
@@ -144,7 +144,7 @@ func TestHealthcheckCommand(t *testing.T) {
 	}))
 	defer srv.Close()
 	_, port, _ := net.SplitHostPort(strings.TrimPrefix(srv.URL, "http://"))
-	vars := map[string]string{"DOCKYARD_LISTEN_ADDR": ":" + port}
+	vars := map[string]string{"DOCKER_MANAGER_LISTEN_ADDR": ":" + port}
 	if code, _, stderr := runCmd([]string{"healthcheck"}, vars); code != exitOK {
 		t.Fatalf("healthy: %d %s", code, stderr)
 	}
@@ -156,7 +156,7 @@ func TestHealthcheckCommand(t *testing.T) {
 
 func TestEnrollmentCreateCommand(t *testing.T) {
 	dataDir := t.TempDir()
-	vars := map[string]string{"DOCKYARD_PUBLIC_URL": "https://docker.example.com", "DOCKYARD_DATA_DIR": dataDir}
+	vars := map[string]string{"DOCKER_MANAGER_PUBLIC_URL": "https://docker.example.com", "DOCKER_MANAGER_DATA_DIR": dataDir}
 	if code, _, stderr := runCmd([]string{"enrollment"}, vars); code != exitConfig || !strings.Contains(stderr, "usage") {
 		t.Fatalf("no subcommand: %d %q", code, stderr)
 	}
@@ -197,7 +197,7 @@ func TestEnrollmentCreateCommand(t *testing.T) {
 		t.Fatalf("json output %q (%v)", stdout, err)
 	}
 	code, stdout, _ = runCmd([]string{"enrollment", "create"}, vars)
-	if code != exitOK || !strings.Contains(stdout, "One-use token") || !strings.Contains(stdout, "dockyard-agent enroll") {
+	if code != exitOK || !strings.Contains(stdout, "One-use token") || !strings.Contains(stdout, "docker-agent enroll") {
 		t.Fatalf("text output %d %q", code, stdout)
 	}
 }
@@ -207,7 +207,7 @@ func TestEnrollmentCreateCommand(t *testing.T) {
 // restore` puts the previous schema back.
 func TestSnapshotsCommand(t *testing.T) {
 	dir := t.TempDir()
-	vars := map[string]string{"DOCKYARD_PUBLIC_URL": "https://docker.example.com", "DOCKYARD_DATA_DIR": dir}
+	vars := map[string]string{"DOCKER_MANAGER_PUBLIC_URL": "https://docker.example.com", "DOCKER_MANAGER_DATA_DIR": dir}
 	if code, out, _ := runCmd([]string{"snapshots", "list"}, vars); code != exitOK || !strings.Contains(out, "No pre-migration snapshots") {
 		t.Fatalf("empty list: %d %q", code, out)
 	}
@@ -216,7 +216,7 @@ func TestSnapshotsCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := testutil.Context(t)
-	ui := fstest.MapFS{"index.html": {Data: []byte("<!doctype html><title>DockYard</title>")}}
+	ui := fstest.MapFS{"index.html": {Data: []byte("<!doctype html><title>Docker Manager</title>")}}
 	// The previous release's database (its schema and an instance), then
 	// the current manager upgrades it.
 	prev := migrationtest.Previous(migrations.Migrations, 1)
@@ -240,7 +240,7 @@ func TestSnapshotsCommand(t *testing.T) {
 	}
 	_ = m.Close()
 	code, out, stderr := runCmd([]string{"snapshots", "list"}, vars)
-	if code != exitOK || !strings.HasPrefix(out, "dockyard-") || strings.Count(out, "\n") != 1 {
+	if code != exitOK || !strings.HasPrefix(out, "docker-manager-") || strings.Count(out, "\n") != 1 {
 		t.Fatalf("list: %d %q %q", code, out, stderr)
 	}
 	name := strings.TrimSpace(out)
@@ -249,7 +249,7 @@ func TestSnapshotsCommand(t *testing.T) {
 			t.Errorf("%v: %d", args, code)
 		}
 	}
-	if code, _, stderr := runCmd([]string{"snapshots", "restore", "../dockyard.db"}, vars); code != exitConfig || !strings.Contains(stderr, "no such") {
+	if code, _, stderr := runCmd([]string{"snapshots", "restore", "../docker-manager.db"}, vars); code != exitConfig || !strings.Contains(stderr, "no such") {
 		t.Fatalf("traversal: %d %q", code, stderr)
 	}
 	code, out, stderr = runCmd([]string{"snapshots", "restore", name}, vars)

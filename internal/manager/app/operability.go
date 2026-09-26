@@ -6,13 +6,13 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/diagnostics"
-	"github.com/neurekadev/dockyard/internal/manager/server/sse"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/diagnostics"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/sse"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // withLogRing tees the manager's logger into an in-memory ring of recent

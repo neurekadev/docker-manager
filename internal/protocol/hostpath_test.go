@@ -32,7 +32,7 @@ func TestIsAbsHostPath(t *testing.T) {
 		Engine:    EngineInfo{ID: "e", APIVersion: "1.47"},
 		Transport: TransportInfo{ManagerURL: "https://docker.example"},
 		Commands:  []string{}, Requests: []string{}, Streams: []string{},
-		Roots: []Root{{Kind: RootStacks, Path: "/var/lib/docker/volumes/dockyard_stacks/_data", Watch: WatchInotify}}}
+		Roots: []Root{{Kind: RootStacks, Path: "/var/lib/docker/volumes/docker-manager_stacks/_data", Watch: WatchInotify}}}
 	if err := caps.Validate(); err != nil {
 		t.Fatalf("linux root refused: %v", err)
 	}

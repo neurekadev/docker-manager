@@ -114,7 +114,7 @@ describe('instance settings (#4)', () => {
 
 	it('describes the read-only deployment configuration', () => {
 		const facts = deploymentFacts({
-			name: 'DockYard',
+			name: 'Docker Manager',
 			instanceId: 'i',
 			revision: 1,
 			updatedAt: '2026-09-25T12:00:00Z',

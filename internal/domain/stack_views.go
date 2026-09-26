@@ -109,7 +109,7 @@ type DiscoveredStack struct {
 	Services  []DiscoveredService
 	Adoptable bool
 	Reason    string
-	// StackID is the DockYard stack managing the project, if any.
+	// StackID is the Docker Manager stack managing the project, if any.
 	StackID string
 }
 
@@ -143,7 +143,7 @@ type StackContainer struct {
 }
 
 // StackServiceView is a service with its expected definition, display
-// metadata, containers and drift from DockYard's intent.
+// metadata, containers and drift from Docker Manager's intent.
 type StackServiceView struct {
 	Name       string
 	Expected   *StackServiceDef

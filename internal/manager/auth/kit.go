@@ -1,15 +1,15 @@
-// Package auth is DockYard's identity layer (#16) built on the vetted
+// Package auth is Docker Manager's identity layer (#16) built on the vetted
 // libraries selected in #18 (docs/adr/0003-auth-libraries.md):
 //
 //	sessions   alexedwards/scs/v2 + a Bun store on the manager database
 //	password   alexedwards/argon2id, versioned parameters, blocklist policy
-//	totp       pquerna/otp (RFC 6238) + DockYard replay/skew handling
-//	passkey    go-webauthn/webauthn, RP ID/origin from DOCKYARD_PUBLIC_URL
+//	totp       pquerna/otp (RFC 6238) + Docker Manager replay/skew handling
+//	passkey    go-webauthn/webauthn, RP ID/origin from DOCKER_MANAGER_PUBLIC_URL
 //	csrf       net/http CrossOriginProtection
 //	throttle   golang.org/x/time/rate per client IP and per account
 //
 // Kit assembles these primitives from the manager configuration. The
-// libraries own the security-sensitive primitives; DockYard code owns only
+// libraries own the security-sensitive primitives; Docker Manager code owns only
 // the product workflows around them (owner, invitations, factor policy,
 // recovery, permissions).
 package auth
@@ -25,13 +25,13 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/manager/auth/csrf"
-	"github.com/neurekadev/dockyard/internal/manager/auth/passkey"
-	"github.com/neurekadev/dockyard/internal/manager/auth/password"
-	"github.com/neurekadev/dockyard/internal/manager/auth/sessions"
-	"github.com/neurekadev/dockyard/internal/manager/auth/throttle"
-	"github.com/neurekadev/dockyard/internal/manager/auth/totp"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/csrf"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/passkey"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/password"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/sessions"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/throttle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/totp"
 )
 
 // Throttling defaults for credential checks (failed attempts only).
@@ -105,7 +105,7 @@ func NewKit(o KitOptions) (*Kit, error) {
 		return nil, errors.New("auth: session idle timeout exceeds the lifetime")
 	}
 	// SCS computes session deadlines from the wall clock, so its store must
-	// compare them with the wall clock too. DockYard's own idle/lifetime
+	// compare them with the wall clock too. Docker Manager's own idle/lifetime
 	// checks (identity service) run on the injected clock.
 	store := sessions.NewStore(o.DB, clock.Real())
 	sm, err := sessions.NewManager(sessions.Options{

@@ -37,10 +37,10 @@ export class Connectivity {
 	}
 
 	/**
-	 * Feeds the outcome of an API request. A DockYard answer (success or a
-	 * DockYard error body) proves the manager is reachable; a network failure
+	 * Feeds the outcome of an API request. A Docker Manager answer (success or a
+	 * Docker Manager error body) proves the manager is reachable; a network failure
 	 * or a bare gateway error from the reverse proxy (502/503/504 without the
-	 * DockYard error shape) means it is not.
+	 * Docker Manager error shape) means it is not.
 	 */
 	observe(outcome: { ok: true } | { ok: false; error: unknown }): void {
 		if (outcome.ok) {

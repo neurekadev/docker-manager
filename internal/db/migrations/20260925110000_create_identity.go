@@ -5,7 +5,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
 )
 
 func init() {

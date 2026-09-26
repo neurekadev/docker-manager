@@ -7,11 +7,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Volume capabilities (#17).
@@ -31,7 +31,7 @@ type Volume struct {
 	Name          string              `json:"name" example:"shop_data"`
 	EnvironmentID string              `json:"environmentId"`
 	InUse         bool                `json:"inUse" doc:"At least one container (running or not) mounts the volume."`
-	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for DockYard's own volumes (#32): removal and mounting into new containers are refused."`
+	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for Docker Manager's own volumes (#32): removal and mounting into new containers are refused."`
 	View          string              `json:"view" enum:"minimal,full"`
 	Actions       []string            `json:"actions"`
 	Driver        string              `json:"driver,omitempty" doc:"Full view."`
@@ -65,11 +65,11 @@ func newVolume(env string, v protocol.VolumeInfo, view authz.View, stackIDs map[
 }
 
 func volumeRemoval(v protocol.VolumeInfo, managed bool) Removal {
-	r := newRemoval("All data in the volume is deleted permanently; DockYard cannot undo it (restore it from a backup, #10).",
+	r := newRemoval("All data in the volume is deleted permanently; Docker Manager cannot undo it (restore it from a backup, #10).",
 		"Exact permission rules on this volume and its files are removed.")
 	r.blockProtected(v.Protection)
 	if managed {
-		r.block(CodeStackManaged, "The volume belongs to a DockYard-managed stack; remove it from the stack instead.")
+		r.block(CodeStackManaged, "The volume belongs to a Docker Manager-managed stack; remove it from the stack instead.")
 	}
 	if len(v.UsedBy) > 0 {
 		r.block(CodeVolumeInUse, "Containers mount the volume; remove them first.")
@@ -102,7 +102,7 @@ type createVolumeInput struct {
 		Name       string            `json:"name" minLength:"1" maxLength:"128" pattern:"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$" example:"cache"`
 		Driver     string            `json:"driver,omitempty" maxLength:"128" doc:"Default local."`
 		DriverOpts map[string]string `json:"driverOpts,omitempty"`
-		Labels     map[string]string `json:"labels,omitempty" doc:"dev.neureka.dockyard.* and com.docker.compose.* are reserved."`
+		Labels     map[string]string `json:"labels,omitempty" doc:"dev.neureka.docker-manager.* and com.docker.compose.* are reserved."`
 	}
 }
 
@@ -258,7 +258,7 @@ func registerVolumes(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "delete-volume", Method: http.MethodDelete, Path: base + "/{volumeId}", Summary: "Remove a volume",
 			Description: "Starts a volume.remove job (202) that deletes the volume's data permanently. Refused while containers use it " +
-				"(409 volume_in_use) and for volumes of a DockYard-managed stack (409 stack_managed).",
+				"(409 volume_in_use) and for volumes of a Docker Manager-managed stack (409 stack_managed).",
 			Tags: []string{tagVolumes}, DefaultStatus: http.StatusAccepted, Errors: dockerJobErrors,
 		},
 		Capability: CapVolumeRemove, Scope: ScopeResource, Idempotency: IdempotencyJob,

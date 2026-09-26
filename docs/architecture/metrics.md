@@ -1,6 +1,6 @@
 # Observation: inventory, metrics and events (#5)
 
-How DockYard observes its environments: the Engine inventory, host and
+How Docker Manager observes its environments: the Engine inventory, host and
 container metrics, and Docker events, from the agent that samples them to
 the manager API that serves charts and live invalidations.
 
@@ -37,7 +37,7 @@ hosts always appear separately with their own identity.
 
 ## Host telemetry
 
-The agent reads procfs (`DOCKYARD_HOST_PROC`, default `/proc`) every 10 s:
+The agent reads procfs (`DOCKER_AGENT_HOST_PROC`, default `/proc`) every 10 s:
 
 | Value | Source | Notes |
 | --- | --- | --- |
@@ -63,10 +63,10 @@ Network counters are per network namespace. The agent reads those of PID 1:
   rates are the host's; `networkScope` is `host` (detected by Docker's
   default bridge `docker0` being visible).
 
-DockYard does not enable `pid: host` by default (it exposes every host
+Docker Manager does not enable `pid: host` by default (it exposes every host
 process to the agent). Operators who want host network rates add it to the
 agent service. Mounting the host's procfs elsewhere (`/proc:/host/proc:ro`
-and `DOCKYARD_HOST_PROC=/host/proc`) is equivalent for network counters.
+and `DOCKER_AGENT_HOST_PROC=/host/proc`) is equivalent for network counters.
 The Docker root filesystem is measured through the identical-path mount of
 Docker's volume directory that every agent already has (#28); an Engine
 whose volumes live on another filesystem than its images reports the
@@ -144,15 +144,15 @@ Metrics live in their own SQLite file, `<data dir>/metrics.db`, with their
 own migrations (`internal/db/metricsmigrations`), a single writer
 connection and a separate 4-connection read-only pool (WAL). Sample writes,
 rollups and retention therefore never contend with jobs and authentication
-in `dockyard.db`. The file is migrated at startup without a pre-migration
+in `docker-manager.db`. The file is migrated at startup without a pre-migration
 snapshot (its content is expendable); moving it away starts an empty one.
 **Manager-state backups (#10) exclude `metrics.db` by default.**
 
 | Level | Resolution | Default retention | Tables |
 | --- | --- | --- | --- |
-| raw | 10 s | 24 h (`DOCKYARD_METRICS_RETENTION_RAW`) | `host_raw`, `container_raw`, `disk_raw` |
-| 1 min | 60 s | 7 d (`DOCKYARD_METRICS_RETENTION_1M`) | `host_1m`, `container_1m`, `disk_1m` |
-| 15 min | 900 s | 90 d (`DOCKYARD_METRICS_RETENTION_15M`) | `host_15m`, `container_15m`, `disk_15m` |
+| raw | 10 s | 24 h (`DOCKER_MANAGER_METRICS_RETENTION_RAW`) | `host_raw`, `container_raw`, `disk_raw` |
+| 1 min | 60 s | 7 d (`DOCKER_MANAGER_METRICS_RETENTION_1M`) | `host_1m`, `container_1m`, `disk_1m` |
+| 15 min | 900 s | 90 d (`DOCKER_MANAGER_METRICS_RETENTION_15M`) | `host_15m`, `container_15m`, `disk_15m` |
 
 - `series` maps (environment, kind, name) to an integer ID; sample tables
   are `WITHOUT ROWID` with primary key `(series_id, ts)` and store integers
@@ -175,8 +175,8 @@ snapshot (its content is expendable); moving it away starts an empty one.
 
 | Limit | Default | Behaviour |
 | --- | --- | --- |
-| database size (`DOCKYARD_METRICS_MAX_SIZE_MB`) | 2 048 MiB | above it every level's retention is shortened by 20% per step (oldest data first) until the used pages fit; at 5% of the configured retention new container/disk series are refused (hosts are always kept) until space is free; retention recovers by 25% per pass once below 80% of the cap |
-| series (`DOCKYARD_METRICS_MAX_SERIES`) | 5 000 | samples of new containers/filesystems beyond it are dropped; host series are always accepted |
+| database size (`DOCKER_MANAGER_METRICS_MAX_SIZE_MB`) | 2 048 MiB | above it every level's retention is shortened by 20% per step (oldest data first) until the used pages fit; at 5% of the configured retention new container/disk series are refused (hosts are always kept) until space is free; retention recovers by 25% per pass once below 80% of the cap |
+| series (`DOCKER_MANAGER_METRICS_MAX_SERIES`) | 5 000 | samples of new containers/filesystems beyond it are dropped; host series are always accepted |
 | agent ring | 180 batches | older batches are overwritten (gap if the manager was away longer) |
 | containers per batch | 1 000 | more are left out and the batch is flagged |
 | disks per batch | 16 | |
@@ -281,7 +281,7 @@ pure-Go SQLite). A 2 vCPU cloud VM is slower per core; allow a factor of
 **Disk.** At 39 B per raw row and 47 B per rollup row, the full budget
 (1 050 series × (8 640 raw + 10 080 one-minute + 8 640 fifteen-minute rows))
 needs about **1.2 GiB**, below the 2 GiB default cap
-(`DOCKYARD_METRICS_MAX_SIZE_MB`); a smaller cap shortens retention instead of
+(`DOCKER_MANAGER_METRICS_MAX_SIZE_MB`); a smaller cap shortens retention instead of
 failing.
 
 **Memory.** The metrics store keeps only the series map in memory (≤ 5 000

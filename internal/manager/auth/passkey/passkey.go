@@ -1,18 +1,18 @@
-// Package passkey configures go-webauthn for DockYard (#16, #18).
+// Package passkey configures go-webauthn for Docker Manager (#16, #18).
 //
 // The library owns the WebAuthn ceremonies: challenge generation, client
 // data (type, challenge, origin) checks, RP ID hash, user presence and
 // verification flags, signature verification, the sign counter and the
-// backup eligibility/state consistency rules. DockYard owns the credential
+// backup eligibility/state consistency rules. Docker Manager owns the credential
 // records, the ceremony state between begin and finish (in the server-side
 // session), naming/listing/revocation, policy and recovery.
 //
-// The relying party is derived from DOCKYARD_PUBLIC_URL (#27) only: the RP
+// The relying party is derived from DOCKER_MANAGER_PUBLIC_URL (#27) only: the RP
 // ID is its host name and the only accepted origin is that exact origin.
 // Requests reaching the manager on another address (the internal
-// http://dockyard-manager:8080, a different proxy host name) can therefore
+// http://docker-manager:8080, a different proxy host name) can therefore
 // never complete a ceremony, and credentials stay bound to the public host
-// name: changing DOCKYARD_PUBLIC_URL's host invalidates existing passkeys
+// name: changing DOCKER_MANAGER_PUBLIC_URL's host invalidates existing passkeys
 // (docs/deployment.md).
 package passkey
 
@@ -43,10 +43,10 @@ var (
 	ErrUnknownCredential = errors.New("passkey: unknown credential")
 )
 
-// User is a DockYard account as seen by WebAuthn.
+// User is a Docker Manager account as seen by WebAuthn.
 type User struct {
 	// Handle is the random, stable WebAuthn user handle (not the user ID,
-	// so authenticators never learn DockYard identifiers).
+	// so authenticators never learn Docker Manager identifiers).
 	Handle      []byte
 	Name        string
 	DisplayName string
@@ -70,7 +70,7 @@ func (u *User) WebAuthnDisplayName() string {
 // WebAuthnCredentials implements webauthn.User.
 func (u *User) WebAuthnCredentials() []webauthn.Credential { return u.Credentials }
 
-// RelyingParty is DockYard's WebAuthn relying party.
+// RelyingParty is Docker Manager's WebAuthn relying party.
 type RelyingParty struct {
 	id     string
 	origin string
@@ -80,7 +80,7 @@ type RelyingParty struct {
 // RPFor derives the RP ID and origin from the public URL.
 func RPFor(publicURL *url.URL) (id, origin string, err error) {
 	if publicURL == nil || publicURL.Hostname() == "" {
-		return "", "", errors.New("passkey: DOCKYARD_PUBLIC_URL is required")
+		return "", "", errors.New("passkey: DOCKER_MANAGER_PUBLIC_URL is required")
 	}
 	return publicURL.Hostname(), publicURL.Scheme + "://" + publicURL.Host, nil
 }
@@ -94,7 +94,7 @@ func New(publicURL *url.URL) (*RelyingParty, error) {
 	}
 	w, err := webauthn.New(&webauthn.Config{
 		RPID:                  id,
-		RPDisplayName:         "DockYard",
+		RPDisplayName:         "Docker Manager",
 		RPOrigins:             []string{origin},
 		AttestationPreference: protocol.PreferNoAttestation,
 		AuthenticatorSelection: protocol.AuthenticatorSelection{

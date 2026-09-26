@@ -1,4 +1,4 @@
-// Package audit is DockYard's append-only, hash-chained audit trail (#30):
+// Package audit is Docker Manager's append-only, hash-chained audit trail (#30):
 // who did what to which resource, from where, and with what result, for
 // every security-relevant and mutating action.
 //
@@ -33,13 +33,13 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // Defaults.
@@ -72,7 +72,7 @@ type Options struct {
 	Clock  clock.Clock
 	Logger *slog.Logger
 	// Mirror, when set, receives every stored record as a structured log
-	// line (DOCKYARD_AUDIT_LOG_MIRROR). Off (nil) by default.
+	// line (DOCKER_MANAGER_AUDIT_LOG_MIRROR). Off (nil) by default.
 	Mirror *slog.Logger
 	// Retention deletes records older than this (DefaultRetention).
 	Retention time.Duration

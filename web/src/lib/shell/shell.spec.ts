@@ -112,7 +112,7 @@ describe('environment selection (remembered per user, ID only)', () => {
 		sel.restore('u1', ['e1', 'e2']);
 		expect(sel.id).toBeNull();
 		sel.select('e2');
-		expect(store.m.get('dockyard:environment:u1')).toBe('e2');
+		expect(store.m.get('docker-manager:environment:u1')).toBe('e2');
 
 		const again = new EnvironmentSelection(store);
 		again.restore('u1', ['e1', 'e2']);
@@ -126,7 +126,7 @@ describe('environment selection (remembered per user, ID only)', () => {
 		revoked.restore('u1', ['e1']);
 		expect(revoked.id).toBeNull();
 		again.select(null);
-		expect(store.m.has('dockyard:environment:u1')).toBe(false);
+		expect(store.m.has('docker-manager:environment:u1')).toBe(false);
 		// Only the ID is stored.
 		expect([...store.m.values()].every((v) => /^[\w-]+$/.test(v))).toBe(true);
 	});

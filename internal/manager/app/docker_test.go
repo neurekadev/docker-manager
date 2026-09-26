@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 // Docker resources (#6) through the real manager and real agent sessions:
@@ -53,7 +53,7 @@ type dockerJob struct {
 }
 
 // twoHosts starts the manager with two agents: NAS (web, db and the
-// DockYard-managed stack "shop") and Cloud (another "web").
+// Docker Manager-managed stack "shop") and Cloud (another "web").
 func twoHosts(t *testing.T) (*env, *testAgent, *testAgent) {
 	e := newEnv(t)
 	nas, cloud := enginefake.New("ENGINE-NAS"), enginefake.New("ENGINE-CLOUD")
@@ -165,7 +165,7 @@ func TestDockerOperationsThroughAgents(t *testing.T) {
 		t.Fatalf("pulled image not listed %+v", images)
 	}
 
-	// A DockYard-managed stack's container cannot be removed directly.
+	// A Docker Manager-managed stack's container cannot be removed directly.
 	owner.fail(http.StatusConflict, "stack_managed", http.MethodDelete, nasBase+"/shop-web-1?force=true", nil)
 
 	// Audit: the restart request and its job lifecycle, with the target.

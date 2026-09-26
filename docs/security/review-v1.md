@@ -6,7 +6,7 @@ merged). For each item: what was read, the tests that hold it in place,
 the finding, and what remains.
 
 > **Update 2026-09-25.** After this review the code moved to Forgejo
-> (`https://code.neureka.dev/dockyard/dockyard`) and the owner reduced the
+> (`https://code.neureka.dev/docker-manager/docker-manager`) and the owner reduced the
 > automated checks to format/lint, isolated unit tests and a test-free
 > build. The release verification map, the Playwright browser and proxy
 > specs, the deploy smoke test, the Docker-backed suites (Engine matrix,
@@ -51,7 +51,7 @@ checked.
 - Limitation: there is no setup token (#25 decision): whoever reaches the
   origin first after the first start becomes the owner. Until then the
   public setup import routes also let an anonymous client make the manager
-  test an S3 endpoint URL or a path below `DOCKYARD_BACKUP_LOCAL_ROOTS`
+  test an S3 endpoint URL or a path below `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS`
   (rate limited, HTTPS origin only, refused once an owner exists). Operators
   must complete setup right after the first start or restrict the origin
   at the proxy until then (documented in `docs/guide/first-run.md`).
@@ -92,7 +92,7 @@ checked.
 
 - Read: `auth/signin.go` (TOTP with ±1 step skew and replay protection by
   compare-and-set of the accepted step; recovery codes; step-up),
-  `auth/passkey` (go-webauthn, RP ID from `DOCKYARD_PUBLIC_URL`, user
+  `auth/passkey` (go-webauthn, RP ID from `DOCKER_MANAGER_PUBLIC_URL`, user
   verification required, signature counter), the required-factor policy
   with enrollment grace, the owner-recovery CLI.
 - `TestEvaluatePolicyMatrix`, `TestRequiredTOTPPolicy`,
@@ -140,16 +140,16 @@ checked.
   support bundle (`TestSupportBundleHasNoSecrets`).
 - Limitation: the secret-protection key sits in the data volume by default
   (`secret.key`); anyone with the volume has the key. Mount it from a
-  secret store with `DOCKYARD_SECRET_KEY_FILE` to separate them. The
+  secret store with `DOCKER_MANAGER_SECRET_KEY_FILE` to separate them. The
   Recovery Key opens every backup repository; a leaked key exposes all of
   them until rotated, a lost key makes them unrecoverable.
 
 ## TLS enforcement
 
 - The manager never terminates TLS; it refuses a non-https
-  `DOCKYARD_PUBLIC_URL` except for `http://localhost` development, refuses
+  `DOCKER_MANAGER_PUBLIC_URL` except for `http://localhost` development, refuses
   setup and passkeys outside the secure origin, and trusts forwarded
-  headers only from `DOCKYARD_TRUSTED_PROXIES`. Agents require https
+  headers only from `DOCKER_MANAGER_TRUSTED_PROXIES`. Agents require https
   (validated certificates, optional private CA, redirects refused); plain
   HTTP only with the explicit co-located opt-in, which the UI flags.
   Registry and Git clients never send credentials to plain-HTTP realms
@@ -158,7 +158,7 @@ checked.
   `TestHTTPSRejectsUnknownCA`, `TestRedirectsAreRefused`,
   `TestForwardedHeadersOnlyFromTrustedProxies`, `TestNoCredentialsToPlainHTTPRealm`.
 - Limitation: the co-located agent's internal plain-HTTP connection relies
-  on the Docker network being private to DockYard's Compose project.
+  on the Docker network being private to Docker Manager's Compose project.
 
 ## Docker socket exposure
 
@@ -166,10 +166,10 @@ checked.
   all and the agent listens on nothing (`TestAgentNeverListens`; the
   deploy examples' mounts are checked statically by `test/deploy`, the
   running images by `smoke:fresh-start` **(removed)**). Standalone
-  containers created through DockYard may
+  containers created through Docker Manager may
   not bind the socket, a directory containing it or the Docker data root
   (`TestDockerSocketBindsRefused`, agent-side data-root check); Compose
-  `use_api_socket`, `provider` and `models` are rejected; DockYard's own
+  `use_api_socket`, `provider` and `models` are rejected; Docker Manager's own
   containers, volumes and images are protected for everyone
   (`TestCheckMatrix`; against a real Engine `TestEngineSelfProtection`
   **(removed)**).
@@ -245,7 +245,7 @@ checked.
   `TestSecretCanariesNeverReachTheAuditTrail`.
 - Limitation: tamper evidence is a hash chain in the same database;
   someone with write access to the data volume can rewrite the whole
-  chain. Ship the redacted mirror (`DOCKYARD_AUDIT_LOG_MIRROR`) to an
+  chain. Ship the redacted mirror (`DOCKER_MANAGER_AUDIT_LOG_MIRROR`) to an
   external log store for records that must outlive a compromised host.
 
 ## Dependency vulnerabilities

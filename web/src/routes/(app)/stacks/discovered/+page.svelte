@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Discovery and import (#7): Compose projects the Engine runs that
-	// DockYard does not manage, read-only, from their container labels.
+	// Docker Manager does not manage, read-only, from their container labels.
 	// Labels never reconstruct a Compose file, so a project is either
 	// adopted in place (its real files lie under a verified stack root) or
 	// imported with a source the user pastes. Import never overwrites: name
@@ -119,7 +119,7 @@
 		const v = errorView(e);
 		switch (v.code) {
 			case 'stack_name_taken':
-				return `DockYard already manages a stack named ${name} here. Nothing was changed.`;
+				return `Docker Manager already manages a stack named ${name} here. Nothing was changed.`;
 			case 'stack_directory_exists':
 				return `A directory ${name} already exists in the stacks volume. Nothing was overwritten: move it away or adopt the project in place.`;
 			case 'stack_not_adoptable':
@@ -187,8 +187,8 @@
 		<div>
 			<h1>Import a Compose project</h1>
 			<p class="muted">
-				Projects running on the Engine that DockYard does not manage yet. Container labels
-				only name them: DockYard needs their real Compose files to manage them.
+				Projects running on the Engine that Docker Manager does not manage yet. Container
+				labels only name them: Docker Manager needs their real Compose files to manage them.
 			</p>
 		</div>
 		<div class="tools">
@@ -231,7 +231,7 @@
 			icon={FolderSearch}
 			color="blue"
 			title="You can't import projects in any environment."
-			description="Ask the owner of this DockYard for the permission to import stacks."
+			description="Ask the owner of this Docker Manager for the permission to import stacks."
 			level={2}
 		/>
 	{:else if env && !env.online}
@@ -283,7 +283,7 @@
 		consequences={[
 			`Reads the Compose files in ${adopting.workingDir ?? 'its project directory'} as the stack's first revision.`,
 			'Nothing is written, pulled or restarted; the containers keep running.',
-			'DockYard manages the project from then on: deploys use these files.'
+			'Docker Manager manages the project from then on: deploys use these files.'
 		]}
 		confirmLabel="Adopt in place"
 		onconfirm={adopt}

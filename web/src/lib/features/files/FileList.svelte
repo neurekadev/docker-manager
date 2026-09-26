@@ -1,6 +1,6 @@
 <script lang="ts" module>
 	/** Drag data of entries dragged inside the file manager. */
-	export const DRAG_TYPE = 'application/x-dockyard-files';
+	export const DRAG_TYPE = 'application/x-docker-manager-files';
 	/** Row key of the ".." parent row. */
 	export const PARENT_KEY = '..';
 </script>

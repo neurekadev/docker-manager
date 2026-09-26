@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 const restoreKey = "DYRK-RESTORE-TEST"
@@ -107,7 +107,7 @@ func TestRestoreVolumeReplacesContentAndRestartsUsers(t *testing.T) {
 	}
 	entries, _ := os.ReadDir(filepath.Dir(up))
 	for _, en := range entries {
-		if strings.HasPrefix(en.Name(), ".dockyard-") {
+		if strings.HasPrefix(en.Name(), ".docker-manager-") {
 			t.Errorf("left behind: %s", en.Name())
 		}
 	}
@@ -242,12 +242,12 @@ func TestRestoreRefusals(t *testing.T) {
 	if res, _, _ := e.run(ctx, jobspec.RestoreRun, in, e.credential(restoreKey), nil); res.ErrorClass != "restore_blocked" {
 		t.Errorf("no shutdown: %+v", res)
 	}
-	// A protected (DockYard) container using the volume blocks it.
-	e.eng.AddContainer(engine.ContainerSpec{Name: "dockyard-agent", Image: "dockyard-agent:edge",
+	// A protected (Docker Manager) container using the volume blocks it.
+	e.eng.AddContainer(engine.ContainerSpec{Name: "docker-agent", Image: "docker-agent:edge",
 		Labels: map[string]string{protocol.LabelRole: "agent"}, Mounts: []engine.MountSpec{{Type: "volume", Source: "uploads", Target: "/x"}}}, true)
 	vin := e.restoreInput(members[backup.VolumeItem("uploads")], protocol.RestoreScopeVolume)
 	if res, _, _ := e.run(ctx, jobspec.RestoreRun, vin, e.credential(restoreKey), nil); res.ErrorClass != "restore_blocked" ||
-		!strings.Contains(res.Message, "DockYard") {
+		!strings.Contains(res.Message, "Docker Manager") {
 		t.Errorf("protected container: %+v", res)
 	}
 	// Invalid inputs.

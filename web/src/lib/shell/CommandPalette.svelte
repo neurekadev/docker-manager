@@ -113,7 +113,7 @@
 				}
 			}}
 		>
-			<Dialog.Title class="sr-only">Search DockYard</Dialog.Title>
+			<Dialog.Title class="sr-only">Search Docker Manager</Dialog.Title>
 			<div class="input-row">
 				<Search size={18} strokeWidth={1.75} aria-hidden="true" />
 				<input

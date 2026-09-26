@@ -108,7 +108,7 @@
 	function finished(j: Job) {
 		void qc.invalidateQueries({ queryKey: ['policies'] });
 		void qc.invalidateQueries({ queryKey: ['backups'] });
-		const where = j.environmentId ? envName(j.environmentId) : 'DockYard Manager';
+		const where = j.environmentId ? envName(j.environmentId) : 'Docker Manager';
 		if (j.state === 'succeeded') toast.success(`Backed up ${where}`);
 		else if (j.state === 'partial')
 			toast.warn(`Backed up ${where} partly`, { body: j.error?.recovery });

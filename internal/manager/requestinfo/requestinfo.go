@@ -1,7 +1,7 @@
 // Package requestinfo resolves who sent a request and how it reached the
 // public origin: the client IP, the scheme and the host, honoring
 // X-Forwarded-For/Proto/Host only when the direct peer is a trusted reverse
-// proxy (DOCKYARD_TRUSTED_PROXIES, #27).
+// proxy (DOCKER_MANAGER_TRUSTED_PROXIES, #27).
 //
 // The manager's HTTP stack resolves an Info for every request and stores it
 // in the request context (internal/manager/server). Features read it with

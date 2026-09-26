@@ -76,7 +76,7 @@ export function bundleText(b: ImportSet['keyBundle']): string | null {
 export function importBlocker(s: ImportSet): string | null {
 	if (s.hostOnly) return 'Known only from a host repository: the manager state is not in it.';
 	if (!s.schemaCompatible)
-		return `Written by a newer DockYard${s.appVersion ? ` (${s.appVersion})` : ''}: install at least that version.`;
+		return `Written by a newer Docker Manager${s.appVersion ? ` (${s.appVersion})` : ''}: install at least that version.`;
 	if (!s.importable) return s.problems[0] ?? 'This set cannot be imported.';
 	return null;
 }
@@ -86,11 +86,11 @@ export const IMPORT_ERRORS: Record<string, string> = {
 	backup_import_key_rejected:
 		'The Recovery Key opens neither the manager repository nor a host repository. Check it for typos; after a rotation also enter the previous key. A lost Recovery Key cannot be recovered by anyone.',
 	backup_import_not_found:
-		'No DockYard repository is at this destination. Check the endpoint, bucket and prefix, or that the directory is mounted below DOCKYARD_BACKUP_LOCAL_ROOTS.',
+		'No Docker Manager repository is at this destination. Check the endpoint, bucket and prefix, or that the directory is mounted below DOCKER_MANAGER_BACKUP_LOCAL_ROOTS.',
 	backup_import_manifest_corrupt:
 		'The manifest of this backup set is damaged. Choose another set.',
 	backup_import_schema_incompatible:
-		'A newer DockYard wrote this set. Install at least that version, then import again.',
+		'A newer Docker Manager wrote this set. Install at least that version, then import again.',
 	backup_import_key_rotated:
 		'This set is sealed under another Recovery Key (it was rotated). Enter the newest key and the previous one.',
 	backup_import_state_missing:
@@ -98,6 +98,6 @@ export const IMPORT_ERRORS: Record<string, string> = {
 	backup_import_unreachable: 'The storage could not be read.',
 	backup_import_in_progress: 'An import is already running. Wait for it to finish.',
 	setup_complete:
-		'This DockYard already has an owner: import works only on a new, empty DockYard.',
-	insecure_origin: 'Open this page on DockYard’s public HTTPS address to import.'
+		'This Docker Manager already has an owner: import works only on a new, empty Docker Manager.',
+	insecure_origin: 'Open this page on Docker Manager’s public HTTPS address to import.'
 };

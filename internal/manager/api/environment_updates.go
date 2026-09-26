@@ -8,11 +8,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/updates"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/updates"
 )
 
 // environmentUpdateService is the user-facing policy layer of updates.
@@ -399,7 +399,7 @@ func registerEnvironmentUpdates(a huma.API, deps Deps) {
 	read := []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusServiceUnavailable}
 	mutate := []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity, http.StatusServiceUnavailable}
 	Register(a, Operation{Operation: huma.Operation{OperationID: "list-environment-update-policies", Method: http.MethodGet, Path: base, Summary: "List environment update policies", Tags: []string{tagUpdates}, Errors: read}, Capability: CapabilityAuthenticated, Scope: ScopeNone}, h.list)
-	Register(a, Operation{Operation: huma.Operation{OperationID: "create-environment-update-policy", Method: http.MethodPost, Path: base, Summary: "Create an environment update policy", Description: "Covers all environments or one environment, including future eligible stacks and DockYard-managed standalone containers. Scopes cannot overlap; schedules start disabled unless enabled.", Tags: []string{tagUpdates}, DefaultStatus: http.StatusCreated, Errors: mutate}, Capability: CapabilityAuthenticated, Scope: ScopeNone}, h.create)
+	Register(a, Operation{Operation: huma.Operation{OperationID: "create-environment-update-policy", Method: http.MethodPost, Path: base, Summary: "Create an environment update policy", Description: "Covers all environments or one environment, including future eligible stacks and Docker Manager-managed standalone containers. Scopes cannot overlap; schedules start disabled unless enabled.", Tags: []string{tagUpdates}, DefaultStatus: http.StatusCreated, Errors: mutate}, Capability: CapabilityAuthenticated, Scope: ScopeNone}, h.create)
 	Register(a, Operation{Operation: huma.Operation{OperationID: "get-environment-update-policy", Method: http.MethodGet, Path: one, Summary: "Get an environment update policy", Tags: []string{tagUpdates}, Errors: read}, Capability: CapabilityAuthenticated, Scope: ScopeNone}, h.get)
 	Register(a, Operation{Operation: huma.Operation{OperationID: "update-environment-update-policy", Method: http.MethodPatch, Path: one, Summary: "Edit an environment update policy", Tags: []string{tagUpdates}, Errors: mutate}, Capability: CapabilityAuthenticated, Scope: ScopeNone}, h.update)
 	Register(a, Operation{Operation: huma.Operation{OperationID: "delete-environment-update-policy", Method: http.MethodDelete, Path: one, Summary: "Delete an environment update policy", Tags: []string{tagUpdates}, DefaultStatus: http.StatusNoContent, Errors: mutate}, Capability: CapabilityAuthenticated, Scope: ScopeNone}, h.delete)

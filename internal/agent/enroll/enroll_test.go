@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 func request() protocol.EnrollRequest {
@@ -30,11 +30,11 @@ func TestEnrollSuccessAndRequestShape(t *testing.T) {
 		_, _ = w.Write([]byte(`{"agentId":"a1","environmentId":"e1","environmentName":"NAS","credential":"dya_c_s","sessionPath":"/agent/v1/session","reattached":false}`))
 	}))
 	defer srv.Close()
-	resp, err := Enroll(testutil.Context(t), srv.Client(), srv.URL+protocol.EnrollPath, "dye_tok_secret", "dockyard-agent/1.4.0", request())
+	resp, err := Enroll(testutil.Context(t), srv.Client(), srv.URL+protocol.EnrollPath, "dye_tok_secret", "docker-agent/1.4.0", request())
 	if err != nil || resp.AgentID != "a1" || resp.Credential != "dya_c_s" {
 		t.Fatalf("%+v %v", resp, err)
 	}
-	if gotAuth != "Bearer dye_tok_secret" || gotUA != "dockyard-agent/1.4.0" || gotURL != protocol.EnrollPath || gotBody != request() {
+	if gotAuth != "Bearer dye_tok_secret" || gotUA != "docker-agent/1.4.0" || gotURL != protocol.EnrollPath || gotBody != request() {
 		t.Fatalf("request: %q %q %q %+v", gotAuth, gotUA, gotURL, gotBody)
 	}
 	if strings.Contains(gotURL, "dye_") {

@@ -280,7 +280,7 @@
 {/snippet}
 
 <Page>
-	<SettingsHeader title="Profile and security" description="How you sign in to DockYard." />
+	<SettingsHeader title="Profile and security" description="How you sign in to Docker Manager." />
 	{#if me}
 		<Card title="Account">
 			<Facts
@@ -495,7 +495,7 @@
 				<SecretReveal
 					secret={newCodes}
 					label="recovery codes"
-					filename="dockyard-recovery-codes.txt"
+					filename="docker-manager-recovery-codes.txt"
 					description="Each code works once. Keep them apart from your password, for example printed in a drawer."
 					confirmLabel="Done"
 					onconfirm={() => {

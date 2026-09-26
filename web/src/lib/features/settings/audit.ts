@@ -21,7 +21,7 @@ export const CATEGORY_LABELS: Record<AuditEvent['category'], string> = {
 export const ACTOR_LABELS: Record<AuditEvent['actor']['kind'], string> = {
 	user: 'User',
 	api_token: 'API token',
-	service: 'DockYard (scheduled)',
+	service: 'Docker Manager (scheduled)',
 	agent: 'Agent',
 	anonymous: 'Not signed in'
 };

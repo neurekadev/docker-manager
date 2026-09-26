@@ -3,8 +3,8 @@ package registries
 import (
 	"sort"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/imageref"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/imageref"
 )
 
 // Binding specificities (domain.RegistryCandidate.Binding).

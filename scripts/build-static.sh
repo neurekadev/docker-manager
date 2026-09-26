@@ -14,7 +14,7 @@ DIST_DIR="${DIST_DIR:-dist}"
 VERSION="${VERSION:-0.0.0-edge}"
 COMMIT="${COMMIT:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}"
 DATE="${DATE:-$(git log -1 --format=%cI 2>/dev/null || echo unknown)}"
-pkg="github.com/neurekadev/dockyard/internal/buildinfo"
+pkg="code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
 ldflags="-s -w -X ${pkg}.Version=${VERSION} -X ${pkg}.Commit=${COMMIT} -X ${pkg}.Date=${DATE}"
 
 if [ -f web/build/app/index.html ]; then
@@ -34,7 +34,7 @@ check_sdk_graph() { # bin out meta
 	local mod want have
 	for mod in "${sdk_modules[@]}"; do
 		have="$(awk -F'\t' -v m="$mod" '$2 == "dep" && $3 == m { print $4 }' <<<"$3")"
-		if [ "$1" = dockyard-agent ]; then
+		if [ "$1" = docker-agent ]; then
 			want="$(pinned "$mod")"
 			if [ -z "$want" ] || [ "$have" != "$want" ]; then
 				echo "$2: links ${mod} ${have:-(missing)}, go.mod pins ${want:-(nothing)}" >&2
@@ -56,7 +56,7 @@ check_auth_graph() { # bin out meta
 	local mod want have
 	for mod in "${auth_modules[@]}"; do
 		have="$(awk -F'\t' -v m="$mod" '$2 == "dep" && $3 == m { print $4 }' <<<"$3")"
-		if [ "$1" = dockyard-manager ]; then
+		if [ "$1" = docker-manager ]; then
 			want="$(pinned "$mod")"
 			if [ -z "$want" ] || [ "$have" != "$want" ]; then
 				echo "$2: links ${mod} ${have:-(missing)}, go.mod pins ${want:-(nothing)}" >&2
@@ -73,7 +73,7 @@ check_auth_graph() { # bin out meta
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 for arch in amd64 arm64; do
-	for bin in dockyard-manager dockyard-agent; do
+	for bin in docker-manager docker-agent; do
 		out="${DIST_DIR}/${bin}-linux-${arch}"
 		echo "==> ${out}"
 		CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -ldflags "$ldflags" -o "$out" "./cmd/${bin}"

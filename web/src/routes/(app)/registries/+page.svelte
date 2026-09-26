@@ -187,9 +187,9 @@
 
 <div class="bar">
 	<p class="muted">
-		For each image DockYard picks the most specific match: a stack or environment binding first,
-		then the longest repository matcher, then priority. Login raises Docker Hub's pull limit but
-		doesn't remove it.
+		For each image Docker Manager picks the most specific match: a stack or environment binding
+		first, then the longest repository matcher, then priority. Login raises Docker Hub's pull
+		limit but doesn't remove it.
 	</p>
 	{#if owner}
 		<Button

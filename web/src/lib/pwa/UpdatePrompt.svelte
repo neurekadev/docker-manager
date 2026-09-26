@@ -13,7 +13,7 @@
 <div role="status" aria-live="polite" aria-label="App update" data-testid="update-prompt">
 	{#if pwa.updateAvailable}
 		<div class="card">
-			<p>A new version of DockYard is available.</p>
+			<p>A new version of Docker Manager is available.</p>
 			{#if criticalWork.active}
 				<p class="blocked" data-testid="update-blocked">
 					Finish first: {criticalWork.items.map((i) => i.label).join(', ')}

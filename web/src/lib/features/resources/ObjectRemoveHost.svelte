@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Removes a volume or a network (#6) after the server's removal preview
-	// (in use, managed stack, predefined network, DockYard's own: #32). A
+	// (in use, managed stack, predefined network, Docker Manager's own: #32). A
 	// removal that is accepted runs as a job; its outcome is a toast.
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { api, unwrap, type Schema } from '$lib/api/client';

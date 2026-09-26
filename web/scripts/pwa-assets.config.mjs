@@ -4,11 +4,11 @@
 //   cd web
 //   npx --yes @vite-pwa/assets-generator@2.0.0 --config scripts/pwa-assets.config.mjs
 //   npx --yes @vite-pwa/assets-generator@2.0.0 --config scripts/pwa-assets-maskable.config.mjs
-//   mv static/icons/favicon.ico static/favicon.ico
-//   mv scripts/maskable-icon-512x512.png scripts/apple-touch-icon-180x180.png static/icons/
+//   mv scripts/favicon.ico static/favicon.ico
+//   mv scripts/pwa-*.png scripts/maskable-icon-512x512.png scripts/apple-touch-icon-180x180.png static/icons/
 //
-// This run: the "any" icons (the rounded --surface-shell tile with the cube
-// mark, transparent corners) and the favicon, from static/icons/icon.svg.
+// This run: the "any" icons (the Docker Manager logo on a transparent
+// square) and the favicon, from scripts/logo.png.
 export default {
 	headLinkOptions: { preset: '2023' },
 	preset: {
@@ -16,5 +16,5 @@ export default {
 		maskable: { sizes: [] },
 		apple: { sizes: [] }
 	},
-	images: ['static/icons/icon.svg']
+	images: ['scripts/logo.png']
 };

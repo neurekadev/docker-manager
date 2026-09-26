@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/config"
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginetest"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 func testConfig(stateDir string) config.Config {
@@ -127,7 +127,7 @@ func TestLoopUpdatesHealthFile(t *testing.T) {
 	}
 	out := logs.String()
 	// The configured value is not a dye_ token: refused without echoing it.
-	if !strings.Contains(out, "DOCKYARD_ENROLLMENT_TOKEN is not an enrollment token") {
+	if !strings.Contains(out, "DOCKER_AGENT_ENROLLMENT_TOKEN is not an enrollment token") {
 		t.Fatalf("missing invalid-token notice: %s", out)
 	}
 	if !strings.Contains(out, `"negotiated_api_version":"1.44"`) || !strings.Contains(out, `"engine_id":"FAKE:ENGINE:ID"`) {

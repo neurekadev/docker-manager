@@ -14,21 +14,21 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/jobs/jobstest"
-	"github.com/neurekadev/dockyard/internal/manager/regclient"
-	"github.com/neurekadev/dockyard/internal/manager/regclient/regtest"
-	"github.com/neurekadev/dockyard/internal/manager/registries"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs/jobstest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient/regtest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/registries"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 // guard is a switchable owner guard.
@@ -91,7 +91,7 @@ func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	ctx := testutil.Context(t)
 	dir := t.TempDir()
-	path := filepath.Join(dir, "dockyard.db")
+	path := filepath.Join(dir, "docker-manager.db")
 	db, err := store.Open(ctx, path)
 	if err != nil {
 		t.Fatal(err)

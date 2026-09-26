@@ -71,7 +71,7 @@ describe('DeniedState and offline banner', () => {
 			})
 		).toBeInTheDocument();
 		expect(
-			screen.getByText('Ask the owner of this DockYard to grant access.')
+			screen.getByText('Ask the owner of this Docker Manager to grant access.')
 		).toBeInTheDocument();
 	});
 

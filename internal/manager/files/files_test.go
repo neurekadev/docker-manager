@@ -18,23 +18,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	agentfiles "github.com/neurekadev/dockyard/internal/agent/files"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/agents"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/authztest"
-	"github.com/neurekadev/dockyard/internal/manager/files"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/streammux"
-	"github.com/neurekadev/dockyard/internal/streammux/muxtest"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	agentfiles "code.neureka.dev/docker-manager/docker-manager/internal/agent/files"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/files"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux/muxtest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 const (
@@ -270,7 +270,7 @@ func newEnv(t *testing.T, maxUpload int64) *env {
 	}
 	e := &env{t: t, ctx: testutil.Context(t), obs: &observer{}, audit: &memAudit{}}
 	e.vol = filepath.Join(base, "data", "_data")
-	stacks := filepath.Join(base, "dockyard_stacks", "_data")
+	stacks := filepath.Join(base, "docker-manager_stacks", "_data")
 	e.stack = filepath.Join(stacks, "app")
 	for _, d := range []string{e.vol, e.stack, filepath.Join(base, "remote", "_data")} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
@@ -491,7 +491,7 @@ func TestVolumeFilesThroughTheAPI(t *testing.T) {
 	}
 	must(t, e.do("owner", http.MethodPost, e.volURL+"/uploads?path=made&name=big", make([]byte, 1<<20+1), "If-None-Match", "*"), 413)
 	must(t, e.do("owner", http.MethodPost, e.volURL+"/uploads?path=made&name=x", []byte("x"), "If-None-Match", "*",
-		"X-DockYard-Content-SHA256", strings.Repeat("0", 64)), 422)
+		"X-Docker-Manager-Content-SHA256", strings.Repeat("0", 64)), 422)
 	must(t, e.do("owner", http.MethodPost, e.volURL+"/uploads?path=made&name=j", map[string]string{}, "If-None-Match", "*"), 415)
 
 	// Downloads: raw with ranges, archives.

@@ -20,11 +20,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // EngineAPI is the part of engine.Engine observation uses.
@@ -53,7 +53,7 @@ type DiskStat struct {
 	Device string
 }
 
-// DefaultProcRoot is where procfs is read (DOCKYARD_HOST_PROC).
+// DefaultProcRoot is where procfs is read (DOCKER_AGENT_HOST_PROC).
 const DefaultProcRoot = "/proc"
 
 // DefaultStatsConcurrency bounds concurrent per-container stats calls.

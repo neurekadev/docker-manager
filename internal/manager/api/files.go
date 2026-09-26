@@ -19,13 +19,13 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 )
 
 // Scoped file manager (#15): the same routes under
@@ -52,7 +52,7 @@ const (
 
 // File manager limits.
 const (
-	// DefaultMaxUpload bounds one uploaded file (DOCKYARD_FILES_MAX_UPLOAD).
+	// DefaultMaxUpload bounds one uploaded file (DOCKER_MANAGER_FILES_MAX_UPLOAD).
 	DefaultMaxUpload = 2 << 30
 	// MaxFilesPerJob bounds the paths of one copy/move/delete/archive/
 	// metadata request.
@@ -263,8 +263,8 @@ type FilesUploadQuery struct {
 	Conflict      string `query:"conflict" enum:"overwrite,skip,keep_both" doc:"What to do when the name exists, instead of If-Match/If-None-Match."`
 	IfMatch       string `header:"If-Match" maxLength:"1024" doc:"Replace exactly this revision (ETag)."`
 	IfNoneMatch   string `header:"If-None-Match" maxLength:"8" doc:"* creates only (412 when the name exists)."`
-	ContentLength int64  `header:"Content-Length" doc:"Required (411 otherwise); at most DOCKYARD_FILES_MAX_UPLOAD (default 2 GiB, 413)."`
-	ContentSHA256 string `header:"X-DockYard-Content-SHA256" maxLength:"64" doc:"Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch)."`
+	ContentLength int64  `header:"Content-Length" doc:"Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413)."`
+	ContentSHA256 string `header:"X-Docker-Manager-Content-SHA256" maxLength:"64" doc:"Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch)."`
 }
 
 func (q *FilesUploadQuery) common() *FilesUploadQuery { return q }
@@ -643,7 +643,7 @@ func fileErr(err error, field string, conflict412 bool) error {
 			return NewError(http.StatusRequestEntityTooLarge, CodePayloadTooLarge, fe.Message)
 		case protocol.CodeDigestMismatch:
 			return NewError(http.StatusUnprocessableEntity, CodeContentDigestMismatch, fe.Message,
-				Field("header.X-DockYard-Content-SHA256", "does not match the received bytes"))
+				Field("header.X-Docker-Manager-Content-SHA256", "does not match the received bytes"))
 		case protocol.CodeUnsupportedRequest, protocol.CodeUnsupportedStream:
 			return NewError(http.StatusNotImplemented, CodeNotImplemented, "this environment's agent does not serve the file manager; upgrade it")
 		case protocol.CodeInvalidFrame:
@@ -1154,7 +1154,7 @@ func (h *filesAPI) upload(ctx context.Context, ref fileScopeRef, in *FilesUpload
 	}
 	if in.ContentSHA256 != "" {
 		if b, err := hex.DecodeString(in.ContentSHA256); err != nil || len(b) != 32 {
-			return nil, Invalid("invalid digest", Field("header.X-DockYard-Content-SHA256", "64 hex digits"))
+			return nil, Invalid("invalid digest", Field("header.X-Docker-Manager-Content-SHA256", "64 hex digits"))
 		}
 		req.SHA256 = strings.ToLower(in.ContentSHA256)
 	}
@@ -1400,7 +1400,7 @@ func registerFiles(a huma.API, deps Deps) {
 		defNote := " Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write."
 		if kind == "volume" {
 			what = "the volume"
-			defNote = " Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported)."
+			defNote = " Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported)."
 		}
 		registerFileOp(a, h, op(sc, "list-"+kind+"-files", http.MethodGet, "", "List a directory of "+what,
 			"One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where "+
@@ -1429,7 +1429,7 @@ func registerFiles(a huma.API, deps Deps) {
 		dl := op(sc, "download-"+kind+"-files", http.MethodGet, "/downloads", "Download files of "+what,
 			"One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip "+
 				"(default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed "+
-				"in DOCKYARD-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md."+defNote,
+				"in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md."+defNote,
 			"download", append(std, http.StatusRequestedRangeNotSatisfiable, http.StatusRequestEntityTooLarge))
 		dl.Audit = AuditAlways
 		dl.Responses = map[string]*huma.Response{
@@ -1459,9 +1459,9 @@ func registerFiles(a huma.API, deps Deps) {
 
 		up := op(sc, "upload-"+kind+"-files", http.MethodPost, "/uploads", "Upload a file into "+what,
 			"Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, "+
-				"verified (size, optional X-DockYard-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when "+
+				"verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when "+
 				"the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. "+
-				"At most DOCKYARD_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for "+
+				"At most DOCKER_MANAGER_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for "+
 				"many files."+defNote,
 			"write", append(std, http.StatusLengthRequired, http.StatusPreconditionFailed, http.StatusPreconditionRequired,
 				http.StatusRequestEntityTooLarge, http.StatusUnsupportedMediaType))
@@ -1508,7 +1508,7 @@ func registerFiles(a huma.API, deps Deps) {
 
 		arc := op(sc, "create-"+kind+"-file-archive", http.MethodPost, "/archives", "Create an archive in "+what,
 			"Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, "+
-				"hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt)."+defNote, "archive", jobErrs)
+				"hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt)."+defNote, "archive", jobErrs)
 		arc.Idempotency = IdempotencyJob
 		registerFileOp(a, h, arc, h.archive,
 			func(in *archiveStackInput) (fileScopeRef, *FilesArchiveInput) { return in.scopeRef(), in.common() },

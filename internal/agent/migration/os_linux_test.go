@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/migration"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/transfer"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/transfer"
 )
 
 type osEntry struct {

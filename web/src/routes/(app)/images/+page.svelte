@@ -202,7 +202,7 @@
 	<DeniedState
 		level={1}
 		title="You don't have access to images."
-		description="Ask the owner of this DockYard to grant access."
+		description="Ask the owner of this Docker Manager to grant access."
 	/>
 {:else}
 	<Page>

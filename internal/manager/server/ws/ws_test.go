@@ -12,7 +12,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 type serverResult struct {
@@ -39,17 +39,17 @@ func wsURL(srv *httptest.Server) string { return "ws" + strings.TrimPrefix(srv.U
 
 func TestAcceptNegotiatesSubprotocol(t *testing.T) {
 	ctx := testutil.Context(t)
-	srv, ch := newServer(t, Options{Subprotocols: []string{"dockyard.agent/v1"}, RequireSubprotocol: true})
-	c, resp, err := websocket.Dial(ctx, wsURL(srv), &websocket.DialOptions{Subprotocols: []string{"dockyard.agent/v1"}}) //nolint:bodyclose // the connection owns the upgrade response
+	srv, ch := newServer(t, Options{Subprotocols: []string{"docker-manager.agent/v1"}, RequireSubprotocol: true})
+	c, resp, err := websocket.Dial(ctx, wsURL(srv), &websocket.DialOptions{Subprotocols: []string{"docker-manager.agent/v1"}}) //nolint:bodyclose // the connection owns the upgrade response
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = c.CloseNow() }()
-	if resp.Header.Get("Sec-WebSocket-Protocol") != "dockyard.agent/v1" || c.Subprotocol() != "dockyard.agent/v1" {
+	if resp.Header.Get("Sec-WebSocket-Protocol") != "docker-manager.agent/v1" || c.Subprotocol() != "docker-manager.agent/v1" {
 		t.Fatalf("subprotocol %q", c.Subprotocol())
 	}
 	res := <-ch
-	if res.err != nil || res.conn.Subprotocol() != "dockyard.agent/v1" {
+	if res.err != nil || res.conn.Subprotocol() != "docker-manager.agent/v1" {
 		t.Fatalf("server: %+v", res)
 	}
 	_ = res.conn.CloseNow()

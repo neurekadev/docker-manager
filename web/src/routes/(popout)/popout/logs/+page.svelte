@@ -31,7 +31,7 @@
 	);
 
 	$effect(() => {
-		document.title = name ? `${name} logs · DockYard` : 'Logs · DockYard';
+		document.title = name ? `${name} logs · Docker Manager` : 'Logs · Docker Manager';
 	});
 </script>
 

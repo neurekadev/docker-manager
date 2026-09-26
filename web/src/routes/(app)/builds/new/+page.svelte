@@ -134,7 +134,7 @@
 	<DeniedState
 		level={1}
 		title="You can't build images here."
-		description="Building needs the permission on an online environment. Ask the owner of this DockYard if you need it."
+		description="Building needs the permission on an online environment. Ask the owner of this Docker Manager if you need it."
 	/>
 {:else}
 	<Page>

@@ -2,7 +2,7 @@
 	// Volume file manager (#15): the same file manager as a stack's Files
 	// tab, rooted at a local volume's data directory. A child route of the
 	// volume detail; works on its own too. Non-local drivers, the stacks
-	// volume and DockYard's own volumes are refused by the agent
+	// volume and Docker Manager's own volumes are refused by the agent
 	// (volume_files_unsupported) and explained here.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
@@ -62,7 +62,7 @@
 			icon={HardDrive}
 			title="{volumeId} can't be browsed here"
 			description={volume.data.protection
-				? "It holds DockYard's own data, which the file manager never opens."
+				? "It holds Docker Manager's own data, which the file manager never opens."
 				: `Its driver (${volume.data.driver}) isn't a local volume: only local volumes support the file manager in this version.`}
 		/>
 	{:else if volume.data}

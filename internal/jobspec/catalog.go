@@ -5,7 +5,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 )
 
 // The v1 job kind catalog. Naming: <resource>.<verb>, with the resource the
@@ -201,7 +201,7 @@ func catalogSpecs() []Spec {
 		stackKind(StackDown, "Stop and remove a stack's containers and networks", deadlineInteractive, idem("down")),
 		// Deleting a stack takes it down (volumes and the project directory
 		// are kept) and then forgets it in the manager (finish hook, #7).
-		stackKind(StackRemove, "Take a stack down and remove it from DockYard (volumes and files are kept)", deadlineInteractive, idem("down")),
+		stackKind(StackRemove, "Take a stack down and remove it from Docker Manager (volumes and files are kept)", deadlineInteractive, idem("down")),
 		func() Spec {
 			s := stackKind(StackBuild, "Build a stack's images", deadlineLong, idem("fetch_sources"), idem("build_images"))
 			s.ConcurrencyClass = ClassBuild
@@ -281,7 +281,7 @@ func catalogSpecs() []Spec {
 		},
 
 		// Updates.
-		// An update policy targets one stack or one DockYard-managed
+		// An update policy targets one stack or one Docker Manager-managed
 		// standalone container (#20): the check reads registries on the
 		// manager, the run pulls and recreates on the agent.
 		{

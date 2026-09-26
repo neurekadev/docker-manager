@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/gitremote/gittest"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/gitremote/gittest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 // Image builds (#33) through the real manager: Git credentials (owner

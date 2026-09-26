@@ -16,23 +16,23 @@ import (
 
 	"github.com/descope/virtualwebauthn"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/manager/agents"
-	"github.com/neurekadev/dockyard/internal/manager/auth/password"
-	"github.com/neurekadev/dockyard/internal/manager/auth/totp"
-	"github.com/neurekadev/dockyard/internal/manager/config"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/password"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/totp"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 // The identity tests run the real manager handler behind a simulated TLS
-// reverse proxy: DOCKYARD_PUBLIC_URL is https://docker.example.com, the
+// reverse proxy: DOCKER_MANAGER_PUBLIC_URL is https://docker.example.com, the
 // test client is a trusted proxy (127.0.0.1) and sends X-Forwarded-Proto /
 // X-Forwarded-Host like Caddy/Traefik/nginx do (#27).
 const (
 	publicOrigin = "https://docker.example.com"
 	publicHost   = "docker.example.com"
-	cookieName   = "__Host-dockyard_session"
+	cookieName   = "__Host-docker_manager_session"
 )
 
 // testHeartbeatTimeout outlasts every fake-clock jump of these tests (the
@@ -334,7 +334,7 @@ type device struct {
 
 func newDevice(origin, rpID string) *device {
 	return &device{
-		rp:   virtualwebauthn.RelyingParty{ID: rpID, Name: "DockYard", Origin: origin},
+		rp:   virtualwebauthn.RelyingParty{ID: rpID, Name: "Docker Manager", Origin: origin},
 		auth: virtualwebauthn.NewAuthenticatorWithOptions(virtualwebauthn.AuthenticatorOptions{BackupEligible: true}),
 		cred: virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2),
 	}

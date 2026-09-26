@@ -4,8 +4,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
 )
 
 // Location is where a resource currently is (the resource graph).

@@ -8,21 +8,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/agent/protect"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
-const stacksRoot = "/var/lib/docker/volumes/dockyard_stacks/_data"
+const stacksRoot = "/var/lib/docker/volumes/docker-manager_stacks/_data"
 
-// fixture: a fake Engine with a DockYard-managed stack ("shop": web + db
+// fixture: a fake Engine with a Docker Manager-managed stack ("shop": web + db
 // in the stacks root, with its volume and network), an unmanaged Compose
 // project ("legacy") and a standalone container.
 func fixture(t *testing.T) (*Service, *enginefake.Engine) {
@@ -334,7 +334,7 @@ func TestContainerJobs(t *testing.T) {
 }
 
 // TestStackManagedAndInUseRefusals: the agent itself refuses direct edits
-// of a DockYard-managed stack's containers, volumes and networks and the
+// of a Docker Manager-managed stack's containers, volumes and networks and the
 // removal of images, volumes and networks still in use, whatever the
 // manager decided.
 func TestStackManagedAndInUseRefusals(t *testing.T) {
@@ -461,7 +461,7 @@ func TestImageVolumeNetworkJobs(t *testing.T) {
 	failed(t, "engine down", res, "engine_unavailable")
 }
 
-// deployed is an agent service on a host running DockYard (manager, agent,
+// deployed is an agent service on a host running Docker Manager (manager, agent,
 // proxy) with the manager identity received.
 func deployed(t *testing.T) (*Service, *enginefake.Engine, enginefake.Deployment) {
 	t.Helper()
@@ -477,16 +477,16 @@ func deployed(t *testing.T) (*Service, *enginefake.Engine, enginefake.Deployment
 // TestSelfProtectionInExecutors (#32): the agent refuses, whatever the
 // manager sent, to stop, pause, restart, update or remove itself, to stop
 // or remove the manager and its proxy (a restart only with confirmation),
-// to remove DockYard's volumes, images and networks, and to mount them (or
+// to remove Docker Manager's volumes, images and networks, and to mount them (or
 // the Docker data root) into new containers. Start stays allowed.
 func TestSelfProtectionInExecutors(t *testing.T) {
 	s, fe, d := deployed(t)
 	agent := func(kind domain.JobKind, confirm bool) protocol.ResultPayload {
-		r, _ := run(t, s, kind, protocol.ContainerActionInput{Name: "dockyard-dockyard-agent-1", ID: d.AgentID, Force: true, Confirmed: confirm})
+		r, _ := run(t, s, kind, protocol.ContainerActionInput{Name: "docker-manager-docker-agent-1", ID: d.AgentID, Force: true, Confirmed: confirm})
 		return r
 	}
 	manager := func(kind domain.JobKind, confirm bool) protocol.ResultPayload {
-		r, _ := run(t, s, kind, protocol.ContainerActionInput{Name: "dockyard-dockyard-manager-1", ID: d.ManagerID, Force: true, Confirmed: confirm})
+		r, _ := run(t, s, kind, protocol.ContainerActionInput{Name: "docker-manager-docker-manager-1", ID: d.ManagerID, Force: true, Confirmed: confirm})
 		return r
 	}
 	for _, k := range []domain.JobKind{jobspec.ContainerStop, jobspec.ContainerPause, jobspec.ContainerRemove} {
@@ -497,7 +497,7 @@ func TestSelfProtectionInExecutors(t *testing.T) {
 	failed(t, "manager restart", manager(jobspec.ContainerRestart, false), protection.CodeConfirmationRequired)
 	ok(t, "manager restart confirmed", manager(jobspec.ContainerRestart, true))
 	ok(t, "agent start", agent(jobspec.ContainerStart, false))
-	res, _ := run(t, s, jobspec.ContainerUpdate, protocol.ContainerUpdateInput{Name: "dockyard-caddy-1", ID: d.ProxyID, RestartPolicy: "always"})
+	res, _ := run(t, s, jobspec.ContainerUpdate, protocol.ContainerUpdateInput{Name: "docker-manager-caddy-1", ID: d.ProxyID, RestartPolicy: "always"})
 	failed(t, "proxy update", res, protection.CodeProtected)
 	if c, _ := fe.Container(d.AgentID); !c.Details.State.Running {
 		t.Fatal("the agent was stopped")
@@ -511,7 +511,7 @@ func TestSelfProtectionInExecutors(t *testing.T) {
 	failed(t, "remove manager image", res, protection.CodeProtected)
 	n, _ := fe.InspectNetwork(testutil.Context(t), d.Network)
 	res, _ = run(t, s, jobspec.NetworkRemove, protocol.NetworkRemoveInput{Name: d.Network, ID: n.ID})
-	failed(t, "remove DockYard network", res, protection.CodeProtected)
+	failed(t, "remove Docker Manager network", res, protection.CodeProtected)
 
 	for _, m := range []protocol.MountSpec{
 		{Type: "volume", Source: d.ManagerData, Target: "/steal"},
@@ -524,7 +524,7 @@ func TestSelfProtectionInExecutors(t *testing.T) {
 		failed(t, "mount "+m.Source, res, protection.CodeProtected)
 	}
 	if _, found := fe.Container("thief"); found {
-		t.Fatal("a container mounting DockYard's data was created")
+		t.Fatal("a container mounting Docker Manager's data was created")
 	}
 	res, _ = run(t, s, jobspec.ContainerCreate, protocol.ContainerCreateInput{Spec: protocol.ContainerSpec{Name: "fine", Image: "nginx:1.27",
 		Mounts: []protocol.MountSpec{{Type: "bind", Source: "/srv/www", Target: "/www"}, {Type: "volume", Source: "fresh", Target: "/data"}}}})
@@ -538,7 +538,7 @@ func TestSelfProtectionInExecutors(t *testing.T) {
 			protected[c.Name] = c.Protection.Role
 		}
 	}
-	if len(protected) != 3 || protected["dockyard-dockyard-agent-1"] != protection.RoleAgent || protected["dockyard-caddy-1"] != protection.RoleProject {
+	if len(protected) != 3 || protected["docker-manager-docker-agent-1"] != protection.RoleAgent || protected["docker-manager-caddy-1"] != protection.RoleProject {
 		t.Fatalf("protected containers %v", protected)
 	}
 	vols := must[protocol.VolumeListOutput](t, s, protocol.ReqVolumeList, protocol.VolumeListInput{})

@@ -12,14 +12,14 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // RestoreMarker describes a staged (restore.json in PendingRestoreDir) or
@@ -50,7 +50,7 @@ type RestoreMarker struct {
 }
 
 // RestoreMarkerFormat identifies RestoreMarker files.
-const RestoreMarkerFormat = "dockyard-manager-restore"
+const RestoreMarkerFormat = "docker-manager-restore"
 
 // importScanOutput is the output of backup.import's scan step.
 type importScanOutput struct {
@@ -81,7 +81,7 @@ func (s *Service) importExecutor() jobexec.Executor {
 }
 
 var errSecretsLost = backup.Refuse("backup_import_secrets_lost", "the import lost the Recovery Key and credentials (the manager restarted)",
-	"Start the import again: DockYard keeps them in memory only.")
+	"Start the import again: Docker Manager keeps them in memory only.")
 
 func (s *Service) importJob(sc *jobexec.StepContext) (importInput, importSecrets, error) {
 	var in importInput
@@ -130,7 +130,7 @@ func (s *Service) stepImportScan(ctx context.Context, sc *jobexec.StepContext) e
 		return importRefusal(ImportStateMissing, "the manager-state snapshot's state.json is unreadable", guideStateMissing)
 	}
 	if info.Version > 1 || !schemaKnown(info.Schema.Migrations, s.knownMigrations()) {
-		return importRefusal(ImportSchemaIncompatible, "the manager state was written by a newer DockYard ("+info.App.Version+")", guideSchema)
+		return importRefusal(ImportSchemaIncompatible, "the manager state was written by a newer Docker Manager ("+info.App.Version+")", guideSchema)
 	}
 	raw, err = dumpSmall(ctx, repo, in.ManagerSnapshotID, file(BundleFile), 64<<10)
 	if err != nil {
@@ -154,7 +154,7 @@ func (s *Service) stepImportScan(ctx context.Context, sc *jobexec.StepContext) e
 	if s.opts.SecretKeyFile != "" {
 		if err := probeWritable(filepath.Dir(s.opts.SecretKeyFile)); err != nil {
 			return backup.Refuse("backup_import_key_file_read_only", "the secret key file's directory is not writable",
-				"The restore replaces DOCKYARD_SECRET_KEY_FILE with the recovered key: mount it writable for the import, then import again.")
+				"The restore replaces DOCKER_MANAGER_SECRET_KEY_FILE with the recovered key: mount it writable for the import, then import again.")
 		}
 	}
 	sc.Progress(ctx, 15, "restoring the manager database")
@@ -209,7 +209,7 @@ func (s *Service) checkRestoredDatabase(ctx context.Context, path string, info S
 	if s.opts.CheckSchema != nil {
 		if err := s.opts.CheckSchema(ctx, db); err != nil {
 			if errors.Is(err, store.ErrUnknownMigrations) {
-				return false, false, importRefusal(ImportSchemaIncompatible, "the restored database has migrations this DockYard does not know", guideSchema)
+				return false, false, importRefusal(ImportSchemaIncompatible, "the restored database has migrations this Docker Manager does not know", guideSchema)
 			}
 			return false, false, err
 		}

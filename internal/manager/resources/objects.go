@@ -5,12 +5,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Images.
@@ -137,7 +137,7 @@ func (s *Service) CreateVolume(ctx context.Context, p authz.Principal, env strin
 }
 
 // RemoveVolume starts a volume.remove job for an unused volume outside any
-// DockYard-managed stack. Its data is deleted permanently.
+// Docker Manager-managed stack. Its data is deleted permanently.
 func (s *Service) RemoveVolume(ctx context.Context, p authz.Principal, env string, v protocol.VolumeInfo, key string) (domain.Job, error) {
 	if err := protection.Check(v.Protection, protection.Remove, false); err != nil {
 		return domain.Job{}, refusal(err)
@@ -202,7 +202,7 @@ func (s *Service) CreateNetwork(ctx context.Context, p authz.Principal, env stri
 }
 
 // RemoveNetwork starts a network.remove job for an unused, user-defined
-// network outside any DockYard-managed stack.
+// network outside any Docker Manager-managed stack.
 func (s *Service) RemoveNetwork(ctx context.Context, p authz.Principal, env string, n protocol.NetworkInfo, key string) (domain.Job, error) {
 	if err := protection.Check(n.Protection, protection.Remove, false); err != nil {
 		return domain.Job{}, refusal(err)

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 func basePreflight() PreflightInput {
@@ -50,7 +50,7 @@ func codes(fs []Finding) []string {
 // before any downtime on platform mismatches, image availability, port
 // and name conflicts, missing external networks and volumes, external
 // bind paths, devices, non-local drivers, free space, transport and
-// DockYard's own resources.
+// Docker Manager's own resources.
 func TestPreflightCorpus(t *testing.T) {
 	web := func(in *PreflightInput) *protocol.MigrationServiceFacts { return &in.Source.Project.Services[1] }
 	cases := []struct {
@@ -207,14 +207,14 @@ func TestPreflightCorpus(t *testing.T) {
 		{name: "size estimated", mutate: func(in *PreflightInput) { in.Source.Project.Volumes[0].Truncated = true },
 			warnings: []string{FindingSizeEstimated}},
 		{name: "plain HTTP", mutate: func(in *PreflightInput) { in.TargetPlainHTTP = true }, warnings: []string{FindingPlainHTTP}},
-		{name: "DockYard's own project", mutate: func(in *PreflightInput) {
-			in.Source.Project.Protected, in.Source.Project.ProtectionReason = true, "DockYard's own Compose project"
-		}, blockers: []string{FindingDockYardResource}},
-		{name: "DockYard's own image", mutate: func(in *PreflightInput) { web(in).ImageProtected = true },
-			blockers: []string{FindingDockYardResource}},
-		{name: "DockYard's own volume", mutate: func(in *PreflightInput) {
+		{name: "Docker Manager's own project", mutate: func(in *PreflightInput) {
+			in.Source.Project.Protected, in.Source.Project.ProtectionReason = true, "Docker Manager's own Compose project"
+		}, blockers: []string{FindingDockerManagerResource}},
+		{name: "Docker Manager's own image", mutate: func(in *PreflightInput) { web(in).ImageProtected = true },
+			blockers: []string{FindingDockerManagerResource}},
+		{name: "Docker Manager's own volume", mutate: func(in *PreflightInput) {
 			v := &in.Source.Project.Volumes[0]
-			v.Protected, v.Supported, v.Reason = true, false, "the DockYard stacks volume"
+			v.Protected, v.Supported, v.Reason = true, false, "the Docker Manager stacks volume"
 		}, check: func(t *testing.T, p Plan) {
 			if p.Volumes[0].Action != VolumeSkip || len(p.Excluded) != 1 {
 				t.Errorf("volumes %+v excluded %+v", p.Volumes, p.Excluded)
@@ -256,7 +256,7 @@ func sorted(s []string) []string {
 
 // TestVolumePreflight: a standalone volume's copy is blocked by running
 // users unless a crash-consistent copy is acknowledged, by name conflicts
-// on the destination and by unsupported or DockYard volumes.
+// on the destination and by unsupported or Docker Manager volumes.
 func TestVolumePreflight(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -281,9 +281,9 @@ func TestVolumePreflight(t *testing.T) {
 		{name: "unsupported", mutate: func(in *PreflightInput) {
 			in.Source.Volume.Supported, in.Source.Volume.Reason = false, "NFS-backed"
 		}, blockers: []string{FindingVolumeDefinitionOnly}},
-		{name: "DockYard's own", mutate: func(in *PreflightInput) {
+		{name: "Docker Manager's own", mutate: func(in *PreflightInput) {
 			in.Source.Volume.Protected, in.Source.Volume.Reason = true, "the manager's data"
-		}, blockers: []string{FindingDockYardResource}},
+		}, blockers: []string{FindingDockerManagerResource}},
 		{name: "no space", mutate: func(in *PreflightInput) { in.Target.VolumesFree = 100 }, blockers: []string{FindingInsufficientSpace}},
 	}
 	for _, c := range cases {

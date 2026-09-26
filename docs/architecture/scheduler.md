@@ -36,7 +36,7 @@ evaluation does not depend on the image.
 **Decision: in-house parser, not robfig/cron.** `robfig/cron/v3` evaluates
 schedules by stepping wall-clock fields in the zone: it skips runs whose
 local time falls into a DST gap and can run a repeated local time twice
-after clocks fall back. DockYard promises the two rules below, so
+after clocks fall back. Docker Manager promises the two rules below, so
 `internal/cron` computes candidate *civil* (wall-clock) minutes without
 zone arithmetic and maps each to an instant explicitly. It is ~300 lines,
 has no dependency and is covered by unit tests (the former fuzz target

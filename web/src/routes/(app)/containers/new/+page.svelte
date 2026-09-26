@@ -288,7 +288,7 @@
 	<DeniedState
 		level={1}
 		title="You can't create containers here."
-		description="Creating containers needs the permission on an online environment. Ask the owner of this DockYard if you need it."
+		description="Creating containers needs the permission on an online environment. Ask the owner of this Docker Manager if you need it."
 	/>
 {:else}
 	<Page>
@@ -424,7 +424,7 @@
 						rows={4}
 						bind:value={envText}
 						placeholder={ENV_PLACEHOLDER}
-						description="One KEY=value per line. DockYard stores the values sealed and never shows them again; the container page lists the names only."
+						description="One KEY=value per line. Docker Manager stores the values sealed and never shows them again; the container page lists the names only."
 						error={errors.env}
 					/>
 				</Card>
@@ -519,8 +519,8 @@
 					</datalist>
 					{#if errors.mounts}<p class="err" role="alert">{errors.mounts}</p>{/if}
 					<p class="hint">
-						DockYard's own volumes and the Docker socket cannot be mounted. A volume
-						that doesn't exist yet is created.
+						Docker Manager's own volumes and the Docker socket cannot be mounted. A
+						volume that doesn't exist yet is created.
 					</p>
 					<Button
 						variant="secondary"
@@ -624,7 +624,7 @@
 						rows={3}
 						bind:value={labelText}
 						placeholder="traefik.enable=true"
-						description="One key=value per line. dev.neureka.dockyard.* and com.docker.compose.* are reserved."
+						description="One key=value per line. dev.neureka.docker-manager.* and com.docker.compose.* are reserved."
 						error={errors.labels ?? fieldError(failure?.cause, 'body.labels')}
 					/>
 				</Card>

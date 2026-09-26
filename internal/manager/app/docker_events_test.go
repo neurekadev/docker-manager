@@ -5,15 +5,15 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // TestDockerOperationsReachTheEventBus (#6 Done-when 2, with the #5
-// relay): every Docker operation DockYard runs through the API — container
+// relay): every Docker operation Docker Manager runs through the API — container
 // lifecycle, creation and removal, image pull, tag and removal, volume and
 // network creation and removal — produces the Engine's events, which the
 // agent's event relay sends over its session and the manager republishes

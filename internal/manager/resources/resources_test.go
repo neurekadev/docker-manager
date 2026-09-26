@@ -9,24 +9,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	agentres "github.com/neurekadev/dockyard/internal/agent/resources"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/manager/store/storetest"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	agentres "code.neureka.dev/docker-manager/docker-manager/internal/agent/resources"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store/storetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
-const stacksRoot = "/var/lib/docker/volumes/dockyard_stacks/_data"
+const stacksRoot = "/var/lib/docker/volumes/docker-manager_stacks/_data"
 
 type codedErr struct{ code, msg string }
 
@@ -280,9 +280,9 @@ func TestAgentErrorsBecomeStableCodes(t *testing.T) {
 	}
 }
 
-// TestManagerSideProtection (#32): the manager protects DockYard's
+// TestManagerSideProtection (#32): the manager protects Docker Manager's
 // containers on its own too — by the role labels and by its own container
-// ID — even when an agent does not annotate them; it reports DockYard's
+// ID — even when an agent does not annotate them; it reports Docker Manager's
 // Compose project as protected and excludes its containers from bulk
 // selections.
 func TestManagerSideProtection(t *testing.T) {
@@ -318,9 +318,9 @@ func TestManagerSideProtection(t *testing.T) {
 	if len(fj.jobs) != 0 {
 		t.Fatal("a refused action enqueued a job")
 	}
-	// DockYard's Compose project, and a user project.
-	if pp, err := svc.ProjectProtection(ctx, "env-1", "dockyard"); err != nil || pp == nil || pp.Role != protection.RoleProject {
-		t.Fatalf("dockyard project %+v %v", pp, err)
+	// Docker Manager's Compose project, and a user project.
+	if pp, err := svc.ProjectProtection(ctx, "env-1", "docker-manager"); err != nil || pp == nil || pp.Role != protection.RoleProject {
+		t.Fatalf("docker-manager project %+v %v", pp, err)
 	}
 	if pp, err := svc.ProjectProtection(ctx, "env-1", "shop"); err != nil || pp != nil {
 		t.Fatalf("user project %+v %v", pp, err)
@@ -332,8 +332,8 @@ func TestManagerSideProtection(t *testing.T) {
 		t.Fatalf("kept %d excluded %+v %v", len(kept), excluded, err)
 	}
 	for _, c := range kept {
-		if strings.HasPrefix(c.Name, "dockyard-") {
-			t.Errorf("DockYard container %s selectable", c.Name)
+		if strings.HasPrefix(c.Name, "docker-manager-") {
+			t.Errorf("Docker Manager container %s selectable", c.Name)
 		}
 	}
 }

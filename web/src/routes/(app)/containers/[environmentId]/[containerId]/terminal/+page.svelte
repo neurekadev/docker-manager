@@ -40,7 +40,7 @@
 		<EmptyState
 			icon={LockKeyhole}
 			title="You can't open terminals in {name}"
-			description="Ask the owner of this DockYard for the “Open terminal” permission on {name}."
+			description="Ask the owner of this Docker Manager for the “Open terminal” permission on {name}."
 		/>
 	{:else if container.data}
 		<TerminalPanel

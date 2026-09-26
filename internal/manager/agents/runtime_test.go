@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/config"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginetest"
-	"github.com/neurekadev/dockyard/internal/agent/runtime"
-	"github.com/neurekadev/dockyard/internal/agent/state"
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/runtime"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // runAgentRuntime runs the agent binary's runtime (Engine adapter against a
@@ -59,11 +59,11 @@ func (f *fixture) runAgentRuntime(stateDir, token, dockerHost string) (stop func
 }
 
 // TestAgentRuntimeEnrollsReconnectsAndReenrolls drives the agent's control
-// loop end to end: enrollment from DOCKYARD_ENROLLMENT_TOKEN, the
+// loop end to end: enrollment from DOCKER_AGENT_ENROLLMENT_TOKEN, the
 // credential persisted 0600 before the session, online; a restart reuses
 // the credential and never re-sends the used token; a removed agent drops
 // its credential and waits; a token handed over through the state
-// directory (`dockyard-agent enroll`) re-attaches the environment.
+// directory (`docker-agent enroll`) re-attaches the environment.
 func TestAgentRuntimeEnrollsReconnectsAndReenrolls(t *testing.T) {
 	f := newFixture(t, fixtureOptions{managerVersion: buildinfo.Get().Version})
 	eng := enginetest.Start(t, enginetest.Options{APIVersion: "1.51"})
@@ -109,7 +109,7 @@ func TestAgentRuntimeEnrollsReconnectsAndReenrolls(t *testing.T) {
 	waitHealth(t, f, stateDir, runtime.StatusUnauthorized)
 	waitCond(t, f, func() bool { c, _ := st.Credential(); return c == nil })
 
-	// Hand over a reattach token like `dockyard-agent enroll` does.
+	// Hand over a reattach token like `docker-agent enroll` does.
 	re := f.createEnrollment(domain.EnrollmentSpec{Intent: domain.IntentReattach, TargetID: env.ID})
 	res, err := runtime.HandOver(f.ctx, stateDir, re.Token, time.Minute, 20*time.Millisecond, clock.Real())
 	if err != nil || res.Enrollment == nil || res.Enrollment.Status != state.EnrollEnrolled || !res.Online || res.Enrollment.EnvironmentID != env.ID {

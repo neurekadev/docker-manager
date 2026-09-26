@@ -21,7 +21,7 @@ export default defineConfig(
 		rules: {
 			// typescript-eslint recommends disabling no-undef for TypeScript projects.
 			'no-undef': 'off',
-			// DockYard is served at the origin root (no kit.paths.base; the Go
+			// Docker Manager is served at the origin root (no kit.paths.base; the Go
 			// manager and the service worker assume "/"), and every in-app URL
 			// comes from $lib/routes.ts, often through component props that this
 			// rule cannot follow. resolve() would be an identity everywhere.

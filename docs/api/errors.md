@@ -67,7 +67,7 @@ same change.
 | `unauthenticated` | 401 | no | No valid session cookie or API token; sign in again or send a valid bearer token. | #2 |
 | `invalid_credentials` | 401 | no | Sign-in, second factor or step-up failed: unknown account, wrong password or code, disabled account and bad passkey assertions all look alike. | #16 |
 | `forbidden` | 403 | no | Authenticated, but the named capability is not granted for this resource. Returned only when the caller may know the resource exists; otherwise `not_found`. | #2 |
-| `insecure_origin` | 403 | no | The request did not reach DockYard over HTTPS on DOCKYARD_PUBLIC_URL (first-run setup); the message explains how to fix the proxy or URL. | #16 |
+| `insecure_origin` | 403 | no | The request did not reach Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL (first-run setup); the message explains how to fix the proxy or URL. | #16 |
 | `cross_origin_request` | 403 | no | A browser sent an unsafe request from another origin (cross-site request forgery protection). | #16 |
 | `step_up_required` | 403 | no | The change needs recent authentication; re-authenticate with POST /api/v1/auth/step-ups and retry. | #16 |
 | `enrollment_required` | 403 | no | The session may only enroll the sign-in factors the instance policy requires; finish enrollment first. | #16 |
@@ -103,7 +103,7 @@ same change.
 | `ambiguous_registry_connection` | 409 | no | Several registry connections match the image equally well (same host, repository matcher specificity, binding and priority); name one explicitly (`registryId`). | #19 |
 | `git_credential_name_taken` | 409 | no | Another Git credential already uses this name. | #33 |
 | `ambiguous_git_credential` | 409 | no | Several Git credentials match the repository equally well (same host and path prefix length); name one explicitly (`gitCredentialId`). | #33 |
-| `git_credential_revoked` | 409 | no | The Git credential selected for the repository is revoked; DockYard never falls back to anonymous access. Set a new token or select another credential. | #33 |
+| `git_credential_revoked` | 409 | no | The Git credential selected for the repository is revoked; Docker Manager never falls back to anonymous access. Set a new token or select another credential. | #33 |
 | `build_definition_name_taken` | 409 | no | Another build definition in this environment already uses this name. | #33 |
 | `maintenance_policy_name_taken` | 409 | no | Another maintenance policy in this environment already uses this name. | #14 |
 | `maintenance_scope_overlap` | 409 | no | A maintenance policy already covers this environment. | #14 |
@@ -112,24 +112,24 @@ same change.
 | `maintenance_policy_empty` | 409 | no | The maintenance policy has no enabled rule; enable at least one rule before running it. | #14 |
 | `maintenance_run_active` | 409 | no | A run of the maintenance policy is still queued or running; follow that job instead of starting another run. | #14 |
 | `prune_confirmation_required` | 409 | no | A manual prune run deletes resources and cannot be undone: review a preview and repeat the request with `confirm: true`. | #14 |
-| `registry_connection_revoked` | 409 | no | The registry connection selected for the image is revoked; DockYard never falls back to anonymous access. Rotate a new credential into it or select another connection. | #19 |
-| `stack_managed` | 409 | no | The container, volume or network belongs to a DockYard-managed stack: change the stack's Compose definition (or use the stack's operations) instead of editing or removing it directly. | #6 |
+| `registry_connection_revoked` | 409 | no | The registry connection selected for the image is revoked; Docker Manager never falls back to anonymous access. Rotate a new credential into it or select another connection. | #19 |
+| `stack_managed` | 409 | no | The container, volume or network belongs to a Docker Manager-managed stack: change the stack's Compose definition (or use the stack's operations) instead of editing or removing it directly. | #6 |
 | `container_running` | 409 | no | The container is running; stop it first or remove it with `force=true`. | #6 |
 | `image_in_use` | 409 | no | Containers (running or not) use the image; remove them first. | #6 |
 | `volume_in_use` | 409 | no | Containers (running or not) mount the volume; remove them first. | #6 |
 | `network_in_use` | 409 | no | Containers are attached to the network; disconnect or remove them first. | #6 |
 | `network_builtin` | 409 | no | Predefined networks (`bridge`, `host`, `none`) cannot be removed. | #6 |
-| `protected` | 409 | no | The container, image, volume or network is one of DockYard's own (its agent, manager, data, stacks volume or deployment): the operation is refused for everyone, the owner included; use Docker on the host if you really must. | #32 |
-| `confirmation_required` | 409 | no | Restarting this container interrupts DockYard (its manager or deployment); repeat the request with `confirm: true`. | #32 |
+| `protected` | 409 | no | The container, image, volume or network is one of Docker Manager's own (its agent, manager, data, stacks volume or deployment): the operation is refused for everyone, the owner included; use Docker on the host if you really must. | #32 |
+| `confirmation_required` | 409 | no | Restarting this container interrupts Docker Manager (its manager or deployment); repeat the request with `confirm: true`. | #32 |
 | `resource_name_taken` | 409 | no | Another container, volume or network of the environment already uses this name. | #6 |
 | `unsupported_api_version` | 409 | no | The environment's Docker Engine API version is too old for the operation; upgrade Docker Engine (25.0 or newer, see the support matrix). | #6 |
 | `file_exists` | 409 | no | File manager: the name already exists (choose overwrite, skip or keep both, or another name). | #15 |
 | `file_conflict` | 409 | no | File manager: the entry changed during the operation or the operation would put a directory into itself. | #15 |
 | `file_type_mismatch` | 409 | no | File manager: the path is a directory where a file is needed, or a path component is not a directory. | #15 |
 | `file_unsupported` | 409 | no | File manager: the entry's content is not served (a symlink, device, FIFO or socket, or a file with several hard links whose other names may lie outside the root). | #15 |
-| `volume_files_unsupported` | 409 | no | File manager: this volume cannot be browsed (non-local driver or remote-backed local volume, DockYard's own volumes, the stacks volume, or the agent's storage layout is not verified); the message says why. | #15 |
-| `stack_name_taken` | 409 | no | The environment already has a DockYard stack with this Compose project name or project directory; nothing was overwritten. | #7 |
-| `compose_project_exists` | 409 | no | The Docker Engine already runs a Compose project with this name that DockYard does not manage; import it instead of creating a new stack. | #7 |
+| `volume_files_unsupported` | 409 | no | File manager: this volume cannot be browsed (non-local driver or remote-backed local volume, Docker Manager's own volumes, the stacks volume, or the agent's storage layout is not verified); the message says why. | #15 |
+| `stack_name_taken` | 409 | no | The environment already has a Docker Manager stack with this Compose project name or project directory; nothing was overwritten. | #7 |
+| `compose_project_exists` | 409 | no | The Docker Engine already runs a Compose project with this name that Docker Manager does not manage; import it instead of creating a new stack. | #7 |
 | `stack_directory_exists` | 409 | no | The project directory already exists in the stacks volume; nothing was overwritten (import the project or choose another name). | #7 |
 | `stack_definition_changed` | 409 | no | The stack's definition on disk changed while the request ran (for example during a revision restore); reload and retry. | #7 |
 | `stack_not_adoptable` | 409 | no | The discovered Compose project cannot be adopted in place (its directory is outside the stacks volume and the registered stack roots, or its files are elsewhere); import it with an explicit Compose source. | #7 |
@@ -138,11 +138,11 @@ same change.
 | `migration_blocked` | 409 | no | The migration's preflight check has blockers (`details` lists them: platform, name or port conflicts, missing external networks, free space, offline agents, ...); preview the migration, resolve them and retry. | #35 |
 | `migration_not_completed` | 409 | no | The source of a stack migration can be removed only after the migration completed. | #35 |
 | `migration_source_removed` | 409 | no | The migration's source was already removed. | #35 |
-| `migration_source_in_use` | 409 | no | A DockYard stack on the source environment manages the migrated project again (it was imported back); its files are not removed. | #35 |
+| `migration_source_in_use` | 409 | no | A Docker Manager stack on the source environment manages the migrated project again (it was imported back); its files are not removed. | #35 |
 | `update_policy_target_used` | 409 | no | The stack or container already has an update policy (one per target); edit that policy. | #20 |
 | `update_policy_name_taken` | 409 | no | Another update policy in the environment already uses this name. | #20 |
 | `update_scope_overlap` | 409 | no | An update policy already covers this environment; remove it before creating an overlapping policy. | #20 |
-| `update_target_ineligible` | 409 | no | The target cannot follow digests: DockYard's own project or containers (#32), a container without a saved recreate specification, or a stack member; the message says which. | #20 |
+| `update_target_ineligible` | 409 | no | The target cannot follow digests: Docker Manager's own project or containers (#32), a container without a saved recreate specification, or a stack member; the message says which. | #20 |
 | `no_update_candidates` | 409 | no | Nothing to update: no checked candidate with a new host-platform digest (run a check first; quarantined and failed candidates are not applied). | #20 |
 | `update_source_drift` | 409 | no | The stack's definition on disk differs from the applied revision (undeployed changes); deploy it first. An update never deploys an edit or writes a file. | #20 |
 | `update_preview_stale` | 409 | no | The candidates, digests or the stack's definition changed since the given preview; preview again. | #20 |
@@ -156,7 +156,7 @@ same change.
 | `backup_repository_error` | 409 | no | The backup repository could not be read (missing, Recovery Key rejected, storage refused access, locked or damaged); the message names the class and what to do. | #10 |
 | `backup_not_a_file` | 409 | no | Only regular files can be downloaded from a backup (not directories, links or special files). | #10 |
 | `manager_restore_required` | 409 | no | Manager-state backups are not restored like stack or volume data: import them into a fresh manager (first-run setup, backup import), which replaces the whole manager state. | #10 |
-| `backup_import_schema_incompatible` | 409 | no | The backup set was written by a newer DockYard whose database this build cannot run; install at least that version and import again. | #24 |
+| `backup_import_schema_incompatible` | 409 | no | The backup set was written by a newer Docker Manager whose database this build cannot run; install at least that version and import again. | #24 |
 | `backup_import_state_missing` | 409 | no | The backup set has no readable manager state (missing manager repository or snapshot, damaged secret-key bundle or database); choose another set. Host-only recovery is documented. | #24 |
 | `backup_import_in_progress` | 409 | no | A backup import is already running on this manager; follow it in the setup status. | #24 |
 | `gone` | 410 | no | The resource existed but was removed permanently (for example an expired invitation). | #2 |
@@ -168,9 +168,9 @@ same change.
 | `range_not_satisfiable` | 416 | no | The `Range` of a single-file download lies outside the file; `Content-Range` carries its size. | #15 |
 | `validation_failed` | 422 | no | One or more inputs are invalid; `details` lists each field. | #2 |
 | `recreate_required` | 422 | no | The requested container settings cannot change in place; create a new container (or use a Compose stack). `details` lists the fields. | #6 |
-| `content_digest_mismatch` | 422 | no | The uploaded bytes do not match `X-DockYard-Content-SHA256`; nothing was written. | #15 |
+| `content_digest_mismatch` | 422 | no | The uploaded bytes do not match `X-Docker-Manager-Content-SHA256`; nothing was written. | #15 |
 | `backup_import_key_rejected` | 422 | no | The Recovery Key does not open the manager repository. Check it for typos; after a rotation also enter the previous key. A lost Recovery Key cannot be recovered: nobody can decrypt the backups. | #24 |
-| `backup_import_not_found` | 422 | no | No DockYard repository (or no such backup set) at the import destination; check endpoint, bucket, prefix or the mounted path. | #24 |
+| `backup_import_not_found` | 422 | no | No Docker Manager repository (or no such backup set) at the import destination; check endpoint, bucket, prefix or the mounted path. | #24 |
 | `backup_import_manifest_corrupt` | 422 | no | The portable manifest of the backup set is damaged (truncated or checksum mismatch); choose another set or check the repository. | #24 |
 | `backup_import_key_rotated` | 422 | no | The set's manager state is sealed under another Recovery Key (a rotation happened after it); enter the newest key and the previous one. | #24 |
 | `backup_import_unreachable` | 422 | no | The import destination could not be read (storage refused access, unreachable, locked or damaged); the message names the class and what to do. | #24 |

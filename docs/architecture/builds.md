@@ -56,7 +56,7 @@ It enqueues an `image.build` job whose input names the credentials by ID
 build record's ID is the job ID (`GET .../image-builds/{jobId}`); its log
 is the job's event stream. Job targets are the tags (image locks,
 exclusive); builds per environment are capped by the job engine's build
-class (`DOCKYARD_JOB_MAX_CONCURRENT_BUILDS`, default 1).
+class (`DOCKER_MANAGER_JOB_MAX_CONCURRENT_BUILDS`, default 1).
 
 At dispatch the manager resolves the IDs into the command's `secrets`
 (Git and registry credentials, audited as `git_credential.use` /
@@ -124,7 +124,7 @@ reference -> image ID) and in the output (`built`); stop on cancellation
 before stay, the interrupted build tags nothing) and on the build timeout
 (`timeoutSeconds` / `buildTimeoutSeconds`, default 1 h, at most 6 h). The
 job engine's build class caps `stack.build` jobs per environment
-(`DOCKYARD_JOB_MAX_CONCURRENT_BUILDS`); stack jobs of one stack serialize
+(`DOCKER_MANAGER_JOB_MAX_CONCURRENT_BUILDS`); stack jobs of one stack serialize
 on the stack lock.
 
 Registry credentials for base images (#19): `registryIds` in the request,

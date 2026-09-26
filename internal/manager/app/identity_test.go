@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/auth"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 // TestConcurrentFirstRunSetupCreatesOneOwner: many simultaneous setup
@@ -80,7 +80,7 @@ func TestSetupRefusesInsecureOrigin(t *testing.T) {
 	if !strings.Contains(string(r.body), "HTTPS") {
 		t.Fatalf("no explanation: %s", r.body)
 	}
-	c.fail(http.StatusForbidden, "insecure_origin", http.MethodPost, "/api/v1/setup/owner", body, header("X-Forwarded-Host", "dockyard-manager:8080"))
+	c.fail(http.StatusForbidden, "insecure_origin", http.MethodPost, "/api/v1/setup/owner", body, header("X-Forwarded-Host", "docker-manager:8080"))
 	var status struct {
 		SecureOrigin bool   `json:"secureOrigin"`
 		Explanation  string `json:"explanation"`
@@ -553,7 +553,7 @@ func TestPasskeyPolicyAndWebAuthn(t *testing.T) {
 	pat.fail(http.StatusForbidden, "enrollment_required", http.MethodGet, "/api/v1/jobs", nil)
 
 	// Registration through the internal address or for another RP ID fails.
-	for _, bad := range []*device{newDevice("http://dockyard-manager:8080", publicHost), newDevice(publicOrigin, "example.com"), newDevice("http://docker.example.com", publicHost)} {
+	for _, bad := range []*device{newDevice("http://docker-manager:8080", publicHost), newDevice(publicOrigin, "example.com"), newDevice("http://docker.example.com", publicHost)} {
 		if reg := pat.registerPasskey(bad, "bad"); reg.status != http.StatusUnprocessableEntity {
 			t.Fatalf("registration from %s/%s: %d %s", bad.rp.Origin, bad.rp.ID, reg.status, reg.body)
 		}
@@ -589,7 +589,7 @@ func TestPasskeyPolicyAndWebAuthn(t *testing.T) {
 	// a stale counter, fails.
 	verify := "/api/v1/auth/passkeys/authentication-verifications"
 	internal := &device{rp: dev.rp, auth: dev.auth, cred: dev.cred}
-	internal.rp.Origin = "http://dockyard-manager:8080"
+	internal.rp.Origin = "http://docker-manager:8080"
 	if r := e.client().assertPasskey(internal, "sign_in", verify); r.status != http.StatusUnauthorized || r.code() != "invalid_credentials" {
 		t.Fatalf("internal origin: %d %s", r.status, r.body)
 	}

@@ -11,15 +11,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 type fakeEnvs struct {
@@ -45,7 +45,7 @@ func newService(t *testing.T, ring *logging.Ring, envs fakeEnvs) *Service {
 	t.Helper()
 	ctx := testutil.Context(t)
 	dir := t.TempDir()
-	db, err := store.Open(ctx, filepath.Join(dir, "dockyard.db"))
+	db, err := store.Open(ctx, filepath.Join(dir, "docker-manager.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func newService(t *testing.T, ring *logging.Ring, envs fakeEnvs) *Service {
 		t.Fatal(err)
 	}
 	s, err := New(Options{DB: db, Clock: testutil.FakeClock(), Build: buildinfo.Info{Version: "1.4.0", Commit: "abc", GoVersion: "go1.27.1"},
-		DatabasePath: filepath.Join(dir, "dockyard.db"), SnapshotDir: filepath.Join(dir, "snapshots"), Migrations: migrations.Migrations,
+		DatabasePath: filepath.Join(dir, "docker-manager.db"), SnapshotDir: filepath.Join(dir, "snapshots"), Migrations: migrations.Migrations,
 		Environments: envs, Audit: okAudit{}, Logs: ring, Sessions: func() []string { return []string{"env-1"} }})
 	if err != nil {
 		t.Fatal(err)
@@ -100,9 +100,9 @@ func TestBundleLogsAreRedactedAgain(t *testing.T) {
 // TestSupportMatrixChecks: the bundle evaluates each active agent against
 // the supported host boundary.
 func TestSupportMatrixChecks(t *testing.T) {
-	caps := `{"agentVersion":"1.3.0","protocols":["dockyard.agent/v1"],"os":"linux","arch":"arm64","engine":{"id":"E","version":"24.0.9",` +
+	caps := `{"agentVersion":"1.3.0","protocols":["docker-manager.agent/v1"],"os":"linux","arch":"arm64","engine":{"id":"E","version":"24.0.9",` +
 		`"apiVersion":"1.43","os":"linux","arch":"arm64","rootless":true},"commands":[],"requests":[],"streams":[],` +
-		`"transport":{"managerUrl":"http://dockyard-manager:8080","plainHttp":true},"diagnostics":[{"area":"storage","code":"storage_path_mismatch","message":"m"}]}`
+		`"transport":{"managerUrl":"http://docker-manager:8080","plainHttp":true},"diagnostics":[{"area":"storage","code":"storage_path_mismatch","message":"m"}]}`
 	s := newService(t, nil, fakeEnvs{envs: []domain.Environment{{ID: "env-1", Name: "NAS", Status: domain.EnvironmentActive}},
 		agents: []domain.Agent{{ID: "ag-1", EnvironmentID: "env-1", Status: domain.AgentActive, Version: "1.3.0", Capabilities: caps}}})
 	a := domain.Agent{ID: "ag-1", EnvironmentID: "env-1", Status: domain.AgentActive, Version: "1.3.0"}
@@ -137,7 +137,7 @@ func TestMetricsFormat(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, `commit="we\"ird\\commit\n"`) || !strings.Contains(out, `dockyard_agents{compatibility="unsupported"} 1`) {
+	if !strings.Contains(out, `commit="we\"ird\\commit\n"`) || !strings.Contains(out, `docker_manager_agents{compatibility="unsupported"} 1`) {
 		t.Fatalf("metrics:\n%s", out)
 	}
 	families := 0

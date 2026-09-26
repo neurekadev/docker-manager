@@ -3,7 +3,7 @@
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
 //
-// DockYard service worker (#11, #23). SvelteKit compiles this file to
+// Docker Manager service worker (#11, #23). SvelteKit compiles this file to
 // /service-worker.js (registration is manual, see $lib/pwa/register.svelte.ts);
 // @vite-pwa/sveltekit then injects the precache manifest into
 // self.__WB_MANIFEST at build time. No Workbox code runs here: the routing

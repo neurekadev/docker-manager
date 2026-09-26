@@ -7,22 +7,22 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/agents"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/config"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // ErrNotInitialized means the data directory has no database yet.
 var ErrNotInitialized = errors.New("the manager has not initialized its data directory yet; start it once first")
 
 // CreateEnrollment creates an agent enrollment token directly in the
-// manager's database, for `dockyard-manager enrollment create` run inside
+// manager's database, for `docker-manager enrollment create` run inside
 // the manager container (docker compose exec). It is the headless way to
 // enroll agents before the UI and owner accounts exist (#16): whoever can
 // exec into the manager container already controls its data volume. The

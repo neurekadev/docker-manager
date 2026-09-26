@@ -10,8 +10,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
 )
 
 // Redaction layer (#30): audit records never contain secret values,
@@ -23,7 +23,7 @@ import (
 //     output, ...) become "[REDACTED]" — unless the key names an identifier
 //     or metadata (…Id, …Name, …Count, …Type, …At). Byte slices,
 //     logging.Secret values and errors are always redacted. Strings that
-//     look like secrets anywhere (bearer/basic credentials, DockYard
+//     look like secrets anywhere (bearer/basic credentials, Docker Manager
 //     token prefixes, private keys, JWTs, cloud keys, URL passwords,
 //     "password=…" pairs) are redacted whatever their key. Long strings are
 //     omitted (file contents), nesting and sizes are bounded.
@@ -62,7 +62,7 @@ var (
 		`(?i)\bbearer\s+\S{8,}`,
 		`(?i)\bbasic\s+[A-Za-z0-9+/=_-]{8,}`,
 		`-----BEGIN [A-Z0-9 ]*(PRIVATE KEY|CERTIFICATE REQUEST)`,
-		`\bdy[aet]?_[A-Za-z0-9_-]{8,}`,                                // DockYard tokens/credentials (dya_, dye_, dy_, dyt_)
+		`\bdy[aet]?_[A-Za-z0-9_-]{8,}`,                                // Docker Manager tokens/credentials (dya_, dye_, dy_, dyt_)
 		`\b(AKIA|ASIA)[0-9A-Z]{16}\b`,                                 // AWS access key IDs
 		`\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.`,                 // JWT
 		`\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})`, // GitHub tokens

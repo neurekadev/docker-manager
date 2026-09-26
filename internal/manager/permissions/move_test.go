@@ -4,9 +4,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/permissions"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/permissions"
 )
 
 // TestMoveImpact (#35 permission preview): moving stack s1 from e1 to e2,

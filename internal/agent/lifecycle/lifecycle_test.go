@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // fakeRuntime is a scripted Engine: each service has a behavior that
@@ -437,7 +437,7 @@ func TestGraphFromContainers(t *testing.T) {
 	}
 	web := g.DependsOn("web")
 	if len(web) != 2 || web[0].Service != "cache" || web[0].Required || !web[1].Required {
-		t.Errorf("web deps %+v: DockYard's label wins", web)
+		t.Errorf("web deps %+v: Docker Manager's label wins", web)
 	}
 	if l := g.DependsOn("legacy"); len(l) != 1 || l[0].Condition != ConditionStarted {
 		t.Errorf("legacy deps %+v", l)

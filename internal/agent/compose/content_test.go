@@ -5,13 +5,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // TestLoadFromContent (#7): a definition that is not on disk yet loads
 // from memory like it would from its project directory (env interpolation
-// from its .env only), and every service carries DockYard's dependency
+// from its .env only), and every service carries Docker Manager's dependency
 // label with the required flag Compose's own label lacks.
 func TestLoadFromContent(t *testing.T) {
 	t.Setenv("TAG", "from-agent-env")
@@ -34,7 +34,7 @@ func TestLoadFromContent(t *testing.T) {
     image: cache:1
     profiles: [extras]
 `),
-		"compose.override.yaml": []byte("services:\n  web:\n    labels:\n      dev.neureka.dockyard.icon: globe\n"),
+		"compose.override.yaml": []byte("services:\n  web:\n    labels:\n      dev.neureka.docker-manager.icon: globe\n"),
 		".env":                  []byte("TAG=16\n"),
 	}})
 	if err != nil {

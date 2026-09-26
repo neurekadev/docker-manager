@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // TestRestoreSnapshotRefusals: unknown names, paths and corrupt snapshots
@@ -25,15 +25,15 @@ func TestRestoreSnapshotRefusals(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	dbPath, snapDir := filepath.Join(dir, "dockyard.db"), filepath.Join(dir, "snapshots")
+	dbPath, snapDir := filepath.Join(dir, "docker-manager.db"), filepath.Join(dir, "snapshots")
 	if err := os.MkdirAll(snapDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	corrupt := "dockyard-20260101T000000Z-00-pre-x.db"
+	corrupt := "docker-manager-20260101T000000Z-00-pre-x.db"
 	if err := os.WriteFile(filepath.Join(snapDir, corrupt), []byte("not a database, just bytes that are long enough to look like a header"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"missing.db", "../dockyard.db", filepath.Join(snapDir, corrupt), corrupt} {
+	for _, name := range []string{"missing.db", "../docker-manager.db", filepath.Join(snapDir, corrupt), corrupt} {
 		_, err := RestoreSnapshot(ctx, dbPath, snapDir, name, testutil.Epoch)
 		if err == nil {
 			t.Fatalf("%s restored", name)

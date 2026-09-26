@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/cron"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/cron"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // List returns schedules matching f in ID order (the cross-policy view;

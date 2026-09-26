@@ -1,15 +1,15 @@
-// Command dockyard-manager is the DockYard manager: web UI, public API,
+// Command docker-manager is the Docker Manager: web UI, public API,
 // agent endpoint, jobs and persistence.
 //
 // Usage:
 //
-//	dockyard-manager [serve]          run the manager (default)
-//	dockyard-manager healthcheck      probe the local /api/v1/health (image HEALTHCHECK)
-//	dockyard-manager openapi [-format json|yaml]   print the OpenAPI 3.1 spec
-//	dockyard-manager enrollment create [flags]     create an agent enrollment token
-//	dockyard-manager version          print build information
-//	dockyard-manager owner-recovery   issue a one-time owner recovery code (#16)
-//	dockyard-manager snapshots list|restore NAME   pre-migration snapshots (#34 rollback)
+//	docker-manager [serve]          run the manager (default)
+//	docker-manager healthcheck      probe the local /api/v1/health (image HEALTHCHECK)
+//	docker-manager openapi [-format json|yaml]   print the OpenAPI 3.1 spec
+//	docker-manager enrollment create [flags]     create an agent enrollment token
+//	docker-manager version          print build information
+//	docker-manager owner-recovery   issue a one-time owner recovery code (#16)
+//	docker-manager snapshots list|restore NAME   pre-migration snapshots (#34 rollback)
 package main
 
 import (
@@ -28,16 +28,16 @@ import (
 	"time"
 	_ "time/tzdata" // IANA zones for schedules without relying on the image
 
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/envconfig"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/agents"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/app"
-	"github.com/neurekadev/dockyard/internal/manager/config"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/web"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/app"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/web"
 )
 
 // Exit codes.
@@ -66,7 +66,7 @@ func run(args []string, env envconfig.Source, stdout, stderr io.Writer) int {
 	case "enrollment":
 		return enrollment(args, env, stdout, stderr)
 	case "version", "--version", "-v":
-		_, _ = fmt.Fprintln(stdout, "dockyard-manager", buildinfo.Get())
+		_, _ = fmt.Fprintln(stdout, "docker-manager", buildinfo.Get())
 		return exitOK
 	case "owner-recovery":
 		return ownerRecovery(env, stdout, stderr)
@@ -83,7 +83,7 @@ func run(args []string, env envconfig.Source, stdout, stderr io.Writer) int {
 }
 
 func usage(w io.Writer) {
-	_, _ = fmt.Fprint(w, `Usage: dockyard-manager [command]
+	_, _ = fmt.Fprint(w, `Usage: docker-manager [command]
 
 Commands:
   serve            run the manager (default)
@@ -92,7 +92,7 @@ Commands:
   enrollment create
                    create a one-use agent enrollment token and print the
                    install commands (run inside the manager container:
-                   docker compose exec dockyard-manager dockyard-manager enrollment create)
+                   docker compose exec docker-manager docker-manager enrollment create)
                    flags: -name NAME, -intent new|replace:<agentId>|reattach:<environmentId>,
                           -ttl 1h, -allow-duplicate-engine-id, -json
   version          print build information
@@ -102,7 +102,7 @@ Commands:
   snapshots restore NAME
                    replace the database with a pre-migration snapshot (the
                    rollback of a failed upgrade; stop the manager first:
-                   docker compose run --rm --no-deps dockyard-manager snapshots restore NAME)
+                   docker compose run --rm --no-deps docker-manager snapshots restore NAME)
 
 Configuration is read from environment variables; see docs/configuration.md.
 `)
@@ -111,7 +111,7 @@ Configuration is read from environment variables; see docs/configuration.md.
 func serve(env envconfig.Source, stderr io.Writer) int {
 	cfg, err := config.Load(env)
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "dockyard-manager: invalid configuration:\n%v\n", err)
+		_, _ = fmt.Fprintf(stderr, "docker-manager: invalid configuration:\n%v\n", err)
 		return exitConfig
 	}
 	logger := logging.New(stderr, cfg.LogLevel, cfg.LogFormat)
@@ -120,10 +120,10 @@ func serve(env envconfig.Source, stderr io.Writer) int {
 
 	ui, built := web.Assets()
 	if err := app.Run(ctx, app.Options{Config: cfg, Logger: logger, UI: ui, UIBuilt: built}); err != nil {
-		logger.Error("dockyard-manager stopped with error", "error", err)
+		logger.Error("docker-manager stopped with error", "error", err)
 		return exitFail
 	}
-	logger.Info("dockyard-manager stopped")
+	logger.Info("docker-manager stopped")
 	return exitOK
 }
 
@@ -131,11 +131,11 @@ func serve(env envconfig.Source, stderr io.Writer) int {
 // one-time recovery code for the instance owner and signs the owner out.
 // Run it where the manager's data volume is mounted:
 //
-//	docker exec dockyard-manager dockyard-manager owner-recovery
+//	docker exec docker-manager docker-manager owner-recovery
 func ownerRecovery(env envconfig.Source, stdout, stderr io.Writer) int {
 	cfg, err := config.Load(env)
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "dockyard-manager: invalid configuration:\n%v\n", err)
+		_, _ = fmt.Fprintf(stderr, "docker-manager: invalid configuration:\n%v\n", err)
 		return exitConfig
 	}
 	logger := logging.New(stderr, cfg.LogLevel, cfg.LogFormat)
@@ -166,7 +166,7 @@ removes the owner's TOTP, passkeys and recovery codes; sign in and enroll them a
 // previous image (docs/operations/upgrades.md). The manager must be
 // stopped; run it in a one-off container on the same data volume.
 func snapshots(args []string, env envconfig.Source, stdout, stderr io.Writer) int {
-	usage := "usage: dockyard-manager snapshots list | snapshots restore NAME"
+	usage := "usage: docker-manager snapshots list | snapshots restore NAME"
 	if len(args) == 0 || (args[0] != "list" && args[0] != "restore") || (args[0] == "list" && len(args) != 1) ||
 		(args[0] == "restore" && len(args) != 2) {
 		_, _ = fmt.Fprintln(stderr, usage)
@@ -174,7 +174,7 @@ func snapshots(args []string, env envconfig.Source, stdout, stderr io.Writer) in
 	}
 	cfg, err := config.Load(env)
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "dockyard-manager: invalid configuration:\n%v\n", err)
+		_, _ = fmt.Fprintf(stderr, "docker-manager: invalid configuration:\n%v\n", err)
 		return exitConfig
 	}
 	if args[0] == "list" {
@@ -208,7 +208,7 @@ func snapshots(args []string, env envconfig.Source, stdout, stderr io.Writer) in
 	}
 	_, _ = fmt.Fprintf(stdout, `Restored %s (schema: %d migrations, newest %s).
 The replaced database files are in %s.
-Now start the DockYard image that ran before the upgrade (pin its previous digest);
+Now start the Docker Manager image that ran before the upgrade (pin its previous digest);
 starting the newer image again would repeat the upgrade.
 `, res.Snapshot, len(res.Applied), last, res.ReplacedDir)
 	return exitOK
@@ -302,10 +302,10 @@ type installCommandJSON struct {
 	Command     string `json:"command"`
 }
 
-// enrollment implements `dockyard-manager enrollment create`.
+// enrollment implements `docker-manager enrollment create`.
 func enrollment(args []string, env envconfig.Source, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "create" {
-		_, _ = fmt.Fprintln(stderr, "usage: dockyard-manager enrollment create [-name NAME] [-intent new|replace:<agentId>|reattach:<environmentId>] [-ttl 1h] [-allow-duplicate-engine-id] [-json]")
+		_, _ = fmt.Fprintln(stderr, "usage: docker-manager enrollment create [-name NAME] [-intent new|replace:<agentId>|reattach:<environmentId>] [-ttl 1h] [-allow-duplicate-engine-id] [-json]")
 		return exitConfig
 	}
 	fs := flag.NewFlagSet("enrollment create", flag.ContinueOnError)
@@ -325,7 +325,7 @@ func enrollment(args []string, env envconfig.Source, stdout, stderr io.Writer) i
 	}
 	cfg, err := config.Load(env)
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "dockyard-manager: invalid configuration:\n%v\n", err)
+		_, _ = fmt.Fprintf(stderr, "docker-manager: invalid configuration:\n%v\n", err)
 		return exitConfig
 	}
 	logger := logging.New(stderr, cfg.LogLevel, cfg.LogFormat)

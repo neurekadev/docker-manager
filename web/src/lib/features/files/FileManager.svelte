@@ -217,7 +217,7 @@
 		if (entry.type === 'dir') navigate(entry.path);
 		else if (entry.type === 'symlink' && entry.linkStatus !== 'inside') {
 			toast.info(`${entry.name} points outside this root`, {
-				body: `DockYard doesn't follow links that leave ${rootLabel}.`
+				body: `Docker Manager doesn't follow links that leave ${rootLabel}.`
 			});
 		} else if (entry.type === 'other') {
 			toast.info(`${entry.name} can't be opened`, {
@@ -566,7 +566,7 @@
 		if (i.other) parts.push(`${i.other} special ${i.other === 1 ? 'file' : 'files'}`);
 		const out = [
 			`Deletes ${parts.join(', ') || 'nothing'}${i.truncated ? ' or more' : ''} (${formatBytes(i.bytes)}) from ${where(dir)}. Links are removed, never followed.`,
-			'This cannot be undone: DockYard keeps no copy.'
+			'This cannot be undone: Docker Manager keeps no copy.'
 		];
 		if (stack && deleting.paths.some((p) => isDefinitionFile(p, stack.configFiles)))
 			out.push(
@@ -865,7 +865,7 @@
 			<EmptyState
 				icon={LockKeyhole}
 				title="You can't browse these files"
-				description="Ask the owner of this DockYard for the “Browse and view files” permission on {rootLabel}."
+				description="Ask the owner of this Docker Manager for the “Browse and view files” permission on {rootLabel}."
 			/>
 		</div>
 	{:else}
@@ -887,7 +887,7 @@
 									ondragover={(e) => e.preventDefault()}
 									ondrop={(e) => {
 										const raw = e.dataTransfer?.getData(
-											'application/x-dockyard-files'
+											'application/x-docker-manager-files'
 										);
 										if (!raw) return;
 										e.preventDefault();

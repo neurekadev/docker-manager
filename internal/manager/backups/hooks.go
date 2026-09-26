@@ -9,13 +9,13 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // Finish hooks record what backup jobs did, inside the transaction that
@@ -241,7 +241,7 @@ func (s *Service) indexListing(ctx context.Context, db bun.IDB, repositoryID, sc
 	env, _ := backup.ScopeEnvironment(scope)
 	now := s.now()
 	for _, sn := range snaps {
-		if !sn.HasTag(backup.TagDockYard) && !sn.HasTag(backup.TagManagerState) {
+		if !sn.HasTag(backup.TagDockerManager) && !sn.HasTag(backup.TagManagerState) {
 			continue
 		}
 		item := backup.ItemOf(sn.Tags)

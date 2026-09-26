@@ -370,7 +370,7 @@ type FilesDownloadInput struct {
 
 // SkippedListName is the archive entry listing what a download or archive
 // left out (escaping symlinks, hard-linked and special files).
-const SkippedListName = "DOCKYARD-SKIPPED.txt"
+const SkippedListName = "DOCKER-MANAGER-SKIPPED.txt"
 
 // ChmodSpec sets permission bits (0..0o777; special bits are refused).
 // DirMode, when set, applies to directories instead of Mode.

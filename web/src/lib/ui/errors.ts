@@ -23,7 +23,7 @@ export function errorView(e: unknown): ErrorView {
 		if (e.network) {
 			return {
 				message:
-					'DockYard could not reach the manager. Check the connection; this retries on its own.',
+					'Docker Manager could not reach the manager. Check the connection; this retries on its own.',
 				retryable: true,
 				network: true,
 				status: null,

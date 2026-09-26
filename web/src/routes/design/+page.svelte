@@ -314,7 +314,7 @@
 	});
 </script>
 
-<svelte:head><title>Design system · DockYard</title></svelte:head>
+<svelte:head><title>Design system · Docker Manager</title></svelte:head>
 
 {#snippet nameCell(s: DemoService)}
 	{@const id = idOf(s.name)}
@@ -360,7 +360,7 @@
 
 <div class="gallery">
 	<header class="intro">
-		<h1>DockYard design system</h1>
+		<h1>Docker Manager design system</h1>
 		<p class="muted">
 			Tokens and components from $lib/design and $lib/ui, with sample data. Rules:
 			docs/design/README.md.
@@ -380,7 +380,7 @@
 				{
 					icon: Folder,
 					label: 'homelab · silo',
-					title: '/var/lib/docker/volumes/dockyard_stacks/_data/silo'
+					title: '/var/lib/docker/volumes/docker-manager_stacks/_data/silo'
 				}
 			]}
 		>
@@ -742,7 +742,7 @@
 					{
 						id: 'key',
 						label: 'Recovery Key',
-						description: 'The one key that opens every DockYard backup.'
+						description: 'The one key that opens every Docker Manager backup.'
 					},
 					{ id: 'policy', label: 'Schedule', description: 'When backups run.' }
 				]}
@@ -836,9 +836,9 @@
 	<SecretReveal
 		secret="DYRK-7Q2M-XK4P-9WNA-3HJD-L6ZT-RB5E-C8VF-2GUY-QK7S-M4XD-N9PA-H3JT-W6LC"
 		label="Recovery Key"
-		filename="dockyard-recovery-key.txt"
+		filename="docker-manager-recovery-key.txt"
 		fingerprint="rk_4f1c2e7a9b0d4c3e"
-		description="This key opens every DockYard backup. Without it, backups cannot be restored."
+		description="This key opens every Docker Manager backup. Without it, backups cannot be restored."
 		onconfirm={() => ((secretOpen = false), toast.success('Recovery Key confirmed'))}
 	/>
 </Dialog>

@@ -1,11 +1,11 @@
-# DockYard public API route inventory (#4).
+# Docker Manager public API route inventory (#4).
 #
 # One entry per /api/v1 operation in the #4 endpoint catalog, including the
 # ones not implemented yet. internal/manager/api/inventory reconciles it with
 # the served OpenAPI document (TestRouteInventory):
 #   - every operation in the spec must be listed here as implemented, with
-#     the same operationId, capability (x-dockyard-capability), selector
-#     values (x-dockyard-capability-values), scope (x-dockyard-scope) and kind;
+#     the same operationId, capability (x-docker-manager-capability), selector
+#     values (x-docker-manager-capability-values), scope (x-docker-manager-scope) and kind;
 #   - every implemented entry must be in the spec; planned entries must not;
 #   - every capability key (and selector value) must exist in the #17
 #     permission catalog (internal/manager/authz/catalog); a route without a
@@ -60,7 +60,7 @@ routes:
     owner: 34
     kind: stream
     status: implemented
-    notes: "Prometheus text format of DockYard's internals; off unless DOCKYARD_METRICS_ENABLED (404). Not in the #4 catalog text."
+    notes: "Prometheus text format of Docker Manager's internals; off unless DOCKER_MANAGER_METRICS_ENABLED (404). Not in the #4 catalog text."
   - method: GET
     path: /api/v1/support-bundle
     operationId: get-support-bundle

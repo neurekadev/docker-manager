@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Dropdown menu (#22; Bits UI DropdownMenu behind DockYard styling). The
+	// Dropdown menu (#22; Bits UI DropdownMenu behind Docker Manager styling). The
 	// trigger snippet gets the props to spread on its button (usually an
 	// IconButton or Button). Keyboard: Enter/Space/ArrowDown open, arrows move,
 	// typeahead, Escape closes and returns focus to the trigger.

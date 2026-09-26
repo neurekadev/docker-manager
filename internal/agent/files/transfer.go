@@ -8,8 +8,8 @@ import (
 	"io"
 	"slices"
 
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 )
 
 // Download streams one regular file (format raw, optionally a byte range)

@@ -194,7 +194,7 @@
 
 		<Card
 			title="Rules"
-			subtitle="Turned-on rules together are this policy's cleanup. DockYard's own objects, stack resources, saved containers and backups are always kept."
+			subtitle="Turned-on rules together are this policy's cleanup. Docker Manager's own objects, stack resources, saved containers and backups are always kept."
 		>
 			<RuleList
 				{rules}
@@ -206,7 +206,7 @@
 
 		<Card
 			title="Schedule"
-			subtitle="Scheduled runs always run in the background. Runs missed while DockYard was down are skipped, never run late."
+			subtitle="Scheduled runs always run in the background. Runs missed while Docker Manager was down are skipped, never run late."
 		>
 			<Fields>
 				<Switch

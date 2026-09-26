@@ -39,7 +39,7 @@
 		<EmptyState
 			icon={LockKeyhole}
 			title="You can't see this stack's services"
-			description="Ask the owner of this DockYard for access to {name}."
+			description="Ask the owner of this Docker Manager for access to {name}."
 		/>
 	{:else if stack.data}
 		{#key stackId}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Network detail (#6): driver, subnets and flags, the attached
 	// containers, its stack and labels, and what removing it would do (the
-	// server refuses predefined, in-use, stack-managed and DockYard's own
+	// server refuses predefined, in-use, stack-managed and Docker Manager's own
 	// networks with the reason).
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -159,7 +159,7 @@
 				title={protectionLabel(n.protection)}
 				live="none"
 			>
-				{sentence(n.protection.reason)} DockYard never removes it.
+				{sentence(n.protection.reason)} Docker Manager never removes it.
 			</Notice>
 		{/if}
 		{#if job}<JobProgress watcher={job} variant="inline" notices={null} />{/if}

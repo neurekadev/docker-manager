@@ -3,14 +3,14 @@
 ## 1. Create the owner account
 
 Open the public origin (`https://docker.example.com`). A new manager shows
-**Set up DockYard**: choose a username and a password (at least 15
+**Set up Docker Manager**: choose a username and a password (at least 15
 characters; common and breached passwords are refused). This account is
 the **instance owner**: it can do everything, cannot be disabled or
 deleted, and ownership cannot be transferred in v1.
 
 - Setup works only over HTTPS on the public origin. If it says the request
   did not arrive over HTTPS, you opened the internal address, or the proxy
-  is not in `DOCKYARD_TRUSTED_PROXIES` (see
+  is not in `DOCKER_MANAGER_TRUSTED_PROXIES` (see
   [First-run setup over HTTPS](../deployment.md#first-run-setup-over-https)).
 - Setup is single use: the first request wins, every later one gets
   "setup is complete".
@@ -21,9 +21,9 @@ Right after setup, open **Settings → Profile and security** and add an
 authenticator app or a passkey, then **Generate new codes** and store the
 ten recovery codes somewhere safe.
 
-## 2. Enroll the first agent (the Docker host DockYard runs on)
+## 2. Enroll the first agent (the Docker host Docker Manager runs on)
 
-The example's `dockyard-agent` container is already running and waits for
+The example's `docker-agent` container is already running and waits for
 a one-use enrollment token.
 
 1. Go to **Environments → Add environment**. Enter a display name (for
@@ -34,7 +34,7 @@ a one-use enrollment token.
 
    ```bash
    cd deploy/caddy
-   printf '%s\n' '<token>' | docker compose exec -T dockyard-agent dockyard-agent enroll
+   printf '%s\n' '<token>' | docker compose exec -T docker-agent docker-agent enroll
    # enrolled: agent …, environment …; the environment is online
    ```
 
@@ -42,12 +42,12 @@ a one-use enrollment token.
    with its containers, images, volumes, networks and metrics.
 
 Without the UI (for automation), create the token inside the manager
-container: `docker compose exec -T dockyard-manager dockyard-manager
+container: `docker compose exec -T docker-manager docker-manager
 enrollment create -name host-a` (add `-json` for scripts). Tokens expire
 (1 hour by default), work once, and can be revoked on the same screen.
 
 The co-located agent uses the internal plain-HTTP URL
-`http://dockyard-manager:8080` with an explicit opt-in; the host page marks
+`http://docker-manager:8080` with an explicit opt-in; the host page marks
 this. Agents on other hosts always use the public HTTPS origin
 ([Multi-host operation](multi-host.md)).
 
@@ -66,7 +66,7 @@ files afterwards. Files next to `compose.yaml` (relative bind mounts such as
 
 **Access → Users → Invite user → Create invite link** creates a
 single-use link (shown once, 72 h by default; **Options** binds it to an
-email address or changes the expiry). DockYard sends no email: send the
+email address or changes the expiry). Docker Manager sends no email: send the
 link yourself. The person opens it and registers their own account
 (username and password). New users join the default group
 **Restricted**, which can see nothing until you grant permissions to the

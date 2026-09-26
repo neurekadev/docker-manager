@@ -11,9 +11,9 @@
 //
 // Containment (#15, #28): the source reads only the stack's project
 // directory (inside a verified stack root) and the selected local volumes
-// (inside the verified volume directory, never DockYard's own volumes); the
+// (inside the verified volume directory, never Docker Manager's own volumes); the
 // destination writes only into the staging directory of the migration below
-// its stacks volume (<stacks>/.dockyard-migrations/<id>/project, moved to
+// its stacks volume (<stacks>/.docker-manager-migrations/<id>/project, moved to
 // the new project directory by migration.commit, which never replaces an
 // existing directory) and into volumes it creates itself, labeled with the
 // migration ID. Every filesystem access goes through an os.Root opened on a
@@ -34,17 +34,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/compose"
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/agent/protect"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/streammux"
-	"github.com/neurekadev/dockyard/internal/transfer"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/transfer"
 )
 
 // Deps are the agent's live components (nil while the Engine is not
@@ -57,7 +57,7 @@ type Deps interface {
 // Options configures a Service.
 type Options struct {
 	Deps Deps
-	// Guard identifies DockYard's own resources (#32); nil identifies them
+	// Guard identifies Docker Manager's own resources (#32); nil identifies them
 	// by their labels only.
 	Guard *protect.Guard
 	// Open opens verified roots (default OSOpener).
@@ -236,7 +236,7 @@ func (s *Service) openStacks() (FS, string, error) {
 	return rfs, res.StacksDir, nil
 }
 
-// protectedSet identifies DockYard's own resources now.
+// protectedSet identifies Docker Manager's own resources now.
 func (s *Service) protectedSet(ctx context.Context, eng engine.Engine) (*protect.Set, []engine.Container, error) {
 	cs, err := eng.ListContainers(ctx, engine.ContainerFilter{All: true})
 	if err != nil {
@@ -246,7 +246,7 @@ func (s *Service) protectedSet(ctx context.Context, eng engine.Engine) (*protect
 }
 
 // openVolume opens the data directory of a supported local volume that is
-// not DockYard's own. The directory is opened below the verified volume
+// not Docker Manager's own. The directory is opened below the verified volume
 // directory, never through the volume's reported path alone.
 func (s *Service) openVolume(v engine.Volume, set *protect.Set) (FS, error) {
 	res, err := s.storage()
@@ -254,7 +254,7 @@ func (s *Service) openVolume(v engine.Volume, set *protect.Set) (FS, error) {
 		return nil, err
 	}
 	if p := set.Volume(v.Name, v.Labels); p != nil {
-		return nil, fail(protocol.CodeUnsupportedVolume, "volume %s is DockYard's own (%s) and is never migrated", v.Name, p.Reason)
+		return nil, fail(protocol.CodeUnsupportedVolume, "volume %s is Docker Manager's own (%s) and is never migrated", v.Name, p.Reason)
 	}
 	if acc := res.AccessFor(v); !acc.Supported {
 		return nil, fail(protocol.CodeUnsupportedVolume, "%s", acc.Reason)
@@ -343,7 +343,7 @@ func (s *Service) send(ctx context.Context, st *streammux.Stream) error {
 				return engineError(err)
 			}
 			if set.Image(img.ID) != nil {
-				return fail(protocol.CodeConflict, "image %s is DockYard's own and is never migrated", ref)
+				return fail(protocol.CodeConflict, "image %s is Docker Manager's own and is never migrated", ref)
 			}
 		}
 		rc, err := eng.SaveImage(ctx, in.Images)

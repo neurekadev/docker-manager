@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Archive formats detected by content.
@@ -522,7 +522,7 @@ func (c *countingWriter) Write(p []byte) (int, error) {
 // writeArchive writes the paths (recursively, never following symlinks)
 // as a zip or tar.gz archive to w. Symlinks are stored only when they
 // resolve inside the root; escaping symlinks, hard-linked and special
-// files are skipped and listed in a final DOCKYARD-SKIPPED.txt member.
+// files are skipped and listed in a final DOCKER-MANAGER-SKIPPED.txt member.
 // skip, when set, excludes one root-relative path (the archive being
 // written into the root).
 func (s *Service) writeArchive(ctx context.Context, r *scopeRoot, paths []string, format string, w io.Writer, skip string) (int, error) {
@@ -590,7 +590,7 @@ func (s *Service) writeArchive(ctx context.Context, r *scopeRoot, paths []string
 		}
 	}
 	if len(skipped) > 0 {
-		list := []byte("DockYard left out these entries:\n" + strings.Join(skipped, "\n") + "\n")
+		list := []byte("Docker Manager left out these entries:\n" + strings.Join(skipped, "\n") + "\n")
 		fi := memInfo{name: protocol.SkippedListName, size: int64(len(list)), mod: s.opts.Clock.Now()}
 		if err := aw.file(protocol.SkippedListName, fi, bytes.NewReader(list)); err != nil {
 			return entries, err

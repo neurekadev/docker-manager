@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
 )
 
-// Limiter caps a transfer's rate (DOCKYARD_MIGRATION_BANDWIDTH_LIMIT) with a
+// Limiter caps a transfer's rate (DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT) with a
 // token bucket on an injectable clock. The zero rate (or a nil Limiter)
 // does not limit. One Limiter may be shared by concurrent transfers; the cap
 // then applies to their sum.

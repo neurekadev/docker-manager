@@ -18,13 +18,13 @@
 	<DeniedState
 		level={1}
 		title="You don't have access to registry credentials."
-		description="The owner of this DockYard manages them. Pulls and builds use them without anyone seeing the secrets."
+		description="The owner of this Docker Manager manages them. Pulls and builds use them without anyone seeing the secrets."
 	/>
 {:else}
 	<Page>
 		<PageHeader
 			title="Registries"
-			description="Credentials DockYard uses to pull private images and build from private repositories. Secrets are entered once and never shown again."
+			description="Credentials Docker Manager uses to pull private images and build from private repositories. Secrets are entered once and never shown again."
 		/>
 		<TabNav
 			label="Registry sections"

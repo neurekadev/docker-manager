@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // Docker maintenance (#14) through the real manager, a real agent session
@@ -70,7 +70,7 @@ func (p maintPreview) decisions() []string {
 func etag(rev int64) reqOpt { return header("If-Match", `"`+itoa(int(rev))+`"`) }
 
 // maintenanceHost is an Engine with old candidates of four categories,
-// used objects and a stopped DockYard agent container.
+// used objects and a stopped Docker Agent container.
 func maintenanceHost(e *env) *enginefake.Engine {
 	fe := enginefake.New("ENGINE-MAINT")
 	old := e.clk.Now().Add(-60 * 24 * time.Hour)
@@ -78,7 +78,7 @@ func maintenanceHost(e *env) *enginefake.Engine {
 	fe.SetImageCreated("nginx:1.27", old)
 	fe.SetImageCreated(fe.AddImage("app:old"), old)
 	fe.AddContainer(engine.ContainerSpec{Name: "web", Image: "nginx:1.27"}, true)
-	for name, labels := range map[string]map[string]string{"old-job": nil, "dockyard-agent-old": {protocol.LabelRole: "agent"}} {
+	for name, labels := range map[string]map[string]string{"old-job": nil, "docker-agent-old": {protocol.LabelRole: "agent"}} {
 		fe.AddContainer(engine.ContainerSpec{Name: name, Image: "nginx:1.27", Labels: labels}, false)
 		fe.SetContainerState(name, "exited")
 		fe.SetContainerTimes(name, old, old)
@@ -95,7 +95,7 @@ func maintenanceHost(e *env) *enginefake.Engine {
 // rule enabled, schedule disabled, nothing pruned on first install), the
 // separate volume opt-in, an accurate preview, confirmation, one durable
 // job for foreground and background presentations, overlap refusal,
-// DockYard's own objects surviving, the latest result on the policy, a
+// Docker Manager's own objects surviving, the latest result on the policy, a
 // scheduled run as the service identity, and an offline agent.
 func TestMaintenancePolicyLifecycle(t *testing.T) {
 	e := newEnv(t)
@@ -160,11 +160,11 @@ func TestMaintenancePolicyLifecycle(t *testing.T) {
 		}
 	}
 
-	// Preview: candidates with reasons, DockYard's container protected.
+	// Preview: candidates with reasons, Docker Manager's container protected.
 	owner.must(http.StatusOK, http.MethodPost, base+"/previews", nil).json(t, &pv)
 	want := []string{
 		"named_volumes remove olddata",
-		"stopped_containers protected dockyard-agent-old",
+		"stopped_containers protected docker-agent-old",
 		"stopped_containers remove old-job",
 		"unused_images remove app:old",
 		"unused_networks protected bridge", "unused_networks protected host", "unused_networks protected none",
@@ -197,7 +197,7 @@ func TestMaintenancePolicyLifecycle(t *testing.T) {
 	if len(j.Items) != 4 {
 		t.Fatalf("job items %+v", j.Items)
 	}
-	if got := fe.ContainerNames(); !slices.Equal(got, []string{"dockyard-agent-old", "web"}) {
+	if got := fe.ContainerNames(); !slices.Equal(got, []string{"docker-agent-old", "web"}) {
 		t.Fatalf("containers left: %v", got)
 	}
 	if slices.Contains(fe.VolumeNames(), "olddata") || slices.Contains(fe.NetworkNames(), "oldnet") {

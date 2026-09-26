@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Container detail (#6): header with status, image and lifecycle
-	// actions, what DockYard refuses on this container and why (#32
+	// actions, what Docker Manager refuses on this container and why (#32
 	// protection, managed stacks), the running job, and the tabs: Overview
 	// here, Logs and Terminal (#8) as child routes.
 	import type { Snippet } from 'svelte';
@@ -231,8 +231,8 @@
 				title={protectionLabel(c.protection)}
 				live="none"
 			>
-				{sentence(c.protection.reason)} DockYard refuses to stop, pause, change or remove it,
-				for everyone including the owner{c.protection.restartAllowed
+				{sentence(c.protection.reason)} Docker Manager refuses to stop, pause, change or remove
+				it, for everyone including the owner{c.protection.restartAllowed
 					? '; a restart needs an explicit confirmation because the UI disconnects'
 					: c.protection.role === 'agent'
 						? ", and doesn't restart it either"

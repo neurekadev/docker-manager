@@ -7,7 +7,7 @@
 // the source and a migration.receive stream on the destination per part
 // (the project directory, each volume, locally built images) and copies
 // between them with end-to-end backpressure, a bandwidth cap
-// (DOCKYARD_MIGRATION_BANDWIDTH_LIMIT) and bounded memory (one stream
+// (DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT) and bounded memory (one stream
 // window plus a copy buffer per part; nothing on disk). Every part is
 // checksummed per chunk and as a whole (internal/transfer) and compared
 // across source, manager and destination.
@@ -38,20 +38,20 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/regclient"
-	"github.com/neurekadev/dockyard/internal/manager/registries"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/streammux"
-	"github.com/neurekadev/dockyard/internal/transfer"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/registries"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/transfer"
 )
 
 // Agents reaches environments' agents (*agents.Hub).
@@ -225,8 +225,8 @@ var (
 	// ErrSourceRemoved: the source was already removed (or its removal
 	// runs).
 	ErrSourceRemoved = errors.New("the source was already removed")
-	// ErrSourceInUse: a DockYard stack manages the source project again.
-	ErrSourceInUse = errors.New("a DockYard stack manages the source project again")
+	// ErrSourceInUse: a Docker Manager stack manages the source project again.
+	ErrSourceInUse = errors.New("a Docker Manager stack manages the source project again")
 )
 
 // BlockedError is ErrBlocked with the plan.

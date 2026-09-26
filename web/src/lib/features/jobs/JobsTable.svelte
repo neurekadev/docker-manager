@@ -65,7 +65,7 @@
 		<a href={routes.environment(j.environmentId)} class="env"
 			>{environments?.get(j.environmentId) ?? j.environmentId.slice(0, 8)}</a
 		>
-	{:else}<span class="muted">DockYard</span>{/if}
+	{:else}<span class="muted">Docker Manager</span>{/if}
 {/snippet}
 {#snippet originCell(j: Job)}
 	<span>{ORIGIN_LABELS[j.origin] ?? j.origin}</span>

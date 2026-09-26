@@ -11,10 +11,10 @@ import (
 // CookieName is the browser session cookie. The __Host- prefix makes
 // browsers enforce Secure, Path=/ and no Domain, pinning the cookie to the
 // single public origin (#27). api.SessionCookieName is the same value.
-const CookieName = "__Host-dockyard_session"
+const CookieName = "__Host-docker_manager_session"
 
-// Session lifetime defaults (DOCKYARD_SESSION_IDLE_TIMEOUT and
-// DOCKYARD_SESSION_LIFETIME override them). They follow NIST SP 800-63B
+// Session lifetime defaults (DOCKER_MANAGER_SESSION_IDLE_TIMEOUT and
+// DOCKER_MANAGER_SESSION_LIFETIME override them). They follow NIST SP 800-63B
 // AAL2 reauthentication guidance: at most one hour of inactivity and a 24
 // hour absolute lifetime, whatever the activity.
 const (
@@ -37,7 +37,7 @@ type Options struct {
 	ErrorFunc func(http.ResponseWriter, *http.Request, error)
 }
 
-// NewManager returns an SCS session manager with DockYard's cookie policy:
+// NewManager returns an SCS session manager with Docker Manager's cookie policy:
 // HttpOnly, Secure, SameSite=Strict, Path=/, no Domain, the __Host- name,
 // and tokens stored only as SHA-256 hashes. Handlers must call RenewToken
 // on every privilege change (sign-in, second factor, step-up, enrollment

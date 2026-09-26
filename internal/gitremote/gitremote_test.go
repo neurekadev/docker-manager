@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/gitremote"
-	"github.com/neurekadev/dockyard/internal/gitremote/gittest"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/gitremote"
+	"code.neureka.dev/docker-manager/docker-manager/internal/gitremote/gittest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 var (

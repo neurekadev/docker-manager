@@ -17,7 +17,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/neurekadev/dockyard/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
 )
 
 // Route kinds.
@@ -186,9 +186,9 @@ func (inv *Inventory) Validate() []error {
 // specOperation is the part of an OpenAPI operation the reconciliation reads.
 type specOperation struct {
 	OperationID      string                     `json:"operationId"`
-	Capability       string                     `json:"x-dockyard-capability"`
-	CapabilityValues []string                   `json:"x-dockyard-capability-values"`
-	Scope            string                     `json:"x-dockyard-scope"`
+	Capability       string                     `json:"x-docker-manager-capability"`
+	CapabilityValues []string                   `json:"x-docker-manager-capability-values"`
+	Scope            string                     `json:"x-docker-manager-scope"`
 	Responses        map[string]json.RawMessage `json:"responses"`
 	Security         []map[string][]string      `json:"security"`
 	RequestBody      *specResponse              `json:"requestBody"`

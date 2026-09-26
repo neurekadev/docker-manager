@@ -59,11 +59,11 @@ func Probe(ctx context.Context, client *http.Client, t Target, now func() time.T
 	var r Result
 	name := make([]byte, 8)
 	_, _ = rand.Read(name)
-	key := ".dockyard-probe-" + hex.EncodeToString(name)
+	key := ".docker-manager-probe-" + hex.EncodeToString(name)
 	if t.Prefix != "" {
 		key = t.Prefix + "/" + key
 	}
-	body := []byte("dockyard connection test\n")
+	body := []byte("docker-manager connection test\n")
 	status, _, err := p.do(ctx, http.MethodPut, key, nil, body)
 	r.CanWrite = boolPtr(err == nil && status/100 == 2)
 	if fail := classify(status, err); fail != "" {

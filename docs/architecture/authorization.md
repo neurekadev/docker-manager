@@ -1,6 +1,6 @@
 # Authorization (#17)
 
-DockYard grants **named actions** (capabilities) at a **scope**. There are no
+Docker Manager grants **named actions** (capabilities) at a **scope**. There are no
 generic read/write/execute grants: `container.restart` does not imply start,
 stop, logs, terminal, files or backups. The decision is made on the server for
 every route, list item, count, stream event, job request and job dispatch; hidden
@@ -77,7 +77,7 @@ plain-language reason (previews, effective permissions).
   affected user, others their own change; [migrations](migrations.md)).
 - **Deleted resources:** rules on a resource that no longer exists match
   nothing. Feature services call `permissions.Service.ForgetResource` after
-  deleting a resource through DockYard so a later resource with the same
+  deleting a resource through Docker Manager so a later resource with the same
   name in the same environment does not inherit the old exact rules. A
   container leaving its stack loses the stack's rules (its parents change).
 - **Files:** each root type has its own keys (`stack.files.*`,
@@ -126,7 +126,7 @@ perms.RegisterLocator(catalog.TypeContainer, permissions.LocatorFunc(
 Built in: services are located through their stack (`<stackId>/<service>`),
 Docker-named resources live in their own environment. The manager registers
 the agent Locator; #6 registers containers, volumes and networks
-(`resources.Service.Locator`: members of a DockYard stack's Compose project
+(`resources.Service.Locator`: members of a Docker Manager stack's Compose project
 get their service and stack as parents; images and other objects use the
 built-in rule), #7 stacks.
 Locators must be cheap and must not call the Authorizer.
@@ -179,7 +179,7 @@ restart job; start/stop/logs/terminal are denied.
 ## Enforcement points
 
 - **Routes:** `api.Register` declares the capability and scope (OpenAPI
-  `x-dockyard-capability`); handlers check with the checker. Every capability
+  `x-docker-manager-capability`); handlers check with the checker. Every capability
   key of the route inventory must exist in the catalog (`TestRouteInventory`).
 - **Jobs (#26):** the engine authorizes the kind's capabilities
   (`jobspec.Spec.Capabilities`: plain, per-root file keys, input-selected
@@ -216,7 +216,7 @@ fail the user's parallel requests with `401`, and it adds nothing against
 fixation (tokens are renewed at sign-in, step-up, enrollment and credential
 changes); no session state caches permissions.
 
-Deleting a group requires it to be empty (`409 group_not_empty`): DockYard
+Deleting a group requires it to be empty (`409 group_not_empty`): Docker Manager
 never moves users implicitly, so deleting a group never changes anyone's
 access. Selecting a default group that grants access answers with a
 `warning`.

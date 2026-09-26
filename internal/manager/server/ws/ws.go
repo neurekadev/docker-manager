@@ -8,7 +8,7 @@
 //     session enforces its own deadlines with contexts;
 //   - the read limit is bounded (default protocol.MaxFrameSize);
 //   - KeepAlive pings the peer every PingInterval (default 15 s,
-//     DOCKYARD_STREAM_HEARTBEAT), below common proxy idle/read timeouts
+//     DOCKER_MANAGER_STREAM_HEARTBEAT), below common proxy idle/read timeouts
 //     (nginx proxy_read_timeout defaults to 60 s), and closes connections
 //     whose pong does not arrive within PongTimeout.
 //
@@ -31,10 +31,10 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/server/sse"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/sse"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // ErrSubprotocol is returned when RequireSubprotocol is set and the client

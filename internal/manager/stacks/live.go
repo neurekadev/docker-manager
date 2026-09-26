@@ -5,12 +5,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/updates/eligible"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/updates/eligible"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
-// Drift reasons (the live Engine state differs from DockYard's intent).
+// Drift reasons (the live Engine state differs from Docker Manager's intent).
 const (
 	// DriftMissing: an applied service has no containers.
 	DriftMissing = "missing"
@@ -18,7 +18,7 @@ const (
 	// (a completed one-shot with exit code 0 is not drift).
 	DriftNotRunning = "not_running"
 	// DriftRunningWhileStopped: the stack was stopped or taken down by
-	// DockYard but the service runs.
+	// Docker Manager but the service runs.
 	DriftRunningWhileStopped = "running_while_stopped"
 	// DriftUnexpected: a service runs that the applied definition lacks.
 	DriftUnexpected = "unexpected_service"
@@ -185,7 +185,7 @@ func drift(st domain.Stack, sv domain.StackServiceView) []string {
 
 // ImageStatus returns the applied images of the last deploy and whether
 // each could follow its tag's digest (#20, internal/manager/updates/
-// eligible). Services never deployed by DockYard report their
+// eligible). Services never deployed by Docker Manager report their
 // definition's image only.
 func (s *Service) ImageStatus(st domain.Stack) []domain.StackImageView {
 	out := []domain.StackImageView{}

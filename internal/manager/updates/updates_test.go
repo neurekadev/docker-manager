@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/regclient"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
-	"github.com/neurekadev/dockyard/internal/manager/updates"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/updates"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // shop is the fixture stack: web (interpolated tag from .env, an env_file
@@ -486,7 +486,7 @@ func TestUpdateWindows(t *testing.T) {
 }
 
 // A managed standalone container updates from its saved specification;
-// unmanaged and DockYard's own containers cannot be targets.
+// unmanaged and Docker Manager's own containers cannot be targets.
 func TestStandaloneContainerPolicy(t *testing.T) {
 	h := newHarness(t)
 	ref := h.ref("acme/api:3")
@@ -524,10 +524,10 @@ func TestStandaloneContainerPolicy(t *testing.T) {
 		TargetID: "manual"}); updateCode(err) != domain.UpdateErrTargetIneligible {
 		t.Fatalf("unmanaged container: %v", err)
 	}
-	h.engine.AddContainer(engine.ContainerSpec{Name: "dockyard-agent", Image: ref, Labels: map[string]string{protocol.LabelRole: "agent"}}, true)
+	h.engine.AddContainer(engine.ContainerSpec{Name: "docker-agent", Image: ref, Labels: map[string]string{protocol.LabelRole: "agent"}}, true)
 	if _, err := h.svc.Create(h.ctx, updates.NewPolicy{EnvironmentID: env, Name: "agent", TargetType: domain.UpdateTargetContainer,
-		TargetID: "dockyard-agent"}); updateCode(err) != domain.UpdateErrTargetIneligible {
-		t.Fatalf("DockYard's own container: %v", err)
+		TargetID: "docker-agent"}); updateCode(err) != domain.UpdateErrTargetIneligible {
+		t.Fatalf("Docker Manager's own container: %v", err)
 	}
 	// One policy per target.
 	if _, err := h.svc.Create(h.ctx, updates.NewPolicy{EnvironmentID: env, Name: "again", TargetType: domain.UpdateTargetContainer,

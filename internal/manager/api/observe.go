@@ -11,11 +11,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/observe"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/observe"
 )
 
 // Observation routes (#5): metrics, capacity, the cross-environment
@@ -361,7 +361,7 @@ func (h *observeAPI) overview(ctx context.Context, _ *struct{}) (*overviewOutput
 
 // EnvironmentStreamHello opens the stream.
 type EnvironmentStreamHello struct {
-	Version     string `json:"version" enum:"dockyard.environment-events/v1"`
+	Version     string `json:"version" enum:"docker-manager.environment-events/v1"`
 	Cursor      string `json:"cursor" doc:"Position of the stream; fetch snapshots now, events after it follow."`
 	HeartbeatMs int64  `json:"heartbeatMs"`
 }
@@ -486,7 +486,7 @@ func (h *observeAPI) runStream(hctx huma.Context, c authz.Checker, j *observe.Jo
 	defer hb.Stop()
 	maxAge := clk.NewTimer(h.maxAge)
 	defer maxAge.Stop()
-	if stream.Event("hello", "", EnvironmentStreamHello{Version: "dockyard.environment-events/v1", Cursor: sub.Cursor,
+	if stream.Event("hello", "", EnvironmentStreamHello{Version: "docker-manager.environment-events/v1", Cursor: sub.Cursor,
 		HeartbeatMs: heartbeat.Milliseconds()}) != nil {
 		return
 	}

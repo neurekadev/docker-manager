@@ -173,15 +173,15 @@
 	<DeniedState
 		level={1}
 		title="You can't add environments."
-		description="Enrolling agents needs the agent.enroll permission. Ask the owner of this DockYard."
+		description="Enrolling agents needs the agent.enroll permission. Ask the owner of this Docker Manager."
 	/>
 {:else}
 	<div class="page">
 		<PageHeader
 			{title}
 			description={reattachId
-				? 'Run a DockYard agent on the same Docker Engine. Once it enrolls, the environment comes back with its stacks and policies.'
-				: 'Run the DockYard agent on a Docker host and enroll it with a one-time token. The agent dials out to this DockYard; the host opens no ports.'}
+				? 'Run a Docker Agent on the same Docker Engine. Once it enrolls, the environment comes back with its stacks and policies.'
+				: 'Run the Docker Agent on a Docker host and enroll it with a one-time token. The agent dials out to this Docker Manager; the host opens no ports.'}
 		/>
 
 		{#if !created}
@@ -206,7 +206,7 @@
 							<TextField
 								label="Environment name"
 								bind:value={name}
-								description="Optional. Otherwise the agent's DOCKYARD_ENVIRONMENT_NAME or the Engine host name. You can rename it later."
+								description="Optional. Otherwise the agent's DOCKER_AGENT_ENVIRONMENT_NAME or the Engine host name. You can rename it later."
 								maxlength={64}
 								autocomplete="off"
 								error={fieldError(error, 'body.environmentName')}
@@ -322,8 +322,8 @@
 					<SecretReveal
 						secret={created.token}
 						label="enrollment token"
-						filename="dockyard-enrollment-token.txt"
-						description="For a manual `dockyard-agent enroll`. The commands above already contain it. It works once."
+						filename="docker-manager-enrollment-token.txt"
+						description="For a manual `docker-agent enroll`. The commands above already contain it. It works once."
 						confirmLabel="Hide token and commands"
 						onconfirm={() => (showSecrets = false)}
 					/>

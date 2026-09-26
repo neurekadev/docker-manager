@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 // The test binary doubles as a fake restic: when the runner executes it,
@@ -172,7 +172,7 @@ func TestRunnerDeliversSecretsOutsideArgsAndLogs(t *testing.T) {
 	secret := set.New(canary.S3SecretKey, "s3 secret key")
 	// A secret in the parent's environment must not reach restic.
 	parentSecret := set.New(canary.EnvValue, "parent environment")
-	t.Setenv("DOCKYARD_TEST_PARENT_SECRET", parentSecret)
+	t.Setenv("DOCKER_MANAGER_TEST_PARENT_SECRET", parentSecret)
 
 	f := newFake(t, map[string]fakeAnswer{
 		"backup":    {Stdout: `{"message_type":"summary","snapshot_id":"abc123","data_added":10}` + "\n"},
@@ -183,10 +183,10 @@ func TestRunnerDeliversSecretsOutsideArgsAndLogs(t *testing.T) {
 	loc := Location{Repository: f.dir, S3: &S3{AccessKeyID: access, SecretAccessKey: secret, Region: "eu-central-1", PathStyle: true}}
 	repo := f.r.Open(loc, key)
 	ctx := testutil.Context(t)
-	if _, err := repo.Backup(ctx, BackupRequest{Paths: []string{"/data"}, Tags: []string{"dockyard"}, Host: "env-1"}); err != nil {
+	if _, err := repo.Backup(ctx, BackupRequest{Paths: []string{"/data"}, Tags: []string{"docker-manager"}, Host: "env-1"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repo.Backup(ctx, BackupRequest{Stdin: strings.NewReader("manifest-bytes"), StdinFilename: "dockyard-manifest.json"}); err != nil {
+	if _, err := repo.Backup(ctx, BackupRequest{Stdin: strings.NewReader("manifest-bytes"), StdinFilename: "docker-manager-manifest.json"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := repo.Snapshots(ctx, SnapshotFilter{Tags: []string{"a", "b"}}); err != nil {
@@ -219,7 +219,7 @@ func TestRunnerDeliversSecretsOutsideArgsAndLogs(t *testing.T) {
 				set.AssertClean(t, fmt.Sprintf("call %d env %s", i, k), v)
 			}
 		}
-		if _, ok := envValue(c.Env, "DOCKYARD_TEST_PARENT_SECRET"); ok {
+		if _, ok := envValue(c.Env, "DOCKER_MANAGER_TEST_PARENT_SECRET"); ok {
 			t.Errorf("call %d inherited the parent's environment", i)
 		}
 		if v, _ := envValue(c.Env, "RESTIC_REPOSITORY"); v != f.dir {
@@ -232,7 +232,7 @@ func TestRunnerDeliversSecretsOutsideArgsAndLogs(t *testing.T) {
 	if !slices.Equal(calls[0].Args[len(calls[0].Args)-2:], []string{"--", "/data"}) || !slices.Contains(calls[0].Args, "--host") {
 		t.Errorf("backup args = %v", calls[0].Args)
 	}
-	if calls[1].Stdin != "manifest-bytes" || !slices.Contains(calls[1].Args, "dockyard-manifest.json") {
+	if calls[1].Stdin != "manifest-bytes" || !slices.Contains(calls[1].Args, "docker-manager-manifest.json") {
 		t.Errorf("stdin backup: %q %v", calls[1].Stdin, calls[1].Args)
 	}
 	if !slices.Contains(calls[2].Args, "a,b") {
@@ -435,8 +435,8 @@ func TestRunnerParsesListings(t *testing.T) {
 	}, "\n")
 	f := newFake(t, map[string]fakeAnswer{
 		"ls":        {Stdout: ls},
-		"snapshots": {Stdout: `[{"time":"2026-09-01T02:00:00Z","paths":["/data"],"hostname":"env-1","tags":["dockyard","set:1"],"id":"abcdef","short_id":"abcdef12"}]`},
-		"key":       {Stdout: `[{"current":true,"id":"k1","userName":"dockyard","hostName":"dockyard","created":"2026-09-01 02:00:00"}]`},
+		"snapshots": {Stdout: `[{"time":"2026-09-01T02:00:00Z","paths":["/data"],"hostname":"env-1","tags":["docker-manager","set:1"],"id":"abcdef","short_id":"abcdef12"}]`},
+		"key":       {Stdout: `[{"current":true,"id":"k1","userName":"docker-manager","hostName":"docker-manager","created":"2026-09-01 02:00:00"}]`},
 		"cat":       {Stdout: `{"version":2,"id":"repo-id-1","chunker_polynomial":"3a"}`},
 		"init":      {Stdout: `{"message_type":"initialized","id":"repo-id-2","repository":"/x"}`},
 	})

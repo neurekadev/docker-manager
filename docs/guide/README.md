@@ -1,10 +1,10 @@
-# DockYard user and administrator guide
+# Docker Manager user and administrator guide
 
-This guide is for the people who install and run DockYard. It walks
+This guide is for the people who install and run Docker Manager. It walks
 through the tasks in order and links to the reference documents for
-details. DockYard has no semver releases yet: `main` publishes the
-rolling `:edge` images `code.neureka.dev/dockyard/dockyard-manager:edge` and
-`code.neureka.dev/dockyard/dockyard-agent:edge`.
+details. Docker Manager has no semver releases yet: `main` publishes the
+rolling `:edge` images `code.neureka.dev/docker-manager/docker-manager:edge` and
+`code.neureka.dev/docker-manager/docker-agent:edge`.
 
 | Task | Page |
 | --- | --- |
@@ -12,14 +12,14 @@ rolling `:edge` images `code.neureka.dev/dockyard/dockyard-manager:edge` and
 | Create the owner account and enroll the first agent | [First run](first-run.md) |
 | Add more Docker hosts, handle offline hosts, remove or move them | [Multi-host operation](multi-host.md) |
 | Install the web app, how it updates, what works offline | [PWA install, update and offline](pwa.md) |
-| Upgrade DockYard, roll back, understand database migrations | [Upgrades and migrations](upgrades.md) |
-| Back up and restore stacks, volumes and DockYard itself; the Recovery Key | [Backup and restore](backup-restore.md) |
+| Upgrade Docker Manager, roll back, understand database migrations | [Upgrades and migrations](upgrades.md) |
+| Back up and restore stacks, volumes and Docker Manager itself; the Recovery Key | [Backup and restore](backup-restore.md) |
 | What updates, pruning and backups do by default, and how to turn them on safely | [Policy safety](policy-safety.md) |
 | Logs, health, diagnostics, the support bundle and owner recovery | [Troubleshooting](troubleshooting.md) |
 
 Reference:
 
-- What DockYard supports (hosts, Engines, Compose features, browsers,
+- What Docker Manager supports (hosts, Engines, Compose features, browsers,
   versions): [support matrix](../support-matrix.md).
 - Every configuration variable: [configuration.md](../configuration.md).
 - Reverse proxy requirements in depth: [deployment.md](../deployment.md).

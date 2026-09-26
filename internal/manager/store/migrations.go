@@ -10,7 +10,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 )
 
 // Environment migrations (#35).
@@ -138,7 +138,7 @@ func PartialMigrations(ctx context.Context, db bun.IDB, targetEnvironmentID stri
 }
 
 // RetainedMigrationSources returns the stack migrations whose stopped
-// source in an environment DockYard keeps (the migration runs or completed
+// source in an environment Docker Manager keeps (the migration runs or completed
 // and the user has not confirmed the source removal), oldest first.
 func RetainedMigrationSources(ctx context.Context, db bun.IDB, sourceEnvironmentID string) ([]domain.Migration, error) {
 	var rows []migrationRow

@@ -1,7 +1,7 @@
 package live
 
 import (
-	"github.com/neurekadev/dockyard/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
 )
 
 // Topics of the live stream (docs/api/streams.md).

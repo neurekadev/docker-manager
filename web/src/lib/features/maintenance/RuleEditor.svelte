@@ -79,7 +79,7 @@
 		<div class="optin">
 			<Checkbox
 				label="I understand that removing volumes deletes the data in them"
-				description="Needed before this rule can be turned on. Volumes of DockYard stacks, saved containers and backups are always kept."
+				description="Needed before this rule can be turned on. Volumes of Docker Manager stacks, saved containers and backups are always kept."
 				checked={!!rule.volumeOptIn}
 				{disabled}
 				onchange={(e) =>

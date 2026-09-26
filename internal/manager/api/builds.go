@@ -8,9 +8,9 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
 )
 
 // Image builds (#33): manual builds from a Git URL, build records and
@@ -514,7 +514,7 @@ func registerBuilds(a huma.API, deps Deps) {
 			Description: "Starts an image.build job on the environment's agent: the ref is resolved to a commit (in-process ls-remote " +
 				"with the matching Git credential), then the Engine's BuildKit builds exactly that commit (remote Git context; no docker " +
 				"or buildx CLI) with private base images authenticated by registry connections (#19). Progress and the BuildKit log " +
-				"stream as job events; builds per environment are limited by DOCKYARD_JOB_MAX_CONCURRENT_BUILDS; cancel with " +
+				"stream as job events; builds per environment are limited by DOCKER_MANAGER_JOB_MAX_CONCURRENT_BUILDS; cancel with " +
 				"POST /jobs/{id}/cancellations. The build record is GET .../image-builds/{jobId}. Build argument values are never audited. " +
 				"409 ambiguous_git_credential, git_credential_revoked, registry_connection_revoked.",
 			Tags: []string{tagBuilds}, Errors: jobErrs,

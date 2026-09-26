@@ -22,7 +22,7 @@
 		</main>
 		<p class="version num">
 			{#if health.data}
-				DockYard {health.data.version} ({health.data.commit.slice(0, 12)})
+				Docker Manager {health.data.version} ({health.data.commit.slice(0, 12)})
 			{:else if health.fetchStatus === 'paused'}
 				Waiting for the network…
 			{:else if health.isError}

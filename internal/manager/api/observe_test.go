@@ -13,17 +13,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/authztest"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/authz/policy"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/metrics"
-	"github.com/neurekadev/dockyard/internal/manager/observe"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/policy"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/metrics"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/observe"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // observeAgents answers engine.info for env-1.
@@ -342,7 +342,7 @@ func TestEnvironmentEventStreamIsPermissionFiltered(t *testing.T) {
 	}
 	eve := openStream(t, f.h, "eve", "/api/v1/environments/env-1/events/stream")
 	hello := eve.next()
-	if hello.name != "hello" || !strings.Contains(hello.data, `"version":"dockyard.environment-events/v1"`) {
+	if hello.name != "hello" || !strings.Contains(hello.data, `"version":"docker-manager.environment-events/v1"`) {
 		t.Fatalf("hello %+v", hello)
 	}
 	olga := openStream(t, f.h, "olga", "/api/v1/environments/env-1/events/stream")

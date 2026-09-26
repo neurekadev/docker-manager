@@ -14,18 +14,18 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/backups/s3probe"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups/s3probe"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // MaxNameLen bounds repository and policy names.
@@ -202,7 +202,7 @@ func (s *Service) checkManagerLocalPath(p string) error {
 		}
 	}
 	if !ok {
-		return fieldErr("path", "must be below one of the manager's backup roots (DOCKYARD_BACKUP_LOCAL_ROOTS)")
+		return fieldErr("path", "must be below one of the manager's backup roots (DOCKER_MANAGER_BACKUP_LOCAL_ROOTS)")
 	}
 	if s.opts.DataDir != "" {
 		data := filepath.ToSlash(filepath.Clean(s.opts.DataDir))
@@ -443,7 +443,7 @@ func probeWritable(dir string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(dir, ".dockyard-probe-")
+	f, err := os.CreateTemp(dir, ".docker-manager-probe-")
 	if err != nil {
 		return err
 	}
@@ -452,7 +452,7 @@ func probeWritable(dir string) error {
 	return os.Remove(name)
 }
 
-// probeScopes opens the scopes the repository can hold that DockYard knows
+// probeScopes opens the scopes the repository can hold that Docker Manager knows
 // (the manager scope, and every location recorded).
 func (s *Service) probeScopes(ctx context.Context, r domain.BackupRepository, creds backup.S3Credentials) []domain.BackupScopeProbe {
 	cur, prev, _, _, err := s.currentKeys(ctx, s.db)

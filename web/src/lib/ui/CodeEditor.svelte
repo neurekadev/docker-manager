@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Code editor (#15, #22): CodeMirror loaded lazily with DockYard's editor
+	// Code editor (#15, #22): CodeMirror loaded lazily with Docker Manager's editor
 	// theme. `value` is the initial text; changes are reported through
 	// onchange (the parent owns dirty state, ETags and conflicts, #15).
 	// `language` and `readOnly` may change while mounted; the handle

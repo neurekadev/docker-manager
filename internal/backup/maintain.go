@@ -5,7 +5,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // Refusal is a classed job failure (jobexec.ClassedError) for backup
@@ -113,7 +113,7 @@ type VerifyResult struct {
 	Snapshots []restic.Snapshot
 }
 
-// Verify checks a repository and lists its DockYard snapshots (bounded).
+// Verify checks a repository and lists its Docker Manager snapshots (bounded).
 // A damaged repository returns the check's error (restic
 // CodeRepositoryDamaged) with Damaged set.
 func Verify(ctx context.Context, repo restic.Repo, subset string) (VerifyResult, error) {
@@ -130,7 +130,7 @@ func Verify(ctx context.Context, repo restic.Repo, subset string) (VerifyResult,
 		if len(out.Snapshots) >= MaxListedSnapshots {
 			break
 		}
-		if sn.HasTag(TagDockYard) || sn.HasTag(TagManagerState) {
+		if sn.HasTag(TagDockerManager) || sn.HasTag(TagManagerState) {
 			out.Snapshots = append(out.Snapshots, sn)
 		}
 	}

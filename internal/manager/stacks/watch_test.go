@@ -8,20 +8,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/watch"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	mfiles "github.com/neurekadev/dockyard/internal/manager/files"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/stacks"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/watch"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	mfiles "code.neureka.dev/docker-manager/docker-manager/internal/manager/files"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/stacks"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // TestExternalComposeEditRecordsRevision (#23, #25 Q1) runs the whole
 // chain on the real filesystem: the agent's watcher (fsnotify) sees
-// compose.yaml edited outside DockYard, the invalidation reaches the
+// compose.yaml edited outside Docker Manager, the invalidation reaches the
 // manager's bus, the manager's file watcher settles it and the stack
 // service records a revision (source external) and marks undeployed
 // changes. A change outside the definition records nothing and does not
@@ -104,7 +104,7 @@ func TestExternalComposeEditRecordsRevision(t *testing.T) {
 		t.Fatal("the definition was read for a change outside it")
 	}
 
-	// compose.yaml edited outside DockYard (an editor on the host).
+	// compose.yaml edited outside Docker Manager (an editor on the host).
 	if err := os.WriteFile(filepath.Join(project, "compose.yaml"), []byte(shopYAML+"# edited on the host\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -147,14 +147,14 @@ func TestExternalChangeAndWatchScopes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	caps := `{"roots":[{"kind":"stacks","path":"/var/lib/docker/volumes/dockyard_stacks/_data","watch":"inotify"}]}`
+	caps := `{"roots":[{"kind":"stacks","path":"/var/lib/docker/volumes/docker-manager_stacks/_data","watch":"inotify"}]}`
 	svc, err := stacks.New(stacks.Options{DB: h.db, Clock: h.clk, Logger: testutil.Logger(t), Keyring: secrets.NewKeyring(key),
 		Agents: h.agents, Environments: fakeEnvironments{h.agents}, Jobs: h.eng, Bus: h.bus, Systems: fakeSystems{caps}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	scopes, err := svc.WatchScopes(h.ctx, env)
-	if err != nil || len(scopes) != 1 || scopes[0].ID != st.ID || scopes[0].Dir != "/var/lib/docker/volumes/dockyard_stacks/_data/shop" {
+	if err != nil || len(scopes) != 1 || scopes[0].ID != st.ID || scopes[0].Dir != "/var/lib/docker/volumes/docker-manager_stacks/_data/shop" {
 		t.Fatalf("watch scopes %+v %v", scopes, err)
 	}
 	// Without a verified stacks root there is nothing to watch yet.

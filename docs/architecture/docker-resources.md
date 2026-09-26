@@ -8,7 +8,7 @@ Moby adapter (#21). There is no Engine API passthrough.
 
 | Package | Role |
 | --- | --- |
-| `internal/protocol` (`docker.go`) | Wire types of the requests and job inputs, the create-form validation shared by manager and agent, DockYard's label keys. |
+| `internal/protocol` (`docker.go`) | Wire types of the requests and job inputs, the create-form validation shared by manager and agent, Docker Manager's label keys. |
 | `internal/agent/resources` | Agent side: request handlers (`container.list`, `container.inspect`, `image.list`, `image.inspect`, `image.tag`, `volume.list`, `volume.inspect`, `network.list`, `network.inspect`) and job executors (`container.*`, `image.pull`, `image.remove`, `volume.*`, `network.*`). Wired by `internal/agent/runtime`. |
 | `internal/manager/resources` | Manager side: requests through the hub, job requests, input validation, stack/in-use refusals, recreate specifications, permission Locators, reconnect reconciliation, the #19/#7 hooks. |
 | `internal/manager/api` (`docker.go`, `containers.go`, `images.go`, `volumes.go`, `networks.go`) | The routes, DTOs, #17 shaping. |
@@ -47,12 +47,12 @@ name, environmentId, state, health and stack/service identity. Label
 filters apply to full views only. Environment variables are never returned
 (inspect omits them; the saved specification shows variable names only).
 
-Containers, volumes and networks of a Compose project that is a DockYard
+Containers, volumes and networks of a Compose project that is a Docker Manager
 stack carry the stack (and service) as authorization parents, so
 stack-scoped rules apply to them. Handlers pass these parents; the
 `container`, `volume` and `network` Locators serve the job engine's checks
 from the membership last seen (list, inspect, reconnect reconciliation).
-Removing an object through DockYard drops its exact rules
+Removing an object through Docker Manager drops its exact rules
 (`ForgetResource`) once the removal job succeeded.
 
 ## Mutations
@@ -100,7 +100,7 @@ memory, memory+swap, PIDs), health check and whether to start. Anything
 else (privileged mode, capabilities, devices, security options, ulimits,
 sysctls, log drivers, DNS, extra hosts, init, IPC/PID modes, GPUs, ...) is
 refused by the schema: use a Compose stack (#7). Labels under
-`dev.neureka.dockyard.` and `com.docker.compose.` are reserved. Binding the
+`dev.neureka.docker-manager.` and `com.docker.compose.` are reserved. Binding the
 Docker socket (or a directory containing it) is refused. Bind mounts
 otherwise give the container access to host files: `container.create` is
 an advanced capability.
@@ -110,12 +110,12 @@ an advanced capability.
   command, entrypoint, env, labels, working directory, user, ports,
   mounts, networks, health check.
 
-Containers DockYard creates carry `dev.neureka.dockyard.managed=standalone`,
-`dev.neureka.dockyard.instance=<manager instance ID>` and
-`dev.neureka.dockyard.spec=<spec ID>`. The complete create form (including
+Containers Docker Manager creates carry `dev.neureka.docker-manager.managed=standalone`,
+`dev.neureka.docker-manager.instance=<manager instance ID>` and
+`dev.neureka.docker-manager.spec=<spec ID>`. The complete create form (including
 environment values) is saved sealed (`secrets.Keyring`,
 `managed_containers/<id>/spec`) in `managed_containers`, updated with
-in-place changes, and dropped when the container is removed through DockYard
+in-place changes, and dropped when the container is removed through Docker Manager
 or when a reconnect shows the container gone after its create job ended.
 Automatic updates (#20) recreate a managed standalone container from
 `resources.Service.ManagedSpec` with its unchanged tagged reference.
@@ -134,7 +134,7 @@ logs.
   anonymously when a connection was named (`credential_unavailable`).
 - **#7 stacks:** `resources.Service.SetStackResolver` maps Compose projects
   to stack IDs: they become authorization parents and count as managed.
-- **#32 self-protection:** DockYard's own resources carry `protection`
+- **#32 self-protection:** Docker Manager's own resources carry `protection`
   and are refused on both sides ([self-protection.md](self-protection.md)).
 - **#5:** container metrics (`GET …/containers/{id}/metrics`, served here
   from the #5 store by container name; readable while the environment is

@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 )
 
 // AuthorizeExec is the shared authorization of container exec (terminal)

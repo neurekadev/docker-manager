@@ -9,20 +9,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/protect"
-	"github.com/neurekadev/dockyard/internal/imageref"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
+	"code.neureka.dev/docker-manager/docker-manager/internal/imageref"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // facts is what every decision needs besides the object itself: the
-// moment, the containers (usage), DockYard's own objects and every
+// moment, the containers (usage), Docker Manager's own objects and every
 // protection the manager sent or the agent recognizes.
 type facts struct {
 	now        time.Time
 	containers []engine.Container
 	set        *protect.Set
-	// projects are Compose projects of DockYard stacks (manager-sent, or
+	// projects are Compose projects of Docker Manager stacks (manager-sent, or
 	// with a container whose working directory is in a stack root).
 	projects map[string]string
 	images   map[string]string // normalized reference or image ID -> reason
@@ -52,7 +52,7 @@ func (s *Service) gather(ctx context.Context, eng engine.Engine, in protocol.Pru
 		}
 		if dir := c.Labels[protocol.ComposeWorkingDirLabel]; dir != "" && path.IsAbs(dir) && s.opts.ManagedStackDir != nil &&
 			s.opts.ManagedStackDir(path.Clean(dir)) {
-			f.projects[project] = fmt.Sprintf("part of DockYard stack %q", project)
+			f.projects[project] = fmt.Sprintf("part of Docker Manager stack %q", project)
 		}
 	}
 	for _, r := range in.Protect.Images {
@@ -92,7 +92,7 @@ func imageKeys(ref string) []string {
 }
 
 // Protection reasons of objects the manager or the agent know besides
-// DockYard's own (#32).
+// Docker Manager's own (#32).
 func (f *facts) containerProtection(c engine.Container) string {
 	if p := f.set.Container(c.ID); p != nil {
 		return p.Reason
@@ -101,7 +101,7 @@ func (f *facts) containerProtection(c engine.Container) string {
 		return f.projects[project]
 	}
 	if c.Labels[protocol.LabelManaged] == protocol.ManagedStandalone && c.Labels[protocol.LabelSpec] != "" {
-		return "created through DockYard with a saved recreate specification"
+		return "created through Docker Manager with a saved recreate specification"
 	}
 	return ""
 }

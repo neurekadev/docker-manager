@@ -1,5 +1,5 @@
 <script lang="ts">
-	// The Compose project an object belongs to (#6, #7): a DockYard-managed
+	// The Compose project an object belongs to (#6, #7): a Docker Manager-managed
 	// stack links to it (its objects change through the stack); other
 	// projects are named only.
 	import Layers from '@lucide/svelte/icons/layers';
@@ -27,7 +27,7 @@
 		</Badge>
 	</a>
 {:else}
-	<Badge title="Compose project {stack.project}, not managed by DockYard">
+	<Badge title="Compose project {stack.project}, not managed by Docker Manager">
 		<Layers size={13} strokeWidth={1.75} aria-hidden="true" />
 		{label}<span class="sr-only"> (Compose project)</span>
 	</Badge>

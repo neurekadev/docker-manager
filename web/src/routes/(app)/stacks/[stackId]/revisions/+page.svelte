@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Revisions (#7, #25 Q1): every definition DockYard saw, newest first:
+	// Revisions (#7, #25 Q1): every definition Docker Manager saw, newest first:
 	// what was deployed, what the stack editor or file manager saved, edits
 	// made on the host and restores. Compare any two (the files on disk
 	// against the deployed revision by default) and restore one to disk;
@@ -151,7 +151,7 @@
 	function authorOf(r: StackRevision): string {
 		if (r.authorTokenId) return r.authorUserId === me ? 'You (API token)' : 'API token';
 		if (r.authorUserId) return r.authorUserId === me ? 'You' : 'Another user';
-		return r.source === 'external' ? 'On the host' : 'DockYard';
+		return r.source === 'external' ? 'On the host' : 'Docker Manager';
 	}
 
 	function rowMenu(r: StackRevision): MenuEntry[] {
@@ -370,7 +370,7 @@
 						icon={History}
 						color="violet"
 						title="No revisions yet."
-						description="DockYard records one at every deploy and whenever the files change."
+						description="Docker Manager records one at every deploy and whenever the files change."
 						level={3}
 						compact
 					/>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Tag and remove images (#6). Tagging is a short request (an existing
 	// tag moves to this image); removal is a job, refused while containers
-	// use the image or when it is DockYard's own (#32), with the server's
+	// use the image or when it is Docker Manager's own (#32), with the server's
 	// removal preview shown first.
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { api, unwrap, type Schema } from '$lib/api/client';

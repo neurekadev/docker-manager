@@ -25,7 +25,7 @@ committed). Shipped code is in `dependencies`; build tools are
 | `openapi-fetch` (+ `openapi-typescript`, dev) | 0.17.0 / 7.13.0 | MIT | generated typed `/api/v1` client (ADR 0001) | initial |
 | `@tanstack/svelte-query` | 6.2.4 (query-core 5.103.2) | MIT | server state, caching, retries, invalidation. v6 is the Svelte 5 (runes) line: `createQuery(() => options)` | initial |
 | `@lucide/svelte` | 1.48.0 | ISC | icons; import per icon (`@lucide/svelte/icons/<name>`) so only used icons ship | initial (per icon) |
-| `bits-ui` | 2.19.3 (+ peer `@internationalized/date` 3.12.4, Apache-2.0; `@floating-ui/*`, `runed`, `svelte-toolbelt`, `tabbable`: MIT) | MIT | headless accessible primitives (context menu, dialogs, menus) behind DockYard's own styling (#22) | route-split: only routes that use it |
+| `bits-ui` | 2.19.3 (+ peer `@internationalized/date` 3.12.4, Apache-2.0; `@floating-ui/*`, `runed`, `svelte-toolbelt`, `tabbable`: MIT) | MIT | headless accessible primitives (context menu, dialogs, menus) behind Docker Manager's own styling (#22) | route-split: only routes that use it |
 | `codemirror` + `@codemirror/lang-yaml` | 6.0.2 / 6.1.3 (`@codemirror/*`, `@lezer/*`, `crelt`, `style-mod`, `w3c-keyname`: MIT) | MIT | stack/volume file editor (#7, #15) | lazy (`import()`) |
 | `echarts` | 6.1.0 (+ `zrender` 6.1.0 BSD-3-Clause, `tslib` 0BSD) | Apache-2.0 | host/container time series (#5) | lazy (`import()`), tree-shaken |
 | `@xterm/xterm` | 6.0.0 | MIT | container exec terminal (#19) | lazy (`import()`, incl. its CSS) |
@@ -74,14 +74,14 @@ build works. It is a build-time plugin only:
    stored. API data, credentials, files, logs, terminals and job streams
    never touch Cache Storage.
 2. Navigations are network-first. The precached `index.html` (the offline
-   shell, marked `X-DockYard-Shell: offline`) is used only when the network
+   shell, marked `X-Docker-Manager-Shell: offline`) is used only when the network
    fails or the proxy answers 502/503/504.
 3. Precached paths are served from this build's cache
-   (`dockyard-precache-<kit version>`).
+   (`docker-manager-precache-<kit version>`).
 4. Nothing is written to a cache outside `install`; `activate` deletes older
-   `dockyard-precache-*` caches only.
+   `docker-manager-precache-*` caches only.
 5. A new build installs and **waits**. The page shows "A new version of
-   DockYard is available" with *Reload to update* and *Later*; only the
+   Docker Manager is available" with *Reload to update* and *Later*; only the
    click sends `SKIP_WAITING` and reloads once the new worker controls the
    page. Nothing reloads automatically, so unsaved edits, terminals and
    restores are never interrupted (#23).
@@ -178,13 +178,13 @@ adds these dependencies (exact versions, lockfile committed):
 | `@fontsource-variable/inter` | 5.3.0 | **OFL-1.1** | UI typeface, self-hosted (the PWA works offline; no font CDN) | CSS `@font-face`, woff2 per unicode range |
 | `@fontsource-variable/jetbrains-mono` | 5.3.0 | **OFL-1.1** | code, logs, IDs, terminals | same |
 | `uqr` | 0.1.3 | MIT (no dependencies) | QR code of the TOTP `otpauth://` URI, rendered in the browser as SVG (the secret never leaves the page) | route-split (enrollment page) |
-| `@codemirror/language`, `@codemirror/view`, `@codemirror/state`, `@lezer/highlight` | 6.12.4, 6.43.13, 6.7.6, 1.2.4 | MIT | already shipped with `codemirror`; now direct dependencies because the DockYard editor theme imports them | lazy |
+| `@codemirror/language`, `@codemirror/view`, `@codemirror/state`, `@lezer/highlight` | 6.12.4, 6.43.13, 6.7.6, 1.2.4 | MIT | already shipped with `codemirror`; now direct dependencies because the Docker Manager editor theme imports them | lazy |
 | `@testing-library/svelte`, `@testing-library/jest-dom`, `@testing-library/user-event`, `jsdom` (dev) | 5.4.2, 7.0.1, 14.6.7, 30.1.1 | MIT | component tests (`*.test.ts`) | not shipped |
 
 **OFL-1.1 for font packages only.** The SIL Open Font License permits
 bundling and redistributing the fonts with software; its conditions apply to
 the font files themselves (keep the copyright notice, do not sell the fonts
-alone, keep the reserved names for modified fonts), which DockYard ships
+alone, keep the reserved names for modified fonts), which Docker Manager ships
 unmodified. `scripts/license-check.sh` checks these two packages to be
 exactly OFL-1.1 and excludes only them from the general allowlist run;
 OFL-1.1 is **not** added to the general npm allowlist, so any other package

@@ -30,7 +30,7 @@ relay"):
   a relayed part holds at most one stream window plus a 64 KiB buffer in
   manager memory; nothing is written to the manager's disk
   (`TestRelayBackpressureBoundsMemory`).
-- **Bandwidth cap:** `DOCKYARD_MIGRATION_BANDWIDTH_LIMIT` (bytes per second,
+- **Bandwidth cap:** `DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT` (bytes per second,
   shared by all running migrations; `TestRelayBandwidthCap`).
 - **Checksums:** chunks carry their SHA-256 and the stream ends with the
   payload's total length and SHA-256; the destination extracts a chunk only
@@ -45,11 +45,11 @@ relay"):
   timestamps are not kept (`os.Root` has no lutimes).
 - **Containment:** the source reads only the project directory inside a
   verified stack root and supported local volumes below the verified volume
-  directory; DockYard's own volumes, images and project are refused (#32).
+  directory; Docker Manager's own volumes, images and project are refused (#32).
   The destination writes only into
-  `<stacks>/.dockyard-migrations/<migrationId>/project` (moved into place
+  `<stacks>/.docker-manager-migrations/<migrationId>/project` (moved into place
   by `migration.commit`, which never replaces a directory) and into volumes
-  it creates itself labeled `dev.neureka.dockyard.migration=<migrationId>`
+  it creates itself labeled `dev.neureka.docker-manager.migration=<migrationId>`
   (with the source volume's Compose labels, so Compose adopts them).
   Extraction refuses escaping names, members below symlinks or files, hard
   links to anything but earlier files, device nodes, and data beyond the
@@ -90,7 +90,7 @@ volumes exclusive; only the stack is authorized with `stack.migrate`,
 
 The **source stays stopped and untouched**. `POST
 /stacks/{id}/migrations/{migrationId}/source-removals` (after completion,
-once; refused while a DockYard stack manages the source project again)
+once; refused while a Docker Manager stack manages the source project again)
 starts `stack.remove_source` on the source: containers and networks of the
 project, the migrated volumes, then the project directory; exact
 permission rules naming them are deleted.
@@ -147,7 +147,7 @@ codes; corpus: `TestPreflightCorpus`):
   (#19, checked with `Registries().Check` for the destination's platform),
   rebuild from `build:` (#33), copy locally built images through the relay
   (blocked on another architecture), or already present.
-- **Conflicts** (blockers): DockYard stack, Compose project, container,
+- **Conflicts** (blockers): Docker Manager stack, Compose project, container,
   volume and network names, the project directory, published host ports of
   running containers; missing external networks and volumes.
 - **Warnings:** bind paths outside the project directory (not migrated),

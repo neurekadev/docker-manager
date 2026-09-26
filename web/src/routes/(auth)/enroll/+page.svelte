@@ -162,13 +162,13 @@
 	}
 </script>
 
-<svelte:head><title>Add a sign-in factor · DockYard</title></svelte:head>
+<svelte:head><title>Add a sign-in factor · Docker Manager</title></svelte:head>
 
 <div class="stack">
 	<header>
 		<h1>{done ? 'You are all set' : 'Add a sign-in factor'}</h1>
 		{#if !done}
-			<p class="lead">This DockYard requires {policyText} before you can continue.</p>
+			<p class="lead">This Docker Manager requires {policyText} before you can continue.</p>
 		{/if}
 	</header>
 
@@ -181,15 +181,15 @@
 			<SecretReveal
 				secret={codes}
 				label="recovery codes"
-				filename="dockyard-recovery-codes.txt"
+				filename="docker-manager-recovery-codes.txt"
 				description="Each code signs you in once when your authenticator or passkey is not at hand."
-				confirmLabel="Continue to DockYard"
+				confirmLabel="Continue to Docker Manager"
 				onconfirm={finish}
 			/>
 		{:else}
 			<p class="lead">
-				Recovery codes let you sign in when your phone or passkey is not at hand. DockYard
-				shows them only once.
+				Recovery codes let you sign in when your phone or passkey is not at hand. Docker
+				Manager shows them only once.
 			</p>
 			<div class="row">
 				<Button variant="primary" loading={busy === 'codes'} onclick={createCodes}
@@ -283,7 +283,7 @@
 					</Button>
 				{:else}
 					<Notice tone="warn" title="Passkeys need a secure connection">
-						Open DockYard over HTTPS on its public address to add a passkey.
+						Open Docker Manager over HTTPS on its public address to add a passkey.
 					</Notice>
 				{/if}
 			</section>

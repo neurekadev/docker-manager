@@ -8,15 +8,15 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/imageref"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/manager/regclient"
-	"github.com/neurekadev/dockyard/internal/manager/registries"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/manager/updates/eligible"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/imageref"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/registries"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/updates/eligible"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // CheckInput is the input of update.check (a manager job).
@@ -260,12 +260,12 @@ func (s *Service) checkStack(ctx context.Context, p domain.UpdatePolicy, jobID s
 		}
 		switch {
 		case excludedByLabel[def.Name]:
-			ineligible(&c, domain.UpdateReasonExcluded, "A container of this service has dockyard.update.exclude=true.")
+			ineligible(&c, domain.UpdateReasonExcluded, "A container of this service has docker-manager.update.exclude=true.")
 		case !selected(p, def.Name):
 			ineligible(&c, domain.UpdateReasonExcluded, "The service is not opted in by this policy (excluded or not listed).")
 		case !applyEligibility(&c, eligible.Check(eligible.Subject{Reference: c.Reference, Build: def.Build, PullPolicy: def.PullPolicy})):
 		case st.Applied == nil || !deployed || img.ImageID == "":
-			ineligible(&c, domain.UpdateReasonNotDeployed, "DockYard has not deployed this service yet: deploy the stack to record the digest it runs.")
+			ineligible(&c, domain.UpdateReasonNotDeployed, "Docker Manager has not deployed this service yet: deploy the stack to record the digest it runs.")
 		case img.Digest == "":
 			ineligible(&c, domain.UpdateReasonNoBaseline, "The image the service runs has no registry digest (it was built or loaded locally): "+
 				"deploy the stack with pull: always to record the digest it runs.")
@@ -283,7 +283,7 @@ func (s *Service) checkStack(ctx context.Context, p domain.UpdatePolicy, jobID s
 	}
 	if out.SourceHashBefore != "" && out.SourceHashAfter != "" && out.SourceHashBefore != out.SourceHashAfter {
 		return cands, out, &classed{class: classSourceChanged,
-			recovery: "The stack's definition changed on disk while it was checked (DockYard never writes it during a check). " +
+			recovery: "The stack's definition changed on disk while it was checked (Docker Manager never writes it during a check). " +
 				"Review the change, deploy the stack, then check again.",
 			err: fmt.Errorf("the definition hash changed during the check (%s -> %s)", shortHash(out.SourceHashBefore), shortHash(out.SourceHashAfter))}
 	}
@@ -319,7 +319,7 @@ func (s *Service) checkContainer(ctx context.Context, p domain.UpdatePolicy, job
 		return []domain.UpdateCandidate{c}, nil
 	}
 	if protocol.UpdateExcluded(d.Labels) {
-		ineligible(&c, domain.UpdateReasonExcluded, "The container has dockyard.update.exclude=true.")
+		ineligible(&c, domain.UpdateReasonExcluded, "The container has docker-manager.update.exclude=true.")
 		return []domain.UpdateCandidate{c}, nil
 	}
 	_, spec, err := s.opts.Resources.ManagedSpec(ctx, p.EnvironmentID, d.Labels)
@@ -441,7 +441,7 @@ func checkFailure(err error) (class, message string, retryAfter int, ok bool) {
 		return "ambiguous_registry_connection", "Several registry connections match this image equally: bind one to the stack " +
 			"or environment, or give it a higher priority.", 0, true
 	case errors.Is(err, domain.ErrRegistryConnectionRevoked):
-		return "registry_connection_revoked", "The registry connection selected for this image is revoked; DockYard never falls " +
+		return "registry_connection_revoked", "The registry connection selected for this image is revoked; Docker Manager never falls " +
 			"back to anonymous access.", 0, true
 	case errors.As(err, &fe):
 		return domain.UpdateReasonInvalidRef, fe.Message, 0, true

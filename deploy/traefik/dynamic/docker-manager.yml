@@ -1,9 +1,9 @@
-# DockYard route for Traefik's file provider (#27). Traefik renders this
+# Docker Manager route for Traefik's file provider (#27). Traefik renders this
 # file as a Go template: env reads the Traefik container's environment.
 #
-# TLS: with DOCKYARD_TLS_CERT_FILE/DOCKYARD_TLS_KEY_FILE set, Traefik serves
+# TLS: with DOCKER_MANAGER_TLS_CERT_FILE/DOCKER_MANAGER_TLS_KEY_FILE set, Traefik serves
 # that certificate (mount it below /certs); otherwise it obtains one from
-# Let's Encrypt (resolver "letsencrypt", DOCKYARD_ACME_EMAIL, the host must be
+# Let's Encrypt (resolver "letsencrypt", DOCKER_MANAGER_ACME_EMAIL, the host must be
 # publicly reachable on port 443).
 #
 # Traefik serves HTTP/2 to browsers on TLS entry points by default, streams
@@ -13,11 +13,11 @@
 # manager enforces its own upload limits (#15).
 http:
   routers:
-    dockyard:
+    docker-manager:
       entryPoints: [websecure]
-      rule: 'Host(`{{ env "DOCKYARD_HOST" }}`)'
-      service: dockyard
-{{- if env "DOCKYARD_TLS_CERT_FILE" }}
+      rule: 'Host(`{{ env "DOCKER_MANAGER_HOST" }}`)'
+      service: docker-manager
+{{- if env "DOCKER_MANAGER_TLS_CERT_FILE" }}
       tls: {}
 {{- else }}
       tls:
@@ -26,11 +26,11 @@ http:
 
     # Optional: allow the agent endpoint only from known networks. Copy the
     # tls block of the router above; the longer rule takes precedence.
-    # dockyard-agent-endpoint:
+    # docker-agent-endpoint:
     #   entryPoints: [websecure]
     #   rule: 'Host(`docker.example.com`) && PathPrefix(`/agent/v1`)'
     #   middlewares: [agent-allowlist]
-    #   service: dockyard
+    #   service: docker-manager
     #   tls: {}
 
   # middlewares:
@@ -39,17 +39,17 @@ http:
   #       sourceRange: ["192.0.2.0/24", "2001:db8::/32"]
 
   services:
-    dockyard:
+    docker-manager:
       loadBalancer:
         passHostHeader: true
         servers:
-          - url: http://dockyard-manager:8080
-{{- if env "DOCKYARD_TLS_CERT_FILE" }}
+          - url: http://docker-manager:8080
+{{- if env "DOCKER_MANAGER_TLS_CERT_FILE" }}
 
 tls:
   stores:
     default:
       defaultCertificate:
-        certFile: '{{ env "DOCKYARD_TLS_CERT_FILE" }}'
-        keyFile: '{{ env "DOCKYARD_TLS_KEY_FILE" }}'
+        certFile: '{{ env "DOCKER_MANAGER_TLS_CERT_FILE" }}'
+        keyFile: '{{ env "DOCKER_MANAGER_TLS_KEY_FILE" }}'
 {{- end }}

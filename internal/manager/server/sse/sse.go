@@ -7,7 +7,7 @@
 //     buffering);
 //   - every write is flushed immediately;
 //   - callers send a ": heartbeat" comment every Heartbeat interval while
-//     idle (default 15 s, DOCKYARD_STREAM_HEARTBEAT) so proxies with an
+//     idle (default 15 s, DOCKER_MANAGER_STREAM_HEARTBEAT) so proxies with an
 //     idle/read timeout (nginx proxy_read_timeout defaults to 60 s) never cut
 //     a quiet stream, and clients notice dead connections.
 //
@@ -43,7 +43,7 @@ const (
 	// DefaultHeartbeat is the keep-alive interval of streams: well below
 	// the common 60 s proxy idle/read timeouts.
 	DefaultHeartbeat = 15 * time.Second
-	// MinHeartbeat and MaxHeartbeat bound DOCKYARD_STREAM_HEARTBEAT. The
+	// MinHeartbeat and MaxHeartbeat bound DOCKER_MANAGER_STREAM_HEARTBEAT. The
 	// maximum stays below the 60 s defaults of nginx and most load balancers.
 	MinHeartbeat = time.Second
 	MaxHeartbeat = 55 * time.Second

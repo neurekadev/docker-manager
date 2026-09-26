@@ -3,7 +3,7 @@ package auth
 import (
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 )
 
 func TestEvaluatePolicyMatrix(t *testing.T) {

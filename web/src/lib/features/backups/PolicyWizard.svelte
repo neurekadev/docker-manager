@@ -427,7 +427,7 @@
 				{#if owner}
 					<FieldGroup
 						legend="Manager"
-						hint="The manager's database and settings, needed to recover DockYard itself."
+						hint="The manager's database and settings, needed to recover Docker Manager itself."
 					>
 						<Switch label="Back up the manager state" bind:checked={includeManager} />
 						{#if includeManager}
@@ -516,7 +516,7 @@
 			<Fields>
 				<Switch
 					label="Stop containers during backups"
-					description="Off by default. On: the containers using the data stop in reverse dependency order and the ones that were running start again afterwards, also after a failure. DockYard's own containers never stop."
+					description="Off by default. On: the containers using the data stop in reverse dependency order and the ones that were running start again afterwards, also after a failure. Docker Manager's own containers never stop."
 					bind:checked={shutdown}
 					onchange={() => {
 						touched = true;
@@ -592,7 +592,7 @@
 						jobId={j.id}
 						title="Back up {j.environmentId
 							? envName(j.environmentId)
-							: 'DockYard Manager'}"
+							: 'Docker Manager'}"
 					/>
 				{/each}
 			</Fields>

@@ -7,13 +7,13 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // Recovery Key lifecycle (#10, #24, #25 Q7):
@@ -129,7 +129,7 @@ func (s *Service) ConfirmKey(ctx context.Context, repositoryID, input string, ba
 		return KeyConfirmation{}, err
 	}
 	if !backedUp {
-		return KeyConfirmation{}, fieldErr("backedUp", "confirm that the Recovery Key is saved outside DockYard")
+		return KeyConfirmation{}, fieldErr("backedUp", "confirm that the Recovery Key is saved outside Docker Manager")
 	}
 	typed, err := ParseRecoveryKey(input)
 	if err != nil {

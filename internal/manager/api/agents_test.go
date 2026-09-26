@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // fakeAgents is an in-memory AgentService for the HTTP mapping tests (the
@@ -30,10 +30,10 @@ type fakeAgents struct {
 
 func newFakeAgents() *fakeAgents {
 	now := testutil.Epoch
-	caps := `{"agentVersion":"1.4.0","protocols":["dockyard.agent/v1"],"os":"linux","arch":"amd64",` +
+	caps := `{"agentVersion":"1.4.0","protocols":["docker-manager.agent/v1"],"os":"linux","arch":"amd64",` +
 		`"engine":{"id":"ENG","version":"28.5.2","apiVersion":"1.51","os":"linux","arch":"amd64"},"commands":["stack.deploy"],` +
-		`"requests":[],"streams":[],"roots":[{"kind":"stacks","path":"/var/lib/docker/volumes/dockyard_stacks/_data","watch":"inotify"}],` +
-		`"transport":{"managerUrl":"http://dockyard-manager:8080","plainHttp":true,"customCa":false},` +
+		`"requests":[],"streams":[],"roots":[{"kind":"stacks","path":"/var/lib/docker/volumes/docker-manager_stacks/_data","watch":"inotify"}],` +
+		`"transport":{"managerUrl":"http://docker-manager:8080","plainHttp":true,"customCa":false},` +
 		`"diagnostics":[{"area":"storage","code":"storage_path_mismatch","message":"m","path":"/srv"}]}`
 	return &fakeAgents{
 		agents: map[string]domain.Agent{

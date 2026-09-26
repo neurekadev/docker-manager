@@ -150,7 +150,7 @@ describe('WebAuthn JSON conversion', () => {
 		const c = creationOptions({
 			publicKey: {
 				challenge: 'AAEC',
-				rp: { name: 'DockYard', id: 'localhost' },
+				rp: { name: 'Docker Manager', id: 'localhost' },
 				user: { id: 'AQID', name: 'admin', displayName: 'Admin' },
 				pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
 				excludeCredentials: [{ type: 'public-key', id: 'BAUG' }]
@@ -210,7 +210,9 @@ describe('WebAuthn JSON conversion', () => {
 
 describe('QR codes for TOTP enrollment', () => {
 	it('renders an otpauth URI as SVG path data with a quiet zone', () => {
-		const q = qrPath('otpauth://totp/DockYard:admin?secret=JBSWY3DPEHPK3PXP&issuer=DockYard');
+		const q = qrPath(
+			'otpauth://totp/Docker Manager:admin?secret=JBSWY3DPEHPK3PXP&issuer=Docker Manager'
+		);
 		expect(q.size).toBeGreaterThanOrEqual(21 + 6);
 		expect((q.size - 6 - 21) % 4).toBe(0); // version sizes are 21 + 4n
 		expect(q.path).toMatch(/^M3 3h1v1h-1z/); // finder pattern corner, offset by the border

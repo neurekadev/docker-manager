@@ -634,7 +634,7 @@
             "type": "string"
           },
           "plainHttp": {
-            "description": "The agent uses a plain-HTTP internal URL (DOCKYARD_MANAGER_ALLOW_HTTP); flagged on the host page.",
+            "description": "The agent uses a plain-HTTP internal URL (DOCKER_AGENT_MANAGER_ALLOW_HTTP); flagged on the host page.",
             "type": "boolean"
           }
         },
@@ -1594,9 +1594,9 @@
             "type": "string"
           },
           "path": {
-            "description": "Local destinations: the directory on this manager (below DOCKYARD_BACKUP_LOCAL_ROOTS); it may be a new mount path.",
+            "description": "Local destinations: the directory on this manager (below DOCKER_MANAGER_BACKUP_LOCAL_ROOTS); it may be a new mount path.",
             "examples": [
-              "/backups/dockyard"
+              "/backups/docker-manager"
             ],
             "maxLength": 1024,
             "type": "string"
@@ -1607,7 +1607,7 @@
           },
           "prefix": {
             "examples": [
-              "dockyard"
+              "docker-manager"
             ],
             "maxLength": 512,
             "type": "string"
@@ -1918,9 +1918,9 @@
             "$ref": "#/components/schemas/BackupConnectionTest"
           },
           "location": {
-            "description": "Where the restic repositories live (no credentials). Below it: dockyard-manager and dockyard-env-<environmentId>.",
+            "description": "Where the restic repositories live (no credentials). Below it: docker-manager and docker-manager-env-<environmentId>.",
             "examples": [
-              "https://s3.example.com/backups/dockyard"
+              "https://s3.example.com/backups/docker-manager"
             ],
             "type": "string"
           },
@@ -2317,7 +2317,7 @@
             "type": "boolean"
           },
           "externalPaths": {
-            "description": "Absolute bind sources outside the project directory to include (e.g. ../data resolved, or /srv/data). Each also needs the agent's DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST; never included implicitly.",
+            "description": "Absolute bind sources outside the project directory to include (e.g. ../data resolved, or /srv/data). Each also needs the agent's DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST; never included implicitly.",
             "items": {
               "type": "string"
             },
@@ -2629,7 +2629,7 @@
         "properties": {
           "agentProtocolVersion": {
             "examples": [
-              "dockyard.agent/v1"
+              "docker-manager.agent/v1"
             ],
             "type": "string"
           },
@@ -2989,7 +2989,7 @@
           },
           "managed": {
             "$ref": "#/components/schemas/ContainerOwnership",
-            "description": "Set for standalone containers created through DockYard."
+            "description": "Set for standalone containers created through Docker Manager."
           },
           "mounts": {
             "items": {
@@ -3011,7 +3011,7 @@
           },
           "protection": {
             "$ref": "#/components/schemas/ResourceProtection",
-            "description": "Set for DockYard's own containers (#32): stop, pause, update and removal are refused."
+            "description": "Set for Docker Manager's own containers (#32): stop, pause, update and removal are refused."
           },
           "stack": {
             "$ref": "#/components/schemas/StackMembership",
@@ -3109,7 +3109,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "User labels; dev.neureka.dockyard.* and com.docker.compose.* are reserved.",
+            "description": "User labels; dev.neureka.docker-manager.* and com.docker.compose.* are reserved.",
             "type": "object"
           },
           "mounts": {
@@ -3340,7 +3340,7 @@
             "type": "boolean"
           },
           "image": {
-            "description": "The saved reference of a DockYard-managed container, else the container's image.",
+            "description": "The saved reference of a Docker Manager-managed container, else the container's image.",
             "examples": [
               "nginx:1.27"
             ],
@@ -3350,7 +3350,7 @@
             "type": "string"
           },
           "managed": {
-            "description": "A DockYard-managed standalone container with a saved recreate specification.",
+            "description": "A Docker Manager-managed standalone container with a saved recreate specification.",
             "type": "boolean"
           },
           "nonVersionTag": {
@@ -3614,7 +3614,7 @@
             "type": "string"
           },
           "specSaved": {
-            "description": "DockYard saved the container's recreate specification (used by automatic updates, #20).",
+            "description": "Docker Manager saved the container's recreate specification (used by automatic updates, #20).",
             "type": "boolean"
           },
           "thisInstance": {
@@ -3775,7 +3775,7 @@
         "additionalProperties": false,
         "properties": {
           "confirm": {
-            "description": "Confirms a restart that interrupts DockYard (its manager or proxy, #32); without it such a restart answers 409 confirmation_required.",
+            "description": "Confirms a restart that interrupts Docker Manager (its manager or proxy, #32); without it such a restart answers 409 confirmation_required.",
             "type": "boolean"
           },
           "timeoutSeconds": {
@@ -3940,7 +3940,7 @@
             "$ref": "#/components/schemas/APIToken"
           },
           "token": {
-            "description": "The token value (dy_...). Shown only in this response; DockYard stores a verifier. Send it as Authorization: Bearer <token>.",
+            "description": "The token value (dy_...). Shown only in this response; Docker Manager stores a verifier. Send it as Authorization: Bearer <token>.",
             "type": "string"
           }
         },
@@ -3990,9 +3990,9 @@
             "type": "string"
           },
           "path": {
-            "description": "Local repositories: an absolute directory below the executor's DOCKYARD_BACKUP_LOCAL_ROOTS, outside every backup source.",
+            "description": "Local repositories: an absolute directory below the executor's DOCKER_MANAGER_BACKUP_LOCAL_ROOTS, outside every backup source.",
             "examples": [
-              "/backups/dockyard"
+              "/backups/docker-manager"
             ],
             "maxLength": 1024,
             "type": "string"
@@ -4003,7 +4003,7 @@
           },
           "prefix": {
             "examples": [
-              "dockyard"
+              "docker-manager"
             ],
             "maxLength": 512,
             "type": "string"
@@ -4071,7 +4071,7 @@
             "type": "boolean"
           },
           "environmentName": {
-            "description": "Preset display name (otherwise the agent's DOCKYARD_ENVIRONMENT_NAME or the Engine host name).",
+            "description": "Preset display name (otherwise the agent's DOCKER_AGENT_ENVIRONMENT_NAME or the Engine host name).",
             "examples": [
               "NAS"
             ],
@@ -4194,7 +4194,7 @@
         "additionalProperties": false,
         "properties": {
           "code": {
-            "description": "The one-time code. Shown only here; DockYard stores a verifier, not the code.",
+            "description": "The one-time code. Shown only here; Docker Manager stores a verifier, not the code.",
             "type": "string"
           },
           "expiresAt": {
@@ -4282,7 +4282,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "dev.neureka.dockyard.* and com.docker.compose.* are reserved.",
+            "description": "dev.neureka.docker-manager.* and com.docker.compose.* are reserved.",
             "type": "object"
           },
           "name": {
@@ -4567,7 +4567,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "dev.neureka.dockyard.* and com.docker.compose.* are reserved.",
+            "description": "dev.neureka.docker-manager.* and com.docker.compose.* are reserved.",
             "type": "object"
           },
           "name": {
@@ -4598,7 +4598,7 @@
             "type": "array"
           },
           "managerUrl": {
-            "description": "DOCKYARD_PUBLIC_URL, the origin remote agents dial.",
+            "description": "DOCKER_MANAGER_PUBLIC_URL, the origin remote agents dial.",
             "examples": [
               "https://docker.example.com"
             ],
@@ -4790,7 +4790,7 @@
         "additionalProperties": false,
         "properties": {
           "filesMaxUploadBytes": {
-            "description": "DOCKYARD_FILES_MAX_UPLOAD_MB: the largest file-manager upload; the reverse proxy's body limit must allow it.",
+            "description": "DOCKER_MANAGER_FILES_MAX_UPLOAD_MB: the largest file-manager upload; the reverse proxy's body limit must allow it.",
             "examples": [
               2147483648
             ],
@@ -4805,21 +4805,21 @@
             "type": "boolean"
           },
           "metricsEndpoint": {
-            "description": "DOCKYARD_METRICS_ENABLED: GET /api/v1/system/metrics is served.",
+            "description": "DOCKER_MANAGER_METRICS_ENABLED: GET /api/v1/system/metrics is served.",
             "examples": [
               false
             ],
             "type": "boolean"
           },
           "publicUrl": {
-            "description": "DOCKYARD_PUBLIC_URL: the one public origin serving the web app, the API and agent sessions.",
+            "description": "DOCKER_MANAGER_PUBLIC_URL: the one public origin serving the web app, the API and agent sessions.",
             "examples": [
               "https://docker.example.com"
             ],
             "type": "string"
           },
           "streamHeartbeatSeconds": {
-            "description": "DOCKYARD_STREAM_HEARTBEAT: SSE heartbeat and WebSocket ping interval; keep it below the reverse proxy's idle timeout.",
+            "description": "DOCKER_MANAGER_STREAM_HEARTBEAT: SSE heartbeat and WebSocket ping interval; keep it below the reverse proxy's idle timeout.",
             "examples": [
               15
             ],
@@ -4827,7 +4827,7 @@
             "type": "integer"
           },
           "trustedProxyCount": {
-            "description": "Number of DOCKYARD_TRUSTED_PROXIES address ranges whose X-Forwarded-* headers are honored (the ranges themselves are in the owner's support bundle).",
+            "description": "Number of DOCKER_MANAGER_TRUSTED_PROXIES address ranges whose X-Forwarded-* headers are honored (the ranges themselves are in the owner's support bundle).",
             "examples": [
               1
             ],
@@ -4889,7 +4889,7 @@
             "type": "array"
           },
           "stackId": {
-            "description": "The DockYard stack already managing it.",
+            "description": "The Docker Manager stack already managing it.",
             "type": "string"
           },
           "workingDir": {
@@ -5711,7 +5711,7 @@
           },
           "version": {
             "enum": [
-              "dockyard.environment-events/v1"
+              "docker-manager.environment-events/v1"
             ],
             "type": "string"
           }
@@ -6104,12 +6104,12 @@
           },
           "subprotocol": {
             "examples": [
-              "dockyard.exec.v1"
+              "docker-manager.exec.v1"
             ],
             "type": "string"
           },
           "ticket": {
-            "description": "One-use attach ticket: offer it as the WebSocket subprotocol dockyard.ticket.<ticket> next to dockyard.exec.v1. Bound to this session and caller; expires with expiresAt.",
+            "description": "One-use attach ticket: offer it as the WebSocket subprotocol docker-manager.ticket.<ticket> next to docker-manager.exec.v1. Bound to this session and caller; expires with expiresAt.",
             "type": "string"
           }
         },
@@ -6767,7 +6767,7 @@
           },
           "protection": {
             "$ref": "#/components/schemas/ResourceProtection",
-            "description": "Set for images DockYard's own containers run (#32): removal is refused."
+            "description": "Set for images Docker Manager's own containers run (#32): removal is refused."
           },
           "repoDigests": {
             "description": "Full view.",
@@ -7095,7 +7095,7 @@
             "type": "string"
           },
           "name": {
-            "description": "Display name of this DockYard (editable).",
+            "description": "Display name of this Docker Manager (editable).",
             "examples": [
               "Homelab"
             ],
@@ -7197,7 +7197,7 @@
         "additionalProperties": false,
         "properties": {
           "code": {
-            "description": "The one-time code. Shown only here; DockYard stores a verifier, not the code.",
+            "description": "The one-time code. Shown only here; Docker Manager stores a verifier, not the code.",
             "type": "string"
           },
           "expiresAt": {
@@ -7704,7 +7704,7 @@
           },
           "version": {
             "enum": [
-              "dockyard.live/v1"
+              "docker-manager.live/v1"
             ],
             "type": "string"
           }
@@ -8734,7 +8734,7 @@
         "additionalProperties": false,
         "properties": {
           "bandwidthLimitBytesPerSecond": {
-            "description": "DOCKYARD_MIGRATION_BANDWIDTH_LIMIT (0: unlimited).",
+            "description": "DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT (0: unlimited).",
             "format": "int64",
             "type": "integer"
           },
@@ -8905,7 +8905,7 @@
           },
           "protection": {
             "$ref": "#/components/schemas/ResourceProtection",
-            "description": "Set for DockYard's own networks (#32): removal is refused."
+            "description": "Set for Docker Manager's own networks (#32): removal is refused."
           },
           "removal": {
             "$ref": "#/components/schemas/Removal",
@@ -10218,7 +10218,7 @@
             "type": "string"
           },
           "resourceId": {
-            "description": "DockYard ID (stack, agent, policy, ...), Docker name (container, image, volume, network) or <stackId>/<service> for services.",
+            "description": "Docker Manager ID (stack, agent, policy, ...), Docker name (container, image, volume, network) or <stackId>/<service> for services.",
             "maxLength": 1024,
             "type": "string"
           },
@@ -10877,7 +10877,7 @@
         "additionalProperties": false,
         "properties": {
           "backedUp": {
-            "description": "Must be true: you saved the key outside DockYard.",
+            "description": "Must be true: you saved the key outside Docker Manager.",
             "type": "boolean"
           },
           "recoveryKey": {
@@ -10973,7 +10973,7 @@
             "type": "boolean"
           },
           "scope": {
-            "description": "One Recovery Key opens every DockYard repository of this instance (manager and every environment, local and S3).",
+            "description": "One Recovery Key opens every Docker Manager repository of this instance (manager and every environment, local and S3).",
             "enum": [
               "instance"
             ],
@@ -11671,13 +11671,13 @@
             "enum": [
               "agent",
               "manager",
-              "dockyard_project",
-              "dockyard_image",
+              "docker_manager_project",
+              "docker_manager_image",
               "manager_data",
               "agent_state",
               "stacks",
-              "dockyard_volume",
-              "dockyard_network"
+              "docker_manager_volume",
+              "docker_manager_network"
             ],
             "type": "string"
           },
@@ -11812,7 +11812,7 @@
             "type": "array"
           },
           "blocked": {
-            "description": "Why the restore cannot run as requested (running containers without shutdown, DockYard's own containers, insufficient space, paths that cannot be restored).",
+            "description": "Why the restore cannot run as requested (running containers without shutdown, Docker Manager's own containers, insufficient space, paths that cannot be restored).",
             "items": {
               "type": "string"
             },
@@ -12319,7 +12319,7 @@
             "type": "string"
           },
           "suggested": {
-            "description": "DockYard's shipped suggestion.",
+            "description": "Docker Manager's shipped suggestion.",
             "examples": [
               "0 2 * * *"
             ],
@@ -12750,7 +12750,7 @@
             "type": "string"
           },
           "stackId": {
-            "description": "The stack of a service, or of a container, volume or network that belongs to a DockYard stack.",
+            "description": "The stack of a service, or of a container, volume or network that belongs to a Docker Manager stack.",
             "type": "string"
           },
           "status": {
@@ -13059,7 +13059,7 @@
             "type": "string"
           },
           "secureOrigin": {
-            "description": "This request reached DockYard over HTTPS on its public URL, so setup can complete.",
+            "description": "This request reached Docker Manager over HTTPS on its public URL, so setup can complete.",
             "type": "boolean"
           },
           "setupComplete": {
@@ -13088,7 +13088,7 @@
           },
           "appliedRevision": {
             "$ref": "#/components/schemas/StackRevisionRef",
-            "description": "Last revision deployed successfully by DockYard (absent: never deployed by DockYard)."
+            "description": "Last revision deployed successfully by Docker Manager (absent: never deployed by Docker Manager)."
           },
           "binds": {
             "description": "Resolved bind sources (with stack.definition.read).",
@@ -13198,7 +13198,7 @@
             "description": "Newest revision observed on disk."
           },
           "status": {
-            "description": "What DockYard last did to the stack (not the live Engine state, see engine).",
+            "description": "What Docker Manager last did to the stack (not the live Engine state, see engine).",
             "enum": [
               "undeployed",
               "deployed",
@@ -13661,7 +13661,7 @@
         "additionalProperties": false,
         "properties": {
           "managed": {
-            "description": "A DockYard-managed stack: direct updates and removals are refused with stack_managed.",
+            "description": "A Docker Manager-managed stack: direct updates and removals are refused with stack_managed.",
             "type": "boolean"
           },
           "project": {
@@ -13672,7 +13672,7 @@
             "type": "string"
           },
           "stackId": {
-            "description": "The DockYard stack (#7) when the project is one.",
+            "description": "The Docker Manager stack (#7) when the project is one.",
             "type": "string"
           }
         },
@@ -13922,7 +13922,7 @@
             "type": "array"
           },
           "description": {
-            "description": "DockYard display metadata (never written to Compose files).",
+            "description": "Docker Manager display metadata (never written to Compose files).",
             "type": "string"
           },
           "icon": {
@@ -14058,7 +14058,7 @@
         "additionalProperties": false,
         "properties": {
           "drift": {
-            "description": "The Engine state differs from what DockYard last applied.",
+            "description": "The Engine state differs from what Docker Manager last applied.",
             "type": "boolean"
           },
           "live": {
@@ -14444,7 +14444,7 @@
           "uri": {
             "description": "otpauth:// URI for a QR code. Shown only in this response.",
             "examples": [
-              "otpauth://totp/DockYard:olga?secret=JBSWY3DPEHPK3PXP&issuer=DockYard"
+              "otpauth://totp/Docker Manager:olga?secret=JBSWY3DPEHPK3PXP&issuer=Docker Manager"
             ],
             "type": "string"
           }
@@ -15462,7 +15462,7 @@
             "type": "string"
           },
           "type": {
-            "description": "stack: a DockYard stack's services; container: a DockYard-managed standalone container with a saved recreate specification.",
+            "description": "stack: a Docker Manager stack's services; container: a Docker Manager-managed standalone container with a saved recreate specification.",
             "enum": [
               "stack",
               "container"
@@ -15635,7 +15635,7 @@
           },
           "protection": {
             "$ref": "#/components/schemas/ResourceProtection",
-            "description": "Set for DockYard's own volumes (#32): removal and mounting into new containers are refused."
+            "description": "Set for Docker Manager's own volumes (#32): removal and mounting into new containers are refused."
           },
           "removal": {
             "$ref": "#/components/schemas/Removal",
@@ -15697,7 +15697,7 @@
     },
     "securitySchemes": {
       "bearerToken": {
-        "bearerFormat": "DockYard API token",
+        "bearerFormat": "Docker Manager API token",
         "description": "Scoped, expiring API token (#31) sent as Authorization: Bearer <token>. A token carries a subset of its owner's capabilities; each request is evaluated as token scope intersected with the owner's current effective permissions.",
         "scheme": "bearer",
         "type": "http"
@@ -15705,14 +15705,14 @@
       "cookieSession": {
         "description": "Browser session (#16). Set by POST /api/v1/auth/session as an HttpOnly, Secure, SameSite=Strict cookie. Unsafe methods authenticated by this cookie must come from the manager's own origin (Origin/Sec-Fetch-Site checks).",
         "in": "cookie",
-        "name": "__Host-dockyard_session",
+        "name": "__Host-docker_manager_session",
         "type": "apiKey"
       }
     }
   },
   "info": {
-    "description": "Public control API of the DockYard manager. All routes live under /api/v1 on the single public origin. Errors use the Error schema with media type application/problem+json. Every operation declares the capability it requires (x-dockyard-capability) and the scope at which it is checked (x-dockyard-scope). Browsers authenticate with the session cookie, other clients with a bearer API token. Conventions, errors, streams and versioning: docs/api/README.md in the DockYard repository.",
-    "title": "DockYard API",
+    "description": "Public control API of the Docker Manager. All routes live under /api/v1 on the single public origin. Errors use the Error schema with media type application/problem+json. Every operation declares the capability it requires (x-docker-manager-capability) and the scope at which it is checked (x-docker-manager-scope). Browsers authenticate with the session cookie, other clients with a bearer API token. Conventions, errors, streams and versioning: docs/api/README.md in the Docker Manager repository.",
+    "title": "Docker Manager API",
     "version": "v1"
   },
   "openapi": "3.1.0",
@@ -15861,8 +15861,8 @@
         "tags": [
           "Agents"
         ],
-        "x-dockyard-capability": "agent.enroll",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "agent.enroll",
+        "x-docker-manager-scope": "instance"
       },
       "post": {
         "description": "Creates a one-use, short-lived enrollment token with a fixed intent and returns it once, with install commands for a co-located agent and for another Docker host. The manager stores only a verifier. The agent exchanges the token on POST /agent/v1/enroll (docs/protocol/agent-v1.md). Stored-idempotent: a retry with the same Idempotency-Key replays the response.",
@@ -16030,10 +16030,10 @@
         "tags": [
           "Agents"
         ],
-        "x-dockyard-audit": "agent.enroll",
-        "x-dockyard-capability": "agent.enroll",
-        "x-dockyard-idempotency": "stored",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "agent.enroll",
+        "x-docker-manager-capability": "agent.enroll",
+        "x-docker-manager-idempotency": "stored",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/agent-enrollments/{enrollmentId}": {
@@ -16145,9 +16145,9 @@
         "tags": [
           "Agents"
         ],
-        "x-dockyard-audit": "agent.enroll",
-        "x-dockyard-capability": "agent.enroll",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "agent.enroll",
+        "x-docker-manager-capability": "agent.enroll",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/agents": {
@@ -16315,8 +16315,8 @@
         "tags": [
           "Agents"
         ],
-        "x-dockyard-capability": "agent.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "agent.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/agents/{agentId}": {
@@ -16468,9 +16468,9 @@
         "tags": [
           "Agents"
         ],
-        "x-dockyard-audit": "agent.remove",
-        "x-dockyard-capability": "agent.remove",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "agent.remove",
+        "x-docker-manager-capability": "agent.remove",
+        "x-docker-manager-scope": "resource"
       },
       "get": {
         "operationId": "get-agent",
@@ -16610,8 +16610,8 @@
         "tags": [
           "Agents"
         ],
-        "x-dockyard-capability": "agent.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "agent.read",
+        "x-docker-manager-scope": "resource"
       },
       "patch": {
         "description": "Sets the operator label. Requires If-Match.",
@@ -16820,9 +16820,9 @@
         "tags": [
           "Agents"
         ],
-        "x-dockyard-audit": "agent.manage",
-        "x-dockyard-capability": "agent.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "agent.manage",
+        "x-docker-manager-capability": "agent.manage",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/agents/{agentId}/credential-rotations": {
@@ -16974,10 +16974,10 @@
         "tags": [
           "Agents"
         ],
-        "x-dockyard-audit": "agent.manage",
-        "x-dockyard-capability": "agent.manage",
-        "x-dockyard-idempotency": "stored",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "agent.manage",
+        "x-docker-manager-capability": "agent.manage",
+        "x-docker-manager-idempotency": "stored",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/api-tokens": {
@@ -17122,8 +17122,8 @@
         "tags": [
           "API tokens"
         ],
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/api-tokens/{tokenId}": {
@@ -17232,9 +17232,9 @@
         "tags": [
           "API tokens"
         ],
-        "x-dockyard-audit": "api_token.revoke",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "api_token.revoke",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/audit": {
@@ -17545,8 +17545,8 @@
         "tags": [
           "Audit"
         ],
-        "x-dockyard-capability": "audit.read",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "audit.read",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/audit/exports": {
@@ -17816,9 +17816,9 @@
         "tags": [
           "Audit"
         ],
-        "x-dockyard-audit": "audit.export",
-        "x-dockyard-capability": "audit.export",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "audit.export",
+        "x-docker-manager-capability": "audit.export",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/auth/passkeys/authentication-options": {
@@ -17946,14 +17946,14 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-audit": "passkey_authentication_options.create",
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "passkey_authentication_options.create",
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/auth/passkeys/authentication-verifications": {
       "post": {
-        "description": "Verifies the assertion against the pending challenge, DockYard's RP ID and origin (DOCKYARD_PUBLIC_URL), user verification and the signature counter, then signs in (or completes the pending sign-in or step-up). Failures answer 401 invalid_credentials.",
+        "description": "Verifies the assertion against the pending challenge, Docker Manager's RP ID and origin (DOCKER_MANAGER_PUBLIC_URL), user verification and the signature counter, then signs in (or completes the pending sign-in or step-up). Failures answer 401 invalid_credentials.",
         "operationId": "create-passkey-authentication-verification",
         "requestBody": {
           "content": {
@@ -18120,14 +18120,14 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-audit": "passkey_authentication_verification.create",
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "passkey_authentication_verification.create",
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/auth/passkeys/registration-options": {
       "post": {
-        "description": "Returns WebAuthn creation options for navigator.credentials.create(): a discoverable credential with user verification for the relying party of DOCKYARD_PUBLIC_URL (RP ID = its host name). Passkeys stop working if that host name changes. Available to limited enrollment sessions.",
+        "description": "Returns WebAuthn creation options for navigator.credentials.create(): a discoverable credential with user verification for the relying party of DOCKER_MANAGER_PUBLIC_URL (RP ID = its host name). Passkeys stop working if that host name changes. Available to limited enrollment sessions.",
         "operationId": "create-passkey-registration-options",
         "responses": {
           "200": {
@@ -18213,9 +18213,9 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-audit": "passkey_registration_options.create",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "passkey_registration_options.create",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/auth/passkeys/registration-verifications": {
@@ -18379,14 +18379,14 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-audit": "passkey_registration_verification.create",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "passkey_registration_verification.create",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/auth/password-resets/redemptions": {
       "post": {
-        "description": "Redeems an owner-issued password-reset code, or an owner-recovery code from `dockyard-manager owner-recovery` (which also removes the owner's TOTP, passkeys and recovery codes). Codes are single use; unknown, expired and used codes answer 400 invalid_code alike. A password that fails the policy answers 422 and leaves the code valid. Every session of the account ends; sign in afterwards.",
+        "description": "Redeems an owner-issued password-reset code, or an owner-recovery code from `docker-manager owner-recovery` (which also removes the owner's TOTP, passkeys and recovery codes). Codes are single use; unknown, expired and used codes answer 400 invalid_code alike. A password that fails the policy answers 422 and leaves the code valid. Every session of the account ends; sign in afterwards.",
         "operationId": "create-password-reset-redemption",
         "requestBody": {
           "content": {
@@ -18471,9 +18471,9 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-audit": "password_reset_redemption.create",
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "password_reset_redemption.create",
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/auth/recovery-codes/redemptions": {
@@ -18635,9 +18635,9 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-audit": "recovery_code_redemption.create",
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "recovery_code_redemption.create",
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/auth/session": {
@@ -18703,9 +18703,9 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-audit": "auth_session.delete",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "auth_session.delete",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       },
       "get": {
         "description": "The caller's session, including a pending sign-in or an enrollment session. 401 without one.",
@@ -18812,11 +18812,11 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       },
       "post": {
-        "description": "Starts a sign-in with username and password, or continues a pending one with totpCode. Answers the session: authenticated, second_factor_required (send one of factors) or enrollment_required (a limited session that may only enroll the factors the policy requires). Unknown accounts, wrong passwords and disabled accounts all answer 401 invalid_credentials with the same cost. Failed attempts are throttled per client IP and per account (429). Sets the session cookie (__Host-dockyard_session, HttpOnly, Secure, SameSite=Strict); the token changes at every privilege change.",
+        "description": "Starts a sign-in with username and password, or continues a pending one with totpCode. Answers the session: authenticated, second_factor_required (send one of factors) or enrollment_required (a limited session that may only enroll the factors the policy requires). Unknown accounts, wrong passwords and disabled accounts all answer 401 invalid_credentials with the same cost. Failed attempts are throttled per client IP and per account (429). Sets the session cookie (__Host-docker_manager_session, HttpOnly, Secure, SameSite=Strict); the token changes at every privilege change.",
         "operationId": "create-auth-session",
         "requestBody": {
           "content": {
@@ -18973,9 +18973,9 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-audit": "auth_session.create",
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "auth_session.create",
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/auth/step-ups": {
@@ -19142,9 +19142,9 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-audit": "auth_step_up.create",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "auth_step_up.create",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/auth/totp": {
@@ -19225,9 +19225,9 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-audit": "totp.delete",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "totp.delete",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/auth/totp/enrollments": {
@@ -19241,7 +19241,7 @@
                 "example": {
                   "expiresAt": "2026-09-25T12:00:00Z",
                   "secret": "JBSWY3DPEHPK3PXP",
-                  "uri": "otpauth://totp/DockYard:olga?secret=JBSWY3DPEHPK3PXP&issuer=DockYard"
+                  "uri": "otpauth://totp/Docker Manager:olga?secret=JBSWY3DPEHPK3PXP&issuer=Docker Manager"
                 },
                 "schema": {
                   "$ref": "#/components/schemas/TotpEnrollmentOutputBody"
@@ -19320,9 +19320,9 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-audit": "totp_enrollment.create",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "totp_enrollment.create",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/auth/totp/enrollments/verifications": {
@@ -19489,9 +19489,9 @@
         "tags": [
           "Authentication"
         ],
-        "x-dockyard-audit": "totp_enrollment_verification.create",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "totp_enrollment_verification.create",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/backup-policies": {
@@ -19693,8 +19693,8 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-capability": "backup_policy.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "backup_policy.read",
+        "x-docker-manager-scope": "resource"
       },
       "post": {
         "description": "A system backup policy: the manager state (owner only) and any managed stacks and standalone volumes across environments, with per-stack volume/path rules (anonymous volumes and container shutdown default off; bind sources outside a project directory only by explicit opt-in plus the agent's allowlist), a schedule (#13, starts disabled) and retention with a minimum recovery floor. Policies belong to the instance: scheduled runs continue after their creator is disabled or removed.",
@@ -19922,9 +19922,9 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup_policy.manage",
-        "x-dockyard-capability": "backup_policy.manage",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "backup_policy.manage",
+        "x-docker-manager-capability": "backup_policy.manage",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/backup-policies/{policyId}": {
@@ -20091,9 +20091,9 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup_policy.manage",
-        "x-dockyard-capability": "backup_policy.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup_policy.manage",
+        "x-docker-manager-capability": "backup_policy.manage",
+        "x-docker-manager-scope": "resource"
       },
       "get": {
         "description": "With the next run and the most recent sets (per-host snapshot times, partial sets).",
@@ -20296,8 +20296,8 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-capability": "backup_policy.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "backup_policy.read",
+        "x-docker-manager-scope": "resource"
       },
       "patch": {
         "description": "Requires If-Match. Enabling needs every repository's Recovery Key confirmed.",
@@ -20590,9 +20590,9 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup_policy.manage",
-        "x-dockyard-capability": "backup_policy.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup_policy.manage",
+        "x-docker-manager-capability": "backup_policy.manage",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backup-policies/{policyId}/retention-previews": {
@@ -20757,9 +20757,9 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup_policy.read",
-        "x-dockyard-capability": "backup_policy.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup_policy.read",
+        "x-docker-manager-capability": "backup_policy.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backup-policies/{policyId}/retention-runs": {
@@ -20962,10 +20962,10 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup.retention",
-        "x-dockyard-capability": "backup.retention",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup.retention",
+        "x-docker-manager-capability": "backup.retention",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backup-policies/{policyId}/runs": {
@@ -21205,15 +21205,15 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup.run",
-        "x-dockyard-capability": "backup.run",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup.run",
+        "x-docker-manager-capability": "backup.run",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backup-policies/{policyId}/scope-previews": {
       "post": {
-        "description": "Asks each environment's agent for the effective sources (project directories, relative binds, volumes), the excluded and blocked paths with reasons, sources that need an opt-in, estimated size, and with shutdown on the containers that stop (stop order), the downtime warning and shared-volume conflicts. DockYard's own containers and volumes are excluded (#32). Nothing is stored.",
+        "description": "Asks each environment's agent for the effective sources (project directories, relative binds, volumes), the excluded and blocked paths with reasons, sources that need an opt-in, estimated size, and with shutdown on the containers that stop (stop order), the downtime warning and shared-volume conflicts. Docker Manager's own containers and volumes are excluded (#32). Nothing is stored.",
         "operationId": "create-backup-policy-scope-preview",
         "parameters": [
           {
@@ -21423,9 +21423,9 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup_policy.read",
-        "x-dockyard-capability": "backup_policy.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup_policy.read",
+        "x-docker-manager-capability": "backup_policy.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backup-repositories": {
@@ -21503,7 +21503,7 @@
                           "example"
                         ]
                       },
-                      "location": "https://s3.example.com/backups/dockyard",
+                      "location": "https://s3.example.com/backups/docker-manager",
                       "name": "Offsite S3",
                       "path": "config/app.conf",
                       "pathStyle": false,
@@ -21593,11 +21593,11 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-capability": "backup_repository.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "backup_repository.read",
+        "x-docker-manager-scope": "resource"
       },
       "post": {
-        "description": "Stores a destination: a local directory on the manager or on one environment's agent, or an S3 bucket/prefix (credentials sealed, write-only). Below it DockYard keeps one restic repository per scope (dockyard-manager, dockyard-env-<environmentId>). The first repository of an instance generates the Recovery Key (returned once in recoveryKey; owner only). Every repository starts awaiting_confirmation: nothing is initialized and no policy can use it until the owner re-enters the key. Recovery Key administration: instance owner only, in a signed-in browser session (never with an API token, 403 api_token_not_allowed).",
+        "description": "Stores a destination: a local directory on the manager or on one environment's agent, or an S3 bucket/prefix (credentials sealed, write-only). Below it Docker Manager keeps one restic repository per scope (docker-manager, docker-manager-env-<environmentId>). The first repository of an instance generates the Recovery Key (returned once in recoveryKey; owner only). Every repository starts awaiting_confirmation: nothing is initialized and no policy can use it until the owner re-enters the key. Recovery Key administration: instance owner only, in a signed-in browser session (never with an API token, 403 api_token_not_allowed).",
         "operationId": "create-backup-repository",
         "requestBody": {
           "content": {
@@ -21606,8 +21606,8 @@
                 "endpoint": "https://s3.eu-central-1.amazonaws.com",
                 "kind": "local",
                 "name": "Offsite S3",
-                "path": "/backups/dockyard",
-                "prefix": "dockyard",
+                "path": "/backups/docker-manager",
+                "prefix": "docker-manager",
                 "verifyReadData": "5%"
               },
               "schema": {
@@ -21681,7 +21681,7 @@
                         "example"
                       ]
                     },
-                    "location": "https://s3.example.com/backups/dockyard",
+                    "location": "https://s3.example.com/backups/docker-manager",
                     "name": "Offsite S3",
                     "path": "config/app.conf",
                     "pathStyle": false,
@@ -21803,14 +21803,14 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup_repository.manage",
-        "x-dockyard-capability": "backup_repository.manage",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "backup_repository.manage",
+        "x-docker-manager-capability": "backup_repository.manage",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/backup-repositories/{repositoryId}": {
       "delete": {
-        "description": "Removes the repository from DockYard (409 backup_repository_in_use while a policy uses it). The restic repositories at the destination are left untouched. Requires If-Match.",
+        "description": "Removes the repository from Docker Manager (409 backup_repository_in_use while a policy uses it). The restic repositories at the destination are left untouched. Requires If-Match.",
         "operationId": "delete-backup-repository",
         "parameters": [
           {
@@ -21972,9 +21972,9 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup_repository.manage",
-        "x-dockyard-capability": "backup_repository.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup_repository.manage",
+        "x-docker-manager-capability": "backup_repository.manage",
+        "x-docker-manager-scope": "resource"
       },
       "get": {
         "operationId": "get-backup-repository",
@@ -22033,7 +22033,7 @@
                       "example"
                     ]
                   },
-                  "location": "https://s3.example.com/backups/dockyard",
+                  "location": "https://s3.example.com/backups/docker-manager",
                   "name": "Offsite S3",
                   "path": "config/app.conf",
                   "pathStyle": false,
@@ -22142,8 +22142,8 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-capability": "backup_repository.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "backup_repository.read",
+        "x-docker-manager-scope": "resource"
       },
       "patch": {
         "description": "Edits the name, S3 region/addressing, the verification schedule, or replaces the S3 credentials (write-only). The destination itself cannot move. Requires If-Match.",
@@ -22227,7 +22227,7 @@
                       "example"
                     ]
                   },
-                  "location": "https://s3.example.com/backups/dockyard",
+                  "location": "https://s3.example.com/backups/docker-manager",
                   "name": "Offsite S3",
                   "path": "config/app.conf",
                   "pathStyle": false,
@@ -22396,9 +22396,9 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup_repository.manage",
-        "x-dockyard-capability": "backup_repository.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup_repository.manage",
+        "x-docker-manager-capability": "backup_repository.manage",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backup-repositories/{repositoryId}/connection-tests": {
@@ -22540,9 +22540,9 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup_repository.manage",
-        "x-dockyard-capability": "backup_repository.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup_repository.manage",
+        "x-docker-manager-capability": "backup_repository.manage",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backup-repositories/{repositoryId}/health": {
@@ -22722,8 +22722,8 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-capability": "backup_repository.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "backup_repository.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backup-repositories/{repositoryId}/key-rotations": {
@@ -22877,9 +22877,9 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup_repository.manage",
-        "x-dockyard-capability": "backup_repository.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup_repository.manage",
+        "x-docker-manager-capability": "backup_repository.manage",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backup-repositories/{repositoryId}/recovery-confirmations": {
@@ -23028,7 +23028,7 @@
                         "example"
                       ]
                     },
-                    "location": "https://s3.example.com/backups/dockyard",
+                    "location": "https://s3.example.com/backups/docker-manager",
                     "name": "Offsite S3",
                     "path": "config/app.conf",
                     "pathStyle": false,
@@ -23157,9 +23157,9 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup_repository.manage",
-        "x-dockyard-capability": "backup_repository.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup_repository.manage",
+        "x-docker-manager-capability": "backup_repository.manage",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backups": {
@@ -23366,8 +23366,8 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-capability": "backup.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "backup.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backups/{backupId}": {
@@ -23525,8 +23525,8 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-capability": "backup.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "backup.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backups/{backupId}/contents": {
@@ -23722,8 +23722,8 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-capability": "backup.contents.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "backup.contents.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backups/{backupId}/contents/download": {
@@ -23901,9 +23901,9 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup.contents.download",
-        "x-dockyard-capability": "backup.contents.download",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup.contents.download",
+        "x-docker-manager-capability": "backup.contents.download",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backups/{backupId}/restore-previews": {
@@ -24111,9 +24111,9 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup.restore",
-        "x-dockyard-capability": "backup.restore",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup.restore",
+        "x-docker-manager-capability": "backup.restore",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backups/{backupId}/restores": {
@@ -24337,10 +24337,10 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup.restore",
-        "x-dockyard-capability": "backup.restore",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup.restore",
+        "x-docker-manager-capability": "backup.restore",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/backups/{backupId}/verifications": {
@@ -24547,10 +24547,10 @@
         "tags": [
           "Backups"
         ],
-        "x-dockyard-audit": "backup.verify",
-        "x-dockyard-capability": "backup.verify",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "backup.verify",
+        "x-docker-manager-capability": "backup.verify",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/capabilities": {
@@ -24562,7 +24562,7 @@
             "content": {
               "application/json": {
                 "example": {
-                  "agentProtocolVersion": "dockyard.agent/v1",
+                  "agentProtocolVersion": "docker-manager.agent/v1",
                   "apiVersion": "v1",
                   "features": [
                     "example"
@@ -24591,8 +24591,8 @@
         "tags": [
           "System"
         ],
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/environment-update-policies": {
@@ -24736,11 +24736,11 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       },
       "post": {
-        "description": "Covers all environments or one environment, including future eligible stacks and DockYard-managed standalone containers. Scopes cannot overlap; schedules start disabled unless enabled.",
+        "description": "Covers all environments or one environment, including future eligible stacks and Docker Manager-managed standalone containers. Scopes cannot overlap; schedules start disabled unless enabled.",
         "operationId": "create-environment-update-policy",
         "requestBody": {
           "content": {
@@ -24940,9 +24940,9 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-audit": "environment_update_policy.create",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "environment_update_policy.create",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/environment-update-policies/{policyId}": {
@@ -25091,9 +25091,9 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-audit": "environment_update_policy.delete",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "environment_update_policy.delete",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       },
       "get": {
         "operationId": "get-environment-update-policy",
@@ -25263,8 +25263,8 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       },
       "patch": {
         "operationId": "update-environment-update-policy",
@@ -25487,9 +25487,9 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-audit": "environment_update_policy.update",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "environment_update_policy.update",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/environment-update-policies/{policyId}/checks": {
@@ -25707,10 +25707,10 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-audit": "environment_update_policy.check",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-idempotency": "stored",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "environment_update_policy.check",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-idempotency": "stored",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/environment-update-policies/{policyId}/previews": {
@@ -25898,9 +25898,9 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-audit": "environment_update_policy.preview",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "environment_update_policy.preview",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/environment-update-policies/{policyId}/runs": {
@@ -26131,10 +26131,10 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-audit": "environment_update_policy.run",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-idempotency": "stored",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "environment_update_policy.run",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-idempotency": "stored",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/environment-update-policies/{policyId}/targets": {
@@ -26285,8 +26285,8 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/environments": {
@@ -26435,8 +26435,8 @@
         "tags": [
           "Environments"
         ],
-        "x-dockyard-capability": "environment.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "environment.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}": {
@@ -26588,9 +26588,9 @@
         "tags": [
           "Environments"
         ],
-        "x-dockyard-audit": "environment.remove",
-        "x-dockyard-capability": "environment.remove",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "environment.remove",
+        "x-docker-manager-capability": "environment.remove",
+        "x-docker-manager-scope": "environment"
       },
       "get": {
         "description": "Full with environment.read, minimal (identity, status, actions) with any other capability applying in it, 404 otherwise. The ETag is sent when the revision is visible.",
@@ -26723,8 +26723,8 @@
         "tags": [
           "Environments"
         ],
-        "x-dockyard-capability": "environment.read",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "environment.read",
+        "x-docker-manager-scope": "environment"
       },
       "patch": {
         "description": "Edits the server/display name and the service address. Requires If-Match. 409 environment_archived for archived environments.",
@@ -26941,9 +26941,9 @@
         "tags": [
           "Environments"
         ],
-        "x-dockyard-audit": "environment.manage",
-        "x-dockyard-capability": "environment.manage",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "environment.manage",
+        "x-docker-manager-capability": "environment.manage",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/agents": {
@@ -27109,8 +27109,8 @@
         "tags": [
           "Environments"
         ],
-        "x-dockyard-capability": "agent.read",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "agent.read",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/build-definitions": {
@@ -27278,8 +27278,8 @@
         "tags": [
           "Image builds"
         ],
-        "x-dockyard-capability": "build_definition.read",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "build_definition.read",
+        "x-docker-manager-scope": "environment"
       },
       "post": {
         "description": "Saves a build (source, tags, options) to re-run on demand; scheduled rebuilds are not in v1. 409 build_definition_name_taken.",
@@ -27475,9 +27475,9 @@
         "tags": [
           "Image builds"
         ],
-        "x-dockyard-audit": "build_definition.manage",
-        "x-dockyard-capability": "build_definition.manage",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "build_definition.manage",
+        "x-docker-manager-capability": "build_definition.manage",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/build-definitions/{definitionId}": {
@@ -27640,9 +27640,9 @@
         "tags": [
           "Image builds"
         ],
-        "x-dockyard-audit": "build_definition.manage",
-        "x-dockyard-capability": "build_definition.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "build_definition.manage",
+        "x-docker-manager-capability": "build_definition.manage",
+        "x-docker-manager-scope": "resource"
       },
       "get": {
         "operationId": "get-build-definition",
@@ -27795,8 +27795,8 @@
         "tags": [
           "Image builds"
         ],
-        "x-dockyard-capability": "build_definition.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "build_definition.read",
+        "x-docker-manager-scope": "resource"
       },
       "patch": {
         "description": "Requires If-Match.",
@@ -28042,9 +28042,9 @@
         "tags": [
           "Image builds"
         ],
-        "x-dockyard-audit": "build_definition.manage",
-        "x-dockyard-capability": "build_definition.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "build_definition.manage",
+        "x-docker-manager-capability": "build_definition.manage",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/build-definitions/{definitionId}/runs": {
@@ -28280,10 +28280,10 @@
         "tags": [
           "Image builds"
         ],
-        "x-dockyard-audit": "image.build",
-        "x-dockyard-capability": "image.build",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "image.build",
+        "x-docker-manager-capability": "image.build",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/capacity": {
@@ -28426,8 +28426,8 @@
         "tags": [
           "Environments"
         ],
-        "x-dockyard-capability": "environment.metrics.read",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "environment.metrics.read",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/containers": {
@@ -28799,11 +28799,11 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-capability": "container.details.read",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "container.details.read",
+        "x-docker-manager-scope": "environment"
       },
       "post": {
-        "description": "Validates the v1 create-container form (common options only; anything more complex belongs in a Compose stack) and starts a container.create job (202). The image must be present on the environment (pull it first). DockYard labels the container as its own standalone container and saves its recreate specification (sealed) for automatic updates.",
+        "description": "Validates the v1 create-container form (common options only; anything more complex belongs in a Compose stack) and starts a container.create job (202). The image must be present on the environment (pull it first). Docker Manager labels the container as its own standalone container and saves its recreate specification (sealed) for automatic updates.",
         "operationId": "create-container",
         "parameters": [
           {
@@ -29067,15 +29067,15 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-audit": "container.create",
-        "x-dockyard-capability": "container.create",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "container.create",
+        "x-docker-manager-capability": "container.create",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}": {
       "delete": {
-        "description": "Starts a container.remove job (202). A running container needs force=true (409 container_running); containers of a DockYard-managed stack are refused (409 stack_managed). See the container's removal consequences.",
+        "description": "Starts a container.remove job (202). A running container needs force=true (409 container_running); containers of a Docker Manager-managed stack are refused (409 stack_managed). See the container's removal consequences.",
         "operationId": "delete-container",
         "parameters": [
           {
@@ -29356,10 +29356,10 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-audit": "container.remove",
-        "x-dockyard-capability": "container.remove",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "container.remove",
+        "x-docker-manager-capability": "container.remove",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       },
       "get": {
         "description": "Full view with container.details.read (configuration, state, networks, resources, recreate fields and the removal consequences; never environment variable values), minimal view with any other container capability, 404 otherwise.",
@@ -29639,11 +29639,11 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-capability": "container.details.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "container.details.read",
+        "x-docker-manager-scope": "resource"
       },
       "patch": {
-        "description": "Changes the in-place settings (restart policy, resource limits) with a container.update job (202). Settings that need a new container are refused with 422 recreate_required; containers of a DockYard-managed stack with 409 stack_managed.",
+        "description": "Changes the in-place settings (restart policy, resource limits) with a container.update job (202). Settings that need a new container are refused with 422 recreate_required; containers of a Docker Manager-managed stack with 409 stack_managed.",
         "operationId": "update-container",
         "parameters": [
           {
@@ -29917,15 +29917,15 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-audit": "container.update",
-        "x-dockyard-capability": "container.update",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "container.update",
+        "x-docker-manager-capability": "container.update",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions": {
       "post": {
-        "description": "Creates an exec session running command inside the container (never on the host) and a one-use attach ticket; attach within 60 s with GET …/exec-sessions/{sessionId}/stream (WebSocket, subprotocols dockyard.exec.v1 and dockyard.ticket.<ticket>). Needs container.exec (API tokens only with container.exec in their own grants). 409 when the container is not running, 429 beyond 4 terminals per user or 8 per container.",
+        "description": "Creates an exec session running command inside the container (never on the host) and a one-use attach ticket; attach within 60 s with GET …/exec-sessions/{sessionId}/stream (WebSocket, subprotocols docker-manager.exec.v1 and docker-manager.ticket.<ticket>). Needs container.exec (API tokens only with container.exec in their own grants). 409 when the container is not running, 429 beyond 4 terminals per user or 8 per container.",
         "operationId": "create-container-exec-session",
         "parameters": [
           {
@@ -29976,7 +29976,7 @@
                   "expiresAt": "2026-09-25T12:00:00Z",
                   "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                   "streamUrl": "example",
-                  "subprotocol": "dockyard.exec.v1",
+                  "subprotocol": "docker-manager.exec.v1",
                   "ticket": "example"
                 },
                 "schema": {
@@ -30149,9 +30149,9 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-audit": "container.exec",
-        "x-dockyard-capability": "container.exec",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "container.exec",
+        "x-docker-manager-capability": "container.exec",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}": {
@@ -30330,14 +30330,14 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-audit": "container.exec",
-        "x-dockyard-capability": "container.exec",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "container.exec",
+        "x-docker-manager-capability": "container.exec",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/exec-sessions/{sessionId}/stream": {
       "get": {
-        "description": "Upgrades to a WebSocket (subprotocol dockyard.exec.v1; the ticket from the create call as subprotocol dockyard.ticket.<ticket>). Binary frames: 0+stdin to the process, 1+stdout / 2+stderr from it; text frames: {\"type\":\"resize\",\"cols\",\"rows\"} from the client, {\"type\":\"exit\",\"code\"} and {\"type\":\"error\",...} from the server. Close codes and limits: docs/api/streams.md.",
+        "description": "Upgrades to a WebSocket (subprotocol docker-manager.exec.v1; the ticket from the create call as subprotocol docker-manager.ticket.<ticket>). Binary frames: 0+stdin to the process, 1+stdout / 2+stderr from it; text frames: {\"type\":\"resize\",\"cols\",\"rows\"} from the client, {\"type\":\"exit\",\"code\"} and {\"type\":\"error\",...} from the server. Close codes and limits: docs/api/streams.md.",
         "operationId": "stream-container-exec-session",
         "parameters": [
           {
@@ -30374,11 +30374,11 @@
             }
           },
           {
-            "description": "dockyard.exec.v1 and dockyard.ticket.<ticket>.",
+            "description": "docker-manager.exec.v1 and docker-manager.ticket.<ticket>.",
             "in": "header",
             "name": "Sec-WebSocket-Protocol",
             "schema": {
-              "description": "dockyard.exec.v1 and dockyard.ticket.<ticket>.",
+              "description": "docker-manager.exec.v1 and docker-manager.ticket.<ticket>.",
               "maxLength": 512,
               "type": "string"
             }
@@ -30524,13 +30524,13 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-capability": "container.exec",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "container.exec",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/image-status": {
       "get": {
-        "description": "The container's image, applied digest and platform, whether it can follow its tag's digest (#20; only DockYard-managed standalone containers with a saved recreate specification) and its update policy's state.",
+        "description": "The container's image, applied digest and platform, whether it can follow its tag's digest (#20; only Docker Manager-managed standalone containers with a saved recreate specification) and its update policy's state.",
         "operationId": "get-container-image-status",
         "parameters": [
           {
@@ -30671,8 +30671,8 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-capability": "container.details.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "container.details.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/logs": {
@@ -30915,8 +30915,8 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-capability": "container.logs.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "container.logs.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/logs/stream": {
@@ -31147,8 +31147,8 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-capability": "container.logs.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "container.logs.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/metrics": {
@@ -31395,8 +31395,8 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-capability": "container.metrics.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "container.metrics.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/pause": {
@@ -31662,15 +31662,15 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-audit": "container.pause",
-        "x-dockyard-capability": "container.pause",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "container.pause",
+        "x-docker-manager-capability": "container.pause",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/restart": {
       "post": {
-        "description": "Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files). Restarting DockYard's manager (or another container of its own deployment) needs confirm: true (409 confirmation_required); the connected agent is never restarted through DockYard (409 protected).",
+        "description": "Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files). Restarting the Docker Manager container (or another container of its own deployment) needs confirm: true (409 confirmation_required); the connected agent is never restarted through Docker Manager (409 protected).",
         "operationId": "restart-container",
         "parameters": [
           {
@@ -31943,10 +31943,10 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-audit": "container.restart",
-        "x-dockyard-capability": "container.restart",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "container.restart",
+        "x-docker-manager-capability": "container.restart",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/start": {
@@ -32212,10 +32212,10 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-audit": "container.start",
-        "x-dockyard-capability": "container.start",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "container.start",
+        "x-docker-manager-capability": "container.start",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/stop": {
@@ -32493,10 +32493,10 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-audit": "container.stop",
-        "x-dockyard-capability": "container.stop",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "container.stop",
+        "x-docker-manager-capability": "container.stop",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/containers/{containerId}/unpause": {
@@ -32762,10 +32762,10 @@
         "tags": [
           "Containers"
         ],
-        "x-dockyard-audit": "container.unpause",
-        "x-dockyard-capability": "container.unpause",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "container.unpause",
+        "x-docker-manager-capability": "container.unpause",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/events/stream": {
@@ -32917,8 +32917,8 @@
         "tags": [
           "Environments"
         ],
-        "x-dockyard-capability": "environment.events.read",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "environment.events.read",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/image-builds": {
@@ -33113,8 +33113,8 @@
         "tags": [
           "Image builds"
         ],
-        "x-dockyard-capability": "image.read",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "image.read",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/image-builds/{buildId}": {
@@ -33278,8 +33278,8 @@
         "tags": [
           "Image builds"
         ],
-        "x-dockyard-capability": "image.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "image.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/images": {
@@ -33560,13 +33560,13 @@
         "tags": [
           "Images"
         ],
-        "x-dockyard-capability": "image.read",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "image.read",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/images/builds": {
       "post": {
-        "description": "Starts an image.build job on the environment's agent: the ref is resolved to a commit (in-process ls-remote with the matching Git credential), then the Engine's BuildKit builds exactly that commit (remote Git context; no docker or buildx CLI) with private base images authenticated by registry connections (#19). Progress and the BuildKit log stream as job events; builds per environment are limited by DOCKYARD_JOB_MAX_CONCURRENT_BUILDS; cancel with POST /jobs/{id}/cancellations. The build record is GET .../image-builds/{jobId}. Build argument values are never audited. 409 ambiguous_git_credential, git_credential_revoked, registry_connection_revoked.",
+        "description": "Starts an image.build job on the environment's agent: the ref is resolved to a commit (in-process ls-remote with the matching Git credential), then the Engine's BuildKit builds exactly that commit (remote Git context; no docker or buildx CLI) with private base images authenticated by registry connections (#19). Progress and the BuildKit log stream as job events; builds per environment are limited by DOCKER_MANAGER_JOB_MAX_CONCURRENT_BUILDS; cancel with POST /jobs/{id}/cancellations. The build record is GET .../image-builds/{jobId}. Build argument values are never audited. 409 ambiguous_git_credential, git_credential_revoked, registry_connection_revoked.",
         "operationId": "create-image-build",
         "parameters": [
           {
@@ -33806,10 +33806,10 @@
         "tags": [
           "Image builds"
         ],
-        "x-dockyard-audit": "image.build",
-        "x-dockyard-capability": "image.build",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "image.build",
+        "x-docker-manager-capability": "image.build",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/images/pulls": {
@@ -34078,10 +34078,10 @@
         "tags": [
           "Images"
         ],
-        "x-dockyard-audit": "image.pull",
-        "x-dockyard-capability": "image.pull",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "image.pull",
+        "x-docker-manager-capability": "image.pull",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/images/{imageId}": {
@@ -34358,10 +34358,10 @@
         "tags": [
           "Images"
         ],
-        "x-dockyard-audit": "image.remove",
-        "x-dockyard-capability": "image.remove",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "image.remove",
+        "x-docker-manager-capability": "image.remove",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       },
       "get": {
         "description": "The image's configuration, users and removal consequences (full view with image.read).",
@@ -34584,8 +34584,8 @@
         "tags": [
           "Images"
         ],
-        "x-dockyard-capability": "image.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "image.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/images/{imageId}/tags": {
@@ -34853,9 +34853,9 @@
         "tags": [
           "Images"
         ],
-        "x-dockyard-audit": "image.tag",
-        "x-dockyard-capability": "image.tag",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "image.tag",
+        "x-docker-manager-capability": "image.tag",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/metrics": {
@@ -35045,8 +35045,8 @@
         "tags": [
           "Environments"
         ],
-        "x-dockyard-capability": "environment.metrics.read",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "environment.metrics.read",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/networks": {
@@ -35314,8 +35314,8 @@
         "tags": [
           "Networks"
         ],
-        "x-dockyard-capability": "network.read",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "network.read",
+        "x-docker-manager-scope": "environment"
       },
       "post": {
         "description": "Starts a network.create job (202); 409 resource_name_taken when the name exists.",
@@ -35581,15 +35581,15 @@
         "tags": [
           "Networks"
         ],
-        "x-dockyard-audit": "network.create",
-        "x-dockyard-capability": "network.create",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "network.create",
+        "x-docker-manager-capability": "network.create",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/networks/{networkId}": {
       "delete": {
-        "description": "Starts a network.remove job (202). Refused for predefined networks (409 network_builtin), networks with attached containers (409 network_in_use) and networks of a DockYard-managed stack (409 stack_managed).",
+        "description": "Starts a network.remove job (202). Refused for predefined networks (409 network_builtin), networks with attached containers (409 network_in_use) and networks of a Docker Manager-managed stack (409 stack_managed).",
         "operationId": "delete-network",
         "parameters": [
           {
@@ -35850,10 +35850,10 @@
         "tags": [
           "Networks"
         ],
-        "x-dockyard-audit": "network.remove",
-        "x-dockyard-capability": "network.remove",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "network.remove",
+        "x-docker-manager-capability": "network.remove",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       },
       "get": {
         "description": "The network with its attached containers, stack and removal consequences (full view with network.read).",
@@ -36065,8 +36065,8 @@
         "tags": [
           "Networks"
         ],
-        "x-dockyard-capability": "network.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "network.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/prune-previews": {
@@ -36281,9 +36281,9 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-audit": "maintenance.preview",
-        "x-dockyard-capability": "maintenance.preview",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "maintenance.preview",
+        "x-docker-manager-capability": "maintenance.preview",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/prunes": {
@@ -36513,10 +36513,10 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-audit": "maintenance.run",
-        "x-dockyard-capability": "maintenance.run",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "maintenance.run",
+        "x-docker-manager-capability": "maintenance.run",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/removal-previews": {
@@ -36679,14 +36679,14 @@
         "tags": [
           "Environments"
         ],
-        "x-dockyard-audit": "environment.remove.preview",
-        "x-dockyard-capability": "environment.remove",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "environment.remove.preview",
+        "x-docker-manager-capability": "environment.remove",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/stacks/discovered": {
       "get": {
-        "description": "Compose projects the Engine knows from container labels, read-only: whether each can be adopted in place (its directory is under the stacks volume or a registered root) and the DockYard stack already managing it. Labels never reconstruct a Compose source.",
+        "description": "Compose projects the Engine knows from container labels, read-only: whether each can be adopted in place (its directory is under the stacks volume or a registered root) and the Docker Manager stack already managing it. Labels never reconstruct a Compose source.",
         "operationId": "list-discovered-stacks",
         "parameters": [
           {
@@ -36884,13 +36884,13 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-capability": "stack.import",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "stack.import",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/stacks/imports": {
       "post": {
-        "description": "Adopts a discovered project. Without source, in place: its real files become the first revision (409 stack_not_adoptable when its directory is outside the stacks volume and registered roots). With source, the given definition is written into a new directory <projectName> of the stacks volume. Never overwrites: 409 stack_name_taken when DockYard already manages the project, stack_directory_exists when the directory exists.",
+        "description": "Adopts a discovered project. Without source, in place: its real files become the first revision (409 stack_not_adoptable when its directory is outside the stacks volume and registered roots). With source, the given definition is written into a new directory <projectName> of the stacks volume. Never overwrites: 409 stack_name_taken when Docker Manager already manages the project, stack_directory_exists when the directory exists.",
         "operationId": "create-stack-import",
         "parameters": [
           {
@@ -37196,9 +37196,9 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack.import",
-        "x-dockyard-capability": "stack.import",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "stack.import",
+        "x-docker-manager-capability": "stack.import",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/system": {
@@ -37399,8 +37399,8 @@
         "tags": [
           "Environments"
         ],
-        "x-dockyard-capability": "environment.system.read",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "environment.system.read",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/volumes": {
@@ -37673,8 +37673,8 @@
         "tags": [
           "Volumes"
         ],
-        "x-dockyard-capability": "volume.read",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-capability": "volume.read",
+        "x-docker-manager-scope": "environment"
       },
       "post": {
         "description": "Starts a volume.create job (202); 409 resource_name_taken when the name exists.",
@@ -37940,15 +37940,15 @@
         "tags": [
           "Volumes"
         ],
-        "x-dockyard-audit": "volume.create",
-        "x-dockyard-capability": "volume.create",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "volume.create",
+        "x-docker-manager-capability": "volume.create",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}": {
       "delete": {
-        "description": "Starts a volume.remove job (202) that deletes the volume's data permanently. Refused while containers use it (409 volume_in_use) and for volumes of a DockYard-managed stack (409 stack_managed).",
+        "description": "Starts a volume.remove job (202) that deletes the volume's data permanently. Refused while containers use it (409 volume_in_use) and for volumes of a Docker Manager-managed stack (409 stack_managed).",
         "operationId": "delete-volume",
         "parameters": [
           {
@@ -38209,10 +38209,10 @@
         "tags": [
           "Volumes"
         ],
-        "x-dockyard-audit": "volume.remove",
-        "x-dockyard-capability": "volume.remove",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.remove",
+        "x-docker-manager-capability": "volume.remove",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       },
       "get": {
         "description": "The volume with its users, stack and removal consequences (full view with volume.read).",
@@ -38415,13 +38415,13 @@
         "tags": [
           "Volumes"
         ],
-        "x-dockyard-capability": "volume.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "volume.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files": {
       "get": {
-        "description": "One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/api/files.md. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "description": "One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/api/files.md. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "list-volume-files",
         "parameters": [
           {
@@ -38718,13 +38718,13 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-capability": "volume.files.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "volume.files.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/archives": {
       "post": {
-        "description": "Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt). Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "description": "Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt). Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "create-volume-file-archive",
         "parameters": [
           {
@@ -39002,10 +39002,10 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "volume.files.archive",
-        "x-dockyard-capability": "volume.files.archive",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.files.archive",
+        "x-docker-manager-capability": "volume.files.archive",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/conflict-previews": {
@@ -39244,14 +39244,14 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "volume.files.read",
-        "x-dockyard-capability": "volume.files.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.files.read",
+        "x-docker-manager-capability": "volume.files.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/content": {
       "get": {
-        "description": "At most 512 KiB of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "description": "At most 512 KiB of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "get-volume-file-content",
         "parameters": [
           {
@@ -39488,11 +39488,11 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-capability": "volume.files.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "volume.files.read",
+        "x-docker-manager-scope": "resource"
       },
       "put": {
-        "description": "Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "description": "Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "replace-volume-file-content",
         "parameters": [
           {
@@ -39788,14 +39788,14 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "volume.files.write",
-        "x-dockyard-capability": "volume.files.write",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.files.write",
+        "x-docker-manager-capability": "volume.files.write",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/copies": {
       "post": {
-        "description": "Starts a files.copy job (202 + job): sources are copied recursively into destination; symlinks are copied as symlinks (never followed), hard-linked and special files fail per item. conflict applies per top-level item. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "description": "Starts a files.copy job (202 + job): sources are copied recursively into destination; symlinks are copied as symlinks (never followed), hard-linked and special files fail per item. conflict applies per top-level item. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "create-volume-file-copy",
         "parameters": [
           {
@@ -40072,15 +40072,15 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "volume.files.copy",
-        "x-dockyard-capability": "volume.files.copy",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.files.copy",
+        "x-docker-manager-capability": "volume.files.copy",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/deletions": {
       "post": {
-        "description": "Starts a files.delete job (202 + job) deleting each path recursively; symlinks are removed, never followed. Preview the impact first (conflict preview, operation delete). Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "description": "Starts a files.delete job (202 + job) deleting each path recursively; symlinks are removed, never followed. Preview the impact first (conflict preview, operation delete). Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "create-volume-file-deletion",
         "parameters": [
           {
@@ -40356,15 +40356,15 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "volume.files.delete",
-        "x-dockyard-capability": "volume.files.delete",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.files.delete",
+        "x-docker-manager-capability": "volume.files.delete",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/downloads": {
       "get": {
-        "description": "One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "description": "One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "download-volume-files",
         "parameters": [
           {
@@ -40645,14 +40645,14 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "volume.files.download",
-        "x-dockyard-capability": "volume.files.download",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.files.download",
+        "x-docker-manager-capability": "volume.files.download",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/entries": {
       "post": {
-        "description": "Creates an empty directory or a new file (optional initial content up to 512 KiB). 409 file_exists when the name exists. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "description": "Creates an empty directory or a new file (optional initial content up to 512 KiB). 409 file_exists when the name exists. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "create-volume-file-entry",
         "parameters": [
           {
@@ -40887,14 +40887,14 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "volume.files.write",
-        "x-dockyard-capability": "volume.files.write",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.files.write",
+        "x-docker-manager-capability": "volume.files.write",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/extractions": {
       "post": {
-        "description": "Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (10 GiB and 100x the archive size) as well as the entry count (100 000). Nested archives are not extracted. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "description": "Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (10 GiB and 100x the archive size) as well as the entry count (100 000). Nested archives are not extracted. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "create-volume-file-extraction",
         "parameters": [
           {
@@ -41169,15 +41169,15 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "volume.files.extract",
-        "x-dockyard-capability": "volume.files.extract",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.files.extract",
+        "x-docker-manager-capability": "volume.files.extract",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/metadata": {
       "patch": {
-        "description": "Starts a files.metadata job (202 + job): chmod (needs volume.files.chmod) and/or chown (needs volume.files.chown) of the paths, optionally recursive. Symlinks are skipped (never followed), special and hard-linked files fail per item; changes go through the opened file (fchmod/fchown). Preview the count with a conflict preview of operation metadata. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "description": "Starts a files.metadata job (202 + job): chmod (needs volume.files.chmod) and/or chown (needs volume.files.chown) of the paths, optionally recursive. Symlinks are skipped (never followed), special and hard-linked files fail per item; changes go through the opened file (fchmod/fchown). Preview the count with a conflict preview of operation metadata. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "update-volume-file-metadata",
         "parameters": [
           {
@@ -41454,19 +41454,19 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "volume_file_metadata.update",
-        "x-dockyard-capability": "volume.files.{change}",
-        "x-dockyard-capability-values": [
+        "x-docker-manager-audit": "volume_file_metadata.update",
+        "x-docker-manager-capability": "volume.files.{change}",
+        "x-docker-manager-capability-values": [
           "volume.files.chmod",
           "volume.files.chown"
         ],
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/moves": {
       "post": {
-        "description": "Starts a files.move job (202 + job): each source is renamed into destination (a rename is a move into the same directory under a new name: use conflict and one source). conflict applies per item. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "description": "Starts a files.move job (202 + job): each source is renamed into destination (a rename is a move into the same directory under a new name: use conflict and one source). conflict applies per item. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "create-volume-file-move",
         "parameters": [
           {
@@ -41743,15 +41743,15 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "volume.files.move",
-        "x-dockyard-capability": "volume.files.move",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.files.move",
+        "x-docker-manager-capability": "volume.files.move",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/uploads": {
       "post": {
-        "description": "Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-DockYard-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKYARD_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).",
+        "description": "Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKER_MANAGER_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "upload-volume-files",
         "parameters": [
           {
@@ -41834,11 +41834,11 @@
             }
           },
           {
-            "description": "Required (411 otherwise); at most DOCKYARD_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+            "description": "Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413).",
             "in": "header",
             "name": "Content-Length",
             "schema": {
-              "description": "Required (411 otherwise); at most DOCKYARD_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+              "description": "Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413).",
               "format": "int64",
               "type": "integer"
             }
@@ -41846,7 +41846,7 @@
           {
             "description": "Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch).",
             "in": "header",
-            "name": "X-DockYard-Content-SHA256",
+            "name": "X-Docker-Manager-Content-SHA256",
             "schema": {
               "description": "Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch).",
               "maxLength": 64,
@@ -42126,14 +42126,14 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "volume.files.write",
-        "x-dockyard-capability": "volume.files.write",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.files.write",
+        "x-docker-manager-capability": "volume.files.write",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/migration-previews": {
       "post": {
-        "description": "The preflight check of copying the volume to another environment (optionally under a new name): support (local volumes only; DockYard's own volumes are refused), running containers using it (blocking unless a crash-consistent copy is acknowledged), name conflicts, size against free space, transport and access changes. Needs volume.migrate on the volume and volume.create on the destination. Changes nothing.",
+        "description": "The preflight check of copying the volume to another environment (optionally under a new name): support (local volumes only; Docker Manager's own volumes are refused), running containers using it (blocking unless a crash-consistent copy is acknowledged), name conflicts, size against free space, transport and access changes. Needs volume.migrate on the volume and volume.create on the destination. Changes nothing.",
         "operationId": "create-volume-migration-preview",
         "parameters": [
           {
@@ -42423,9 +42423,9 @@
         "tags": [
           "Volumes"
         ],
-        "x-dockyard-audit": "volume.migrate.preview",
-        "x-dockyard-capability": "volume.migrate",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.migrate.preview",
+        "x-docker-manager-capability": "volume.migrate",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/migrations": {
@@ -42704,10 +42704,10 @@
         "tags": [
           "Volumes"
         ],
-        "x-dockyard-audit": "volume.migrate",
-        "x-dockyard-capability": "volume.migrate",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "volume.migrate",
+        "x-docker-manager-capability": "volume.migrate",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/git-credentials": {
@@ -42844,8 +42844,8 @@
         "tags": [
           "Git credentials"
         ],
-        "x-dockyard-capability": "git_credential.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "git_credential.read",
+        "x-docker-manager-scope": "resource"
       },
       "post": {
         "description": "Stores an HTTPS Git credential (username + access token) for private build contexts, sealed with the manager's secret-protection key; the token is write-only (fingerprint only). Builds send it to the agent for that job only, as a BuildKit session secret. 409 git_credential_name_taken. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
@@ -42999,9 +42999,9 @@
         "tags": [
           "Git credentials"
         ],
-        "x-dockyard-audit": "git_credential.create",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "git_credential.create",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/git-credentials/{credentialId}": {
@@ -43150,9 +43150,9 @@
         "tags": [
           "Git credentials"
         ],
-        "x-dockyard-audit": "git_credential.delete",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "git_credential.delete",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       },
       "get": {
         "description": "Never contains the token.",
@@ -43290,8 +43290,8 @@
         "tags": [
           "Git credentials"
         ],
-        "x-dockyard-capability": "git_credential.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "git_credential.read",
+        "x-docker-manager-scope": "resource"
       },
       "patch": {
         "description": "Edits the name, path prefix, username or plain-HTTP flag, rotates the token (secret) or revokes it (status revoked). Jobs dispatched afterwards use the new token. Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
@@ -43509,9 +43509,9 @@
         "tags": [
           "Git credentials"
         ],
-        "x-dockyard-audit": "git_credential.update",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "git_credential.update",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/git-credentials/{credentialId}/connection-tests": {
@@ -43666,9 +43666,9 @@
         "tags": [
           "Git credentials"
         ],
-        "x-dockyard-audit": "git_credential_connection_test.create",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "git_credential_connection_test.create",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/groups": {
@@ -43757,8 +43757,8 @@
         "tags": [
           "Groups"
         ],
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       },
       "post": {
         "description": "Creates a group without grants (no access); edit its rules with PUT /groups/{groupId}/permissions. 409 group_name_taken. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
@@ -43892,14 +43892,14 @@
         "tags": [
           "Groups"
         ],
-        "x-dockyard-audit": "group.create",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "group.create",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/groups/{groupId}": {
       "delete": {
-        "description": "Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group (choose another default first); 409 group_not_empty while users are in it (move them first: DockYard never moves users implicitly, so deleting a group never changes anyone's access). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
+        "description": "Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group (choose another default first); 409 group_not_empty while users are in it (move them first: Docker Manager never moves users implicitly, so deleting a group never changes anyone's access). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
         "operationId": "delete-group",
         "parameters": [
           {
@@ -44058,9 +44058,9 @@
         "tags": [
           "Groups"
         ],
-        "x-dockyard-audit": "group.delete",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "group.delete",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       },
       "get": {
         "description": "Instance owner only (never delegable, never with an API token).",
@@ -44194,8 +44194,8 @@
         "tags": [
           "Groups"
         ],
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       },
       "patch": {
         "description": "Renames the group (the default group too). Requires If-Match with the group's ETag. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
@@ -44397,9 +44397,9 @@
         "tags": [
           "Groups"
         ],
-        "x-dockyard-audit": "group.update",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "group.update",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/groups/{groupId}/default-selection": {
@@ -44530,9 +44530,9 @@
         "tags": [
           "Groups"
         ],
-        "x-dockyard-audit": "group_default_selection.create",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "group_default_selection.create",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/groups/{groupId}/permissions": {
@@ -44673,8 +44673,8 @@
         "tags": [
           "Groups"
         ],
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       },
       "put": {
         "description": "Replaces the complete rule list. Rules name catalog capabilities at scopes they support; duplicates for the same capability and scope are rejected (422). Members' effective access changes at once: their open requests and streams end and their stored idempotent responses are dropped. Audited with the before/after rules. Requires If-Match with the document ETag. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
@@ -44890,9 +44890,9 @@
         "tags": [
           "Groups"
         ],
-        "x-dockyard-audit": "group_permissions.replace",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "group_permissions.replace",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/health": {
@@ -44930,8 +44930,8 @@
         "tags": [
           "System"
         ],
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/health/ready": {
@@ -44994,8 +44994,8 @@
         "tags": [
           "System"
         ],
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/invitations": {
@@ -45127,11 +45127,11 @@
         "tags": [
           "Invitations"
         ],
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       },
       "post": {
-        "description": "Issues a single-use invitation with a 256-bit code, returned only in this response (DockYard stores a verifier). Expires after expiresInHours (default from the security settings); optionally bound to an email address. No email is sent: hand the link over yourself. Requires a recent step-up. Instance owner only (never delegable, never with an API token).",
+        "description": "Issues a single-use invitation with a 256-bit code, returned only in this response (Docker Manager stores a verifier). Expires after expiresInHours (default from the security settings); optionally bound to an email address. No email is sent: hand the link over yourself. Requires a recent step-up. Instance owner only (never delegable, never with an API token).",
         "operationId": "create-invitation",
         "parameters": [
           {
@@ -45272,10 +45272,10 @@
         "tags": [
           "Invitations"
         ],
-        "x-dockyard-audit": "invitation.create",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-idempotency": "stored",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "invitation.create",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-idempotency": "stored",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/invitations/redemptions": {
@@ -45424,9 +45424,9 @@
         "tags": [
           "Invitations"
         ],
-        "x-dockyard-audit": "invitation_redemption.create",
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "invitation_redemption.create",
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/invitations/{invitationId}": {
@@ -45548,9 +45548,9 @@
         "tags": [
           "Invitations"
         ],
-        "x-dockyard-audit": "invitation.delete",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "invitation.delete",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/jobs": {
@@ -45791,8 +45791,8 @@
         "tags": [
           "Jobs"
         ],
-        "x-dockyard-capability": "job.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "job.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/jobs/{jobId}": {
@@ -45951,8 +45951,8 @@
         "tags": [
           "Jobs"
         ],
-        "x-dockyard-capability": "job.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "job.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/jobs/{jobId}/cancellations": {
@@ -46150,9 +46150,9 @@
         "tags": [
           "Jobs"
         ],
-        "x-dockyard-audit": "job.cancel",
-        "x-dockyard-capability": "job.cancel",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "job.cancel",
+        "x-docker-manager-capability": "job.cancel",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/jobs/{jobId}/events/stream": {
@@ -46274,8 +46274,8 @@
         "tags": [
           "Jobs"
         ],
-        "x-dockyard-capability": "job.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "job.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/live/stream": {
@@ -46474,8 +46474,8 @@
         "tags": [
           "Live"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/maintenance-defaults": {
@@ -46597,8 +46597,8 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-capability": "settings.read",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "settings.read",
+        "x-docker-manager-scope": "instance"
       },
       "patch": {
         "description": "Each rule given replaces the default of its category; existing policies keep their rules. Enabling a volume rule needs volumeOptIn. Requires If-Match.",
@@ -46794,9 +46794,9 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-audit": "settings.manage",
-        "x-dockyard-capability": "settings.manage",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "settings.manage",
+        "x-docker-manager-capability": "settings.manage",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/maintenance-policies": {
@@ -46999,8 +46999,8 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-capability": "maintenance_policy.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "maintenance_policy.read",
+        "x-docker-manager-scope": "resource"
       },
       "post": {
         "description": "A prune policy of one environment with one rule per category (stopped containers, dangling and all unused images, unused networks, anonymous and named volumes, build cache). Rules not given start with the maintenance defaults; the schedule starts with the prune default of the schedule defaults and stays disabled unless enabled. Enabling a volume rule needs volumeOptIn. 409 maintenance_policy_name_taken.",
@@ -47230,9 +47230,9 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-audit": "maintenance_policy.manage",
-        "x-dockyard-capability": "maintenance_policy.manage",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "maintenance_policy.manage",
+        "x-docker-manager-capability": "maintenance_policy.manage",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/maintenance-policies/{policyId}": {
@@ -47384,9 +47384,9 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-audit": "maintenance_policy.manage",
-        "x-dockyard-capability": "maintenance_policy.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "maintenance_policy.manage",
+        "x-docker-manager-capability": "maintenance_policy.manage",
+        "x-docker-manager-scope": "resource"
       },
       "get": {
         "description": "With its schedule (next run, recent scheduled runs) and the latest run's result.",
@@ -47579,8 +47579,8 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-capability": "maintenance_policy.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "maintenance_policy.read",
+        "x-docker-manager-scope": "resource"
       },
       "patch": {
         "description": "Each rule given replaces its category's rule. Waiting runs of the policy are cancelled when its rules change (they carry the old rules). Requires If-Match.",
@@ -47862,9 +47862,9 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-audit": "maintenance_policy.manage",
-        "x-dockyard-capability": "maintenance_policy.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "maintenance_policy.manage",
+        "x-docker-manager-capability": "maintenance_policy.manage",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/maintenance-policies/{policyId}/environment-previews": {
@@ -48019,9 +48019,9 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-audit": "maintenance.preview",
-        "x-dockyard-capability": "maintenance.preview",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "maintenance.preview",
+        "x-docker-manager-capability": "maintenance.preview",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/maintenance-policies/{policyId}/environment-runs": {
@@ -48237,10 +48237,10 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-audit": "maintenance.run",
-        "x-dockyard-capability": "maintenance.run",
-        "x-dockyard-idempotency": "stored",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "maintenance.run",
+        "x-docker-manager-capability": "maintenance.run",
+        "x-docker-manager-idempotency": "stored",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/maintenance-policies/{policyId}/previews": {
@@ -48439,9 +48439,9 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-audit": "maintenance.preview",
-        "x-dockyard-capability": "maintenance.preview",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "maintenance.preview",
+        "x-docker-manager-capability": "maintenance.preview",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/maintenance-policies/{policyId}/runs": {
@@ -48663,10 +48663,10 @@
         "tags": [
           "Maintenance"
         ],
-        "x-dockyard-audit": "maintenance.run",
-        "x-dockyard-capability": "maintenance.run",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "maintenance.run",
+        "x-docker-manager-capability": "maintenance.run",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/me": {
@@ -48756,8 +48756,8 @@
         "tags": [
           "Account"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/me/api-tokens": {
@@ -48902,11 +48902,11 @@
         "tags": [
           "API tokens"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       },
       "post": {
-        "description": "Creates a token for scripts and integrations and returns its value once (DockYard keeps a verifier). The token carries exactly the listed grants, each of which you must hold now; every request with it is evaluated as these grants intersected with your current permissions, so later permission changes narrow it at once. Owner administration, sign-in and factor flows and token management are never reachable with a token, and a terminal (exec) needs container.exec in the token's own grants. Requires api_tokens.create (the owner always has it), a recent step-up (403 step_up_required) and tokens being enabled (403 api_tokens_disabled). The expiry is required unless the owner allows non-expiring tokens. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).",
+        "description": "Creates a token for scripts and integrations and returns its value once (Docker Manager keeps a verifier). The token carries exactly the listed grants, each of which you must hold now; every request with it is evaluated as these grants intersected with your current permissions, so later permission changes narrow it at once. Owner administration, sign-in and factor flows and token management are never reachable with a token, and a terminal (exec) needs container.exec in the token's own grants. Requires api_tokens.create (the owner always has it), a recent step-up (403 step_up_required) and tokens being enabled (403 api_tokens_disabled). The expiry is required unless the owner allows non-expiring tokens. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).",
         "operationId": "create-my-api-token",
         "parameters": [
           {
@@ -49067,10 +49067,10 @@
         "tags": [
           "API tokens"
         ],
-        "x-dockyard-audit": "api_tokens.create",
-        "x-dockyard-capability": "api_tokens.create",
-        "x-dockyard-idempotency": "stored",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "api_tokens.create",
+        "x-docker-manager-capability": "api_tokens.create",
+        "x-docker-manager-idempotency": "stored",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/me/api-tokens/{tokenId}": {
@@ -49179,9 +49179,9 @@
         "tags": [
           "API tokens"
         ],
-        "x-dockyard-audit": "api_token.revoke",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "api_token.revoke",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       },
       "get": {
         "description": "404 for other users' tokens. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).",
@@ -49319,8 +49319,8 @@
         "tags": [
           "API tokens"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       },
       "patch": {
         "description": "Only the name can change; grants and expiry are fixed at creation (create a new token instead). Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).",
@@ -49471,9 +49471,9 @@
         "tags": [
           "API tokens"
         ],
-        "x-dockyard-audit": "api_token.rename",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "api_token.rename",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/me/passkeys": {
@@ -49561,8 +49561,8 @@
         "tags": [
           "Account"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/me/passkeys/{credentialId}": {
@@ -49686,9 +49686,9 @@
         "tags": [
           "Account"
         ],
-        "x-dockyard-audit": "my_passkey.delete",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "my_passkey.delete",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       },
       "patch": {
         "description": "Changes only the label shown in the passkey list; the credential is unchanged (no step-up, no session ends). Available to limited enrollment sessions.",
@@ -49824,9 +49824,9 @@
         "tags": [
           "Account"
         ],
-        "x-dockyard-audit": "my_passkey.update",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "my_passkey.update",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/me/password": {
@@ -49935,9 +49935,9 @@
         "tags": [
           "Account"
         ],
-        "x-dockyard-audit": "my_password.update",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "my_password.update",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/me/permissions": {
@@ -50038,8 +50038,8 @@
         "tags": [
           "Permissions"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/me/recovery-codes": {
@@ -50116,8 +50116,8 @@
         "tags": [
           "Account"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       },
       "post": {
         "description": "Replaces the caller's recovery codes with ten new one-time codes, returned only in this response (stored as verifiers). Requires a recent step-up (a fresh sign-in counts). Recovery codes complete a password sign-in when TOTP or the passkey is lost. Available to limited enrollment sessions.",
@@ -50238,10 +50238,10 @@
         "tags": [
           "Account"
         ],
-        "x-dockyard-audit": "my_recovery_codes.create",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-idempotency": "stored",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "my_recovery_codes.create",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-idempotency": "stored",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/overview": {
@@ -50340,8 +50340,8 @@
         "tags": [
           "Environments"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/permission-catalog": {
@@ -50438,8 +50438,8 @@
         "tags": [
           "Permissions"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/permission-previews": {
@@ -50654,9 +50654,9 @@
         "tags": [
           "Permissions"
         ],
-        "x-dockyard-audit": "permission_preview.create",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "permission_preview.create",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/registries": {
@@ -50797,8 +50797,8 @@
         "tags": [
           "Registries"
         ],
-        "x-dockyard-capability": "registry.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "registry.read",
+        "x-docker-manager-scope": "resource"
       },
       "post": {
         "description": "Stores a registry credential (username plus password or access token; least-privilege pull tokens recommended) sealed with the manager's secret-protection key. The secret is write-only: the response carries only its fingerprint. 409 registry_connection_name_taken. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
@@ -50956,9 +50956,9 @@
         "tags": [
           "Registries"
         ],
-        "x-dockyard-audit": "registry.create",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "registry.create",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/registries/matches": {
@@ -51157,9 +51157,9 @@
         "tags": [
           "Registries"
         ],
-        "x-dockyard-audit": "registry.match",
-        "x-dockyard-capability": "registry.read",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "registry.match",
+        "x-docker-manager-capability": "registry.read",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/registries/{registryId}": {
@@ -51308,9 +51308,9 @@
         "tags": [
           "Registries"
         ],
-        "x-dockyard-audit": "registry.delete",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "registry.delete",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       },
       "get": {
         "description": "Full with registry.read, minimal (id, name, host, status) with any other capability on it, 404 otherwise. Never contains the credential.",
@@ -51452,8 +51452,8 @@
         "tags": [
           "Registries"
         ],
-        "x-dockyard-capability": "registry.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "registry.read",
+        "x-docker-manager-scope": "resource"
       },
       "patch": {
         "description": "Edits the name, repository matcher, binding, priority or plain-HTTP flag, or revokes the credential (status revoked erases it; the connection keeps matching so jobs fail instead of pulling anonymously). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
@@ -51676,9 +51676,9 @@
         "tags": [
           "Registries"
         ],
-        "x-dockyard-audit": "registry.update",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "registry.update",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/registries/{registryId}/connection-tests": {
@@ -51834,9 +51834,9 @@
         "tags": [
           "Registries"
         ],
-        "x-dockyard-audit": "registry_connection_test.create",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "registry_connection_test.create",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/registries/{registryId}/credential-rotations": {
@@ -52062,14 +52062,14 @@
         "tags": [
           "Registries"
         ],
-        "x-dockyard-audit": "registry_credential_rotation.create",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "registry_credential_rotation.create",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/schedule-defaults": {
       "get": {
-        "description": "The default IANA time zone and, per schedule kind, the default cron expression new policies start with (and DockYard's suggestion). Defaults only prefill new policies; existing policies keep their saved expression and zone.",
+        "description": "The default IANA time zone and, per schedule kind, the default cron expression new policies start with (and Docker Manager's suggestion). Defaults only prefill new policies; existing policies keep their saved expression and zone.",
         "operationId": "get-schedule-defaults",
         "responses": {
           "200": {
@@ -52162,8 +52162,8 @@
         "tags": [
           "Schedules"
         ],
-        "x-dockyard-capability": "settings.read",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "settings.read",
+        "x-docker-manager-scope": "instance"
       },
       "patch": {
         "description": "Changes the default time zone and/or default expressions by kind. Requires If-Match. Affects only policies created afterwards; existing policies keep their saved schedule.",
@@ -52329,9 +52329,9 @@
         "tags": [
           "Schedules"
         ],
-        "x-dockyard-audit": "settings.manage",
-        "x-dockyard-capability": "settings.manage",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "settings.manage",
+        "x-docker-manager-capability": "settings.manage",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/schedules": {
@@ -52516,8 +52516,8 @@
         "tags": [
           "Schedules"
         ],
-        "x-dockyard-capability": "schedule.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "schedule.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/schedules/previews": {
@@ -52627,9 +52627,9 @@
         "tags": [
           "Schedules"
         ],
-        "x-dockyard-audit": "schedule_preview.create",
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "schedule_preview.create",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/search": {
@@ -52775,13 +52775,13 @@
         "tags": [
           "Search"
         ],
-        "x-dockyard-capability": "authenticated",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/settings": {
       "get": {
-        "description": "The display name of this DockYard and a read-only summary of its deployment configuration (public URL, trusted proxies, stream heartbeat, upload limit, metrics endpoint). The sign-in policy is GET /api/v1/settings/security (owner only), schedule defaults GET /api/v1/schedule-defaults and maintenance defaults GET /api/v1/maintenance-defaults.",
+        "description": "The display name of this Docker Manager and a read-only summary of its deployment configuration (public URL, trusted proxies, stream heartbeat, upload limit, metrics endpoint). The sign-in policy is GET /api/v1/settings/security (owner only), schedule defaults GET /api/v1/schedule-defaults and maintenance defaults GET /api/v1/maintenance-defaults.",
         "operationId": "get-settings",
         "responses": {
           "200": {
@@ -52874,8 +52874,8 @@
         "tags": [
           "Settings"
         ],
-        "x-dockyard-capability": "settings.read",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "settings.read",
+        "x-docker-manager-scope": "instance"
       },
       "patch": {
         "description": "Changes the display name. Requires If-Match. The deployment configuration is read-only here: it comes from the manager's environment variables.",
@@ -53041,9 +53041,9 @@
         "tags": [
           "Settings"
         ],
-        "x-dockyard-audit": "settings.manage",
-        "x-dockyard-capability": "settings.manage",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "settings.manage",
+        "x-docker-manager-capability": "settings.manage",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/settings/security": {
@@ -53137,8 +53137,8 @@
         "tags": [
           "Settings"
         ],
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       },
       "patch": {
         "description": "Requires a recent step-up and If-Match. Changing requiredFactors ends every other session (none keeps access the new policy would not grant): accounts sign in again and get a limited enrollment session, with enrollmentGraceHours to add the required factors (the owner has no deadline and cannot be locked out). The caller's session continues, limited to enrollment when the owner lacks the new factors. Instance owner only (never delegable, never with an API token).",
@@ -53301,14 +53301,14 @@
         "tags": [
           "Settings"
         ],
-        "x-dockyard-audit": "security_settings.update",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "security_settings.update",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/setup/backup-imports/connection-tests": {
       "post": {
-        "description": "Before an owner exists only (then 409 setup_complete). Checks S3 access, whether the Recovery Key opens the manager repository (dockyard-manager) and which host repositories the manifests name or the destination holds. Problems explain key loss, missing repositories, damaged manifests and partially rotated keys. Nothing is stored.",
+        "description": "Before an owner exists only (then 409 setup_complete). Checks S3 access, whether the Recovery Key opens the manager repository (docker-manager) and which host repositories the manifests name or the destination holds. Problems explain key loss, missing repositories, damaged manifests and partially rotated keys. Nothing is stored.",
         "operationId": "create-setup-backup-import-connection-test",
         "requestBody": {
           "content": {
@@ -53316,8 +53316,8 @@
               "example": {
                 "endpoint": "https://s3.eu-central-1.amazonaws.com",
                 "kind": "local",
-                "path": "/backups/dockyard",
-                "prefix": "dockyard",
+                "path": "/backups/docker-manager",
+                "prefix": "docker-manager",
                 "recoveryKey": "example"
               },
               "schema": {
@@ -53462,14 +53462,14 @@
         "tags": [
           "Setup"
         ],
-        "x-dockyard-audit": "setup_backup_import_connection_test.create",
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "setup_backup_import_connection_test.create",
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/setup/backup-imports/previews": {
       "post": {
-        "description": "Lists the newest backup sets from the portable manifests in the repositories (not from any database): completeness, where each member's snapshot is (found, missing, unverified, not_backed_up), the DockYard version and whether this build can run the set's database. With setId the set's secret-key bundle is opened too. Sets known only from host repositories are listed but cannot be imported.",
+        "description": "Lists the newest backup sets from the portable manifests in the repositories (not from any database): completeness, where each member's snapshot is (found, missing, unverified, not_backed_up), the Docker Manager version and whether this build can run the set's database. With setId the set's secret-key bundle is opened too. Sets known only from host repositories are listed but cannot be imported.",
         "operationId": "create-setup-backup-import-preview",
         "requestBody": {
           "content": {
@@ -53477,8 +53477,8 @@
               "example": {
                 "endpoint": "https://s3.eu-central-1.amazonaws.com",
                 "kind": "local",
-                "path": "/backups/dockyard",
-                "prefix": "dockyard",
+                "path": "/backups/docker-manager",
+                "prefix": "docker-manager",
                 "recoveryKey": "example"
               },
               "schema": {
@@ -53655,9 +53655,9 @@
         "tags": [
           "Setup"
         ],
-        "x-dockyard-audit": "setup_backup_import_preview.create",
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "setup_backup_import_preview.create",
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/setup/backup-imports/restores": {
@@ -53670,8 +53670,8 @@
               "example": {
                 "endpoint": "https://s3.eu-central-1.amazonaws.com",
                 "kind": "local",
-                "path": "/backups/dockyard",
-                "prefix": "dockyard",
+                "path": "/backups/docker-manager",
+                "prefix": "docker-manager",
                 "recoveryKey": "example"
               },
               "schema": {
@@ -53836,14 +53836,14 @@
         "tags": [
           "Setup"
         ],
-        "x-dockyard-audit": "setup_backup_import_restore.create",
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "setup_backup_import_restore.create",
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/setup/owner": {
       "post": {
-        "description": "Single-use and race-safe: of concurrent requests exactly one creates the owner, the others get 409 setup_complete, as does every later request. Refused with 403 insecure_origin unless the request reached DockYard over HTTPS on DOCKYARD_PUBLIC_URL (through a trusted reverse proxy) or the explicit http://localhost development mode is used. Signs the owner in: sets the session cookie and returns the session.",
+        "description": "Single-use and race-safe: of concurrent requests exactly one creates the owner, the others get 409 setup_complete, as does every later request. Refused with 403 insecure_origin unless the request reached Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL (through a trusted reverse proxy) or the explicit http://localhost development mode is used. Signs the owner in: sets the session cookie and returns the session.",
         "operationId": "create-setup-owner",
         "requestBody": {
           "content": {
@@ -53986,14 +53986,14 @@
         "tags": [
           "Setup"
         ],
-        "x-dockyard-audit": "setup_owner.create",
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-audit": "setup_owner.create",
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/setup/status": {
       "get": {
-        "description": "Whether the instance owner exists, and whether this request could complete setup (it must reach DockYard over HTTPS on DOCKYARD_PUBLIC_URL; explanation says what to fix otherwise).",
+        "description": "Whether the instance owner exists, and whether this request could complete setup (it must reach Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL; explanation says what to fix otherwise).",
         "operationId": "get-setup-status",
         "responses": {
           "200": {
@@ -54053,8 +54053,8 @@
         "tags": [
           "Setup"
         ],
-        "x-dockyard-capability": "public",
-        "x-dockyard-scope": "none"
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/stacks": {
@@ -54280,11 +54280,11 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-capability": "stack.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "stack.read",
+        "x-docker-manager-scope": "resource"
       },
       "post": {
-        "description": "Validates the definition on the environment's agent, writes compose.yaml (and the optional override and .env) into a new project directory <name> of the environment's stacks volume and records it as the first revision. Nothing existing is overwritten: 409 stack_name_taken (DockYard stack), compose_project_exists (a Compose project of that name runs on the Engine: import it), stack_directory_exists (the directory exists). 422 invalid_definition lists the findings. Does not deploy.",
+        "description": "Validates the definition on the environment's agent, writes compose.yaml (and the optional override and .env) into a new project directory <name> of the environment's stacks volume and records it as the first revision. Nothing existing is overwritten: 409 stack_name_taken (Docker Manager stack), compose_project_exists (a Compose project of that name runs on the Engine: import it), stack_directory_exists (the directory exists). 422 invalid_definition lists the findings. Does not deploy.",
         "operationId": "create-stack",
         "requestBody": {
           "content": {
@@ -54625,9 +54625,9 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack.create",
-        "x-dockyard-capability": "stack.create",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "stack.create",
+        "x-docker-manager-capability": "stack.create",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/stacks/validations": {
@@ -54851,14 +54851,14 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack.create",
-        "x-dockyard-capability": "stack.create",
-        "x-dockyard-scope": "environment"
+        "x-docker-manager-audit": "stack.create",
+        "x-docker-manager-capability": "stack.create",
+        "x-docker-manager-scope": "environment"
       }
     },
     "/api/v1/stacks/{stackId}": {
       "delete": {
-        "description": "Starts a stack.remove job (202): the stack is taken down (containers and networks removed; named volumes and the project directory are kept on the host) and, when that succeeds, removed from DockYard with its revisions and the permission rules naming it.",
+        "description": "Starts a stack.remove job (202): the stack is taken down (containers and networks removed; named volumes and the project directory are kept on the host) and, when that succeeds, removed from Docker Manager with its revisions and the permission rules naming it.",
         "operationId": "delete-stack",
         "parameters": [
           {
@@ -55063,13 +55063,13 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack.remove",
-        "x-dockyard-capability": "stack.remove",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.remove",
+        "x-docker-manager-capability": "stack.remove",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       },
       "get": {
-        "description": "The stack's deployment status (what DockYard last did), last applied revision and images, the newest revision observed on disk (undeployedChanges when they differ), the failed revision and recovery guidance after a failed deploy, and the Engine state as last observed. While the environment is offline the last known state is returned with readOnly.",
+        "description": "The stack's deployment status (what Docker Manager last did), last applied revision and images, the newest revision observed on disk (undeployedChanges when they differ), the failed revision and recovery guidance after a failed deploy, and the Engine state as last observed. While the environment is offline the last known state is returned with readOnly.",
         "operationId": "get-stack",
         "parameters": [
           {
@@ -55282,11 +55282,11 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-capability": "stack.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "stack.read",
+        "x-docker-manager-scope": "resource"
       },
       "patch": {
-        "description": "Display name, description, Lucide icon override and per-service metadata, stored in DockYard and never written to Compose files. Requires If-Match.",
+        "description": "Display name, description, Lucide icon override and per-service metadata, stored in Docker Manager and never written to Compose files. Requires If-Match.",
         "operationId": "update-stack",
         "parameters": [
           {
@@ -55568,9 +55568,9 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack.manage",
-        "x-dockyard-capability": "stack.manage",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.manage",
+        "x-docker-manager-capability": "stack.manage",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/builds": {
@@ -55794,10 +55794,10 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack.build",
-        "x-dockyard-capability": "stack.build",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.build",
+        "x-docker-manager-capability": "stack.build",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/deployments": {
@@ -56022,10 +56022,10 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack.deploy",
-        "x-dockyard-capability": "stack.deploy",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.deploy",
+        "x-docker-manager-capability": "stack.deploy",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/events/stream": {
@@ -56152,8 +56152,8 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-capability": "stack.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "stack.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/files": {
@@ -56444,13 +56444,13 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-capability": "stack.files.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "stack.files.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/files/archives": {
       "post": {
-        "description": "Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt). Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "description": "Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt). Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
         "operationId": "create-stack-file-archive",
         "parameters": [
           {
@@ -56717,10 +56717,10 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "stack.files.archive",
-        "x-dockyard-capability": "stack.files.archive",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.files.archive",
+        "x-docker-manager-capability": "stack.files.archive",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/files/conflict-previews": {
@@ -56948,9 +56948,9 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "stack.files.read",
-        "x-dockyard-capability": "stack.files.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.files.read",
+        "x-docker-manager-capability": "stack.files.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/files/content": {
@@ -57181,8 +57181,8 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-capability": "stack.files.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "stack.files.read",
+        "x-docker-manager-scope": "resource"
       },
       "put": {
         "description": "Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
@@ -57470,9 +57470,9 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "stack.files.write",
-        "x-dockyard-capability": "stack.files.write",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.files.write",
+        "x-docker-manager-capability": "stack.files.write",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/files/copies": {
@@ -57743,10 +57743,10 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "stack.files.copy",
-        "x-dockyard-capability": "stack.files.copy",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.files.copy",
+        "x-docker-manager-capability": "stack.files.copy",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/files/deletions": {
@@ -58016,15 +58016,15 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "stack.files.delete",
-        "x-dockyard-capability": "stack.files.delete",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.files.delete",
+        "x-docker-manager-capability": "stack.files.delete",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/files/downloads": {
       "get": {
-        "description": "One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "description": "One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
         "operationId": "download-stack-files",
         "parameters": [
           {
@@ -58294,9 +58294,9 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "stack.files.download",
-        "x-dockyard-capability": "stack.files.download",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.files.download",
+        "x-docker-manager-capability": "stack.files.download",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/files/entries": {
@@ -58525,9 +58525,9 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "stack.files.write",
-        "x-dockyard-capability": "stack.files.write",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.files.write",
+        "x-docker-manager-capability": "stack.files.write",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/files/extractions": {
@@ -58796,10 +58796,10 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "stack.files.extract",
-        "x-dockyard-capability": "stack.files.extract",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.files.extract",
+        "x-docker-manager-capability": "stack.files.extract",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/files/metadata": {
@@ -59070,14 +59070,14 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "stack_file_metadata.update",
-        "x-dockyard-capability": "stack.files.{change}",
-        "x-dockyard-capability-values": [
+        "x-docker-manager-audit": "stack_file_metadata.update",
+        "x-docker-manager-capability": "stack.files.{change}",
+        "x-docker-manager-capability-values": [
           "stack.files.chmod",
           "stack.files.chown"
         ],
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/files/moves": {
@@ -59348,15 +59348,15 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "stack.files.move",
-        "x-dockyard-capability": "stack.files.move",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.files.move",
+        "x-docker-manager-capability": "stack.files.move",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/files/uploads": {
       "post": {
-        "description": "Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-DockYard-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKYARD_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "description": "Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKER_MANAGER_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
         "operationId": "upload-stack-files",
         "parameters": [
           {
@@ -59428,11 +59428,11 @@
             }
           },
           {
-            "description": "Required (411 otherwise); at most DOCKYARD_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+            "description": "Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413).",
             "in": "header",
             "name": "Content-Length",
             "schema": {
-              "description": "Required (411 otherwise); at most DOCKYARD_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+              "description": "Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413).",
               "format": "int64",
               "type": "integer"
             }
@@ -59440,7 +59440,7 @@
           {
             "description": "Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch).",
             "in": "header",
-            "name": "X-DockYard-Content-SHA256",
+            "name": "X-Docker-Manager-Content-SHA256",
             "schema": {
               "description": "Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch).",
               "maxLength": 64,
@@ -59720,9 +59720,9 @@
         "tags": [
           "Files"
         ],
-        "x-dockyard-audit": "stack.files.write",
-        "x-dockyard-capability": "stack.files.write",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.files.write",
+        "x-docker-manager-capability": "stack.files.write",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/image-status": {
@@ -59861,8 +59861,8 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-capability": "stack.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "stack.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/migration-previews": {
@@ -60146,9 +60146,9 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack.migrate.preview",
-        "x-dockyard-capability": "stack.migrate",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.migrate.preview",
+        "x-docker-manager-capability": "stack.migrate",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/migrations": {
@@ -60416,15 +60416,15 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack.migrate",
-        "x-dockyard-capability": "stack.migrate",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.migrate",
+        "x-docker-manager-capability": "stack.migrate",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/migrations/{migrationId}/source-removals": {
       "post": {
-        "description": "Confirms a completed migration: starts a stack.remove_source job (202) on the source environment that removes the source project's containers and networks, the migrated volumes and the project directory there. 409 migration_not_completed before the migration completed, migration_source_removed after a removal, migration_source_in_use when a DockYard stack manages the source project again. Backup snapshots of the source stay in their repository.",
+        "description": "Confirms a completed migration: starts a stack.remove_source job (202) on the source environment that removes the source project's containers and networks, the migrated volumes and the project directory there. 409 migration_not_completed before the migration completed, migration_source_removed after a removal, migration_source_in_use when a Docker Manager stack manages the source project again. Backup snapshots of the source stay in their repository.",
         "operationId": "create-stack-migration-source-removal",
         "parameters": [
           {
@@ -60685,10 +60685,10 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack.migrate.remove_source",
-        "x-dockyard-capability": "stack.migrate",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.migrate.remove_source",
+        "x-docker-manager-capability": "stack.migrate",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/operations": {
@@ -60914,16 +60914,16 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack_operation.create",
-        "x-dockyard-capability": "stack.{action}",
-        "x-dockyard-capability-values": [
+        "x-docker-manager-audit": "stack_operation.create",
+        "x-docker-manager-capability": "stack.{action}",
+        "x-docker-manager-capability-values": [
           "stack.start",
           "stack.stop",
           "stack.restart",
           "stack.down"
         ],
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/revision-restores": {
@@ -61246,9 +61246,9 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack.definition.write",
-        "x-dockyard-capability": "stack.definition.write",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.definition.write",
+        "x-docker-manager-capability": "stack.definition.write",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/revisions": {
@@ -61420,8 +61420,8 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-capability": "stack.definition.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "stack.definition.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/revisions/{revisionId}": {
@@ -61573,14 +61573,14 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-audit": "stack.definition.read",
-        "x-dockyard-capability": "stack.definition.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "stack.definition.read",
+        "x-docker-manager-capability": "stack.definition.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/stacks/{stackId}/services": {
       "get": {
-        "description": "Services of the applied definition joined with their containers on the Engine (live while the environment is online, else the last observed state with live false), with drift from DockYard's intent. Container image, ports, restart policy and resources need container.details.read on the container; per-service metrics are #5's.",
+        "description": "Services of the applied definition joined with their containers on the Engine (live while the environment is online, else the last observed state with live false), with drift from Docker Manager's intent. Container image, ports, restart policy and resources need container.details.read on the container; per-service metrics are #5's.",
         "operationId": "list-stack-services",
         "parameters": [
           {
@@ -61784,8 +61784,8 @@
         "tags": [
           "Stacks"
         ],
-        "x-dockyard-capability": "stack.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "stack.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/support-bundle": {
@@ -61875,14 +61875,14 @@
         "tags": [
           "System"
         ],
-        "x-dockyard-audit": "system.support_bundle",
-        "x-dockyard-capability": "system.support_bundle",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "system.support_bundle",
+        "x-docker-manager-capability": "system.support_bundle",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/system/metrics": {
       "get": {
-        "description": "DockYard's own metrics in the Prometheus text exposition format 0.0.4: job queue depth and unfinished jobs by state and kind, connected agent sessions, environments by state, agents by version compatibility, open event streams and event bus subscribers, database sizes, the audit chain length and Go runtime basics. Off by default: 404 unless DOCKYARD_METRICS_ENABLED=true. Requires system.metrics.read (grant it to a dedicated API token and scrape with Authorization: Bearer). Host and container metrics are GET /environments/{environmentId}/metrics.",
+        "description": "Docker Manager's own metrics in the Prometheus text exposition format 0.0.4: job queue depth and unfinished jobs by state and kind, connected agent sessions, environments by state, agents by version compatibility, open event streams and event bus subscribers, database sizes, the audit chain length and Go runtime basics. Off by default: 404 unless DOCKER_MANAGER_METRICS_ENABLED=true. Requires system.metrics.read (grant it to a dedicated API token and scrape with Authorization: Bearer). Host and container metrics are GET /environments/{environmentId}/metrics.",
         "operationId": "get-system-metrics",
         "responses": {
           "200": {
@@ -61979,17 +61979,17 @@
             "bearerToken": []
           }
         ],
-        "summary": "DockYard internal metrics (Prometheus)",
+        "summary": "Docker Manager internal metrics (Prometheus)",
         "tags": [
           "System"
         ],
-        "x-dockyard-capability": "system.metrics.read",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "system.metrics.read",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/update-policies": {
       "get": {
-        "description": "Update policies opt a DockYard stack (all or selected services) or a DockYard-managed standalone container into digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, environment and target.",
+        "description": "Update policies opt a Docker Manager stack (all or selected services) or a Docker Manager-managed standalone container into digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, environment and target.",
         "operationId": "list-update-policies",
         "parameters": [
           {
@@ -62265,8 +62265,8 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-capability": "update_policy.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "update_policy.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/update-policies/{policyId}": {
@@ -62524,8 +62524,8 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-capability": "update_policy.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "update_policy.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/update-policies/{policyId}/candidates": {
@@ -62678,8 +62678,8 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-capability": "update_policy.read",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-capability": "update_policy.read",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/update-policies/{policyId}/checks": {
@@ -62904,10 +62904,10 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-audit": "update.check",
-        "x-dockyard-capability": "update.check",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "update.check",
+        "x-docker-manager-capability": "update.check",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/update-policies/{policyId}/previews": {
@@ -63170,9 +63170,9 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-audit": "update.check",
-        "x-dockyard-capability": "update.check",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "update.check",
+        "x-docker-manager-capability": "update.check",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/update-policies/{policyId}/runs": {
@@ -63412,10 +63412,10 @@
         "tags": [
           "Updates"
         ],
-        "x-dockyard-audit": "update.run",
-        "x-dockyard-capability": "update.run",
-        "x-dockyard-idempotency": "job",
-        "x-dockyard-scope": "resource"
+        "x-docker-manager-audit": "update.run",
+        "x-docker-manager-capability": "update.run",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
       }
     },
     "/api/v1/users": {
@@ -63557,8 +63557,8 @@
         "tags": [
           "Users"
         ],
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/users/{userId}": {
@@ -63705,9 +63705,9 @@
         "tags": [
           "Users"
         ],
-        "x-dockyard-audit": "user.delete",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "user.delete",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       },
       "get": {
         "description": "Instance owner only (never delegable, never with an API token).",
@@ -63848,8 +63848,8 @@
         "tags": [
           "Users"
         ],
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       },
       "patch": {
         "description": "Edit profile fields, move the account to exactly one group (#17), or disable/reactivate it. A group move needs a recent step-up (403 step_up_required), changes the account's access at once and ends its open requests and streams. Disabling ends every session and open stream of the account immediately; the owner cannot be disabled (409 owner_protected). Requires If-Match. Instance owner only (never delegable, never with an API token).",
@@ -64058,9 +64058,9 @@
         "tags": [
           "Users"
         ],
-        "x-dockyard-audit": "user.update",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "user.update",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/users/{userId}/effective-permissions": {
@@ -64206,8 +64206,8 @@
         "tags": [
           "Permissions"
         ],
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/users/{userId}/factor-resets": {
@@ -64377,9 +64377,9 @@
         "tags": [
           "Users"
         ],
-        "x-dockyard-audit": "user_factor_reset.create",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "user_factor_reset.create",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/users/{userId}/password-resets": {
@@ -64537,10 +64537,10 @@
         "tags": [
           "Users"
         ],
-        "x-dockyard-audit": "user_password_reset.create",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-idempotency": "stored",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "user_password_reset.create",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-idempotency": "stored",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/users/{userId}/permissions": {
@@ -64681,8 +64681,8 @@
         "tags": [
           "Permissions"
         ],
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       },
       "put": {
         "description": "Replaces the user's override list: an allow or deny beats every group rule; removing a rule resets it to inherit (an empty list resets everything). The owner's capabilities are protected (409 owner_protected). The user's open requests and streams end at once. Audited with the before/after rules. Requires If-Match with the document ETag. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).",
@@ -64898,9 +64898,9 @@
         "tags": [
           "Permissions"
         ],
-        "x-dockyard-audit": "user_permissions.replace",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "user_permissions.replace",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     },
     "/api/v1/users/{userId}/session-revocations": {
@@ -65007,9 +65007,9 @@
         "tags": [
           "Users"
         ],
-        "x-dockyard-audit": "user_session_revocation.create",
-        "x-dockyard-capability": "owner",
-        "x-dockyard-scope": "instance"
+        "x-docker-manager-audit": "user_session_revocation.create",
+        "x-docker-manager-capability": "owner",
+        "x-docker-manager-scope": "instance"
       }
     }
   }

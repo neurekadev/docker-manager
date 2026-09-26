@@ -1,4 +1,4 @@
-# DockYard manager image: static Go binary with the embedded SvelteKit UI,
+# Docker Manager image: static Go binary with the embedded SvelteKit UI,
 # plus a pinned, checksum-verified restic.
 #
 # Every builder stage runs on $BUILDPLATFORM and cross-compiles, and the
@@ -61,28 +61,28 @@ ARG GIT_DATE=unknown
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOOS=linux GOARCH="${TARGETARCH}" go build -trimpath \
-      -ldflags "-s -w -X github.com/neurekadev/dockyard/internal/buildinfo.Version=${GIT_TAG} -X github.com/neurekadev/dockyard/internal/buildinfo.Commit=${GIT_HASH} -X github.com/neurekadev/dockyard/internal/buildinfo.Date=${GIT_DATE}" \
-      -o /out/dockyard-manager ./cmd/dockyard-manager
+      -ldflags "-s -w -X code.neureka.dev/docker-manager/docker-manager/internal/buildinfo.Version=${GIT_TAG} -X code.neureka.dev/docker-manager/docker-manager/internal/buildinfo.Commit=${GIT_HASH} -X code.neureka.dev/docker-manager/docker-manager/internal/buildinfo.Date=${GIT_DATE}" \
+      -o /out/docker-manager ./cmd/docker-manager
 
 # ---------------------------------------------------------------- runtime
 FROM ${RUNTIME_IMAGE}
 ARG GIT_TAG=0.0.0-edge
 ARG GIT_HASH=unknown
 ARG GIT_DATE=unknown
-LABEL org.opencontainers.image.title="dockyard-manager" \
-      org.opencontainers.image.description="DockYard manager: web UI, API and agent endpoint" \
-      org.opencontainers.image.source="https://code.neureka.dev/dockyard/dockyard" \
+LABEL org.opencontainers.image.title="docker-manager" \
+      org.opencontainers.image.description="Docker Manager: web UI, API and agent endpoint" \
+      org.opencontainers.image.source="https://code.neureka.dev/docker-manager/docker-manager" \
       org.opencontainers.image.version="${GIT_TAG}" \
       org.opencontainers.image.revision="${GIT_HASH}" \
       org.opencontainers.image.created="${GIT_DATE}"
-COPY --from=build /out/dockyard-manager /usr/local/bin/dockyard-manager
+COPY --from=build /out/docker-manager /usr/local/bin/docker-manager
 COPY --from=restic /restic /usr/local/bin/restic
-ENV DOCKYARD_LISTEN_ADDR=:8080 \
-    DOCKYARD_DATA_DIR=/var/lib/dockyard
-# DockYard containers run as root (UID 0); non-root is unsupported (#28).
+ENV DOCKER_MANAGER_LISTEN_ADDR=:8080 \
+    DOCKER_MANAGER_DATA_DIR=/var/lib/docker-manager
+# Docker Manager containers run as root (UID 0); non-root is unsupported (#28).
 USER 0:0
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD ["/usr/local/bin/dockyard-manager", "healthcheck"]
-ENTRYPOINT ["/usr/local/bin/dockyard-manager"]
+    CMD ["/usr/local/bin/docker-manager", "healthcheck"]
+ENTRYPOINT ["/usr/local/bin/docker-manager"]
 CMD ["serve"]

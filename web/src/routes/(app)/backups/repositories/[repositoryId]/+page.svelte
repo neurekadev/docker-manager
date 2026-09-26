@@ -239,8 +239,8 @@
 	];
 
 	function scopeName(scope: string): string {
-		if (scope === 'manager' || scope === 'dockyard-manager') return 'Manager state';
-		const m = scope.match(/^(?:env:|dockyard-env-)(.+)$/);
+		if (scope === 'manager' || scope === 'docker-manager') return 'Manager state';
+		const m = scope.match(/^(?:env:|docker-manager-env-)(.+)$/);
 		return m ? `Environment ${envName(m[1])}` : scope;
 	}
 </script>
@@ -326,7 +326,7 @@
 						/>
 					{:else}
 						<p class="muted">
-							Ask the owner of this DockYard to confirm the Recovery Key.
+							Ask the owner of this Docker Manager to confirm the Recovery Key.
 						</p>
 					{/if}
 				</Card>
@@ -467,7 +467,7 @@
 				bind:open={deleteOpen}
 				title="Remove backup repository {r.name}"
 				consequences={[
-					'DockYard stops using this destination and forgets its settings and S3 credentials.',
+					'Docker Manager stops using this destination and forgets its settings and S3 credentials.',
 					'The restic repositories and every backup at the destination are left untouched.',
 					'Policies must not use it: change them first.'
 				]}

@@ -80,7 +80,7 @@ in_list() {
 #   internal/testutil/fscorpus/       a path-traversal test string
 #   test/deploy/*_test.go             tests asserting the deploy examples mount the socket
 #   internal/manager/agents/install.go  the agent install command's socket bind mount (text shown to operators)
-#   internal/protocol/docker{,_test}.go  refuses binding the Docker socket into containers created through DockYard (#6)
+#   internal/protocol/docker{,_test}.go  refuses binding the Docker socket into containers created through Docker Manager (#6)
 engine_http_exceptions=(
 	'^internal/agent/engine/'
 	'^internal/agent/compose/[^/]+_test\.go$'

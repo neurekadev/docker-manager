@@ -124,7 +124,7 @@ function setup() {
 }
 
 const hello = (cursor: string, resumed = false) => ({
-	version: 'dockyard.live/v1',
+	version: 'docker-manager.live/v1',
 	cursor,
 	heartbeatMs: 15000,
 	topics: [],

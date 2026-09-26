@@ -1,5 +1,5 @@
 /*
- * DockYard design tokens (#22). Values are sampled from the #22 mockup and
+ * Docker Manager design tokens (#22). Values are sampled from the #22 mockup and
  * fixed by the design brief; docs/design/README.md documents them. Dark-only
  * for v1 (#25 Q8), but every component reads these semantic properties, so a
  * light theme is a second :root block, never a component change.

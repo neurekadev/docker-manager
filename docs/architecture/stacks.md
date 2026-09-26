@@ -1,6 +1,6 @@
 # Compose stacks (#7)
 
-A **stack** is a Compose project DockYard manages on one environment: a
+A **stack** is a Compose project Docker Manager manages on one environment: a
 project directory in the environment's stacks volume (or a registered stack
 root, #28) with its `compose.yaml`, optional override files and `.env`.
 
@@ -35,13 +35,13 @@ The definition files on disk are authoritative. The manager keeps:
   digest, platform: #20's baseline), the services, binds and dependency
   graph of that deploy, the **failed revision** and the Engine state before
   a failed deploy (recovery), and the deployment status (`undeployed`,
-  `deployed`, `stopped`, `down`, `failed`: what DockYard last did).
+  `deployed`, `stopped`, `down`, `failed`: what Docker Manager last did).
 - **Observed state**: the newest revision seen on disk (**source
   revision**) and the Engine state last observed (`running`, `partial`,
   `stopped`, `missing`, per-service container counts).
 
 `undeployedChanges` = the source revision differs from the applied one (or
-DockYard never deployed it). The three states — applied revision, source
+Docker Manager never deployed it). The three states — applied revision, source
 revision, live Engine state — are separate fields of the API's `Stack`, and
 `GET /stacks/{id}/services` computes **drift** (a missing or stopped
 service of a deployed stack, a running service of a stopped stack, an
@@ -131,19 +131,19 @@ Engine's Compose projects from container labels (`compose.discover`):
 services with container counts, the project directory and Compose files
 from the labels, whether the project is **adoptable in place** (its
 directory is below the stacks volume or a verified registered root and its
-Compose/env files are inside it) and the DockYard stack already managing
+Compose/env files are inside it) and the Docker Manager stack already managing
 it. Labels never reconstruct a source.
 
 `POST /environments/{id}/stacks/imports`:
 
 - without `source`: adopt in place; the real files become the first
   revision (`external`); the stack starts `deployed` with no applied
-  revision (DockYard has not deployed it yet, so it shows undeployed
+  revision (Docker Manager has not deployed it yet, so it shows undeployed
   changes);
 - with `source` (projects outside the roots): the given definition is
   written into a **new** directory `<projectName>` of the stacks volume.
 
-Nothing is overwritten silently: a project DockYard already manages →
+Nothing is overwritten silently: a project Docker Manager already manages →
 `409 stack_name_taken` (also enforced by unique indexes on
 `(environment, name)` and `(environment, root, root_path, dir)`); an
 existing directory → `409 stack_directory_exists`. `POST /stacks` refuses a
@@ -187,7 +187,7 @@ stable codes (`dependency_failed`, `dependency_missing`, `timeout`,
 `EngineRuntime` drives a Compose project's service containers through the
 Engine adapter (inspect-based state, so the pre-26 container-list lag does
 not matter). `GraphFromContainers` builds the **deployed** graph from the
-containers' labels: DockYard's `dev.neureka.dockyard.depends_on`
+containers' labels: Docker Manager's `dev.neureka.docker-manager.depends_on`
 (`service:condition:restart:required`, set by the Compose adapter on every
 service) or Compose's own label (no `required`: treated as required).
 Stack start/stop/restart jobs use it, so a stack whose files were edited

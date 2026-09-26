@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/authztest"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/authz/policy"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/policy"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // fakeStacks is an in-memory StackService for the HTTP mapping and
@@ -176,7 +176,7 @@ func (f *fakeStacks) Import(_ context.Context, _ authz.Principal, r domain.Stack
 }
 
 // fakeStacksRoot is the stacks volume's host path in the fake (#22 header).
-const fakeStacksRoot = "/var/lib/docker/volumes/dockyard_stacks/_data"
+const fakeStacksRoot = "/var/lib/docker/volumes/docker-manager_stacks/_data"
 
 func (f *fakeStacks) HostPath(_ context.Context, id string) (string, error) {
 	f.mu.Lock()

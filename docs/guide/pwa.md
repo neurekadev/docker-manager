@@ -1,6 +1,6 @@
 # PWA: install, update and offline
 
-DockYard's web UI is an installable progressive web app (PWA). It needs
+Docker Manager's web UI is an installable progressive web app (PWA). It needs
 the HTTPS origin of your deployment (browsers only install and run service
 workers in a secure context).
 
@@ -8,7 +8,7 @@ workers in a secure context).
 
 | Platform | How |
 | --- | --- |
-| Chrome, Edge (desktop) | the install icon in the address bar, or menu → *Install DockYard* |
+| Chrome, Edge (desktop) | the install icon in the address bar, or menu → *Install Docker Manager* |
 | Android (Chrome) | menu → *Install app* / *Add to home screen* |
 | iOS / iPadOS (Safari 16.4+) | Share → *Add to Home Screen* |
 | Firefox (desktop) | no install; use it as a normal tab |
@@ -19,7 +19,7 @@ your sign-in with the browser. Supported browsers and versions are in the
 
 ## Updates
 
-After DockYard is upgraded, the next page load downloads the new app in the
+After Docker Manager is upgraded, the next page load downloads the new app in the
 background. Nothing reloads on its own: the **App update** notice offers
 **Reload to update** or **Later**. While something would be lost by a
 reload (an unsaved editor buffer, an open terminal, an upload or a restore
@@ -29,7 +29,7 @@ the same manager, so an old tab keeps working until you reload.
 
 ## Offline
 
-DockYard deliberately stores no data offline (#25 Q4):
+Docker Manager deliberately stores no data offline (#25 Q4):
 
 - The app shell (HTML, scripts, styles, icons) is cached, so the app opens
   and shows a clear **offline** notice when the manager cannot be reached.
@@ -57,10 +57,10 @@ to reload or overwrite.
 
 ## Troubleshooting the app
 
-- "Service worker registration failed": you opened DockYard over plain
+- "Service worker registration failed": you opened Docker Manager over plain
   HTTP or an untrusted certificate. Use the HTTPS origin and trust its CA.
 - The app looks outdated after an upgrade: accept **Reload to update**, or
-  close all DockYard tabs and windows and open it again.
+  close all Docker Manager tabs and windows and open it again.
 - Passkeys stopped working after a host name change: passkeys are bound to
   the host name; sign in with password (and TOTP or a recovery code) and
   register a new passkey.

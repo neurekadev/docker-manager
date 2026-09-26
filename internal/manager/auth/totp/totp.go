@@ -1,6 +1,6 @@
-// Package totp wraps pquerna/otp for DockYard's RFC 6238 second factor
+// Package totp wraps pquerna/otp for Docker Manager's RFC 6238 second factor
 // (#16, #18). The library owns secret generation, the otpauth:// URI and
-// the HOTP computation with constant-time comparison; DockYard owns the
+// the HOTP computation with constant-time comparison; Docker Manager owns the
 // clock-skew window, replay prevention (the time step of the last accepted
 // code is stored and only later steps are accepted), attempt throttling and
 // encrypted seed storage (secrets.Keyring).
@@ -28,8 +28,8 @@ const (
 	Skew = 1
 )
 
-// Issuer labels DockYard entries in authenticator apps.
-const Issuer = "DockYard"
+// Issuer labels Docker Manager entries in authenticator apps.
+const Issuer = "Docker Manager"
 
 // ErrMalformed is returned for codes that are not six digits.
 var ErrMalformed = errors.New("totp: code must be 6 digits")

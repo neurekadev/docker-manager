@@ -1,4 +1,4 @@
-// DockYard component library (#22). Import from '$lib/ui':
+// Docker Manager component library (#22). Import from '$lib/ui':
 //
 //   import { Button, Card, StatusBadge, toast } from '$lib/ui';
 //

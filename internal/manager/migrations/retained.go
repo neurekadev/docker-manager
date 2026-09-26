@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
-// RetainedSource is the stopped source of a stack migration that DockYard
+// RetainedSource is the stopped source of a stack migration that Docker Manager
 // keeps until the user confirms its removal (#35). Once the stack record
-// moved, the source project is no longer a DockYard stack: without this
+// moved, the source project is no longer a Docker Manager stack: without this
 // hold a prune (#14) could remove its stopped containers, networks and
 // (with the volume opt-in) its volumes, and the Docker resource routes
 // (#6) would let a user delete them one by one, before "remove from
@@ -29,7 +29,7 @@ type RetainedSource struct {
 	Reason string
 }
 
-// RetainedSources lists the migrated stacks' sources DockYard keeps in an
+// RetainedSources lists the migrated stacks' sources Docker Manager keeps in an
 // environment. Running migrations are included: the cut-over can happen
 // at any moment while they run, and until then the stack itself protects
 // the same project.

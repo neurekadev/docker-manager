@@ -356,7 +356,7 @@
 	consequences={[
 		`Takes ${title} down: removes ${containerWord(counts.containers)} and its networks.`,
 		'Keeps its volumes and the project directory on the host.',
-		'Removes the stack from DockYard with its revision history and the permission rules naming it.'
+		'Removes the stack from Docker Manager with its revision history and the permission rules naming it.'
 	]}
 	affected={(stack.engine?.services ?? []).map((s) => ({
 		label: s.service,

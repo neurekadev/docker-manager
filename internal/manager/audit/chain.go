@@ -9,8 +9,8 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // Hash chain (#30).
@@ -31,6 +31,8 @@ import (
 // canonicalVersion is part of every canonical form.
 const canonicalVersion = 1
 
+// hashDomain keeps the project's former name (DockYard): existing chains
+// verify only with the domain they were written with.
 const hashDomain = "dockyard-audit-v1\n"
 
 type canonicalRecord struct {

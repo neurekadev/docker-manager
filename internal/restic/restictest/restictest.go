@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // Call records one operation.
@@ -682,7 +682,7 @@ func (p *repo) Keys(ctx context.Context) ([]restic.Key, error) {
 	}
 	var out []restic.Key
 	for _, k := range r.keys {
-		out = append(out, restic.Key{ID: k.id, Current: k.password == p.password, UserName: "dockyard", HostName: "dockyard"})
+		out = append(out, restic.Key{ID: k.id, Current: k.password == p.password, UserName: "docker-manager", HostName: "docker-manager"})
 	}
 	return out, nil
 }

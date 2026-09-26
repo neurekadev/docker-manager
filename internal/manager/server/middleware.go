@@ -12,11 +12,11 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
-	"github.com/neurekadev/dockyard/internal/manager/server/sse"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/sse"
 )
 
 // RequestIDHeader carries the request ID in requests and responses.
@@ -32,7 +32,7 @@ func newRequestID() string {
 }
 
 // withRequestInfo resolves the request's client IP, scheme and host
-// (honoring X-Forwarded-* only from DOCKYARD_TRUSTED_PROXIES), stores them
+// (honoring X-Forwarded-* only from DOCKER_MANAGER_TRUSTED_PROXIES), stores them
 // in the context (requestinfo.From / requestinfo.ClientIP) and strips the
 // forwarding headers so no handler can read client-supplied values. It is
 // the outermost middleware.

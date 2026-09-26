@@ -27,9 +27,9 @@ type SnapshotRestore struct {
 	// Snapshot is the restored snapshot's file name.
 	Snapshot string
 	// Applied lists the migrations recorded in the restored database (the
-	// schema the previous DockYard version expects).
+	// schema the previous Docker Manager version expects).
 	Applied []string
-	// ReplacedDir holds the replaced database files (dockyard.db and its
+	// ReplacedDir holds the replaced database files (docker-manager.db and its
 	// -wal/-shm), kept so the restore itself can be undone.
 	ReplacedDir string
 }
@@ -47,7 +47,7 @@ func RestoreSnapshot(ctx context.Context, dbPath, snapshotDir, name string, now 
 		return res, fmt.Errorf("store: list snapshots: %w", err)
 	}
 	if !slices.Contains(names, name) { // also refuses paths and traversal
-		return res, fmt.Errorf("%w: %q (list them with `dockyard-manager snapshots list`)", ErrSnapshotNotFound, name)
+		return res, fmt.Errorf("%w: %q (list them with `docker-manager snapshots list`)", ErrSnapshotNotFound, name)
 	}
 	tmp := dbPath + ".restoring"
 	removeDB(tmp)

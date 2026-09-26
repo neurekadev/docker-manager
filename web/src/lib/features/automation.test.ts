@@ -172,7 +172,9 @@ describe('RecoveryKeyChallenge (#10)', () => {
 		await user.type(screen.getByLabelText('Recovery Key'), KEY.toLowerCase());
 		expect(submit).toBeDisabled();
 		await user.click(
-			screen.getByRole('checkbox', { name: /^I saved the Recovery Key outside DockYard/ })
+			screen.getByRole('checkbox', {
+				name: /^I saved the Recovery Key outside Docker Manager/
+			})
 		);
 		expect(submit).toBeEnabled();
 		await user.click(submit);
@@ -203,7 +205,7 @@ describe('RecoveryKeyChallenge (#10)', () => {
 		await user.click(screen.getByRole('checkbox', { name: /I saved the Recovery Key/ }));
 		await user.click(screen.getByRole('button', { name: 'Confirm Recovery Key' }));
 		expect(await screen.findByRole('alert')).toHaveTextContent(
-			'not this DockYard’s Recovery Key'
+			'not this Docker Manager’s Recovery Key'
 		);
 	});
 });
@@ -243,7 +245,11 @@ describe('ScopePreviewView (#10)', () => {
 						affectedContainers: [
 							{ name: 'silo-web', running: true, stopOrder: 1 },
 							{ name: 'silo-db', running: true, stopOrder: 2 },
-							{ name: 'dockyard-agent', running: true, protected: 'DockYard itself' }
+							{
+								name: 'docker-agent',
+								running: true,
+								protected: 'Docker Manager itself'
+							}
 						]
 					}
 				]
@@ -270,7 +276,7 @@ describe('ScopePreviewView (#10)', () => {
 		expect(rows.map((r) => r.textContent)).toEqual([
 			expect.stringContaining('silo-web'),
 			expect.stringContaining('silo-db'),
-			expect.stringContaining('Keeps running: DockYard itself')
+			expect.stringContaining('Keeps running: Docker Manager itself')
 		]);
 	});
 });

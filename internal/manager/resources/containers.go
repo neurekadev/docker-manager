@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // ListContainers returns every container of the environment.
@@ -41,7 +41,7 @@ func (s *Service) InspectContainer(ctx context.Context, env, ref string) (protoc
 	return d, nil
 }
 
-// StackManaged reports whether a Compose project is a DockYard-managed
+// StackManaged reports whether a Compose project is a Docker Manager-managed
 // stack: the agent found its working directory in a verified stack root, or
 // the stack resolver (#7) knows it.
 func (s *Service) StackManaged(ctx context.Context, env string, st *protocol.StackRef) bool {
@@ -57,7 +57,7 @@ func (s *Service) StackManaged(ctx context.Context, env string, st *protocol.Sta
 	return s.retained(ctx, env, st.Project) != ""
 }
 
-// retained returns why DockYard keeps a Compose project no stack manages
+// retained returns why Docker Manager keeps a Compose project no stack manages
 // ("" when it does not): the stopped source of a migrated stack (#35).
 // A failed lookup keeps the project (destructive routes refuse; retry).
 func (s *Service) retained(ctx context.Context, env, project string) string {
@@ -72,7 +72,7 @@ func (s *Service) retained(ctx context.Context, env, project string) string {
 	return m[project]
 }
 
-// managedRefusal refuses changing an object of a DockYard stack or of a
+// managedRefusal refuses changing an object of a Docker Manager stack or of a
 // migrated stack's retained source directly (call when StackManaged).
 func (s *Service) managedRefusal(ctx context.Context, env, what string, st *protocol.StackRef) error {
 	if !st.Managed {
@@ -86,7 +86,7 @@ func (s *Service) managedRefusal(ctx context.Context, env, what string, st *prot
 	return stackRefused(what, st)
 }
 
-// StackIDs maps the environment's Compose projects to DockYard stack IDs
+// StackIDs maps the environment's Compose projects to Docker Manager stack IDs
 // (empty until #7 provides a resolver).
 func (s *Service) StackIDs(ctx context.Context, env string) map[string]string {
 	if s.opts.Stacks == nil {
@@ -102,7 +102,7 @@ func (s *Service) StackIDs(ctx context.Context, env string) map[string]string {
 
 func stackRefused(what string, st *protocol.StackRef) error {
 	return dockerErr(domain.DockerStackManaged,
-		"%s belongs to the DockYard-managed stack %q; change the stack's Compose definition and redeploy it instead", what, st.Project)
+		"%s belongs to the Docker Manager-managed stack %q; change the stack's Compose definition and redeploy it instead", what, st.Project)
 }
 
 // CreateContainer validates the create-container form and starts a
@@ -192,8 +192,8 @@ func (s *Service) seal(id string, spec protocol.ContainerSpec) (string, error) {
 }
 
 // ManagedSpec returns the saved recreate specification of a container
-// created through DockYard, found by its spec label in env (nil when the
-// container is not DockYard-managed). The spec includes environment
+// created through Docker Manager, found by its spec label in env (nil when the
+// container is not Docker Manager-managed). The spec includes environment
 // values: callers must not return them.
 func (s *Service) ManagedSpec(ctx context.Context, env string, labels map[string]string) (*domain.ManagedContainer, *protocol.ContainerSpec, error) {
 	id := labels[protocol.LabelSpec]
@@ -263,7 +263,7 @@ func (s *Service) ContainerAction(ctx context.Context, p authz.Principal, env st
 
 // UpdateContainer starts a container.update job with in-place settings
 // (restart policy, resource limits). The saved recreate specification of a
-// DockYard-managed container is updated at the same time.
+// Docker Manager-managed container is updated at the same time.
 func (s *Service) UpdateContainer(ctx context.Context, p authz.Principal, env string, d protocol.ContainerDetails, in protocol.ContainerUpdateInput, key string) (domain.Job, error) {
 	if err := s.checkContainer(d.ContainerSummary, "container.update", false); err != nil {
 		return domain.Job{}, err

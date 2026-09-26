@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
 )
 
 func TestRecoveryKeyFormatAndParsing(t *testing.T) {

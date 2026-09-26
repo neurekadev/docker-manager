@@ -182,7 +182,7 @@
 	{#if c.view !== 'full'}
 		<Notice tone="info" title="You can see this container's status" live="none">
 			Its configuration needs the "View container details" permission. Ask the owner of this
-			DockYard if you need it.
+			Docker Manager if you need it.
 		</Notice>
 	{/if}
 
@@ -380,7 +380,7 @@
 			<Card title="Environment variables">
 				{#if d.recreate.envKeys?.length}
 					<p class="hint">
-						Names only: DockYard stores the values sealed and never shows them.
+						Names only: Docker Manager stores the values sealed and never shows them.
 					</p>
 					<ul class="chips" role="list">
 						{#each d.recreate.envKeys as k (k)}<li class="mono">{k}</li>{/each}
@@ -389,7 +389,7 @@
 					<p class="muted">
 						{c.managed
 							? 'No variables are set.'
-							: 'DockYard never reads environment variables from the Engine (they often hold secrets). It shows their names for containers it created.'}
+							: 'Docker Manager never reads environment variables from the Engine (they often hold secrets). It shows their names for containers it created.'}
 					</p>
 				{/if}
 			</Card>

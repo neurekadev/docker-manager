@@ -25,7 +25,7 @@ import (
 	"github.com/moby/patternmatcher/ignorefile"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
-	"github.com/neurekadev/dockyard/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
 )
 
 // BuildSpec describes an image build. Exactly one of ContextDir and
@@ -93,7 +93,7 @@ type BuildResult struct {
 }
 
 // inlineDockerfileName is where DockerfileInline is placed in the context.
-const inlineDockerfileName = ".dockyard.inline.Dockerfile"
+const inlineDockerfileName = ".docker-manager.inline.Dockerfile"
 
 // Build runs a BuildKit build and returns the image ID. Build failures
 // return CodeBuildFailed with BuildKit's error message.
@@ -349,7 +349,7 @@ func readDockerignore(dir string) ([]string, error) {
 // answers registry credential and Git secret requests from memory.
 func (c *Client) startSession(ctx context.Context, auths []RegistryAuth, git []GitAuth) (*session.Session, error) {
 	const op = "image.build.session"
-	sess, err := session.NewSession(ctx, "dockyard")
+	sess, err := session.NewSession(ctx, "docker-manager")
 	if err != nil {
 		return nil, wrap(op, err)
 	}

@@ -14,9 +14,9 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 type echoInput struct {
@@ -176,7 +176,7 @@ func TestHealthAndCapabilities(t *testing.T) {
 	rec = do(t, h, http.MethodGet, BasePath+"/capabilities", "")
 	var cb CapabilitiesBody
 	_ = json.Unmarshal(rec.Body.Bytes(), &cb)
-	if cb.APIVersion != "v1" || cb.AgentProtocolVersion != "dockyard.agent/v1" || cb.ManagerVersion != "1.2.3" || len(cb.Features) != 1 {
+	if cb.APIVersion != "v1" || cb.AgentProtocolVersion != "docker-manager.agent/v1" || cb.ManagerVersion != "1.2.3" || len(cb.Features) != 1 {
 		t.Fatalf("capabilities = %+v", cb)
 	}
 	h, _ = newTestAPI(t, Deps{})
@@ -325,8 +325,8 @@ func checkCompleteness(t reporter, spec []byte) {
 }
 
 func TestCompletenessCheckCatchesViolations(t *testing.T) {
-	bad := []byte(`{"openapi":"3.1.0","paths":{"/api/v1/a":{"get":{"operationId":"x","responses":{"default":{}}}},"/api/v1/b":{"get":{"operationId":"x","x-dockyard-capability":"public","x-dockyard-scope":"none","responses":{}}},` +
-		`"/api/v1/c":{"post":{"operationId":"y","x-dockyard-capability":"public","x-dockyard-scope":"none","responses":{"default":{}}}}}}`)
+	bad := []byte(`{"openapi":"3.1.0","paths":{"/api/v1/a":{"get":{"operationId":"x","responses":{"default":{}}}},"/api/v1/b":{"get":{"operationId":"x","x-docker-manager-capability":"public","x-docker-manager-scope":"none","responses":{}}},` +
+		`"/api/v1/c":{"post":{"operationId":"y","x-docker-manager-capability":"public","x-docker-manager-scope":"none","responses":{"default":{}}}}}}`)
 	ft := &fakeT{T: t}
 	checkCompleteness(ft, bad)
 	if ft.errors < 5 { // cap+scope missing on /a, duplicate id, no default response on /b, unaudited POST /c

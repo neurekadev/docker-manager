@@ -8,14 +8,14 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/imageref"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
-	"github.com/neurekadev/dockyard/internal/manager/updates"
-	"github.com/neurekadev/dockyard/internal/manager/updates/eligible"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/imageref"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/updates"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/updates/eligible"
 )
 
 // Digest-driven updates (#20): update policies, checks, candidates,
@@ -64,7 +64,7 @@ type UpdateService interface {
 
 // UpdateTarget is what a policy updates.
 type UpdateTarget struct {
-	Type string `json:"type" enum:"stack,container" doc:"stack: a DockYard stack's services; container: a DockYard-managed standalone container with a saved recreate specification."`
+	Type string `json:"type" enum:"stack,container" doc:"stack: a Docker Manager stack's services; container: a Docker Manager-managed standalone container with a saved recreate specification."`
 	ID   string `json:"id" minLength:"1" maxLength:"128" doc:"Stack ID or container name (in the policy's environment)."`
 }
 
@@ -194,7 +194,7 @@ func newUpdateCandidate(c domain.UpdateCandidate) UpdateCandidate {
 		if r, err := imageref.Parse(c.Reference); err == nil && c.AppliedDigest != "" {
 			out.Guidance += " (for example image: " + r.Name() + "@" + c.AppliedDigest + ")"
 		}
-		out.Guidance += " and deploy it; DockYard never edits your Compose or env files."
+		out.Guidance += " and deploy it; Docker Manager never edits your Compose or env files."
 	}
 	return out
 }
@@ -438,11 +438,11 @@ type createUpdateRunInput struct {
 // ContainerImageStatus is a container's image and update state.
 type ContainerImageStatus struct {
 	Container     string     `json:"container" example:"web"`
-	Image         string     `json:"image" example:"nginx:1.27" doc:"The saved reference of a DockYard-managed container, else the container's image."`
+	Image         string     `json:"image" example:"nginx:1.27" doc:"The saved reference of a Docker Manager-managed container, else the container's image."`
 	ImageID       string     `json:"imageId,omitempty"`
 	Digest        string     `json:"digest,omitempty" doc:"Repository digest of the running image."`
 	Platform      string     `json:"platform,omitempty"`
-	Managed       bool       `json:"managed" doc:"A DockYard-managed standalone container with a saved recreate specification."`
+	Managed       bool       `json:"managed" doc:"A Docker Manager-managed standalone container with a saved recreate specification."`
 	Eligible      bool       `json:"eligible" doc:"The container could follow its tag's digest (#20)."`
 	Reason        string     `json:"reason,omitempty" enum:"build_only,digest_pinned,untagged,pull_policy_conflict,invalid_reference,protected,no_recreate_spec,stack_managed"`
 	ReasonMessage string     `json:"reasonMessage,omitempty"`
@@ -561,7 +561,7 @@ func (h *updatesAPI) candidates(ctx context.Context, in *updatePolicyIDInput) (*
 
 // updatePreviewNotes explain v1 behavior in every preview.
 var updatePreviewNotes = []string{
-	"The literal image reference in your Compose file or saved specification is never changed; DockYard pulls the same tag and recreates only what runs another image afterwards.",
+	"The literal image reference in your Compose file or saved specification is never changed; Docker Manager pulls the same tag and recreates only what runs another image afterwards.",
 	"Your Compose, override and env files are never written: the run is refused if they differ from the applied revision (deploy first).",
 	"Pulling a tag moves it for every stack and container on this environment that uses it; those not in this run keep their container until their next recreate.",
 	"There is no automatic rollback: a failed update is reported and its digest quarantined; to go back, pin the previous digest (@sha256) in your own definition and deploy it.",
@@ -648,12 +648,12 @@ func (h *updatesAPI) containerImageStatus(ctx context.Context, in *ContainerPath
 	out.Eligible, out.Reason, out.ReasonMessage, out.NonVersionTag = r.Eligible, r.Reason, r.Message, r.NonVersionTag
 	switch pr := d.Protection; {
 	case pr != nil:
-		out.Eligible, out.Reason, out.ReasonMessage = false, domain.UpdateReasonProtected, "DockYard's own containers are never updated by a policy: "+pr.Reason
+		out.Eligible, out.Reason, out.ReasonMessage = false, domain.UpdateReasonProtected, "Docker Manager's own containers are never updated by a policy: "+pr.Reason
 	case d.Stack != nil:
 		out.Eligible, out.Reason, out.ReasonMessage = false, domain.UpdateReasonStackManaged, "The container belongs to a Compose project; see its stack's image status."
 	case m == nil:
 		out.Eligible, out.Reason, out.ReasonMessage = false, domain.UpdateReasonNoRecreateSpec,
-			"Only containers created through DockYard have a complete saved recreate specification; others are never recreated automatically."
+			"Only containers created through Docker Manager have a complete saved recreate specification; others are never recreated automatically."
 	}
 	if h.svc != nil {
 		if p, err := h.svc.ForTarget(ctx, sc.env.ID, domain.UpdateTargetContainer, d.Name); err == nil && p != nil {
@@ -679,7 +679,7 @@ func registerUpdates(a huma.API, deps Deps) {
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "list-update-policies", Method: http.MethodGet, Path: base, Summary: "List update policies",
-		Description: "Update policies opt a DockYard stack (all or selected services) or a DockYard-managed standalone container into " +
+		Description: "Update policies opt a Docker Manager stack (all or selected services) or a Docker Manager-managed standalone container into " +
 			"digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's " +
 			"files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, " +
 			"environment and target.",
@@ -732,7 +732,7 @@ func registerUpdates(a huma.API, deps Deps) {
 		Path:    BasePath + "/environments/{environmentId}/containers/{containerId}/image-status",
 		Summary: "Get a container's image status",
 		Description: "The container's image, applied digest and platform, whether it can follow its tag's digest (#20; only " +
-			"DockYard-managed standalone containers with a saved recreate specification) and its update policy's state.",
+			"Docker Manager-managed standalone containers with a saved recreate specification) and its update policy's state.",
 		Tags: []string{tagContainers}, Errors: read,
 	}, Capability: CapContainerDetailsRead, Scope: ScopeResource}, h.containerImageStatus)
 }

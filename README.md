@@ -1,6 +1,6 @@
-# DockYard
+# Docker Manager
 
-DockYard is a self-hosted Docker management platform: one **manager** with a
+Docker Manager is a self-hosted Docker management platform: one **manager** with a
 web UI and API controls Docker Engines on several machines through
 outbound-only **agents**. Each agent plus the Engine it controls is an
 **Environment**. Compose stacks, containers, images, volumes, networks, logs,
@@ -12,11 +12,11 @@ from one place.
 v1 is in release acceptance (#12; the roadmap in #1 tracks what is still
 open). There are no versioned releases yet: `main` publishes the rolling
 `edge` images
-`code.neureka.dev/dockyard/dockyard-manager:edge` and
-`code.neureka.dev/dockyard/dockyard-agent:edge` (linux/amd64 only; arm64
+`code.neureka.dev/docker-manager/docker-manager:edge` and
+`code.neureka.dev/docker-manager/docker-agent:edge` (linux/amd64 only; arm64
 images follow once a native arm64 build runner exists).
 
-The code lives at <https://code.neureka.dev/dockyard/dockyard> (Forgejo,
+The code lives at <https://code.neureka.dev/docker-manager/docker-manager> (Forgejo,
 private). The GitHub issues of `neurekadev/dockyard` (`#N` in these docs)
 remain the written record of the roadmap and decisions.
 
@@ -28,8 +28,8 @@ Forgejo username and a Forgejo access token with the `read:package` scope.
 
 ```bash
 echo "$FORGEJO_TOKEN" | docker login code.neureka.dev -u <forgejo-user> --password-stdin
-git clone https://code.neureka.dev/dockyard/dockyard.git && cd dockyard/deploy/caddy
-cp .env.example .env        # set DOCKYARD_HOST=docker.example.com (and DOCKYARD_TLS)
+git clone https://code.neureka.dev/docker-manager/docker-manager.git && cd docker-manager/deploy/caddy
+cp .env.example .env        # set DOCKER_MANAGER_HOST=docker.example.com (and DOCKER_MANAGER_TLS)
 docker compose up -d        # manager + co-located agent + Caddy, from the :edge images
 ```
 
@@ -37,7 +37,7 @@ Then open `https://docker.example.com`, create the owner account, and enroll
 the co-located agent from **Environments → Add environment**:
 
 ```bash
-printf '%s\n' '<token>' | docker compose exec -T dockyard-agent dockyard-agent enroll
+printf '%s\n' '<token>' | docker compose exec -T docker-agent docker-agent enroll
 ```
 
 Traefik and nginx variants live next to it (`deploy/traefik`,
@@ -60,16 +60,16 @@ step: the [user and administrator guide](docs/guide/README.md).
 - [Development guide](docs/development.md) · [Code conventions](CLAUDE.md)
 - ADRs: [0001 foundation](docs/adr/0001-foundation.md) · [0002 frontend libraries](docs/adr/0002-frontend-libraries.md) ·
   [0003 auth libraries](docs/adr/0003-auth-libraries.md)
-- Roadmap: issue neurekadev/dockyard#1 · Decision register: issue neurekadev/dockyard#25 · Project board: DockYard v1 Roadmap
+- Roadmap: issue neurekadev/dockyard#1 · Decision register: issue neurekadev/dockyard#25 · Project board: Docker Manager v1 Roadmap
 
 ## Repository layout
 
 ```
-cmd/dockyard-manager   manager entry point (serve, healthcheck, enrollment, owner-recovery, snapshots, openapi, version)
-cmd/dockyard-agent     agent entry point (run, enroll, healthcheck, version)
+cmd/docker-manager   manager entry point (serve, healthcheck, enrollment, owner-recovery, snapshots, openapi, version)
+cmd/docker-agent     agent entry point (run, enroll, healthcheck, version)
 internal/manager/...   manager: app, api, auth, authz, jobs, stacks, backups, ...
 internal/agent/...     agent: engine and compose adapters, files, backups, runtime
-internal/protocol      manager<->agent frames (dockyard.agent/v1)
+internal/protocol      manager<->agent frames (docker-manager.agent/v1)
 internal/domain        shared domain types
 internal/db/migrations versioned Bun migrations
 web/                   SvelteKit PWA (embedded into the manager)

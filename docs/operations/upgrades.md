@@ -1,6 +1,6 @@
-# Upgrading DockYard (#34)
+# Upgrading Docker Manager (#34)
 
-DockYard has no in-app self-update in v1 (#25): an agent recreating its own
+Docker Manager has no in-app self-update in v1 (#25): an agent recreating its own
 container through its own Docker socket is fragile. You upgrade the images
 where they run. The API and UI show which agents are outdated and how to
 upgrade them.
@@ -26,10 +26,10 @@ upgrade them.
 1. Note the image digests you run, so you can go back:
    ```bash
    docker compose images --format json | jq -r '.[] | "\(.Repository):\(.Tag) \(.ID)"'
-   docker image inspect --format '{{index .RepoDigests 0}}' code.neureka.dev/dockyard/dockyard-manager:edge
+   docker image inspect --format '{{index .RepoDigests 0}}' code.neureka.dev/docker-manager/docker-manager:edge
    ```
 2. Optional but recommended: run a manager-state backup (#10) or copy the
-   `dockyard_data` volume. The upgrade takes its own pre-migration snapshot
+   `docker-manager_data` volume. The upgrade takes its own pre-migration snapshot
    anyway (next section).
 
 ## Upgrade the manager
@@ -39,15 +39,15 @@ Compose deployments from `deploy/caddy`, `deploy/traefik` or `deploy/nginx`
 
 ```bash
 cd deploy/caddy                       # your deploy directory
-docker compose pull dockyard-manager
-docker compose up -d dockyard-manager
-docker compose ps                     # dockyard-manager healthy
+docker compose pull docker-manager
+docker compose up -d docker-manager
+docker compose ps                     # docker-manager healthy
 ```
 
 On start the manager:
 
 1. writes a consistent SQLite snapshot (`VACUUM INTO`) of the database to
-   `<data dir>/snapshots/dockyard-<UTC time>-<seq>-pre-<first pending migration>.db`
+   `<data dir>/snapshots/docker-manager-<UTC time>-<seq>-pre-<first pending migration>.db`
    when migrations are pending and the database holds data; the newest 3
    snapshots are kept;
 2. applies the pending migrations, each in its own transaction;
@@ -70,53 +70,69 @@ Every host running an agent (host A's co-located agent, and each remote
 host from `deploy/remote-agent`):
 
 ```bash
-docker compose pull dockyard-agent
-docker compose up -d dockyard-agent
+docker compose pull docker-agent
+docker compose up -d docker-agent
 ```
 
 The agent keeps its identity and credential in its state volume
-(`dockyard_agent`); it reconnects, reports its new version and its
+(`docker-manager_agent`); it reconnects, reports its new version and its
 environment's `compatibility` becomes `current`. Jobs the agent was running
 are reconciled by its job journal (#26).
 
 Plain `docker run` agents: `docker pull` the image, then remove and
 recreate the container with the same volumes, mounts and environment.
 
-## Deployments from before the volume renaming (2026-09-25)
+## Upgrading from DockYard (renamed 2026-09-26)
 
-The examples in `deploy/` declare the volumes `data`, `agent` and `stacks`
-in the Compose project `dockyard` (remote agents included), so they are
-`dockyard_data`, `dockyard_agent` and `dockyard_stacks`, and they no longer
-give the proxy a fixed address (`DOCKYARD_SUBNET` and `DOCKYARD_PROXY_IP`
-are gone; `DOCKYARD_TRUSTED_PROXIES` defaults to Docker's default address
-pools). Deployments created from the earlier files have their state in
-volumes with other names and would start empty after switching to the new
-files. Copy the state once, per host:
+The project was renamed from DockYard to Docker Manager (the manager) and
+Docker Agent (the agent). The rename changes names an installation relies
+on; there is no in-place upgrade from `dockyard-*` images:
 
-| Old volume | New volume |
-| --- | --- |
-| `dockyard_dockyard_data` (manager host) | `dockyard_data` |
-| `dockyard_dockyard_agent_state` (manager host) | `dockyard_agent` |
-| `dockyard-agent_dockyard_agent_state` (remote host) | `dockyard_agent` |
-| `dockyard-agent_dockyard_agent_ca` (remote host, private PKI only) | `dockyard_agent_ca` |
-| `dockyard_stacks` | unchanged |
+| What | Before | Now |
+| --- | --- | --- |
+| Images | `code.neureka.dev/dockyard/dockyard-{manager,agent}:edge` | `code.neureka.dev/docker-manager/docker-{manager,agent}:edge` |
+| Compose project and volumes | `dockyard`: `dockyard_data`, `dockyard_agent`, `dockyard_stacks`, `dockyard_agent_ca` | `docker-manager`: `docker-manager_data`, `docker-manager_agent`, `docker-manager_stacks`, `docker-manager_agent_ca` |
+| Manager database | `/var/lib/dockyard/dockyard.db` | `/var/lib/docker-manager/docker-manager.db` |
+| Agent state | `/var/lib/dockyard-agent` | `/var/lib/docker-agent` |
+| Environment variables | `DOCKYARD_*` | `DOCKER_MANAGER_*` (manager) and `DOCKER_AGENT_*` (agent; `DOCKYARD_AGENT_STATE_DIR` is `DOCKER_AGENT_STATE_DIR`) |
+| Labels | `dev.neureka.dockyard.*`, `dockyard.update.exclude` | `dev.neureka.docker-manager.*`, `docker-manager.update.exclude` |
+| Backup repositories | `dockyard-manager`, `dockyard-env-<id>` | `docker-manager`, `docker-manager-env-<id>` |
+
+What carries over: API tokens, agent credentials and the Recovery Key
+(their formats did not change), the audit trail and every record in the
+database. What does not: sessions (everyone signs in again), agents still
+running a `dockyard-agent` image (upgrade every agent together with the
+manager), backup sets taken before the rename (the new manager neither
+finds nor reads them: take a new backup right after upgrading and keep the
+old repositories until you no longer need them), and standalone containers
+created before the rename (their DockYard labels are no longer recognized,
+so Docker Manager no longer treats them as containers it created; recreate
+them from the UI to manage them again). Rename `dev.neureka.dockyard.*` labels in your own
+Compose files (`icon`, `description`, `depends_on`) and
+`dockyard.update.exclude` on containers you keep out of updates.
+
+Per host, with the new example files:
 
 ```bash
 cd deploy/caddy                 # your deploy directory, still with the old files
 docker compose down             # removes containers and network, keeps volumes
-# Replace compose.yaml (and the proxy files) with the new example; remove
-# DOCKYARD_SUBNET and DOCKYARD_PROXY_IP from .env.
+# Replace compose.yaml (and the proxy files) with the new example and rename
+# the variables in .env (table above).
 docker compose up --no-start    # creates the new, empty volumes
-docker run --rm -v dockyard_dockyard_data:/from:ro -v dockyard_data:/to alpine cp -a /from/. /to/
-docker run --rm -v dockyard_dockyard_agent_state:/from:ro -v dockyard_agent:/to alpine cp -a /from/. /to/
+docker run --rm -v dockyard_data:/from:ro -v docker-manager_data:/to alpine   sh -c 'cp -a /from/. /to/ && for f in /to/dockyard.db*; do mv "$f" "/to/docker-manager.db${f#/to/dockyard.db}"; done'
+docker run --rm -v dockyard_agent:/from:ro -v docker-manager_agent:/to alpine cp -a /from/. /to/
 docker compose up -d
 ```
 
-On a remote host run the same steps in `deploy/remote-agent` with the
-`dockyard-agent_…` volumes from the table. Once the environment is back
-online, remove the old volumes with `docker volume rm`. An agent started
-without its old state has a new identity and must be enrolled again (with
-the intent to replace the old agent).
+Deployed stacks record their project directory, which lies in the stacks
+volume's path. Keep the old stacks volume so they stay managed stacks: in
+`compose.yaml` declare it as
+`stacks: {name: dockyard_stacks, external: true}`, mount it at
+`/var/lib/docker/volumes/dockyard_stacks/_data` and set
+`DOCKER_AGENT_STACKS_VOLUME=dockyard_stacks`. On a remote host run the same
+steps in `deploy/remote-agent` (volumes `dockyard_agent` and, with a
+private PKI, `dockyard_agent_ca`). Once every environment is back online,
+remove the old volumes you no longer use with `docker volume rm`.
 
 ## Roll back a failed upgrade
 
@@ -125,26 +141,26 @@ previous image. Snapshots are only useful with the image version that wrote
 them; the newer image would migrate again.
 
 ```bash
-docker compose stop dockyard-manager
+docker compose stop docker-manager
 # List the snapshots in the data volume (the manager must be stopped):
-docker compose run --rm --no-deps dockyard-manager snapshots list
+docker compose run --rm --no-deps docker-manager snapshots list
 # Restore the one written by the failed upgrade ("pre-<migration>"):
-docker compose run --rm --no-deps dockyard-manager snapshots restore dockyard-20261001T020000Z-00-pre-20261001000000_example.db
+docker compose run --rm --no-deps docker-manager snapshots restore docker-manager-20261001T020000Z-00-pre-20261001000000_example.db
 ```
 
 `snapshots restore` verifies the snapshot (SQLite integrity check, readable
-migration table) on a copy, moves the current `dockyard.db` (and its
+migration table) on a copy, moves the current `docker-manager.db` (and its
 `-wal`/`-shm`) to `<data dir>/replaced-<UTC time>/` and puts the snapshot in
 place. Then pin the manager image to the digest you noted and start it:
 
 ```yaml
 # compose.yaml
-  dockyard-manager:
-    image: code.neureka.dev/dockyard/dockyard-manager@sha256:<previous digest>
+  docker-manager:
+    image: code.neureka.dev/docker-manager/docker-manager@sha256:<previous digest>
 ```
 
 ```bash
-docker compose up -d dockyard-manager
+docker compose up -d docker-manager
 ```
 
 Everything done after the snapshot (the few seconds of the failed start)
@@ -158,7 +174,7 @@ agents keep running whatever they were doing.
 
 ## Verifying the version window (manual procedure)
 
-DockYard publishes only rolling `edge` images, so CI cannot pull a real
+Docker Manager publishes only rolling `edge` images, so CI cannot pull a real
 previous release. The window is covered by unit and transport tests
 (`internal/protocol` `TestCheckAgentVersion`, `TestAgentCompatibility`;
 `internal/manager/agents` `TestAgentVersionWindow`,

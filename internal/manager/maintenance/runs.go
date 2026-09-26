@@ -8,18 +8,18 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // protections collects what the manager knows must survive a prune of an
-// environment: DockYard stacks (their Compose projects and images), the
+// environment: Docker Manager stacks (their Compose projects and images), the
 // images, volumes and networks of saved container specifications, and the
 // objects backups rely on, and what AddReferences sources keep (the stopped
 // sources of migrated stacks, #35).
@@ -42,8 +42,8 @@ func (s *Service) protections(ctx context.Context, env string) (protocol.PrunePr
 			}
 			for _, st := range page {
 				name := st.Name
-				add(&p.Projects, "project", st.Name, fmt.Sprintf("part of DockYard stack %q", name))
-				reason := fmt.Sprintf("used by DockYard stack %q", name)
+				add(&p.Projects, "project", st.Name, fmt.Sprintf("part of Docker Manager stack %q", name))
+				reason := fmt.Sprintf("used by Docker Manager stack %q", name)
 				for _, svc := range st.Services {
 					add(&p.Images, "image", svc.Image, reason)
 				}

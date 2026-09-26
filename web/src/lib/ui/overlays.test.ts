@@ -66,7 +66,7 @@ describe('ConfirmDialog', () => {
 			if (fail) {
 				throw new ApiRequestError('x', 409, {
 					code: 'stack_managed',
-					message: 'the container belongs to a DockYard-managed stack',
+					message: 'the container belongs to a Docker Manager-managed stack',
 					requestId: 'r1',
 					retryable: false,
 					details: []
@@ -86,7 +86,7 @@ describe('ConfirmDialog', () => {
 		expect(dialog).toHaveTextContent('Restarts 5 containers of Silo.');
 		await user.click(screen.getByRole('button', { name: 'Restart' }));
 		expect(await screen.findByRole('alert')).toHaveTextContent(
-			'The container belongs to a DockYard-managed stack.'
+			'The container belongs to a Docker Manager-managed stack.'
 		);
 		fail = false;
 		await user.click(screen.getByRole('button', { name: 'Restart' }));

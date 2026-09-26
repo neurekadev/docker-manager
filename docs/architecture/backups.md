@@ -1,9 +1,9 @@
 # Backups (#10, #24)
 
-DockYard backs up the manager's state and the stacks and volumes of every
+Docker Manager backs up the manager's state and the stacks and volumes of every
 environment with **restic**: a pinned, checksum-verified restic 0.19.1 in
 both images (`deploy/docker/*.Dockerfile`), run by `internal/restic` — the
-only production process execution in DockYard.
+only production process execution in Docker Manager.
 
 | Package | Role |
 | --- | --- |
@@ -20,8 +20,8 @@ only production process execution in DockYard.
   executor (the manager, or one environment's agent) or an S3
   bucket/prefix. It belongs to the instance, never to a user.
 - Below it every **scope** has its own restic repository (a
-  **location**): `dockyard-manager` for the manager state,
-  `dockyard-env-<environmentId>` for an environment's data. A local
+  **location**): `docker-manager` for the manager state,
+  `docker-manager-env-<environmentId>` for an environment's data. A local
   repository serves only its own executor's scope; an S3 repository serves
   every scope. Ownership, locking and retention stay per location.
 - A **policy** covers one environment or all environments. Overlap is
@@ -34,8 +34,8 @@ only production process execution in DockYard.
   destination environment's policy. Existing snapshots retain their source
   location. Docker maintenance (#14) protects covered standalone volumes
   (`Maintenance().SetBackupReferences`); stack volumes are protected as part
-  of DockYard stacks, and a local repository mounted into DockYard's agent
-  is DockYard's own (#32).
+  of Docker Manager stacks, and a local repository mounted into the Docker Agent
+  is Docker Manager's own (#32).
 - A **run** of a policy is one **backup set**: a `backup.run` job per
   environment and, with the manager state, a `manager.backup` job queued
   last. Each member (stack, volume, manager state) is its own snapshot with
@@ -51,9 +51,9 @@ only production process execution in DockYard.
 ## The Recovery Key (#25 Q7)
 
 **Decision: one instance-wide Recovery Key**, the restic password of every
-repository DockYard creates (manager and every environment, local and S3).
+repository Docker Manager creates (manager and every environment, local and S3).
 The owner stores one key; any single repository opens with it; the UI's
-statement "this key opens all DockYard backups" is true. A per-repository
+statement "this key opens all Docker Manager backups" is true. A per-repository
 key bundle was rejected: more keys to lose, and a fresh import from one
 host repository would need to know which key belongs to which location.
 
@@ -112,14 +112,14 @@ workspace, every relative bind source inside it) and its **named volumes**
 toggle (default off). **Bind sources outside the project directory**
 (`../data`, `/srv/x`) are shown in the preview as `requires_opt_in`; they are
 included only when the policy lists them in `externalPaths` **and** they lie
-below the agent's `DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST`; system paths and
+below the agent's `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST`; system paths and
 Docker's data root never. Path excludes are relative to the project
 directory (or the volume root). Sources resolve through symlinks and must
 stay in their root (a symlinked bind leading out is `blocked`); restic
-stores symlinks inside the tree as links. DockYard's own volumes are never
+stores symlinks inside the tree as links. Docker Manager's own volumes are never
 selected (#32). A local repository inside (or containing) a source is
 refused (`repository_inside_source`), as is a local location outside the
-agent's `DOCKYARD_BACKUP_LOCAL_ROOTS`.
+agent's `DOCKER_AGENT_BACKUP_LOCAL_ROOTS`.
 
 The **scope preview** (`POST /backup-policies/{id}/scope-previews`) asks each
 agent for the effective sources with states and reasons, excludes, the
@@ -140,7 +140,7 @@ exactly the services that were running, dependencies first
 (`lifecycle.Resume`, which refuses rather than start a service that was
 stopped). The compensation runs after a failure, a cancellation or a crash
 (`jobexec.Recover`). A failed stop aborts the job before any snapshot.
-DockYard's own project is backed up live (#32): the preview gives none of
+Docker Manager's own project is backed up live (#32): the preview gives none of
 its containers a stop order and says so, the run never stops it and its
 snapshot stays `live` even when other stacks of the same run are stopped.
 Snapshots taken with the stack stopped are marked `consistency: shutdown`,
@@ -153,19 +153,19 @@ complete); a completed one-shot that was not running satisfies
 ## Manager state
 
 `manager.backup` takes a consistent SQLite snapshot (`VACUUM INTO`) into
-`<data>/backup-staging/<job>/dockyard-state/`, adds `secret-key.bundle`
+`<data>/backup-staging/<job>/docker-manager-state/`, adds `secret-key.bundle`
 (the secret-protection key sealed with XChaCha20-Poly1305 under
 HKDF-SHA256(Recovery Key)) and `state.json` (app version, applied
 migrations, instance, secret key ID), backs the directory up
-(`dockyard-manager-state` tag), then writes the **set manifest**. The
+(`docker-manager-state` tag), then writes the **set manifest**. The
 metrics database is included only when the policy asks for it. The staging
 directory is removed after the run and at every start.
 
 ## Portable manifest (#24)
 
 One small JSON document per set and location, stored **inside the
-repositories** as its own snapshot (`dockyard-manifest` tag, file
-`dockyard-manifest.json`), so restic encrypts it with the Recovery Key and a
+repositories** as its own snapshot (`docker-manager-manifest` tag, file
+`docker-manager-manifest.json`), so restic encrypts it with the Recovery Key and a
 fresh manager finds it without the old database:
 
 - the **set manifest** in the manager location: repositories (destination
@@ -178,7 +178,7 @@ fresh manager finds it without the old database:
   environment wrote, so one host repository alone is enough to find its
   snapshots.
 
-Encoding: a header `DOCKYARD-MANIFEST v1 length=<n> sha256=<hex>` plus the
+Encoding: a header `DOCKER-MANAGER-MANIFEST v1 length=<n> sha256=<hex>` plus the
 JSON; decoding detects truncation (`ErrManifestTruncated`), corruption
 (`ErrManifestCorrupt`) and newer versions (`ErrManifestUnsupported`).
 `backup.Merge` overlays host manifests on a set manifest.
@@ -186,7 +186,7 @@ JSON; decoding detects truncation (`ErrManifestTruncated`), corruption
 ## Retention and verification
 
 Retention rules (last, hourly, daily, weekly, monthly, yearly, within days)
-follow restic's keep policies but are **computed by DockYard**
+follow restic's keep policies but are **computed by Docker Manager**
 (`backup.Plan`) so the preview and the execution are the same decision: the
 executor forgets exactly the IDs the plan removes (`restic forget <ids>`),
 then prunes. A **minimum recovery floor** (`minKeep`, at least 1 when rules
@@ -221,7 +221,7 @@ The snapshot records where the project directory and each volume were
 places. The preview reports targets, files and bytes, how many files are
 overwritten, removed and added, the owners the files carry, free space, the
 containers that stop, and what blocks the restore (running containers
-without shutdown, DockYard's own containers, insufficient space, paths that
+without shutdown, Docker Manager's own containers, insufficient space, paths that
 cannot be restored). The job stops every container using the data (Compose
 projects in reverse dependency order, standalone containers directly) after
 journaling the restart compensation, restores into a staging directory next
@@ -229,7 +229,7 @@ to each target (same filesystem), then swaps: the target's entries move to
 a rollback directory and the staged entries into place; any failure moves
 the original entries back. Only the previously running containers start
 again, dependencies first. A crash mid-swap leaves
-`.dockyard-rollback-<job>` next to the target (the job's recovery guidance
+`.docker-manager-rollback-<job>` next to the target (the job's recovery guidance
 says so). Authorization: `backup.restore` on the backup **and** on every
 target (stack, volumes, repository). Manager-state snapshots answer
 `manager_restore_required`: the manager state is restored by importing it
@@ -244,7 +244,7 @@ Recovery Key; not the old volume, database or a running old manager.
 
 1. **Connection test** (`POST /setup/backup-imports/connection-tests`):
    S3 read/write/delete and Object Lock, whether the key opens the manager
-   repository (`dockyard-manager`), and every host repository the set
+   repository (`docker-manager`), and every host repository the set
    manifests name or the destination holds (S3 listing or the local
    directory), each `found`, opened with the `current` or `previous` key,
    or why not (`note`: local to a host, another repository).
@@ -271,7 +271,7 @@ Recovery Key; not the old volume, database or a running old manager.
    database opens; every step repeatable after a crash): the current
    database (with `-wal`/`-shm`) and key file move to
    `<data>/pre-restore-<time>/`, the restored database and the recovered
-   secret key (`DOCKYARD_SECRET_KEY_FILE`, which must be writable) take
+   secret key (`DOCKER_MANAGER_SECRET_KEY_FILE`, which must be writable) take
    their places, migrations run as usual.
 5. **Complete** (before anything is served; the marker is removed only
    when every step succeeded): every stored session is deleted and every
@@ -302,9 +302,9 @@ Errors, each with recovery guidance in the message:
 | Code | When | What to do |
 | --- | --- | --- |
 | `backup_import_key_rejected` | the key opens neither the manager repository nor a host one | check it; after a rotation enter the previous key too; a **lost key** cannot be recovered by anyone (restic encryption): set up a new instance |
-| `backup_import_not_found` | no repository at the destination, or no such set | check endpoint/bucket/prefix or the mounted path (below `DOCKYARD_BACKUP_LOCAL_ROOTS`) |
+| `backup_import_not_found` | no repository at the destination, or no such set | check endpoint/bucket/prefix or the mounted path (below `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS`) |
 | `backup_import_manifest_corrupt` | the set's manifest is truncated or fails its checksum | choose another set; `restic check` the repository |
-| `backup_import_schema_incompatible` | a newer DockYard wrote the set | install at least that version |
+| `backup_import_schema_incompatible` | a newer Docker Manager wrote the set | install at least that version |
 | `backup_import_key_rotated` | the set's secret key is sealed under another key (rotated after the set: **partially rotated keys**) | enter the newest key and the previous one |
 | `backup_import_state_missing` | no readable manager state (host-only set, damaged bundle or database) | choose another set, or host-only recovery |
 | `backup_import_unreachable` | storage refused access, unreachable, locked, damaged | the message names the class |
@@ -318,14 +318,14 @@ The connection test and preview report partially rotated keys per location
 show as `unverified` and become usable once their host re-attaches with
 the repository directory mounted at the same path (the path is part of the
 restored repository; mount it there, or recreate the agent's
-`DOCKYARD_BACKUP_LOCAL_ROOTS` accordingly).
+`DOCKER_AGENT_BACKUP_LOCAL_ROOTS` accordingly).
 
 **Host-only recovery** (the manager repository is lost): the preview lists
 sets from host manifests (`hostOnly`), which cannot be imported. Set up a
 new instance, then restore a host's data with restic directly: the
 repository is a plain restic repository whose password is the Recovery
-Key; its host manifests (`restic snapshots --tag dockyard-manifest`, then
-`restic dump <id> /dockyard-manifest.json`) list every snapshot with its
+Key; its host manifests (`restic snapshots --tag docker-manager-manifest`, then
+`restic dump <id> /docker-manager-manifest.json`) list every snapshot with its
 paths, stack and volume.
 
 The setup routes are public but refused once an owner exists
@@ -345,7 +345,7 @@ the setup rate limit; the Recovery Key and credentials are write-only.
 | `manager.verify` | manager | repository S | check |
 | `backup.import` | manager | repository S | scan, import_index (then a controlled restart) |
 
-Repository locks name the DockYard repository (destination): the manager
+Repository locks name the Docker Manager repository (destination): the manager
 backup waits for the environment backups of its set to the same
 repository, so its manifest usually carries their results.
 
@@ -376,7 +376,7 @@ repository, so its manifest usually carries their results.
   completeness and merge, retention rules, floor and time zones.
 - `internal/agent/backups`: the scope corpus (relative binds, opt-ins,
   allowlist, anonymous volumes, exclusions, symlink escapes, nested
-  repositories, DockYard's volumes), shutdown order, restart after failure,
+  repositories, Docker Manager's volumes), shutdown order, restart after failure,
   cancellation and agent crash, key rotation per location, damage
   detection, retention scope.
 - `internal/manager/app/backups_test.go`: the API end to end with a real

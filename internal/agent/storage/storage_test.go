@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginetest"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 const selfID = "4f2c9a1b8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a"
@@ -37,7 +37,7 @@ func newEnv(t *testing.T, opts enginetest.Options) *env {
 	t.Helper()
 	tmp := t.TempDir()
 	e := &env{t: t, root: slash(filepath.Join(tmp, "docker")), proc: filepath.Join(tmp, "proc"), dockerenv: filepath.Join(tmp, ".dockerenv"), driver: "local"}
-	e.stacks = e.root + "/volumes/dockyard_stacks/_data"
+	e.stacks = e.root + "/volumes/docker-manager_stacks/_data"
 	if err := os.MkdirAll(filepath.FromSlash(e.stacks), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -54,8 +54,8 @@ func newEnv(t *testing.T, opts enginetest.Options) *env {
 		opts.DockerRootDir = e.root
 	}
 	e.fake = enginetest.Start(t, opts)
-	e.fake.Handle(http.MethodGet, "/volumes/dockyard_stacks", func(w http.ResponseWriter, _ *http.Request) {
-		enginetest.JSON(w, http.StatusOK, map[string]any{"Name": "dockyard_stacks", "Driver": e.driver, "Mountpoint": e.stacks, "Scope": "local", "Options": e.volOpts})
+	e.fake.Handle(http.MethodGet, "/volumes/docker-manager_stacks", func(w http.ResponseWriter, _ *http.Request) {
+		enginetest.JSON(w, http.StatusOK, map[string]any{"Name": "docker-manager_stacks", "Driver": e.driver, "Mountpoint": e.stacks, "Scope": "local", "Options": e.volOpts})
 	})
 	e.fake.Handle(http.MethodGet, "/containers/[0-9a-f]+/json", func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/containers/"), "/json")
@@ -63,7 +63,7 @@ func newEnv(t *testing.T, opts enginetest.Options) *env {
 			enginetest.Error(w, http.StatusNotFound, "No such container: "+id)
 			return
 		}
-		enginetest.JSON(w, http.StatusOK, map[string]any{"Id": selfID, "Name": "/dockyard-agent", "Mounts": e.mounts})
+		enginetest.JSON(w, http.StatusOK, map[string]any{"Id": selfID, "Name": "/docker-agent", "Mounts": e.mounts})
 	})
 	e.mountBind(e.root+"/volumes", e.root+"/volumes", true)
 	return e
@@ -89,7 +89,7 @@ func (e *env) verify(roots ...string) Result {
 	defer eng.Close()
 	host := e.hostname
 	return Verify(testutil.Context(e.t), Options{
-		Engine: eng, StacksVolume: "dockyard_stacks", StackRoots: roots,
+		Engine: eng, StacksVolume: "docker-manager_stacks", StackRoots: roots,
 		ProcDir: e.proc, DockerEnvFile: e.dockerenv,
 		Hostname: func() (string, error) { return host, nil },
 	})
@@ -126,7 +126,7 @@ func TestIdenticalPathLayout(t *testing.T) {
 	}
 	// The deploy examples' extra volume mount of the stacks volume at its
 	// own mountpoint is equally fine.
-	e.mounts = append(e.mounts, map[string]any{"Type": "volume", "Name": "dockyard_stacks", "Source": e.stacks, "Destination": e.stacks, "RW": true})
+	e.mounts = append(e.mounts, map[string]any{"Type": "volume", "Name": "docker-manager_stacks", "Source": e.stacks, "Destination": e.stacks, "RW": true})
 	if r := e.verify(); !r.StacksOK() {
 		t.Errorf("with the stacks volume mount: %s", codes(r))
 	}
@@ -137,7 +137,7 @@ func TestCustomDataRootNeedsItsOwnMount(t *testing.T) {
 	// default /var/lib/docker/volumes mount.
 	custom := slash(filepath.Join(t.TempDir(), "srv-docker"))
 	e2 := newEnv(t, enginetest.Options{DockerRootDir: custom})
-	e2.root, e2.stacks = custom, custom+"/volumes/dockyard_stacks/_data"
+	e2.root, e2.stacks = custom, custom+"/volumes/docker-manager_stacks/_data"
 	if err := os.MkdirAll(filepath.FromSlash(e2.stacks), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestMountedFromAnotherPath(t *testing.T) {
 	e.mounts = nil
 	e.mountBind("/srv/elsewhere", e.root+"/volumes", true)
 	r := e.verify()
-	if codes(r) != CodePathMismatch+","+CodePathMismatch || !strings.Contains(r.Diagnostics[0].Message, "/srv/elsewhere/dockyard_stacks/_data") {
+	if codes(r) != CodePathMismatch+","+CodePathMismatch || !strings.Contains(r.Diagnostics[0].Message, "/srv/elsewhere/docker-manager_stacks/_data") {
 		t.Fatalf("mismatch: %s %+v", codes(r), r.Diagnostics)
 	}
 }
@@ -240,11 +240,11 @@ func TestStacksVolumeProblems(t *testing.T) {
 		t.Errorf("plugin driver: %s", codes(r))
 	}
 	e2 := newEnv(t, enginetest.Options{})
-	e2.fake.Handle(http.MethodGet, "/volumes/dockyard_stacks", func(w http.ResponseWriter, _ *http.Request) {
-		enginetest.Error(w, http.StatusNotFound, "get dockyard_stacks: no such volume")
+	e2.fake.Handle(http.MethodGet, "/volumes/docker-manager_stacks", func(w http.ResponseWriter, _ *http.Request) {
+		enginetest.Error(w, http.StatusNotFound, "get docker-manager_stacks: no such volume")
 	})
 	r := e2.verify()
-	if codes(r) != CodeStacksVolumeMissing || !strings.Contains(r.Diagnostics[0].Message, "DOCKYARD_STACKS_VOLUME") {
+	if codes(r) != CodeStacksVolumeMissing || !strings.Contains(r.Diagnostics[0].Message, "DOCKER_AGENT_STACKS_VOLUME") {
 		t.Errorf("missing volume: %s", codes(r))
 	}
 }
@@ -264,7 +264,7 @@ func TestFindsSelf(t *testing.T) {
 		t.Errorf("hostname fallback: %+v", r)
 	}
 	// A custom hostname in a container: the agent cannot find itself.
-	e.hostname = "dockyard-agent"
+	e.hostname = "docker-agent"
 	if r := e.verify(); codes(r) != CodeSelfUnknown || r.StacksOK() {
 		t.Errorf("unknown self: %s", codes(r))
 	}

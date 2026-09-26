@@ -50,7 +50,7 @@ type EnrollRequest struct {
 	Engine    EngineInfo `json:"engine"`
 	// Hostname is the Engine's host name (docker info Name).
 	Hostname string `json:"hostname,omitempty"`
-	// EnvironmentName is DOCKYARD_ENVIRONMENT_NAME, the proposed display
+	// EnvironmentName is DOCKER_AGENT_ENVIRONMENT_NAME, the proposed display
 	// name (a name preset on the enrollment takes precedence).
 	EnvironmentName string `json:"environmentName,omitempty"`
 }

@@ -121,7 +121,7 @@ var (
 	ErrMigrationNotFound = errors.New("migration not found")
 )
 
-// StackPlacement is where a stack record points and what DockYard last did
+// StackPlacement is where a stack record points and what Docker Manager last did
 // there: a migration moves it to the destination at cut-over and restores
 // it when the migration stops before completing (#35).
 type StackPlacement struct {

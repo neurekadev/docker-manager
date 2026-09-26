@@ -12,12 +12,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/agent/compose"
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Compose CLI labels read by discovery.
@@ -246,7 +246,7 @@ func writeFile(dir string, f protocol.SourceFile) error {
 	if base := path.Base(f.Path); strings.HasPrefix(base, ".env") || strings.HasSuffix(base, ".env") {
 		mode = 0o600
 	}
-	tmp, err := os.CreateTemp(parent, ".dockyard-*.tmp")
+	tmp, err := os.CreateTemp(parent, ".docker-manager-*.tmp")
 	if err != nil {
 		return &session.HandlerError{Code: protocol.CodeInternal, Message: "could not write " + f.Path}
 	}

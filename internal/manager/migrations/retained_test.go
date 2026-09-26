@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // TestRetainedSources (#35): the stopped source of a stack migration is

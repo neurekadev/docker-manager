@@ -43,7 +43,7 @@ import {
 import { liveStatus, type LiveStatus } from './status.svelte';
 
 export const LIVE_URL = '/api/v1/live/stream';
-export const LIVE_VERSION = 'dockyard.live/v1';
+export const LIVE_VERSION = 'docker-manager.live/v1';
 
 /** Minimum time between two refreshes of one key, per refresh class. */
 export const REFRESH_MS = { detail: 0, list: 1_000, metrics: 10_000 } as const;

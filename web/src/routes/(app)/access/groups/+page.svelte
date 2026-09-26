@@ -106,7 +106,7 @@
 		<DeniedState
 			level={1}
 			title="Only the owner manages groups."
-			description="Groups and permissions are administered by the owner of this DockYard."
+			description="Groups and permissions are administered by the owner of this Docker Manager."
 		/>
 	{:else}
 		<AccessHeader>

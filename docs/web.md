@@ -1,7 +1,7 @@
 # Web UI
 
-The DockYard UI is a SvelteKit single-page app (Svelte 5, TypeScript) built
-with `@sveltejs/adapter-static` and embedded into `dockyard-manager`
+The Docker Manager UI is a SvelteKit single-page app (Svelte 5, TypeScript) built
+with `@sveltejs/adapter-static` and embedded into `docker-manager`
 (`web/embed.go`). It is an installable PWA. Library choices, licenses and
 bundle sizes: [ADR 0002](adr/0002-frontend-libraries.md). Visual design,
 tokens and the component library: [design/README.md](design/README.md) (#22;
@@ -79,7 +79,7 @@ against a built manager (below).
    ```
 
    `unwrap()` returns the data or throws an `ApiRequestError`:
-   `status` (null for network failures), `apiError` (the DockYard error body;
+   `status` (null for network failures), `apiError` (the Docker Manager error body;
    switch on `apiError.code`, never on `message`) and `network`.
 
 4. For reads, add a query-key entry and a `queryOptions()` factory in
@@ -159,20 +159,20 @@ dismissing it throws `StepUpCancelledError`.
   `standalone`. Colours are the design tokens (#22): `THEME_COLOR` is
   `--surface-shell`, `BACKGROUND_COLOR` `--surface-canvas`; keep
   `app.html`'s `theme-color` equal to `THEME_COLOR` (unit-tested).
-- **Icons** (#22): the app icon is the shell's cube mark
-  (`src/lib/shell/Logo.svelte`) on the `--surface-shell` tile with a faint
-  accent glow. Sources: `web/static/icons/icon.svg` (rounded tile,
-  transparent corners: the `any` icons and `favicon.ico`) and
-  `web/scripts/icon-maskable.svg` (full bleed, the cube inside the 80 %
-  safe circle: the maskable and Apple touch icons). Keep the cube's colours
-  equal to the logo's. Regenerate the PNGs after changing either:
+- **Icons** (#22): the app icon is the Docker Manager logo (the whale
+  carrying containers); the shell's lockup (`src/lib/shell/Logo.svelte`)
+  shows the 64 px icon. Sources: `web/scripts/logo.png` (1024 px, the logo
+  on a transparent square: the `any` icons and `favicon.ico`) and
+  `web/scripts/icon-maskable.png` (full bleed on the `--surface-shell`
+  tile, the logo inside the 80 % safe circle: the maskable and Apple touch
+  icons). Regenerate the PNGs after changing either:
 
   ```bash
   cd web
   npx --yes @vite-pwa/assets-generator@2.0.0 --config scripts/pwa-assets.config.mjs
   npx --yes @vite-pwa/assets-generator@2.0.0 --config scripts/pwa-assets-maskable.config.mjs
-  mv static/icons/favicon.ico static/favicon.ico
-  mv scripts/maskable-icon-512x512.png scripts/apple-touch-icon-180x180.png static/icons/
+  mv scripts/favicon.ico static/favicon.ico
+  mv scripts/pwa-*.png scripts/maskable-icon-512x512.png scripts/apple-touch-icon-180x180.png static/icons/
   ```
 
 - **Service worker** (`src/service-worker.ts`, rules in
@@ -214,9 +214,9 @@ Service workers need a secure context; `http://localhost` counts:
 
 ```bash
 npm --prefix web run build
-go build -o /tmp/dockyard-manager ./cmd/dockyard-manager
-DOCKYARD_PUBLIC_URL=http://localhost:8080 DOCKYARD_LISTEN_ADDR=127.0.0.1:8080 \
-  DOCKYARD_DATA_DIR=/tmp/dockyard-data /tmp/dockyard-manager
+go build -o /tmp/docker-manager ./cmd/docker-manager
+DOCKER_MANAGER_PUBLIC_URL=http://localhost:8080 DOCKER_MANAGER_LISTEN_ADDR=127.0.0.1:8080 \
+  DOCKER_MANAGER_DATA_DIR=/tmp/docker-manager-data /tmp/docker-manager
 ```
 
 Then check the manifest, service worker, deep-link reloads and the offline
@@ -322,7 +322,7 @@ const editor = await mountYamlEditor(element, text, { label: 'compose.yaml', onC
 ```
 
 Prefer the `$lib/ui` wrappers `CodeEditor`, `Sparkline` and `TerminalView`;
-every mount applies DockYard's theme (`codemirror-theme.ts`,
+every mount applies Docker Manager's theme (`codemirror-theme.ts`,
 `echarts-theme.ts`, `TERMINAL_THEME`).
 
 `verify-build.mjs` fails the web gate if one of them is statically imported

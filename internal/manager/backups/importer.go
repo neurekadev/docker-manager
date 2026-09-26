@@ -11,14 +11,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/backups/s3probe"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups/s3probe"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // Fresh-manager import (#24). A new, empty manager (no owner yet) is given
@@ -47,7 +47,7 @@ const (
 	// finished yet.
 	AppliedRestoreFile = "restore-applied.json"
 	restoreMarkerFile  = "restore.json"
-	restoredDBFile     = "dockyard.db"
+	restoredDBFile     = "docker-manager.db"
 	restoredKeyFile    = "secret.key"
 	// importMaxSets bounds the sets a preview lists (newest first).
 	importMaxSets = 20
@@ -77,13 +77,13 @@ const (
 const (
 	guideKeyRejected = "Check the Recovery Key for typos (DYRK-…, 13 groups). If it was rotated, enter the newest key and the " +
 		"previous one (previousRecoveryKey): repositories not used since the rotation still use the previous key. " +
-		"If the Recovery Key is lost, nobody can decrypt these backups, DockYard included (restic encrypts them with it): " +
+		"If the Recovery Key is lost, nobody can decrypt these backups, Docker Manager included (restic encrypts them with it): " +
 		"complete setup as a new instance and create new backups."
 	guideNotFound = "Check the endpoint, bucket and prefix (S3) or the path (local). A local repository must be mounted on this " +
-		"manager below DOCKYARD_BACKUP_LOCAL_ROOTS; its new path may differ from the old one."
+		"manager below DOCKER_MANAGER_BACKUP_LOCAL_ROOTS; its new path may differ from the old one."
 	guideManifest = "The manifest of this set is damaged. Choose another (older) set, or run restic check on the repository with " +
 		"the Recovery Key to find damaged data."
-	guideSchema = "This backup was written by a newer DockYard. Install a DockYard version at least as new as the one that " +
+	guideSchema = "This backup was written by a newer Docker Manager. Install a Docker Manager version at least as new as the one that " +
 		"wrote it, then import again."
 	guideRotated = "The manager state of this set was saved while another Recovery Key was current (a key rotation happened " +
 		"after it). Enter that key too: the newest key as recoveryKey and the other as previousRecoveryKey."
@@ -229,7 +229,7 @@ func importFailure(err error, repository string) error {
 	case "":
 		return err
 	case restic.CodeRepositoryNotFound:
-		return importRefusal(ImportNotFound, "no DockYard repository exists at "+repository, guideNotFound)
+		return importRefusal(ImportNotFound, "no Docker Manager repository exists at "+repository, guideNotFound)
 	case restic.CodeKeyRejected:
 		return importRefusal(ImportKeyRejected, "the Recovery Key does not open "+repository, guideKeyRejected)
 	}
@@ -306,7 +306,7 @@ func (l *limitedBuffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// importRepositoryID is the DockYard repository the imported manager
+// importRepositoryID is the Docker Manager repository the imported manager
 // state lives in (the manager member of the newest set manifest).
 func importRepositoryID(sets []backup.Manifest) string {
 	for _, m := range sets {
@@ -455,7 +455,7 @@ func (s *Service) TestImport(ctx context.Context, src ImportSource) (ImportConne
 	case out.Manager.ErrorClass == restic.CodeKeyRejected:
 		problem("The Recovery Key does not open the manager repository. " + guideKeyRejected)
 	case out.Manager.ErrorClass == restic.CodeRepositoryNotFound:
-		problem("No manager repository (dockyard-manager) at this destination. " + guideNotFound)
+		problem("No manager repository (docker-manager) at this destination. " + guideNotFound)
 	default:
 		problem("The manager repository could not be read (" + out.Manager.ErrorClass + "): " + restic.RecoveryFor(out.Manager.ErrorClass))
 	}
@@ -655,7 +655,7 @@ func (s *Service) previewImport(ctx context.Context, src ImportSource, setID str
 			set.Problems = append(set.Problems, "No readable manager-state snapshot: this set cannot be imported.")
 		case m.Schema == nil || !set.SchemaCompatible:
 			set.BlockerClass = ImportSchemaIncompatible
-			set.Problems = append(set.Problems, "Written by a newer DockYard ("+m.App.Version+"): this build cannot run its database.")
+			set.Problems = append(set.Problems, "Written by a newer Docker Manager ("+m.App.Version+"): this build cannot run its database.")
 		}
 		for _, im := range set.Members {
 			if im.Kind != backup.MemberManagerState && im.Located == LocatedMissing {
@@ -737,7 +737,7 @@ func manifestErrorText(err error) string {
 	case errors.Is(err, backup.ErrManifestTruncated):
 		return "truncated"
 	case errors.Is(err, backup.ErrManifestUnsupported):
-		return "written by a newer DockYard"
+		return "written by a newer Docker Manager"
 	case errors.Is(err, backup.ErrManifestCorrupt):
 		return "checksum mismatch or unreadable"
 	}
@@ -884,7 +884,7 @@ func (s *Service) StartImport(ctx context.Context, src ImportSource, setID, idem
 func importBlocker(set ImportSet) error {
 	switch set.BlockerClass {
 	case ImportSchemaIncompatible:
-		return importRefusal(ImportSchemaIncompatible, "this set was written by a newer DockYard ("+set.AppVersion+")", guideSchema)
+		return importRefusal(ImportSchemaIncompatible, "this set was written by a newer Docker Manager ("+set.AppVersion+")", guideSchema)
 	case ImportKeyRotated:
 		return importRefusal(ImportKeyRotated, "the manager state of this set is sealed under another Recovery Key", guideRotated)
 	case ImportManifestCorrupt:

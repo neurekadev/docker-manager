@@ -8,11 +8,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/cron"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/cron"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
 )
 
 // The shared cron scheduler (#13): editable schedule defaults, previews
@@ -45,7 +45,7 @@ type ScheduleKindDefault struct {
 	Kind      string `json:"kind" example:"backup" doc:"Schedule kind (backup, update_check, update_run, prune, backup_verification, ...)."`
 	Label     string `json:"label" example:"Backups"`
 	Cron      string `json:"cron" example:"0 2 * * *" doc:"Default five-field expression new policies of this kind start with."`
-	Suggested string `json:"suggested" example:"0 2 * * *" doc:"DockYard's shipped suggestion."`
+	Suggested string `json:"suggested" example:"0 2 * * *" doc:"Docker Manager's shipped suggestion."`
 	CatchUp   string `json:"catchUp" enum:"once,skip" doc:"Missed runs after manager downtime: once = one catch-up run, skip = recorded, not run."`
 }
 
@@ -207,7 +207,7 @@ func registerSchedules(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "get-schedule-defaults", Method: http.MethodGet, Path: BasePath + "/schedule-defaults",
 			Summary:     "Get the schedule defaults",
-			Description: "The default IANA time zone and, per schedule kind, the default cron expression new policies start with (and DockYard's suggestion). Defaults only prefill new policies; existing policies keep their saved expression and zone.",
+			Description: "The default IANA time zone and, per schedule kind, the default cron expression new policies start with (and Docker Manager's suggestion). Defaults only prefill new policies; existing policies keep their saved expression and zone.",
 			Tags:        []string{tagSchedules}, Errors: []int{http.StatusForbidden},
 		},
 		Capability: CapSettingsRead, Scope: ScopeInstance,

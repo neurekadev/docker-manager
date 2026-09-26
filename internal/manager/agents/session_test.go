@@ -11,12 +11,12 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authsep"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // enrolledRaw enrolls a fake installation and returns its credential and
@@ -127,7 +127,7 @@ func TestHandshakeRefusals(t *testing.T) {
 		{"first frame not hello", func(s *rawSession) { s.send(protocol.TypeHeartbeat, "", nil) }, protocol.CloseProtocolError},
 		{"protocol mismatch", func(s *rawSession) {
 			h := hello
-			h.Protocol = "dockyard.agent/v2"
+			h.Protocol = "docker-manager.agent/v2"
 			s.send(protocol.TypeHello, "", h)
 		}, protocol.CloseVersionUnsupported},
 		{"agent too old", func(s *rawSession) {

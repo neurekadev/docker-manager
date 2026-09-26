@@ -4,8 +4,8 @@
 // agent), quarantine of failed candidate digests, applied digest history
 // and the scheduled check and run policies (#13).
 //
-// A policy opts one DockYard-managed stack (all services, or listed ones
-// minus exclusions) or one DockYard-managed standalone container with a
+// A policy opts one Docker Manager-managed stack (all services, or listed ones
+// minus exclusions) or one Docker Manager-managed standalone container with a
 // saved recreate specification into following the digest behind its
 // existing explicit tag. Checks resolve the tag's host-platform manifest
 // digest through the manager-owned registry connection (#19,
@@ -31,19 +31,19 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/permissions"
-	"github.com/neurekadev/dockyard/internal/manager/registries"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/permissions"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/registries"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Jobs is the job engine as the update service uses it (*jobs.Engine).
@@ -377,9 +377,9 @@ func (s *Service) defaultSchedule(ctx context.Context, kind string, in *domain.U
 	return out, nil
 }
 
-// Create opts a target in. The target must be a DockYard stack of the
-// environment, or a DockYard-managed standalone container with a saved
-// recreate specification; DockYard's own resources are refused (#32).
+// Create opts a target in. The target must be a Docker Manager stack of the
+// environment, or a Docker Manager-managed standalone container with a saved
+// recreate specification; Docker Manager's own resources are refused (#32).
 // Both schedules start disabled unless the request enables them.
 func (s *Service) Create(ctx context.Context, np NewPolicy) (domain.UpdatePolicy, error) {
 	name := strings.TrimSpace(np.Name)
@@ -439,7 +439,7 @@ func (s *Service) checkTarget(ctx context.Context, p *domain.UpdatePolicy) error
 		if s.opts.Resources != nil {
 			pr, err := s.opts.Resources.ProjectProtection(ctx, st.EnvironmentID, st.Name)
 			if err == nil && pr != nil {
-				return &domain.UpdateError{Code: domain.UpdateErrTargetIneligible, Message: "DockYard's own Compose project is never updated by a policy: " + pr.Reason}
+				return &domain.UpdateError{Code: domain.UpdateErrTargetIneligible, Message: "Docker Manager's own Compose project is never updated by a policy: " + pr.Reason}
 			}
 		}
 		return nil
@@ -467,11 +467,11 @@ func (s *Service) checkTarget(ctx context.Context, p *domain.UpdatePolicy) error
 }
 
 // containerIneligible explains why a container cannot be a target:
-// DockYard's own (#32), a stack member, or no saved recreate
+// Docker Manager's own (#32), a stack member, or no saved recreate
 // specification (#6: unmanaged containers are never recreated).
 func (s *Service) containerIneligible(ctx context.Context, env string, d protocol.ContainerDetails) (reason, message string) {
 	if pr := s.opts.Resources.ContainerProtection(d.ContainerSummary); pr != nil {
-		return domain.UpdateReasonProtected, "DockYard's own containers are never updated by a policy: " + pr.Reason
+		return domain.UpdateReasonProtected, "Docker Manager's own containers are never updated by a policy: " + pr.Reason
 	}
 	if d.Stack != nil {
 		return domain.UpdateReasonStackManaged, "The container belongs to the Compose project " + d.Stack.Project +
@@ -479,7 +479,7 @@ func (s *Service) containerIneligible(ctx context.Context, env string, d protoco
 	}
 	m, _, err := s.opts.Resources.ManagedSpec(ctx, env, d.Labels)
 	if err != nil || m == nil {
-		return domain.UpdateReasonNoRecreateSpec, "Only containers created through DockYard have a complete saved recreate " +
+		return domain.UpdateReasonNoRecreateSpec, "Only containers created through Docker Manager have a complete saved recreate " +
 			"specification; other containers are never recreated automatically."
 	}
 	return "", ""

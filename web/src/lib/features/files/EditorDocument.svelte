@@ -110,7 +110,7 @@
 					title="You can't open {basename(path)}"
 					description={tab.error instanceof ApiRequestError
 						? tab.error.message
-						: 'Ask the owner of this DockYard for access to this file.'}
+						: 'Ask the owner of this Docker Manager for access to this file.'}
 				/>
 			{:else}
 				<ErrorState

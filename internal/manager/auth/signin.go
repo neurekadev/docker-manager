@@ -9,12 +9,12 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/auth/password"
-	"github.com/neurekadev/dockyard/internal/manager/auth/throttle"
-	"github.com/neurekadev/dockyard/internal/manager/auth/totp"
-	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/password"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/throttle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/totp"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 func ipKey(ctx context.Context) string { return throttle.IPKey(requestinfo.ClientIP(ctx)) }

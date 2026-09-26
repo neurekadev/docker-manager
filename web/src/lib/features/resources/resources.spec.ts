@@ -76,7 +76,7 @@ describe('container actions (#6)', () => {
 			status: 409,
 			body: {
 				code: 'protected',
-				message: 'refused to stop a protected DockYard resource: the agent',
+				message: 'refused to stop a protected Docker Manager resource: the agent',
 				requestId: 'r',
 				retryable: false,
 				details: []
@@ -84,7 +84,7 @@ describe('container actions (#6)', () => {
 		}));
 		const err = await runContainerAction(
 			'e1',
-			'dockyard-agent',
+			'docker-agent',
 			'stop',
 			{},
 			createApiClient(f.impl, base)

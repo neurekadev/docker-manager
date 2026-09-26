@@ -1,8 +1,8 @@
-# DockYard code conventions
+# Docker Manager code conventions
 
 Binding for every change. Specs: the GitHub issues of `neurekadev/dockyard`,
 kept as the written record (#1 roadmap, #25 decisions, #4 API catalog); the
-code lives at https://code.neureka.dev/dockyard/dockyard. Background:
+code lives at https://code.neureka.dev/docker-manager/docker-manager. Background:
 `docs/architecture/overview.md`, `docs/adr/0001-foundation.md`.
 
 ## Local gate and CI
@@ -20,7 +20,7 @@ with `bash scripts/check.sh lint|unit-tests|build`):
 
 CI (Forgejo Actions on code.neureka.dev) runs on pushes to `main` and manual
 dispatch only (no pull-request trigger); it also builds the amd64 images and,
-from `main`, publishes `code.neureka.dev/dockyard/dockyard-{manager,agent}:edge`.
+from `main`, publishes `code.neureka.dev/docker-manager/docker-{manager,agent}:edge`.
 arm64 images are blocked until a native arm64 runner exists (never QEMU).
 The only tests are isolated unit tests (see "Tests"); nothing starts
 Docker, containers, browsers, real registries or restic.
@@ -147,7 +147,7 @@ specific user rule, then the most specific group rule, then deny.
   permissions.LocatorFunc(...))` (`app.Manager.Permissions()`) returning
   `permissions.Location{Found, EnvironmentID, Parents}`; call
   `perms.ForgetResource(ctx, ref)` after deleting a resource through
-  DockYard.
+  Docker Manager.
 - **Shaping:** `v := authz.ViewOf(c, res)`: `Hidden` → drop from lists/
   counts/streams, 404 on direct access; `Minimal` → only identity/status
   fields (`catalog.ResourceType.Minimal`); `Full` → everything. DTOs carry
@@ -314,7 +314,7 @@ tests: `internal/agent/engine/enginefake`.
   `InspectContainer`, ...: agent requests scoped by environment, errors are
   `*domain.DockerError` with stable codes); never a second path to the
   agent for the same data.
-- DockYard's labels (`protocol.Label*`, prefix `dev.neureka.dockyard.`)
+- Docker Manager's labels (`protocol.Label*`, prefix `dev.neureka.docker-manager.`)
   and Compose's are reserved: user input may not set them. Stack
   membership: `protocol.StackRef` (`Managed`: working directory in a
   verified stack root) plus `resources.Service.StackManaged`; containers of
@@ -326,7 +326,7 @@ tests: `internal/agent/engine/enginefake`.
   Pulls select their registry connection through `registries.Service`
   (#19; `jobspec.CredentialRefs` in the input, `regauth` on the agent).
 - Recreate specifications of standalone containers created through
-  DockYard: `resources.Service.ManagedSpec` (sealed; never return
+  Docker Manager: `resources.Service.ManagedSpec` (sealed; never return
   environment values).
 
 ## Byte streams and scoped files (#15)
@@ -378,7 +378,7 @@ Guide: `docs/architecture/stacks.md`. Manager: `internal/manager/stacks`
 
 ## Self-protection (#32)
 
-Guide: `docs/architecture/self-protection.md`. DockYard's own containers,
+Guide: `docs/architecture/self-protection.md`. Docker Manager's own containers,
 images, volumes, networks and Compose project are protected for everyone
 (owner and API tokens included): `internal/protection` decides
 (`Check`, `Excluded`, `Filter`), `internal/agent/protect` identifies (agent),
@@ -391,7 +391,7 @@ images, volumes, networks and Compose project are protected for everyone
 - Bulk features (prune #14, updates #20, backup/restore shutdown plans #10,
   bulk selections and migrations #35) drop protected objects with
   `protection.Filter` and show the reason; stack deploy/down/stop (#7)
-  refuse DockYard's own project.
+  refuse Docker Manager's own project.
 - No override flag: only the co-located manager's restart takes
   `confirm: true`.
 
@@ -452,8 +452,8 @@ Guide: `docs/architecture/maintenance.md`. Manager:
 - Every rule and schedule starts disabled; volume rules need their own
   `volumeOptIn`; manual runs need `confirm: true`; `background` is
   presentation only (same durable job).
-- Objects to protect from pruning: DockYard's own (#32, agent guard),
-  DockYard stacks' projects and images, saved container specifications
+- Objects to protect from pruning: Docker Manager's own (#32, agent guard),
+  Docker Manager stacks' projects and images, saved container specifications
   (`resources.Service.ManagedSpecRefs`), backups (#10 installs
   `maintenance.Service.SetBackupReferences`).
 - `prune.run` takes shared `*` locks on stacks, containers, images,
@@ -501,7 +501,7 @@ the stack image status); agent `update.run` executor in
 `internal/agent/stacks/update.go`; lifecycle `lifecycle.Update`/`Confirm`;
 payloads `internal/protocol/updates.go`.
 
-- One policy per target (stack or DockYard-managed standalone container);
+- One policy per target (stack or Docker Manager-managed standalone container);
   check and run schedules (#13 kinds `update_check`/`update_run`) start
   disabled. Never add an automatic path that pulls or recreates without an
   enabled policy or an explicit user run.
@@ -524,7 +524,7 @@ payloads `internal/protocol/updates.go`.
 Guide: `docs/architecture/backups.md`. restic runs only through
 `internal/restic` (`Runner`, the one lint-exempt process execution; tests
 use `restic/restictest`). Shared helpers: `internal/backup` (destinations
-and scopes `dockyard-manager` / `dockyard-env-<id>`, tags, the portable
+and scopes `docker-manager` / `docker-manager-env-<id>`, tags, the portable
 manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
 (`app.Manager.Backups()`); agent: `internal/agent/backups`.
 
@@ -573,9 +573,9 @@ wiring `internal/manager/app/operability.go`.
   field, never a struct dump; the canary test
   (`TestSupportBundleHasNoSecrets`) must keep passing. Metrics labels are
   enumerations only. Capabilities: `system.metrics.read` (delegable,
-  endpoint off unless `DOCKYARD_METRICS_ENABLED`), `system.support_bundle`
+  endpoint off unless `DOCKER_MANAGER_METRICS_ENABLED`), `system.support_bundle`
   (owner only).
-- **Rollback:** `dockyard-manager snapshots list|restore` restores a
+- **Rollback:** `docker-manager snapshots list|restore` restores a
   pre-migration snapshot (`store.RestoreSnapshot`); downgrades stay
   unsupported.
 
@@ -655,7 +655,7 @@ Guides: `docs/design/README.md` (tokens, components, copy, a11y),
   (`src/lib/routes.spec.ts`). There are no browser, accessibility (axe) or
   end-to-end suites; do not add them without an explicit request.
 - **Run and look:** `npm --prefix web run build`, then run the manager
-  (`go run ./cmd/dockyard-manager`, `docs/development.md`); it needs no
+  (`go run ./cmd/docker-manager`, `docs/development.md`); it needs no
   Docker, but environments need an agent on a Docker Engine. Review at
   1440×900 and 390×844 against #22 (screenshots outside the repo; never
   commit the mockup or screenshots of it).

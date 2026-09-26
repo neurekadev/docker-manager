@@ -18,7 +18,7 @@
 
 <Notice tone="offline" icon={WifiOff} title="{name} is offline">
 	{#if since}Its agent disconnected {formatRelative(since, now)}.{/if}
-	This is the last known state. DockYard reconnects on its own when the agent is back; actions that
-	need
+	This is the last known state. Docker Manager reconnects on its own when the agent is back; actions
+	that need
 	{name} wait until then.
 </Notice>

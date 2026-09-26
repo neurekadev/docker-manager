@@ -2,7 +2,7 @@
 	// Runs container lifecycle actions for a list or a detail page (#6):
 	// start, restart, pause and unpause go straight to the server; stop and
 	// remove confirm first with their consequences (the server's removal
-	// preview); restarting DockYard's own manager needs the explicit
+	// preview); restarting Docker Manager's own manager needs the explicit
 	// confirmation of #32. Refusals (protected, stack_managed, offline, ...)
 	// are shown with the server's reason, in the dialog or as a toast.
 	import { useQueryClient } from '@tanstack/svelte-query';
@@ -138,7 +138,7 @@
 	<ConfirmDialog
 		bind:open={restartOpen}
 		title="Restart {target.name}?"
-		message="This restarts part of DockYard itself. The DockYard UI and API disconnect until it is back; this page reconnects on its own."
+		message="This restarts part of Docker Manager itself. The Docker Manager UI and API disconnect until it is back; this page reconnects on its own."
 		consequences={target.protection ? [target.protection.reason] : []}
 		confirmLabel="Restart container"
 		onconfirm={() => send(target!, 'restart', { confirm: true })}

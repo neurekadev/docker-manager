@@ -9,12 +9,12 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/backups"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Backups (#10): the snapshot index, contents, downloads and
@@ -29,7 +29,7 @@ func backupResource(sn domain.BackupSnapshot) authz.Resource {
 		Parents: []authz.ResourceRef{{Type: catalog.TypeBackupRepository, ID: sn.RepositoryID}}}
 }
 
-// Backup is one snapshot DockYard knows.
+// Backup is one snapshot Docker Manager knows.
 //
 // Shaping (#17): backup.read shows it in full; any other capability on it
 // only id, time, repository and state.
@@ -175,7 +175,7 @@ func (h *backupsAPI) requireContents(c authz.Checker, sn domain.BackupSnapshot, 
 	capability, res, ownerOnly := backups.ContentsCapabilities(sn)
 	if ownerOnly {
 		if !c.Can("system.restore", authz.Instance()).Allowed {
-			return Forbidden("manager-state backups hold DockYard's own database: only the instance owner may open them")
+			return Forbidden("manager-state backups hold Docker Manager's own database: only the instance owner may open them")
 		}
 		return nil
 	}
@@ -322,7 +322,7 @@ type RestorePreview struct {
 	AffectedContainers []protocol.AffectedContainer `json:"affectedContainers"`
 	Conflicts          []string                     `json:"conflicts,omitempty"`
 	Warnings           []string                     `json:"warnings,omitempty" example:"The restore overwrites 12 existing files"`
-	Blocked            []string                     `json:"blocked,omitempty" doc:"Why the restore cannot run as requested (running containers without shutdown, DockYard's own containers, insufficient space, paths that cannot be restored)."`
+	Blocked            []string                     `json:"blocked,omitempty" doc:"Why the restore cannot run as requested (running containers without shutdown, Docker Manager's own containers, insufficient space, paths that cannot be restored)."`
 	CanRestore         bool                         `json:"canRestore"`
 }
 

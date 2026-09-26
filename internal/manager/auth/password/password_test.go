@@ -151,7 +151,7 @@ func TestPolicy(t *testing.T) {
 		{"123456789012", base, nil, []string{ViolationCommon}},
 		{"abcdefghijklmnopqrstu", base, nil, []string{ViolationRepeated}},
 		{"alice.smith!", base, []string{"alice.smith@example.com"}, []string{ViolationContext}},
-		{"dockyard2026", base, nil, []string{ViolationContext}},
+		{"docker-manager2026", base, nil, []string{ViolationContext}},
 		{"tangerine kettle", base, nil, nil},
 		{"tangerine pot", strict, nil, []string{ViolationTooShort}},
 		{"tangerine kettle orbit", strict, nil, nil},

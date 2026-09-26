@@ -7,11 +7,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Network capabilities (#17).
@@ -30,7 +30,7 @@ type Network struct {
 	ID            string              `json:"id"`
 	Name          string              `json:"name" example:"shop_default"`
 	EnvironmentID string              `json:"environmentId"`
-	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for DockYard's own networks (#32): removal is refused."`
+	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for Docker Manager's own networks (#32): removal is refused."`
 	View          string              `json:"view" enum:"minimal,full"`
 	Actions       []string            `json:"actions"`
 	Driver        string              `json:"driver,omitempty" doc:"Full view."`
@@ -78,7 +78,7 @@ func networkRemoval(n protocol.NetworkInfo, managed bool) Removal {
 		r.block(CodeNetworkBuiltin, "Predefined networks cannot be removed.")
 	}
 	if managed {
-		r.block(CodeStackManaged, "The network belongs to a DockYard-managed stack; remove it from the stack instead.")
+		r.block(CodeStackManaged, "The network belongs to a Docker Manager-managed stack; remove it from the stack instead.")
 	}
 	if len(n.Containers) > 0 {
 		r.block(CodeNetworkInUse, "Containers are attached; disconnect or remove them first.")
@@ -111,7 +111,7 @@ type createNetworkInput struct {
 		Driver     string            `json:"driver,omitempty" maxLength:"128" doc:"Default bridge."`
 		Internal   bool              `json:"internal,omitempty" doc:"No external connectivity."`
 		Attachable bool              `json:"attachable,omitempty"`
-		Labels     map[string]string `json:"labels,omitempty" doc:"dev.neureka.dockyard.* and com.docker.compose.* are reserved."`
+		Labels     map[string]string `json:"labels,omitempty" doc:"dev.neureka.docker-manager.* and com.docker.compose.* are reserved."`
 		Options    map[string]string `json:"options,omitempty" doc:"Driver options."`
 	}
 }
@@ -265,7 +265,7 @@ func registerNetworks(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "delete-network", Method: http.MethodDelete, Path: base + "/{networkId}", Summary: "Remove a network",
 			Description: "Starts a network.remove job (202). Refused for predefined networks (409 network_builtin), networks with " +
-				"attached containers (409 network_in_use) and networks of a DockYard-managed stack (409 stack_managed).",
+				"attached containers (409 network_in_use) and networks of a Docker Manager-managed stack (409 stack_managed).",
 			Tags: []string{tagNetworks}, DefaultStatus: http.StatusAccepted, Errors: dockerJobErrors,
 		},
 		Capability: CapNetworkRemove, Scope: ScopeResource, Idempotency: IdempotencyJob,

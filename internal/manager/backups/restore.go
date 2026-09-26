@@ -10,14 +10,14 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Host restores (#10): a stack's definition and workspace, volumes, or one
@@ -96,7 +96,7 @@ func (s *Service) planRestore(ctx context.Context, sn domain.BackupSnapshot, req
 			return restorePlan{}, fieldErr("scope", "only stack backups hold a stack definition")
 		}
 		if st == nil {
-			return restorePlan{}, fieldErr("scope", "the stack no longer exists in DockYard; import or create it first, then restore")
+			return restorePlan{}, fieldErr("scope", "the stack no longer exists in Docker Manager; import or create it first, then restore")
 		}
 		p.targets = append(p.targets, domain.JobTarget{Type: domain.TargetStack, ID: st.ID})
 	case protocol.RestoreScopeVolume:
@@ -147,7 +147,7 @@ func (s *Service) planRestore(ctx context.Context, sn domain.BackupSnapshot, req
 		case sn.Kind == backup.MemberVolume:
 			p.targets = append(p.targets, domain.JobTarget{Type: domain.TargetVolume, ID: sn.Volume, EnvironmentID: p.environmentID})
 		default:
-			return restorePlan{}, fieldErr("path", "the file's stack no longer exists in DockYard")
+			return restorePlan{}, fieldErr("path", "the file's stack no longer exists in Docker Manager")
 		}
 	default:
 		return restorePlan{}, fieldErr("scope", "must be stack, volume or file")

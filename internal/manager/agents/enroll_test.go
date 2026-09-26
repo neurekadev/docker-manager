@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authsep"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // TestEnrollmentTokenStoredAsVerifierOnly: the token is returned once and
@@ -48,7 +48,7 @@ func TestEnrollmentTokenStoredAsVerifierOnly(t *testing.T) {
 	for _, v := range []string{InstallRemote, InstallRemoteCompose} {
 		for _, cmd := range c.Install {
 			if cmd.Variant == v && !strings.Contains(cmd.Command, "https://docker.example.com") {
-				t.Errorf("%s lacks DOCKYARD_PUBLIC_URL: %s", v, cmd.Command)
+				t.Errorf("%s lacks DOCKER_MANAGER_PUBLIC_URL: %s", v, cmd.Command)
 			}
 		}
 	}
@@ -180,7 +180,7 @@ func TestEnrollRequestValidationAndVersion(t *testing.T) {
 		{"missing install id", mutate(t, good, func(r *protocol.EnrollRequest) { r.InstallID = "" }), 422, "validation_failed"},
 		{"bad engine id", mutate(t, good, func(r *protocol.EnrollRequest) { r.Engine.ID = "a b" }), 422, "validation_failed"},
 		{"control characters", mutate(t, good, func(r *protocol.EnrollRequest) { r.EnvironmentName = "a\x07" }), 422, "validation_failed"},
-		{"wrong protocol", mutate(t, good, func(r *protocol.EnrollRequest) { r.Protocol = "dockyard.agent/v2" }), 426, "version_unsupported"},
+		{"wrong protocol", mutate(t, good, func(r *protocol.EnrollRequest) { r.Protocol = "docker-manager.agent/v2" }), 426, "version_unsupported"},
 		{"agent too old", mutate(t, good, func(r *protocol.EnrollRequest) { r.AgentVersion = "1.2.9" }), 426, "version_unsupported"},
 		{"agent newer than manager", mutate(t, good, func(r *protocol.EnrollRequest) { r.AgentVersion = "1.5.0" }), 426, "version_unsupported"},
 		{"too large", []byte(`{"protocol":"` + strings.Repeat("x", 70<<10) + `"}`), 413, "payload_too_large"},

@@ -133,7 +133,7 @@
 <Page>
 	<SettingsHeader
 		title="Sign-in policy"
-		description="How everyone signs in to this DockYard, and whether scripts may use API tokens."
+		description="How everyone signs in to this Docker Manager, and whether scripts may use API tokens."
 	/>
 	{#if perms.data && !owner}
 		<DeniedState level={2} title="Only the owner changes the sign-in policy." />

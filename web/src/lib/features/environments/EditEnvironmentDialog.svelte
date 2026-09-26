@@ -73,7 +73,7 @@
 <Dialog
 	bind:open
 	title="Edit {env.name}"
-	description="The name and address are DockYard's; nothing on the host changes."
+	description="The name and address are Docker Manager's; nothing on the host changes."
 >
 	<form id="edit-environment" class="form" onsubmit={save}>
 		<TextField
@@ -82,7 +82,7 @@
 			required
 			maxlength={64}
 			autocomplete="off"
-			description="Shown everywhere in DockYard. The Engine host name stays as it is."
+			description="Shown everywhere in Docker Manager. The Engine host name stays as it is."
 			error={fieldError(error, 'body.name')}
 		/>
 		<TextField

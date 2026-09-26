@@ -7,19 +7,19 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Executors returns the stack.remove_source executor: after the user
 // confirmed a completed migration, the source project's containers and
 // networks are removed (stopped in reverse dependency order first), then
-// the migrated volumes and finally the project directory. DockYard's own
+// the migrated volumes and finally the project directory. Docker Manager's own
 // project and volumes are refused (#32). Each step is idempotent: what is
 // already gone is skipped.
 func (s *Service) Executors() []jobexec.Executor {

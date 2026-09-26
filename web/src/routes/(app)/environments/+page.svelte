@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Environments (#3, #5, #34): every Docker host with a DockYard agent,
+	// Environments (#3, #5, #34): every Docker host with a Docker Agent,
 	// with status, Engine, agent version and compatibility, containers and
 	// usage; pending enrollment tokens; archived environments to re-attach.
 	import { createQuery } from '@tanstack/svelte-query';
@@ -220,7 +220,7 @@
 	<div class="page">
 		<PageHeader
 			title="Environments"
-			description="Docker hosts with a connected DockYard agent. Each agent dials out to this DockYard; hosts open no ports."
+			description="Docker hosts with a connected Docker Agent. Each agent dials out to this Docker Manager; hosts open no ports."
 		>
 			{#snippet actions()}
 				{#if canEnroll}
@@ -261,7 +261,7 @@
 											icon={Server}
 											color="blue"
 											title="No environments yet."
-											description="Add an environment: run the DockYard agent on a Docker host and enroll it with a one-time token."
+											description="Add an environment: run the Docker Agent on a Docker host and enroll it with a one-time token."
 											level={3}
 											compact
 										>

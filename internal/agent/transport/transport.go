@@ -2,9 +2,9 @@
 // for the manager (#27):
 //
 //   - https manager URLs use normal certificate validation against the
-//     system roots plus the optional DOCKYARD_MANAGER_CA_FILE bundle (private
+//     system roots plus the optional DOCKER_AGENT_MANAGER_CA_FILE bundle (private
 //     PKI); verification is never disabled;
-//   - http manager URLs exist only with DOCKYARD_MANAGER_ALLOW_HTTP=true
+//   - http manager URLs exist only with DOCKER_AGENT_MANAGER_ALLOW_HTTP=true
 //     (validated by internal/agent/config) and are reported as flagged in
 //     the agent's capabilities (protocol.TransportInfo);
 //   - redirects are never followed, so enrollment tokens and credentials
@@ -23,13 +23,13 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/neurekadev/dockyard/internal/agent/config"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // ErrRedirect is returned when the manager (or something in between)
 // answers with a redirect.
-var ErrRedirect = errors.New("manager responded with a redirect; refusing to follow it (check DOCKYARD_MANAGER_URL)")
+var ErrRedirect = errors.New("manager responded with a redirect; refusing to follow it (check DOCKER_AGENT_MANAGER_URL)")
 
 // Transport is the agent's connection setup for one manager origin.
 type Transport struct {

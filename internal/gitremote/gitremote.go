@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
 )
 
 // Error classes.
@@ -269,7 +269,7 @@ func get(ctx context.Context, hc *http.Client, u string, o Options) (*http.Respo
 	if err != nil {
 		return nil, &Error{Class: ClassInvalidURL, Message: "invalid Git URL"}
 	}
-	req.Header.Set("User-Agent", "git/2.45.0 (DockYard)")
+	req.Header.Set("User-Agent", "git/2.45.0 (Docker Manager)")
 	req.Header.Set("Accept", "*/*")
 	if o.Credential != nil {
 		req.SetBasicAuth(o.Credential.Username, string(o.Credential.Token))

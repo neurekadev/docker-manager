@@ -14,10 +14,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil/fscorpus"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/fscorpus"
 )
 
 // every runs every operation of the service on path p (as source,
@@ -472,13 +472,13 @@ func dirSize(t *testing.T, dir string) int64 {
 }
 
 // TestScopeResolutionRefusals: non-local and remote-backed volumes,
-// DockYard's own volumes, the stacks volume, volumes outside the volume
+// Docker Manager's own volumes, the stacks volume, volumes outside the volume
 // directory and stack directories outside the verified roots are refused.
 func TestScopeResolutionRefusals(t *testing.T) {
 	f := newFixture(t)
 	for name, want := range map[string]string{
 		"plugin": protocol.CodeUnsupportedVolume, "nfs": protocol.CodeUnsupportedVolume, "agentstate": protocol.CodeUnsupportedVolume,
-		"dockyard_stacks": protocol.CodeUnsupportedVolume, "missing": protocol.CodeNotFound,
+		"docker-manager_stacks": protocol.CodeUnsupportedVolume, "missing": protocol.CodeNotFound,
 	} {
 		_, err := f.svc.List(f.ctx, protocol.FilesListInput{Scope: protocol.FileScope{Kind: protocol.ScopeVolume, ID: name}, Path: "."})
 		if code(err) != want {

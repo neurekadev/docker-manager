@@ -12,12 +12,12 @@ const REMOTE_TYPES = ['nfs', 'nfs4', 'cifs', 'smb', 'smb3', 'sshfs', 'glusterfs'
 export interface VolumeAccess {
 	/** File access, watching and backup work (a local volume on the host). */
 	local: boolean;
-	/** Why the volume is read-only in DockYard (shown next to it). */
+	/** Why the volume is read-only in Docker Manager (shown next to it). */
 	reason?: string;
 }
 
 /**
- * Whether DockYard can open a volume's files (#28, docs/support-matrix.md):
+ * Whether Docker Manager can open a volume's files (#28, docs/support-matrix.md):
  * only local-driver volumes on the host; plugins and local volumes backed by
  * NFS/CIFS mount options are listed read-only. The agent decides again.
  */

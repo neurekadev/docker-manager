@@ -27,16 +27,16 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/server/ws"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/ws"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 )
 
 // Agents is the session hub as used here (*agents.Hub).
@@ -97,7 +97,7 @@ type Options struct {
 	// PublicURL is the manager's origin: cookie-authenticated upgrades must
 	// come from it (browsers send Origin).
 	PublicURL *url.URL
-	// PingInterval is the WebSocket keep-alive (DOCKYARD_STREAM_HEARTBEAT).
+	// PingInterval is the WebSocket keep-alive (DOCKER_MANAGER_STREAM_HEARTBEAT).
 	PingInterval time.Duration
 	// RequestTimeout bounds agent requests (default 30 s).
 	RequestTimeout time.Duration

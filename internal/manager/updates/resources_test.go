@@ -4,12 +4,12 @@ import (
 	"context"
 	"sync"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // fakeResources is the manager's Docker resource service over the
@@ -77,7 +77,7 @@ func (f *fakeResources) ManagedSpec(_ context.Context, env string, labels map[st
 
 func (f *fakeResources) ContainerProtection(c protocol.ContainerSummary) *protocol.Protection {
 	if role := c.Labels[protocol.LabelRole]; role != "" {
-		return &protocol.Protection{Role: role, Reason: "a DockYard " + role + " container"}
+		return &protocol.Protection{Role: role, Reason: "a Docker Manager " + role + " container"}
 	}
 	return nil
 }
@@ -89,13 +89,13 @@ func (f *fakeResources) ProjectProtection(ctx context.Context, env, project stri
 	}
 	for _, c := range cs {
 		if c.Stack != nil && c.Stack.Project == project && f.ContainerProtection(c) != nil {
-			return &protocol.Protection{Role: protection.RoleProject, Reason: "DockYard's own Compose project " + project}, nil
+			return &protocol.Protection{Role: protection.RoleProject, Reason: "Docker Manager's own Compose project " + project}, nil
 		}
 	}
 	return nil, nil
 }
 
-// standalone creates a DockYard-managed standalone container from spec
+// standalone creates a Docker Manager-managed standalone container from spec
 // (ownership labels and a saved specification) and returns its ID.
 func (f *fakeResources) standalone(ctx context.Context, spec protocol.ContainerSpec, running bool) string {
 	f.mu.Lock()

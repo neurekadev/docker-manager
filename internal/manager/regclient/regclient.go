@@ -50,9 +50,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/imageref"
-	"github.com/neurekadev/dockyard/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/imageref"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
 )
 
 // Error classes.
@@ -338,7 +338,7 @@ func (c *Client) resolve(ctx context.Context, req Request) (Result, error) {
 	for attempt := 1; ; attempt++ {
 		if until, ok := c.cooling(apiHost); ok {
 			return Result{}, &Error{Class: ClassRateLimited, RetryAfter: until,
-				Message: "the registry asked DockYard to slow down; checks resume after " + until.Round(time.Second).String()}
+				Message: "the registry asked Docker Manager to slow down; checks resume after " + until.Round(time.Second).String()}
 		}
 		res, err := c.attempt(ctx, req)
 		if err == nil {
@@ -530,7 +530,7 @@ func (c *Client) send(ctx context.Context, method, u, accept, auth string) (*htt
 		return nil, &Error{Class: ClassInvalidResponse, Message: "invalid registry URL"}
 	}
 	hr.Header.Set("Accept", accept)
-	hr.Header.Set("User-Agent", "DockYard")
+	hr.Header.Set("User-Agent", "Docker Manager")
 	if auth != "" {
 		hr.Header.Set("Authorization", auth)
 	}
@@ -596,7 +596,7 @@ func (c *Client) fetchToken(ctx context.Context, req Request, params map[string]
 	if err != nil {
 		return "", 0, &Error{Class: ClassInvalidResponse, Message: "invalid token realm"}
 	}
-	hr.Header.Set("User-Agent", "DockYard")
+	hr.Header.Set("User-Agent", "Docker Manager")
 	if req.Credential != nil {
 		hr.Header.Set("Authorization", "Basic "+basicAuth(req.Credential))
 	}

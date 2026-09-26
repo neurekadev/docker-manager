@@ -2,8 +2,8 @@
 //
 //   1. POST …/exec-sessions {command, tty, cols, rows} → {id, streamUrl,
 //      subprotocol, ticket}
-//   2. WebSocket to streamUrl offering the subprotocols dockyard.exec.v1 and
-//      dockyard.ticket.<ticket> (the one-use ticket never goes in the URL)
+//   2. WebSocket to streamUrl offering the subprotocols docker-manager.exec.v1 and
+//      docker-manager.ticket.<ticket> (the one-use ticket never goes in the URL)
 //   3. binary frames: first byte 0 = stdin (client→server), 1/2 =
 //      stdout/stderr; text frames: {"type":"resize"} (client),
 //      {"type":"exit"} / {"type":"error"} (server)
@@ -18,7 +18,7 @@ import { socketUrl } from './url';
 
 export const IDLE_WARNING_MS = 25 * 60_000;
 export const IDLE_LIMIT_MS = 30 * 60_000;
-export const SUBPROTOCOL = 'dockyard.exec.v1';
+export const SUBPROTOCOL = 'docker-manager.exec.v1';
 
 export type TerminalState = 'idle' | 'creating' | 'connecting' | 'open' | 'closed' | 'failed';
 
@@ -95,7 +95,7 @@ export function closeMessage(
 				? `The process exited with code ${o.exitCode}.`
 				: 'The session ended.';
 		case 1001:
-			return 'DockYard is restarting. Connect again to start a new session.';
+			return 'Docker Manager is restarting. Connect again to start a new session.';
 		case 1008:
 			return 'The terminal was refused. Reload the page and connect again.';
 		case 1009:
@@ -193,7 +193,7 @@ export class ExecTerminal {
 		const url = socketUrl(s.streamUrl, globalThis.location?.href ?? 'http://localhost/');
 		const ws = this.#deps.socket(url, [
 			s.subprotocol || SUBPROTOCOL,
-			`dockyard.ticket.${s.ticket}`
+			`docker-manager.ticket.${s.ticket}`
 		]);
 		ws.binaryType = 'arraybuffer';
 		this.#ws = ws;

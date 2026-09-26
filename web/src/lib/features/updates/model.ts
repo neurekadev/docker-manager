@@ -38,7 +38,7 @@ export const REASON_LABELS: Record<NonNullable<UpdateCandidate['reason']>, strin
 	not_deployed: 'Not deployed yet',
 	no_applied_digest: 'The applied digest is unknown (deploy it once)',
 	excluded: 'Excluded by this policy',
-	protected: "DockYard's own container",
+	protected: "Docker Manager's own container",
 	no_recreate_spec: 'No saved specification to recreate it',
 	stack_managed: 'Part of a stack (use the stack policy)'
 };
@@ -132,6 +132,6 @@ export function recoveryText(c: UpdateCandidate): string {
 	const pin = c.previousDigest ?? c.currentDigest;
 	const repo = c.repository ?? c.reference.replace(/[:@].*$/, '');
 	return pin
-		? `Pin the previous image in your own Compose file, e.g. ${repo}@${pin}, then deploy the stack. DockYard never edits your files.`
-		: 'Pin a known-good digest (image@sha256:…) in your own Compose file and deploy the stack. DockYard never edits your files.';
+		? `Pin the previous image in your own Compose file, e.g. ${repo}@${pin}, then deploy the stack. Docker Manager never edits your files.`
+		: 'Pin a known-good digest (image@sha256:…) in your own Compose file and deploy the stack. Docker Manager never edits your files.';
 }

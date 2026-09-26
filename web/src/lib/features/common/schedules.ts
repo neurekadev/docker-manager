@@ -1,5 +1,5 @@
 // Schedule defaults (#13) for new policies: the editable instance defaults
-// when the caller may read settings, otherwise DockYard's shipped
+// when the caller may read settings, otherwise Docker Manager's shipped
 // suggestions. The server applies the same defaults when a field is
 // omitted; the forms show them so the user sees what will be saved.
 import { queryOptions } from '@tanstack/svelte-query';
@@ -8,7 +8,7 @@ import { liveKeys } from '$lib/live/keys';
 
 export type ScheduleDefaults = Schema<'ScheduleDefaults'>;
 
-/** DockYard's shipped suggestions (#13), used when defaults are not readable. */
+/** Docker Manager's shipped suggestions (#13), used when defaults are not readable. */
 export const SUGGESTED: Record<string, string> = {
 	backup: '0 2 * * *',
 	update_check: '0 3 * * *',

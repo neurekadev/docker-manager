@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Retention (#10) follows restic's keep policies, computed by DockYard so
+// Retention (#10) follows restic's keep policies, computed by Docker Manager so
 // the preview and the execution are the same decision: the executor
 // forgets exactly the snapshot IDs Plan returns (restic forget <ids>),
 // then prunes. On top of restic's rules a minimum recovery floor always

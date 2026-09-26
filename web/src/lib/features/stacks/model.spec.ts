@@ -62,7 +62,7 @@ describe('stack status and counts', () => {
 		expect(stackIcon({ icon: 'layers' })).toEqual({ icon: 'layers', color: 'blue' });
 	});
 
-	it('prefers what DockYard did for failed, down and undeployed stacks, else the Engine state', () => {
+	it('prefers what Docker Manager did for failed, down and undeployed stacks, else the Engine state', () => {
 		expect(stackStatus({ status: 'failed', engine: engine('running', []) })).toBe('failed');
 		expect(stackStatus({ status: 'down' })).toBe('down');
 		expect(stackStatus({ status: 'undeployed' })).toBe('undeployed');

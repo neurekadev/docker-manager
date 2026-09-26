@@ -1,8 +1,8 @@
 <script lang="ts">
 	// Volumes (#6): every volume of the selected environment (or all), who
-	// uses it, its driver and whether DockYard can open its files (#28:
+	// uses it, its driver and whether Docker Manager can open its files (#28:
 	// non-local drivers and NFS/CIFS-backed volumes are read-only, with the
-	// reason). DockYard's own volumes (#32) are marked and never removed.
+	// reason). Docker Manager's own volumes (#32) are marked and never removed.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
@@ -220,7 +220,7 @@
 	<DeniedState
 		level={1}
 		title="You don't have access to volumes."
-		description="Ask the owner of this DockYard to grant access."
+		description="Ask the owner of this Docker Manager to grant access."
 	/>
 {:else}
 	<Page>

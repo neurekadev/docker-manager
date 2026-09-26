@@ -18,7 +18,7 @@ owning issue and status; every v1 route is served (`TestV1CatalogIsServed`).
   under `/api/v1/environments/{environmentId}/…`; stacks, jobs, policies,
   backups and other manager resources are top level. Path segments are
   lower-kebab plural nouns; parameters are `{camelCase}` IDs.
-- Resources are addressed by stable DockYard IDs (UUIDv7 strings; treat them
+- Resources are addressed by stable Docker Manager IDs (UUIDv7 strings; treat them
   as opaque). Docker objects keep their Engine IDs/names below their
   environment. Responses never expose raw host filesystem paths or
   credential values.
@@ -31,18 +31,18 @@ owning issue and status; every v1 route is served (`TestV1CatalogIsServed`).
   - `Capability` — `public`, `authenticated`, `owner`, a dotted capability
     key from the #17 catalog (`container.restart`), or a selector like
     `stack.{action}` with `CapabilityValues` when the body picks the
-    capability. Emitted as `x-dockyard-capability` (and
-    `x-dockyard-capability-values`).
+    capability. Emitted as `x-docker-manager-capability` (and
+    `x-docker-manager-capability-values`).
   - `Scope` — `none` (public/authenticated), `instance` (owner and
-    manager-wide), `environment` or `resource`. Emitted as `x-dockyard-scope`.
+    manager-wide), `environment` or `resource`. Emitted as `x-docker-manager-scope`.
   - `Idempotency` — `stored` or `job` when the input takes an
-    `Idempotency-Key` (below). Emitted as `x-dockyard-idempotency`.
+    `Idempotency-Key` (below). Emitted as `x-docker-manager-idempotency`.
   - `Audit` / `AuditAction` — every non-GET operation is recorded in the
     audit trail (#30) by `Register`, with no opt-out; GET operations opt in
     with `Audit: AuditAlways` (downloads, exports). The action is the
     capability key, or for pseudo-capabilities a key derived from the
     operation ID (`create-invitation` → `invitation.create`) unless
-    `AuditAction` overrides it. Emitted as `x-dockyard-audit`. See
+    `AuditAction` overrides it. Emitted as `x-docker-manager-audit`. See
     [audit](../architecture/audit.md).
   - `Summary` (and ideally `Description`, `Tags`, `Errors`).
 - `Register` adds the security requirements (cookie or bearer) and a `401`
@@ -125,7 +125,7 @@ Revisioned resources (stacks, policies, settings, files, groups, …) carry a
 - Handlers compare and write in one transaction (or compare-and-swap on the
   revision) so concurrent edits cannot both pass.
 - File saves use the file's content ETag the same way; an external change
-  made outside DockYard also changes it (#15, #23).
+  made outside Docker Manager also changes it (#15, #23).
 
 ## Retries and idempotency keys
 
@@ -136,12 +136,12 @@ per logical request and reuse it for every retry of that request. Keys are
 scoped to the caller (user or API token) and the operation, and remembered
 for 24 hours.
 
-- **Operations that start jobs** (`x-dockyard-idempotency: job`): the job
+- **Operations that start jobs** (`x-docker-manager-idempotency: job`): the job
   engine stores the key with the job (#26). A retry with the same key and
   the same request returns the **existing job** (`202`, same job ID), also
   after it finished. The same key with a different request is
   **`409 idempotency_key_reused`**.
-- **Other dangerous operations** (`x-dockyard-idempotency: stored`, for
+- **Other dangerous operations** (`x-docker-manager-idempotency: stored`, for
   example creating an enrollment token, invitation or API token, or
   rotating a credential): the manager reserves the key before running the
   request, stores the first `2xx` response (status, `Content-Type`,

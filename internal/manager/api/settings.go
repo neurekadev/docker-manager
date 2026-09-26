@@ -8,11 +8,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/settings"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/settings"
 )
 
 // Instance settings (#4): the editable display name plus a read-only view
@@ -36,24 +36,24 @@ type SettingsService interface {
 type DeploymentInfo struct {
 	PublicURL        string
 	LocalDevelopment bool
-	// TrustedProxies is the number of DOCKYARD_TRUSTED_PROXIES ranges.
+	// TrustedProxies is the number of DOCKER_MANAGER_TRUSTED_PROXIES ranges.
 	TrustedProxies int
 	MetricsEnabled bool
 }
 
 // DeploymentSettings is the read-only deployment configuration.
 type DeploymentSettings struct {
-	PublicURL              string `json:"publicUrl" example:"https://docker.example.com" doc:"DOCKYARD_PUBLIC_URL: the one public origin serving the web app, the API and agent sessions."`
+	PublicURL              string `json:"publicUrl" example:"https://docker.example.com" doc:"DOCKER_MANAGER_PUBLIC_URL: the one public origin serving the web app, the API and agent sessions."`
 	LocalDevelopment       bool   `json:"localDevelopment" example:"false" doc:"True when the public URL is plain HTTP on localhost (development only)."`
-	TrustedProxyCount      int    `json:"trustedProxyCount" example:"1" doc:"Number of DOCKYARD_TRUSTED_PROXIES address ranges whose X-Forwarded-* headers are honored (the ranges themselves are in the owner's support bundle)."`
-	StreamHeartbeatSeconds int    `json:"streamHeartbeatSeconds" example:"15" doc:"DOCKYARD_STREAM_HEARTBEAT: SSE heartbeat and WebSocket ping interval; keep it below the reverse proxy's idle timeout."`
-	FilesMaxUploadBytes    int64  `json:"filesMaxUploadBytes" example:"2147483648" doc:"DOCKYARD_FILES_MAX_UPLOAD_MB: the largest file-manager upload; the reverse proxy's body limit must allow it."`
-	MetricsEndpoint        bool   `json:"metricsEndpoint" example:"false" doc:"DOCKYARD_METRICS_ENABLED: GET /api/v1/system/metrics is served."`
+	TrustedProxyCount      int    `json:"trustedProxyCount" example:"1" doc:"Number of DOCKER_MANAGER_TRUSTED_PROXIES address ranges whose X-Forwarded-* headers are honored (the ranges themselves are in the owner's support bundle)."`
+	StreamHeartbeatSeconds int    `json:"streamHeartbeatSeconds" example:"15" doc:"DOCKER_MANAGER_STREAM_HEARTBEAT: SSE heartbeat and WebSocket ping interval; keep it below the reverse proxy's idle timeout."`
+	FilesMaxUploadBytes    int64  `json:"filesMaxUploadBytes" example:"2147483648" doc:"DOCKER_MANAGER_FILES_MAX_UPLOAD_MB: the largest file-manager upload; the reverse proxy's body limit must allow it."`
+	MetricsEndpoint        bool   `json:"metricsEndpoint" example:"false" doc:"DOCKER_MANAGER_METRICS_ENABLED: GET /api/v1/system/metrics is served."`
 }
 
 // InstanceSettings are the instance-wide settings.
 type InstanceSettings struct {
-	Name       string             `json:"name" example:"Homelab" doc:"Display name of this DockYard (editable)."`
+	Name       string             `json:"name" example:"Homelab" doc:"Display name of this Docker Manager (editable)."`
 	InstanceID string             `json:"instanceId" example:"01921b4e-7c1a-7cc3-9b1e-4d6f0a2b3c4d" doc:"ID of this manager instance (read-only)."`
 	Deployment DeploymentSettings `json:"deployment" doc:"Read-only deployment configuration. It comes from the manager's environment variables: change them in the deployment and restart the manager."`
 	Revision   int64              `json:"revision" example:"3"`
@@ -116,7 +116,7 @@ func registerSettings(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "get-settings", Method: http.MethodGet, Path: BasePath + "/settings",
 			Summary: "Get the instance settings",
-			Description: "The display name of this DockYard and a read-only summary of its deployment configuration (public URL, " +
+			Description: "The display name of this Docker Manager and a read-only summary of its deployment configuration (public URL, " +
 				"trusted proxies, stream heartbeat, upload limit, metrics endpoint). The sign-in policy is GET /api/v1/settings/security " +
 				"(owner only), schedule defaults GET /api/v1/schedule-defaults and maintenance defaults GET /api/v1/maintenance-defaults.",
 			Tags: []string{tagSettings}, Errors: []int{http.StatusForbidden},

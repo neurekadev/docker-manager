@@ -5,7 +5,7 @@ package catalog
 
 func resourceTypes() []ResourceType {
 	return []ResourceType{
-		{Key: TypeInstance, Label: "DockYard"},
+		{Key: TypeInstance, Label: "Docker Manager"},
 		{Key: TypeEnvironment, Label: "Environments", EnvironmentBound: true, Read: "environment.read",
 			Minimal: "id, name, status, online"},
 		{Key: TypeAgent, Label: "Agents", Scopable: true, EnvironmentBound: true, Read: "agent.read",
@@ -125,7 +125,7 @@ func capabilities() []Capability {
 	agentScope := res(TypeAgent)
 	add(
 		normal("agent.read", TypeAgent, "View agents", "See agents, their versions and connection state.", agentScope),
-		adv(high("agent.enroll", TypeAgent, "Enroll agents", "Create one-use agent enrollment tokens (adds hosts to DockYard).", instanceOnly)),
+		adv(high("agent.enroll", TypeAgent, "Enroll agents", "Create one-use agent enrollment tokens (adds hosts to Docker Manager).", instanceOnly)),
 		adv(high("agent.manage", TypeAgent, "Manage agents", "Edit agent labels and rotate agent credentials.", agentScope)),
 		adv(high("agent.remove", TypeAgent, "Remove agents", "Revoke an agent's credential and detach its environment.", agentScope)),
 	)
@@ -271,7 +271,7 @@ func capabilities() []Capability {
 		adv(normal("api_tokens.create", TypeAPIToken, "Create API tokens", "Create API tokens limited to a subset of one's own permissions (needs recent authentication).", instanceOnly)),
 		adv(normal("settings.read", TypeSettings, "View settings", "See instance settings and schedule defaults.", instanceOnly)),
 		adv(high("settings.manage", TypeSettings, "Change settings", "Change instance settings and schedule defaults (not the security policy).", instanceOnly)),
-		adv(normal("system.metrics.read", TypeSystem, "Scrape internal metrics", "Read DockYard's own Prometheus metrics (job queue, agent sessions, streams, database size); meant for a monitoring API token. The endpoint is off unless DOCKYARD_METRICS_ENABLED is set.", instanceOnly)),
+		adv(normal("system.metrics.read", TypeSystem, "Scrape internal metrics", "Read Docker Manager's own Prometheus metrics (job queue, agent sessions, streams, database size); meant for a monitoring API token. The endpoint is off unless DOCKER_MANAGER_METRICS_ENABLED is set.", instanceOnly)),
 	)
 
 	// Owner surface: never grantable (#16, #17, #31).
@@ -282,11 +282,11 @@ func capabilities() []Capability {
 		ownerOnly("registry.manage", "Manage registry credentials", "Create, rotate and delete registry connections."),
 		ownerOnly("git_credential.manage", "Manage Git credentials", "Create, rotate and delete Git credentials."),
 		ownerOnly("api_tokens.manage", "Manage other users' API tokens", "List and revoke API tokens of every user."),
-		ownerOnly("manager.backup", "Back up the manager", "Back up DockYard's own state (database, keys)."),
+		ownerOnly("manager.backup", "Back up the manager", "Back up Docker Manager's own state (database, keys)."),
 		ownerOnly("update_policy.manage_all", "Manage updates across all environments", "Create and change an update policy covering current and future environments."),
 		ownerOnly("maintenance_policy.manage_all", "Manage maintenance across all environments", "Create and change a maintenance policy covering current and future environments."),
 		ownerOnly("backup.import", "Import backup repositories", "Import an existing repository into a fresh manager (first-run recovery)."),
-		ownerOnly("system.restore", "Restore the manager", "Restore DockYard itself from a manager backup."),
+		ownerOnly("system.restore", "Restore the manager", "Restore Docker Manager itself from a manager backup."),
 		ownerOnly("system.support_bundle", "Download support bundles", "Download a diagnostics bundle: versions, redacted configuration, recent logs, agent states and audit chain verification (never secrets)."),
 	)
 	return out

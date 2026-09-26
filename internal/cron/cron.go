@@ -1,4 +1,4 @@
-// Package cron is DockYard's one cron parser and next-run calculator (#13).
+// Package cron is Docker Manager's one cron parser and next-run calculator (#13).
 // Every user-configurable scheduled job (backups, repository verification,
 // update checks and runs, prune, later kinds) uses it through the manager's
 // scheduler (internal/manager/scheduler); nothing else parses cron.
@@ -24,7 +24,7 @@
 //
 // This package is in-house rather than robfig/cron: robfig evaluates by
 // stepping local wall-clock fields, which skips runs inside a DST gap and
-// can run a repeated local time twice, while DockYard promises the two
+// can run a repeated local time twice, while Docker Manager promises the two
 // rules above.
 package cron
 

@@ -11,25 +11,25 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
 )
 
-// OpenAPI extension keys carrying DockYard's contract metadata. They are
+// OpenAPI extension keys carrying Docker Manager's contract metadata. They are
 // documented in docs/api/README.md.
 const (
 	// ExtCapability is the capability an operation requires.
-	ExtCapability = "x-dockyard-capability"
+	ExtCapability = "x-docker-manager-capability"
 	// ExtCapabilityValues lists the concrete capability keys of a selector
 	// capability such as stack.{action}.
-	ExtCapabilityValues = "x-dockyard-capability-values"
+	ExtCapabilityValues = "x-docker-manager-capability-values"
 	// ExtScope is the resource level the capability is checked at.
-	ExtScope = "x-dockyard-scope"
+	ExtScope = "x-docker-manager-scope"
 	// ExtIdempotency says how an Idempotency-Key is honored (stored|job).
-	ExtIdempotency = "x-dockyard-idempotency"
+	ExtIdempotency = "x-docker-manager-idempotency"
 	// ExtAudit is the action key an audited operation records (#30).
-	ExtAudit = "x-dockyard-audit"
+	ExtAudit = "x-docker-manager-audit"
 )
 
 // Security scheme names declared in components.securitySchemes.
@@ -93,7 +93,7 @@ var (
 	selectorRE      = regexp.MustCompile(`^([a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*)\.\{[a-z][A-Za-z0-9]*\}$`)
 )
 
-// Operation is a huma.Operation plus mandatory DockYard metadata.
+// Operation is a huma.Operation plus mandatory Docker Manager metadata.
 type Operation struct {
 	huma.Operation
 	// Capability required to call the operation. Mandatory.
@@ -202,7 +202,7 @@ func (op Operation) AuditActionKey() string {
 	return audit.ActionForOperation(op.OperationID)
 }
 
-// Validate checks the DockYard metadata rules.
+// Validate checks the Docker Manager metadata rules.
 func (op Operation) Validate() error {
 	if !operationIDRE.MatchString(op.OperationID) {
 		return fmt.Errorf("api: operation %s %s: OperationID %q must be kebab-case (e.g. get-stack)", op.Method, op.Path, op.OperationID)
@@ -329,7 +329,7 @@ func embeds(t, want reflect.Type) bool {
 	return false
 }
 
-// Register adds an operation to the API. It is the ONLY way DockYard code
+// Register adds an operation to the API. It is the ONLY way Docker Manager code
 // registers operations; it panics at startup when metadata is missing or
 // inconsistent so a misdeclared route can never ship:
 //

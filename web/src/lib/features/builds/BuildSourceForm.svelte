@@ -44,7 +44,7 @@
 			required
 			bind:value={form.gitUrl}
 			placeholder="https://github.com/acme/app.git"
-			description="HTTPS only. DockYard resolves the ref to a commit and builds exactly that commit."
+			description="HTTPS only. Docker Manager resolves the ref to a commit and builds exactly that commit."
 			error={errors.gitUrl ?? serverError('gitUrl')}
 			autocomplete="off"
 			spellcheck="false"

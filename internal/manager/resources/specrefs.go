@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // SpecRef is an object a saved recreate specification references (#6).
@@ -18,7 +18,7 @@ type SpecRef struct {
 }
 
 // ManagedSpecRefs returns the images, named volumes and networks the saved
-// recreate specifications of an environment's DockYard-managed standalone
+// recreate specifications of an environment's Docker Manager-managed standalone
 // containers reference; prune policies (#14) protect them so an automatic
 // update (#20) can recreate the container. Environment values of the
 // specifications are never returned.

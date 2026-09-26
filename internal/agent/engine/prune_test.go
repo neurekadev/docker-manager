@@ -10,8 +10,8 @@ import (
 	"github.com/moby/moby/api/types/build"
 	"github.com/moby/moby/api/types/volume"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginetest"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // The prune support of the adapter (#14) against the scripted Engine API:

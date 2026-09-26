@@ -15,11 +15,11 @@ import (
 	"github.com/docker/compose/v5/pkg/api"
 	"github.com/moby/moby/api/pkg/authconfig"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginetest"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 func writeFiles(t *testing.T, dir string, files map[string]string) {
@@ -71,7 +71,7 @@ services:
     build:
       context: ./web
       args:
-        LEAK: ${DOCKYARD_ENROLLMENT_TOKEN:-not-from-agent-env}
+        LEAK: ${DOCKER_AGENT_ENROLLMENT_TOKEN:-not-from-agent-env}
     depends_on:
       db:
         condition: service_healthy
@@ -88,7 +88,7 @@ services:
 
 func TestLoadProject(t *testing.T) {
 	// The agent's own environment must never reach interpolation.
-	t.Setenv("DOCKYARD_ENROLLMENT_TOKEN", "agent-secret-token")
+	t.Setenv("DOCKER_AGENT_ENROLLMENT_TOKEN", "agent-secret-token")
 	t.Setenv("DB_TAG", "from-agent-env")
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{
@@ -257,7 +257,7 @@ func TestCredentialsNeverTouchDisk(t *testing.T) {
 	t.Setenv("DOCKER_CONFIG", dockerConfig)
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 	t.Setenv("DOCKER_AUTH_CONFIG", `{"auths":{"registry.example:5000":{"auth":"`+base64.StdEncoding.EncodeToString([]byte("env:wrong"))+`"}}}`)
-	trap := []byte(`{"credsStore":"dockyard-trap","credHelpers":{"registry.example:5000":"dockyard-trap"},` +
+	trap := []byte(`{"credsStore":"docker-manager-trap","credHelpers":{"registry.example:5000":"docker-manager-trap"},` +
 		`"auths":{"registry.example:5000":{"auth":"` + base64.StdEncoding.EncodeToString([]byte("disk:wrong")) + `"}}}`)
 	if err := os.WriteFile(filepath.Join(dockerConfig, "config.json"), trap, 0o600); err != nil {
 		t.Fatal(err)
@@ -310,7 +310,7 @@ services:
 	var events []Event
 	err = a.Pull(ctx, p, RunOptions{
 		Auth: []engine.RegistryAuth{
-			{ServerAddress: "registry.example:5000", Username: "dockyard", Password: logging.Secret(password)},
+			{ServerAddress: "registry.example:5000", Username: "docker-manager", Password: logging.Secret(password)},
 			{ServerAddress: "docker.io", Username: "hubuser", Password: logging.Secret(hubToken)},
 		},
 		Output: &sdkOut,
@@ -327,7 +327,7 @@ services:
 		}
 		seen[r.Query.Get("fromImage")] = ac.Username + ":" + ac.Password
 	}
-	if seen["registry.example:5000/team/app"] != "dockyard:"+password {
+	if seen["registry.example:5000/team/app"] != "docker-manager:"+password {
 		t.Errorf("private registry pull used %q", seen["registry.example:5000/team/app"])
 	}
 	if seen["docker.io/library/busybox"] != "hubuser:"+hubToken {

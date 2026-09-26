@@ -53,8 +53,8 @@ export function runReason(r: Run): string {
 	switch (r.errorClass) {
 		case 'missed':
 			return r.missedCount && r.missedCount > 1
-				? `DockYard was not running at ${r.missedCount} scheduled times.`
-				: 'DockYard was not running at the scheduled time.';
+				? `Docker Manager was not running at ${r.missedCount} scheduled times.`
+				: 'Docker Manager was not running at the scheduled time.';
 		case 'previous_run_active':
 			return 'The previous run was still active.';
 		case 'nothing_to_run':

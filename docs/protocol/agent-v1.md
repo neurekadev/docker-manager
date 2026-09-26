@@ -1,6 +1,6 @@
-# Agent protocol `dockyard.agent/v1`
+# Agent protocol `docker-manager.agent/v1`
 
-The private protocol between the DockYard manager and its agents (#3, #4).
+The private protocol between the Docker Manager and its agents (#3, #4).
 It is versioned independently of the public `/api/v1`. This document is
 normative; `internal/protocol` implements the envelope, payload types,
 allowed names, limits, close codes and the version window, and its tests
@@ -11,7 +11,7 @@ document and the code disagree.
 
 - **Agents dial out.** An agent opens one outbound HTTPS WebSocket to the
   manager's single public origin (or an explicitly opted-in internal URL on
-  the manager's Docker network, `DOCKYARD_MANAGER_ALLOW_HTTP=true` for plain
+  the manager's Docker network, `DOCKER_AGENT_MANAGER_ALLOW_HTTP=true` for plain
   HTTP, #27). Agents never listen on a socket.
 - **Named operations only.** The manager sends job commands, requests and
   stream openings whose names are on the allowlists below. There is no
@@ -35,7 +35,7 @@ document and the code disagree.
 | `GET /agent/v1/session` | WebSocket upgrade to the session | agent credential |
 
 Both are publicly reachable on the shared origin, so they are rate limited
-per client IP (via `DOCKYARD_TRUSTED_PROXIES`, #27: 1 request/s, burst 30)
+per client IP (via `DOCKER_MANAGER_TRUSTED_PROXIES`, #27: 1 request/s, burst 30)
 and per token/credential (enrollment 6/min, burst 5 per enrollment ID;
 session upgrades 10/min, burst 10 per credential ID), answer failures
 generically, and bound request sizes (64 KiB) and pre-auth time (10 s).
@@ -50,23 +50,23 @@ hijacking. HTTP errors on these routes use the public error shape
 
 The owner (or a user with `agent.enroll`) creates an enrollment with `POST
 /api/v1/agent-enrollments` — or, before the UI and accounts exist (#16),
-inside the manager container with `dockyard-manager enrollment create
+inside the manager container with `docker-manager enrollment create
 [-name N] [-intent …] [-ttl 1h] [-json]`. The manager returns, **once**, a
 token and install commands containing the manager URL
-(`DOCKYARD_PUBLIC_URL`) and the token — on stdin, in an environment variable
+(`DOCKER_MANAGER_PUBLIC_URL`) and the token — on stdin, in an environment variable
 or a `.env` file, never in a URL:
 
 | variant | how the token reaches the agent |
 | --- | --- |
-| `colocated` | `printf '%s\n' "$TOKEN" \| docker compose exec -T dockyard-agent dockyard-agent enroll` next to the manager's compose file (the agent already runs on the internal URL) |
-| `remote` | `docker run -d … dockyard-agent` with the public origin, then the same `dockyard-agent enroll` on stdin |
-| `remote_compose` | `DOCKYARD_ENROLLMENT_TOKEN=` in `deploy/remote-agent/.env`, then `docker compose up -d` |
+| `colocated` | `printf '%s\n' "$TOKEN" \| docker compose exec -T docker-agent docker-agent enroll` next to the manager's compose file (the agent already runs on the internal URL) |
+| `remote` | `docker run -d … docker-agent` with the public origin, then the same `docker-agent enroll` on stdin |
+| `remote_compose` | `DOCKER_AGENT_ENROLLMENT_TOKEN=` in `deploy/remote-agent/.env`, then `docker compose up -d` |
 
 The enrollment records its intent:
 
 | intent | meaning |
 | --- | --- |
-| `new` (default) | create a new environment; optional preset name (`DOCKYARD_ENVIRONMENT_NAME`) |
+| `new` (default) | create a new environment; optional preset name (`DOCKER_AGENT_ENVIRONMENT_NAME`) |
 | `replace:<agentId>` | the new agent replaces the given agent for the same Engine; the old credential is revoked when enrollment succeeds |
 | `reattach:<environmentId>` | re-attach an archived environment (#34) — the owner's confirmation is given when creating the token |
 
@@ -84,10 +84,10 @@ Expired enrollments are deleted a week after they expired.
 POST /agent/v1/enroll HTTP/1.1
 Authorization: Bearer dye_0190a6e0-..._q2V1c...
 Content-Type: application/json
-User-Agent: dockyard-agent/1.4.0
+User-Agent: docker-agent/1.4.0
 
 {
-  "protocol": "dockyard.agent/v1",
+  "protocol": "docker-manager.agent/v1",
   "agentVersion": "1.4.0",
   "installId": "0190a6e0-1111-7000-8000-000000000001",
   "engine": { "id": "4VQD:...:ZK2M", "version": "28.5.2", "apiVersion": "1.51", "os": "linux", "arch": "amd64" },
@@ -145,11 +145,11 @@ it. One active agent per Engine is enforced in the enrollment transaction
 ### Agent side
 
 The agent enrolls once it knows its Engine identity (the Engine is
-reachable). Token sources, in order: a token handed over by `dockyard-agent
+reachable). Token sources, in order: a token handed over by `docker-agent
 enroll` (read from stdin or `-token-file`, written 0600 to
 `<state dir>/enrollment-token`, picked up within 2 s, deleted once used; also
 while enrolled — the new token wins, e.g. to replace or re-attach), then
-`DOCKYARD_ENROLLMENT_TOKEN(_FILE)` while not enrolled. `dockyard-agent
+`DOCKER_AGENT_ENROLLMENT_TOKEN(_FILE)` while not enrolled. `docker-agent
 enroll` waits (`-wait 90s`) for the outcome
 (`<state dir>/enrollment-status.json`) and for the session to come online,
 and exits 0 (online), 1 (refused, with the manager's code), 2 (usage) or 3
@@ -192,15 +192,15 @@ reports `unauthorized` in `health.json` and waits for a new token.
 GET /agent/v1/session HTTP/1.1
 Upgrade: websocket
 Authorization: Bearer dya_0190a6e0-4444-..._Zm9vYmFy...
-Sec-WebSocket-Protocol: dockyard.agent/v1
-User-Agent: dockyard-agent/1.4.0
+Sec-WebSocket-Protocol: docker-manager.agent/v1
+User-Agent: docker-agent/1.4.0
 ```
 
 Before the upgrade the manager answers with an HTTP error (standard shape):
 `401 unauthenticated` (unknown, revoked or rotated-out credential), `403
 forbidden` (an `Origin` header is present), `426 version_unsupported` (the
-`dockyard.agent/v1` subprotocol was not offered), `429 rate_limited`. The
-negotiated subprotocol is `dockyard.agent/v1`.
+`docker-manager.agent/v1` subprotocol was not offered), `429 rate_limited`. The
+negotiated subprotocol is `docker-manager.agent/v1`.
 
 ### Handshake
 
@@ -308,7 +308,7 @@ socket with `1009`). Receivers drop a repeated frame `id` within a session
 ### hello
 
 ```json
-{ "protocol": "dockyard.agent/v1", "agentId": "…", "agentVersion": "1.4.0",
+{ "protocol": "docker-manager.agent/v1", "agentId": "…", "agentVersion": "1.4.0",
   "installId": "…", "engineId": "…", "previousSessionId": "…" }
 ```
 
@@ -329,7 +329,7 @@ supported; the UI shows an upgrade notice).
 ```json
 {
   "agentVersion": "1.4.0",
-  "protocols": ["dockyard.agent/v1"],
+  "protocols": ["docker-manager.agent/v1"],
   "os": "linux", "arch": "amd64",
   "engine": { "id": "…", "version": "28.5.2", "apiVersion": "1.51", "minApiVersion": "1.24",
               "os": "linux", "arch": "amd64", "rootless": false },
@@ -337,7 +337,7 @@ supported; the UI shows an upgrade notice).
   "requests": ["engine.info", "container.list"],
   "streams": ["container.logs", "container.exec"],
   "features": ["fs.inotify"],
-  "roots": [ { "kind": "stacks", "path": "/var/lib/docker/volumes/dockyard_stacks/_data", "watch": "inotify" },
+  "roots": [ { "kind": "stacks", "path": "/var/lib/docker/volumes/docker-manager_stacks/_data", "watch": "inotify" },
              { "kind": "volumes", "path": "/var/lib/docker/volumes", "watch": "inotify" } ],
   "transport": { "managerUrl": "https://docker.example.com", "plainHttp": false, "customCa": false },
   "diagnostics": [ { "area": "storage", "code": "storage_root_mismatch", "path": "/opt/stacks",
@@ -356,9 +356,9 @@ supported; the UI shows an upgrade notice).
 
 - `transport` (required, #27) is how the agent reaches the manager:
   `plainHttp` is true exactly for an `http://` manager URL
-  (`DOCKYARD_MANAGER_ALLOW_HTTP=true`, co-located agents only) and the host
+  (`DOCKER_AGENT_MANAGER_ALLOW_HTTP=true`, co-located agents only) and the host
   page flags such environments; `customCa` reports a
-  `DOCKYARD_MANAGER_CA_FILE` bundle. Built by `internal/agent/transport`.
+  `DOCKER_AGENT_MANAGER_CA_FILE` bundle. Built by `internal/agent/transport`.
 
 - `engine.apiVersion` is the version the Moby client negotiated (#21). The
   manager maps Engine and API versions to supported features; a job kind or
@@ -380,7 +380,7 @@ one (N-1). `protocol.CheckAgentVersion(manager, agent)`:
 | older than N-1, different major, newer than the manager, or unparsable | refused: `error {code: version_unsupported}` then close `4426`; enrollment answers `426` |
 
 Upgrade order is manager first, then agents. The protocol identifier itself
-(`dockyard.agent/v1`) changes only for incompatible protocol changes; within
+(`docker-manager.agent/v1`) changes only for incompatible protocol changes; within
 v1, fields and frame types are only added, and receivers reject unknown
 fields, so an addition is used only after both sides announce it (`features`).
 Example: agents announce `frame.request_id` (`protocol.FeatureRequestID`);
@@ -510,7 +510,7 @@ re-reads inventory instead of trusting the event history.
   they appear, renamed or removed ones released; symlinks are never
   followed and a directory swapped for a symlink is not watched. Changes
   are debounced 200 ms and coalesced per path. Every scope's watches
-  count against one budget (`DOCKYARD_WATCH_MAX`, default half of
+  count against one budget (`DOCKER_AGENT_WATCH_MAX`, default half of
   `fs.inotify.max_user_watches`); a scope that does not fit, a remote
   filesystem (NFS, SMB/CIFS, FUSE, Ceph, …) or an agent without kernel
   notifications is polled: bounded reconciliation scans every 30 s
@@ -599,7 +599,7 @@ manager opens `migration.receive` on the destination agent and
 destination accepted the previous bytes (end-to-end backpressure: at most
 the source stream's window plus a 64 KiB copy buffer per part in manager
 memory, nothing on disk), optionally rate-limited
-(`DOCKYARD_MIGRATION_BANDWIDTH_LIMIT`).
+(`DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT`).
 
 - **Format** (`internal/transfer`): the magic `DYXFER01`, then chunks
   `uint32 BE length (1..196608) | payload | SHA-256(payload)`, then
@@ -621,11 +621,11 @@ memory, nothing on disk), optionally rate-limited
   (or a lost session) fails the part, which the job retries from its start.
 - **Containment:** the source reads only the stack's project directory
   inside a verified stack root and supported local volumes below the
-  verified volume directory (never DockYard's own volumes, #32). The
-  destination writes only into `<stacks>/.dockyard-migrations/<id>/project`
+  verified volume directory (never Docker Manager's own volumes, #32). The
+  destination writes only into `<stacks>/.docker-manager-migrations/<id>/project`
   (moved to the new project directory by `migration.commit`, which never
   replaces an existing directory) and into volumes it creates itself with
-  the label `dev.neureka.dockyard.migration=<id>`; extraction refuses
+  the label `dev.neureka.docker-manager.migration=<id>`; extraction refuses
   escaping names, members below symlinks or files, hard links to anything
   but earlier regular files and device nodes.
 - `migration.cleanup` removes the staging directory and, unless
@@ -646,8 +646,8 @@ the agent side is `internal/agent/files`, the manager side
   a verified stack root. `volume` scopes name a Docker volume: the agent
   inspects it and serves only local-driver volumes under the verified volume
   directory (`storage.Result.AccessFor`), never the stacks volume and never
-  volumes mounted by DockYard's own containers (label
-  `dev.neureka.dockyard.role`). Before the storage check ran nothing is
+  volumes mounted by Docker Manager's own containers (label
+  `dev.neureka.docker-manager.role`). Before the storage check ran nothing is
   served (`unsupported_volume`).
 - **Paths** are root-relative, slash-separated, without a leading `/`,
   `.`/`..` segments, backslashes or control characters
@@ -674,7 +674,7 @@ the agent side is `internal/agent/files`, the manager side
 - **`files.download`** (`FilesDownloadInput`): `raw` streams one regular
   file (optional `offset`/`length`); `zip` / `tar.gz` stream an archive of
   the paths (escaping symlinks, hard-linked and special files are listed in
-  a final `DOCKYARD-SKIPPED.txt` member).
+  a final `DOCKER-MANAGER-SKIPPED.txt` member).
 - **`files.upload`** (`FilesUploadInput`, exactly `size` bytes, optional
   `sha256`, one of `ifMatch` / `createOnly` / `conflict`): the agent checks
   the precondition before storing anything (an early `stream_close` with
@@ -689,7 +689,7 @@ the agent side is `internal/agent/files`, the manager side
   setuid bits, nothing below a refused link) and limits entries (100 000),
   bytes actually written (10 GiB) and the expansion ratio (100x the
   archive, at least 1 MiB).
-- DockYard's own changes are published as `fs_invalidation` of the
+- Docker Manager's own changes are published as `fs_invalidation` of the
   changed paths (the watcher of #23 reports external ones).
 
 ### Maintenance: previews and prune runs (#14)
@@ -705,7 +705,7 @@ Types in `internal/protocol/maintenance.go`; semantics in
   policy's enabled rules (categories `stopped_containers`,
   `dangling_images`, `unused_images`, `unused_networks`,
   `anonymous_volumes`, `named_volumes`, `build_cache`; at most one rule
-  each) and what the manager protects (DockYard stacks' Compose projects
+  each) and what the manager protects (Docker Manager stacks' Compose projects
   and images, saved container specifications, backup destinations). Strict
   decoding; invalid inputs answer `invalid_argument` before the Engine is
   read.
@@ -825,9 +825,9 @@ travel only in the command's `secrets.repositories` and are never
 journaled. The `backup.snapshots`, `backup.contents` requests and the
 `backup.file` stream carry the same credential in their input's
 `credential` field for that call only. The agent refuses local
-destinations outside `DOCKYARD_BACKUP_LOCAL_ROOTS` and any repository
+destinations outside `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` and any repository
 nested inside a backup source; external bind paths need both the policy's
-opt-in and `DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST`.
+opt-in and `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST`.
 Registry credentials needed by a pull, build, deploy or update travel only
 inside that command's input for that operation and are never persisted on
 the agent (#19).
@@ -953,7 +953,7 @@ Codes of `error` frames and of `stream_close {reason: error}`:
 | `not_directory` | a path component or the target is not a directory |
 | `is_directory` | the target is a directory where a file is needed |
 | `unsupported_file` | the entry's content is not served: symlink, device, FIFO, socket, or a regular file with several hard links |
-| `unsupported_volume` | the volume cannot be served (non-local driver, remote-backed, DockYard's own or the stacks volume, storage not verified) |
+| `unsupported_volume` | the volume cannot be served (non-local driver, remote-backed, Docker Manager's own or the stacks volume, storage not verified) |
 | `digest_mismatch` | an upload's bytes do not match its SHA-256 |
 | `repository_not_found` | no restic repository exists at the backup location (#10) |
 | `recovery_key_rejected` | the Recovery Key does not open the backup repository |
@@ -964,7 +964,7 @@ Codes of `error` frames and of `stream_close {reason: error}`:
 | `snapshot_not_found` | the snapshot or the path in it does not exist |
 | `restic_unavailable` | the agent image has no restic executable |
 | `restic_failed` | restic failed for another reason |
-| `path_not_allowed` | a local backup location is outside `DOCKYARD_BACKUP_LOCAL_ROOTS` |
+| `path_not_allowed` | a local backup location is outside `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` |
 | `repository_inside_source` | a local backup location lies inside a backup source |
 
 The manager maps them to public errors: `not_found` → 404,

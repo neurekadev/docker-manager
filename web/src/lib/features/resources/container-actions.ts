@@ -1,6 +1,6 @@
 // Container lifecycle requests (#6): each answers 202 with a job. Which
 // actions a container offers follows its state and the DTO's granted
-// actions (#17); DockYard's own containers (#32) still offer them so the
+// actions (#17); Docker Manager's own containers (#32) still offer them so the
 // server's refusal and its reason are shown (the page also says up front
 // what is refused).
 import { api, unwrap, type ApiClient, type Job } from '$lib/api/client';
@@ -54,7 +54,7 @@ export interface ActionOptions {
 	force?: boolean;
 	/** remove: also remove anonymous volumes. */
 	removeVolumes?: boolean;
-	/** restart: confirms interrupting DockYard itself (#32 confirmation_required). */
+	/** restart: confirms interrupting Docker Manager itself (#32 confirmation_required). */
 	confirm?: boolean;
 }
 

@@ -9,21 +9,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/stacks"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/stacks"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 const shopYAML = `services:
   db:
     image: registry.example:5000/db:${DB_TAG}
     labels:
-      dev.neureka.dockyard.description: Orders database
+      dev.neureka.docker-manager.description: Orders database
   web:
     image: nginx:1.27
     depends_on:
@@ -564,23 +564,23 @@ type ownProject string
 
 func (p ownProject) ProjectProtection(_ context.Context, _, project string) (*protocol.Protection, error) {
 	if project == string(p) {
-		return &protocol.Protection{Role: "dockyard_project", Reason: "DockYard's own Compose project " + project}, nil
+		return &protocol.Protection{Role: "docker_manager_project", Reason: "Docker Manager's own Compose project " + project}, nil
 	}
 	return nil, nil
 }
 
-// TestDockYardProjectIsProtected (#32): deploy, stop, restart, down and
-// removal of DockYard's own Compose project are refused before a job
+// TestDockerManagerProjectIsProtected (#32): deploy, stop, restart, down and
+// removal of Docker Manager's own Compose project are refused before a job
 // exists; start and other stacks are unaffected.
-func TestDockYardProjectIsProtected(t *testing.T) {
+func TestDockerManagerProjectIsProtected(t *testing.T) {
 	h := newHarness(t)
-	h.svc.SetProtection(ownProject("dockyard"))
-	own := h.create("dockyard", shopYAML, shopEnv)
+	h.svc.SetProtection(ownProject("docker-manager"))
+	own := h.create("docker-manager", shopYAML, shopEnv)
 	other := h.create("shop", shopYAML, shopEnv)
 	refused := func(what string, _ domain.Job, err error) {
 		t.Helper()
 		var de *domain.DockerError
-		if !errors.As(err, &de) || de.Code != domain.DockerProtected || !strings.Contains(de.Message, "DockYard") {
+		if !errors.As(err, &de) || de.Code != domain.DockerProtected || !strings.Contains(de.Message, "Docker Manager") {
 			t.Errorf("%s: %v", what, err)
 		}
 	}

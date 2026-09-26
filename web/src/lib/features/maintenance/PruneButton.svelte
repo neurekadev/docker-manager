@@ -144,7 +144,7 @@
 <Dialog
 	bind:open
 	title={info.title}
-	description="Removes {info.what} that nothing uses. DockYard's own objects, stacks, saved containers and backups are always kept. Nothing here is saved; recurring prunes are policies on the Maintenance page."
+	description="Removes {info.what} that nothing uses. Docker Manager's own objects, stacks, saved containers and backups are always kept. Nothing here is saved; recurring prunes are policies on the Maintenance page."
 	size="lg"
 	dismissible={!busy}
 >

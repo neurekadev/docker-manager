@@ -12,10 +12,10 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Global search for the ⌘K command palette (#4, #22). Every hit is filtered
@@ -59,7 +59,7 @@ type SearchHit struct {
 	Name            string `json:"name" example:"nextcloud" doc:"Display name (environment or stack name, service, container, volume or network name, first image tag)."`
 	EnvironmentID   string `json:"environmentId,omitempty"`
 	EnvironmentName string `json:"environmentName,omitempty"`
-	StackID         string `json:"stackId,omitempty" doc:"The stack of a service, or of a container, volume or network that belongs to a DockYard stack."`
+	StackID         string `json:"stackId,omitempty" doc:"The stack of a service, or of a container, volume or network that belongs to a Docker Manager stack."`
 	Status          string `json:"status,omitempty" doc:"online/offline (environments), the deployment status (stacks) or the container state."`
 }
 

@@ -8,15 +8,15 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/stacks"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/agent/watch"
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/stacks"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/watch"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // TestFilesWatcherAndBackupsShareTheIdenticalPathMount (#28, #15, #23,
@@ -55,7 +55,7 @@ func TestFilesWatcherAndBackupsShareTheIdenticalPathMount(t *testing.T) {
 	if err := os.MkdirAll(mount, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	stacksDir := volumesDir + "/dockyard_stacks/_data"
+	stacksDir := volumesDir + "/docker-manager_stacks/_data"
 	a.mu.Lock()
 	a.eng = eng
 	a.storage = &storage.Result{VolumesDir: volumesDir, StacksDir: stacksDir, Roots: []storage.Root{

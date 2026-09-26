@@ -162,7 +162,7 @@ directory as working directory:
 - remote `include` sources (Git/OCI) are not loadable (no remote loaders);
 - the labels the Compose CLI sets (`com.docker.compose.project`, `.service`,
   `.project.working_dir`, `.project.config_files`, ...) are added, so
-  `docker compose` recognizes DockYard's projects and vice versa;
+  `docker compose` recognizes Docker Manager's projects and vice versa;
 - unsupported features are rejected with `unsupported_compose_feature`
   (list in the support matrix); the obsolete top-level `version:` produces a
   warning.
@@ -172,8 +172,8 @@ Compose files and env files by project-relative path), as if it were in the
 project directory, for validation before anything is written (#7). A
 loaded `Project` lists its definition files (Compose files, env files and
 service `env_file`s), its resolved bind mounts and per-service display
-labels (`dev.neureka.dockyard.description` / `.icon`). Every service gets
-the label `dev.neureka.dockyard.depends_on`
+labels (`dev.neureka.docker-manager.description` / `.icon`). Every service gets
+the label `dev.neureka.docker-manager.depends_on`
 (`service:condition:restart:required`), which the shared lifecycle
 (`internal/agent/lifecycle`, [stacks.md](stacks.md)) reads to operate the
 deployed graph; Compose's own `depends_on` label lacks `required`.
@@ -227,7 +227,7 @@ the deploy examples mount the socket), `internal/manager/agents/install.go`
 (the agent install command shown to operators, which bind-mounts the socket
 into the agent container; the manager never dials it) and
 `internal/protocol/docker.go` (+ its test: the create-container validation
-refuses binding the socket into containers created through DockYard, #6).
+refuses binding the socket into containers created through Docker Manager, #6).
 
 ## Tests
 

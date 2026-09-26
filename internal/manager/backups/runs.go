@@ -11,16 +11,16 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // A run of a policy is one backup set: one backup.run job per environment
@@ -347,7 +347,7 @@ func (s *Service) settle(set *domain.BackupSet) {
 // scheduledSetID derives a scheduled run's set ID from its idempotency
 // key, so a repeated Jobs call for the same run reuses the set.
 func scheduledSetID(dueKey string) string {
-	sum := sha256.Sum256([]byte("dockyard/backup-set/" + dueKey))
+	sum := sha256.Sum256([]byte("docker-manager/backup-set/" + dueKey))
 	h := hex.EncodeToString(sum[:16])
 	return h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:32]
 }
@@ -412,7 +412,7 @@ func (s *Service) retentionRequests(ctx context.Context, p domain.BackupPolicy, 
 		seen[k] = true
 		repo, err := store.GetBackupRepository(ctx, s.db, sn.RepositoryID)
 		if err != nil {
-			continue // the repository was removed from DockYard
+			continue // the repository was removed from Docker Manager
 		}
 		if sn.Scope == backup.ScopeManager {
 			reqs = append(reqs, jobs.Request{Kind: jobspec.ManagerRetention, Targets: []domain.JobTarget{repoTarget(repo.ID)},

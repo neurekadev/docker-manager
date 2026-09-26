@@ -97,8 +97,8 @@ is an ancestor of the other (segment-wise prefix: `/a` covers `/a/b`, not
   `concurrency_limit`. Conflicts never fail a job; features that want reject
   semantics use an idempotency key or check before enqueueing.
 - Per-environment concurrency caps apply to kinds with a concurrency class
-  (`pull`: `DOCKYARD_JOB_MAX_CONCURRENT_PULLS`, default 2; `build`:
-  `DOCKYARD_JOB_MAX_CONCURRENT_BUILDS`, default 1).
+  (`pull`: `DOCKER_MANAGER_JOB_MAX_CONCURRENT_PULLS`, default 2; `build`:
+  `DOCKER_MANAGER_JOB_MAX_CONCURRENT_BUILDS`, default 1).
 - Prune takes shared `*` locks and must revalidate each candidate right
   before deleting it. Its shared `*` stack lock (#14) serializes it with
   deploys, builds, updates, migrations, backup shutdowns and restores (their
@@ -279,9 +279,9 @@ record lifecycle events. See [audit](audit.md).
 ## Retention
 
 Finished jobs and their events are deleted after
-`DOCKYARD_JOB_HISTORY_RETENTION` (default `720h`) and beyond the newest
-`DOCKYARD_JOB_HISTORY_MAX` (default 10000) finished jobs; each job keeps its
-newest `DOCKYARD_JOB_EVENTS_MAX` (default 500) events. Unfinished jobs are
+`DOCKER_MANAGER_JOB_HISTORY_RETENTION` (default `720h`) and beyond the newest
+`DOCKER_MANAGER_JOB_HISTORY_MAX` (default 10000) finished jobs; each job keeps its
+newest `DOCKER_MANAGER_JOB_EVENTS_MAX` (default 500) events. Unfinished jobs are
 never deleted. This is independent of audit retention (#30).
 
 ## Crash recovery tests

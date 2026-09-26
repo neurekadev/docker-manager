@@ -166,7 +166,7 @@ const (
 	// ResetPassword lets a user set a new password (owner-issued).
 	ResetPassword AccountResetKind = "password_reset"
 	// ResetOwnerRecovery resets the owner's password and factors
-	// (dockyard-manager owner-recovery).
+	// (docker-manager owner-recovery).
 	ResetOwnerRecovery AccountResetKind = "owner_recovery"
 )
 

@@ -15,59 +15,59 @@ import (
 	"strings"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/envconfig"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/server/sse"
-	"github.com/neurekadev/dockyard/internal/transfer"
+	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/sse"
+	"code.neureka.dev/docker-manager/docker-manager/internal/transfer"
 )
 
 // Environment variable names.
 const (
-	EnvPublicURL       = "DOCKYARD_PUBLIC_URL"
-	EnvListenAddr      = "DOCKYARD_LISTEN_ADDR"
-	EnvDataDir         = "DOCKYARD_DATA_DIR"
-	EnvSecretKeyFile   = "DOCKYARD_SECRET_KEY_FILE"
-	EnvLogLevel        = "DOCKYARD_LOG_LEVEL"
-	EnvLogFormat       = "DOCKYARD_LOG_FORMAT"
-	EnvTrustedProxies  = "DOCKYARD_TRUSTED_PROXIES"
-	EnvStreamHeartbeat = "DOCKYARD_STREAM_HEARTBEAT"
+	EnvPublicURL       = "DOCKER_MANAGER_PUBLIC_URL"
+	EnvListenAddr      = "DOCKER_MANAGER_LISTEN_ADDR"
+	EnvDataDir         = "DOCKER_MANAGER_DATA_DIR"
+	EnvSecretKeyFile   = "DOCKER_MANAGER_SECRET_KEY_FILE" //nolint:gosec // G101: a variable name, not a credential
+	EnvLogLevel        = "DOCKER_MANAGER_LOG_LEVEL"
+	EnvLogFormat       = "DOCKER_MANAGER_LOG_FORMAT"
+	EnvTrustedProxies  = "DOCKER_MANAGER_TRUSTED_PROXIES"
+	EnvStreamHeartbeat = "DOCKER_MANAGER_STREAM_HEARTBEAT"
 
-	EnvSessionIdleTimeout = "DOCKYARD_SESSION_IDLE_TIMEOUT"
-	EnvSessionLifetime    = "DOCKYARD_SESSION_LIFETIME"
+	EnvSessionIdleTimeout = "DOCKER_MANAGER_SESSION_IDLE_TIMEOUT"
+	EnvSessionLifetime    = "DOCKER_MANAGER_SESSION_LIFETIME"
 
-	EnvJobHistoryRetention   = "DOCKYARD_JOB_HISTORY_RETENTION"
-	EnvJobHistoryMax         = "DOCKYARD_JOB_HISTORY_MAX"
-	EnvJobEventsMax          = "DOCKYARD_JOB_EVENTS_MAX"
-	EnvJobMaxConcurrentPulls = "DOCKYARD_JOB_MAX_CONCURRENT_PULLS"
-	EnvJobMaxConcurrentBuild = "DOCKYARD_JOB_MAX_CONCURRENT_BUILDS"
+	EnvJobHistoryRetention   = "DOCKER_MANAGER_JOB_HISTORY_RETENTION"
+	EnvJobHistoryMax         = "DOCKER_MANAGER_JOB_HISTORY_MAX"
+	EnvJobEventsMax          = "DOCKER_MANAGER_JOB_EVENTS_MAX"
+	EnvJobMaxConcurrentPulls = "DOCKER_MANAGER_JOB_MAX_CONCURRENT_PULLS"
+	EnvJobMaxConcurrentBuild = "DOCKER_MANAGER_JOB_MAX_CONCURRENT_BUILDS"
 
-	EnvAuditRetentionDays = "DOCKYARD_AUDIT_RETENTION_DAYS"
-	EnvAuditMaxSizeMB     = "DOCKYARD_AUDIT_MAX_SIZE_MB"
-	EnvAuditLogMirror     = "DOCKYARD_AUDIT_LOG_MIRROR"
+	EnvAuditRetentionDays = "DOCKER_MANAGER_AUDIT_RETENTION_DAYS"
+	EnvAuditMaxSizeMB     = "DOCKER_MANAGER_AUDIT_MAX_SIZE_MB"
+	EnvAuditLogMirror     = "DOCKER_MANAGER_AUDIT_LOG_MIRROR"
 
-	EnvMetricsRetentionRaw     = "DOCKYARD_METRICS_RETENTION_RAW"
-	EnvMetricsRetentionMinute  = "DOCKYARD_METRICS_RETENTION_1M"
-	EnvMetricsRetentionQuarter = "DOCKYARD_METRICS_RETENTION_15M"
-	EnvMetricsMaxSizeMB        = "DOCKYARD_METRICS_MAX_SIZE_MB"
-	EnvMetricsMaxSeries        = "DOCKYARD_METRICS_MAX_SERIES"
+	EnvMetricsRetentionRaw     = "DOCKER_MANAGER_METRICS_RETENTION_RAW"
+	EnvMetricsRetentionMinute  = "DOCKER_MANAGER_METRICS_RETENTION_1M"
+	EnvMetricsRetentionQuarter = "DOCKER_MANAGER_METRICS_RETENTION_15M"
+	EnvMetricsMaxSizeMB        = "DOCKER_MANAGER_METRICS_MAX_SIZE_MB"
+	EnvMetricsMaxSeries        = "DOCKER_MANAGER_METRICS_MAX_SERIES"
 
-	EnvFilesMaxUploadMB = "DOCKYARD_FILES_MAX_UPLOAD_MB"
+	EnvFilesMaxUploadMB = "DOCKER_MANAGER_FILES_MAX_UPLOAD_MB"
 
-	EnvMigrationBandwidthLimit = "DOCKYARD_MIGRATION_BANDWIDTH_LIMIT"
+	EnvMigrationBandwidthLimit = "DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT"
 	// Backups (#10).
-	EnvBackupLocalRoots = "DOCKYARD_BACKUP_LOCAL_ROOTS"
-	EnvResticBinary     = "DOCKYARD_RESTIC_BINARY"
-	// Diagnostics (#34): the Prometheus endpoint of DockYard's own
+	EnvBackupLocalRoots = "DOCKER_MANAGER_BACKUP_LOCAL_ROOTS"
+	EnvResticBinary     = "DOCKER_MANAGER_RESTIC_BINARY"
+	// Diagnostics (#34): the Prometheus endpoint of Docker Manager's own
 	// internals (not the host metrics of #5, which are always collected).
-	EnvMetricsEnabled = "DOCKYARD_METRICS_ENABLED"
+	EnvMetricsEnabled = "DOCKER_MANAGER_METRICS_ENABLED"
 )
 
 // Defaults.
 const (
 	DefaultListenAddr = ":8080"
-	DefaultDataDir    = "/var/lib/dockyard"
+	DefaultDataDir    = "/var/lib/docker-manager"
 	SecretKeyFileName = "secret.key"
-	DatabaseFileName  = "dockyard.db"
+	DatabaseFileName  = "docker-manager.db"
 	SnapshotDirName   = "snapshots"
 
 	DefaultJobHistoryRetention   = 30 * 24 * time.Hour
@@ -429,7 +429,7 @@ func loadMetrics(src envconfig.Source) (MetricsConfig, error) {
 	return c, nil
 }
 
-// ParsePublicURL validates DOCKYARD_PUBLIC_URL. It must be an absolute origin
+// ParsePublicURL validates DOCKER_MANAGER_PUBLIC_URL. It must be an absolute origin
 // (no path, query, fragment or credentials). Plain http is only accepted for
 // localhost/loopback development, reported by the second return value.
 func ParsePublicURL(raw string) (*url.URL, bool, error) {
@@ -453,7 +453,7 @@ func ParsePublicURL(raw string) (*url.URL, bool, error) {
 		return nil, false, fmt.Errorf("%s: must not contain a query or fragment", EnvPublicURL)
 	}
 	if u.Path != "" && u.Path != "/" {
-		return nil, false, fmt.Errorf("%s: must be an origin without a path; serving DockYard under a sub-path is not supported", EnvPublicURL)
+		return nil, false, fmt.Errorf("%s: must be an origin without a path; serving Docker Manager under a sub-path is not supported", EnvPublicURL)
 	}
 	dev := false
 	if u.Scheme == "http" {

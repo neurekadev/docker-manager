@@ -44,7 +44,7 @@ const (
 // Error classes of update.run failures (jobexec.ClassedError).
 const (
 	// UpdateClassSourceChanged: the definition on disk is not the applied
-	// revision, or it changed while the update ran. DockYard never writes
+	// revision, or it changed while the update ran. Docker Manager never writes
 	// it; the run stops before (or reports after) touching containers.
 	UpdateClassSourceChanged = "source_changed"
 	// UpdateClassCandidateChanged: after the pull the tag names another
@@ -86,7 +86,7 @@ type UpdateService struct {
 	RegistryConnection string `json:"registryConnection,omitempty"`
 }
 
-// UpdateContainer is a DockYard-managed standalone container an update
+// UpdateContainer is a Docker Manager-managed standalone container an update
 // recreates from its saved recreate specification (#6).
 type UpdateContainer struct {
 	Name string `json:"name"`
@@ -94,7 +94,7 @@ type UpdateContainer struct {
 	// under the same name meanwhile is refused.
 	ID   string        `json:"id"`
 	Spec ContainerSpec `json:"spec"`
-	// Ownership are the DockYard labels of the container (LabelManaged,
+	// Ownership are the Docker Manager labels of the container (LabelManaged,
 	// LabelSpec, LabelInstance), kept on the recreated container.
 	Ownership map[string]string `json:"ownership,omitempty"`
 }

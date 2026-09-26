@@ -183,8 +183,8 @@
 				title={protectionLabel(im.protection)}
 				live="none"
 			>
-				{sentence(im.protection.reason)} DockYard never removes it, for anyone. Use Docker on
-				the host if you really need to.
+				{sentence(im.protection.reason)} Docker Manager never removes it, for anyone. Use Docker
+				on the host if you really need to.
 			</Notice>
 		{/if}
 		{#if job}<JobProgress watcher={job} variant="inline" notices={null} />{/if}

@@ -10,8 +10,8 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 
-	"github.com/neurekadev/dockyard/internal/manager/store/storetest"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store/storetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 func TestStoreRoundTripAndExpiry(t *testing.T) {
@@ -142,14 +142,14 @@ func sessionCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 	return nil
 }
 
-// TestCookiePolicyAndHashedTokens: the cookie carries DockYard's attributes
+// TestCookiePolicyAndHashedTokens: the cookie carries Docker Manager's attributes
 // and the database holds only token hashes.
 func TestCookiePolicyAndHashedTokens(t *testing.T) {
 	f := newFixture(t)
 	rec := f.do(t, http.MethodPost, "/login?u=alice", nil)
 	c := sessionCookie(t, rec)
 	raw := rec.Header().Get("Set-Cookie")
-	for _, want := range []string{"__Host-dockyard_session=", "Path=/", "HttpOnly", "Secure", "SameSite=Strict", "Max-Age="} {
+	for _, want := range []string{"__Host-docker_manager_session=", "Path=/", "HttpOnly", "Secure", "SameSite=Strict", "Max-Age="} {
 		if !strings.Contains(raw, want) {
 			t.Errorf("Set-Cookie %q lacks %q", raw, want)
 		}

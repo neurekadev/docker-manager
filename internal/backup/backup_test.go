@@ -11,7 +11,7 @@ import (
 
 func sampleManifest() Manifest {
 	at := time.Date(2026, 9, 1, 2, 0, 0, 0, time.UTC)
-	dest := Destination{Kind: KindS3, Endpoint: "https://s3.example.com", Bucket: "backups", Prefix: "dockyard", Region: "eu-central-1"}
+	dest := Destination{Kind: KindS3, Endpoint: "https://s3.example.com", Bucket: "backups", Prefix: "docker-manager", Region: "eu-central-1"}
 	return Manifest{
 		Kind: ManifestSet, SetID: "set-1", InstanceID: "inst-1", PolicyID: "pol-1", PolicyName: "Nightly",
 		StartedAt: at, CreatedAt: at.Add(time.Minute), App: AppInfo{Version: "1.0.0", Commit: "abc"},
@@ -67,7 +67,7 @@ func TestManifestDetectsCorruptionAndTruncation(t *testing.T) {
 	}
 	flip := bytes.Clone(good)
 	flip[len(flip)-10] ^= 0x01
-	newer := bytes.Replace(bytes.Clone(good), []byte("DOCKYARD-MANIFEST v1"), []byte("DOCKYARD-MANIFEST v9"), 1)
+	newer := bytes.Replace(bytes.Clone(good), []byte("DOCKER-MANAGER-MANIFEST v1"), []byte("DOCKER-MANAGER-MANIFEST v9"), 1)
 	cases := map[string]struct {
 		in   []byte
 		want error
@@ -213,19 +213,19 @@ func TestRetentionUsesPolicyTimeZone(t *testing.T) {
 }
 
 func TestDestinations(t *testing.T) {
-	s3 := Destination{Kind: KindS3, Endpoint: "http://minio:9000", Bucket: "dockyard", Prefix: "site-a", PathStyle: true}
+	s3 := Destination{Kind: KindS3, Endpoint: "http://minio:9000", Bucket: "docker-manager", Prefix: "site-a", PathStyle: true}
 	if err := s3.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if got := s3.Repository(EnvironmentScope("e1")); got != "s3:http://minio:9000/dockyard/site-a/dockyard-env-e1" {
+	if got := s3.Repository(EnvironmentScope("e1")); got != "s3:http://minio:9000/docker-manager/site-a/docker-manager-env-e1" {
 		t.Errorf("s3 repository = %s", got)
 	}
 	loc := s3.Location(ScopeManager, S3Credentials{AccessKeyID: "AK", SecretAccessKey: "SK"})
-	if loc.S3 == nil || !loc.S3.PathStyle || loc.Repository != "s3:http://minio:9000/dockyard/site-a/dockyard-manager" {
+	if loc.S3 == nil || !loc.S3.PathStyle || loc.Repository != "s3:http://minio:9000/docker-manager/site-a/docker-manager" {
 		t.Errorf("location = %#v", loc)
 	}
-	local := Destination{Kind: KindLocal, Path: "/backups/dockyard"}
-	if err := local.Validate(); err != nil || local.Repository(ScopeManager) != "/backups/dockyard/dockyard-manager" {
+	local := Destination{Kind: KindLocal, Path: "/backups/docker-manager"}
+	if err := local.Validate(); err != nil || local.Repository(ScopeManager) != "/backups/docker-manager/docker-manager" {
 		t.Errorf("local: %v %s", err, local.Repository(ScopeManager))
 	}
 	for _, bad := range []Destination{
@@ -249,7 +249,7 @@ func TestDestinations(t *testing.T) {
 	if !Within("/a/b", "/a") || Within("/ab", "/a") || !Within("/a", "/a") {
 		t.Error("Within")
 	}
-	tags := []string{TagDockYard, SetTag("s1"), PolicyTag("p1"), ItemTag(StackItem("st"))}
+	tags := []string{TagDockerManager, SetTag("s1"), PolicyTag("p1"), ItemTag(StackItem("st"))}
 	if SetOf(tags) != "s1" || PolicyOf(tags) != "p1" || ItemOf(tags) != "stack/st" {
 		t.Errorf("tag values")
 	}

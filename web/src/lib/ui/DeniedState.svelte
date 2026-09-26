@@ -13,7 +13,7 @@
 
 	let {
 		title = "You don't have access to anything yet.",
-		description = 'Ask the owner of this DockYard to grant access.',
+		description = 'Ask the owner of this Docker Manager to grant access.',
 		level = 2
 	}: Props = $props();
 </script>

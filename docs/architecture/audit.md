@@ -50,7 +50,7 @@ and with what result, for every security-relevant and mutating action.
 
 `api.Register` audits **every non-GET operation** (no opt-out) and every GET
 operation that declares `Audit: api.AuditAlways` (downloads, exports). The
-operation's action is published as `x-dockyard-audit` in the OpenAPI
+operation's action is published as `x-docker-manager-audit` in the OpenAPI
 document. After the operation answered (including validation failures,
 Idempotency-Key replays and panics), one record is appended with the action,
 operation ID, actor, client IP, user agent, request ID, path-parameter
@@ -86,7 +86,7 @@ the handler names one.
 and requires one record with the right action, actor, targets and outcome;
 `TestEveryServedMutatingOperationIsAudited` calls every served operation
 with its real handler; `TestOpenAPICompleteness` fails on a mutating
-operation without `x-dockyard-audit`; and
+operation without `x-docker-manager-audit`; and
 `TestOperationsRegisteredOnlyThroughRegister` fails when code registers an
 operation with Huma directly.
 
@@ -119,7 +119,7 @@ manager, e.g. `app.Manager.Audit()`):
   versions), `agent.credential_rotate` when the agent completes a rotation,
   `agent.session_refused` for refused session upgrades and handshakes, and
   `agent.enroll` (actor `service`, detail `via: cli`) for
-  `dockyard-manager enrollment create`. Revocation and archive go through
+  `docker-manager enrollment create`. Revocation and archive go through
   the API and are audited by construction.
 - #19/#33: each use of a registry or Git credential (`registry.credential_used`
   with the credential ID as target — never the value).
@@ -145,7 +145,7 @@ Every event passes `internal/manager/audit/redact.go` before it is hashed:
   structs are reduced to their JSON form (unexported and `json:"-"` fields
   never appear);
 - strings shaped like credentials anywhere (bearer/basic credentials,
-  DockYard `dy_`/`dya_`/`dye_` tokens, private keys, JWTs, cloud and forge
+  Docker Manager `dy_`/`dya_`/`dye_` tokens, private keys, JWTs, cloud and forge
   tokens, URL passwords, `password=…` pairs) are redacted whatever their key;
   strings over 1 KiB are omitted (file contents); depth, item counts and the
   details size (16 KiB) are bounded;
@@ -181,8 +181,8 @@ problems (`TestVerifyDetectsTampering`).
 
 ## Retention
 
-- `DOCKYARD_AUDIT_RETENTION_DAYS` (default 365): older records are deleted.
-- `DOCKYARD_AUDIT_MAX_SIZE_MB` (default 1024): when the retained records'
+- `DOCKER_MANAGER_AUDIT_RETENTION_DAYS` (default 365): older records are deleted.
+- `DOCKER_MANAGER_AUDIT_MAX_SIZE_MB` (default 1024): when the retained records'
   canonical size exceeds it, the oldest are deleted down to 90% of the cap.
 - The purge runs hourly as manager service work (`Log.Run`), deletes only a
   prefix of the chain in batches, moves the anchor to the last deleted record
@@ -209,9 +209,9 @@ problems (`TestVerifyDetectsTampering`).
   all-or-nothing (high-risk entries of the #17 catalog; no group holds them
   until the owner grants them): records reveal activity on resources the
   reader cannot otherwise see, so they are never filtered per item.
-- `DOCKYARD_AUDIT_LOG_MIRROR=true` also writes every stored (redacted) record
+- `DOCKER_MANAGER_AUDIT_LOG_MIRROR=true` also writes every stored (redacted) record
   as a structured log line (`msg="audit"`, `component=audit_mirror`, level
-  info, so `DOCKYARD_LOG_LEVEL` must be `info` or `debug`) for external
+  info, so `DOCKER_MANAGER_LOG_LEVEL` must be `info` or `debug`) for external
   collection. Off by default. A record written in a transaction that
   later rolls back can appear in the mirror only.
 

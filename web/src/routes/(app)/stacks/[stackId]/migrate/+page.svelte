@@ -17,7 +17,8 @@
 		{#key ctx.id}<MigrationWizard {stack} tray={ctx.tray} />{/key}
 	{:else}
 		<p class="muted">
-			Migrating needs the permission to migrate this stack. Ask the owner of this DockYard.
+			Migrating needs the permission to migrate this stack. Ask the owner of this Docker
+			Manager.
 		</p>
 		<Button href={routes.stack(ctx.id)}>Back to {title}</Button>
 	{/if}

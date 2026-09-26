@@ -5,12 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 func identify(t *testing.T, g *Guard, fe *enginefake.Engine) *Set {
@@ -37,7 +37,7 @@ func role(t *testing.T, what string, p *protocol.Protection, want string, self b
 
 // TestHostWithManagerAndAgent (#32 Done-when 2): on the co-located host the
 // agent finds itself, the manager (by the container ID from
-// manager.identity), the rest of DockYard's Compose project, their images,
+// manager.identity), the rest of Docker Manager's Compose project, their images,
 // the manager data, agent state, stacks and proxy volumes and their
 // network; user objects stay unprotected.
 func TestHostWithManagerAndAgent(t *testing.T) {
@@ -77,13 +77,13 @@ func TestHostWithManagerAndAgent(t *testing.T) {
 	role(t, "stacks", s.Volume(d.Stacks, nil), protection.RoleStacks, false)
 	role(t, "proxy data", s.Volume(d.ProxyData, nil), protection.RoleVolume, false)
 	role(t, "user volume", s.Volume("webdata", nil), "", false)
-	role(t, "volume of the project (label)", s.Volume("dockyard_extra", map[string]string{protocol.ComposeProjectLabel: "dockyard"}), protection.RoleVolume, false)
+	role(t, "volume of the project (label)", s.Volume("docker-manager_extra", map[string]string{protocol.ComposeProjectLabel: "docker-manager"}), protection.RoleVolume, false)
 	n, _ := fe.InspectNetwork(testutil.Context(t), d.Network)
 	role(t, "network by id", s.Network(n.ID, "", nil), protection.RoleNetwork, false)
 	role(t, "network by name", s.Network("", d.Network, nil), protection.RoleNetwork, false)
 	role(t, "user network", s.Network(userNet, "apps", nil), "", false)
 	role(t, "bridge", s.Network("", "bridge", nil), "", false)
-	role(t, "project", s.Project("dockyard"), protection.RoleProject, false)
+	role(t, "project", s.Project("docker-manager"), protection.RoleProject, false)
 	if s.DockerRootDir != "/var/lib/docker" {
 		t.Errorf("docker root %q", s.DockerRootDir)
 	}
@@ -91,7 +91,7 @@ func TestHostWithManagerAndAgent(t *testing.T) {
 		t.Errorf("manager identity %s %s", inst, id)
 	}
 	// A manager container without the label is found by its ID alone.
-	unlabeled := fe.AddContainer(engine.ContainerSpec{Name: "mgr", Image: "code.neureka.dev/dockyard/dockyard-manager:edge"}, true)
+	unlabeled := fe.AddContainer(engine.ContainerSpec{Name: "mgr", Image: "code.neureka.dev/docker-manager/docker-manager:edge"}, true)
 	g.SetManager("inst-1", unlabeled)
 	role(t, "unlabeled manager", identify(t, g, fe).Container(unlabeled), protection.RoleManager, true)
 }
@@ -114,7 +114,7 @@ func TestHostWithOnlyAnAgent(t *testing.T) {
 	role(t, "state", s.Volume(d.AgentState, nil), protection.RoleAgentState, false)
 	role(t, "stacks", s.Volume(d.Stacks, nil), protection.RoleStacks, false)
 	role(t, "agent image", s.Image(d.AgentImage), protection.RoleImage, false)
-	role(t, "project", s.Project("dockyard"), protection.RoleProject, false)
+	role(t, "project", s.Project("docker-manager"), protection.RoleProject, false)
 	other := fe.AddContainer(engine.ContainerSpec{Name: "other-manager", Image: "nginx:1.27",
 		Labels: map[string]string{protocol.LabelRole: "manager"}}, true)
 	role(t, "other installation's manager", identify(t, g, fe).Container(other), protection.RoleManager, false)

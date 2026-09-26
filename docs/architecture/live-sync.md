@@ -2,7 +2,7 @@
 
 Every open view converges on the manager's and agents' current state
 without a manual reload, including stack and volume file browsers when a
-file changes outside DockYard. Wire contracts:
+file changes outside Docker Manager. Wire contracts:
 [streams.md](../api/streams.md#live-invalidation-stream-23) (browser) and
 [agent-v1.md](../protocol/agent-v1.md#fs_invalidation-and-rescan-15-23)
 (agent). Decisions: #25 Q1 (on-disk source of truth), Q4 (no offline

@@ -3,7 +3,7 @@
 ## Logs
 
 Both executables log structured JSON lines to stderr (`log/slog`;
-`DOCKYARD_LOG_FORMAT=text` for humans) at `DOCKYARD_LOG_LEVEL` (`debug`,
+`DOCKER_MANAGER_LOG_FORMAT=text` / `DOCKER_AGENT_LOG_FORMAT=text` for humans) at `DOCKER_MANAGER_LOG_LEVEL` / `DOCKER_AGENT_LOG_LEVEL` (`debug`,
 `info`, `warn`, `error`). Collect them with `docker compose logs` or any
 Docker log driver. Secrets never reach the log: values that might be
 sensitive are wrapped as `[REDACTED]`, and the secret-canary tests (#29)
@@ -18,7 +18,7 @@ does for that frame with the same `request_id` (and `job_id`). To follow
 one operation, grep both logs for the ID:
 
 ```bash
-docker compose logs dockyard-manager dockyard-agent | grep '"request_id":"4f0c…"'
+docker compose logs docker-manager docker-agent | grep '"request_id":"4f0c…"'
 ```
 
 Scheduled work carries no request ID; follow it by `job_id`. Agents older
@@ -29,15 +29,15 @@ IDs.
 
 | image | `HEALTHCHECK` | what it checks |
 | --- | --- | --- |
-| manager | `dockyard-manager healthcheck` → `GET /api/v1/health` | the process serves HTTP |
-| agent | `dockyard-agent healthcheck` | `<state dir>/health.json` updated within 60 s (its `status` is the connection state) |
+| manager | `docker-manager healthcheck` → `GET /api/v1/health` | the process serves HTTP |
+| agent | `docker-agent healthcheck` | `<state dir>/health.json` updated within 60 s (its `status` is the connection state) |
 
 `GET /api/v1/health/ready` answers 503 `not_ready` while the database is
 unreachable or migrations are pending (use it for load balancers).
 
-## Metrics of DockYard itself
+## Metrics of Docker Manager itself
 
-Off by default. With `DOCKYARD_METRICS_ENABLED=true` the manager serves
+Off by default. With `DOCKER_MANAGER_METRICS_ENABLED=true` the manager serves
 `GET /api/v1/system/metrics` in the Prometheus text format 0.0.4: job queue
 depth and unfinished jobs by state and kind, connected agent sessions,
 environments by status and connection, agents by version compatibility,
@@ -52,11 +52,11 @@ grants it) and scrape with it:
 ```yaml
 # prometheus.yml
 scrape_configs:
-  - job_name: dockyard
+  - job_name: docker-manager
     scheme: https
     metrics_path: /api/v1/system/metrics
     authorization:
-      credentials_file: /etc/prometheus/dockyard-token   # dy_… token with system.metrics.read
+      credentials_file: /etc/prometheus/docker-manager-token   # dy_… token with system.metrics.read
     static_configs:
       - targets: [docker.example.com]
 ```
@@ -71,7 +71,7 @@ tokens are refused; audited as `system.support_bundle`) downloads a zip:
 | file | contents |
 | --- | --- |
 | `versions.json` | manager version/commit/Go, API and agent protocol versions, every agent's version and compatibility |
-| `configuration.json` | the effective `DOCKYARD_*` settings (secret files by path only) |
+| `configuration.json` | the effective `DOCKER_MANAGER_*` settings (secret files by path only) |
 | `support-matrix.json` | per environment: agent version window, Engine API ≥ 1.44, linux/amd64 or arm64, rootless, Docker Desktop, plain-HTTP transport, agent diagnostics |
 | `agents.json` | environments (status, online, archived) and agents (connection, last seen, rotation pending) |
 | `audit-chain.json` | the audit hash chain verification (`ok`, records checked, problems) |

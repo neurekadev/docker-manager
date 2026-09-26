@@ -1,5 +1,5 @@
 <script lang="ts">
-	// "About this DockYard" on the settings overview (#4 GET/PATCH /settings): the
+	// "About this Docker Manager" on the settings overview (#4 GET/PATCH /settings): the
 	// display name (renamed in place with settings.manage), the version and
 	// the read-only deployment configuration from the manager's environment
 	// variables.
@@ -60,7 +60,7 @@
 	}
 </script>
 
-<Card title="About this DockYard" id="instance">
+<Card title="About this Docker Manager" id="instance">
 	{#snippet actions()}
 		{#if canEdit && !editing}
 			<Button size="sm" variant="ghost" icon={Pencil} onclick={start}>Rename</Button>
@@ -70,7 +70,7 @@
 		<form onsubmit={save} novalidate>
 			<TextField
 				label="Name"
-				description="Shown in the settings of this DockYard. 1 to {MAX_INSTANCE_NAME} characters."
+				description="Shown in the settings of this Docker Manager. 1 to {MAX_INSTANCE_NAME} characters."
 				bind:value={name}
 				error={fieldError}
 				maxlength={MAX_INSTANCE_NAME}
@@ -81,7 +81,9 @@
 				>{/if}
 			<FormFooter>
 				<Button variant="ghost" onclick={() => (editing = false)}>Cancel</Button>
-				<Button type="submit" variant="primary" loading={saving}>Rename DockYard</Button>
+				<Button type="submit" variant="primary" loading={saving}
+					>Rename Docker Manager</Button
+				>
 			</FormFooter>
 		</form>
 	{:else}
@@ -92,7 +94,7 @@
 	</div>
 	<p class="muted note">
 		The deployment settings come from the manager's environment variables. Change them where
-		DockYard is deployed and restart the manager.
+		Docker Manager is deployed and restart the manager.
 	</p>
 </Card>
 

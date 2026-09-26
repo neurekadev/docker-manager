@@ -34,7 +34,7 @@ linters:
             - pkg: github.com/fsouza/go-dockerclient
               desc: use github.com/moby/moby/client through the agent Engine adapter (#21)
             - pkg: github.com/mattn/go-sqlite3
-              desc: DockYard is CGO-free; use bun/driver/sqliteshim (modernc.org/sqlite)
+              desc: Docker Manager is CGO-free; use bun/driver/sqliteshim (modernc.org/sqlite)
         # Only the two agent adapters may use the Engine, Compose, BuildKit
         # and docker/cli SDKs (#21). Everything else goes through
         # internal/agent/engine's domain-neutral interface.

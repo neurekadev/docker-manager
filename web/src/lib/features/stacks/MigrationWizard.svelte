@@ -367,7 +367,7 @@
 				icon={ArrowRightLeft}
 				color="blue"
 				title="There is no other environment to migrate to."
-				description="Add an environment first: run the DockYard agent on another Docker host and enroll it."
+				description="Add an environment first: run the Docker Agent on another Docker host and enroll it."
 				level={3}
 				compact
 			/>

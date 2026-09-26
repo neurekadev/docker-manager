@@ -184,7 +184,7 @@
 			icon={Layers}
 			color="blue"
 			title="No environments yet."
-			description="Stacks run on an environment. Add one first: run the DockYard agent on a Docker host and enroll it."
+			description="Stacks run on an environment. Add one first: run the Docker Agent on a Docker host and enroll it."
 			level={2}
 		>
 			{#snippet actions()}<Button variant="primary" href={routes.environments()}
@@ -196,7 +196,7 @@
 			icon={Layers}
 			color="blue"
 			title="You can't create stacks in any environment."
-			description="Ask the owner of this DockYard for the permission to create stacks."
+			description="Ask the owner of this Docker Manager for the permission to create stacks."
 			level={2}
 		/>
 	{:else}
@@ -239,7 +239,7 @@
 					<TextField
 						label="Description"
 						bind:value={description}
-						description="Optional. Stored in DockYard, not in the Compose file."
+						description="Optional. Stored in Docker Manager, not in the Compose file."
 					/>
 				</div>
 			</Card>

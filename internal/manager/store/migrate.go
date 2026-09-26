@@ -14,7 +14,7 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/migrate"
 
-	"github.com/neurekadev/dockyard/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
 )
 
 // MigrationsTable is Bun's bookkeeping table (the migrate package default).
@@ -24,9 +24,9 @@ const MigrationsTable = "bun_migrations"
 const DefaultKeepSnapshots = 3
 
 // snapshotPrefix/snapshotSuffix frame snapshot file names:
-// dockyard-<UTC timestamp>-<seq>-pre-<first pending migration>.db
+// docker-manager-<UTC timestamp>-<seq>-pre-<first pending migration>.db
 const (
-	snapshotPrefix = "dockyard-"
+	snapshotPrefix = "docker-manager-"
 	snapshotSuffix = ".db"
 )
 
@@ -51,7 +51,7 @@ type MigrateResult struct {
 }
 
 // ErrUnknownMigrations means the database was migrated by a newer build.
-var ErrUnknownMigrations = errors.New("store: database contains migrations unknown to this build (was it migrated by a newer DockYard version?)")
+var ErrUnknownMigrations = errors.New("store: database contains migrations unknown to this build (was it migrated by a newer Docker Manager version?)")
 
 // Status reports applied and pending migration names without modifying the
 // database (it does not create Bun's tables).
@@ -155,7 +155,7 @@ func Snapshot(ctx context.Context, db bun.IDB, dir, label string, clk clock.Cloc
 	if err != nil {
 		return "", fmt.Errorf("store: list snapshots: %w", err)
 	}
-	// dockyard-<UTC timestamp>-<2-digit sequence>-<label>.db sorts chronologically.
+	// docker-manager-<UTC timestamp>-<2-digit sequence>-<label>.db sorts chronologically.
 	stamp := snapshotPrefix + clk.Now().UTC().Format("20060102T150405Z")
 	seq := 0
 	for _, n := range existing {

@@ -21,7 +21,7 @@ export interface ReportChunk {
 export function bundleReport(): Plugin {
 	let root = process.cwd();
 	return {
-		name: 'dockyard-bundle-report',
+		name: 'docker-manager-bundle-report',
 		apply: 'build',
 		configResolved(config) {
 			root = config.root;

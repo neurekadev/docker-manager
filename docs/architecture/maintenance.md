@@ -2,7 +2,7 @@
 
 Users define prune policies for one environment or all environments, with one rule per resource
 category, preview exactly what a run would remove, and run them manually
-or on their own cron schedule (#13). DockYard never calls the Engine's
+or on their own cron schedule (#13). Docker Manager never calls the Engine's
 broad prune endpoints: the agent lists the objects, filters them with the
 rules and every protection, and removes each candidate with a targeted
 call after revalidating it.
@@ -62,24 +62,24 @@ Each volume rule needs its own; previews evaluate volume rules without it.
 
 A candidate is never removed when it is:
 
-- one of DockYard's own objects (#32): the agent's `protect.Guard`
+- one of Docker Manager's own objects (#32): the agent's `protect.Guard`
   identifies them on every plan and again right before every removal, and
   `protection.Check` refuses them in the executor;
-- part of a DockYard stack: its Compose project is sent by the manager
+- part of a Docker Manager stack: its Compose project is sent by the manager
   (every stack of the environment, also when it is down) and recognized by
   the agent (working directory in a verified stack root) — containers,
   networks and volumes carrying the project label;
 - an image referenced by a stack definition (service image, applied image
   and image ID) or by a saved container specification (#6), or a volume or
-  network a saved specification uses; DockYard-created standalone containers
+  network a saved specification uses; Docker Manager-created standalone containers
   with a saved specification are protected too;
 - a backup destination or other object backups rely on: #10 installs
   `maintenance.Service.SetBackupReferences` (volumes/networks by name;
-  local repository volumes mounted into DockYard containers are also
-  DockYard's own);
+  local repository volumes mounted into Docker Manager containers are also
+  Docker Manager's own);
 - part of the stopped source of a migrated stack (#35) until the user
   confirms its removal: after the cut-over the source project is no
-  longer a DockYard stack, so `app` installs
+  longer a Docker Manager stack, so `app` installs
   `maintenance.Service.AddReferences` with
   `migrations.Service.RetainedSources` (the Compose project and the
   migration's source volumes, while the migration runs or completed);
@@ -133,7 +133,7 @@ The agent executor:
    as the job output.
 2. `delete_candidates` processes them in category order (containers first,
    build cache last; build cache children before parents). For each item it
-   reads the Engine again — the container list, DockYard's protected set,
+   reads the Engine again — the container list, Docker Manager's protected set,
    the object itself — and re-evaluates rule, protection and usage; an item
    that changed is `skipped` with the reason (`now running`, `now used by
    container x`, `protected: …`, `already removed`). The removal is a

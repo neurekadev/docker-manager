@@ -17,23 +17,23 @@ import (
 // network.* job kinds take the inputs below. Both sides validate inputs with
 // the same functions.
 
-// Labels DockYard sets or reads on Docker objects.
+// Labels Docker Manager sets or reads on Docker objects.
 const (
 	// LabelPrefix is reserved: users cannot set labels under it (#6, #32).
-	LabelPrefix = "dev.neureka.dockyard."
-	// LabelRole marks DockYard's own containers in the deploy examples:
+	LabelPrefix = "dev.neureka.docker-manager."
+	// LabelRole marks Docker Manager's own containers in the deploy examples:
 	// "manager" or "agent" (#32).
 	LabelRole = LabelPrefix + "role"
-	// LabelManaged marks a container DockYard created: "standalone" (#6).
+	// LabelManaged marks a container Docker Manager created: "standalone" (#6).
 	LabelManaged = LabelPrefix + "managed"
 	// LabelInstance is the manager instance ID that created the object.
 	LabelInstance = LabelPrefix + "instance"
 	// LabelSpec is the ID of the saved recreate specification of a
-	// DockYard-managed standalone container (manager side, used by #20).
+	// Docker Manager-managed standalone container (manager side, used by #20).
 	LabelSpec = LabelPrefix + "spec"
 	// LabelUpdateExclude is a user-set opt-out from automatic image updates.
-	// It deliberately sits outside the reserved DockYard prefix.
-	LabelUpdateExclude = "dockyard.update.exclude"
+	// It deliberately sits outside the reserved Docker Manager prefix.
+	LabelUpdateExclude = "docker-manager.update.exclude"
 
 	// ManagedStandalone is the LabelManaged value of standalone containers.
 	ManagedStandalone = "standalone"
@@ -77,21 +77,21 @@ type StackRef struct {
 	Project string `json:"project"`
 	Service string `json:"service,omitempty"`
 	// Managed: the project's working directory lies in one of the agent's
-	// verified stack roots (#28), so DockYard manages the stack (#7) and
+	// verified stack roots (#28), so Docker Manager manages the stack (#7) and
 	// direct edits of its containers conflict with it.
 	Managed bool `json:"managed,omitempty"`
 }
 
-// Protection says why DockYard refuses destructive operations on one of its
+// Protection says why Docker Manager refuses destructive operations on one of its
 // own resources (#32; decisions: internal/protection).
 type Protection struct {
-	// Role is agent, manager, dockyard_project, dockyard_image,
-	// manager_data, agent_state, stacks, dockyard_volume or
-	// dockyard_network (protection.Role*).
+	// Role is agent, manager, docker_manager_project, docker_manager_image,
+	// manager_data, agent_state, stacks, docker_manager_volume or
+	// docker_manager_network (protection.Role*).
 	Role string `json:"role"`
 	// Reason is shown to users.
 	Reason string `json:"reason"`
-	// Self: the resource belongs to this DockYard installation (the
+	// Self: the resource belongs to this Docker Manager installation (the
 	// connected agent, or the manager whose instance ID matched).
 	Self bool `json:"self,omitempty"`
 	// RestartAllowed: a restart is allowed after an explicit confirmation
@@ -356,7 +356,7 @@ type (
 		Spec ContainerSpec `json:"spec"`
 		// Start the container after creating it.
 		Start bool `json:"start,omitempty"`
-		// Ownership are the DockYard labels the manager sets on the
+		// Ownership are the Docker Manager labels the manager sets on the
 		// container (LabelManaged, LabelInstance, LabelSpec only).
 		Ownership map[string]string `json:"ownership,omitempty"`
 	}
@@ -485,7 +485,7 @@ func ValidImageID(id string) bool { return imageIDRE.MatchString(id) }
 // ValidatePlatform checks an os/arch[/variant] platform ("" = the Engine's).
 func ValidatePlatform(p string) bool { return p == "" || platformRE.MatchString(p) }
 
-// ValidateLabels checks user labels: bounded, and never under DockYard's or
+// ValidateLabels checks user labels: bounded, and never under Docker Manager's or
 // Compose's reserved prefixes (ownership and stack membership cannot be
 // forged, #6, #32).
 func ValidateLabels(field string, labels map[string]string) error {
@@ -697,7 +697,7 @@ func validIP(s string) bool {
 	return true
 }
 
-// OwnershipLabels are the only DockYard labels a create input may set.
+// OwnershipLabels are the only Docker Manager labels a create input may set.
 var OwnershipLabels = []string{LabelManaged, LabelInstance, LabelSpec}
 
 // Validate checks a create-container input.

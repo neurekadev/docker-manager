@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // Opened is a location opened for a job.

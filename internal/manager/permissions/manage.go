@@ -9,13 +9,13 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/authz/policy"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/policy"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // Owner-only management flows (#17). Every change needs a recent step-up,
@@ -149,7 +149,7 @@ func (s *Service) RenameGroup(ctx context.Context, id string, revision int64, na
 
 // DeleteGroup deletes a group (owner, step-up, revision). The current
 // default group cannot be deleted (choose another default first), and a
-// group with members cannot be deleted (move them first): DockYard never
+// group with members cannot be deleted (move them first): Docker Manager never
 // moves users implicitly, so deleting a group never changes anyone's
 // access.
 func (s *Service) DeleteGroup(ctx context.Context, id string, revision int64) error {
@@ -285,7 +285,7 @@ func (s *Service) ReplaceUserPermissions(ctx context.Context, id string, revisio
 }
 
 // ForgetResource removes every group and user rule on one resource: call
-// it after deleting a resource through DockYard (stack delete, volume or
+// it after deleting a resource through Docker Manager (stack delete, volume or
 // container removal), so a later resource with the same name in the same
 // environment does not inherit the old rules. It returns the number of
 // rules removed; affected users' streams end. Environment-, instance- and

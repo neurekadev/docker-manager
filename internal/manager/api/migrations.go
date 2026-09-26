@@ -8,11 +8,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/migrations"
 )
 
 // Environment migration (#35): previews, migrations and source removals of
@@ -93,7 +93,7 @@ type MigrationDowntime struct {
 type MigrationTransport struct {
 	SourcePlainHTTP              bool  `json:"sourcePlainHttp"`
 	DestinationPlainHTTP         bool  `json:"destinationPlainHttp"`
-	BandwidthLimitBytesPerSecond int64 `json:"bandwidthLimitBytesPerSecond" doc:"DOCKYARD_MIGRATION_BANDWIDTH_LIMIT (0: unlimited)."`
+	BandwidthLimitBytesPerSecond int64 `json:"bandwidthLimitBytesPerSecond" doc:"DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT (0: unlimited)."`
 }
 
 // MigrationAccessChange is one user's access change.
@@ -112,7 +112,7 @@ type MigrationAccess struct {
 	Unavailable    string                  `json:"unavailable,omitempty"`
 }
 
-// MigrationExclusion is a DockYard resource left out (#32).
+// MigrationExclusion is a Docker Manager resource left out (#32).
 type MigrationExclusion struct {
 	Name   string `json:"name"`
 	Reason string `json:"reason"`
@@ -297,7 +297,7 @@ func migrationErr(err error) error {
 	case errors.Is(err, migrations.ErrSourceRemoved):
 		return Conflict(CodeMigrationSourceRemoved, "the migration's source was already removed")
 	case errors.Is(err, migrations.ErrSourceInUse):
-		return Conflict(CodeMigrationSourceInUse, "a DockYard stack on the source environment manages the source project again; its files are not removed")
+		return Conflict(CodeMigrationSourceInUse, "a Docker Manager stack on the source environment manages the source project again; its files are not removed")
 	case errors.Is(err, domain.ErrMigrationNotFound):
 		return NotFound("migration not found")
 	case errors.As(err, &ae):
@@ -466,7 +466,7 @@ func registerMigrations(a huma.API, deps Deps) {
 		Description: "Confirms a completed migration: starts a stack.remove_source job (202) on the source environment that removes the " +
 			"source project's containers and networks, the migrated volumes and the project directory there. 409 " +
 			"migration_not_completed before the migration completed, migration_source_removed after a removal, " +
-			"migration_source_in_use when a DockYard stack manages the source project again. Backup snapshots of the source " +
+			"migration_source_in_use when a Docker Manager stack manages the source project again. Backup snapshots of the source " +
 			"stay in their repository.",
 		Tags: []string{tagStacks}, Errors: previewErrs, DefaultStatus: http.StatusAccepted,
 	}, Capability: CapStackMigrate, Scope: ScopeResource, Idempotency: IdempotencyJob, AuditAction: "stack.migrate.remove_source"}, h.removeSource)
@@ -476,7 +476,7 @@ func registerMigrations(a huma.API, deps Deps) {
 		OperationID: "create-volume-migration-preview", Method: http.MethodPost, Path: vol + "/migration-previews",
 		Summary: "Preview a volume migration",
 		Description: "The preflight check of copying the volume to another environment (optionally under a new name): support " +
-			"(local volumes only; DockYard's own volumes are refused), running containers using it (blocking unless a " +
+			"(local volumes only; Docker Manager's own volumes are refused), running containers using it (blocking unless a " +
 			"crash-consistent copy is acknowledged), name conflicts, size against free space, transport and access changes. Needs " +
 			"volume.migrate on the volume and volume.create on the destination. Changes nothing.",
 		Tags: []string{tagVolumes}, Errors: previewErrs,

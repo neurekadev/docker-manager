@@ -1,16 +1,16 @@
 // Package state manages the agent's persistent identity files in its state
-// directory (DOCKYARD_AGENT_STATE_DIR, a named volume):
+// directory (DOCKER_AGENT_STATE_DIR, a named volume):
 //
 //	install-id              generated once; with the Engine ID it identifies
 //	                        this installation (Engine IDs collide on clones)
 //	credential.json         agent ID, environment ID and the bearer
 //	                        credential (0600)
-//	enrollment-token        a token handed over by `dockyard-agent enroll`
+//	enrollment-token        a token handed over by `docker-agent enroll`
 //	                        (0600, deleted once used)
 //	enrollment-status.json  the outcome of the last enrollment attempt, read
-//	                        by `dockyard-agent enroll` to report the result
+//	                        by `docker-agent enroll` to report the result
 //	enrollment-used.json    SHA-256 of tokens already used, so a token left
-//	                        in DOCKYARD_ENROLLMENT_TOKEN is not retried
+//	                        in DOCKER_AGENT_ENROLLMENT_TOKEN is not retried
 //
 // Every write is atomic: temporary file (0600), fsync, rename, directory
 // fsync. The credential is written before the agent opens a session with it.
@@ -32,7 +32,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // File names inside the state directory.
@@ -77,7 +77,7 @@ type EnrollStatus struct {
 }
 
 // Store reads and writes the state files. It is safe for concurrent use
-// within one process; `dockyard-agent enroll` only writes TokenFile.
+// within one process; `docker-agent enroll` only writes TokenFile.
 type Store struct {
 	dir string
 	mu  sync.Mutex
@@ -175,7 +175,7 @@ func (s *Store) ClearCredential() error {
 }
 
 // SubmitToken hands an enrollment token to the running agent (used by
-// `dockyard-agent enroll`).
+// `docker-agent enroll`).
 func (s *Store) SubmitToken(token string) error {
 	token = strings.TrimSpace(token)
 	if err := ValidateToken(token); err != nil {
@@ -334,7 +334,7 @@ func writeAtomic(dir, name string, b []byte) error {
 		_ = os.Remove(tmp.Name())
 		return fmt.Errorf("state: write %s: %w", name, err)
 	}
-	// A concurrent reader (`dockyard-agent enroll` polling the status) can
+	// A concurrent reader (`docker-agent enroll` polling the status) can
 	// make the rename fail on some platforms for a moment: retry briefly.
 	var rerr error
 	for range 5 {

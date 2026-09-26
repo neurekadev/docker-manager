@@ -142,7 +142,7 @@
 <Dialog
 	bind:open
 	title={connection ? `Edit ${connection.name}` : 'Add a registry connection'}
-	description="DockYard uses it for pulls, deploys and update checks of matching images. It is shared by the whole instance, not a personal login."
+	description="Docker Manager uses it for pulls, deploys and update checks of matching images. It is shared by the whole instance, not a personal login."
 	size="md"
 	dismissible={!busy}
 >
@@ -200,7 +200,7 @@
 				autocomplete="new-password"
 				required
 				bind:value={secret}
-				description="Shown only while you type it. DockYard stores it sealed and never displays it again; you'll see its fingerprint."
+				description="Shown only while you type it. Docker Manager stores it sealed and never displays it again; you'll see its fingerprint."
 				error={fieldError(failure, 'body.secret')}
 			/>
 		{:else}

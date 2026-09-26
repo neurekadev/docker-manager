@@ -1,4 +1,4 @@
-// Package api defines DockYard's public /api/v1 contract with Huma: the
+// Package api defines Docker Manager's public /api/v1 contract with Huma: the
 // shared error shape, the operation registration helper with mandatory
 // capability/scope metadata, pagination types and the operations themselves.
 //
@@ -17,10 +17,10 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
 )
 
 // Contract constants.
@@ -31,16 +31,16 @@ const (
 	Version = "v1"
 	// OpenAPIPath serves the spec at OpenAPIPath + ".json" and ".yaml".
 	OpenAPIPath = BasePath + "/openapi"
-	title       = "DockYard API"
-	description = "Public control API of the DockYard manager. All routes live under /api/v1 on the single public origin. " +
+	title       = "Docker Manager API"
+	description = "Public control API of the Docker Manager. All routes live under /api/v1 on the single public origin. " +
 		"Errors use the Error schema with media type application/problem+json. " +
-		"Every operation declares the capability it requires (x-dockyard-capability) and the scope at which it is checked (x-dockyard-scope). " +
+		"Every operation declares the capability it requires (x-docker-manager-capability) and the scope at which it is checked (x-docker-manager-scope). " +
 		"Browsers authenticate with the session cookie, other clients with a bearer API token. " +
-		"Conventions, errors, streams and versioning: docs/api/README.md in the DockYard repository."
+		"Conventions, errors, streams and versioning: docs/api/README.md in the Docker Manager repository."
 
 	// SessionCookieName is the browser session cookie (#16). The __Host-
 	// prefix pins it to the single public origin: Secure, Path=/, no Domain.
-	SessionCookieName = "__Host-dockyard_session"
+	SessionCookieName = "__Host-docker_manager_session"
 )
 
 // Deps are the collaborators operations need. Zero values are valid for spec
@@ -104,7 +104,7 @@ type Deps struct {
 	InstanceID string
 	// Files is the scoped file manager (#15); nil answers the file routes
 	// with 503. FilesMaxUpload bounds one upload (default DefaultMaxUpload,
-	// DOCKYARD_FILES_MAX_UPLOAD).
+	// DOCKER_MANAGER_FILES_MAX_UPLOAD).
 	Files          FilesService
 	FilesMaxUpload int64
 	// GitCredentials serves Git credentials (#33); nil answers with 503.
@@ -166,7 +166,7 @@ type Check struct {
 	Message string
 }
 
-// Config returns the Huma configuration for the DockYard API.
+// Config returns the Huma configuration for the Docker Manager API.
 func Config() huma.Config {
 	cfg := huma.DefaultConfig(title, Version)
 	cfg.Info.Description = description
@@ -182,7 +182,7 @@ func Config() huma.Config {
 				"Unsafe methods authenticated by this cookie must come from the manager's own origin (Origin/Sec-Fetch-Site checks).",
 		},
 		SecurityBearer: { //nolint:gosec // G101: a security scheme description, not a credential
-			Type: "http", Scheme: "bearer", BearerFormat: "DockYard API token",
+			Type: "http", Scheme: "bearer", BearerFormat: "Docker Manager API token",
 			Description: "Scoped, expiring API token (#31) sent as Authorization: Bearer <token>. " +
 				"A token carries a subset of its owner's capabilities; each request is evaluated as token scope intersected with the owner's current effective permissions.",
 		},

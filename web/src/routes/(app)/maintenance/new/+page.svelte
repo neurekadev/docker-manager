@@ -29,7 +29,7 @@
 	{:else if !can(accessOf(perms.data), 'maintenance_policy.manage')}
 		<DeniedState
 			title="You can't create maintenance policies."
-			description="Ask the owner of this DockYard for the Manage maintenance policies permission."
+			description="Ask the owner of this Docker Manager for the Manage maintenance policies permission."
 			level={2}
 		/>
 	{:else}

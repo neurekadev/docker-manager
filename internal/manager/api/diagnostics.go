@@ -7,12 +7,12 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 )
 
-// Diagnostics (#34): DockYard's own Prometheus metrics and the owner-only
+// Diagnostics (#34): Docker Manager's own Prometheus metrics and the owner-only
 // support bundle.
 
 // Diagnostics capabilities (#17 catalog).
@@ -54,11 +54,11 @@ func registerDiagnostics(a huma.API, deps Deps) {
 	Register(a, Operation{
 		Operation: huma.Operation{
 			OperationID: "get-system-metrics", Method: http.MethodGet, Path: BasePath + "/system/metrics",
-			Summary: "DockYard internal metrics (Prometheus)",
-			Description: "DockYard's own metrics in the Prometheus text exposition format 0.0.4: job queue depth and unfinished jobs " +
+			Summary: "Docker Manager internal metrics (Prometheus)",
+			Description: "Docker Manager's own metrics in the Prometheus text exposition format 0.0.4: job queue depth and unfinished jobs " +
 				"by state and kind, connected agent sessions, environments by state, agents by version compatibility, open event " +
 				"streams and event bus subscribers, database sizes, the audit chain length and Go runtime basics. Off by default: " +
-				"404 unless DOCKYARD_METRICS_ENABLED=true. Requires system.metrics.read (grant it to a dedicated API token and scrape " +
+				"404 unless DOCKER_MANAGER_METRICS_ENABLED=true. Requires system.metrics.read (grant it to a dedicated API token and scrape " +
 				"with Authorization: Bearer). Host and container metrics are GET /environments/{environmentId}/metrics.",
 			Tags: []string{tagSystem}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusServiceUnavailable},
 			Responses: map[string]*huma.Response{"200": {Description: "Prometheus text exposition",
@@ -70,7 +70,7 @@ func registerDiagnostics(a huma.API, deps Deps) {
 			return nil, err
 		}
 		if deps.Diagnostics == nil || !deps.Diagnostics.MetricsEnabled() {
-			return nil, NotFound("the metrics endpoint is disabled; set DOCKYARD_METRICS_ENABLED=true to enable it")
+			return nil, NotFound("the metrics endpoint is disabled; set DOCKER_MANAGER_METRICS_ENABLED=true to enable it")
 		}
 		return &huma.StreamResponse{Body: func(hctx huma.Context) {
 			hctx.SetHeader("Content-Type", metricsContentType)
@@ -102,7 +102,7 @@ func registerDiagnostics(a huma.API, deps Deps) {
 		if deps.Diagnostics == nil {
 			return nil, Unavailable(CodeUnavailable, "support bundles are not available")
 		}
-		name := "dockyard-support-" + deps.clock().Now().UTC().Format("20060102T150405Z") + ".zip"
+		name := "docker-manager-support-" + deps.clock().Now().UTC().Format("20060102T150405Z") + ".zip"
 		audit.SetDetail(ctx, "fileName", name)
 		return &huma.StreamResponse{Body: func(hctx huma.Context) {
 			hctx.SetHeader("Content-Type", bundleContentType)

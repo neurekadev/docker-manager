@@ -16,13 +16,13 @@ import (
 
 	"golang.org/x/crypto/chacha20poly1305"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
 )
 
 // The Recovery Key (#10, #24; decision #25 Q7): one instance-wide,
 // high-entropy key that is the restic password of every repository
-// DockYard creates (the manager scope and every environment scope, local
+// Docker Manager creates (the manager scope and every environment scope, local
 // and S3). The owner saves it once; any single repository opens with it,
 // and the manager-state snapshot carries the manager's secret-protection
 // key sealed under a key derived from it (the key bundle), so the Recovery
@@ -34,11 +34,13 @@ import (
 // restic password.
 
 const (
-	recoveryKeyPrefix  = "DYRK"
-	recoveryKeyRandom  = 30
-	recoveryKeyCheck   = 2
-	recoveryKeyGroups  = 13
-	recoveryKeyChars   = 52
+	recoveryKeyPrefix = "DYRK"
+	recoveryKeyRandom = 30
+	recoveryKeyCheck  = 2
+	recoveryKeyGroups = 13
+	recoveryKeyChars  = 52
+	// The contexts keep the project's former name (DockYard): Recovery Keys
+	// already written down must keep their checksum and fingerprint.
 	fingerprintContext = "dockyard/recovery-key-fingerprint/v1\x00"
 	checksumContext    = "dockyard/recovery-key-checksum/v1\x00"
 )
@@ -142,9 +144,10 @@ func (k RecoveryKey) Equal(o RecoveryKey) bool {
 // the manager's secret-protection key sealed with XChaCha20-Poly1305 under
 // HKDF-SHA256(Recovery Key, salt). The snapshot itself is encrypted by
 // restic with the same Recovery Key; the bundle keeps the secret key
-// unreadable to anyone holding only a restic key added outside DockYard.
+// unreadable to anyone holding only a restic key added outside Docker Manager.
 
-// Bundle format identifiers.
+// Bundle format identifiers, under the project's former name (DockYard):
+// exported bundles must stay importable.
 const (
 	BundleFormat  = "dockyard-secret-key-bundle"
 	BundleVersion = 1

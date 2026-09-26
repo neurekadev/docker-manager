@@ -2,7 +2,7 @@
 // resolves a stack's file root, relays the files.* requests and the
 // files.download/files.upload byte streams to the environment's agent,
 // enqueues the files.* jobs, and tells the stack workstream (#7) when
-// DockYard changed a stack's Compose sources. It implements
+// Docker Manager changed a stack's Compose sources. It implements
 // api.FilesService.
 //
 // It does not authorize: the API layer (#17) checks the caller's
@@ -24,14 +24,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/agents"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 )
 
 // StackRoot is where a stack's files live.
@@ -49,7 +49,7 @@ type StackRoots interface {
 	StackFileRoot(ctx context.Context, stackID string) (StackRoot, error)
 }
 
-// SourceObserver is told when DockYard changed a stack's Compose sources
+// SourceObserver is told when Docker Manager changed a stack's Compose sources
 // (compose.yaml, override files, .env at the project root; see
 // api.IsDefinitionFile) through the file manager. #7 records a new stack
 // revision and marks undeployed changes; it never deploys. Called after

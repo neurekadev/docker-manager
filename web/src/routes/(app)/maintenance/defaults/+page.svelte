@@ -106,7 +106,7 @@
 		query={defaults}
 		errorTitle="The maintenance defaults could not be loaded."
 		deniedTitle="You can't see the maintenance defaults."
-		deniedDescription="Ask the owner of this DockYard for the View settings permission."
+		deniedDescription="Ask the owner of this Docker Manager for the View settings permission."
 	>
 		{#snippet children(d)}
 			{#if error}
@@ -116,7 +116,7 @@
 			{/if}
 			<Card
 				title="Default rules"
-				subtitle="DockYard ships every rule off with a 30-day age; volume rules also need their own opt-in."
+				subtitle="Docker Manager ships every rule off with a 30-day age; volume rules also need their own opt-in."
 			>
 				<RuleList
 					rules={rules ?? []}

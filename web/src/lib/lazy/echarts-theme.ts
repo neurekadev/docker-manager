@@ -1,11 +1,11 @@
-// DockYard's ECharts theme (#22): muted axes, subtle grid, the tooltip as
+// Docker Manager's ECharts theme (#22): muted axes, subtle grid, the tooltip as
 // a raised surface, tabular numbers. Plain data (no ECharts import), so it
 // can be unit-tested; registered by ./echarts.ts.
 import { CHART_COLORS as c, EDITOR_COLORS } from './palette';
 
-export const DOCKYARD_ECHARTS_THEME = 'dockyard';
+export const DOCKER_MANAGER_ECHARTS_THEME = 'docker-manager';
 
-export const dockyardEchartsTheme = {
+export const dockerManagerEchartsTheme = {
 	color: [...c.series],
 	backgroundColor: 'transparent',
 	textStyle: { color: c.text, fontFamily: EDITOR_COLORS.fontSans, fontSize: 12 },

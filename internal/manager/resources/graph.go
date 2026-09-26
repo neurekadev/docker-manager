@@ -5,15 +5,15 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/permissions"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/permissions"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // The resource graph for authorization (#17). Containers, volumes and
-// networks of a Compose project that is a DockYard stack (#7) live in that
+// networks of a Compose project that is a Docker Manager stack (#7) live in that
 // stack (containers also in its service), so stack-scoped rules apply to
 // them. Handlers pass the parents they know from the agent's answer
 // (Parents); the Locators serve checks without one — the job engine's
@@ -41,7 +41,7 @@ func (s *Service) remember(typ, env, name string, st *protocol.StackRef) {
 
 // Parents returns the authorization parents of a container, volume or
 // network with Compose membership st: its service and stack when the
-// project is a DockYard stack, none otherwise (never nil, so no Locator is
+// project is a Docker Manager stack, none otherwise (never nil, so no Locator is
 // consulted).
 func (s *Service) Parents(ctx context.Context, typ, env string, st *protocol.StackRef) []authz.ResourceRef {
 	out := []authz.ResourceRef{}

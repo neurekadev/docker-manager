@@ -9,11 +9,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Agent enrollment and agent routes (#3). Environments: environments.go.
@@ -100,7 +100,7 @@ type InstallCommand struct {
 type CreatedAgentEnrollment struct {
 	Enrollment AgentEnrollment `json:"enrollment"`
 	Token      string          `json:"token" example:"dye_0190a6e0-0000-7000-8000-000000000011_q2V1c..." doc:"The one-use enrollment token. Returned only in this response (and in an Idempotency-Key replay); only its SHA-256 verifier is stored. Never put it in a URL."`
-	ManagerURL string          `json:"managerUrl" example:"https://docker.example.com" doc:"DOCKYARD_PUBLIC_URL, the origin remote agents dial."`
+	ManagerURL string          `json:"managerUrl" example:"https://docker.example.com" doc:"DOCKER_MANAGER_PUBLIC_URL, the origin remote agents dial."`
 	// InstallCommands contain the token.
 	InstallCommands []InstallCommand `json:"installCommands"`
 }
@@ -122,7 +122,7 @@ func newEnrollment(e domain.Enrollment, now time.Time) AgentEnrollment {
 // AgentTransport is how the agent reaches the manager (#27).
 type AgentTransport struct {
 	ManagerURL string `json:"managerUrl"`
-	PlainHTTP  bool   `json:"plainHttp" doc:"The agent uses a plain-HTTP internal URL (DOCKYARD_MANAGER_ALLOW_HTTP); flagged on the host page."`
+	PlainHTTP  bool   `json:"plainHttp" doc:"The agent uses a plain-HTTP internal URL (DOCKER_AGENT_MANAGER_ALLOW_HTTP); flagged on the host page."`
 	CustomCA   bool   `json:"customCa"`
 }
 
@@ -202,7 +202,7 @@ type createEnrollmentInput struct {
 	IdempotencyKeyParam
 	Body struct {
 		Intent                 string `json:"intent,omitempty" maxLength:"64" pattern:"^(new|replace:[0-9a-f-]{36}|reattach:[0-9a-f-]{36})$" example:"new" doc:"new (default): a new environment. replace:<agentId>: the new agent replaces that agent for the same Engine and its credential is revoked when enrollment succeeds. reattach:<environmentId>: re-attach that archived or detached environment."`
-		EnvironmentName        string `json:"environmentName,omitempty" maxLength:"63" example:"NAS" doc:"Preset display name (otherwise the agent's DOCKYARD_ENVIRONMENT_NAME or the Engine host name)."`
+		EnvironmentName        string `json:"environmentName,omitempty" maxLength:"63" example:"NAS" doc:"Preset display name (otherwise the agent's DOCKER_AGENT_ENVIRONMENT_NAME or the Engine host name)."`
 		ExpiresInSeconds       int    `json:"expiresInSeconds,omitempty" minimum:"60" maximum:"86400" example:"3600" doc:"Token lifetime; default 3600 (1 h), at most 86400 (24 h)."`
 		AllowDuplicateEngineID bool   `json:"allowDuplicateEngineId,omitempty" doc:"Only with intent new: the enrolling host is a different machine that reports the same Docker Engine ID as an enrolled one (a cloned VM). Prefer regenerating the clone's Engine ID."`
 	}
@@ -377,7 +377,7 @@ func (h *agentsAPI) createEnrollment(ctx context.Context, in *createEnrollmentIn
 	if kind, target, ok := strings.Cut(in.Body.Intent, ":"); ok {
 		spec.Intent, spec.TargetID = domain.EnrollmentIntent(kind), target
 		if !ids.Valid(target) {
-			return nil, Invalid("invalid intent", Field("body.intent", "the target must be a DockYard ID"))
+			return nil, Invalid("invalid intent", Field("body.intent", "the target must be a Docker Manager ID"))
 		}
 	}
 	created, err := h.svc.CreateEnrollment(ctx, spec)

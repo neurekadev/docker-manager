@@ -11,9 +11,9 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // fakeEngine implements EngineAPI in memory.
@@ -142,7 +142,7 @@ func newTestSampler(t *testing.T, fsys fstest.MapFS, eng *fakeEngine) *Sampler {
 			switch path {
 			case "/var/lib/docker/volumes":
 				return DiskStat{UsedBytes: 40, TotalBytes: 100, Device: "2049"}, nil
-			case "/var/lib/docker/volumes/dockyard_stacks/_data":
+			case "/var/lib/docker/volumes/docker-manager_stacks/_data":
 				return DiskStat{UsedBytes: 40, TotalBytes: 100, Device: "2049"}, nil // same filesystem
 			case "/srv/stacks":
 				return DiskStat{UsedBytes: 5, TotalBytes: 50, Device: "2065"}, nil
@@ -150,7 +150,7 @@ func newTestSampler(t *testing.T, fsys fstest.MapFS, eng *fakeEngine) *Sampler {
 			return DiskStat{}, errors.New("no such path")
 		},
 		Roots: func() []Root {
-			return []Root{{Kind: "bind", Path: "/srv/stacks"}, {Kind: "stacks", Path: "/var/lib/docker/volumes/dockyard_stacks/_data"},
+			return []Root{{Kind: "bind", Path: "/srv/stacks"}, {Kind: "stacks", Path: "/var/lib/docker/volumes/docker-manager_stacks/_data"},
 				{Kind: "volumes", Path: "/var/lib/docker/volumes"}, {Kind: "bind", Path: "/missing"}}
 		},
 	})

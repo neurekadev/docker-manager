@@ -10,7 +10,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
 )
 
 // ErrorContentType is the media type of every error response. The body is a
@@ -318,9 +318,9 @@ func fromHuma(status int, msg string, errs ...error) *Error {
 }
 
 func init() {
-	// DockYard always returns lists as [] (never null); document them so.
+	// Docker Manager always returns lists as [] (never null); document them so.
 	huma.DefaultArrayNullable = false
-	// Replace Huma's RFC 9457 ErrorModel with DockYard's Error everywhere,
+	// Replace Huma's RFC 9457 ErrorModel with Docker Manager's Error everywhere,
 	// including request validation and content negotiation failures.
 	huma.NewError = func(status int, msg string, errs ...error) huma.StatusError {
 		return fromHuma(status, msg, errs...)

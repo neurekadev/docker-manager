@@ -30,10 +30,10 @@ import (
 	"github.com/moby/moby/client"
 	"github.com/moby/moby/client/pkg/versions"
 
-	"github.com/neurekadev/dockyard/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
 )
 
-// MinSupportedAPIVersion is DockYard's minimum Engine API version: Docker
+// MinSupportedAPIVersion is Docker Manager's minimum Engine API version: Docker
 // Engine 25.0 (API 1.44) is the lowest Engine of the matrix that passes every
 // planned v1 operation (docs/support-matrix.md, #21, #25 Q2); Docker 24.0's
 // BuildKit cannot pull base images from insecure registries. The Moby client
@@ -79,7 +79,7 @@ func Connect(ctx context.Context, opts Options) (*Client, error) {
 	}
 	api, err := client.New(
 		client.WithHost(opts.Host),
-		client.WithUserAgent("dockyard-agent/"+buildinfo.Get().Version),
+		client.WithUserAgent("docker-agent/"+buildinfo.Get().Version),
 	)
 	if err != nil {
 		return nil, newError(op, CodeInvalidArgument, "invalid Engine host %q: %v", opts.Host, err)
@@ -109,7 +109,7 @@ func (c *Client) negotiate(ctx context.Context) error {
 	if err != nil {
 		if ping.APIVersion != "" && versions.LessThan(ping.APIVersion, client.MinAPIVersion) {
 			return newError(op, CodeUnsupportedAPIVersion,
-				"Docker Engine API %s is not supported: DockYard requires API %s or newer (%s or later)",
+				"Docker Engine API %s is not supported: Docker Manager requires API %s or newer (%s or later)",
 				ping.APIVersion, MinSupportedAPIVersion, minEngineName)
 		}
 		return wrap(op, err)
@@ -119,11 +119,11 @@ func (c *Client) negotiate(ctx context.Context) error {
 	}
 	if versions.LessThan(ping.APIVersion, MinSupportedAPIVersion) {
 		return newError(op, CodeUnsupportedAPIVersion,
-			"Docker Engine API %s is not supported: DockYard requires API %s or newer (%s or later)",
+			"Docker Engine API %s is not supported: Docker Manager requires API %s or newer (%s or later)",
 			ping.APIVersion, MinSupportedAPIVersion, minEngineName)
 	}
 	if ping.OSType != "" && ping.OSType != "linux" {
-		return newError(op, CodeUnsupported, "%s Engines are not supported; DockYard manages Linux Engines", ping.OSType)
+		return newError(op, CodeUnsupported, "%s Engines are not supported; Docker Manager manages Linux Engines", ping.OSType)
 	}
 	return nil
 }

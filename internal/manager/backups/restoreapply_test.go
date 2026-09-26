@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
 )
 
 func writeTestFile(t *testing.T, p, content string) {
@@ -33,7 +33,7 @@ func readTestFile(t *testing.T, p string) string {
 // between its steps, and leaves the applied marker for the completion.
 func TestRestoreApplyIsRepeatable(t *testing.T) {
 	data := t.TempDir()
-	dbPath := filepath.Join(data, "dockyard.db")
+	dbPath := filepath.Join(data, "docker-manager.db")
 	keyFile := filepath.Join(data, "secret.key")
 	oldKey, err := secrets.CreateKeyFile(keyFile, nil)
 	if err != nil {
@@ -84,8 +84,8 @@ func TestRestoreApplyIsRepeatable(t *testing.T) {
 	if err != nil || got.ID() != restoredKey.ID() {
 		t.Errorf("key file: %v", err)
 	}
-	if readTestFile(t, filepath.Join(mk.PreRestoreDir, "dockyard.db")) != "fresh database" ||
-		readTestFile(t, filepath.Join(mk.PreRestoreDir, "dockyard.db-wal")) != "fresh wal" {
+	if readTestFile(t, filepath.Join(mk.PreRestoreDir, "docker-manager.db")) != "fresh database" ||
+		readTestFile(t, filepath.Join(mk.PreRestoreDir, "docker-manager.db-wal")) != "fresh wal" {
 		t.Error("the replaced database was not kept")
 	}
 	kept, err := secrets.LoadKeyFile(filepath.Join(mk.PreRestoreDir, "secret.key"))
@@ -116,15 +116,15 @@ func TestRestoreApplyIsRepeatable(t *testing.T) {
 func TestRestoreApplyRefusesAnUnreadableMarker(t *testing.T) {
 	data := t.TempDir()
 	writeTestFile(t, filepath.Join(data, PendingRestoreDir, restoreMarkerFile), "{not json")
-	if _, err := ApplyPendingRestore(data, filepath.Join(data, "dockyard.db"), filepath.Join(data, "secret.key"), time.Now()); err == nil {
+	if _, err := ApplyPendingRestore(data, filepath.Join(data, "docker-manager.db"), filepath.Join(data, "secret.key"), time.Now()); err == nil {
 		t.Fatal("an unreadable marker was accepted")
 	}
 }
 
 func TestSnapshotPathOfRecordedPaths(t *testing.T) {
 	for in, want := range map[string]string{
-		"/data/backup-staging/j/dockyard-state": "/data/backup-staging/j/dockyard-state/state.json",
-		"C:/Users/x/dockyard-state":             "/C/Users/x/dockyard-state/state.json",
+		"/data/backup-staging/j/docker-manager-state": "/data/backup-staging/j/docker-manager-state/state.json",
+		"C:/Users/x/docker-manager-state":             "/C/Users/x/docker-manager-state/state.json",
 	} {
 		if got := stateFile([]string{in}, "state.json"); got != want {
 			t.Errorf("%s: %s, want %s", in, got, want)

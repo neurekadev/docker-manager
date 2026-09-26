@@ -1,6 +1,6 @@
 # Canonical CI: lint, unit tests and a test-free build on every push to main
 # and on manual dispatch; hybrid delivery of the two images
-# (code.neureka.dev/dockyard/dockyard-{manager,agent}:edge) from main only.
+# (code.neureka.dev/docker-manager/docker-{manager,agent}:edge) from main only.
 # Local mirror: bash scripts/check.sh (lint, unit-tests, build).
 #
 # Deviations from the canonical GitHub layout, forced by Forgejo Actions on
@@ -166,7 +166,7 @@ jobs:
         include:
           - name: Manager AMD64
             component: manager
-            image: code.neureka.dev/dockyard/dockyard-manager
+            image: code.neureka.dev/docker-manager/docker-manager
             arch: amd64
             runner: ubuntu-24.04
             platform: linux/amd64
@@ -174,7 +174,7 @@ jobs:
             dockerfile: deploy/docker/manager.Dockerfile
           - name: Agent AMD64
             component: agent
-            image: code.neureka.dev/dockyard/dockyard-agent
+            image: code.neureka.dev/docker-manager/docker-agent
             arch: amd64
             runner: ubuntu-24.04
             platform: linux/amd64
@@ -207,8 +207,8 @@ jobs:
         with:
           images: ${{ matrix.image }}
           labels: |
-            org.opencontainers.image.title=dockyard-${{ matrix.component }}
-            org.opencontainers.image.source=https://code.neureka.dev/dockyard/dockyard
+            org.opencontainers.image.title=docker-${{ matrix.component }}
+            org.opencontainers.image.source=https://code.neureka.dev/docker-manager/docker-manager
             org.opencontainers.image.version=${{ env.SOURCE_VERSION }}
       - name: Build and Push Image Digest
         id: build
@@ -282,10 +282,10 @@ jobs:
         include:
           - name: Manager
             component: manager
-            image: code.neureka.dev/dockyard/dockyard-manager
+            image: code.neureka.dev/docker-manager/docker-manager
           - name: Agent
             component: agent
-            image: code.neureka.dev/dockyard/dockyard-agent
+            image: code.neureka.dev/docker-manager/docker-agent
     steps:
       # The Forgejo download-artifact v4 fork has no pattern/merge-multiple:
       # each platform digest is downloaded by name (amd64 only while arm64
@@ -310,8 +310,8 @@ jobs:
           images: ${{ matrix.image }}
           tags: type=raw,value=edge
           annotations: |
-            org.opencontainers.image.title=dockyard-${{ matrix.component }}
-            org.opencontainers.image.source=https://code.neureka.dev/dockyard/dockyard
+            org.opencontainers.image.title=docker-${{ matrix.component }}
+            org.opencontainers.image.source=https://code.neureka.dev/docker-manager/docker-manager
             org.opencontainers.image.version=0.0.0-edge
       - name: Create Multi-Platform Manifest
         env:

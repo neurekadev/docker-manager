@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // openLive opens GET /api/v1/live/stream as c and returns its lines.
@@ -90,8 +90,8 @@ func TestLiveStreamThroughTheRealManager(t *testing.T) {
 
 	miaLines := mia.openLive("")
 	ownerLines := owner.openLive("?topics=containers,jobs")
-	waitLine(t, miaLines, `"version":"dockyard.live/v1"`)
-	waitLine(t, ownerLines, `"version":"dockyard.live/v1"`)
+	waitLine(t, miaLines, `"version":"docker-manager.live/v1"`)
+	waitLine(t, ownerLines, `"version":"docker-manager.live/v1"`)
 
 	bus := e.m.events
 	bus.Publish(events.Event{Type: events.DockerEvent, ResourceType: events.ResourceContainer, ResourceID: "db", EnvironmentID: "e1",

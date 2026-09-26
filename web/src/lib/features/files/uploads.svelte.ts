@@ -64,7 +64,7 @@ function uploadError(status: number, body: string): string {
 		if (j.code === 'precondition_failed')
 			return 'A file with this name appeared meanwhile. Upload it again to choose what to do.';
 		if (j.code === 'payload_too_large')
-			return 'The file is larger than the upload limit of this DockYard.';
+			return 'The file is larger than the upload limit of this Docker Manager.';
 		if (j.message) return j.message.endsWith('.') ? j.message : `${j.message}.`;
 	} catch {
 		// not JSON

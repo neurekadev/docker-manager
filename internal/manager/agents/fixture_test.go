@@ -20,27 +20,27 @@ import (
 	"github.com/coder/websocket"
 	"github.com/uptrace/bun"
 
-	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/state"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/server"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	agentjobs "code.neureka.dev/docker-manager/docker-manager/internal/agent/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 const testManagerVersion = "1.4.0"
 
-var testUI = fstest.MapFS{"index.html": {Data: []byte("<!doctype html><html><body>DockYard</body></html>")}}
+var testUI = fstest.MapFS{"index.html": {Data: []byte("<!doctype html><html><body>Docker Manager</body></html>")}}
 
 // fixture is a real manager HTTP stack (server.New with the agent handler,
 // the /agent/v1 guard and credential separation) over a migrated SQLite
@@ -317,7 +317,7 @@ func (a *testAgent) start() {
 			}
 			return websocket.Dial(ctx, u, o)
 		},
-		AgentVersion: a.version, UserAgent: "dockyard-agent/test", Capabilities: a.capabilities, Streams: a.streams, Requests: a.requests,
+		AgentVersion: a.version, UserAgent: "docker-agent/test", Capabilities: a.capabilities, Streams: a.streams, Requests: a.requests,
 		Backoff: session.Backoff{Min: time.Second, Max: time.Minute, ResetAfter: time.Minute, Rand: func() float64 { return 0 }},
 		OnStatus: func(s session.Status) {
 			select {

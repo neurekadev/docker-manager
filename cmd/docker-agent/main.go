@@ -1,12 +1,12 @@
-// Command dockyard-agent is the DockYard agent: an outbound-only connector
+// Command docker-agent is the Docker Agent: an outbound-only connector
 // that controls the local Docker Engine on behalf of the manager.
 //
 // Usage:
 //
-//	dockyard-agent [run]         run the agent (default)
-//	dockyard-agent enroll        hand an enrollment token (stdin) to the running agent
-//	dockyard-agent healthcheck   check the health file is fresh (image HEALTHCHECK)
-//	dockyard-agent version       print build information
+//	docker-agent [run]         run the agent (default)
+//	docker-agent enroll        hand an enrollment token (stdin) to the running agent
+//	docker-agent healthcheck   check the health file is fresh (image HEALTHCHECK)
+//	docker-agent version       print build information
 package main
 
 import (
@@ -24,12 +24,12 @@ import (
 	"time"
 	_ "time/tzdata" // IANA zones without relying on the image
 
-	"github.com/neurekadev/dockyard/internal/agent/config"
-	"github.com/neurekadev/dockyard/internal/agent/runtime"
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/envconfig"
-	"github.com/neurekadev/dockyard/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/runtime"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
 )
 
 const (
@@ -67,7 +67,7 @@ func run(args []string, env envconfig.Source, stdout, stderr io.Writer, geteuid 
 		}
 		return exitOK
 	case "version", "--version", "-v":
-		_, _ = fmt.Fprintln(stdout, "dockyard-agent", buildinfo.Get())
+		_, _ = fmt.Fprintln(stdout, "docker-agent", buildinfo.Get())
 		return exitOK
 	case "help", "-h", "--help":
 		usage(stdout)
@@ -80,12 +80,12 @@ func run(args []string, env envconfig.Source, stdout, stderr io.Writer, geteuid 
 }
 
 func usage(w io.Writer) {
-	_, _ = io.WriteString(w, `Usage: dockyard-agent [command]
+	_, _ = io.WriteString(w, `Usage: docker-agent [command]
 
 Commands:
   run            run the agent (default)
   enroll         hand an enrollment token to the running agent:
-                   printf '%s\n' "$TOKEN" | docker exec -i dockyard-agent dockyard-agent enroll
+                   printf '%s\n' "$TOKEN" | docker exec -i docker-agent docker-agent enroll
                  flags: -token-file PATH (instead of stdin), -wait 90s (0: do not wait)
   healthcheck    exit 0 if the agent health file is fresh
   version        print build information
@@ -97,14 +97,14 @@ Configuration is read from environment variables; see docs/configuration.md.
 func runAgent(env envconfig.Source, stderr io.Writer, geteuid func() int) int {
 	cfg, err := config.Load(env)
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "dockyard-agent: invalid configuration:\n%v\n", err)
+		_, _ = fmt.Fprintf(stderr, "docker-agent: invalid configuration:\n%v\n", err)
 		return exitConfig
 	}
 	logger := logging.New(stderr, cfg.LogLevel, cfg.LogFormat)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := runtime.Run(ctx, runtime.Options{Config: cfg, Logger: logger, Geteuid: geteuid, Observe: true, Files: true, ContainerIO: true, Backups: true}); err != nil {
-		logger.Error("dockyard-agent stopped with error", "error", err)
+		logger.Error("docker-agent stopped with error", "error", err)
 		return exitFail
 	}
 	return exitOK
@@ -142,7 +142,7 @@ func enrollCmd(args []string, env envconfig.Source, stdout, stderr io.Writer) in
 	}
 	token := strings.TrimSpace(line)
 	if token == "" {
-		_, _ = io.WriteString(stderr, "enroll: no token on stdin (printf '%s\\n' \"$TOKEN\" | dockyard-agent enroll)\n")
+		_, _ = io.WriteString(stderr, "enroll: no token on stdin (printf '%s\\n' \"$TOKEN\" | docker-agent enroll)\n")
 		return exitConfig
 	}
 	stateDir := env.String(config.EnvStateDir, config.DefaultStateDir)

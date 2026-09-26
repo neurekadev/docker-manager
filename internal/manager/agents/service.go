@@ -32,12 +32,12 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // Enrollment lifetimes.
@@ -51,7 +51,7 @@ const (
 )
 
 // DefaultAgentImage is the agent image used in generated install commands.
-const DefaultAgentImage = "code.neureka.dev/dockyard/dockyard-agent:edge"
+const DefaultAgentImage = "code.neureka.dev/docker-manager/docker-agent:edge"
 
 // Options configures a Service.
 type Options struct {
@@ -65,7 +65,7 @@ type Options struct {
 	Bus *events.Bus
 	// ManagerVersion is compared with agent versions (N-1 window).
 	ManagerVersion string
-	// PublicURL is DOCKYARD_PUBLIC_URL, printed in install commands.
+	// PublicURL is DOCKER_MANAGER_PUBLIC_URL, printed in install commands.
 	PublicURL *url.URL
 	// AgentImage overrides DefaultAgentImage in install commands.
 	AgentImage string

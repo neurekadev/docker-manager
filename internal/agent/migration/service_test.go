@@ -10,18 +10,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/migration"
-	"github.com/neurekadev/dockyard/internal/agent/migration/migrationtest"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/streammux"
-	"github.com/neurekadev/dockyard/internal/streammux/muxtest"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/transfer"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration/migrationtest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux/muxtest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/transfer"
 )
 
 const migID = "0199aaaa-bbbb-7ccc-8ddd-eeeeffff0001"
@@ -351,15 +351,15 @@ func TestCorruptedPartIsRejected(t *testing.T) {
 	}
 }
 
-// TestSendRefusesDockYardVolumes: DockYard's own volumes are never read (#32).
-func TestSendRefusesDockYardVolumes(t *testing.T) {
+// TestSendRefusesDockerManagerVolumes: Docker Manager's own volumes are never read (#32).
+func TestSendRefusesDockerManagerVolumes(t *testing.T) {
 	src := env(t, "src")
-	src.AddVolume("dockyard_data", nil)
-	src.Engine.AddContainer(engine.ContainerSpec{Name: "dockyard-manager-1", Image: "code.neureka.dev/dockyard/dockyard-manager:edge",
-		Labels: map[string]string{protocol.LabelRole: "manager"}, Mounts: []engine.MountSpec{{Type: "volume", Source: "dockyard_data", Target: "/var/lib/dockyard"}}}, true)
+	src.AddVolume("docker-manager_data", nil)
+	src.Engine.AddContainer(engine.ContainerSpec{Name: "docker-manager-1", Image: "code.neureka.dev/docker-manager/docker-manager:edge",
+		Labels: map[string]string{protocol.LabelRole: "manager"}, Mounts: []engine.MountSpec{{Type: "volume", Source: "docker-manager_data", Target: "/var/lib/docker-manager"}}}, true)
 	p := pipe(t, src)
 	st, err := p.Open(testutil.Context(t), protocol.StreamMigrationSend, protocol.MigrationSendInput{MigrationID: migID, Part: protocol.PartVolume,
-		Volume: "dockyard_data"}, streammux.OpenOptions{})
+		Volume: "docker-manager_data"}, streammux.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -439,12 +439,12 @@ func TestStopAndStartFollowDependencies(t *testing.T) {
 	}
 }
 
-// TestStopRefusesDockYardProject: DockYard's own project is never stopped.
-func TestStopRefusesDockYardProject(t *testing.T) {
+// TestStopRefusesDockerManagerProject: Docker Manager's own project is never stopped.
+func TestStopRefusesDockerManagerProject(t *testing.T) {
 	src := env(t, "src")
 	src.Engine.Deploy(true)
 	_, err := request[protocol.MigrationLifecycleOutput](t, src, protocol.ReqMigrationStop, protocol.MigrationStopInput{MigrationID: migID,
-		Stack: protocol.ProjectRef{Root: protocol.RootStacks, Dir: "dockyard", ProjectName: "dockyard"}})
+		Stack: protocol.ProjectRef{Root: protocol.RootStacks, Dir: "docker-manager", ProjectName: "docker-manager"}})
 	if code(err) != protocol.CodeConflict || !strings.Contains(err.Error(), "protected") {
 		t.Fatalf("error %v", err)
 	}
@@ -455,7 +455,7 @@ type memJournal struct{}
 func (memJournal) Save(context.Context, *jobexec.State) error { return nil }
 
 // TestSourceRemoval: the confirmed removal takes the source project down,
-// removes the migrated volumes and the project directory; DockYard's own
+// removes the migrated volumes and the project directory; Docker Manager's own
 // volumes are refused.
 func TestSourceRemoval(t *testing.T) {
 	src := env(t, "src")
@@ -484,7 +484,7 @@ func TestSourceRemoval(t *testing.T) {
 	if res, _ := jobexec.Run(testutil.Context(t), exec, st2, jobexec.Options{Journal: memJournal{}}); res.Outcome != jobexec.OutcomeSucceeded {
 		t.Fatalf("second run %+v", res)
 	}
-	// DockYard's own volume.
+	// Docker Manager's own volume.
 	d := src.Engine.Deploy(true)
 	in, _ = json.Marshal(protocol.SourceRemovalInput{StackID: "s1", MigrationID: migID, Stack: protocol.ProjectRef{Root: protocol.RootStacks,
 		Dir: "gone", ProjectName: "gone"}, Volumes: []string{d.ManagerData}})

@@ -8,12 +8,12 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/backups"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Backup policies (#10): selections, schedule (#13), retention, previews
@@ -30,7 +30,7 @@ type BackupStackSelection struct {
 	VolumeExclude    []string `json:"volumeExclude,omitempty" maxItems:"64" doc:"Named volumes not backed up."`
 	AnonymousVolumes bool     `json:"anonymousVolumes,omitempty" doc:"Also back up anonymous volumes (default off)."`
 	PathExcludes     []string `json:"pathExcludes,omitempty" maxItems:"256" doc:"Paths relative to the project directory that are not backed up (relative bind sources inside the project directory are included by default)."`
-	ExternalPaths    []string `json:"externalPaths,omitempty" maxItems:"64" doc:"Absolute bind sources outside the project directory to include (e.g. ../data resolved, or /srv/data). Each also needs the agent's DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST; never included implicitly."`
+	ExternalPaths    []string `json:"externalPaths,omitempty" maxItems:"64" doc:"Absolute bind sources outside the project directory to include (e.g. ../data resolved, or /srv/data). Each also needs the agent's DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST; never included implicitly."`
 }
 
 // BackupVolumeSelection selects one standalone named volume.
@@ -776,7 +776,7 @@ func registerBackupPolicies(a huma.API, h *backupsAPI) {
 			Summary: "Preview a backup policy's scope",
 			Description: "Asks each environment's agent for the effective sources (project directories, relative binds, volumes), the " +
 				"excluded and blocked paths with reasons, sources that need an opt-in, estimated size, and with shutdown on the " +
-				"containers that stop (stop order), the downtime warning and shared-volume conflicts. DockYard's own containers and " +
+				"containers that stop (stop order), the downtime warning and shared-volume conflicts. Docker Manager's own containers and " +
 				"volumes are excluded (#32). Nothing is stored.",
 			Tags: []string{tagBackups}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusUnprocessableEntity},
 		},

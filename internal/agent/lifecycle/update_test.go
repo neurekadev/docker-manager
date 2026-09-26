@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // updateApp is the multi-service fixture of #9/#20: a database with a

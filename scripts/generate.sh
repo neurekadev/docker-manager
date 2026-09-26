@@ -26,7 +26,7 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 echo "==> OpenAPI spec"
-go run ./cmd/dockyard-manager openapi >"$tmp/openapi.json"
+go run ./cmd/docker-manager openapi >"$tmp/openapi.json"
 
 echo "==> TypeScript client types"
 (cd web && npx --no-install openapi-typescript "$tmp/openapi.json" --output "$tmp/schema.d.ts" >/dev/null)

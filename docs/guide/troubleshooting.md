@@ -7,14 +7,14 @@ Reference: [operations/diagnostics.md](../operations/diagnostics.md).
 ```bash
 cd deploy/caddy
 docker compose ps                         # manager, agent and proxy healthy?
-docker compose logs --tail 200 dockyard-manager dockyard-agent
+docker compose logs --tail 200 docker-manager docker-agent
 curl -fsS https://docker.example.com/api/v1/health/ready
 ```
 
 - `health/ready` answers 503 `not_ready` while the database is unreachable
   or migrations are pending; the manager log says which.
-- Both logs are JSON lines (set `DOCKYARD_LOG_FORMAT=text` for reading,
-  `DOCKYARD_LOG_LEVEL=debug` for detail). Secrets never appear in them.
+- Both logs are JSON lines (set `DOCKER_MANAGER_LOG_FORMAT=text` / `DOCKER_AGENT_LOG_FORMAT=text` for reading,
+  `DOCKER_MANAGER_LOG_LEVEL=debug` / `DOCKER_AGENT_LOG_LEVEL=debug` for detail). Secrets never appear in them.
 - Every API response carries `X-Request-ID`; the agent logs the same
   `request_id` for the work it does for that request. Grep both logs for
   it to follow one operation end to end.
@@ -23,14 +23,14 @@ curl -fsS https://docker.example.com/api/v1/health/ready
 
 | Symptom | Cause and fix |
 | --- | --- |
-| Setup says the request did not arrive over HTTPS | you used the internal address, or the proxy is not in `DOCKYARD_TRUSTED_PROXIES`, or `DOCKYARD_PUBLIC_URL` is not https ([details](../deployment.md#first-run-setup-over-https)) |
-| Rate limits hit everyone at once; audit shows one IP | the manager does not trust the proxy: `DOCKYARD_TRUSTED_PROXIES` must contain the proxy's address (`docker network inspect dockyard`); the default covers Docker's default address pools only |
+| Setup says the request did not arrive over HTTPS | you used the internal address, or the proxy is not in `DOCKER_MANAGER_TRUSTED_PROXIES`, or `DOCKER_MANAGER_PUBLIC_URL` is not https ([details](../deployment.md#first-run-setup-over-https)) |
+| Rate limits hit everyone at once; audit shows one IP | the manager does not trust the proxy: `DOCKER_MANAGER_TRUSTED_PROXIES` must contain the proxy's address (`docker network inspect docker-manager`); the default covers Docker's default address pools only |
 | Live views stop updating after about a minute | a proxy or load balancer idle timeout below the 15 s heartbeat, or response buffering; see [timeouts](../deployment.md#timeouts-and-heartbeats) |
-| Agent stays offline | `docker compose logs dockyard-agent`: wrong `DOCKYARD_MANAGER_URL`, an untrusted certificate (set `DOCKYARD_MANAGER_CA_FILE`), a used or expired enrollment token (create a new one), or `version_unsupported` (upgrade the manager first, then the agent) |
+| Agent stays offline | `docker compose logs docker-agent`: wrong `DOCKER_AGENT_MANAGER_URL`, an untrusted certificate (set `DOCKER_AGENT_MANAGER_CA_FILE`), a used or expired enrollment token (create a new one), or `version_unsupported` (upgrade the manager first, then the agent) |
 | Enrollment refused with `engine_already_enrolled` | this Engine already has an agent: create the token with the intent to replace it, or remove the old agent |
 | Stack operations refused with `storage_mount_missing` / `storage_path_mismatch` | the agent's identical-path mount of Docker's volume directory is missing or points elsewhere (custom data root, rootless Engine, Docker Desktop); the host page shows the diagnostic ([layout](../deployment.md#host-storage-layout-28)) |
-| An action on a DockYard container is refused | self-protection: DockYard never stops or removes its own agent, manager data or images, for anyone |
-| A job is `interrupted` | the manager or agent restarted during a step whose outcome is unknown; DockYard does not guess: check the target and run it again |
+| An action on a Docker Manager container is refused | self-protection: Docker Manager never stops or removes its own agent, manager data or images, for anyone |
+| A job is `interrupted` | the manager or agent restarted during a step whose outcome is unknown; Docker Manager does not guess: check the target and run it again |
 | Update run refused with `update_source_drift` | the Compose files changed on disk and were not deployed: deploy or revert them first |
 | Backup import: `backup_import_key_rejected` | wrong Recovery Key, or the key was rotated after that set: enter the previous key too |
 | Passkeys fail after moving to another host name | passkeys are bound to the host name: sign in with password (plus TOTP or a recovery code) and register new ones |
@@ -55,16 +55,16 @@ environment names and IP addresses: review it before sharing.
 
 ## Metrics for monitoring
 
-Set `DOCKYARD_METRICS_ENABLED=true` and scrape `/api/v1/system/metrics`
+Set `DOCKER_MANAGER_METRICS_ENABLED=true` and scrape `/api/v1/system/metrics`
 (Prometheus text) with an API token that has only `system.metrics.read`
-([example](../operations/diagnostics.md#metrics-of-dockyard-itself)).
+([example](../operations/diagnostics.md#metrics-of-docker-manager-itself)).
 
 ## Owner locked out
 
 If the owner lost their password or all factors, run on the manager's host:
 
 ```bash
-docker compose exec dockyard-manager dockyard-manager owner-recovery
+docker compose exec docker-manager docker-manager owner-recovery
 ```
 
 It prints a one-time recovery link (valid one hour), signs the owner out

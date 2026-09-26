@@ -1,4 +1,4 @@
-// Package envconfig reads DockYard configuration from environment variables.
+// Package envconfig reads Docker Manager configuration from environment variables.
 //
 // Secret values support a `<NAME>_FILE` variant that names a file holding the
 // value (Docker/Compose secrets). Setting both NAME and NAME_FILE is an error.

@@ -21,9 +21,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
 )
 
 // PrincipalKind distinguishes the callers the manager knows.
@@ -90,7 +90,7 @@ type ResourceRef struct {
 // manager-wide capabilities.
 type Resource struct {
 	Type string
-	// ID is the resource's identity: a DockYard ID (stacks, agents,
+	// ID is the resource's identity: a Docker Manager ID (stacks, agents,
 	// policies), or the Docker name within its environment (containers,
 	// images, volumes, networks). Empty means "any resource of Type in
 	// EnvironmentID" (creation routes): only instance and environment

@@ -12,13 +12,13 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
-// TestHeadlessEnrollmentAgainstRunningManager: `dockyard-manager
+// TestHeadlessEnrollmentAgainstRunningManager: `docker-manager
 // enrollment create` (CreateEnrollment on the data directory) works next to
 // a running manager, which accepts the token on /agent/v1/enroll and the
 // credential on /agent/v1/session; the public agent routes fail closed

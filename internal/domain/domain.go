@@ -1,4 +1,4 @@
-// Package domain holds DockYard's shared domain types and use-case contracts.
+// Package domain holds Docker Manager's shared domain types and use-case contracts.
 //
 // Domain types are free of HTTP, database and Docker concerns: no JSON/Bun
 // struct tags, no huma, bun or moby imports. Transport DTOs live in
@@ -8,7 +8,7 @@ package domain
 
 import "time"
 
-// Instance describes this DockYard installation.
+// Instance describes this Docker Manager installation.
 type Instance struct {
 	ID        string
 	CreatedAt time.Time
@@ -20,7 +20,7 @@ type Instance struct {
 // (public URL, trusted proxies, ...) comes from environment variables and is
 // read-only.
 type InstanceSettings struct {
-	// Name is the display name of this DockYard (1-64 characters).
+	// Name is the display name of this Docker Manager (1-64 characters).
 	Name      string
 	Revision  int64
 	UpdatedAt time.Time

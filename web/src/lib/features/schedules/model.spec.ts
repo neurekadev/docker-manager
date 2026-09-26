@@ -39,7 +39,7 @@ describe('schedules model (#13)', () => {
 		});
 		expect(runStatus(run({ outcome: 'missed' }))).toMatchObject({ label: 'Missed' });
 		expect(runReason(run({ outcome: 'missed', errorClass: 'missed', missedCount: 3 }))).toBe(
-			'DockYard was not running at 3 scheduled times.'
+			'Docker Manager was not running at 3 scheduled times.'
 		);
 		expect(runReason(run({ outcome: 'skipped', errorClass: 'previous_run_active' }))).toBe(
 			'The previous run was still active.'

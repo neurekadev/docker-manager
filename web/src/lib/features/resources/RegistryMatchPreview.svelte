@@ -81,8 +81,8 @@
 			</Notice>
 		{:else if m?.selection === 'revoked'}
 			<Notice tone="danger" title="The matching connection is revoked" live="none">
-				{m.selected?.name ?? 'It'} has no credential any more, and DockYard never falls back to
-				anonymous pulls. Rotate its credential in Registries, or remove it.
+				{m.selected?.name ?? 'It'} has no credential any more, and Docker Manager never falls
+				back to anonymous pulls. Rotate its credential in Registries, or remove it.
 			</Notice>
 		{/if}
 		{#if m && (m.selection === 'ambiguous' || (m.candidates.length > 1 && selected))}

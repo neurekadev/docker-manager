@@ -179,7 +179,7 @@ for (const u of precached) precacheBytes += statSync(join(out, u)).size;
 
 const manifest = JSON.parse(readFileSync(join(out, 'manifest.webmanifest'), 'utf8'));
 for (const [k, v] of Object.entries({
-	name: 'DockYard',
+	name: 'Docker Manager',
 	start_url: '/',
 	scope: '/',
 	display: 'standalone',

@@ -1,4 +1,4 @@
-// Typed client for the DockYard /api/v1 contract.
+// Typed client for the Docker Manager /api/v1 contract.
 //
 // schema.d.ts is GENERATED from api/openapi.json by openapi-typescript; do
 // not edit it. Regenerate with `bash scripts/generate.sh` after changing Go
@@ -56,7 +56,7 @@ export const api = createApiClient(undefined, globalThis.location?.origin ?? '')
 /**
  * A failed API call. `status` is null when the request never produced an
  * HTTP response (network failure, manager or proxy unreachable, offline).
- * `apiError` is the DockYard error body when the server sent one; switch on
+ * `apiError` is the Docker Manager error body when the server sent one; switch on
  * `apiError.code`, never on `message`.
  */
 export class ApiRequestError extends Error {

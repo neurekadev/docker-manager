@@ -28,10 +28,10 @@ export type PolicyInput = Schema<'PolicyInputBody'>;
  * loses the data.
  */
 export const RECOVERY_KEY_WARNING =
-	'A restore on a new DockYard needs this Recovery Key. If the manager key store and your copy are both lost, the data can’t be restored: nobody, including DockYard, can decrypt the backups without it.';
+	'A restore on a new Docker Manager needs this Recovery Key. If the manager key store and your copy are both lost, the data can’t be restored: nobody, including Docker Manager, can decrypt the backups without it.';
 
 export const RECOVERY_KEY_SCOPE =
-	'One Recovery Key opens every DockYard backup repository of this instance: the manager and every environment, local and S3.';
+	'One Recovery Key opens every Docker Manager backup repository of this instance: the manager and every environment, local and S3.';
 
 interface Presentation {
 	tone: BadgeTone;

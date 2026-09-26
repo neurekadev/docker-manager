@@ -1,6 +1,6 @@
-// Package diagnostics serves DockYard's own operability data (#34): the
+// Package diagnostics serves Docker Manager's own operability data (#34): the
 // optional Prometheus-format metrics of the manager's internals (off by
-// default, DOCKYARD_METRICS_ENABLED, capability system.metrics.read) and the
+// default, DOCKER_MANAGER_METRICS_ENABLED, capability system.metrics.read) and the
 // owner-only support bundle (versions, redacted configuration,
 // support-matrix checks, recent logs, agent states, audit chain
 // verification, job queue summary). Neither ever contains a secret: they
@@ -17,12 +17,12 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/migrate"
 
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Setting is one configuration value as the operator set it (never a
@@ -52,7 +52,7 @@ type Options struct {
 	Clock  clock.Clock
 	Logger *slog.Logger
 	Build  buildinfo.Info
-	// MetricsEnabled turns the metrics endpoint on (DOCKYARD_METRICS_ENABLED).
+	// MetricsEnabled turns the metrics endpoint on (DOCKER_MANAGER_METRICS_ENABLED).
 	MetricsEnabled bool
 	// Settings is the configuration as shown in the support bundle.
 	Settings []Setting

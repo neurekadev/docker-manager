@@ -12,11 +12,11 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 var usernameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
@@ -643,7 +643,7 @@ func validateSettings(s domain.SecuritySettings) error {
 }
 
 // IssueOwnerRecovery is the break-glass path for a locked-out owner
-// (dockyard-manager owner-recovery, run with access to the data volume):
+// (docker-manager owner-recovery, run with access to the data volume):
 // it issues a one-time owner-recovery code, valid for OwnerRecoveryTTL,
 // and ends every owner session (the running manager rejects them on the
 // next request and closes open streams within StreamSweepInterval).
@@ -656,7 +656,7 @@ func IssueOwnerRecovery(ctx context.Context, db *bun.DB, audit Auditor, now time
 		return domain.IssuedCode{}, err
 	}
 	if !ok {
-		return domain.IssuedCode{}, errors.New("first-run setup has not created an owner yet; open DockYard in a browser to set it up")
+		return domain.IssuedCode{}, errors.New("first-run setup has not created an owner yet; open Docker Manager in a browser to set it up")
 	}
 	code := newLinkCode(OwnerRecoveryCodePrefix)
 	r := domain.AccountReset{ID: newID(), UserID: id, Kind: domain.ResetOwnerRecovery, CreatedAt: now.UTC(), ExpiresAt: now.UTC().Add(OwnerRecoveryTTL)}

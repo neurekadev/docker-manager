@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Docker resources of an environment (#6): containers.go, images.go,
@@ -83,12 +83,12 @@ type DockerService interface {
 	RemoveNetwork(ctx context.Context, p authz.Principal, env string, n protocol.NetworkInfo, key string) (domain.Job, error)
 }
 
-// ResourceProtection marks one of DockYard's own containers, images,
+// ResourceProtection marks one of Docker Manager's own containers, images,
 // volumes or networks (#32): destructive operations are refused (409
 // protected) for everyone, the owner included; host-level Docker access is
 // the escape hatch.
 type ResourceProtection struct {
-	Role           string `json:"role" enum:"agent,manager,dockyard_project,dockyard_image,manager_data,agent_state,stacks,dockyard_volume,dockyard_network"`
+	Role           string `json:"role" enum:"agent,manager,docker_manager_project,docker_manager_image,manager_data,agent_state,stacks,docker_manager_volume,docker_manager_network"`
 	Reason         string `json:"reason"`
 	Self           bool   `json:"self" doc:"This installation's own agent or manager."`
 	RestartAllowed bool   `json:"restartAllowed" doc:"A restart is allowed with an explicit confirmation (confirm: true); the UI disconnects while the manager restarts."`
@@ -104,7 +104,7 @@ func newProtection(p *protocol.Protection) *ResourceProtection {
 // blockProtected adds the #32 blocker to a removal.
 func (r *Removal) blockProtected(p *protocol.Protection) {
 	if p != nil {
-		r.block(CodeProtected, "DockYard's own resource: "+p.Reason)
+		r.block(CodeProtected, "Docker Manager's own resource: "+p.Reason)
 	}
 }
 
@@ -136,8 +136,8 @@ func (r *Removal) block(code, message string) {
 type StackMembership struct {
 	Project string `json:"project"`
 	Service string `json:"service,omitempty" doc:"Compose service (containers)."`
-	StackID string `json:"stackId,omitempty" doc:"The DockYard stack (#7) when the project is one."`
-	Managed bool   `json:"managed" doc:"A DockYard-managed stack: direct updates and removals are refused with stack_managed."`
+	StackID string `json:"stackId,omitempty" doc:"The Docker Manager stack (#7) when the project is one."`
+	Managed bool   `json:"managed" doc:"A Docker Manager-managed stack: direct updates and removals are refused with stack_managed."`
 }
 
 // ContainerRef names a container using another object.
@@ -219,7 +219,7 @@ func (sc *scope) stacks(ctx context.Context, svc DockerService) map[string]strin
 }
 
 // parents are the authorization parents of an object in a Compose project:
-// its service (containers) and stack when the project is a DockYard stack.
+// its service (containers) and stack when the project is a Docker Manager stack.
 func parents(typ string, stackIDs map[string]string, st *protocol.StackRef) []authz.ResourceRef {
 	out := []authz.ResourceRef{}
 	if st == nil {

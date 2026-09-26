@@ -16,7 +16,7 @@
 		secret: string | string[];
 		/** What it is, e.g. "Recovery Key". */
 		label: string;
-		/** Download file name, e.g. "dockyard-recovery-key.txt". */
+		/** Download file name, e.g. "docker-manager-recovery-key.txt". */
 		filename?: string;
 		fingerprint?: string;
 		/** Why it matters, shown above the secret. */
@@ -46,7 +46,7 @@
 		const url = URL.createObjectURL(new Blob([text + '\n'], { type: 'text/plain' }));
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = filename ?? 'dockyard-secret.txt';
+		a.download = filename ?? 'docker-manager-secret.txt';
 		a.click();
 		setTimeout(() => URL.revokeObjectURL(url), 0);
 	}
@@ -62,7 +62,7 @@
 		<Notice
 			tone="warn"
 			icon={KeyRound}
-			title="DockYard shows this {label} only once"
+			title="Docker Manager shows this {label} only once"
 			live="none"
 		>
 			{description ??

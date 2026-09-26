@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 )
 
 // File jobs act inside one root: a stack's project directory or a volume.

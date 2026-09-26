@@ -3,8 +3,8 @@
 //
 // Colours are the design tokens (#22): the shell surface as theme colour
 // (browser chrome matches the top bar) and the canvas as splash background.
-// The icons are the #22 app icon (the shell's cube mark on the shell tile),
-// generated from static/icons/icon.svg and scripts/icon-maskable.svg
+// The icons are the Docker Manager logo (the whale carrying containers),
+// generated from scripts/logo.png and scripts/icon-maskable.png
 // (docs/web.md, "Icons").
 import type { ManifestOptions } from 'vite-plugin-pwa';
 
@@ -14,8 +14,8 @@ export const BACKGROUND_COLOR = '#0b1016';
 
 export const webManifest = {
 	id: '/',
-	name: 'DockYard',
-	short_name: 'DockYard',
+	name: 'Docker Manager',
+	short_name: 'Docker Manager',
 	description: 'Self-hosted Docker Compose and container management.',
 	lang: 'en',
 	dir: 'ltr',

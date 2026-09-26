@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-const module = "github.com/neurekadev/dockyard"
+const module = "code.neureka.dev/docker-manager/docker-manager"
 
 // forbiddenCalls are package-level functions that open listening sockets.
 var forbiddenCalls = map[string]map[string]bool{
@@ -27,7 +27,7 @@ var forbiddenMethods = map[string]bool{"ListenAndServe": true, "ListenAndServeTL
 var forbiddenImports = []string{"net/http/httptest", module + "/internal/manager"}
 
 // TestAgentNeverListens statically checks every in-module package linked
-// into dockyard-agent (non-test files) for code that opens a listener. The
+// into docker-agent (non-test files) for code that opens a listener. The
 // agent is outbound-only (#27, #28).
 func TestAgentNeverListens(t *testing.T) {
 	root := filepath.Join("..", "..")
@@ -73,11 +73,11 @@ func parseDir(t *testing.T, dir string) []parsed {
 	return out
 }
 
-// agentPackages follows in-module imports from cmd/dockyard-agent.
+// agentPackages follows in-module imports from cmd/docker-agent.
 func agentPackages(t *testing.T, root string) []string {
 	t.Helper()
 	seen := map[string]bool{}
-	queue := []string{module + "/cmd/dockyard-agent"}
+	queue := []string{module + "/cmd/docker-agent"}
 	for len(queue) > 0 {
 		pkg := queue[0]
 		queue = queue[1:]

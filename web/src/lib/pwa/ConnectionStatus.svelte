@@ -19,8 +19,8 @@
 		<div class="card">
 			<WifiOff size={18} strokeWidth={1.75} aria-hidden="true" />
 			<span>
-				Offline. DockYard cannot reach the network; live data is unavailable and no changes
-				are sent.
+				Offline. Docker Manager cannot reach the network; live data is unavailable and no
+				changes are sent.
 			</span>
 		</div>
 	{:else if connectivity.state === 'manager-unreachable'}

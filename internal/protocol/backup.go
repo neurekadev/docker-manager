@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // Backups (#10): wire types of the backup.* job commands, the
@@ -131,7 +131,7 @@ type BackupRules struct {
 	PathExcludes []string `json:"pathExcludes,omitempty"`
 	// ExternalPaths are absolute bind sources outside the project directory
 	// the policy explicitly opts into; each must also be allowed by the
-	// agent's DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST.
+	// agent's DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST.
 	ExternalPaths []string `json:"externalPaths,omitempty"`
 }
 
@@ -354,7 +354,7 @@ type AffectedContainer struct {
 	// StopOrder is the position in the stop sequence (1 first), 0 when
 	// not stopped.
 	StopOrder int `json:"stopOrder,omitempty"`
-	// Protected explains why a DockYard container is left alone (#32).
+	// Protected explains why a Docker Manager container is left alone (#32).
 	Protected string `json:"protected,omitempty"`
 }
 

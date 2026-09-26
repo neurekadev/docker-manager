@@ -32,7 +32,7 @@ export const TOKEN_LIFETIMES = [
 
 /** Order and titles of the generated install commands. */
 export const INSTALL_VARIANTS: Record<string, { order: number; heading: string }> = {
-	colocated: { order: 0, heading: 'On the DockYard host' },
+	colocated: { order: 0, heading: 'On the Docker Manager host' },
 	remote: { order: 1, heading: 'On another Docker host' },
 	remote_compose: { order: 2, heading: 'On another Docker host, with Compose' }
 };

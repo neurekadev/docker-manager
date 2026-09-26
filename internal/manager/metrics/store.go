@@ -32,16 +32,16 @@ import (
 	"github.com/uptrace/bun/dialect/sqlitedialect"
 	"github.com/uptrace/bun/driver/sqliteshim"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/db/metricsmigrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/metricsmigrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // FileName is the metrics database file inside the data directory.
 const FileName = "metrics.db"
 
-// Defaults (overridable through Options; DOCKYARD_METRICS_* in
+// Defaults (overridable through Options; DOCKER_MANAGER_METRICS_* in
 // docs/configuration.md).
 const (
 	DefaultRawRetention     = 24 * time.Hour

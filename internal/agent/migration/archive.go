@@ -9,7 +9,7 @@ import (
 	"io/fs"
 	"path"
 
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Archive limits.

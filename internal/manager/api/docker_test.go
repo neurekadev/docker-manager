@@ -8,15 +8,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/agent/protect"
-	agentres "github.com/neurekadev/dockyard/internal/agent/resources"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/authz/authztest"
-	"github.com/neurekadev/dockyard/internal/manager/metrics"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
+	agentres "code.neureka.dev/docker-manager/docker-manager/internal/agent/resources"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/metrics"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 type containerJSON struct {
@@ -323,7 +323,7 @@ func TestContainerLifecycleRoutes(t *testing.T) {
 		{map[string]any{"name": "web", "image": "nginx:1.27"}, CodeResourceNameTaken, ""},
 		{map[string]any{"name": "x1", "image": "ghcr.io/org/missing:1"}, CodeValidationFailed, "body.image"},
 		{map[string]any{"name": "x2", "image": "nginx:1.27", "networks": []map[string]any{{"name": "nope"}}}, CodeValidationFailed, "body.networks[0].name"},
-		{map[string]any{"name": "x3", "image": "nginx:1.27", "labels": map[string]string{"dev.neureka.dockyard.role": "manager"}}, CodeValidationFailed, "body.labels"},
+		{map[string]any{"name": "x3", "image": "nginx:1.27", "labels": map[string]string{"dev.neureka.docker-manager.role": "manager"}}, CodeValidationFailed, "body.labels"},
 		{map[string]any{"name": "x4", "image": "nginx:1.27", "mounts": []map[string]any{{"type": "bind", "source": "/run", "target": "/s"}}}, CodeValidationFailed, "body.mounts[0].source"},
 		{map[string]any{"name": "x5", "image": "nginx:1.27", "env": []string{"no-equals-sign"}}, CodeValidationFailed, "body.env[0]"},
 		{map[string]any{"name": "x6", "image": "nginx:1.27", "privileged": true}, CodeValidationFailed, ""},
@@ -719,9 +719,9 @@ func TestPullRegistrySelection(t *testing.T) {
 }
 
 // TestSelfProtectionRoutes (#32 Done-when 1, API side): on a host running
-// DockYard, its containers, images, volumes and network are shown as
+// Docker Manager, its containers, images, volumes and network are shown as
 // protected with a reason; stopping or removing the agent or manager,
-// deleting the manager data or stacks volume, removing DockYard's images
+// deleting the manager data or stacks volume, removing Docker Manager's images
 // and network and mounting its volumes fail with 409 protected for the
 // owner too; the manager restarts only with confirm: true; nothing is
 // enqueued for a refusal.
@@ -753,8 +753,8 @@ func TestSelfProtectionRoutes(t *testing.T) {
 			}
 		}
 	}
-	if len(roles) != 3 || roles["dockyard-dockyard-agent-1"] != "agent" || roles["dockyard-dockyard-manager-1"] != "manager" ||
-		roles["dockyard-caddy-1"] != "dockyard_project" {
+	if len(roles) != 3 || roles["docker-manager-docker-agent-1"] != "agent" || roles["docker-manager-docker-manager-1"] != "manager" ||
+		roles["docker-manager-caddy-1"] != "docker_manager_project" {
 		t.Fatalf("protected containers %v", roles)
 	}
 	var agent struct {
@@ -763,7 +763,7 @@ func TestSelfProtectionRoutes(t *testing.T) {
 			Removal Removal `json:"removal"`
 		} `json:"details"`
 	}
-	f.get("olga", base+"/dockyard-dockyard-agent-1", &agent)
+	f.get("olga", base+"/docker-manager-docker-agent-1", &agent)
 	if agent.Protection == nil || !agent.Protection.Self || agent.Protection.RestartAllowed || agent.Details == nil ||
 		agent.Details.Removal.Allowed || agent.Details.Removal.Blockers[0].Code != CodeProtected {
 		t.Fatalf("agent %+v", agent)
@@ -774,15 +774,15 @@ func TestSelfProtectionRoutes(t *testing.T) {
 		call authztest.Call
 		code string
 	}{
-		{authztest.Call{Method: http.MethodPost, Path: base + "/dockyard-dockyard-agent-1/stop"}, CodeProtected},
-		{authztest.Call{Method: http.MethodPost, Path: base + "/dockyard-dockyard-agent-1/pause"}, CodeProtected},
-		{authztest.Call{Method: http.MethodPost, Path: base + "/dockyard-dockyard-agent-1/restart", Body: map[string]any{"confirm": true}}, CodeProtected},
-		{authztest.Call{Method: http.MethodDelete, Path: base + "/dockyard-dockyard-agent-1?force=true"}, CodeProtected},
-		{authztest.Call{Method: http.MethodPatch, Path: base + "/dockyard-dockyard-agent-1", Body: map[string]any{"restartPolicy": "no"}}, CodeProtected},
-		{authztest.Call{Method: http.MethodPost, Path: base + "/dockyard-dockyard-manager-1/stop"}, CodeProtected},
-		{authztest.Call{Method: http.MethodDelete, Path: base + "/dockyard-dockyard-manager-1?force=true"}, CodeProtected},
-		{authztest.Call{Method: http.MethodPost, Path: base + "/dockyard-dockyard-manager-1/restart"}, CodeConfirmationRequired},
-		{authztest.Call{Method: http.MethodPost, Path: base + "/dockyard-caddy-1/stop"}, CodeProtected},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/docker-manager-docker-agent-1/stop"}, CodeProtected},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/docker-manager-docker-agent-1/pause"}, CodeProtected},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/docker-manager-docker-agent-1/restart", Body: map[string]any{"confirm": true}}, CodeProtected},
+		{authztest.Call{Method: http.MethodDelete, Path: base + "/docker-manager-docker-agent-1?force=true"}, CodeProtected},
+		{authztest.Call{Method: http.MethodPatch, Path: base + "/docker-manager-docker-agent-1", Body: map[string]any{"restartPolicy": "no"}}, CodeProtected},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/docker-manager-docker-manager-1/stop"}, CodeProtected},
+		{authztest.Call{Method: http.MethodDelete, Path: base + "/docker-manager-docker-manager-1?force=true"}, CodeProtected},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/docker-manager-docker-manager-1/restart"}, CodeConfirmationRequired},
+		{authztest.Call{Method: http.MethodPost, Path: base + "/docker-manager-caddy-1/stop"}, CodeProtected},
 		{authztest.Call{Method: http.MethodDelete, Path: env + "/volumes/" + d.ManagerData}, CodeProtected},
 		{authztest.Call{Method: http.MethodDelete, Path: env + "/volumes/" + d.Stacks}, CodeProtected},
 		{authztest.Call{Method: http.MethodDelete, Path: env + "/volumes/" + d.AgentState}, CodeProtected},
@@ -801,8 +801,8 @@ func TestSelfProtectionRoutes(t *testing.T) {
 	}
 	// Allowed: a confirmed manager restart, starting the agent.
 	for _, c := range []authztest.Call{
-		{Method: http.MethodPost, Path: base + "/dockyard-dockyard-manager-1/restart", Body: map[string]any{"confirm": true}},
-		{Method: http.MethodPost, Path: base + "/dockyard-dockyard-agent-1/start"},
+		{Method: http.MethodPost, Path: base + "/docker-manager-docker-manager-1/restart", Body: map[string]any{"confirm": true}},
+		{Method: http.MethodPost, Path: base + "/docker-manager-docker-agent-1/start"},
 	} {
 		if r := f.do("olga", c); r.Status != http.StatusAccepted {
 			t.Errorf("%s: %d %s", c, r.Status, r.Body)

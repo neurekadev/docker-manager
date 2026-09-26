@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-	<!-- Placeholder DockYard icon (#11); replaced by the design system in #22. -->
+	<!-- Placeholder Docker Manager icon (#11); replaced by the design system in #22. -->
 	<rect width="512" height="512" rx="96" fill="#404040"/>
 	<g fill="#ffffff">
 		<rect x="136" y="148" width="104" height="72" rx="8"/>

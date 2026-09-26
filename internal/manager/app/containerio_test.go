@@ -40,7 +40,7 @@ func TestAPITokenTerminalNeedsContainerExec(t *testing.T) {
 		Ticket      string `json:"ticket"`
 	}
 	withExec.must(http.StatusCreated, http.MethodPost, base+"/exec-sessions", shell).json(t, &sess)
-	if sess.ID == "" || sess.Ticket == "" || sess.Subprotocol != "dockyard.exec.v1" ||
+	if sess.ID == "" || sess.Ticket == "" || sess.Subprotocol != "docker-manager.exec.v1" ||
 		!strings.HasSuffix(sess.StreamURL, "/containers/web/exec-sessions/"+sess.ID+"/stream") {
 		t.Fatalf("exec session %+v", sess)
 	}

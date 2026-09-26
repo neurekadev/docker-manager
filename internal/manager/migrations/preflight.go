@@ -6,45 +6,45 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Finding codes (stable; the API returns them in blockers and warnings).
 const (
-	FindingSameEnvironment      = "same_environment"
-	FindingEnvironmentOffline   = "environment_offline"
-	FindingAgentUnsupported     = "agent_unsupported"
-	FindingStorageUnavailable   = "storage_unavailable"
-	FindingDockYardResource     = "dockyard_resource"
-	FindingPlatformMismatch     = "platform_mismatch"
-	FindingImageNotPullable     = "image_not_pullable"
-	FindingImageUnverified      = "image_unverified"
-	FindingImageRebuild         = "image_rebuild"
-	FindingImageTransfer        = "image_transfer"
-	FindingRegistrySelection    = "registry_selection"
-	FindingStackNameConflict    = "stack_name_conflict"
-	FindingProjectNameConflict  = "project_name_conflict"
-	FindingDirectoryConflict    = "directory_conflict"
-	FindingContainerConflict    = "container_name_conflict"
-	FindingVolumeConflict       = "volume_name_conflict"
-	FindingNetworkConflict      = "network_name_conflict"
-	FindingPortConflict         = "port_conflict"
-	FindingExternalNetwork      = "external_network_missing"
-	FindingExternalVolume       = "external_volume_missing"
-	FindingExternalBind         = "external_bind_path"
-	FindingDevice               = "device_mapping"
-	FindingVolumeDefinitionOnly = "volume_definition_only"
-	FindingAnonymousVolume      = "anonymous_volume_skipped"
-	FindingVolumeMissing        = "volume_missing"
-	FindingInsufficientSpace    = "insufficient_space"
-	FindingSizeEstimated        = "size_estimated"
-	FindingPlainHTTP            = "plain_http_transport"
-	FindingContainersRunning    = "containers_running"
-	FindingCrashConsistency     = "crash_consistency_acknowledged"
-	FindingLeftovers            = "leftovers_removed"
-	FindingProjectWarning       = "project_warning"
-	FindingHostPortsUnknown     = "host_ports_unverified"
+	FindingSameEnvironment       = "same_environment"
+	FindingEnvironmentOffline    = "environment_offline"
+	FindingAgentUnsupported      = "agent_unsupported"
+	FindingStorageUnavailable    = "storage_unavailable"
+	FindingDockerManagerResource = "docker_manager_resource"
+	FindingPlatformMismatch      = "platform_mismatch"
+	FindingImageNotPullable      = "image_not_pullable"
+	FindingImageUnverified       = "image_unverified"
+	FindingImageRebuild          = "image_rebuild"
+	FindingImageTransfer         = "image_transfer"
+	FindingRegistrySelection     = "registry_selection"
+	FindingStackNameConflict     = "stack_name_conflict"
+	FindingProjectNameConflict   = "project_name_conflict"
+	FindingDirectoryConflict     = "directory_conflict"
+	FindingContainerConflict     = "container_name_conflict"
+	FindingVolumeConflict        = "volume_name_conflict"
+	FindingNetworkConflict       = "network_name_conflict"
+	FindingPortConflict          = "port_conflict"
+	FindingExternalNetwork       = "external_network_missing"
+	FindingExternalVolume        = "external_volume_missing"
+	FindingExternalBind          = "external_bind_path"
+	FindingDevice                = "device_mapping"
+	FindingVolumeDefinitionOnly  = "volume_definition_only"
+	FindingAnonymousVolume       = "anonymous_volume_skipped"
+	FindingVolumeMissing         = "volume_missing"
+	FindingInsufficientSpace     = "insufficient_space"
+	FindingSizeEstimated         = "size_estimated"
+	FindingPlainHTTP             = "plain_http_transport"
+	FindingContainersRunning     = "containers_running"
+	FindingCrashConsistency      = "crash_consistency_acknowledged"
+	FindingLeftovers             = "leftovers_removed"
+	FindingProjectWarning        = "project_warning"
+	FindingHostPortsUnknown      = "host_ports_unverified"
 )
 
 // Finding is one preflight result.
@@ -122,7 +122,7 @@ type Transport struct {
 	BandwidthLimit       int64
 }
 
-// Exclusion is a DockYard resource left out (#32).
+// Exclusion is a Docker Manager resource left out (#32).
 type Exclusion struct {
 	Name   string
 	Reason string
@@ -202,7 +202,7 @@ type PreflightInput struct {
 	TargetPlainHTTP bool
 	Source          *protocol.MigrationSourceFacts
 	Target          *protocol.MigrationDestinationFacts
-	// StackNameTaken: a DockYard stack with the project name already
+	// StackNameTaken: a Docker Manager stack with the project name already
 	// exists on the destination.
 	StackNameTaken bool
 	// TargetDir is the planned project directory.
@@ -342,7 +342,7 @@ func evaluateStack(p *Plan, in PreflightInput) {
 	}
 	p.ProjectName = src.Name
 	if src.Protected {
-		p.block(FindingDockYardResource, "this is DockYard's own Compose project (%s); it cannot be migrated", src.ProtectionReason)
+		p.block(FindingDockerManagerResource, "this is Docker Manager's own Compose project (%s); it cannot be migrated", src.ProtectionReason)
 	}
 	if !dst.StacksOK {
 		p.block(FindingStorageUnavailable, "the destination's stacks volume did not pass the storage check: %s", dst.Reason)
@@ -350,7 +350,7 @@ func evaluateStack(p *Plan, in PreflightInput) {
 	srcPlatform, dstPlatform := archOf(in.Source.Platform), archOf(dst.Platform)
 	// Name conflicts.
 	if in.StackNameTaken {
-		p.block(FindingStackNameConflict, "the destination already has a DockYard stack named %q", src.Name)
+		p.block(FindingStackNameConflict, "the destination already has a Docker Manager stack named %q", src.Name)
 	}
 	if len(dst.ProjectContainers) > 0 && !leftoverDir(in, in.TargetDir) {
 		p.block(FindingProjectNameConflict, "the destination already runs a Compose project named %q (%s)", src.Name,
@@ -408,7 +408,7 @@ func evaluateStack(p *Plan, in PreflightInput) {
 		rc, checked := in.Registry[s.Image]
 		switch {
 		case s.ImageProtected:
-			p.block(FindingDockYardResource, "service %s runs DockYard's own image %s", s.Name, s.Image).Service = s.Name
+			p.block(FindingDockerManagerResource, "service %s runs Docker Manager's own image %s", s.Name, s.Image).Service = s.Name
 			sp.Action = ImagePresent
 		case slices.Contains(existing, s.Image) && !transfer:
 			sp.Action = ImagePresent
@@ -526,7 +526,7 @@ func evaluateVolume(p *Plan, in PreflightInput) {
 	vp := VolumePlan{Source: v.Name, Target: target, Action: VolumeCopy, Bytes: v.Bytes, Entries: v.Entries, Truncated: v.Truncated, Labels: v.Labels}
 	switch {
 	case v.Protected:
-		p.block(FindingDockYardResource, "volume %s is DockYard's own (%s); it cannot be migrated", v.Name, v.Reason)
+		p.block(FindingDockerManagerResource, "volume %s is Docker Manager's own (%s); it cannot be migrated", v.Name, v.Reason)
 		vp.Action = VolumeSkip
 		p.Excluded = append(p.Excluded, Exclusion{Name: v.Name, Reason: v.Reason})
 	case !v.Supported:

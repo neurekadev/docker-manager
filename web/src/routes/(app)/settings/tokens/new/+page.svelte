@@ -124,14 +124,14 @@
 		<DeniedState
 			level={2}
 			title="You can't create API tokens."
-			description="Ask the owner of this DockYard for the Create API tokens permission."
+			description="Ask the owner of this Docker Manager for the Create API tokens permission."
 		/>
 	{:else if created}
 		<Card title="Your new token">
 			<SecretReveal
 				secret={created.token}
 				label="API token"
-				filename="dockyard-api-token.txt"
+				filename="docker-manager-api-token.txt"
 				description="Store it in your script's secret store now. It works {created.apiToken
 					.expiresAt
 					? `until ${formatDateTime(created.apiToken.expiresAt)}`
@@ -148,7 +148,7 @@
 			<Notice tone="danger" title="The token was not created" live="alert">
 				{actionError(error, {
 					api_tokens_disabled:
-						'API tokens are turned off for this DockYard. The owner can turn them on in the sign-in policy.'
+						'API tokens are turned off for this Docker Manager. The owner can turn them on in the sign-in policy.'
 				})}
 			</Notice>
 		{/if}
@@ -186,7 +186,7 @@
 						/>
 					{/if}
 					{#if maxDays}<p class="muted small">
-							This DockYard allows at most {maxDays} days.
+							This Docker Manager allows at most {maxDays} days.
 						</p>{/if}
 				</div>
 			</Fields>

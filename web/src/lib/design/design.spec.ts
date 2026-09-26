@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CHART_COLORS, EDITOR_COLORS, TERMINAL_THEME } from '$lib/lazy/palette';
-import { dockyardEchartsTheme } from '$lib/lazy/echarts-theme';
+import { dockerManagerEchartsTheme } from '$lib/lazy/echarts-theme';
 import {
 	fnv1a,
 	iconForImage,
@@ -92,8 +92,8 @@ describe('design tokens (#22 brief)', () => {
 		expect(EDITOR_COLORS.selection).toBe(token('code-selection'));
 		expect(TERMINAL_THEME.background).toBe(token('code-bg'));
 		expect(CHART_COLORS.grid).toBe(token('border-subtle'));
-		expect(dockyardEchartsTheme.color[0]).toBe(token('info'));
-		expect(dockyardEchartsTheme.line.connectNulls).toBe(false);
+		expect(dockerManagerEchartsTheme.color[0]).toBe(token('info'));
+		expect(dockerManagerEchartsTheme.line.connectNulls).toBe(false);
 	});
 });
 

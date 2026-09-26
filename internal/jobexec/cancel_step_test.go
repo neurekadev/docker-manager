@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 )
 
 // TestStepCancelledEndsCancelled: a step that stops early on request

@@ -117,7 +117,7 @@
 
 {#snippet kindCell(k: Kind)}<NameCell
 		name={k.label}
-		sub={k.cron === k.suggested ? 'DockYard’s suggestion' : `Suggested: ${k.suggested}`}
+		sub={k.cron === k.suggested ? 'Docker Manager’s suggestion' : `Suggested: ${k.suggested}`}
 	/>{/snippet}
 {#snippet cronCell(k: Kind)}<span class="mono">{k.cron}</span>{/snippet}
 {#snippet catchCell(k: Kind)}<span class="muted"
@@ -147,7 +147,7 @@
 		<DeniedState
 			level={2}
 			title="You can't see the schedule defaults."
-			description="Ask the owner of this DockYard for the View settings permission."
+			description="Ask the owner of this Docker Manager for the View settings permission."
 		/>
 	{:else}
 		<QueryView query={defaults} errorTitle="The schedule defaults could not be loaded.">
@@ -203,7 +203,7 @@
 							<Button
 								variant="ghost"
 								onclick={() => editing && (editCron = editing.suggested)}
-								>Use DockYard’s suggestion</Button
+								>Use Docker Manager’s suggestion</Button
 							>
 							<Button
 								variant="primary"

@@ -205,7 +205,7 @@
 <ConfirmDialog
 	bind:open={rotateOpen}
 	title="Rotate agent credential"
-	message="DockYard issues a new credential to {target ? agentLabel(target) : 'the agent'}."
+	message="Docker Manager issues a new credential to {target ? agentLabel(target) : 'the agent'}."
 	consequences={[
 		'The agent stores the new credential and confirms it; then the old one is revoked.',
 		'If the agent is offline, it receives the new credential when it reconnects. The old one keeps working until then.'

@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
 )
 
 // dockerHubConfigKey is the Docker config key for Docker Hub credentials.
@@ -33,7 +33,7 @@ const dockerHubConfigKey = "https://index.docker.io/v1/"
 //   - Nothing is read from ~/.docker or DOCKER_CONFIG: the standard
 //     DockerCli (Initialize/LoadDefaultConfigFile) is never used.
 //   - BuildKitEnabled reports false so Compose never looks up or executes
-//     the buildx CLI plugin; DockYard builds images itself through the
+//     the buildx CLI plugin; Docker Manager builds images itself through the
 //     Engine's BuildKit before calling the SDK (build.go).
 //   - Telemetry providers are no-ops.
 type memoryCLI struct {

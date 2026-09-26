@@ -15,30 +15,30 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/agent/compose"
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	agentstacks "github.com/neurekadev/dockyard/internal/agent/stacks"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/jobs/jobstest"
-	"github.com/neurekadev/dockyard/internal/manager/regclient"
-	"github.com/neurekadev/dockyard/internal/manager/regclient/regtest"
-	"github.com/neurekadev/dockyard/internal/manager/registries"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/manager/updates"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	agentstacks "code.neureka.dev/docker-manager/docker-manager/internal/agent/stacks"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs/jobstest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient/regtest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/registries"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/updates"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 const env = "env-1"
@@ -238,7 +238,7 @@ func newHarness(t *testing.T) *harness {
 	t.Helper()
 	ctx := testutil.Context(t)
 	dir := t.TempDir()
-	db, err := store.Open(ctx, filepath.Join(dir, "dockyard.db"))
+	db, err := store.Open(ctx, filepath.Join(dir, "docker-manager.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,7 +323,7 @@ type stackService struct {
 }
 
 // deployStack writes the project files, pulls and runs the services on
-// the Engine and records the stack as DockYard deployed it (applied
+// the Engine and records the stack as Docker Manager deployed it (applied
 // revision = the files' hash, applied images with their digests).
 func (h *harness) deployStack(id, name, yaml string, extra map[string]string, services []stackService) domain.Stack {
 	h.t.Helper()

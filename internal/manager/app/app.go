@@ -27,49 +27,49 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/migrate"
 
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/agents"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/auth"
-	"github.com/neurekadev/dockyard/internal/manager/auth/password"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/backups"
-	"github.com/neurekadev/dockyard/internal/manager/builds"
-	"github.com/neurekadev/dockyard/internal/manager/config"
-	"github.com/neurekadev/dockyard/internal/manager/containerio"
-	"github.com/neurekadev/dockyard/internal/manager/diagnostics"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/files"
-	"github.com/neurekadev/dockyard/internal/manager/gitcreds"
-	"github.com/neurekadev/dockyard/internal/manager/idempotency"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/live"
-	"github.com/neurekadev/dockyard/internal/manager/maintenance"
-	"github.com/neurekadev/dockyard/internal/manager/metrics"
-	envmigrations "github.com/neurekadev/dockyard/internal/manager/migrations"
-	"github.com/neurekadev/dockyard/internal/manager/observe"
-	"github.com/neurekadev/dockyard/internal/manager/permissions"
-	"github.com/neurekadev/dockyard/internal/manager/regclient"
-	"github.com/neurekadev/dockyard/internal/manager/registries"
-	"github.com/neurekadev/dockyard/internal/manager/removal"
-	"github.com/neurekadev/dockyard/internal/manager/resources"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/server"
-	"github.com/neurekadev/dockyard/internal/manager/settings"
-	"github.com/neurekadev/dockyard/internal/manager/stacks"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/manager/updates"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
-	"github.com/neurekadev/dockyard/internal/selfid"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/password"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/builds"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/containerio"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/diagnostics"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/files"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/gitcreds"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/idempotency"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/live"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/maintenance"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/metrics"
+	envmigrations "code.neureka.dev/docker-manager/docker-manager/internal/manager/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/observe"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/permissions"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/regclient"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/registries"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/removal"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/resources"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/settings"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/stacks"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/updates"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/selfid"
 )
 
 // ShutdownGrace bounds graceful HTTP shutdown.
@@ -202,7 +202,7 @@ func (m *Manager) RestartRequested() bool {
 // ErrSecretKeyMissing means the database belongs to an existing installation
 // but its secret-protection key file is absent.
 var ErrSecretKeyMissing = errors.New("secret-protection key file is missing for an existing installation; " +
-	"restore it (DOCKYARD_SECRET_KEY_FILE) instead of letting DockYard generate a new one, or encrypted settings become unreadable")
+	"restore it (DOCKER_MANAGER_SECRET_KEY_FILE) instead of letting Docker Manager generate a new one, or encrypted settings become unreadable")
 
 // Start opens and migrates the database and prepares the HTTP handler.
 func Start(ctx context.Context, opts Options) (*Manager, error) {
@@ -587,12 +587,12 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	for _, typ := range []string{catalog.TypeContainer, catalog.TypeVolume, catalog.TypeNetwork} {
 		m.perms.RegisterLocator(typ, m.resources.Locator(typ))
 	}
-	// Stack deploy/stop/restart/down/remove refuse DockYard's own Compose
+	// Stack deploy/stop/restart/down/remove refuse Docker Manager's own Compose
 	// project (#32).
 	m.stacks.SetProtection(m.resources)
 	// Prune runs protect what saved container specifications reference (#14).
 	m.maint.SetSpecs(m.resources)
-	// The stopped source of a migrated stack is no longer a DockYard stack:
+	// The stopped source of a migrated stack is no longer a Docker Manager stack:
 	// until the user confirms its removal, prune runs keep its project
 	// and volumes and the Docker resource routes refuse to remove them (#35).
 	m.resources.SetRetainedProjects(m.migrations.RetainedProjects)
@@ -747,7 +747,7 @@ func (m *Manager) initInstance(ctx context.Context) error {
 		if inst, err = store.CreateInstance(ctx, m.db, m.opts.Clock.Now()); err != nil {
 			return err
 		}
-		log.Info("initialized new DockYard instance", "instance_id", inst.ID)
+		log.Info("initialized new Docker Manager instance", "instance_id", inst.ID)
 	}
 	m.instance = inst
 	return nil
@@ -1001,10 +1001,10 @@ func Run(ctx context.Context, opts Options) error {
 	opts = withLogRing(opts)
 	cfg, log := opts.Config, opts.Logger
 	info := buildinfo.Get()
-	log.Info("starting dockyard-manager", "version", info.Version, "commit", info.Commit,
+	log.Info("starting docker-manager", "version", info.Version, "commit", info.Commit,
 		"public_url", cfg.PublicURL.String(), "data_dir", cfg.DataDir, "ui_built", opts.UIBuilt)
 	if cfg.LocalDevelopment {
-		log.Warn("DOCKYARD_PUBLIC_URL is plain http on a loopback host: local development mode, not for production")
+		log.Warn("DOCKER_MANAGER_PUBLIC_URL is plain http on a loopback host: local development mode, not for production")
 	}
 	if !opts.UIBuilt {
 		log.Warn("serving the placeholder UI; this binary was built without the SvelteKit assets")

@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Stacks (#22, #7): the Compose stacks of the selected environment, or
 	// of every visible one with an environment column. Status is the live
-	// Engine state DockYard last observed; "Undeployed changes" and the
+	// Engine state Docker Manager last observed; "Undeployed changes" and the
 	// update dot say what needs attention. Create and import are shown only
 	// with stack.create / stack.import (the server still decides).
 	import { createQuery } from '@tanstack/svelte-query';
@@ -184,8 +184,8 @@
 		<div>
 			<h1>Stacks</h1>
 			<p class="muted">
-				Compose projects DockYard manages{envName ? ` on ${envName}` : ''}. The files on
-				disk are the source of truth.
+				Compose projects Docker Manager manages{envName ? ` on ${envName}` : ''}. The files
+				on disk are the source of truth.
 			</p>
 		</div>
 		<div class="actions">

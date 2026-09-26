@@ -183,7 +183,7 @@
 					default_group_protected:
 						'This is the default group. Choose another default first.',
 					group_not_empty:
-						'Move its members to another group first; DockYard never moves users on its own.'
+						'Move its members to another group first; Docker Manager never moves users on its own.'
 				}),
 				{ cause: e }
 			);

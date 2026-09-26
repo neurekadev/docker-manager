@@ -5,7 +5,7 @@ import "time"
 // Docker resources of an environment (#6): containers, images, volumes and
 // networks live on the environment's Engine and are read through its agent;
 // the manager keeps only what the Engine cannot: the recreate
-// specification of DockYard-managed standalone containers.
+// specification of Docker Manager-managed standalone containers.
 
 // DockerError is a stable failure of a Docker resource operation. Code is
 // one of the Docker* codes below; the API maps it to its error catalog
@@ -38,11 +38,11 @@ const (
 	DockerTimeout = "timeout"
 	// DockerBusy: the agent is at its request limit; retry.
 	DockerBusy = "unavailable"
-	// DockerInvalid: an input the Engine or DockYard refused (422).
+	// DockerInvalid: an input the Engine or Docker Manager refused (422).
 	DockerInvalid = "validation_failed"
 	// DockerConflict: generic state conflict.
 	DockerConflict = "conflict"
-	// DockerStackManaged: the object belongs to a DockYard-managed stack;
+	// DockerStackManaged: the object belongs to a Docker Manager-managed stack;
 	// change the stack instead.
 	DockerStackManaged = "stack_managed"
 	// DockerContainerRunning: removing a running container needs force.
@@ -58,16 +58,16 @@ const (
 	DockerNameTaken = "resource_name_taken"
 	// DockerRecreateRequired: the change needs the container recreated.
 	DockerRecreateRequired = "recreate_required"
-	// DockerProtected: the object is one of DockYard's own (#32).
+	// DockerProtected: the object is one of Docker Manager's own (#32).
 	DockerProtected = "protected"
-	// DockerConfirmationRequired: restarting it interrupts DockYard; the
+	// DockerConfirmationRequired: restarting it interrupts Docker Manager; the
 	// caller must confirm (#32).
 	DockerConfirmationRequired = "confirmation_required"
 )
 
 // ManagedContainer is the saved recreate specification of a standalone
-// container created through DockYard (#6). The container carries its ID in
-// the dev.neureka.dockyard.spec label; automatic updates (#20) recreate it
+// container created through Docker Manager (#6). The container carries its ID in
+// the dev.neureka.docker-manager.spec label; automatic updates (#20) recreate it
 // from Spec with its tagged image reference and prior running state.
 type ManagedContainer struct {
 	ID            string

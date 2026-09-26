@@ -78,7 +78,7 @@
 	/>
 	<TextArea
 		label="Bind sources outside the project directory"
-		description="Optional, explicit opt-in: absolute paths, one per line. Each must also be below the agent's DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST; nothing outside the project is ever included implicitly."
+		description="Optional, explicit opt-in: absolute paths, one per line. Each must also be below the agent's DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST; nothing outside the project is ever included implicitly."
 		mono
 		rows={2}
 		value={listToLines(value.externalPaths)}

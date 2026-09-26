@@ -278,7 +278,7 @@
 		consequences={[
 			'The stored credential is erased; the connection stays so matching jobs fail visibly.',
 			target.kind === 'registry'
-				? 'Pulls, deploys and update checks of matching images fail until you rotate a new credential in. DockYard never falls back to anonymous access.'
+				? 'Pulls, deploys and update checks of matching images fail until you rotate a new credential in. Docker Manager never falls back to anonymous access.'
 				: 'Builds from matching repositories fail until you rotate a new token in.'
 		]}
 		confirmLabel="Revoke credential"
@@ -318,7 +318,7 @@
 					bind:value={reference}
 					placeholder={testPlaceholder}
 					description="An image on {target.item
-						.host} this connection may read. DockYard asks the registry for its digest; nothing is pulled."
+						.host} this connection may read. Docker Manager asks the registry for its digest; nothing is pulled."
 					error={fieldError(failure, 'body.imageReference')}
 				/>
 			{:else}
@@ -331,7 +331,7 @@
 					target.item.pathPrefix
 						? target.item.pathPrefix
 						: 'org'}/app.git"
-					description="DockYard lists the repository's refs with the token; nothing is cloned."
+					description="Docker Manager lists the repository's refs with the token; nothing is cloned."
 					error={fieldError(failure, 'body.repositoryUrl')}
 				/>
 				<TextField

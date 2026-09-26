@@ -15,29 +15,29 @@ import (
 
 	"github.com/coder/websocket"
 
-	agentbackups "github.com/neurekadev/dockyard/internal/agent/backups"
-	"github.com/neurekadev/dockyard/internal/agent/compose"
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/agent/protect"
-	agentresources "github.com/neurekadev/dockyard/internal/agent/resources"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/state"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/backups"
-	"github.com/neurekadev/dockyard/internal/manager/backups/s3probe/s3probetest"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
-	"github.com/neurekadev/dockyard/internal/restic/restictest"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	agentbackups "code.neureka.dev/docker-manager/docker-manager/internal/agent/backups"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	agentjobs "code.neureka.dev/docker-manager/docker-manager/internal/agent/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
+	agentresources "code.neureka.dev/docker-manager/docker-manager/internal/agent/resources"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups/s3probe/s3probetest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic/restictest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 // Backups (#10) through the real manager and a real agent session: the
@@ -122,7 +122,7 @@ type hostOpts struct {
 	// reattach enrolls with intent reattach:<environmentId> and reuses fe.
 	reattach string
 	fe       *enginefake.Engine
-	// localRoots are the agent's DOCKYARD_BACKUP_LOCAL_ROOTS.
+	// localRoots are the agent's DOCKER_MANAGER_BACKUP_LOCAL_ROOTS.
 	localRoots []string
 }
 
@@ -177,7 +177,7 @@ func (b *backupEnv) enrollHost(ctx context.Context, o hostOpts, fe *enginefake.E
 		Roots: []storage.Root{{Kind: storage.KindStacks, Path: filepath.ToSlash(o.stacks), OK: true},
 			{Kind: storage.KindVolumes, Path: filepath.ToSlash(o.volumes), OK: true}}}
 	agentLog := b.secrets.CaptureLogger(t) // agent logs are checked for canaries too
-	guard := protect.New(protect.Options{StacksVolume: "dockyard_stacks", Logger: agentLog})
+	guard := protect.New(protect.Options{StacksVolume: "docker-manager_stacks", Logger: agentLog})
 	svc := agentbackups.New(agentbackups.Options{Engine: func() engine.Engine { return fe }, Loader: func() agentbackups.Loader { return loaderFunc{} },
 		Storage: func() *storage.Result { return res }, Guard: guard, Restic: b.opener, LocalRoots: o.localRoots, Clock: e.clk, Logger: agentLog,
 		WaitTimeout: time.Second})
@@ -229,7 +229,7 @@ func (b *backupEnv) enrollHost(ctx context.Context, o hostOpts, fe *enginefake.E
 		DialOptions: func(h http.Header) *websocket.DialOptions {
 			return &websocket.DialOptions{HTTPHeader: h, Subprotocols: []string{protocol.Version}}
 		},
-		AgentVersion: buildinfo.Get().Version, UserAgent: "dockyard-agent/test",
+		AgentVersion: buildinfo.Get().Version, UserAgent: "docker-agent/test",
 		Capabilities: func() (protocol.CapabilitiesPayload, bool) {
 			var cmds []string
 			for _, x := range execs {
@@ -263,7 +263,7 @@ func (b *backupEnv) enrollHost(ctx context.Context, o hostOpts, fe *enginefake.E
 	}
 }
 
-// seedStack records the Compose project as a DockYard stack.
+// seedStack records the Compose project as a Docker Manager stack.
 func (b *backupEnv) seedStack() {
 	now := b.clk.Now().UTC()
 	st := domain.Stack{ID: "0190a6e0-0000-7000-8000-00000000a001", EnvironmentID: b.agent.env, Name: "app", Root: protocol.RootStacks,
@@ -297,7 +297,7 @@ func (b *backupEnv) createS3Repo(owner *client, name string) createdRepo {
 	secret := b.secrets.New(canary.S3SecretKey, "s3 secret "+name)
 	var out createdRepo
 	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-repositories", map[string]any{
-		"name": name, "kind": "s3", "endpoint": b.s3.URL, "bucket": "backups", "prefix": "dockyard", "pathStyle": true,
+		"name": name, "kind": "s3", "endpoint": b.s3.URL, "bucket": "backups", "prefix": "docker-manager", "pathStyle": true,
 		"accessKeyId": b.s3.AccessKey, "secretAccessKey": secret,
 	}, secretOK).json(b.t, &out)
 	if out.RecoveryKey != nil {
@@ -499,7 +499,7 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 	for _, en := range mcontents.Entries {
 		names = append(names, filepath.Base(en.Path))
 	}
-	for _, want := range []string{"dockyard.db", backups.BundleFile, "state.json"} {
+	for _, want := range []string{"docker-manager.db", backups.BundleFile, "state.json"} {
 		if !slices.Contains(names, want) {
 			t.Errorf("manager snapshot lacks %s: %v", want, names)
 		}
@@ -560,7 +560,7 @@ func (b *backupEnv) assertSetManifest(key, env string) {
 	t.Helper()
 	repoString := ""
 	for _, r := range b.store.Repositories() {
-		if strings.HasSuffix(r, "/dockyard-manager") {
+		if strings.HasSuffix(r, "/docker-manager") {
 			repoString = r
 		}
 	}

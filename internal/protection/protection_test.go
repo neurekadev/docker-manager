@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 func code(err error) string {
@@ -18,9 +18,9 @@ func code(err error) string {
 	return ""
 }
 
-// TestCheckMatrix pins what may happen to DockYard's own resources (#32):
+// TestCheckMatrix pins what may happen to Docker Manager's own resources (#32):
 // start/unpause always; the connected agent never stops, pauses, restarts,
-// updates or goes away; the manager and DockYard's project restart only
+// updates or goes away; the manager and Docker Manager's project restart only
 // with a confirmation; volumes, images and networks are never removed or
 // mounted elsewhere; nothing unprotected is refused; there is no override.
 func TestCheckMatrix(t *testing.T) {
@@ -76,9 +76,9 @@ func TestExclusion(t *testing.T) {
 		name string
 		p    *protocol.Protection
 	}
-	items := []item{{"web", nil}, {"dockyard-agent", &protocol.Protection{Role: RoleAgent, Reason: "the agent"}}, {"db", nil}}
+	items := []item{{"web", nil}, {"docker-agent", &protocol.Protection{Role: RoleAgent, Reason: "the agent"}}, {"db", nil}}
 	kept, excluded := Filter(items, func(i item) *protocol.Protection { return i.p })
-	if len(kept) != 2 || kept[0].name != "web" || kept[1].name != "db" || len(excluded) != 1 || excluded[0].Item.name != "dockyard-agent" ||
+	if len(kept) != 2 || kept[0].name != "web" || kept[1].name != "db" || len(excluded) != 1 || excluded[0].Item.name != "docker-agent" ||
 		excluded[0].Reason != "the agent" {
 		t.Fatalf("kept %+v excluded %+v", kept, excluded)
 	}

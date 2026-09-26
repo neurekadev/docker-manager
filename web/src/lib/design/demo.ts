@@ -1,5 +1,5 @@
 // Sample data for the design system gallery (/design) and component tests:
-// the mockup's stack "Silo" as DockYard would describe it. Not API data.
+// the mockup's stack "Silo" as Docker Manager would describe it. Not API data.
 import type { ApiClient, Job, JobEvent } from '$lib/api/client';
 import type { EventSourceLike } from '$lib/api/jobs.svelte';
 

@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 func TestNormalizeName(t *testing.T) {
@@ -30,7 +30,7 @@ func TestNormalizeName(t *testing.T) {
 func TestUpdateIsRevisioned(t *testing.T) {
 	ctx := testutil.Context(t)
 	dir := t.TempDir()
-	db, err := store.Open(ctx, filepath.Join(dir, "dockyard.db"))
+	db, err := store.Open(ctx, filepath.Join(dir, "docker-manager.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,12 +42,12 @@ func TestUpdateIsRevisioned(t *testing.T) {
 	at := time.Date(2026, 9, 25, 8, 0, 0, 0, time.UTC)
 	svc := New(db, clock.NewFake(at))
 	s, err := svc.Get(ctx)
-	if err != nil || s.Name != "DockYard" || s.Revision != 1 {
+	if err != nil || s.Name != "Docker Manager" || s.Revision != 1 {
 		t.Fatalf("%+v %v", s, err)
 	}
 	name := " Homelab "
 	before, after, err := svc.Update(ctx, 1, domain.InstanceSettingsPatch{Name: &name})
-	if err != nil || before.Name != "DockYard" || after.Name != "Homelab" || after.Revision != 2 || !after.UpdatedAt.Equal(at) {
+	if err != nil || before.Name != "Docker Manager" || after.Name != "Homelab" || after.Revision != 2 || !after.UpdatedAt.Equal(at) {
 		t.Fatalf("%+v %+v %v", before, after, err)
 	}
 	if _, _, err := svc.Update(ctx, 1, domain.InstanceSettingsPatch{Name: &name}); !errors.Is(err, domain.ErrRevisionConflict) {

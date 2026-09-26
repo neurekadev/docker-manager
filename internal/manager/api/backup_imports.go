@@ -8,8 +8,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/manager/backups"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups"
 )
 
 // Fresh-manager import (#24): public routes of the protected first-run
@@ -61,10 +61,10 @@ func importError(err error) error {
 // BackupImportSource is the destination and keys of an import.
 type BackupImportSource struct {
 	Kind                string `json:"kind" enum:"local,s3"`
-	Path                string `json:"path,omitempty" maxLength:"1024" example:"/backups/dockyard" doc:"Local destinations: the directory on this manager (below DOCKYARD_BACKUP_LOCAL_ROOTS); it may be a new mount path."`
+	Path                string `json:"path,omitempty" maxLength:"1024" example:"/backups/docker-manager" doc:"Local destinations: the directory on this manager (below DOCKER_MANAGER_BACKUP_LOCAL_ROOTS); it may be a new mount path."`
 	Endpoint            string `json:"endpoint,omitempty" maxLength:"255" example:"https://s3.eu-central-1.amazonaws.com"`
 	Bucket              string `json:"bucket,omitempty" maxLength:"63"`
-	Prefix              string `json:"prefix,omitempty" maxLength:"512" example:"dockyard"`
+	Prefix              string `json:"prefix,omitempty" maxLength:"512" example:"docker-manager"`
 	Region              string `json:"region,omitempty" maxLength:"64"`
 	PathStyle           bool   `json:"pathStyle,omitempty" doc:"Path-style bucket addressing (MinIO and most self-hosted S3)."`
 	AccessKeyID         string `json:"accessKeyId,omitempty" maxLength:"256" writeOnly:"true" doc:"S3: the key pair to use now (it may be newly issued); the restored repository keeps it."`
@@ -228,7 +228,7 @@ func registerBackupImports(a huma.API, deps Deps) {
 			OperationID: "create-setup-backup-import-connection-test", Method: http.MethodPost,
 			Path: BasePath + "/setup/backup-imports/connection-tests", Summary: "Test a backup import source (first-run setup)",
 			Description: "Before an owner exists only (then 409 setup_complete). Checks S3 access, whether the Recovery Key opens the manager " +
-				"repository (dockyard-manager) and which host repositories the manifests name or the destination holds. Problems explain " +
+				"repository (docker-manager) and which host repositories the manifests name or the destination holds. Problems explain " +
 				"key loss, missing repositories, damaged manifests and partially rotated keys. Nothing is stored.",
 			Tags: []string{tagSetup}, Errors: errs,
 		},
@@ -252,7 +252,7 @@ func registerBackupImports(a huma.API, deps Deps) {
 			OperationID: "create-setup-backup-import-preview", Method: http.MethodPost,
 			Path: BasePath + "/setup/backup-imports/previews", Summary: "Preview the backup sets of an import source (first-run setup)",
 			Description: "Lists the newest backup sets from the portable manifests in the repositories (not from any database): completeness, " +
-				"where each member's snapshot is (found, missing, unverified, not_backed_up), the DockYard version and whether this build can run " +
+				"where each member's snapshot is (found, missing, unverified, not_backed_up), the Docker Manager version and whether this build can run " +
 				"the set's database. With setId the set's secret-key bundle is opened too. Sets known only from host repositories are listed " +
 				"but cannot be imported.",
 			Tags: []string{tagSetup}, Errors: errs,

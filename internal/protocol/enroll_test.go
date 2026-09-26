@@ -44,7 +44,7 @@ func TestDecodeEnrollRequestStrict(t *testing.T) {
 		t.Fatalf("%+v %v", r, err)
 	}
 	for _, s := range []string{
-		`{"protocol":"dockyard.agent/v1","shell":"sh"}`,
+		`{"protocol":"docker-manager.agent/v1","shell":"sh"}`,
 		string(b) + `{}`,
 		`[1]`,
 		`nul`,

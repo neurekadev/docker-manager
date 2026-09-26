@@ -56,7 +56,7 @@ and `gid`, `modifiedAt`, `links` (hard link count), `linkTarget` and
 `etag` for regular files up to 256 MiB with a single hard link.
 
 The **ETag** is the file's content revision: SHA-256 over the content, the
-size and the modification time. Any change — through DockYard, a container
+size and the modification time. Any change — through Docker Manager, a container
 or a host tool — changes it. Saves and uploads that replace a file require
 `If-Match` with the ETag the client loaded; a stale ETag is **`412
 precondition_failed` with the current `ETag` header**: the editor keeps the
@@ -118,7 +118,7 @@ previewed and confirmed in the UI before the request.
 | 409 | `file_conflict` | the entry changed during the operation, or a directory into itself |
 | 409 | `file_type_mismatch` | a directory where a file is needed (or the reverse) |
 | 409 | `file_unsupported` | symlink, device, FIFO, socket, or a file with several hard links |
-| 409 | `volume_files_unsupported` | non-local volume driver, remote-backed local volume, DockYard's own volumes, the stacks volume, or storage layout not verified |
+| 409 | `volume_files_unsupported` | non-local volume driver, remote-backed local volume, Docker Manager's own volumes, the stacks volume, or storage layout not verified |
 | 411 | `length_required` | upload without `Content-Length` |
 | 412 | `precondition_failed` | stale `If-Match` (with the current `ETag`) or `If-None-Match: *` on an existing name |
 | 413 | `payload_too_large` | content over 512 KiB, upload over the limit, download or archive over 10 GiB |
@@ -146,7 +146,7 @@ on-disk files are authoritative (#7):
 - changing them (save, create, upload over them, delete, move, move or copy
   a Compose name into the root, extract into the root, chmod/chown) needs
   `stack.definition.write`;
-- every change DockYard makes to them is reported to the stack service
+- every change Docker Manager makes to them is reported to the stack service
   (`files.SourceObserver`, #7), which records a revision and marks
   undeployed changes; nothing is deployed automatically. Job-based changes
   are reported when the job finished.
@@ -160,9 +160,9 @@ Only local-driver volumes stored under the agent's verified volume
 directory (#28) are served. Non-local drivers (plugins) and local volumes
 backed by NFS/CIFS options are refused (`volume_files_unsupported`, #25),
 as are the stacks volume (browse stacks per stack instead, so the Compose
-source rules apply) and every volume mounted by DockYard's own containers
-(label `dev.neureka.dockyard.role`: the manager's data and the agent's
-state), so a file grant can never reach DockYard's database or credentials.
+source rules apply) and every volume mounted by Docker Manager's own containers
+(label `dev.neureka.docker-manager.role`: the manager's data and the agent's
+state), so a file grant can never reach Docker Manager's database or credentials.
 
 ## Containment and safety (agent)
 
@@ -193,12 +193,12 @@ state), so a file grant can never reach DockYard's database or credentials.
   the archive's size (at least 1 MiB), whatever the headers claim; nested
   archives are not extracted.
 - File contents are never logged and never recorded in audit events (paths,
-  sizes, counts and outcomes are). DockYard's own changes are published as
+  sizes, counts and outcomes are). Docker Manager's own changes are published as
   file invalidations (paths only) for open views; external changes come from
   the watcher (#23). File names reach only callers with the root's read
   capability.
 
-**Residual risks** (documented, accepted for v1): a writer outside DockYard
+**Residual risks** (documented, accepted for v1): a writer outside Docker Manager
 can still change a file in the few syscalls between the re-check and the
 rename (the ETag check then compares against the state just before); bind
 mounts inside a volume are traversed like directories (`os.Root` does not

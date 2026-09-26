@@ -61,7 +61,7 @@ type Violation struct {
 }
 
 // contextWords are product words users are tempted to build passwords from.
-var contextWords = []string{"dockyard", "docker"}
+var contextWords = []string{"docker-manager", "docker"}
 
 // Check returns every reason pw is unacceptable, or nil. context are
 // account-specific strings (username, email local part, display name) the

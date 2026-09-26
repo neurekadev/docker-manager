@@ -129,7 +129,7 @@ func TestContextAccessors(t *testing.T) {
 }
 
 func TestValidHost(t *testing.T) {
-	for _, h := range []string{"a", "docker.example.com", "docker.example.com:443", "dockyard_manager:8080", "[::1]", "[::1]:8443", "127.0.0.1:1"} {
+	for _, h := range []string{"a", "docker.example.com", "docker.example.com:443", "docker_manager_manager:8080", "[::1]", "[::1]:8443", "127.0.0.1:1"} {
 		if !validHost(h) {
 			t.Errorf("%q rejected", h)
 		}
@@ -156,7 +156,7 @@ func TestCheckSecureOrigin(t *testing.T) {
 		{"https via trusted proxy", pub, false, ok, ""},
 		{"explicit default port", pub, false, Info{Scheme: "https", Host: "docker.example.com:443"}, ""},
 		{"plain http request", pub, false, Info{Scheme: "http", Host: "docker.example.com"}, ReasonRequestNotHTTPS},
-		{"internal address", pub, false, Info{Scheme: "https", Host: "dockyard-manager:8080"}, ReasonHostMismatch},
+		{"internal address", pub, false, Info{Scheme: "https", Host: "docker-manager:8080"}, ReasonHostMismatch},
 		{"localhost dev", dev, true, Info{Scheme: "http", Host: "localhost:8080"}, ""},
 		{"localhost dev, other host", dev, true, Info{Scheme: "http", Host: "192.168.1.5:8080"}, ReasonHostMismatch},
 		{"http public URL without dev mode", plain, false, Info{Scheme: "http", Host: "docker.example.com"}, ReasonPublicURLNotHTTPS},
@@ -177,13 +177,13 @@ func TestCheckSecureOrigin(t *testing.T) {
 			}
 		})
 	}
-	// The explanation points untrusted-proxy setups at DOCKYARD_TRUSTED_PROXIES.
+	// The explanation points untrusted-proxy setups at DOCKER_MANAGER_TRUSTED_PROXIES.
 	err := CheckSecureOrigin(pub, false, Info{Scheme: "http", Host: "docker.example.com"})
-	if !strings.Contains(err.Error(), "DOCKYARD_TRUSTED_PROXIES") || !strings.Contains(err.Error(), "https://docker.example.com") {
+	if !strings.Contains(err.Error(), "DOCKER_MANAGER_TRUSTED_PROXIES") || !strings.Contains(err.Error(), "https://docker.example.com") {
 		t.Fatalf("explanation %q", err)
 	}
 	err = CheckSecureOrigin(pub, false, Info{Scheme: "http", Host: "docker.example.com", TrustedPeer: true})
-	if strings.Contains(err.Error(), "DOCKYARD_TRUSTED_PROXIES") {
+	if strings.Contains(err.Error(), "DOCKER_MANAGER_TRUSTED_PROXIES") {
 		t.Fatalf("trusted peer should not get the proxy hint: %q", err)
 	}
 }

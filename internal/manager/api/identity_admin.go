@@ -7,7 +7,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 )
 
 // ownerOnly documents owner routes; they are cookie-only (API tokens never
@@ -58,7 +58,7 @@ func registerAccountAdmin(a huma.API, h *identityAPI) {
 		Operation: huma.Operation{
 			OperationID: "create-invitation", Method: http.MethodPost, Path: BasePath + "/invitations",
 			Summary: "Invite a user", DefaultStatus: http.StatusCreated,
-			Description: "Issues a single-use invitation with a 256-bit code, returned only in this response (DockYard stores a verifier). " +
+			Description: "Issues a single-use invitation with a 256-bit code, returned only in this response (Docker Manager stores a verifier). " +
 				"Expires after expiresInHours (default from the security settings); optionally bound to an email address. No email is sent: " +
 				"hand the link over yourself. Requires a recent step-up. " + ownerOnly,
 			Tags: []string{tagInvites}, Security: cookieOnly, Errors: []int{http.StatusForbidden, http.StatusUnprocessableEntity},

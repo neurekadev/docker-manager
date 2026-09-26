@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
 )
 
-// stackActions are the stack job kinds that must not touch DockYard's own
+// stackActions are the stack job kinds that must not touch Docker Manager's own
 // Compose project (#32): deploy, stop, restart, down and remove. Start is
 // harmless.
 var stackActions = map[domain.JobKind]protection.Action{
@@ -23,7 +23,7 @@ var stackActions = map[domain.JobKind]protection.Action{
 }
 
 // GuardStacks wraps every step of the stack executors (#7) so the agent
-// refuses to deploy, stop, restart or take down DockYard's own Compose
+// refuses to deploy, stop, restart or take down Docker Manager's own Compose
 // project, whatever the manager sent. eng returns the connected Engine.
 func (g *Guard) GuardStacks(eng func() engine.Engine, execs []jobexec.Executor) []jobexec.Executor {
 	out := make([]jobexec.Executor, 0, len(execs))
@@ -61,7 +61,7 @@ func (g *Guard) stackStep(eng func() engine.Engine, action protection.Action, fn
 	}
 }
 
-// CheckProject refuses action on DockYard's own Compose project.
+// CheckProject refuses action on Docker Manager's own Compose project.
 func (g *Guard) CheckProject(ctx context.Context, e engine.Engine, project string, action protection.Action) error {
 	cs, err := e.ListContainers(ctx, engine.ContainerFilter{All: true})
 	if err != nil {

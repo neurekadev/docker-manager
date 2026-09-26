@@ -2,7 +2,7 @@
 // credentials, S3 keys, TOTP seeds, recovery-key working copies, ...).
 //
 // Values are sealed with XChaCha20-Poly1305 under the application
-// secret-protection key (DOCKYARD_SECRET_KEY_FILE). A sealed value is a
+// secret-protection key (DOCKER_MANAGER_SECRET_KEY_FILE). A sealed value is a
 // versioned text envelope that records which key sealed it:
 //
 //	dy1.<keyID>.<base64url(nonce || ciphertext)>
@@ -55,6 +55,8 @@ func NewKey(raw []byte) (Key, error) {
 	if len(raw) != KeySize {
 		return Key{}, fmt.Errorf("secrets: key must be %d bytes, got %d", KeySize, len(raw))
 	}
+	// The key ID and fingerprint contexts keep the project's former name
+	// (DockYard): key IDs and stored fingerprints must stay stable.
 	sum := sha256.Sum256(append([]byte("dockyard/secret-key-id/v1\x00"), raw...))
 	k := Key{id: hex.EncodeToString(sum[:8]), raw: make([]byte, KeySize)}
 	copy(k.raw, raw)

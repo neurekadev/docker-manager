@@ -10,15 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/backups"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 // The recovery proof of #24 in process: a clean manager (new data
@@ -53,7 +53,7 @@ func (e *env) restartManager() {
 func TestBackupImportFromARemountedLocalRepository(t *testing.T) {
 	old := newBackupEnv(t)
 	owner, password := old.setupOwner()
-	oldPath := filepath.ToSlash(filepath.Join(old.root, "manager-backups", "dockyard"))
+	oldPath := filepath.ToSlash(filepath.Join(old.root, "manager-backups", "docker-manager"))
 	var repo createdRepo
 	owner.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-repositories", map[string]any{"name": "Local", "kind": "local",
 		"executor": "manager", "path": oldPath}, secretOK).json(t, &repo)
@@ -74,7 +74,7 @@ func TestBackupImportFromARemountedLocalRepository(t *testing.T) {
 	fresh := newBackupEnvWith(t, old.store, old.s3)
 	fresh.secrets.Register(canary.RecoveryKey, "recovery key", key)
 	newPath := filepath.ToSlash(filepath.Join(fresh.root, "manager-backups", "remounted"))
-	old.store.Move(oldPath+"/dockyard-manager", newPath+"/dockyard-manager")
+	old.store.Move(oldPath+"/docker-manager", newPath+"/docker-manager")
 	anon := fresh.client()
 	src := map[string]any{"kind": "local", "path": newPath, "recoveryKey": key}
 	anon.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPost, "/api/v1/setup/backup-imports/connection-tests",
@@ -116,7 +116,7 @@ func TestBackupImportFromARemountedLocalRepository(t *testing.T) {
 	if jobs := fresh.runJobs(restored.must(http.StatusCreated, http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil)); len(jobs) != 1 {
 		t.Fatalf("jobs after the import %v", jobs)
 	}
-	if n := len(old.store.Snapshots(newPath + "/dockyard-manager")); n < 4 {
+	if n := len(old.store.Snapshots(newPath + "/docker-manager")); n < 4 {
 		t.Errorf("snapshots at the new path: %d", n)
 	}
 }
@@ -234,13 +234,13 @@ func TestBackupImportIntoAFreshManager(t *testing.T) {
 			}
 		}
 	}
-	managerRepo := "s3:" + old.s3.URL + "/backups/dockyard/dockyard-manager"
+	managerRepo := "s3:" + old.s3.URL + "/backups/docker-manager/docker-manager"
 	if pw := old.store.Passwords(managerRepo); len(pw) != 1 || pw[0] != key2 {
 		t.Fatalf("manager repository keys %d", len(pw))
 	}
 
 	// Honest reporting: one host snapshot disappears from its repository.
-	edgeRepo := "s3:" + old.s3.URL + "/backups/dockyard/dockyard-env-" + edge.agent.env
+	edgeRepo := "s3:" + old.s3.URL + "/backups/docker-manager/docker-manager-env-" + edge.agent.env
 	edgeSnaps := old.store.Snapshots(edgeRepo)
 	var lost string
 	for _, sn := range edgeSnaps {
@@ -262,7 +262,7 @@ func TestBackupImportIntoAFreshManager(t *testing.T) {
 	fresh.secrets.Register(canary.RecoveryKey, "key2", key2)
 	anon := fresh.client()
 	src := func(extra map[string]any) map[string]any {
-		m := map[string]any{"kind": "s3", "endpoint": old.s3.URL, "bucket": "backups", "prefix": "dockyard", "pathStyle": true,
+		m := map[string]any{"kind": "s3", "endpoint": old.s3.URL, "bucket": "backups", "prefix": "docker-manager", "pathStyle": true,
 			"accessKeyId": old.s3.AccessKey, "secretAccessKey": newSecret, "recoveryKey": key2}
 		for k, v := range extra {
 			m[k] = v
@@ -318,10 +318,10 @@ func TestBackupImportIntoAFreshManager(t *testing.T) {
 		}
 	}
 
-	// A damaged manifest and a set written by a newer DockYard.
+	// A damaged manifest and a set written by a newer Docker Manager.
 	mgr := old.store.Open(restic.Location{Repository: managerRepo}, key2)
 	ctx := testutil.Context(t)
-	if _, err := mgr.Backup(ctx, restic.BackupRequest{Stdin: strings.NewReader("DOCKYARD-MANIFEST v1 length=999 sha256=00\n{}"),
+	if _, err := mgr.Backup(ctx, restic.BackupRequest{Stdin: strings.NewReader("DOCKER-MANAGER-MANIFEST v1 length=999 sha256=00\n{}"),
 		StdinFilename: backup.ManifestFile, Tags: []string{backup.TagManifest, backup.SetTag("broken-set")}, Host: backups.ManagerHost}); err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +423,7 @@ func TestBackupImportIntoAFreshManager(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(fresh.m.opts.Config.DataDir, backups.AppliedRestoreFile)); err == nil {
 		t.Error("the restore was not completed")
 	}
-	pre, _ := filepath.Glob(filepath.Join(fresh.m.opts.Config.DataDir, "pre-restore-*", "dockyard.db"))
+	pre, _ := filepath.Glob(filepath.Join(fresh.m.opts.Config.DataDir, "pre-restore-*", "docker-manager.db"))
 	if len(pre) != 1 {
 		t.Errorf("the replaced database was not kept: %v", pre)
 	}
@@ -531,7 +531,7 @@ func TestBackupImportIntoAFreshManager(t *testing.T) {
 	if b, _ := os.ReadFile(photo); string(b) != "jpeg bytes" {
 		t.Errorf("photo after the restore %q", b)
 	}
-	prodRepo := "s3:" + old.s3.URL + "/backups/dockyard/dockyard-env-" + prod.agent.env
+	prodRepo := "s3:" + old.s3.URL + "/backups/docker-manager/docker-manager-env-" + prod.agent.env
 	if pw := old.store.Passwords(prodRepo); len(pw) != 1 || pw[0] != key2 {
 		t.Errorf("prod location keys after use: %d", len(pw))
 	}

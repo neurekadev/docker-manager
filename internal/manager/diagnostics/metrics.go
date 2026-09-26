@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // unfinishedStates are the job states counted as the queue.
@@ -71,8 +71,8 @@ func escapeHelp(s string) string { return strings.NewReplacer(`\`, `\\`, "\n", `
 func (s *Service) WriteMetrics(ctx context.Context, w io.Writer) error {
 	p := &promWriter{w: bufio.NewWriter(w)}
 	b := s.o.Build
-	p.family("dockyard_build_info", "gauge", "Build of this DockYard manager (always 1).")
-	p.sample("dockyard_build_info", 1, label{"version", b.Version}, label{"commit", b.Commit}, label{"go_version", b.GoVersion})
+	p.family("docker_manager_build_info", "gauge", "Build of this Docker Manager (always 1).")
+	p.sample("docker_manager_build_info", 1, label{"version", b.Version}, label{"commit", b.Commit}, label{"go_version", b.GoVersion})
 
 	counts, err := store.CountJobs(ctx, s.o.DB)
 	if err != nil {
@@ -86,28 +86,28 @@ func (s *Service) WriteMetrics(ctx context.Context, w io.Writer) error {
 			byKind[string(c.Kind)] += c.Count
 		}
 	}
-	p.family("dockyard_jobs", "gauge", "Unfinished jobs by state (the job queue).")
+	p.family("docker_manager_jobs", "gauge", "Unfinished jobs by state (the job queue).")
 	for _, st := range unfinishedStates {
-		p.sample("dockyard_jobs", float64(byState[st]), label{"state", string(st)})
+		p.sample("docker_manager_jobs", float64(byState[st]), label{"state", string(st)})
 	}
-	p.family("dockyard_job_queue_depth", "gauge", "Jobs waiting to run (queued or blocked).")
-	p.sample("dockyard_job_queue_depth", float64(byState[domain.JobQueued]+byState[domain.JobBlocked]))
-	p.family("dockyard_jobs_unfinished_by_kind", "gauge", "Unfinished jobs by job kind.")
+	p.family("docker_manager_job_queue_depth", "gauge", "Jobs waiting to run (queued or blocked).")
+	p.sample("docker_manager_job_queue_depth", float64(byState[domain.JobQueued]+byState[domain.JobBlocked]))
+	p.family("docker_manager_jobs_unfinished_by_kind", "gauge", "Unfinished jobs by job kind.")
 	kinds := make([]string, 0, len(byKind))
 	for k := range byKind {
 		kinds = append(kinds, k)
 	}
 	sort.Strings(kinds)
 	for _, k := range kinds {
-		p.sample("dockyard_jobs_unfinished_by_kind", float64(byKind[k]), label{"kind", k})
+		p.sample("docker_manager_jobs_unfinished_by_kind", float64(byKind[k]), label{"kind", k})
 	}
 
 	sessions := 0
 	if s.o.Sessions != nil {
 		sessions = len(s.o.Sessions())
 	}
-	p.family("dockyard_agent_sessions", "gauge", "Connected agent sessions.")
-	p.sample("dockyard_agent_sessions", float64(sessions))
+	p.family("docker_manager_agent_sessions", "gauge", "Connected agent sessions.")
+	p.sample("docker_manager_agent_sessions", float64(sessions))
 
 	envs, err := s.o.Environments.ListEnvironments(ctx, domain.EnvironmentFilter{
 		Statuses: []domain.EnvironmentStatus{domain.EnvironmentActive, domain.EnvironmentArchived}})
@@ -122,10 +122,10 @@ func (s *Service) WriteMetrics(ctx context.Context, w io.Writer) error {
 	for _, e := range envs {
 		envCount[envKey{string(e.Status), e.Online}]++
 	}
-	p.family("dockyard_environments", "gauge", "Environments by status and connection state.")
+	p.family("docker_manager_environments", "gauge", "Environments by status and connection state.")
 	for _, st := range []string{string(domain.EnvironmentActive), string(domain.EnvironmentArchived)} {
 		for _, on := range []bool{true, false} {
-			p.sample("dockyard_environments", float64(envCount[envKey{st, on}]), label{"status", st}, label{"online", strconv.FormatBool(on)})
+			p.sample("docker_manager_environments", float64(envCount[envKey{st, on}]), label{"status", st}, label{"online", strconv.FormatBool(on)})
 		}
 	}
 	agents, err := s.o.Environments.ListAgents(ctx, domain.AgentFilter{Statuses: []domain.AgentStatus{domain.AgentActive}})
@@ -137,36 +137,36 @@ func (s *Service) WriteMetrics(ctx context.Context, w io.Writer) error {
 		st, _ := protocol.AgentCompatibility(b.Version, a.Version)
 		compat[st]++
 	}
-	p.family("dockyard_agents", "gauge", "Active agents by version compatibility with this manager.")
+	p.family("docker_manager_agents", "gauge", "Active agents by version compatibility with this manager.")
 	for _, st := range []string{protocol.VersionCurrent, protocol.VersionOutdated, protocol.VersionUnsupported} {
-		p.sample("dockyard_agents", float64(compat[st]), label{"compatibility", st})
+		p.sample("docker_manager_agents", float64(compat[st]), label{"compatibility", st})
 	}
 
 	var streams int64
 	if s.o.SSEStreams != nil {
 		streams = s.o.SSEStreams()
 	}
-	p.family("dockyard_sse_streams", "gauge", "Open server-sent event streams (live UI, job, log and event streams).")
-	p.sample("dockyard_sse_streams", float64(streams))
+	p.family("docker_manager_sse_streams", "gauge", "Open server-sent event streams (live UI, job, log and event streams).")
+	p.sample("docker_manager_sse_streams", float64(streams))
 	subs := 0
 	if s.o.BusSubscribers != nil {
 		subs = s.o.BusSubscribers()
 	}
-	p.family("dockyard_event_bus_subscribers", "gauge", "Subscribers of the manager's internal event bus (streams and services).")
-	p.sample("dockyard_event_bus_subscribers", float64(subs))
+	p.family("docker_manager_event_bus_subscribers", "gauge", "Subscribers of the manager's internal event bus (streams and services).")
+	p.sample("docker_manager_event_bus_subscribers", float64(subs))
 
-	p.family("dockyard_database_size_bytes", "gauge", "Size of the manager's SQLite files including the WAL.")
-	p.sample("dockyard_database_size_bytes", float64(fileSize(s.o.DatabasePath)), label{"database", "main"})
-	p.sample("dockyard_database_size_bytes", float64(fileSize(s.o.MetricsPath)), label{"database", "metrics"})
+	p.family("docker_manager_database_size_bytes", "gauge", "Size of the manager's SQLite files including the WAL.")
+	p.sample("docker_manager_database_size_bytes", float64(fileSize(s.o.DatabasePath)), label{"database", "main"})
+	p.sample("docker_manager_database_size_bytes", float64(fileSize(s.o.MetricsPath)), label{"database", "metrics"})
 
 	chain, err := store.GetAuditChain(ctx, s.o.DB)
 	if err != nil {
 		return err
 	}
-	p.family("dockyard_audit_chain_records", "gauge", "Retained audit records (the verifiable chain length).")
-	p.sample("dockyard_audit_chain_records", float64(chain.RecordCount))
-	p.family("dockyard_audit_chain_head_seq", "gauge", "Sequence number of the newest audit record.")
-	p.sample("dockyard_audit_chain_head_seq", float64(chain.HeadSeq))
+	p.family("docker_manager_audit_chain_records", "gauge", "Retained audit records (the verifiable chain length).")
+	p.sample("docker_manager_audit_chain_records", float64(chain.RecordCount))
+	p.family("docker_manager_audit_chain_head_seq", "gauge", "Sequence number of the newest audit record.")
+	p.sample("docker_manager_audit_chain_head_seq", float64(chain.HeadSeq))
 
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)

@@ -24,7 +24,7 @@
 	const access = $derived(accessOf(perms.data));
 	const metricsUrl = `${globalThis.location?.origin ?? ''}/api/v1/system/metrics`;
 
-	// Whether the endpoint is on (404 while DOCKYARD_METRICS_ENABLED is off).
+	// Whether the endpoint is on (404 while DOCKER_MANAGER_METRICS_ENABLED is off).
 	const metrics = createQuery(() => ({
 		queryKey: ['settings', 'item', 'metrics-endpoint'],
 		queryFn: async ({ signal }: { signal: AbortSignal }) => {
@@ -43,7 +43,7 @@
 <Page>
 	<SettingsHeader
 		title="Diagnostics"
-		description="Material for troubleshooting and monitoring DockYard itself."
+		description="Material for troubleshooting and monitoring Docker Manager itself."
 	/>
 	{#if perms.data && !access.owner && !can(access, 'system.metrics.read')}
 		<DeniedState level={2} title="Diagnostics are for the owner." />
@@ -76,7 +76,7 @@
 		{/if}
 		<Card
 			title="Internal metrics"
-			subtitle="DockYard's own metrics in Prometheus format: job queue, agent sessions, streams, database sizes."
+			subtitle="Docker Manager's own metrics in Prometheus format: job queue, agent sessions, streams, database sizes."
 		>
 			<p class="line">
 				<span class="mono url">{metricsUrl}</span>
@@ -86,8 +86,9 @@
 			</p>
 			<ol class="steps" role="list">
 				<li>
-					Start the manager with <span class="mono">DOCKYARD_METRICS_ENABLED=true</span> (off
-					by default).
+					Start the manager with <span class="mono"
+						>DOCKER_MANAGER_METRICS_ENABLED=true</span
+					> (off by default).
 				</li>
 				<li>Create an API token that may only “Scrape internal metrics”.</li>
 				<li>

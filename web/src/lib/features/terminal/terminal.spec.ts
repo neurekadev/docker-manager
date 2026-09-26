@@ -16,7 +16,7 @@ import { socketUrl } from './url';
 class FakeSocket implements WebSocketLike {
 	binaryType = 'blob';
 	readyState = 0;
-	protocol = 'dockyard.exec.v1';
+	protocol = 'docker-manager.exec.v1';
 	sent: (string | Uint8Array)[] = [];
 	closedWith: number | null = null;
 	onopen: ((ev: Event) => void) | null = null;
@@ -59,7 +59,7 @@ function setup() {
 			return {
 				id: 's1',
 				streamUrl: '/api/v1/environments/e1/containers/web/exec-sessions/s1/stream',
-				subprotocol: 'dockyard.exec.v1',
+				subprotocol: 'docker-manager.exec.v1',
 				ticket: 'tkt',
 				expiresAt: ''
 			};
@@ -132,7 +132,7 @@ describe('ExecTerminal', () => {
 			'ws://localhost/api/v1/environments/e1/containers/web/exec-sessions/s1/stream'
 		);
 		expect(ws.url).not.toContain('tkt');
-		expect(ws.protocols).toEqual(['dockyard.exec.v1', 'dockyard.ticket.tkt']);
+		expect(ws.protocols).toEqual(['docker-manager.exec.v1', 'docker-manager.ticket.tkt']);
 		expect(ws.binaryType).toBe('arraybuffer');
 		expect(t.state).toBe('connecting');
 		expect(criticalWork.items.at(-1)).toMatchObject({ kind: 'terminal', label: 'silo-web' });

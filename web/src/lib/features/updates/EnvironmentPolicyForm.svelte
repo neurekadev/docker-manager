@@ -88,7 +88,7 @@
 	let containerError = $state(false);
 	let loadVersion = 0;
 
-	// New policies start from the instance defaults (or DockYard's suggestions).
+	// New policies start from the instance defaults (or Docker Manager's suggestions).
 	let seeded = false;
 	$effect(() => {
 		if (editing || seeded || defaults.isPending) return;
@@ -107,7 +107,7 @@
 		if (active.length === 1) environmentId = active[0].id;
 	});
 
-	// Standalone containers DockYard can recreate, across the environments
+	// Standalone containers Docker Manager can recreate, across the environments
 	// in scope (online ones only: offline environments can't be listed).
 	$effect(() => {
 		const selected =
@@ -314,7 +314,7 @@
 
 		<Card
 			title="Exclusions"
-			subtitle="Every managed stack and DockYard-managed standalone container in scope is covered. Check the ones to leave out."
+			subtitle="Every managed stack and Docker Manager-managed standalone container in scope is covered. Check the ones to leave out."
 		>
 			<Fields>
 				<FieldGroup legend="Exclude stacks">
@@ -344,7 +344,7 @@
 				</FieldGroup>
 				<FieldGroup
 					legend="Exclude standalone containers"
-					hint="Only containers DockYard created and can recreate from their saved specification."
+					hint="Only containers Docker Manager created and can recreate from their saved specification."
 				>
 					{#if containersLoading}
 						<Skeleton lines={2} height="20px" />
@@ -353,7 +353,9 @@
 							The containers can't be listed right now. Saved exclusions are kept.
 						</p>
 					{:else if !containers.length}
-						<p class="muted">No DockYard-managed standalone containers in scope.</p>
+						<p class="muted">
+							No Docker Manager-managed standalone containers in scope.
+						</p>
 					{:else}
 						<ChoiceGrid min="220px">
 							{#each containers as container (container.key)}
@@ -375,7 +377,8 @@
 					{/if}
 				</FieldGroup>
 				<p class="muted">
-					A container labelled <code>dockyard.update.exclude=true</code> is always left out.
+					A container labelled <code>docker-manager.update.exclude=true</code> is always left
+					out.
 				</p>
 			</Fields>
 		</Card>

@@ -22,45 +22,45 @@ const apiError = (status: number, code: string, message: string) =>
 
 const agent = {
 	role: 'agent' as const,
-	reason: 'the DockYard agent connected to this environment: stopping or removing it cuts DockYard off from this host',
+	reason: 'the Docker Agent connected to this environment: stopping or removing it cuts Docker Manager off from this host',
 	self: true,
 	restartAllowed: false
 };
 
 describe('refusals (#32: a clear reason for every refused action)', () => {
-	it("says that DockYard's own agent can't be stopped, with the server's reason", () => {
+	it("says that Docker Manager's own agent can't be stopped, with the server's reason", () => {
 		const r = refusal(
 			apiError(
 				409,
 				'protected',
-				`refused to stop a protected DockYard resource: ${agent.reason}`
+				`refused to stop a protected Docker Manager resource: ${agent.reason}`
 			),
-			{ kind: 'container', name: 'dockyard-agent', verb: 'stop', protection: agent }
+			{ kind: 'container', name: 'docker-agent', verb: 'stop', protection: agent }
 		);
 		expect(r.code).toBe('protected');
-		expect(r.title).toBe("DockYard's own agent can't be stopped from DockYard.");
-		expect(r.body).toContain('Refused to stop a protected DockYard resource');
-		expect(r.body).toContain('cuts DockYard off from this host');
+		expect(r.title).toBe("Docker Manager's own agent can't be stopped from Docker Manager.");
+		expect(r.body).toContain('Refused to stop a protected Docker Manager resource');
+		expect(r.body).toContain('cuts Docker Manager off from this host');
 		expect(r.body).toContain('use Docker on the host');
 	});
 
 	it('names the stacks volume and the manager', () => {
 		const stacks = {
 			role: 'stacks' as const,
-			reason: 'the DockYard stacks volume (#28)',
+			reason: 'the Docker Manager stacks volume (#28)',
 			self: false,
 			restartAllowed: false
 		};
 		expect(
 			refusal(apiError(409, 'protected', 'x'), {
 				kind: 'volume',
-				name: 'dockyard_stacks',
+				name: 'docker-manager_stacks',
 				verb: 'remove',
 				protection: stacks
 			}).title
-		).toBe("The stacks volume can't be removed from DockYard.");
-		expect(protectionLabel(stacks)).toBe('The DockYard stacks volume');
-		expect(protectionLabel({ ...agent, role: 'manager' })).toBe('The DockYard manager');
+		).toBe("The stacks volume can't be removed from Docker Manager.");
+		expect(protectionLabel(stacks)).toBe('The Docker Manager stacks volume');
+		expect(protectionLabel({ ...agent, role: 'manager' })).toBe('The Docker Manager');
 	});
 
 	it('explains managed stacks, running containers, offline environments and unknown codes', () => {
@@ -71,7 +71,7 @@ describe('refusals (#32: a clear reason for every refused action)', () => {
 			environmentName: 'homelab'
 		};
 		expect(refusal(apiError(409, 'stack_managed', 'x'), ctx).title).toBe(
-			'silo-web belongs to a stack DockYard manages.'
+			'silo-web belongs to a stack Docker Manager manages.'
 		);
 		expect(refusal(apiError(409, 'container_running', 'x'), ctx).title).toBe(
 			'silo-web is running.'
@@ -100,9 +100,11 @@ describe('refusals (#32: a clear reason for every refused action)', () => {
 		expect(r.body).toContain('Docker Hub still limits signed-in accounts');
 		const refused = jobFailure(
 			{ ...job, error: { class: 'protected', message: 'refused', recovery: '' } } as Job,
-			{ kind: 'container', name: 'dockyard-agent', verb: 'stop', protection: agent }
+			{ kind: 'container', name: 'docker-agent', verb: 'stop', protection: agent }
 		);
-		expect(refused.title).toBe("DockYard's own agent can't be stopped from DockYard.");
+		expect(refused.title).toBe(
+			"Docker Manager's own agent can't be stopped from Docker Manager."
+		);
 		expect(
 			jobFailure({ ...job, state: 'cancelled' } as Job, {
 				kind: 'image',

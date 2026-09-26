@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/authsep"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // Session data keys (SCS, gob-encoded basic types only).
@@ -123,7 +123,7 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 		}
 		if cur.stage == domain.StageEnrollment && !enrollmentAllowed(r.URL.Path) {
 			api.WriteError(w, r, api.NewError(http.StatusForbidden, api.CodeEnrollmentRequired,
-				"finish enrolling the sign-in factors the instance policy requires before using DockYard"))
+				"finish enrolling the sign-in factors the instance policy requires before using Docker Manager"))
 			return
 		}
 		ctx, cancel := context.WithCancelCause(ctx)
@@ -160,7 +160,7 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			logging.FromContext(r.Context()).Warn("cross-origin request rejected",
 				slog.String("method", r.Method), slog.String("path", r.URL.Path))
 			api.WriteError(w, r, api.NewError(http.StatusForbidden, api.CodeCrossOriginRequest,
-				"cross-origin requests are not allowed; use DockYard from its own origin"))
+				"cross-origin requests are not allowed; use Docker Manager from its own origin"))
 			return
 		}
 		loaded.ServeHTTP(w, r)

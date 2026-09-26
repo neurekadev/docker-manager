@@ -43,7 +43,7 @@
 		switch (e.status) {
 			case 403:
 				return new Error(
-					`You can't open terminals in ${t.label}. Ask the owner of this DockYard for “Open terminal”.`
+					`You can't open terminals in ${t.label}. Ask the owner of this Docker Manager for “Open terminal”.`
 				);
 			case 404:
 				return new Error(`${t.label} does not exist anymore.`);
@@ -242,7 +242,7 @@
 				{#if session.closeCode === 4422}Choose another command, for example /bin/bash, sh or
 					a program the image ships, and connect again.{/if}
 				{#if session.closeCode !== null && !canReconnect(session.closeCode)}Close the other
-					terminal first, or ask the owner of this DockYard about your access.{/if}
+					terminal first, or ask the owner of this Docker Manager about your access.{/if}
 			</Notice>
 		</div>
 	{/if}

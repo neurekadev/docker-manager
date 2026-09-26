@@ -27,7 +27,7 @@ export interface PrecacheEntry {
 export const NETWORK_ONLY_PREFIXES = ['/api', '/agent'] as const;
 
 /** Cache names start with this; anything else in Cache Storage is not ours. */
-export const CACHE_PREFIX = 'dockyard-precache-';
+export const CACHE_PREFIX = 'docker-manager-precache-';
 
 /** The precached SPA shell served for offline navigations. */
 export const SHELL_PATH = '/index.html';
@@ -156,7 +156,7 @@ export async function removeStaleCaches(
 }
 
 /** Marks the precached shell served in place of a failed navigation. */
-export const OFFLINE_SHELL_HEADER = 'X-DockYard-Shell';
+export const OFFLINE_SHELL_HEADER = 'X-Docker-Manager-Shell';
 
 function markOfflineShell(shell: Response): Response {
 	const headers = new Headers(shell.headers);
@@ -169,7 +169,7 @@ function markOfflineShell(shell: Response): Response {
 }
 
 function offlineResponse(): Response {
-	return new Response('DockYard is offline and the app shell is not cached yet.', {
+	return new Response('Docker Manager is offline and the app shell is not cached yet.', {
 		status: 503,
 		headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }
 	});

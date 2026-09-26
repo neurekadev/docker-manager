@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/envconfig"
+	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
 )
 
 func load(t *testing.T, vars map[string]string) (Config, error) {
@@ -36,7 +36,7 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.SecretKeyFile != filepath.Join(wantData, "secret.key") {
 		t.Errorf("secret key file = %q", cfg.SecretKeyFile)
 	}
-	if cfg.DatabasePath() != filepath.Join(wantData, "dockyard.db") || cfg.SnapshotDir() != filepath.Join(wantData, "snapshots") {
+	if cfg.DatabasePath() != filepath.Join(wantData, "docker-manager.db") || cfg.SnapshotDir() != filepath.Join(wantData, "snapshots") {
 		t.Errorf("derived paths wrong: %q %q", cfg.DatabasePath(), cfg.SnapshotDir())
 	}
 	if len(cfg.TrustedProxies) != 0 {
@@ -57,7 +57,7 @@ func TestPublicURLValidation(t *testing.T) {
 		{"http://10.0.0.5:8080", "must use https", false},
 		{"https://", "missing host", false},
 		{"https://user:pw@docker.example.com", "credentials", false},
-		{"https://docker.example.com/dockyard", "sub-path", false},
+		{"https://docker.example.com/docker-manager", "sub-path", false},
 		{"https://docker.example.com/?x=1", "query", false},
 		{"http://localhost:8080", "", true},
 		{"http://127.0.0.1:5173", "", true},
@@ -105,7 +105,7 @@ func TestTrustedProxies(t *testing.T) {
 		EnvPublicURL:      "https://docker.example.com",
 		EnvTrustedProxies: "10.1.2.3/8, 192.168.1.10 fd00::/8",
 		EnvDataDir:        "relative/data",
-		EnvSecretKeyFile:  "/run/secrets/dockyard_secret_key",
+		EnvSecretKeyFile:  "/run/secrets/docker_manager_secret_key",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -120,7 +120,7 @@ func TestTrustedProxies(t *testing.T) {
 	if !filepath.IsAbs(cfg.DataDir) {
 		t.Errorf("data dir not absolute: %q", cfg.DataDir)
 	}
-	if !strings.HasSuffix(filepath.ToSlash(cfg.SecretKeyFile), "/run/secrets/dockyard_secret_key") {
+	if !strings.HasSuffix(filepath.ToSlash(cfg.SecretKeyFile), "/run/secrets/docker_manager_secret_key") {
 		t.Errorf("secret key file = %q", cfg.SecretKeyFile)
 	}
 }
@@ -225,7 +225,7 @@ func TestSessionLimits(t *testing.T) {
 		{EnvSessionIdleTimeout: "6h", EnvSessionLifetime: "2h"},
 	} {
 		env[EnvPublicURL] = "https://d.example.com"
-		if _, err := load(t, env); err == nil || !strings.Contains(err.Error(), "DOCKYARD_SESSION_") {
+		if _, err := load(t, env); err == nil || !strings.Contains(err.Error(), "DOCKER_MANAGER_SESSION_") {
 			t.Errorf("%v accepted: %v", env, err)
 		}
 	}

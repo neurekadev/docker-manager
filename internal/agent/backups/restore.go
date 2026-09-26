@@ -14,16 +14,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/stacks"
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/stacks"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // restore.run (#10):
@@ -115,7 +115,7 @@ func (s *Service) resolveRestore(ctx context.Context, in protocol.RestoreRunInpu
 		}
 		for _, v := range in.Volumes {
 			if pr := set.Volume(v.Name, nil); pr != nil {
-				p.blocked = append(p.blocked, "volume "+v.Name+" is DockYard's own: "+pr.Reason)
+				p.blocked = append(p.blocked, "volume "+v.Name+" is Docker Manager's own: "+pr.Reason)
 			}
 		}
 	}
@@ -288,7 +288,7 @@ func (p *restorePlan) involve(c engine.Container, prot map[string]string) {
 	if reason, ok := prot[c.ID]; ok {
 		a.Protected = reason
 		if running {
-			p.blocked = append(p.blocked, "container "+name+" is DockYard's own and cannot be stopped for the restore: "+reason)
+			p.blocked = append(p.blocked, "container "+name+" is Docker Manager's own and cannot be stopped for the restore: "+reason)
 		}
 	}
 	p.affected = append(p.affected, a)
@@ -624,10 +624,10 @@ func (s *Service) stepRestoreData(ctx context.Context, sc *jobexec.StepContext) 
 			}
 		}
 		parent := filepath.Dir(t.current)
-		staging := filepath.Join(parent, ".dockyard-restore-"+tag)
-		rollback := filepath.Join(parent, ".dockyard-rollback-"+tag)
+		staging := filepath.Join(parent, ".docker-manager-restore-"+tag)
+		rollback := filepath.Join(parent, ".docker-manager-rollback-"+tag)
 		if t.Kind == "file" {
-			rollback = filepath.Join(parent, ".dockyard-rollback-"+tag+"-"+filepath.Base(t.current))
+			rollback = filepath.Join(parent, ".docker-manager-rollback-"+tag+"-"+filepath.Base(t.current))
 		}
 		_ = os.RemoveAll(staging)
 		sc.Progress(ctx, 30+50*i/len(p.targets), "restoring "+t.Path)

@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // Manager-state snapshot layout. The staging directory lives in the data
@@ -25,12 +25,12 @@ import (
 const (
 	stagingDirName = "backup-staging"
 	// StateDir is the directory name inside manager-state snapshots.
-	StateDir      = "dockyard-state"
-	stateDBFile   = "dockyard.db"
+	StateDir      = "docker-manager-state"
+	stateDBFile   = "docker-manager.db"
 	stateMetrics  = "metrics.db"
 	stateInfoFile = "state.json"
 	// ManagerHost is the hostname of manager snapshots.
-	ManagerHost = "dockyard-manager"
+	ManagerHost = "docker-manager"
 )
 
 // StateInfo describes a manager-state snapshot (state.json).
@@ -46,7 +46,7 @@ type StateInfo struct {
 }
 
 // StateFormat identifies state.json.
-const StateFormat = "dockyard-manager-state"
+const StateFormat = "docker-manager-state"
 
 // managerBackupOutput is the result output of manager.backup.
 type managerBackupOutput struct {

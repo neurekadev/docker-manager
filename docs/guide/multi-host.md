@@ -15,15 +15,15 @@ dials out to the public origin. Agents open no port.
    ```bash
    cd deploy/remote-agent            # copy this directory to host B
    cp .env.example .env
-   # .env: DOCKYARD_MANAGER_URL=https://docker.example.com
-   #       DOCKYARD_ENROLLMENT_TOKEN=<token>
-   #       DOCKYARD_ENVIRONMENT_NAME=host-b
+   # .env: DOCKER_AGENT_MANAGER_URL=https://docker.example.com
+   #       DOCKER_AGENT_ENROLLMENT_TOKEN=<token>
+   #       DOCKER_AGENT_ENVIRONMENT_NAME=host-b
    docker compose up -d
    ```
 
    Remove the token from `.env` once the environment is online; it only
    works once anyway. For a private CA, put the bundle into the
-   `dockyard_agent_ca` volume and set `DOCKYARD_MANAGER_CA_FILE`
+   `docker-manager_agent_ca` volume and set `DOCKER_AGENT_MANAGER_CA_FILE`
    (comment in `deploy/remote-agent/compose.yaml`).
 3. The environment comes online on the dashboard. Its agent validates the
    manager's certificate, never follows redirects and never falls back to

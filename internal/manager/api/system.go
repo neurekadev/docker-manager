@@ -6,7 +6,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 const tagSystem = "System"
@@ -35,7 +35,7 @@ type ReadinessBody struct {
 type CapabilitiesBody struct {
 	ManagerVersion       string   `json:"managerVersion" example:"0.0.0-edge"`
 	APIVersion           string   `json:"apiVersion" example:"v1"`
-	AgentProtocolVersion string   `json:"agentProtocolVersion" example:"dockyard.agent/v1"`
+	AgentProtocolVersion string   `json:"agentProtocolVersion" example:"docker-manager.agent/v1"`
 	Features             []string `json:"features" doc:"Stable feature-flag keys enabled on this manager."`
 }
 

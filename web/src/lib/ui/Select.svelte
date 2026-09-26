@@ -8,7 +8,7 @@
 
 <script lang="ts">
 	// Select (#22): a native <select> (best mobile and assistive support) in
-	// DockYard styling. For long or searchable lists use Combobox.
+	// Docker Manager styling. For long or searchable lists use Combobox.
 	import type { HTMLSelectAttributes } from 'svelte/elements';
 	import Field from './Field.svelte';
 

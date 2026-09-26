@@ -46,7 +46,7 @@
 		} catch (err) {
 			error = actionError(err, {
 				recovery_key_mismatch:
-					'That is not this DockYard’s Recovery Key. Check your saved copy; compare its fingerprint.',
+					'That is not this Docker Manager’s Recovery Key. Check your saved copy; compare its fingerprint.',
 				recovery_key_malformed:
 					'The key has a typo: it is DYRK- followed by 13 groups of four characters. Paste it from your saved copy.'
 			});
@@ -76,7 +76,7 @@
 		/>
 		<Checkbox
 			bind:checked={backedUp}
-			label="I saved the Recovery Key outside DockYard"
+			label="I saved the Recovery Key outside Docker Manager"
 			description="For example in a password manager and on paper in a safe place."
 		/>
 		<Notice tone="info" title="What this check proves" live="none">

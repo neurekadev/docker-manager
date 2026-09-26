@@ -12,11 +12,11 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/api"
-	"github.com/neurekadev/dockyard/internal/manager/authsep"
-	"github.com/neurekadev/dockyard/internal/manager/requestinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/requestinfo"
 )
 
 // AgentLimits hardens /agent/v1, which is publicly reachable on the shared
@@ -24,7 +24,7 @@ import (
 type AgentLimits struct {
 	// RequestsPerSecond and Burst form a token bucket per client IP (IPv6
 	// clients are grouped by /64). The client IP honors X-Forwarded-For
-	// only from DOCKYARD_TRUSTED_PROXIES, so agents behind the proxy are
+	// only from DOCKER_MANAGER_TRUSTED_PROXIES, so agents behind the proxy are
 	// limited individually and spoofed headers cannot evade the limit.
 	RequestsPerSecond float64
 	Burst             int

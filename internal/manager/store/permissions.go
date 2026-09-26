@@ -10,7 +10,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 )
 
 // Authorization persistence (#17): groups, the default group, and the
@@ -339,7 +339,7 @@ func DeleteResourceRules(ctx context.Context, db bun.IDB, resourceType, environm
 // envRuleWhere selects the rules scoped to one environment (#34): its
 // environment-scoped rules and the rules on resources named per
 // environment (containers, images, volumes, networks) in it. Rules on
-// resources with their own DockYard IDs (stacks, policies) are kept with
+// resources with their own Docker Manager IDs (stacks, policies) are kept with
 // those records.
 const envRuleWhere = `environment_id = ? AND environment_id <> '' AND scope_kind IN ('environment', 'resource')`
 

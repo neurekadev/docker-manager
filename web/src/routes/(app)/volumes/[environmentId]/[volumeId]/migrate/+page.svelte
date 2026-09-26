@@ -83,7 +83,7 @@
 		{
 			id: 'preview',
 			label: 'Check',
-			description: 'What DockYard found before anything is copied.'
+			description: 'What Docker Manager found before anything is copied.'
 		}
 	];
 
@@ -175,7 +175,7 @@
 		<EmptyState
 			icon={ArrowRightLeft}
 			color="slate"
-			title="DockYard's own volumes can't be migrated."
+			title="Docker Manager's own volumes can't be migrated."
 			description={sentence(v.protection.reason)}
 			level={2}
 			compact

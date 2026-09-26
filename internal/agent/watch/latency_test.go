@@ -11,15 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // TestRealFilesystemLatency (#23, #25 Q5) measures, on this machine's real
 // filesystem with the real kernel notifier (fsnotify: inotify on Linux,
 // ReadDirectoryChangesW on Windows), how long a change made outside
-// DockYard takes to become an fs_invalidation: file create, edit, rename
+// Docker Manager takes to become an fs_invalidation: file create, edit, rename
 // and delete, in the root and in a nested directory created during the
 // test. The target is 2 s at p95; the measured distribution is logged and
 // recorded in docs/support-matrix.md ("File watching").

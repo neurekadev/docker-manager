@@ -1,9 +1,9 @@
-// Package sessions configures DockYard's browser sessions (#16, #18):
+// Package sessions configures Docker Manager's browser sessions (#16, #18):
 // alexedwards/scs/v2 owns token generation, the cookie, renewal and
-// idle/absolute expiry; Store persists SCS sessions in DockYard's
+// idle/absolute expiry; Store persists SCS sessions in Docker Manager's
 // Bun/SQLite database (migration create_sessions).
 //
-// Why a DockYard store instead of SCS's upstream bunstore (ADR 0003): the
+// Why a Docker Manager store instead of SCS's upstream bunstore (ADR 0003): the
 // upstream module is untagged (pseudo-versions only), reads the wall clock
 // directly, runs an unmanaged cleanup goroutine that logs with the standard
 // logger, masks database errors on lookup, and its module requires the
@@ -23,7 +23,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
 )
 
 // Compile-time checks: Store satisfies every SCS store contract.

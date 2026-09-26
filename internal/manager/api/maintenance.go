@@ -10,12 +10,12 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Docker maintenance (#14): prune policies per environment, their previews
@@ -137,29 +137,29 @@ type PruneCategoryInfo struct {
 var pruneCategoryInfo = []PruneCategoryInfo{
 	{Category: domain.PruneStoppedContainers, Label: "Stopped containers", Labels: true,
 		Description: "Containers in the selected states (exited and dead by default, created on request). Running, paused and restarting containers are never removed.",
-		Limitations: []string{"Containers of DockYard stacks and containers with a saved DockYard recreate specification are protected.",
+		Limitations: []string{"Containers of Docker Manager stacks and containers with a saved Docker Manager recreate specification are protected.",
 			"Anonymous volumes of removed containers stay; the anonymous-volume rule removes them."}},
 	{Category: domain.PruneDanglingImages, Label: "Dangling images", Labels: true,
 		Description: "Untagged images no container uses.",
 		Limitations: []string{"Image age is the creation time the Engine reports (like docker image prune --filter until)."}},
 	{Category: domain.PruneUnusedImages, Label: "All unused images", Labels: true,
 		Description: "Every image no container uses, tagged or not. Images left unused by an update are ordinary candidates: v1 has no rollback window.",
-		Limitations: []string{"Images referenced by DockYard stacks and saved container specifications are protected.",
+		Limitations: []string{"Images referenced by Docker Manager stacks and saved container specifications are protected.",
 			"Sizes count layers shared with other images: the space freed can be smaller."}},
 	{Category: domain.PruneUnusedNetworks, Label: "Unused networks", Labels: true,
 		Description: "Custom networks no container (running or stopped) uses.",
-		Limitations: []string{"Predefined (bridge, host, none), swarm and DockYard stack networks are protected."}},
+		Limitations: []string{"Predefined (bridge, host, none), swarm and Docker Manager stack networks are protected."}},
 	{Category: domain.PruneAnonymousVolumes, Label: "Anonymous volumes", Labels: true, DeletesData: true,
 		Description: "Volumes the Engine created for anonymous mounts (label com.docker.volume.anonymous) that no container uses. Deletes their data.",
 		Limitations: []string{"Anonymous volumes created before Docker 23 carry no label and count as named volumes.",
-			"Needs its own explicit opt-in; volumes of DockYard stacks, DockYard's own and backup destinations are protected."}},
+			"Needs its own explicit opt-in; volumes of Docker Manager stacks, Docker Manager's own and backup destinations are protected."}},
 	{Category: domain.PruneNamedVolumes, Label: "Named volumes", Labels: true, DeletesData: true,
 		Description: "Named volumes no container uses. Deletes their data.",
-		Limitations: []string{"Needs its own explicit opt-in; volumes of DockYard stacks, DockYard's own and backup destinations are protected."}},
+		Limitations: []string{"Needs its own explicit opt-in; volumes of Docker Manager stacks, Docker Manager's own and backup destinations are protected."}},
 	{Category: domain.PruneBuildCache, Label: "Build cache", Labels: false,
-		Description: "The BuildKit cache of the Engine's builder (the only builder DockYard uses). Default: dangling records only; all: every unused record. The keep-storage cap keeps the most recently used cache.",
+		Description: "The BuildKit cache of the Engine's builder (the only builder Docker Manager uses). Default: dangling records only; all: every unused record. The keep-storage cap keeps the most recently used cache.",
 		Limitations: []string{"Build cache records have no labels: exclude records by ID.",
-			"The Engine has no per-record delete: DockYard prunes exactly one record ID per call, never the whole cache.",
+			"The Engine has no per-record delete: Docker Manager prunes exactly one record ID per call, never the whole cache.",
 			"A parent record is removed after its children, possibly in the next run."}},
 }
 
@@ -301,7 +301,7 @@ type PrunePreview struct {
 
 var previewNotes = []string{
 	"Nothing was removed. A run recomputes the candidates and revalidates each one immediately before deleting it: objects that became used, protected, excluded or too recent are skipped with the reason.",
-	"DockYard's own containers, images, volumes and networks, DockYard stacks, saved container specifications and backup destinations are never removed.",
+	"Docker Manager's own containers, images, volumes and networks, Docker Manager stacks, saved container specifications and backup destinations are never removed.",
 	"Sizes are approximate: image sizes count shared layers, and build cache shared with images frees less.",
 	"One run removes at most 300 candidates; the rest waits for the next run.",
 }

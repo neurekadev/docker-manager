@@ -5,11 +5,11 @@ import (
 	"path"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/agent/migration"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/migration"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // Env is one simulated environment for migration tests: an in-memory
@@ -58,7 +58,7 @@ func NewEnv(t testing.TB, name, base string, free int64) *Env {
 	t.Helper()
 	e := &Env{Name: name, Host: NewHost(), Engine: enginefake.New("ENGINE-" + name), Base: base, free: free}
 	e.VolumesDir = path.Join(base, "docker", "volumes")
-	e.StacksDir = path.Join(e.VolumesDir, "dockyard_stacks", "_data")
+	e.StacksDir = path.Join(e.VolumesDir, "docker-manager_stacks", "_data")
 	e.Engine.SetVolumeRoot(e.VolumesDir)
 	e.Host.MkdirAll(e.StacksDir)
 	e.Storage = &storage.Result{Containerized: true, DockerRootDir: path.Join(base, "docker"), StacksDir: e.StacksDir,

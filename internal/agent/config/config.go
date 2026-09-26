@@ -16,43 +16,43 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/neurekadev/dockyard/internal/envconfig"
-	"github.com/neurekadev/dockyard/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
 )
 
 // Environment variable names.
 const (
-	EnvManagerURL       = "DOCKYARD_MANAGER_URL"
-	EnvManagerAllowHTTP = "DOCKYARD_MANAGER_ALLOW_HTTP"
-	EnvManagerCAFile    = "DOCKYARD_MANAGER_CA_FILE"
-	EnvEnrollmentToken  = "DOCKYARD_ENROLLMENT_TOKEN" //nolint:gosec // variable name, not a credential; also _FILE
-	EnvStateDir         = "DOCKYARD_AGENT_STATE_DIR"
+	EnvManagerURL       = "DOCKER_AGENT_MANAGER_URL"
+	EnvManagerAllowHTTP = "DOCKER_AGENT_MANAGER_ALLOW_HTTP"
+	EnvManagerCAFile    = "DOCKER_AGENT_MANAGER_CA_FILE"
+	EnvEnrollmentToken  = "DOCKER_AGENT_ENROLLMENT_TOKEN" //nolint:gosec // variable name, not a credential; also _FILE
+	EnvStateDir         = "DOCKER_AGENT_STATE_DIR"
 	EnvDockerHost       = "DOCKER_HOST"
-	EnvEnvironmentName  = "DOCKYARD_ENVIRONMENT_NAME"
-	EnvLogLevel         = "DOCKYARD_LOG_LEVEL"
-	EnvLogFormat        = "DOCKYARD_LOG_FORMAT"
-	EnvStacksVolume     = "DOCKYARD_STACKS_VOLUME"
-	EnvStackRoots       = "DOCKYARD_STACK_ROOTS"
-	EnvHostProc         = "DOCKYARD_HOST_PROC"
+	EnvEnvironmentName  = "DOCKER_AGENT_ENVIRONMENT_NAME"
+	EnvLogLevel         = "DOCKER_AGENT_LOG_LEVEL"
+	EnvLogFormat        = "DOCKER_AGENT_LOG_FORMAT"
+	EnvStacksVolume     = "DOCKER_AGENT_STACKS_VOLUME"
+	EnvStackRoots       = "DOCKER_AGENT_STACK_ROOTS"
+	EnvHostProc         = "DOCKER_AGENT_HOST_PROC"
 	// Backups (#10).
-	EnvBackupLocalRoots        = "DOCKYARD_BACKUP_LOCAL_ROOTS"
-	EnvBackupExternalAllowlist = "DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST"
-	EnvResticBinary            = "DOCKYARD_RESTIC_BINARY"
+	EnvBackupLocalRoots        = "DOCKER_AGENT_BACKUP_LOCAL_ROOTS"
+	EnvBackupExternalAllowlist = "DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST"
+	EnvResticBinary            = "DOCKER_AGENT_RESTIC_BINARY"
 	// EnvWatchMax is the file watcher's kernel watch budget (#23).
-	EnvWatchMax = "DOCKYARD_WATCH_MAX"
+	EnvWatchMax = "DOCKER_AGENT_WATCH_MAX"
 )
 
 // Defaults.
 const (
-	DefaultStateDir   = "/var/lib/dockyard-agent"
+	DefaultStateDir   = "/var/lib/docker-agent"
 	DefaultDockerHost = "unix:///var/run/docker.sock"
-	// MaxEnvironmentNameLen bounds DOCKYARD_ENVIRONMENT_NAME.
+	// MaxEnvironmentNameLen bounds DOCKER_AGENT_ENVIRONMENT_NAME.
 	MaxEnvironmentNameLen = 63
 	// DefaultHostProc is the procfs read for host telemetry (#5).
 	DefaultHostProc = "/proc"
 	// DefaultStacksVolume is the named volume holding stack projects (#28).
-	DefaultStacksVolume = "dockyard_stacks"
-	// MaxStackRoots bounds DOCKYARD_STACK_ROOTS.
+	DefaultStacksVolume = "docker-manager_stacks"
+	// MaxStackRoots bounds DOCKER_AGENT_STACK_ROOTS.
 	MaxStackRoots = 16
 	// DefaultResticBinary is where the image installs restic (#10).
 	DefaultResticBinary = "/usr/local/bin/restic"
@@ -179,7 +179,7 @@ func Load(src envconfig.Source) (Config, error) {
 	return cfg, nil
 }
 
-// ParseManagerURL validates DOCKYARD_MANAGER_URL. https is required unless
+// ParseManagerURL validates DOCKER_AGENT_MANAGER_URL. https is required unless
 // allowHTTP is set (for an internal URL on the manager's Docker network, #27).
 func ParseManagerURL(raw string, allowHTTP bool) (*url.URL, bool, error) {
 	if raw == "" {
@@ -239,7 +239,7 @@ func LoadCABundle(path string) ([]byte, error) {
 // volumeNameRE is Docker's volume name rule.
 var volumeNameRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{1,254}$`)
 
-// ParseStackRoots parses DOCKYARD_STACK_ROOTS: comma-separated absolute
+// ParseStackRoots parses DOCKER_AGENT_STACK_ROOTS: comma-separated absolute
 // Linux paths (not "/", no "..", no duplicates or nested roots).
 func ParseStackRoots(raw string) ([]string, error) {
 	var out []string

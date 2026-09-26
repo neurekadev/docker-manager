@@ -10,12 +10,12 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Container capabilities (#17).
@@ -49,12 +49,12 @@ type ContainerMount struct {
 	ReadOnly    bool   `json:"readOnly"`
 }
 
-// ContainerOwnership marks a standalone container created through DockYard.
+// ContainerOwnership marks a standalone container created through Docker Manager.
 type ContainerOwnership struct {
 	Kind string `json:"kind" enum:"standalone"`
 	// SpecSaved: the recreate specification is saved (automatic updates, #20).
-	SpecSaved bool `json:"specSaved" doc:"DockYard saved the container's recreate specification (used by automatic updates, #20)."`
-	// ThisInstance: created by this manager (not another DockYard instance).
+	SpecSaved bool `json:"specSaved" doc:"Docker Manager saved the container's recreate specification (used by automatic updates, #20)."`
+	// ThisInstance: created by this manager (not another Docker Manager instance).
 	ThisInstance bool `json:"thisInstance"`
 }
 
@@ -107,7 +107,7 @@ type ContainerNetwork struct {
 	Aliases     []string `json:"aliases,omitempty"`
 }
 
-// ContainerRecreate says which settings need a recreation and what DockYard
+// ContainerRecreate says which settings need a recreation and what Docker Manager
 // saved to recreate the container.
 type ContainerRecreate struct {
 	Fields []string `json:"fields" doc:"Settings that cannot change in place: changing them needs a new container (PATCH refuses them with recreate_required)."`
@@ -156,7 +156,7 @@ type Container struct {
 	State         string              `json:"state" enum:"created,running,paused,restarting,removing,exited,dead" example:"running"`
 	Health        string              `json:"health,omitempty" enum:"starting,healthy,unhealthy,none"`
 	Stack         *StackMembership    `json:"stack,omitempty" doc:"Compose project and service."`
-	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for DockYard's own containers (#32): stop, pause, update and removal are refused."`
+	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for Docker Manager's own containers (#32): stop, pause, update and removal are refused."`
 	View          string              `json:"view" enum:"minimal,full" doc:"full: container.details.read; minimal: identity, state and the granted actions (#17)."`
 	Actions       []string            `json:"actions" doc:"Granted container capabilities (e.g. container.restart)."`
 	Update        string              `json:"update,omitempty" enum:"ineligible,unchecked,up_to_date,update_available,quarantined,check_failed,run_failed" doc:"Latest image update state when an update policy covers this container. Full view only."`
@@ -169,11 +169,11 @@ type Container struct {
 	Labels    map[string]string   `json:"labels,omitempty"`
 	Ports     []ContainerPort     `json:"ports,omitempty"`
 	Mounts    []ContainerMount    `json:"mounts,omitempty"`
-	Managed   *ContainerOwnership `json:"managed,omitempty" doc:"Set for standalone containers created through DockYard."`
+	Managed   *ContainerOwnership `json:"managed,omitempty" doc:"Set for standalone containers created through Docker Manager."`
 	Details   *ContainerDetails   `json:"details,omitempty" doc:"Full view of GET only."`
 }
 
-// managedStack reports whether st is a DockYard-managed stack.
+// managedStack reports whether st is a Docker Manager-managed stack.
 func managedStack(st *protocol.StackRef, stackIDs map[string]string) bool {
 	if st == nil {
 		return false
@@ -275,7 +275,7 @@ type ContainerCreateBody struct {
 	Command       []string               `json:"command,omitempty" maxItems:"64"`
 	Entrypoint    []string               `json:"entrypoint,omitempty" maxItems:"64"`
 	Env           []string               `json:"env,omitempty" maxItems:"256" doc:"KEY=value. Values are stored sealed in the recreate specification and never returned."`
-	Labels        map[string]string      `json:"labels,omitempty" doc:"User labels; dev.neureka.dockyard.* and com.docker.compose.* are reserved."`
+	Labels        map[string]string      `json:"labels,omitempty" doc:"User labels; dev.neureka.docker-manager.* and com.docker.compose.* are reserved."`
 	WorkingDir    string                 `json:"workingDir,omitempty" maxLength:"4096"`
 	User          string                 `json:"user,omitempty" maxLength:"256"`
 	Ports         []ContainerPortSpec    `json:"ports,omitempty" maxItems:"64"`
@@ -391,7 +391,7 @@ type containerRestartInput struct {
 	IdempotencyKeyParam
 	Body *struct {
 		TimeoutSeconds *int `json:"timeoutSeconds,omitempty" example:"10" minimum:"0" maximum:"3600" doc:"Seconds to wait before killing; default: the container's stop timeout."`
-		Confirm        bool `json:"confirm,omitempty" doc:"Confirms a restart that interrupts DockYard (its manager or proxy, #32); without it such a restart answers 409 confirmation_required."`
+		Confirm        bool `json:"confirm,omitempty" doc:"Confirms a restart that interrupts Docker Manager (its manager or proxy, #32); without it such a restart answers 409 confirmation_required."`
 	}
 }
 
@@ -550,11 +550,11 @@ func (h *dockerAPI) containerRemoval(ctx context.Context, sc *scope, d protocol.
 		"Anonymous volumes are kept unless removeVolumes=true; named volumes are never removed.",
 		"Exact permission rules on this container are removed.")
 	if specSaved {
-		r.Consequences = append(r.Consequences, "DockYard forgets the container's saved recreate specification (automatic updates stop).")
+		r.Consequences = append(r.Consequences, "Docker Manager forgets the container's saved recreate specification (automatic updates stop).")
 	}
 	r.blockProtected(d.Protection)
 	if managedStack(d.Stack, sc.stacks(ctx, h.svc)) {
-		r.block(CodeStackManaged, "The container belongs to a DockYard-managed stack; change the stack instead.")
+		r.block(CodeStackManaged, "The container belongs to a Docker Manager-managed stack; change the stack instead.")
 	}
 	if d.Running {
 		r.Consequences = append(r.Consequences, "The container is running: removal needs force=true, which kills it first.")
@@ -707,7 +707,7 @@ func registerContainers(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "create-container", Method: http.MethodPost, Path: base, Summary: "Create a container",
 			Description: "Validates the v1 create-container form (common options only; anything more complex belongs in a Compose stack) " +
-				"and starts a container.create job (202). The image must be present on the environment (pull it first). DockYard labels " +
+				"and starts a container.create job (202). The image must be present on the environment (pull it first). Docker Manager labels " +
 				"the container as its own standalone container and saves its recreate specification (sealed) for automatic updates.",
 			Tags: []string{tagContainers}, DefaultStatus: http.StatusAccepted, Errors: dockerJobErrors,
 		},
@@ -726,7 +726,7 @@ func registerContainers(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "update-container", Method: http.MethodPatch, Path: base + "/{containerId}", Summary: "Update a container",
 			Description: "Changes the in-place settings (restart policy, resource limits) with a container.update job (202). Settings that " +
-				"need a new container are refused with 422 recreate_required; containers of a DockYard-managed stack with 409 stack_managed.",
+				"need a new container are refused with 422 recreate_required; containers of a Docker Manager-managed stack with 409 stack_managed.",
 			Tags: []string{tagContainers}, DefaultStatus: http.StatusAccepted, Errors: dockerJobErrors,
 		},
 		Capability: CapContainerUpdate, Scope: ScopeResource, Idempotency: IdempotencyJob,
@@ -735,7 +735,7 @@ func registerContainers(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "delete-container", Method: http.MethodDelete, Path: base + "/{containerId}", Summary: "Remove a container",
 			Description: "Starts a container.remove job (202). A running container needs force=true (409 container_running); containers " +
-				"of a DockYard-managed stack are refused (409 stack_managed). See the container's removal consequences.",
+				"of a Docker Manager-managed stack are refused (409 stack_managed). See the container's removal consequences.",
 			Tags: []string{tagContainers}, DefaultStatus: http.StatusAccepted, Errors: dockerJobErrors,
 		},
 		Capability: CapContainerRemove, Scope: ScopeResource, Idempotency: IdempotencyJob,
@@ -770,8 +770,8 @@ func registerContainers(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "restart-container", Method: http.MethodPost, Path: base + "/{containerId}/restart", Summary: "Restart a container",
 			Description: "Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files). " +
-				"Restarting DockYard's manager (or another container of its own deployment) needs confirm: true (409 confirmation_required); " +
-				"the connected agent is never restarted through DockYard (409 protected).",
+				"Restarting the Docker Manager container (or another container of its own deployment) needs confirm: true (409 confirmation_required); " +
+				"the connected agent is never restarted through Docker Manager (409 protected).",
 			Tags: []string{tagContainers}, DefaultStatus: http.StatusAccepted, Errors: dockerJobErrors,
 		},
 		Capability: CapContainerRestart, Scope: ScopeResource, Idempotency: IdempotencyJob,

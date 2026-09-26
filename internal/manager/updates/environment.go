@@ -11,13 +11,13 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/manager/scheduler"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/scheduler"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // NewEnvironmentPolicy is the settings of an all-environments or a single
@@ -391,7 +391,7 @@ func (s *Service) PreviewEnvironment(ctx context.Context, id string) (Environmen
 }
 
 // CheckEnvironment enqueues a registry check for every currently covered
-// stack and DockYard-managed standalone container.
+// stack and Docker Manager-managed standalone container.
 func (s *Service) CheckEnvironment(ctx context.Context, principal authz.Principal, id, key string) ([]domain.Job, error) {
 	p, err := s.GetEnvironmentPolicy(ctx, id)
 	if err != nil {

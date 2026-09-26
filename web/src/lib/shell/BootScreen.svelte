@@ -18,14 +18,16 @@
 <div class="boot" aria-busy={!error}>
 	<div class="brand">
 		<Logo mark />
-		<h1>DockYard</h1>
+		<h1>Docker Manager</h1>
 	</div>
 	{#if error}
-		<ErrorState {error} title="DockYard could not load your session." {onretry} compact />
+		<ErrorState {error} title="Docker Manager could not load your session." {onretry} compact />
 	{:else if waiting}
 		<p class="status" role="status">Waiting for the network…</p>
 	{:else}
-		<p class="status" role="status"><Spinner size={16} /> <span>Loading DockYard…</span></p>
+		<p class="status" role="status">
+			<Spinner size={16} /> <span>Loading Docker Manager…</span>
+		</p>
 	{/if}
 </div>
 

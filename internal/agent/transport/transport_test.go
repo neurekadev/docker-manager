@@ -14,8 +14,8 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/neurekadev/dockyard/internal/agent/config"
-	"github.com/neurekadev/dockyard/internal/envconfig"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
 )
 
 func ctx(t *testing.T) context.Context {
@@ -32,7 +32,7 @@ func tlsManager(t *testing.T) (*httptest.Server, string) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/agent/v1/session":
-			c, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{"dockyard.agent/v1"}})
+			c, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{"docker-manager.agent/v1"}})
 			if err != nil {
 				return
 			}
@@ -89,12 +89,12 @@ func TestHTTPSWithCustomCA(t *testing.T) {
 		t.Fatalf("ws url %s", u)
 	}
 	c, _, err := websocket.Dial(ctx(t), tr.WebSocketURL("/agent/v1/session"), //nolint:bodyclose // the connection owns the upgrade response
-		tr.DialOptions(http.Header{"Authorization": {"Bearer dya_fake"}}, "dockyard.agent/v1"))
+		tr.DialOptions(http.Header{"Authorization": {"Bearer dya_fake"}}, "docker-manager.agent/v1"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = c.CloseNow() }()
-	if c.Subprotocol() != "dockyard.agent/v1" {
+	if c.Subprotocol() != "docker-manager.agent/v1" {
 		t.Fatalf("subprotocol %q", c.Subprotocol())
 	}
 	if err := c.Write(ctx(t), websocket.MessageText, []byte("hello")); err != nil {

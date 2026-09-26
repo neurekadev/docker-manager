@@ -15,7 +15,7 @@ import (
 // internal address, which must never complete a ceremony.
 const (
 	publicURL   = "https://docker.example.com"
-	internalURL = "http://dockyard-manager:8080"
+	internalURL = "http://docker-manager:8080"
 )
 
 func newRP(t *testing.T, raw string) *RelyingParty {
@@ -50,7 +50,7 @@ type device struct {
 func newDevice(rpID, origin string, user *User, opts virtualwebauthn.AuthenticatorOptions) *device {
 	opts.UserHandle = user.Handle
 	return &device{
-		rp:   virtualwebauthn.RelyingParty{ID: rpID, Name: "DockYard", Origin: origin},
+		rp:   virtualwebauthn.RelyingParty{ID: rpID, Name: "Docker Manager", Origin: origin},
 		auth: virtualwebauthn.NewAuthenticatorWithOptions(opts),
 		cred: virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2),
 	}
@@ -173,7 +173,7 @@ func TestReverseProxyOriginAndRPIDMismatch(t *testing.T) {
 	rp := newRP(t, publicURL)
 	cases := map[string]struct{ rpID, origin string }{
 		"internal origin, public RP ID":  {"docker.example.com", internalURL},
-		"internal RP ID and origin":      {"dockyard-manager", internalURL},
+		"internal RP ID and origin":      {"docker-manager", internalURL},
 		"public origin, other RP ID":     {"example.com", publicURL},
 		"http scheme of the public host": {"docker.example.com", "http://docker.example.com"},
 		"other port of the public host":  {"docker.example.com", "https://docker.example.com:8443"},
@@ -193,7 +193,7 @@ func TestReverseProxyOriginAndRPIDMismatch(t *testing.T) {
 				t.Fatal(err)
 			}
 			u.Credentials = []webauthn.Credential{*cred}
-			good.rp = virtualwebauthn.RelyingParty{ID: c.rpID, Name: "DockYard", Origin: c.origin}
+			good.rp = virtualwebauthn.RelyingParty{ID: c.rpID, Name: "Docker Manager", Origin: c.origin}
 			if _, _, err := good.assert(t, rp, lookupFor(u)); !errors.Is(err, ErrVerification) {
 				t.Fatalf("sign-in accepted: %v", err)
 			}

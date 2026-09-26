@@ -6,7 +6,7 @@
 // passthrough.
 //
 // The agent re-checks what it can decide locally before every destructive
-// step, whatever the manager decided: containers of a DockYard-managed
+// step, whatever the manager decided: containers of a Docker Manager-managed
 // Compose stack are not updated or removed directly (stack_managed), and
 // images, volumes and networks still in use are not removed (in_use).
 // Wiring: runtime.Options.Requests and .Executors (internal/agent/runtime).
@@ -21,10 +21,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/protect"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Options configures the service.
@@ -34,9 +34,9 @@ type Options struct {
 	Engine func() engine.Engine
 	// ManagedStackDir reports whether a Compose project working directory
 	// lies inside a verified stack root (#28), i.e. the stack is managed by
-	// DockYard (#7). nil: no stack is managed.
+	// Docker Manager (#7). nil: no stack is managed.
 	ManagedStackDir func(dir string) bool
-	// Guard identifies DockYard's own resources (#32); nil protects only
+	// Guard identifies Docker Manager's own resources (#32); nil protects only
 	// what the labels show (no self container, no stacks volume).
 	Guard  *protect.Guard
 	Logger *slog.Logger
@@ -62,7 +62,7 @@ func New(opts Options) *Service {
 	return &Service{opts: opts, log: log.With("component", "resources"), guard: guard}
 }
 
-// protected lists the Engine's containers and identifies DockYard's own
+// protected lists the Engine's containers and identifies Docker Manager's own
 // resources among them (#32).
 func (s *Service) protected(ctx context.Context, eng engine.Engine) (*protect.Set, error) {
 	cs, err := eng.ListContainers(ctx, engine.ContainerFilter{All: true})
@@ -86,7 +86,7 @@ func (s *Service) engine() (engine.Engine, error) {
 }
 
 // stackOf returns the Compose project of an object's labels (nil when it
-// is not part of one). Managed says whether DockYard manages it (the
+// is not part of one). Managed says whether Docker Manager manages it (the
 // project's working directory is in a verified stack root).
 func (s *Service) stackOf(labels map[string]string) *protocol.StackRef {
 	project := labels[protocol.ComposeProjectLabel]
@@ -102,7 +102,7 @@ func (s *Service) stackOf(labels map[string]string) *protocol.StackRef {
 
 // managedProjects returns the Compose projects with at least one container
 // in a verified stack root: their volumes and networks belong to a
-// DockYard-managed stack.
+// Docker Manager-managed stack.
 func (s *Service) managedProjects(cs []engine.Container) map[string]bool {
 	out := map[string]bool{}
 	for _, c := range cs {

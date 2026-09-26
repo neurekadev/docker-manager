@@ -1,4 +1,4 @@
-// Package clock is DockYard's injectable time source.
+// Package clock is Docker Manager's injectable time source.
 //
 // Production code never calls time.Now, time.After, time.NewTimer or
 // time.NewTicker directly for behavior that tests need to control

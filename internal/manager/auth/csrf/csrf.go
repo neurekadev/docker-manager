@@ -1,7 +1,7 @@
 // Package csrf rejects cross-origin browser requests to /api/v1 (#16, #18)
 // with Go's net/http CrossOriginProtection: unsafe methods (POST, PUT,
 // PATCH, DELETE) must carry Sec-Fetch-Site: same-origin/none, or an Origin
-// equal to the request's Host or to DOCKYARD_PUBLIC_URL. The public origin
+// equal to the request's Host or to DOCKER_MANAGER_PUBLIC_URL. The public origin
 // is trusted explicitly because a reverse proxy may forward a different
 // Host (#27). Requests without either header are not from a browser (curl,
 // scripts) and pass; they cannot ride a victim's cookie.
@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/neurekadev/dockyard/internal/manager/authsep"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authsep"
 )
 
 // ErrCrossOrigin is returned for rejected requests.

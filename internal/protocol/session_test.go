@@ -14,8 +14,8 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 )
 
 // TestProtocolDocListsCommands: the allowed-command table lists exactly the
@@ -80,7 +80,7 @@ func validCaps() CapabilitiesPayload {
 		Transport: TransportInfo{ManagerURL: "https://docker.example.com"},
 		Engine:    EngineInfo{ID: "ABCD", Version: "28.5.2", APIVersion: "1.51", OS: "linux", Arch: "amd64"},
 		Commands:  []string{"stack.deploy"}, Requests: []string{ReqEngineInfo}, Streams: []string{StreamContainerLogs},
-		Roots:       []Root{{Kind: "stacks", Path: "/var/lib/docker/volumes/dockyard_stacks/_data", Watch: "inotify"}},
+		Roots:       []Root{{Kind: "stacks", Path: "/var/lib/docker/volumes/docker-manager_stacks/_data", Watch: "inotify"}},
 		Diagnostics: []Diagnostic{{Area: DiagnosticStorage, Code: "storage_root_mismatch", Message: "stack root /opt/stacks is not mounted at its identical path", Path: "/opt/stacks"}}}
 }
 
@@ -139,7 +139,7 @@ func TestInvalidPayloads(t *testing.T) {
 		typ Type
 		p   any
 	}{
-		"hello wrong protocol":    {TypeHello, mut(func(h *HelloPayload) { h.Protocol = "dockyard.agent/v2" })},
+		"hello wrong protocol":    {TypeHello, mut(func(h *HelloPayload) { h.Protocol = "docker-manager.agent/v2" })},
 		"hello bad agent id":      {TypeHello, mut(func(h *HelloPayload) { h.AgentID = "a b" })},
 		"hello empty version":     {TypeHello, mut(func(h *HelloPayload) { h.AgentVersion = "" })},
 		"welcome bad status":      {TypeWelcome, wmut(func(w *WelcomePayload) { w.AgentStatus = "ancient" })},
@@ -150,7 +150,7 @@ func TestInvalidPayloads(t *testing.T) {
 		"caps unknown stream":     {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Streams = []string{"host.pty"} })},
 		"caps without transport":  {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Transport = TransportInfo{} })},
 		"caps hides plain http": {TypeCapabilities, cmut(func(c *CapabilitiesPayload) {
-			c.Transport = TransportInfo{ManagerURL: "http://dockyard-manager:8080"}
+			c.Transport = TransportInfo{ManagerURL: "http://docker-manager:8080"}
 		})},
 		"caps relative root": {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Roots[0].Path = "stacks" })},
 		"caps no engine":     {TypeCapabilities, cmut(func(c *CapabilitiesPayload) { c.Engine = EngineInfo{} })},
@@ -199,7 +199,7 @@ func TestInvalidPayloads(t *testing.T) {
 		}
 	}
 	// Unknown payload fields are rejected; required job payloads must exist.
-	f := &Frame{Type: TypeHello, ID: "h", Payload: json.RawMessage(`{"protocol":"dockyard.agent/v1","shell":"sh"}`)}
+	f := &Frame{Type: TypeHello, ID: "h", Payload: json.RawMessage(`{"protocol":"docker-manager.agent/v1","shell":"sh"}`)}
 	if err := ValidatePayload(f); !errors.Is(err, ErrInvalidFrame) {
 		t.Errorf("unknown hello field: %v", err)
 	}

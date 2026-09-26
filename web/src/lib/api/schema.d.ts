@@ -224,7 +224,7 @@ export interface paths {
         put?: never;
         /**
          * Finish a passkey sign-in
-         * @description Verifies the assertion against the pending challenge, DockYard's RP ID and origin (DOCKYARD_PUBLIC_URL), user verification and the signature counter, then signs in (or completes the pending sign-in or step-up). Failures answer 401 invalid_credentials.
+         * @description Verifies the assertion against the pending challenge, Docker Manager's RP ID and origin (DOCKER_MANAGER_PUBLIC_URL), user verification and the signature counter, then signs in (or completes the pending sign-in or step-up). Failures answer 401 invalid_credentials.
          */
         post: operations["create-passkey-authentication-verification"];
         delete?: never;
@@ -244,7 +244,7 @@ export interface paths {
         put?: never;
         /**
          * Begin passkey registration
-         * @description Returns WebAuthn creation options for navigator.credentials.create(): a discoverable credential with user verification for the relying party of DOCKYARD_PUBLIC_URL (RP ID = its host name). Passkeys stop working if that host name changes. Available to limited enrollment sessions.
+         * @description Returns WebAuthn creation options for navigator.credentials.create(): a discoverable credential with user verification for the relying party of DOCKER_MANAGER_PUBLIC_URL (RP ID = its host name). Passkeys stop working if that host name changes. Available to limited enrollment sessions.
          */
         post: operations["create-passkey-registration-options"];
         delete?: never;
@@ -284,7 +284,7 @@ export interface paths {
         put?: never;
         /**
          * Set a new password with a reset code
-         * @description Redeems an owner-issued password-reset code, or an owner-recovery code from `dockyard-manager owner-recovery` (which also removes the owner's TOTP, passkeys and recovery codes). Codes are single use; unknown, expired and used codes answer 400 invalid_code alike. A password that fails the policy answers 422 and leaves the code valid. Every session of the account ends; sign in afterwards.
+         * @description Redeems an owner-issued password-reset code, or an owner-recovery code from `docker-manager owner-recovery` (which also removes the owner's TOTP, passkeys and recovery codes). Codes are single use; unknown, expired and used codes answer 400 invalid_code alike. A password that fails the policy answers 422 and leaves the code valid. Every session of the account ends; sign in afterwards.
          */
         post: operations["create-password-reset-redemption"];
         delete?: never;
@@ -328,7 +328,7 @@ export interface paths {
         put?: never;
         /**
          * Sign in
-         * @description Starts a sign-in with username and password, or continues a pending one with totpCode. Answers the session: authenticated, second_factor_required (send one of factors) or enrollment_required (a limited session that may only enroll the factors the policy requires). Unknown accounts, wrong passwords and disabled accounts all answer 401 invalid_credentials with the same cost. Failed attempts are throttled per client IP and per account (429). Sets the session cookie (__Host-dockyard_session, HttpOnly, Secure, SameSite=Strict); the token changes at every privilege change.
+         * @description Starts a sign-in with username and password, or continues a pending one with totpCode. Answers the session: authenticated, second_factor_required (send one of factors) or enrollment_required (a limited session that may only enroll the factors the policy requires). Unknown accounts, wrong passwords and disabled accounts all answer 401 invalid_credentials with the same cost. Failed attempts are throttled per client IP and per account (429). Sets the session cookie (__Host-docker_manager_session, HttpOnly, Secure, SameSite=Strict); the token changes at every privilege change.
          */
         post: operations["create-auth-session"];
         /**
@@ -544,7 +544,7 @@ export interface paths {
         put?: never;
         /**
          * Preview a backup policy's scope
-         * @description Asks each environment's agent for the effective sources (project directories, relative binds, volumes), the excluded and blocked paths with reasons, sources that need an opt-in, estimated size, and with shutdown on the containers that stop (stop order), the downtime warning and shared-volume conflicts. DockYard's own containers and volumes are excluded (#32). Nothing is stored.
+         * @description Asks each environment's agent for the effective sources (project directories, relative binds, volumes), the excluded and blocked paths with reasons, sources that need an opt-in, estimated size, and with shutdown on the containers that stop (stop order), the downtime warning and shared-volume conflicts. Docker Manager's own containers and volumes are excluded (#32). Nothing is stored.
          */
         post: operations["create-backup-policy-scope-preview"];
         delete?: never;
@@ -568,7 +568,7 @@ export interface paths {
         put?: never;
         /**
          * Add a backup repository
-         * @description Stores a destination: a local directory on the manager or on one environment's agent, or an S3 bucket/prefix (credentials sealed, write-only). Below it DockYard keeps one restic repository per scope (dockyard-manager, dockyard-env-<environmentId>). The first repository of an instance generates the Recovery Key (returned once in recoveryKey; owner only). Every repository starts awaiting_confirmation: nothing is initialized and no policy can use it until the owner re-enters the key. Recovery Key administration: instance owner only, in a signed-in browser session (never with an API token, 403 api_token_not_allowed).
+         * @description Stores a destination: a local directory on the manager or on one environment's agent, or an S3 bucket/prefix (credentials sealed, write-only). Below it Docker Manager keeps one restic repository per scope (docker-manager, docker-manager-env-<environmentId>). The first repository of an instance generates the Recovery Key (returned once in recoveryKey; owner only). Every repository starts awaiting_confirmation: nothing is initialized and no policy can use it until the owner re-enters the key. Recovery Key administration: instance owner only, in a signed-in browser session (never with an API token, 403 api_token_not_allowed).
          */
         post: operations["create-backup-repository"];
         delete?: never;
@@ -590,7 +590,7 @@ export interface paths {
         post?: never;
         /**
          * Remove a backup repository
-         * @description Removes the repository from DockYard (409 backup_repository_in_use while a policy uses it). The restic repositories at the destination are left untouched. Requires If-Match.
+         * @description Removes the repository from Docker Manager (409 backup_repository_in_use while a policy uses it). The restic repositories at the destination are left untouched. Requires If-Match.
          */
         delete: operations["delete-backup-repository"];
         options?: never;
@@ -854,7 +854,7 @@ export interface paths {
         put?: never;
         /**
          * Create an environment update policy
-         * @description Covers all environments or one environment, including future eligible stacks and DockYard-managed standalone containers. Scopes cannot overlap; schedules start disabled unless enabled.
+         * @description Covers all environments or one environment, including future eligible stacks and Docker Manager-managed standalone containers. Scopes cannot overlap; schedules start disabled unless enabled.
          */
         post: operations["create-environment-update-policy"];
         delete?: never;
@@ -1122,7 +1122,7 @@ export interface paths {
         put?: never;
         /**
          * Create a container
-         * @description Validates the v1 create-container form (common options only; anything more complex belongs in a Compose stack) and starts a container.create job (202). The image must be present on the environment (pull it first). DockYard labels the container as its own standalone container and saves its recreate specification (sealed) for automatic updates.
+         * @description Validates the v1 create-container form (common options only; anything more complex belongs in a Compose stack) and starts a container.create job (202). The image must be present on the environment (pull it first). Docker Manager labels the container as its own standalone container and saves its recreate specification (sealed) for automatic updates.
          */
         post: operations["create-container"];
         delete?: never;
@@ -1147,14 +1147,14 @@ export interface paths {
         post?: never;
         /**
          * Remove a container
-         * @description Starts a container.remove job (202). A running container needs force=true (409 container_running); containers of a DockYard-managed stack are refused (409 stack_managed). See the container's removal consequences.
+         * @description Starts a container.remove job (202). A running container needs force=true (409 container_running); containers of a Docker Manager-managed stack are refused (409 stack_managed). See the container's removal consequences.
          */
         delete: operations["delete-container"];
         options?: never;
         head?: never;
         /**
          * Update a container
-         * @description Changes the in-place settings (restart policy, resource limits) with a container.update job (202). Settings that need a new container are refused with 422 recreate_required; containers of a DockYard-managed stack with 409 stack_managed.
+         * @description Changes the in-place settings (restart policy, resource limits) with a container.update job (202). Settings that need a new container are refused with 422 recreate_required; containers of a Docker Manager-managed stack with 409 stack_managed.
          */
         patch: operations["update-container"];
         trace?: never;
@@ -1170,7 +1170,7 @@ export interface paths {
         put?: never;
         /**
          * Open a terminal in a container
-         * @description Creates an exec session running command inside the container (never on the host) and a one-use attach ticket; attach within 60 s with GET …/exec-sessions/{sessionId}/stream (WebSocket, subprotocols dockyard.exec.v1 and dockyard.ticket.<ticket>). Needs container.exec (API tokens only with container.exec in their own grants). 409 when the container is not running, 429 beyond 4 terminals per user or 8 per container.
+         * @description Creates an exec session running command inside the container (never on the host) and a one-use attach ticket; attach within 60 s with GET …/exec-sessions/{sessionId}/stream (WebSocket, subprotocols docker-manager.exec.v1 and docker-manager.ticket.<ticket>). Needs container.exec (API tokens only with container.exec in their own grants). 409 when the container is not running, 429 beyond 4 terminals per user or 8 per container.
          */
         post: operations["create-container-exec-session"];
         delete?: never;
@@ -1208,7 +1208,7 @@ export interface paths {
         };
         /**
          * Attach a terminal (WebSocket)
-         * @description Upgrades to a WebSocket (subprotocol dockyard.exec.v1; the ticket from the create call as subprotocol dockyard.ticket.<ticket>). Binary frames: 0+stdin to the process, 1+stdout / 2+stderr from it; text frames: {"type":"resize","cols","rows"} from the client, {"type":"exit","code"} and {"type":"error",...} from the server. Close codes and limits: docs/api/streams.md.
+         * @description Upgrades to a WebSocket (subprotocol docker-manager.exec.v1; the ticket from the create call as subprotocol docker-manager.ticket.<ticket>). Binary frames: 0+stdin to the process, 1+stdout / 2+stderr from it; text frames: {"type":"resize","cols","rows"} from the client, {"type":"exit","code"} and {"type":"error",...} from the server. Close codes and limits: docs/api/streams.md.
          */
         get: operations["stream-container-exec-session"];
         put?: never;
@@ -1228,7 +1228,7 @@ export interface paths {
         };
         /**
          * Get a container's image status
-         * @description The container's image, applied digest and platform, whether it can follow its tag's digest (#20; only DockYard-managed standalone containers with a saved recreate specification) and its update policy's state.
+         * @description The container's image, applied digest and platform, whether it can follow its tag's digest (#20; only Docker Manager-managed standalone containers with a saved recreate specification) and its update policy's state.
          */
         get: operations["get-container-image-status"];
         put?: never;
@@ -1330,7 +1330,7 @@ export interface paths {
         put?: never;
         /**
          * Restart a container
-         * @description Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files). Restarting DockYard's manager (or another container of its own deployment) needs confirm: true (409 confirmation_required); the connected agent is never restarted through DockYard (409 protected).
+         * @description Starts a container.restart job (202). A restart grant allows nothing else (no start, stop, logs, terminal or files). Restarting the Docker Manager container (or another container of its own deployment) needs confirm: true (409 confirmation_required); the connected agent is never restarted through Docker Manager (409 protected).
          */
         post: operations["restart-container"];
         delete?: never;
@@ -1490,7 +1490,7 @@ export interface paths {
         put?: never;
         /**
          * Build an image from a Git repository
-         * @description Starts an image.build job on the environment's agent: the ref is resolved to a commit (in-process ls-remote with the matching Git credential), then the Engine's BuildKit builds exactly that commit (remote Git context; no docker or buildx CLI) with private base images authenticated by registry connections (#19). Progress and the BuildKit log stream as job events; builds per environment are limited by DOCKYARD_JOB_MAX_CONCURRENT_BUILDS; cancel with POST /jobs/{id}/cancellations. The build record is GET .../image-builds/{jobId}. Build argument values are never audited. 409 ambiguous_git_credential, git_credential_revoked, registry_connection_revoked.
+         * @description Starts an image.build job on the environment's agent: the ref is resolved to a commit (in-process ls-remote with the matching Git credential), then the Engine's BuildKit builds exactly that commit (remote Git context; no docker or buildx CLI) with private base images authenticated by registry connections (#19). Progress and the BuildKit log stream as job events; builds per environment are limited by DOCKER_MANAGER_JOB_MAX_CONCURRENT_BUILDS; cancel with POST /jobs/{id}/cancellations. The build record is GET .../image-builds/{jobId}. Build argument values are never audited. 409 ambiguous_git_credential, git_credential_revoked, registry_connection_revoked.
          */
         post: operations["create-image-build"];
         delete?: never;
@@ -1623,7 +1623,7 @@ export interface paths {
         post?: never;
         /**
          * Remove a network
-         * @description Starts a network.remove job (202). Refused for predefined networks (409 network_builtin), networks with attached containers (409 network_in_use) and networks of a DockYard-managed stack (409 stack_managed).
+         * @description Starts a network.remove job (202). Refused for predefined networks (409 network_builtin), networks with attached containers (409 network_in_use) and networks of a Docker Manager-managed stack (409 stack_managed).
          */
         delete: operations["delete-network"];
         options?: never;
@@ -1700,7 +1700,7 @@ export interface paths {
         };
         /**
          * List discovered Compose projects
-         * @description Compose projects the Engine knows from container labels, read-only: whether each can be adopted in place (its directory is under the stacks volume or a registered root) and the DockYard stack already managing it. Labels never reconstruct a Compose source.
+         * @description Compose projects the Engine knows from container labels, read-only: whether each can be adopted in place (its directory is under the stacks volume or a registered root) and the Docker Manager stack already managing it. Labels never reconstruct a Compose source.
          */
         get: operations["list-discovered-stacks"];
         put?: never;
@@ -1722,7 +1722,7 @@ export interface paths {
         put?: never;
         /**
          * Import a Compose project
-         * @description Adopts a discovered project. Without source, in place: its real files become the first revision (409 stack_not_adoptable when its directory is outside the stacks volume and registered roots). With source, the given definition is written into a new directory <projectName> of the stacks volume. Never overwrites: 409 stack_name_taken when DockYard already manages the project, stack_directory_exists when the directory exists.
+         * @description Adopts a discovered project. Without source, in place: its real files become the first revision (409 stack_not_adoptable when its directory is outside the stacks volume and registered roots). With source, the given definition is written into a new directory <projectName> of the stacks volume. Never overwrites: 409 stack_name_taken when Docker Manager already manages the project, stack_directory_exists when the directory exists.
          */
         post: operations["create-stack-import"];
         delete?: never;
@@ -1791,7 +1791,7 @@ export interface paths {
         post?: never;
         /**
          * Remove a volume
-         * @description Starts a volume.remove job (202) that deletes the volume's data permanently. Refused while containers use it (409 volume_in_use) and for volumes of a DockYard-managed stack (409 stack_managed).
+         * @description Starts a volume.remove job (202) that deletes the volume's data permanently. Refused while containers use it (409 volume_in_use) and for volumes of a Docker Manager-managed stack (409 stack_managed).
          */
         delete: operations["delete-volume"];
         options?: never;
@@ -1808,7 +1808,7 @@ export interface paths {
         };
         /**
          * List a directory of the volume
-         * @description One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/api/files.md. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
+         * @description One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/api/files.md. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         get: operations["list-volume-files"];
         put?: never;
@@ -1830,7 +1830,7 @@ export interface paths {
         put?: never;
         /**
          * Create an archive in the volume
-         * @description Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt). Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
+         * @description Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt). Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         post: operations["create-volume-file-archive"];
         delete?: never;
@@ -1868,12 +1868,12 @@ export interface paths {
         };
         /**
          * Read a file of the volume
-         * @description At most 512 KiB of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
+         * @description At most 512 KiB of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         get: operations["get-volume-file-content"];
         /**
          * Save a file of the volume
-         * @description Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
+         * @description Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         put: operations["replace-volume-file-content"];
         post?: never;
@@ -1894,7 +1894,7 @@ export interface paths {
         put?: never;
         /**
          * Copy files in the volume
-         * @description Starts a files.copy job (202 + job): sources are copied recursively into destination; symlinks are copied as symlinks (never followed), hard-linked and special files fail per item. conflict applies per top-level item. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
+         * @description Starts a files.copy job (202 + job): sources are copied recursively into destination; symlinks are copied as symlinks (never followed), hard-linked and special files fail per item. conflict applies per top-level item. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         post: operations["create-volume-file-copy"];
         delete?: never;
@@ -1914,7 +1914,7 @@ export interface paths {
         put?: never;
         /**
          * Delete files in the volume
-         * @description Starts a files.delete job (202 + job) deleting each path recursively; symlinks are removed, never followed. Preview the impact first (conflict preview, operation delete). Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
+         * @description Starts a files.delete job (202 + job) deleting each path recursively; symlinks are removed, never followed. Preview the impact first (conflict preview, operation delete). Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         post: operations["create-volume-file-deletion"];
         delete?: never;
@@ -1932,7 +1932,7 @@ export interface paths {
         };
         /**
          * Download files of the volume
-         * @description One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
+         * @description One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         get: operations["download-volume-files"];
         put?: never;
@@ -1954,7 +1954,7 @@ export interface paths {
         put?: never;
         /**
          * Create a file or directory in the volume
-         * @description Creates an empty directory or a new file (optional initial content up to 512 KiB). 409 file_exists when the name exists. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
+         * @description Creates an empty directory or a new file (optional initial content up to 512 KiB). 409 file_exists when the name exists. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         post: operations["create-volume-file-entry"];
         delete?: never;
@@ -1974,7 +1974,7 @@ export interface paths {
         put?: never;
         /**
          * Extract an archive in the volume
-         * @description Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (10 GiB and 100x the archive size) as well as the entry count (100 000). Nested archives are not extracted. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
+         * @description Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (10 GiB and 100x the archive size) as well as the entry count (100 000). Nested archives are not extracted. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         post: operations["create-volume-file-extraction"];
         delete?: never;
@@ -1998,7 +1998,7 @@ export interface paths {
         head?: never;
         /**
          * Change permissions or ownership in the volume
-         * @description Starts a files.metadata job (202 + job): chmod (needs volume.files.chmod) and/or chown (needs volume.files.chown) of the paths, optionally recursive. Symlinks are skipped (never followed), special and hard-linked files fail per item; changes go through the opened file (fchmod/fchown). Preview the count with a conflict preview of operation metadata. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
+         * @description Starts a files.metadata job (202 + job): chmod (needs volume.files.chmod) and/or chown (needs volume.files.chown) of the paths, optionally recursive. Symlinks are skipped (never followed), special and hard-linked files fail per item; changes go through the opened file (fchmod/fchown). Preview the count with a conflict preview of operation metadata. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         patch: operations["update-volume-file-metadata"];
         trace?: never;
@@ -2014,7 +2014,7 @@ export interface paths {
         put?: never;
         /**
          * Move or rename files in the volume
-         * @description Starts a files.move job (202 + job): each source is renamed into destination (a rename is a move into the same directory under a new name: use conflict and one source). conflict applies per item. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
+         * @description Starts a files.move job (202 + job): each source is renamed into destination (a rename is a move into the same directory under a new name: use conflict and one source). conflict applies per item. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         post: operations["create-volume-file-move"];
         delete?: never;
@@ -2034,7 +2034,7 @@ export interface paths {
         put?: never;
         /**
          * Upload a file into the volume
-         * @description Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-DockYard-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKYARD_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Only local-driver volumes are served (non-local drivers and DockYard's own volumes answer 409 volume_files_unsupported).
+         * @description Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKER_MANAGER_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         post: operations["upload-volume-files"];
         delete?: never;
@@ -2054,7 +2054,7 @@ export interface paths {
         put?: never;
         /**
          * Preview a volume migration
-         * @description The preflight check of copying the volume to another environment (optionally under a new name): support (local volumes only; DockYard's own volumes are refused), running containers using it (blocking unless a crash-consistent copy is acknowledged), name conflicts, size against free space, transport and access changes. Needs volume.migrate on the volume and volume.create on the destination. Changes nothing.
+         * @description The preflight check of copying the volume to another environment (optionally under a new name): support (local volumes only; Docker Manager's own volumes are refused), running containers using it (blocking unless a crash-consistent copy is acknowledged), name conflicts, size against free space, transport and access changes. Needs volume.migrate on the volume and volume.create on the destination. Changes nothing.
          */
         post: operations["create-volume-migration-preview"];
         delete?: never;
@@ -2195,7 +2195,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a group
-         * @description Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group (choose another default first); 409 group_not_empty while users are in it (move them first: DockYard never moves users implicitly, so deleting a group never changes anyone's access). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
+         * @description Deletes an empty, non-default group and its rules. 409 default_group_protected for the current default group (choose another default first); 409 group_not_empty while users are in it (move them first: Docker Manager never moves users implicitly, so deleting a group never changes anyone's access). Requires If-Match. Requires a recent step-up (403 step_up_required). Instance owner only (never delegable, never with an API token).
          */
         delete: operations["delete-group"];
         options?: never;
@@ -2306,7 +2306,7 @@ export interface paths {
         put?: never;
         /**
          * Invite a user
-         * @description Issues a single-use invitation with a 256-bit code, returned only in this response (DockYard stores a verifier). Expires after expiresInHours (default from the security settings); optionally bound to an email address. No email is sent: hand the link over yourself. Requires a recent step-up. Instance owner only (never delegable, never with an API token).
+         * @description Issues a single-use invitation with a 256-bit code, returned only in this response (Docker Manager stores a verifier). Expires after expiresInHours (default from the security settings); optionally bound to an email address. No email is sent: hand the link over yourself. Requires a recent step-up. Instance owner only (never delegable, never with an API token).
          */
         post: operations["create-invitation"];
         delete?: never;
@@ -2637,7 +2637,7 @@ export interface paths {
         put?: never;
         /**
          * Create an API token
-         * @description Creates a token for scripts and integrations and returns its value once (DockYard keeps a verifier). The token carries exactly the listed grants, each of which you must hold now; every request with it is evaluated as these grants intersected with your current permissions, so later permission changes narrow it at once. Owner administration, sign-in and factor flows and token management are never reachable with a token, and a terminal (exec) needs container.exec in the token's own grants. Requires api_tokens.create (the owner always has it), a recent step-up (403 step_up_required) and tokens being enabled (403 api_tokens_disabled). The expiry is required unless the owner allows non-expiring tokens. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).
+         * @description Creates a token for scripts and integrations and returns its value once (Docker Manager keeps a verifier). The token carries exactly the listed grants, each of which you must hold now; every request with it is evaluated as these grants intersected with your current permissions, so later permission changes narrow it at once. Owner administration, sign-in and factor flows and token management are never reachable with a token, and a terminal (exec) needs container.exec in the token's own grants. Requires api_tokens.create (the owner always has it), a recent step-up (403 step_up_required) and tokens being enabled (403 api_tokens_disabled). The expiry is required unless the owner allows non-expiring tokens. Browser session only: API tokens cannot manage tokens (403 api_token_not_allowed).
          */
         post: operations["create-my-api-token"];
         delete?: never;
@@ -2963,7 +2963,7 @@ export interface paths {
         };
         /**
          * Get the schedule defaults
-         * @description The default IANA time zone and, per schedule kind, the default cron expression new policies start with (and DockYard's suggestion). Defaults only prefill new policies; existing policies keep their saved expression and zone.
+         * @description The default IANA time zone and, per schedule kind, the default cron expression new policies start with (and Docker Manager's suggestion). Defaults only prefill new policies; existing policies keep their saved expression and zone.
          */
         get: operations["get-schedule-defaults"];
         put?: never;
@@ -3047,7 +3047,7 @@ export interface paths {
         };
         /**
          * Get the instance settings
-         * @description The display name of this DockYard and a read-only summary of its deployment configuration (public URL, trusted proxies, stream heartbeat, upload limit, metrics endpoint). The sign-in policy is GET /api/v1/settings/security (owner only), schedule defaults GET /api/v1/schedule-defaults and maintenance defaults GET /api/v1/maintenance-defaults.
+         * @description The display name of this Docker Manager and a read-only summary of its deployment configuration (public URL, trusted proxies, stream heartbeat, upload limit, metrics endpoint). The sign-in policy is GET /api/v1/settings/security (owner only), schedule defaults GET /api/v1/schedule-defaults and maintenance defaults GET /api/v1/maintenance-defaults.
          */
         get: operations["get-settings"];
         put?: never;
@@ -3097,7 +3097,7 @@ export interface paths {
         put?: never;
         /**
          * Test a backup import source (first-run setup)
-         * @description Before an owner exists only (then 409 setup_complete). Checks S3 access, whether the Recovery Key opens the manager repository (dockyard-manager) and which host repositories the manifests name or the destination holds. Problems explain key loss, missing repositories, damaged manifests and partially rotated keys. Nothing is stored.
+         * @description Before an owner exists only (then 409 setup_complete). Checks S3 access, whether the Recovery Key opens the manager repository (docker-manager) and which host repositories the manifests name or the destination holds. Problems explain key loss, missing repositories, damaged manifests and partially rotated keys. Nothing is stored.
          */
         post: operations["create-setup-backup-import-connection-test"];
         delete?: never;
@@ -3117,7 +3117,7 @@ export interface paths {
         put?: never;
         /**
          * Preview the backup sets of an import source (first-run setup)
-         * @description Lists the newest backup sets from the portable manifests in the repositories (not from any database): completeness, where each member's snapshot is (found, missing, unverified, not_backed_up), the DockYard version and whether this build can run the set's database. With setId the set's secret-key bundle is opened too. Sets known only from host repositories are listed but cannot be imported.
+         * @description Lists the newest backup sets from the portable manifests in the repositories (not from any database): completeness, where each member's snapshot is (found, missing, unverified, not_backed_up), the Docker Manager version and whether this build can run the set's database. With setId the set's secret-key bundle is opened too. Sets known only from host repositories are listed but cannot be imported.
          */
         post: operations["create-setup-backup-import-preview"];
         delete?: never;
@@ -3157,7 +3157,7 @@ export interface paths {
         put?: never;
         /**
          * Create the instance owner (first-run setup)
-         * @description Single-use and race-safe: of concurrent requests exactly one creates the owner, the others get 409 setup_complete, as does every later request. Refused with 403 insecure_origin unless the request reached DockYard over HTTPS on DOCKYARD_PUBLIC_URL (through a trusted reverse proxy) or the explicit http://localhost development mode is used. Signs the owner in: sets the session cookie and returns the session.
+         * @description Single-use and race-safe: of concurrent requests exactly one creates the owner, the others get 409 setup_complete, as does every later request. Refused with 403 insecure_origin unless the request reached Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL (through a trusted reverse proxy) or the explicit http://localhost development mode is used. Signs the owner in: sets the session cookie and returns the session.
          */
         post: operations["create-setup-owner"];
         delete?: never;
@@ -3175,7 +3175,7 @@ export interface paths {
         };
         /**
          * First-run setup status
-         * @description Whether the instance owner exists, and whether this request could complete setup (it must reach DockYard over HTTPS on DOCKYARD_PUBLIC_URL; explanation says what to fix otherwise).
+         * @description Whether the instance owner exists, and whether this request could complete setup (it must reach Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL; explanation says what to fix otherwise).
          */
         get: operations["get-setup-status"];
         put?: never;
@@ -3201,7 +3201,7 @@ export interface paths {
         put?: never;
         /**
          * Create a stack
-         * @description Validates the definition on the environment's agent, writes compose.yaml (and the optional override and .env) into a new project directory <name> of the environment's stacks volume and records it as the first revision. Nothing existing is overwritten: 409 stack_name_taken (DockYard stack), compose_project_exists (a Compose project of that name runs on the Engine: import it), stack_directory_exists (the directory exists). 422 invalid_definition lists the findings. Does not deploy.
+         * @description Validates the definition on the environment's agent, writes compose.yaml (and the optional override and .env) into a new project directory <name> of the environment's stacks volume and records it as the first revision. Nothing existing is overwritten: 409 stack_name_taken (Docker Manager stack), compose_project_exists (a Compose project of that name runs on the Engine: import it), stack_directory_exists (the directory exists). 422 invalid_definition lists the findings. Does not deploy.
          */
         post: operations["create-stack"];
         delete?: never;
@@ -3239,21 +3239,21 @@ export interface paths {
         };
         /**
          * Get a stack
-         * @description The stack's deployment status (what DockYard last did), last applied revision and images, the newest revision observed on disk (undeployedChanges when they differ), the failed revision and recovery guidance after a failed deploy, and the Engine state as last observed. While the environment is offline the last known state is returned with readOnly.
+         * @description The stack's deployment status (what Docker Manager last did), last applied revision and images, the newest revision observed on disk (undeployedChanges when they differ), the failed revision and recovery guidance after a failed deploy, and the Engine state as last observed. While the environment is offline the last known state is returned with readOnly.
          */
         get: operations["get-stack"];
         put?: never;
         post?: never;
         /**
          * Delete a stack
-         * @description Starts a stack.remove job (202): the stack is taken down (containers and networks removed; named volumes and the project directory are kept on the host) and, when that succeeds, removed from DockYard with its revisions and the permission rules naming it.
+         * @description Starts a stack.remove job (202): the stack is taken down (containers and networks removed; named volumes and the project directory are kept on the host) and, when that succeeds, removed from Docker Manager with its revisions and the permission rules naming it.
          */
         delete: operations["delete-stack"];
         options?: never;
         head?: never;
         /**
          * Edit a stack's display metadata
-         * @description Display name, description, Lucide icon override and per-service metadata, stored in DockYard and never written to Compose files. Requires If-Match.
+         * @description Display name, description, Lucide icon override and per-service metadata, stored in Docker Manager and never written to Compose files. Requires If-Match.
          */
         patch: operations["update-stack"];
         trace?: never;
@@ -3349,7 +3349,7 @@ export interface paths {
         put?: never;
         /**
          * Create an archive in the stack's project directory
-         * @description Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt). Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt). Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
          */
         post: operations["create-stack-file-archive"];
         delete?: never;
@@ -3451,7 +3451,7 @@ export interface paths {
         };
         /**
          * Download files of the stack's project directory
-         * @description One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKYARD-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
          */
         get: operations["download-stack-files"];
         put?: never;
@@ -3553,7 +3553,7 @@ export interface paths {
         put?: never;
         /**
          * Upload a file into the stack's project directory
-         * @description Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-DockYard-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKYARD_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKER_MANAGER_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
          */
         post: operations["upload-stack-files"];
         delete?: never;
@@ -3633,7 +3633,7 @@ export interface paths {
         put?: never;
         /**
          * Remove a migrated stack's source
-         * @description Confirms a completed migration: starts a stack.remove_source job (202) on the source environment that removes the source project's containers and networks, the migrated volumes and the project directory there. 409 migration_not_completed before the migration completed, migration_source_removed after a removal, migration_source_in_use when a DockYard stack manages the source project again. Backup snapshots of the source stay in their repository.
+         * @description Confirms a completed migration: starts a stack.remove_source job (202) on the source environment that removes the source project's containers and networks, the migrated volumes and the project directory there. 409 migration_not_completed before the migration completed, migration_source_removed after a removal, migration_source_in_use when a Docker Manager stack manages the source project again. Backup snapshots of the source stay in their repository.
          */
         post: operations["create-stack-migration-source-removal"];
         delete?: never;
@@ -3731,7 +3731,7 @@ export interface paths {
         };
         /**
          * List a stack's services
-         * @description Services of the applied definition joined with their containers on the Engine (live while the environment is online, else the last observed state with live false), with drift from DockYard's intent. Container image, ports, restart policy and resources need container.details.read on the container; per-service metrics are #5's.
+         * @description Services of the applied definition joined with their containers on the Engine (live while the environment is online, else the last observed state with live false), with drift from Docker Manager's intent. Container image, ports, restart policy and resources need container.details.read on the container; per-service metrics are #5's.
          */
         get: operations["list-stack-services"];
         put?: never;
@@ -3770,8 +3770,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * DockYard internal metrics (Prometheus)
-         * @description DockYard's own metrics in the Prometheus text exposition format 0.0.4: job queue depth and unfinished jobs by state and kind, connected agent sessions, environments by state, agents by version compatibility, open event streams and event bus subscribers, database sizes, the audit chain length and Go runtime basics. Off by default: 404 unless DOCKYARD_METRICS_ENABLED=true. Requires system.metrics.read (grant it to a dedicated API token and scrape with Authorization: Bearer). Host and container metrics are GET /environments/{environmentId}/metrics.
+         * Docker Manager internal metrics (Prometheus)
+         * @description Docker Manager's own metrics in the Prometheus text exposition format 0.0.4: job queue depth and unfinished jobs by state and kind, connected agent sessions, environments by state, agents by version compatibility, open event streams and event bus subscribers, database sizes, the audit chain length and Go runtime basics. Off by default: 404 unless DOCKER_MANAGER_METRICS_ENABLED=true. Requires system.metrics.read (grant it to a dedicated API token and scrape with Authorization: Bearer). Host and container metrics are GET /environments/{environmentId}/metrics.
          */
         get: operations["get-system-metrics"];
         put?: never;
@@ -3791,7 +3791,7 @@ export interface paths {
         };
         /**
          * List update policies
-         * @description Update policies opt a DockYard stack (all or selected services) or a DockYard-managed standalone container into digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, environment and target.
+         * @description Update policies opt a Docker Manager stack (all or selected services) or a Docker Manager-managed standalone container into digest-driven updates (#20): the existing explicit tag is followed by its host-platform digest; the tag text and the user's files never change. Entries the caller cannot see are omitted; other capabilities than update_policy.read show id, name, environment and target.
          */
         get: operations["list-update-policies"];
         put?: never;
@@ -4240,7 +4240,7 @@ export interface components {
         AgentTransport: {
             customCa: boolean;
             managerUrl: string;
-            /** @description The agent uses a plain-HTTP internal URL (DOCKYARD_MANAGER_ALLOW_HTTP); flagged on the host page. */
+            /** @description The agent uses a plain-HTTP internal URL (DOCKER_AGENT_MANAGER_ALLOW_HTTP); flagged on the host page. */
             plainHttp: boolean;
         };
         ArchiveStackInputBody: {
@@ -4589,13 +4589,13 @@ export interface components {
             /** @enum {string} */
             kind: "local" | "s3";
             /**
-             * @description Local destinations: the directory on this manager (below DOCKYARD_BACKUP_LOCAL_ROOTS); it may be a new mount path.
-             * @example /backups/dockyard
+             * @description Local destinations: the directory on this manager (below DOCKER_MANAGER_BACKUP_LOCAL_ROOTS); it may be a new mount path.
+             * @example /backups/docker-manager
              */
             path?: string;
             /** @description Path-style bucket addressing (MinIO and most self-hosted S3). */
             pathStyle?: boolean;
-            /** @example dockyard */
+            /** @example docker-manager */
             prefix?: string;
             /** @description Only after a rotation that has not reached every repository, or to import a set saved before it: the previous key. */
             previousRecoveryKey?: string;
@@ -4694,8 +4694,8 @@ export interface components {
             kind: "local" | "s3";
             lastTest?: components["schemas"]["BackupConnectionTest"];
             /**
-             * @description Where the restic repositories live (no credentials). Below it: dockyard-manager and dockyard-env-<environmentId>.
-             * @example https://s3.example.com/backups/dockyard
+             * @description Where the restic repositories live (no credentials). Below it: docker-manager and docker-manager-env-<environmentId>.
+             * @example https://s3.example.com/backups/docker-manager
              */
             location?: string;
             /** @example Offsite S3 */
@@ -4831,7 +4831,7 @@ export interface components {
         BackupStackSelection: {
             /** @description Also back up anonymous volumes (default off). */
             anonymousVolumes?: boolean;
-            /** @description Absolute bind sources outside the project directory to include (e.g. ../data resolved, or /srv/data). Each also needs the agent's DOCKYARD_BACKUP_EXTERNAL_ALLOWLIST; never included implicitly. */
+            /** @description Absolute bind sources outside the project directory to include (e.g. ../data resolved, or /srv/data). Each also needs the agent's DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST; never included implicitly. */
             externalPaths?: string[];
             /** @description Paths relative to the project directory that are not backed up (relative bind sources inside the project directory are included by default). */
             pathExcludes?: string[];
@@ -4952,7 +4952,7 @@ export interface components {
             timeoutSeconds?: number;
         };
         CapabilitiesBody: {
-            /** @example dockyard.agent/v1 */
+            /** @example docker-manager.agent/v1 */
             agentProtocolVersion: string;
             /** @example v1 */
             apiVersion: string;
@@ -5081,13 +5081,13 @@ export interface components {
             labels?: {
                 [key: string]: string;
             };
-            /** @description Set for standalone containers created through DockYard. */
+            /** @description Set for standalone containers created through Docker Manager. */
             managed?: components["schemas"]["ContainerOwnership"];
             mounts?: components["schemas"]["ContainerMount"][];
             /** @example web */
             name: string;
             ports?: components["schemas"]["ContainerPort"][];
-            /** @description Set for DockYard's own containers (#32): stop, pause, update and removal are refused. */
+            /** @description Set for Docker Manager's own containers (#32): stop, pause, update and removal are refused. */
             protection?: components["schemas"]["ResourceProtection"];
             /** @description Compose project and service. */
             stack?: components["schemas"]["StackMembership"];
@@ -5120,7 +5120,7 @@ export interface components {
              * @example nginx:1.27
              */
             image: string;
-            /** @description User labels; dev.neureka.dockyard.* and com.docker.compose.* are reserved. */
+            /** @description User labels; dev.neureka.docker-manager.* and com.docker.compose.* are reserved. */
             labels?: {
                 [key: string]: string;
             };
@@ -5189,12 +5189,12 @@ export interface components {
             /** @description The container could follow its tag's digest (#20). */
             eligible: boolean;
             /**
-             * @description The saved reference of a DockYard-managed container, else the container's image.
+             * @description The saved reference of a Docker Manager-managed container, else the container's image.
              * @example nginx:1.27
              */
             image: string;
             imageId?: string;
-            /** @description A DockYard-managed standalone container with a saved recreate specification. */
+            /** @description A Docker Manager-managed standalone container with a saved recreate specification. */
             managed: boolean;
             nonVersionTag: boolean;
             platform?: string;
@@ -5264,7 +5264,7 @@ export interface components {
         ContainerOwnership: {
             /** @enum {string} */
             kind: "standalone";
-            /** @description DockYard saved the container's recreate specification (used by automatic updates, #20). */
+            /** @description Docker Manager saved the container's recreate specification (used by automatic updates, #20). */
             specSaved: boolean;
             thisInstance: boolean;
         };
@@ -5331,7 +5331,7 @@ export interface components {
             pidsLimit?: number;
         };
         ContainerRestartInputBody: {
-            /** @description Confirms a restart that interrupts DockYard (its manager or proxy, #32); without it such a restart answers 409 confirmation_required. */
+            /** @description Confirms a restart that interrupts Docker Manager (its manager or proxy, #32); without it such a restart answers 409 confirmation_required. */
             confirm?: boolean;
             /**
              * Format: int64
@@ -5397,7 +5397,7 @@ export interface components {
         };
         CreateAPITokenOutputBody: {
             apiToken: components["schemas"]["APIToken"];
-            /** @description The token value (dy_...). Shown only in this response; DockYard stores a verifier. Send it as Authorization: Bearer <token>. */
+            /** @description The token value (dy_...). Shown only in this response; Docker Manager stores a verifier. Send it as Authorization: Bearer <token>. */
             token: string;
         };
         CreateBackupRepositoryInputBody: {
@@ -5412,13 +5412,13 @@ export interface components {
             /** @example Offsite S3 */
             name: string;
             /**
-             * @description Local repositories: an absolute directory below the executor's DOCKYARD_BACKUP_LOCAL_ROOTS, outside every backup source.
-             * @example /backups/dockyard
+             * @description Local repositories: an absolute directory below the executor's DOCKER_MANAGER_BACKUP_LOCAL_ROOTS, outside every backup source.
+             * @example /backups/docker-manager
              */
             path?: string;
             /** @description Path-style bucket addressing (MinIO and most self-hosted S3). */
             pathStyle?: boolean;
-            /** @example dockyard */
+            /** @example docker-manager */
             prefix?: string;
             region?: string;
             /** @description Write-only: never returned, logged or audited. */
@@ -5438,7 +5438,7 @@ export interface components {
             /** @description Only with intent new: the enrolling host is a different machine that reports the same Docker Engine ID as an enrolled one (a cloned VM). Prefer regenerating the clone's Engine ID. */
             allowDuplicateEngineId?: boolean;
             /**
-             * @description Preset display name (otherwise the agent's DOCKYARD_ENVIRONMENT_NAME or the Engine host name).
+             * @description Preset display name (otherwise the agent's DOCKER_AGENT_ENVIRONMENT_NAME or the Engine host name).
              * @example NAS
              */
             environmentName?: string;
@@ -5487,7 +5487,7 @@ export interface components {
             expiresInHours?: number;
         };
         CreateInvitationOutputBody: {
-            /** @description The one-time code. Shown only here; DockYard stores a verifier, not the code. */
+            /** @description The one-time code. Shown only here; Docker Manager stores a verifier, not the code. */
             code: string;
             /** Format: date-time */
             expiresAt: string;
@@ -5515,7 +5515,7 @@ export interface components {
             driver?: string;
             /** @description No external connectivity. */
             internal?: boolean;
-            /** @description dev.neureka.dockyard.* and com.docker.compose.* are reserved. */
+            /** @description dev.neureka.docker-manager.* and com.docker.compose.* are reserved. */
             labels?: {
                 [key: string]: string;
             };
@@ -5625,7 +5625,7 @@ export interface components {
             driverOpts?: {
                 [key: string]: string;
             };
-            /** @description dev.neureka.dockyard.* and com.docker.compose.* are reserved. */
+            /** @description dev.neureka.docker-manager.* and com.docker.compose.* are reserved. */
             labels?: {
                 [key: string]: string;
             };
@@ -5636,7 +5636,7 @@ export interface components {
             enrollment: components["schemas"]["AgentEnrollment"];
             installCommands: components["schemas"]["InstallCommand"][];
             /**
-             * @description DOCKYARD_PUBLIC_URL, the origin remote agents dial.
+             * @description DOCKER_MANAGER_PUBLIC_URL, the origin remote agents dial.
              * @example https://docker.example.com
              */
             managerUrl: string;
@@ -5722,7 +5722,7 @@ export interface components {
         DeploymentSettings: {
             /**
              * Format: int64
-             * @description DOCKYARD_FILES_MAX_UPLOAD_MB: the largest file-manager upload; the reverse proxy's body limit must allow it.
+             * @description DOCKER_MANAGER_FILES_MAX_UPLOAD_MB: the largest file-manager upload; the reverse proxy's body limit must allow it.
              * @example 2147483648
              */
             filesMaxUploadBytes: number;
@@ -5732,24 +5732,24 @@ export interface components {
              */
             localDevelopment: boolean;
             /**
-             * @description DOCKYARD_METRICS_ENABLED: GET /api/v1/system/metrics is served.
+             * @description DOCKER_MANAGER_METRICS_ENABLED: GET /api/v1/system/metrics is served.
              * @example false
              */
             metricsEndpoint: boolean;
             /**
-             * @description DOCKYARD_PUBLIC_URL: the one public origin serving the web app, the API and agent sessions.
+             * @description DOCKER_MANAGER_PUBLIC_URL: the one public origin serving the web app, the API and agent sessions.
              * @example https://docker.example.com
              */
             publicUrl: string;
             /**
              * Format: int64
-             * @description DOCKYARD_STREAM_HEARTBEAT: SSE heartbeat and WebSocket ping interval; keep it below the reverse proxy's idle timeout.
+             * @description DOCKER_MANAGER_STREAM_HEARTBEAT: SSE heartbeat and WebSocket ping interval; keep it below the reverse proxy's idle timeout.
              * @example 15
              */
             streamHeartbeatSeconds: number;
             /**
              * Format: int64
-             * @description Number of DOCKYARD_TRUSTED_PROXIES address ranges whose X-Forwarded-* headers are honored (the ranges themselves are in the owner's support bundle).
+             * @description Number of DOCKER_MANAGER_TRUSTED_PROXIES address ranges whose X-Forwarded-* headers are honored (the ranges themselves are in the owner's support bundle).
              * @example 1
              */
             trustedProxyCount: number;
@@ -5770,7 +5770,7 @@ export interface components {
             /** @description Why it cannot be adopted in place (import it with an explicit Compose source). */
             reason?: string;
             services: components["schemas"]["DiscoveredStackService"][];
-            /** @description The DockYard stack already managing it. */
+            /** @description The Docker Manager stack already managing it. */
             stackId?: string;
             /**
              * @description Project directory from the containers' labels (host path).
@@ -6083,7 +6083,7 @@ export interface components {
             /** Format: int64 */
             heartbeatMs: number;
             /** @enum {string} */
-            version: "dockyard.environment-events/v1";
+            version: "docker-manager.environment-events/v1";
         };
         EnvironmentStreamReset: {
             cursor: string;
@@ -6228,9 +6228,9 @@ export interface components {
             id: string;
             /** @description WebSocket URL path of the session (same origin). */
             streamUrl: string;
-            /** @example dockyard.exec.v1 */
+            /** @example docker-manager.exec.v1 */
             subprotocol: string;
-            /** @description One-use attach ticket: offer it as the WebSocket subprotocol dockyard.ticket.<ticket> next to dockyard.exec.v1. Bound to this session and caller; expires with expiresAt. */
+            /** @description One-use attach ticket: offer it as the WebSocket subprotocol docker-manager.ticket.<ticket> next to docker-manager.exec.v1. Bound to this session and caller; expires with expiresAt. */
             ticket: string;
         };
         ExtractionStackInputBody: {
@@ -6493,7 +6493,7 @@ export interface components {
             labels?: {
                 [key: string]: string;
             };
-            /** @description Set for images DockYard's own containers run (#32): removal is refused. */
+            /** @description Set for images Docker Manager's own containers run (#32): removal is refused. */
             protection?: components["schemas"]["ResourceProtection"];
             /** @description Full view. */
             repoDigests?: string[];
@@ -6601,7 +6601,7 @@ export interface components {
              */
             instanceId: string;
             /**
-             * @description Display name of this DockYard (editable).
+             * @description Display name of this Docker Manager (editable).
              * @example Homelab
              */
             name: string;
@@ -6642,7 +6642,7 @@ export interface components {
             status: "pending" | "redeemed" | "expired" | "revoked";
         };
         IssuedCode: {
-            /** @description The one-time code. Shown only here; DockYard stores a verifier, not the code. */
+            /** @description The one-time code. Shown only here; Docker Manager stores a verifier, not the code. */
             code: string;
             /** Format: date-time */
             expiresAt: string;
@@ -6819,7 +6819,7 @@ export interface components {
             /** @description The topics this stream carries. */
             topics: string[];
             /** @enum {string} */
-            version: "dockyard.live/v1";
+            version: "docker-manager.live/v1";
         };
         LiveInvalidate: {
             /** @enum {string} */
@@ -7156,7 +7156,7 @@ export interface components {
         MigrationTransport: {
             /**
              * Format: int64
-             * @description DOCKYARD_MIGRATION_BANDWIDTH_LIMIT (0: unlimited).
+             * @description DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT (0: unlimited).
              */
             bandwidthLimitBytesPerSecond: number;
             destinationPlainHttp: boolean;
@@ -7211,7 +7211,7 @@ export interface components {
             };
             /** @example shop_default */
             name: string;
-            /** @description Set for DockYard's own networks (#32): removal is refused. */
+            /** @description Set for Docker Manager's own networks (#32): removal is refused. */
             protection?: components["schemas"]["ResourceProtection"];
             /** @description Full view of GET only. */
             removal?: components["schemas"]["Removal"];
@@ -7761,7 +7761,7 @@ export interface components {
              * @enum {string}
              */
             kind: "instance" | "environment" | "resource";
-            /** @description DockYard ID (stack, agent, policy, ...), Docker name (container, image, volume, network) or <stackId>/<service> for services. */
+            /** @description Docker Manager ID (stack, agent, policy, ...), Docker name (container, image, volume, network) or <stackId>/<service> for services. */
             resourceId?: string;
             /** @example container */
             resourceType?: string;
@@ -7982,7 +7982,7 @@ export interface components {
             repository: components["schemas"]["BackupRepository"];
         };
         RecoveryConfirmationInputBody: {
-            /** @description Must be true: you saved the key outside DockYard. */
+            /** @description Must be true: you saved the key outside Docker Manager. */
             backedUp: boolean;
             /**
              * @description Type (or paste) the Recovery Key. Never logged, stored or audited.
@@ -8027,7 +8027,7 @@ export interface components {
             previousFingerprint?: string;
             rotationInProgress: boolean;
             /**
-             * @description One Recovery Key opens every DockYard repository of this instance (manager and every environment, local and S3).
+             * @description One Recovery Key opens every Docker Manager repository of this instance (manager and every environment, local and S3).
              * @enum {string}
              */
             scope: "instance";
@@ -8297,7 +8297,7 @@ export interface components {
             /** @description A restart is allowed with an explicit confirmation (confirm: true); the UI disconnects while the manager restarts. */
             restartAllowed: boolean;
             /** @enum {string} */
-            role: "agent" | "manager" | "dockyard_project" | "dockyard_image" | "manager_data" | "agent_state" | "stacks" | "dockyard_volume" | "dockyard_network";
+            role: "agent" | "manager" | "docker_manager_project" | "docker_manager_image" | "manager_data" | "agent_state" | "stacks" | "docker_manager_volume" | "docker_manager_network";
             /** @description This installation's own agent or manager. */
             self: boolean;
         };
@@ -8343,7 +8343,7 @@ export interface components {
         };
         RestorePreview: {
             affectedContainers: components["schemas"]["AffectedContainer"][];
-            /** @description Why the restore cannot run as requested (running containers without shutdown, DockYard's own containers, insufficient space, paths that cannot be restored). */
+            /** @description Why the restore cannot run as requested (running containers without shutdown, Docker Manager's own containers, insufficient space, paths that cannot be restored). */
             blocked?: string[];
             canRestore: boolean;
             conflicts?: string[];
@@ -8525,7 +8525,7 @@ export interface components {
             /** @example Backups */
             label: string;
             /**
-             * @description DockYard's shipped suggestion.
+             * @description Docker Manager's shipped suggestion.
              * @example 0 2 * * *
              */
             suggested: string;
@@ -8673,7 +8673,7 @@ export interface components {
              * @example nextcloud
              */
             name: string;
-            /** @description The stack of a service, or of a container, volume or network that belongs to a DockYard stack. */
+            /** @description The stack of a service, or of a container, volume or network that belongs to a Docker Manager stack. */
             stackId?: string;
             /** @description online/offline (environments), the deployment status (stacks) or the container state. */
             status?: string;
@@ -8784,7 +8784,7 @@ export interface components {
             backupImport?: components["schemas"]["SetupBackupImport"];
             /** @description Why setup cannot complete over this request, and how to fix it. */
             explanation?: string;
-            /** @description This request reached DockYard over HTTPS on its public URL, so setup can complete. */
+            /** @description This request reached Docker Manager over HTTPS on its public URL, so setup can complete. */
             secureOrigin: boolean;
             /**
              * @description The instance owner exists; setup routes are closed.
@@ -8795,7 +8795,7 @@ export interface components {
         Stack: {
             /** @description Granted stack capabilities. */
             actions: string[];
-            /** @description Last revision deployed successfully by DockYard (absent: never deployed by DockYard). */
+            /** @description Last revision deployed successfully by Docker Manager (absent: never deployed by Docker Manager). */
             appliedRevision?: components["schemas"]["StackRevisionRef"];
             /** @description Resolved bind sources (with stack.definition.read). */
             binds?: components["schemas"]["StackBind"][];
@@ -8843,7 +8843,7 @@ export interface components {
             /** @description Newest revision observed on disk. */
             sourceRevision?: components["schemas"]["StackRevisionRef"];
             /**
-             * @description What DockYard last did to the stack (not the live Engine state, see engine).
+             * @description What Docker Manager last did to the stack (not the live Engine state, see engine).
              * @enum {string}
              */
             status: "undeployed" | "deployed" | "stopped" | "down" | "failed";
@@ -8996,12 +8996,12 @@ export interface components {
             root: "stacks" | "bind";
         };
         StackMembership: {
-            /** @description A DockYard-managed stack: direct updates and removals are refused with stack_managed. */
+            /** @description A Docker Manager-managed stack: direct updates and removals are refused with stack_managed. */
             managed: boolean;
             project: string;
             /** @description Compose service (containers). */
             service?: string;
-            /** @description The DockYard stack (#7) when the project is one. */
+            /** @description The Docker Manager stack (#7) when the project is one. */
             stackId?: string;
         };
         StackMigrationBody: {
@@ -9096,7 +9096,7 @@ export interface components {
             /** @description The service has a build section (#33). */
             build: boolean;
             dependsOn: components["schemas"]["StackDependency"][];
-            /** @description DockYard display metadata (never written to Compose files). */
+            /** @description Docker Manager display metadata (never written to Compose files). */
             description?: string;
             /** @description Lucide icon name override. */
             icon?: string;
@@ -9136,7 +9136,7 @@ export interface components {
             status: "running" | "partial" | "exited" | "created" | "missing";
         };
         StackServices: {
-            /** @description The Engine state differs from what DockYard last applied. */
+            /** @description The Engine state differs from what Docker Manager last applied. */
             drift: boolean;
             /** @description Read from the Engine now; false: the environment is offline and the last observed state is shown. */
             live: boolean;
@@ -9267,7 +9267,7 @@ export interface components {
             secret: string;
             /**
              * @description otpauth:// URI for a QR code. Shown only in this response.
-             * @example otpauth://totp/DockYard:olga?secret=JBSWY3DPEHPK3PXP&issuer=DockYard
+             * @example otpauth://totp/Docker Manager:olga?secret=JBSWY3DPEHPK3PXP&issuer=Docker Manager
              */
             uri: string;
         };
@@ -9625,7 +9625,7 @@ export interface components {
             /** @description Stack ID or container name (in the policy's environment). */
             id: string;
             /**
-             * @description stack: a DockYard stack's services; container: a DockYard-managed standalone container with a saved recreate specification.
+             * @description stack: a Docker Manager stack's services; container: a Docker Manager-managed standalone container with a saved recreate specification.
              * @enum {string}
              */
             type: "stack" | "container";
@@ -9691,7 +9691,7 @@ export interface components {
             options?: {
                 [key: string]: string;
             };
-            /** @description Set for DockYard's own volumes (#32): removal and mounting into new containers are refused. */
+            /** @description Set for Docker Manager's own volumes (#32): removal and mounting into new containers are refused. */
             protection?: components["schemas"]["ResourceProtection"];
             /** @description Full view of GET only. */
             removal?: components["schemas"]["Removal"];
@@ -11893,7 +11893,7 @@ export interface operations {
                      * @example {
                      *       "expiresAt": "2026-09-25T12:00:00Z",
                      *       "secret": "JBSWY3DPEHPK3PXP",
-                     *       "uri": "otpauth://totp/DockYard:olga?secret=JBSWY3DPEHPK3PXP&issuer=DockYard"
+                     *       "uri": "otpauth://totp/Docker Manager:olga?secret=JBSWY3DPEHPK3PXP&issuer=Docker Manager"
                      *     }
                      */
                     "application/json": components["schemas"]["TotpEnrollmentOutputBody"];
@@ -13504,7 +13504,7 @@ export interface operations {
                      *               "example"
                      *             ]
                      *           },
-                     *           "location": "https://s3.example.com/backups/dockyard",
+                     *           "location": "https://s3.example.com/backups/docker-manager",
                      *           "name": "Offsite S3",
                      *           "path": "config/app.conf",
                      *           "pathStyle": false,
@@ -13576,8 +13576,8 @@ export interface operations {
                  *       "endpoint": "https://s3.eu-central-1.amazonaws.com",
                  *       "kind": "local",
                  *       "name": "Offsite S3",
-                 *       "path": "/backups/dockyard",
-                 *       "prefix": "dockyard",
+                 *       "path": "/backups/docker-manager",
+                 *       "prefix": "docker-manager",
                  *       "verifyReadData": "5%"
                  *     }
                  */
@@ -13653,7 +13653,7 @@ export interface operations {
                      *             "example"
                      *           ]
                      *         },
-                     *         "location": "https://s3.example.com/backups/dockyard",
+                     *         "location": "https://s3.example.com/backups/docker-manager",
                      *         "name": "Offsite S3",
                      *         "path": "config/app.conf",
                      *         "pathStyle": false,
@@ -13784,7 +13784,7 @@ export interface operations {
                      *           "example"
                      *         ]
                      *       },
-                     *       "location": "https://s3.example.com/backups/dockyard",
+                     *       "location": "https://s3.example.com/backups/docker-manager",
                      *       "name": "Offsite S3",
                      *       "path": "config/app.conf",
                      *       "pathStyle": false,
@@ -14014,7 +14014,7 @@ export interface operations {
                      *           "example"
                      *         ]
                      *       },
-                     *       "location": "https://s3.example.com/backups/dockyard",
+                     *       "location": "https://s3.example.com/backups/docker-manager",
                      *       "name": "Offsite S3",
                      *       "path": "config/app.conf",
                      *       "pathStyle": false,
@@ -14579,7 +14579,7 @@ export interface operations {
                      *             "example"
                      *           ]
                      *         },
-                     *         "location": "https://s3.example.com/backups/dockyard",
+                     *         "location": "https://s3.example.com/backups/docker-manager",
                      *         "name": "Offsite S3",
                      *         "path": "config/app.conf",
                      *         "pathStyle": false,
@@ -15530,7 +15530,7 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "agentProtocolVersion": "dockyard.agent/v1",
+                     *       "agentProtocolVersion": "docker-manager.agent/v1",
                      *       "apiVersion": "v1",
                      *       "features": [
                      *         "example"
@@ -19005,7 +19005,7 @@ export interface operations {
                      *       "expiresAt": "2026-09-25T12:00:00Z",
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "streamUrl": "example",
-                     *       "subprotocol": "dockyard.exec.v1",
+                     *       "subprotocol": "docker-manager.exec.v1",
                      *       "ticket": "example"
                      *     }
                      */
@@ -19205,7 +19205,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description dockyard.exec.v1 and dockyard.ticket.<ticket>. */
+                /** @description docker-manager.exec.v1 and docker-manager.ticket.<ticket>. */
                 "Sec-WebSocket-Protocol"?: string;
             };
             path: {
@@ -26203,10 +26203,10 @@ export interface operations {
                 "If-Match"?: string;
                 /** @description * creates only (412 when the name exists). */
                 "If-None-Match"?: string;
-                /** @description Required (411 otherwise); at most DOCKYARD_FILES_MAX_UPLOAD (default 2 GiB, 413). */
+                /** @description Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413). */
                 "Content-Length"?: number;
                 /** @description Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch). */
-                "X-DockYard-Content-SHA256"?: string;
+                "X-Docker-Manager-Content-SHA256"?: string;
             };
             path: {
                 /** @description Environment ID. */
@@ -33701,8 +33701,8 @@ export interface operations {
                  * @example {
                  *       "endpoint": "https://s3.eu-central-1.amazonaws.com",
                  *       "kind": "local",
-                 *       "path": "/backups/dockyard",
-                 *       "prefix": "dockyard",
+                 *       "path": "/backups/docker-manager",
+                 *       "prefix": "docker-manager",
                  *       "recoveryKey": "example"
                  *     }
                  */
@@ -33825,8 +33825,8 @@ export interface operations {
                  * @example {
                  *       "endpoint": "https://s3.eu-central-1.amazonaws.com",
                  *       "kind": "local",
-                 *       "path": "/backups/dockyard",
-                 *       "prefix": "dockyard",
+                 *       "path": "/backups/docker-manager",
+                 *       "prefix": "docker-manager",
                  *       "recoveryKey": "example"
                  *     }
                  */
@@ -33981,8 +33981,8 @@ export interface operations {
                  * @example {
                  *       "endpoint": "https://s3.eu-central-1.amazonaws.com",
                  *       "kind": "local",
-                 *       "path": "/backups/dockyard",
-                 *       "prefix": "dockyard",
+                 *       "path": "/backups/docker-manager",
+                 *       "prefix": "docker-manager",
                  *       "recoveryKey": "example"
                  *     }
                  */
@@ -37711,10 +37711,10 @@ export interface operations {
                 "If-Match"?: string;
                 /** @description * creates only (412 when the name exists). */
                 "If-None-Match"?: string;
-                /** @description Required (411 otherwise); at most DOCKYARD_FILES_MAX_UPLOAD (default 2 GiB, 413). */
+                /** @description Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413). */
                 "Content-Length"?: number;
                 /** @description Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch). */
-                "X-DockYard-Content-SHA256"?: string;
+                "X-Docker-Manager-Content-SHA256"?: string;
             };
             path: {
                 /** @description Stack ID. */

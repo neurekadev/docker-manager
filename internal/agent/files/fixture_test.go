@@ -16,15 +16,15 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/streammux"
-	"github.com/neurekadev/dockyard/internal/streammux/muxtest"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux/muxtest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // fakeEngine serves volumes from a map (name -> volume) and lists
@@ -92,7 +92,7 @@ func newFixture(t *testing.T, mods ...func(*Options)) *fixture {
 	base := realPath(t, t.TempDir())
 	f := &fixture{t: t, ctx: testutil.Context(t), base: base}
 	f.root = filepath.Join(base, "data", "_data")
-	stacks := filepath.Join(base, "dockyard_stacks", "_data")
+	stacks := filepath.Join(base, "docker-manager_stacks", "_data")
 	f.stack = filepath.Join(stacks, "app")
 	f.outside = filepath.Join(base, "outside")
 	for _, d := range []string{f.root, f.stack, f.outside} {
@@ -105,11 +105,11 @@ func newFixture(t *testing.T, mods ...func(*Options)) *fixture {
 		t.Fatal(err)
 	}
 	f.eng = &fakeEngine{volumes: map[string]engine.Volume{
-		"data":            {Name: "data", Driver: "local", Mountpoint: slash(f.root)},
-		"dockyard_stacks": {Name: "dockyard_stacks", Driver: "local", Mountpoint: slash(stacks)},
-		"nfs":             {Name: "nfs", Driver: "local", Mountpoint: slash(filepath.Join(base, "nfs", "_data")), Options: map[string]string{"type": "nfs", "o": "addr=10.0.0.1"}},
-		"plugin":          {Name: "plugin", Driver: "rexray/ebs", Mountpoint: "/var/lib/rexray/volumes/plugin"},
-		"agentstate":      {Name: "agentstate", Driver: "local", Mountpoint: slash(filepath.Join(base, "agentstate", "_data"))},
+		"data":                  {Name: "data", Driver: "local", Mountpoint: slash(f.root)},
+		"docker-manager_stacks": {Name: "docker-manager_stacks", Driver: "local", Mountpoint: slash(stacks)},
+		"nfs":                   {Name: "nfs", Driver: "local", Mountpoint: slash(filepath.Join(base, "nfs", "_data")), Options: map[string]string{"type": "nfs", "o": "addr=10.0.0.1"}},
+		"plugin":                {Name: "plugin", Driver: "rexray/ebs", Mountpoint: "/var/lib/rexray/volumes/plugin"},
+		"agentstate":            {Name: "agentstate", Driver: "local", Mountpoint: slash(filepath.Join(base, "agentstate", "_data"))},
 	}, containers: []engine.Container{{ID: "a", Labels: map[string]string{RoleLabel: "agent"},
 		Mounts: []engine.Mount{{Type: "volume", Name: "agentstate"}}}}}
 	st := &storage.Result{DockerRootDir: slash(filepath.Dir(base)), VolumesDir: slash(base), StacksDir: slash(stacks),

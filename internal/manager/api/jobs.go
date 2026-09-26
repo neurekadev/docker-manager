@@ -11,10 +11,10 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/logging"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/server/sse"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/sse"
 )
 
 const tagJobs = "Jobs"
@@ -36,7 +36,7 @@ type JobService interface {
 }
 
 // DefaultSSEHeartbeat is the keep-alive interval of event streams
-// (DOCKYARD_STREAM_HEARTBEAT overrides it via Deps.SSEHeartbeat).
+// (DOCKER_MANAGER_STREAM_HEARTBEAT overrides it via Deps.SSEHeartbeat).
 const DefaultSSEHeartbeat = sse.DefaultHeartbeat
 
 // JobTarget is a resource a job acts on.

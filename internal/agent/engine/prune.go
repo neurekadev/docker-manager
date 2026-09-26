@@ -8,7 +8,7 @@ import (
 	"github.com/moby/moby/client"
 )
 
-// Build cache and disk usage for prune policies (#14). DockYard never calls
+// Build cache and disk usage for prune policies (#14). Docker Manager never calls
 // the Engine's broad prune endpoints (container/image/network/volume/system
 // prune): it lists, filters and removes each candidate itself, so item-level
 // exclusions and protections always hold. The one exception is the build

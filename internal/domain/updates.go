@@ -6,8 +6,8 @@ import (
 )
 
 // Digest-driven automatic updates (#20, #9). An update policy opts one
-// DockYard-managed stack (all of its services, or the listed ones minus
-// exclusions) or one DockYard-managed standalone container into following
+// Docker Manager-managed stack (all of its services, or the listed ones minus
+// exclusions) or one Docker Manager-managed standalone container into following
 // the digest behind its existing explicit tag. Checks compare the
 // registry's host-platform manifest digest with the digest applied on the
 // host; runs pull the unchanged tagged reference and recreate what

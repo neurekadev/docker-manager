@@ -4,16 +4,16 @@ import (
 	"strings"
 )
 
-// Snapshot tags. Every snapshot DockYard writes carries TagDockYard, its
+// Snapshot tags. Every snapshot Docker Manager writes carries TagDockerManager, its
 // set and its item, so repositories stay self-describing without the
 // manager database (#24).
 const (
-	// TagDockYard marks data snapshots written by DockYard.
-	TagDockYard = "dockyard"
+	// TagDockerManager marks data snapshots written by Docker Manager.
+	TagDockerManager = "docker-manager"
 	// TagManifest marks manifest snapshots (one small file).
-	TagManifest = "dockyard-manifest"
+	TagManifest = "docker-manager-manifest"
 	// TagManagerState marks manager-state snapshots.
-	TagManagerState = "dockyard-manager-state"
+	TagManagerState = "docker-manager-state"
 
 	tagSet    = "set:"
 	tagPolicy = "policy:"
@@ -61,4 +61,4 @@ func PolicyOf(tags []string) string { return TagValue(tags, tagPolicy) }
 func ItemOf(tags []string) string { return TagValue(tags, tagItem) }
 
 // ManifestFile is the file name of manifest snapshots.
-const ManifestFile = "dockyard-manifest.json"
+const ManifestFile = "docker-manager-manifest.json"

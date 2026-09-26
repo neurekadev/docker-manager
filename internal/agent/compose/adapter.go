@@ -7,7 +7,7 @@
 // credentials: nothing is read from or written to a Docker config, no
 // credential helper, Docker CLI or CLI plugin is executed (#19).
 //
-// Images for services with a build section are built by DockYard through
+// Images for services with a build section are built by Docker Manager through
 // the Engine's BuildKit (engine.Client.Build) before the SDK runs, because
 // the SDK can only use BuildKit through the buildx CLI plugin and otherwise
 // falls back to the deprecated legacy builder (#33).
@@ -34,9 +34,9 @@ import (
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
 )
 
 // Options configures an Adapter.
@@ -77,12 +77,12 @@ func New(ctx context.Context, opts Options) (*Adapter, error) {
 	}
 	logrusOnce.Do(func() { routeLogrus(opts.Logger) })
 	// The docker/cli config store would read credentials from this
-	// variable; DockYard passes credentials per operation only.
+	// variable; Docker Manager passes credentials per operation only.
 	if os.Getenv("DOCKER_AUTH_CONFIG") != "" {
 		opts.Logger.Warn("ignoring DOCKER_AUTH_CONFIG: registry credentials come from the manager per operation")
 		_ = os.Unsetenv("DOCKER_AUTH_CONFIG")
 	}
-	api, err := client.New(client.WithHost(opts.Host), client.WithUserAgent("dockyard-agent/"+buildinfo.Get().Version+" compose-sdk"))
+	api, err := client.New(client.WithHost(opts.Host), client.WithUserAgent("docker-agent/"+buildinfo.Get().Version+" compose-sdk"))
 	if err != nil {
 		return nil, engine.Errorf(op, engine.CodeInvalidArgument, "invalid Engine host: %v", err)
 	}

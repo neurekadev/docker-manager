@@ -9,9 +9,9 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/cron"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/cron"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // Defaults returns the schedule defaults: the instance's default time zone
@@ -249,6 +249,6 @@ func notes(k *Kind, gap, repeated bool) []string {
 		"Overlaps: a run is skipped (and recorded) while the policy's previous run is still active.",
 		"Offline environments: the run's job waits for the environment's agent up to the job kind's deadline, then fails "+
 			"with agent_offline; the schedule history shows the job's result.",
-		"Scheduled runs use DockYard's internal service identity, not the account that created the policy.",
+		"Scheduled runs use Docker Manager's internal service identity, not the account that created the policy.",
 	)
 }

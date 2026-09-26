@@ -57,7 +57,7 @@ type MaintenanceRule struct {
 	VolumeOptIn bool
 }
 
-// SuggestedMaintenanceRules are DockYard's shipped suggestions: every rule
+// SuggestedMaintenanceRules are Docker Manager's shipped suggestions: every rule
 // disabled, a 30-day threshold, stopped (exited or dead) containers only,
 // dangling build cache only. Suggestions prefill new policies; they never
 // authorize a run.

@@ -316,7 +316,7 @@
 				title={p.name}
 				icon={PackageCheck}
 				color="violet"
-				description="Follows the digests behind the tags of every stack and DockYard-managed container in scope. Your Compose files and tags never change."
+				description="Follows the digests behind the tags of every stack and Docker Manager-managed container in scope. Your Compose files and tags never change."
 				meta={[{ icon: Server, label: scopeLabel(p) }]}
 			>
 				{#snippet actions()}
@@ -401,7 +401,7 @@
 
 			<Card
 				title="Targets"
-				subtitle="Managed stacks and DockYard-managed standalone containers in scope, unless excluded."
+				subtitle="Managed stacks and Docker Manager-managed standalone containers in scope, unless excluded."
 				padding="none"
 			>
 				{#if targets.isPending}
@@ -425,7 +425,7 @@
 								icon={PackageCheck}
 								color="violet"
 								title="Nothing to update in this scope."
-								description="Stacks deployed by DockYard and standalone containers it created appear here."
+								description="Stacks deployed by Docker Manager and standalone containers it created appear here."
 								level={3}
 								compact
 							/>{/snippet}

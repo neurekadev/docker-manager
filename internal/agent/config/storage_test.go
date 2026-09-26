@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/envconfig"
+	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
 )
 
 func TestStorageDefaults(t *testing.T) {

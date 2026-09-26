@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/testutil"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 // API tokens (#31) through the real manager: identity middleware, the
@@ -571,7 +571,7 @@ func TestOwnerAndSessionRoutesRefuseAPITokens(t *testing.T) {
 	var spec struct {
 		Paths map[string]map[string]struct {
 			OperationID string                `json:"operationId"`
-			Capability  string                `json:"x-dockyard-capability"`
+			Capability  string                `json:"x-docker-manager-capability"`
 			Security    []map[string][]string `json:"security"`
 		} `json:"paths"`
 	}

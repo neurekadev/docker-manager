@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Error is a failed enrollment.

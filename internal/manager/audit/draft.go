@@ -5,8 +5,8 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 )
 
 // Draft is the audit record of the request being served. api.Register

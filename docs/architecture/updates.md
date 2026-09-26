@@ -1,6 +1,6 @@
 # Digest-driven updates (#20)
 
-An environment update policy covers DockYard-managed stacks and standalone
+An environment update policy covers Docker Manager-managed stacks and standalone
 containers in one environment or all environments, minus explicit exclusions.
 Covered targets follow the digest
 behind its **existing explicit tag**. The tag text never changes, and no
@@ -27,15 +27,15 @@ records are created and refreshed as stacks and containers are discovered;
 users configure the environment policy, not those records. A policy may
 exclude stack IDs and standalone container names (an all-environments policy
 uses `environmentID/containerName`). A container with
-`dockyard.update.exclude=true` is also omitted.
+`docker-manager.update.exclude=true` is also omitted.
 
 Covered targets:
 
-- **stack**: every service of every covered managed stack. DockYard's own
+- **stack**: every service of every covered managed stack. Docker Manager's own
   Compose project is refused (#32).
-- **container**: a DockYard-managed standalone container with a saved
+- **container**: a Docker Manager-managed standalone container with a saved
   recreate specification (#6 `ManagedSpec`). Unmanaged containers, stack
-  members and DockYard's own containers are refused
+  members and Docker Manager's own containers are refused
   (`409 update_target_ineligible`): they are never recreated automatically.
 
 Each environment policy has a **check schedule** (`update_check`, default `0 3 * * *`)
@@ -65,7 +65,7 @@ Never inferred from tag text or image creation time:
 | `pull_policy_conflict` | Compose `pull_policy` other than `missing`/`if_not_present`: `never`/`build` keep the image local; `always` and periodic policies pull on their own at every up and would bypass the checked candidate and its quarantine |
 | `invalid_reference` | unparsable reference |
 | `excluded` | not opted in by the policy |
-| `not_deployed` / `no_applied_digest` | DockYard never deployed the service, or its image has no registry digest (built or loaded locally) |
+| `not_deployed` / `no_applied_digest` | Docker Manager never deployed the service, or its image has no registry digest (built or loaded locally) |
 | `protected` / `stack_managed` / `no_recreate_spec` | container targets (see above) |
 
 Explicit tags are eligible **including `latest` and branch tags** (#25);
@@ -111,7 +111,7 @@ A registry failure (`unauthorized`, `forbidden`, `rate_limited`,
 on the candidate (`check_failed`) with its message and `retryAfterSeconds`;
 nothing is pulled. A check never pulls. For stacks the definition is read
 (`compose.read`) before and after; a change in between fails the check
-with `source_changed` (DockYard never writes it).
+with `source_changed` (Docker Manager never writes it).
 
 ## Preview and run
 
@@ -169,7 +169,7 @@ new one created from the **saved specification with the unchanged
 reference** (anonymous volumes carried over, extra networks connected) and
 started when the old one ran; the old one is removed once the replacement
 exists. A failed create puts the old container back. The agent refuses
-DockYard's own containers (`protected`) and containers replaced since the
+Docker Manager's own containers (`protected`) and containers replaced since the
 plan (`container_recreated`).
 
 **No automatic rollback.** When a failure happens after containers were

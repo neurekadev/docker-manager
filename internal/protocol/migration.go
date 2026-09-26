@@ -25,8 +25,8 @@ import (
 const LabelMigration = LabelPrefix + "migration"
 
 // MigrationStagingDir is the directory of the stacks volume that holds
-// in-progress migrations (<stacks>/.dockyard-migrations/<migrationId>).
-const MigrationStagingDir = ".dockyard-migrations"
+// in-progress migrations (<stacks>/.docker-manager-migrations/<migrationId>).
+const MigrationStagingDir = ".docker-manager-migrations"
 
 // Migration parts (one stream pair each).
 const (
@@ -90,7 +90,7 @@ type MigrationServiceFacts struct {
 	ImagePlatform string   `json:"imagePlatform,omitempty"`
 	ImageSize     int64    `json:"imageSize,omitempty"`
 	RepoDigests   []string `json:"repoDigests,omitempty"`
-	// ImageProtected: the image is DockYard's own (#32).
+	// ImageProtected: the image is Docker Manager's own (#32).
 	ImageProtected bool            `json:"imageProtected,omitempty"`
 	Ports          []MigrationPort `json:"ports,omitempty"`
 	Devices        []string        `json:"devices,omitempty"`
@@ -122,7 +122,7 @@ type MigrationVolumeFacts struct {
 	// Reason explains otherwise (definition only, data not migrated).
 	Supported bool   `json:"supported"`
 	Reason    string `json:"reason,omitempty"`
-	// Protected: DockYard's own volume (#32), never migrated.
+	// Protected: Docker Manager's own volume (#32), never migrated.
 	Protected bool              `json:"protected,omitempty"`
 	Labels    map[string]string `json:"labels,omitempty"`
 	// Bytes and Entries measure the data (Truncated: a lower bound, the
@@ -146,7 +146,7 @@ type MigrationProjectFacts struct {
 	Name string `json:"name"`
 	// Dir is the project directory's host path.
 	Dir string `json:"dir"`
-	// Protected: DockYard's own Compose project (#32).
+	// Protected: Docker Manager's own Compose project (#32).
 	Protected        bool                    `json:"protected,omitempty"`
 	ProtectionReason string                  `json:"protectionReason,omitempty"`
 	Services         []MigrationServiceFacts `json:"services"`
@@ -400,7 +400,7 @@ func (in MigrationReceiveInput) Validate() error {
 }
 
 // validMigratedLabels checks the labels copied from a source volume:
-// Compose's labels are kept (so Compose adopts the volume), DockYard's own
+// Compose's labels are kept (so Compose adopts the volume), Docker Manager's own
 // prefix is refused (the agent sets LabelMigration itself).
 func validMigratedLabels(labels map[string]string) error {
 	if len(labels) > 64 {

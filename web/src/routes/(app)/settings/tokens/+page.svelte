@@ -30,7 +30,7 @@
 <Page>
 	<SettingsHeader
 		title="API tokens"
-		description="Tokens let scripts call the DockYard API as you, with only the actions you grant them. A token never exceeds your current permissions."
+		description="Tokens let scripts call the Docker Manager API as you, with only the actions you grant them. A token never exceeds your current permissions."
 	>
 		{#snippet actions()}
 			{#if access.owner}
@@ -55,7 +55,7 @@
 						title="No API tokens yet."
 						description={can(access, 'api_tokens.create')
 							? 'Create one for a script or an integration, with just the actions it needs.'
-							: 'Creating tokens needs the Create API tokens permission; ask the owner of this DockYard.'}
+							: 'Creating tokens needs the Create API tokens permission; ask the owner of this Docker Manager.'}
 						level={3}
 						compact
 					>

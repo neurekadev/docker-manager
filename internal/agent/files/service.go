@@ -5,7 +5,7 @@
 // move, delete, chmod/chown). Every operation works inside one root: a
 // stack's project directory (in a verified stack root, #28) or a local
 // Docker volume's data directory (storage.Result.AccessFor; non-local
-// drivers and DockYard's own volumes are refused).
+// drivers and Docker Manager's own volumes are refused).
 //
 // Containment: every file access goes through an *os.Root opened on the
 // scope directory. os.Root resolves each path component relative to an
@@ -31,7 +31,7 @@
 //     actually writes against size, ratio and entry limits.
 //
 // Residual risks (documented in docs/api/files.md): files are replaced by
-// rename, so a concurrent writer outside DockYard can still change a file
+// rename, so a concurrent writer outside Docker Manager can still change a file
 // between the precondition check and the rename (the window is a few
 // syscalls); bind mounts inside a volume are traversed like directories
 // (os.Root does not stop at mount points); os.Root on Linux does not use
@@ -59,11 +59,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/storage"
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Engine is the part of the Engine adapter the service needs.
@@ -72,9 +72,9 @@ type Engine interface {
 	ListContainers(ctx context.Context, f engine.ContainerFilter) ([]engine.Container, error)
 }
 
-// RoleLabel marks DockYard's own containers (deploy/*/compose.yaml); the
+// RoleLabel marks Docker Manager's own containers (deploy/*/compose.yaml); the
 // volumes they mount are never served by the file manager.
-const RoleLabel = "dev.neureka.dockyard.role"
+const RoleLabel = "dev.neureka.docker-manager.role"
 
 // Limits bound the service's work.
 type Limits struct {
@@ -131,7 +131,7 @@ type Options struct {
 	Clock   clock.Clock
 	Logger  *slog.Logger
 	Limits  Limits
-	// Invalidate is called with the paths DockYard changed in a scope, so
+	// Invalidate is called with the paths Docker Manager changed in a scope, so
 	// other open views refresh (the runtime relays it as fs_invalidation,
 	// #23). Must not block.
 	Invalidate func(protocol.FSInvalidationPayload)
@@ -358,15 +358,15 @@ func (s *Service) volumeDir(ctx context.Context, st *storage.Result, name string
 	}
 	protected, err := s.protectedVolumes(ctx, eng)
 	if err != nil {
-		return "", fail(protocol.CodeEngineUnavailable, "cannot list DockYard's own containers")
+		return "", fail(protocol.CodeEngineUnavailable, "cannot list Docker Manager's own containers")
 	}
 	if slices.Contains(protected, v.Name) {
-		return "", fail(protocol.CodeUnsupportedVolume, "volume %s holds DockYard's own data and is not served by the file manager", name)
+		return "", fail(protocol.CodeUnsupportedVolume, "volume %s holds Docker Manager's own data and is not served by the file manager", name)
 	}
 	return mp, nil
 }
 
-// protectedVolumes lists the volumes mounted by DockYard's own containers
+// protectedVolumes lists the volumes mounted by Docker Manager's own containers
 // (manager data, agent state).
 func (s *Service) protectedVolumes(ctx context.Context, eng Engine) ([]string, error) {
 	cs, err := eng.ListContainers(ctx, engine.ContainerFilter{All: true, Labels: []string{RoleLabel}})

@@ -31,7 +31,7 @@
 	{:else if !can(accessOf(perms.data), 'backup_policy.manage')}
 		<DeniedState
 			title="You can't create backup policies."
-			description="Ask the owner of this DockYard for the Manage backup policies permission."
+			description="Ask the owner of this Docker Manager for the Manage backup policies permission."
 			level={2}
 		/>
 	{:else}

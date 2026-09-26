@@ -41,7 +41,7 @@ function pagePatterns(): { file: string; re: RegExp }[] {
 const pages = pagePatterns();
 
 function resolves(url: string): boolean {
-	const path = new URL(url, 'http://dockyard.test').pathname;
+	const path = new URL(url, 'http://docker-manager.test').pathname;
 	return pages.some((p) => p.re.test(path));
 }
 

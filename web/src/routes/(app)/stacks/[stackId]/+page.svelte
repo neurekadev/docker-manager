@@ -116,7 +116,7 @@
 	/>
 
 	{#if drifted.length}
-		<Notice tone="warn" title="The Engine differs from what DockYard deployed.">
+		<Notice tone="warn" title="The Engine differs from what Docker Manager deployed.">
 			<ul class="drift">
 				{#each drifted as s (s.name)}
 					<li>

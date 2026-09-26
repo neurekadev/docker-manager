@@ -142,7 +142,7 @@
 		<DeniedState
 			level={1}
 			title="Only the owner invites users."
-			description="Invitations are issued by the owner of this DockYard."
+			description="Invitations are issued by the owner of this Docker Manager."
 		/>
 	{:else}
 		<AccessHeader>

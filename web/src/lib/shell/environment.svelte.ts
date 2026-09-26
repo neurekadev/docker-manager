@@ -2,7 +2,7 @@
 // or null for "All environments", remembered per user.
 //
 // Decision (#22): there is no user-preferences API in v1, so the choice is
-// kept in localStorage under dockyard:environment:<userId>, holding the
+// kept in localStorage under docker-manager:environment:<userId>, holding the
 // environment ID only (not sensitive; no API data, no tokens). A stored ID
 // the user can no longer see falls back to "All environments". Lists read
 // `environmentSelection.id` to filter; breadcrumbs show the environment as
@@ -14,7 +14,7 @@ export interface StorageLike {
 	removeItem(key: string): void;
 }
 
-const PREFIX = 'dockyard:environment:';
+const PREFIX = 'docker-manager:environment:';
 
 function browserStorage(): StorageLike | null {
 	try {

@@ -97,14 +97,18 @@
 		{
 			id: 'key',
 			label: 'Recovery Key',
-			description: 'The key that decrypts every backup of this DockYard.'
+			description: 'The key that decrypts every backup of this Docker Manager.'
 		},
 		{
 			id: 'confirm',
 			label: 'Confirm the key',
 			description: 'Prove you saved it. Nothing is written before.'
 		},
-		{ id: 'test', label: 'Test', description: 'Check that DockYard can read and write there.' }
+		{
+			id: 'test',
+			label: 'Test',
+			description: 'Check that Docker Manager can read and write there.'
+		}
 	];
 
 	const canAdvance = $derived(
@@ -188,14 +192,14 @@
 <Page narrow>
 	<PageHeader
 		title="Add backup repository"
-		description="A local directory or an S3 bucket. DockYard keeps one restic repository per scope below it: the manager and each environment."
+		description="A local directory or an S3 bucket. Docker Manager keeps one restic repository per scope below it: the manager and each environment."
 	/>
 	{#if perms.isPending}
 		<Skeleton lines={6} height="36px" />
 	{:else if !perms.data?.owner}
 		<DeniedState
 			title="Only the owner adds backup repositories."
-			description="Repositories and the Recovery Key are administered by the owner of this DockYard."
+			description="Repositories and the Recovery Key are administered by the owner of this Docker Manager."
 			level={2}
 		/>
 	{:else}
@@ -240,7 +244,7 @@
 								<SecretReveal
 									secret={created.recoveryKey.key}
 									label="Recovery Key"
-									filename="dockyard-recovery-key.txt"
+									filename="docker-manager-recovery-key.txt"
 									fingerprint={created.recoveryKey.fingerprint}
 									description={RECOVERY_KEY_WARNING}
 									confirmLabel="I saved it, continue"
@@ -270,8 +274,8 @@
 					{:else if s.id === 'confirm'}
 						{#if confirmed}
 							<Notice tone="info" title="Recovery Key confirmed" live="status">
-								{confirmed.repository.name} is ready. DockYard is initializing its restic
-								repositories now.
+								{confirmed.repository.name} is ready. Docker Manager is initializing its
+								restic repositories now.
 							</Notice>
 							{#each confirmed.jobs ?? [] as j (j.id)}
 								<JobProgress

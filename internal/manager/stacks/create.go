@@ -10,11 +10,11 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/ids"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/ids"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Definition files a stack can be created or imported with. Other files
@@ -230,7 +230,7 @@ func (s *Service) Create(ctx context.Context, p authz.Principal, r domain.StackC
 }
 
 // Discovered lists the environment's Compose projects (read-only), with
-// the DockYard stack managing each one, if any.
+// the Docker Manager stack managing each one, if any.
 func (s *Service) Discovered(ctx context.Context, environmentID string) ([]domain.DiscoveredStack, error) {
 	if _, err := s.activeEnvironment(ctx, environmentID); err != nil {
 		return nil, err
@@ -248,7 +248,7 @@ func (s *Service) Discovered(ctx context.Context, environmentID string) ([]domai
 		}
 		if st, err := store.FindStackByName(ctx, s.db, environmentID, p.Name); err == nil {
 			d.StackID = st.ID
-			d.Adoptable, d.Reason = false, "already managed by DockYard"
+			d.Adoptable, d.Reason = false, "already managed by Docker Manager"
 		}
 		list = append(list, d)
 	}

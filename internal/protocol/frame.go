@@ -1,5 +1,5 @@
 // Package protocol defines the private manager<->agent session protocol
-// (dockyard.agent/v1): a JSON frame envelope exchanged over one WebSocket
+// (docker-manager.agent/v1): a JSON frame envelope exchanged over one WebSocket
 // that the agent dials out to /agent/v1/session.
 //
 // The normative specification is docs/protocol/agent-v1.md (#4): enrollment,
@@ -23,7 +23,7 @@ import (
 
 // Version is the protocol identifier negotiated in the hello frame and used
 // as the WebSocket subprotocol.
-const Version = "dockyard.agent/v1"
+const Version = "docker-manager.agent/v1"
 
 // MaxFrameSize bounds an encoded frame (bytes). Larger payloads (logs, file
 // transfers) must be split into stream_data frames.

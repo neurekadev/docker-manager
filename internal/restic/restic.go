@@ -1,9 +1,9 @@
-// Package restic runs the pinned restic executable for DockYard backups
+// Package restic runs the pinned restic executable for Docker Manager backups
 // (#10): manager-state snapshots on the manager, stack and volume data on
 // the agents. Both images ship the same checksum-verified restic release at
 // DefaultBinary; nothing depends on a host-installed restic.
 //
-// The package is the only place in DockYard that executes a process for
+// The package is the only place in Docker Manager that executes a process for
 // backups (the lint exclusion names runner.go). Its rules:
 //
 //   - Secrets never appear in arguments: the repository password (the
@@ -31,7 +31,7 @@ import (
 	"time"
 )
 
-// DefaultBinary is where both DockYard images install restic.
+// DefaultBinary is where both Docker Manager images install restic.
 const DefaultBinary = "/usr/local/bin/restic"
 
 // Version is the pinned restic release (deploy/docker/*.Dockerfile).
@@ -352,7 +352,7 @@ func RecoveryFor(code string) string {
 	case CodeRepositoryExists:
 		return "A repository already exists at this location; connect it instead of initializing a new one."
 	case CodeUnavailable:
-		return "The restic executable is missing from the image. Use the official DockYard images."
+		return "The restic executable is missing from the image. Use the official Docker Manager images."
 	case CodeCancelled:
 		return "The operation was cancelled; run it again when needed."
 	}

@@ -6,14 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protection"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 type journal struct{}
@@ -21,7 +21,7 @@ type journal struct{}
 func (journal) Save(context.Context, *jobexec.State) error { return nil }
 
 // TestGuardStacks (#32): the agent refuses stack jobs that would deploy,
-// stop, restart or take down DockYard's own Compose project, whatever the
+// stop, restart or take down Docker Manager's own Compose project, whatever the
 // manager sent; start and other projects run.
 func TestGuardStacks(t *testing.T) {
 	fe := enginefake.New("ENG")
@@ -53,11 +53,11 @@ func TestGuardStacks(t *testing.T) {
 		return res
 	}
 	for _, kind := range []domain.JobKind{jobspec.StackStop, jobspec.StackDown} {
-		if res := run(kind, "dockyard"); res.Outcome != jobexec.OutcomeFailed || res.ErrorClass != protection.CodeProtected {
-			t.Errorf("%s of DockYard's project: %+v", kind, res)
+		if res := run(kind, "docker-manager"); res.Outcome != jobexec.OutcomeFailed || res.ErrorClass != protection.CodeProtected {
+			t.Errorf("%s of Docker Manager's project: %+v", kind, res)
 		}
 	}
-	if res := run(jobspec.StackStart, "dockyard"); res.Outcome != jobexec.OutcomeSucceeded {
+	if res := run(jobspec.StackStart, "docker-manager"); res.Outcome != jobexec.OutcomeSucceeded {
 		t.Errorf("start: %+v", res)
 	}
 	if res := run(jobspec.StackStop, "shop"); res.Outcome != jobexec.OutcomeSucceeded {
@@ -68,10 +68,10 @@ func TestGuardStacks(t *testing.T) {
 	}
 }
 
-// TestGuardStacksRefusesUpdatesOfDockYardProject (#32 × #20): an
-// update.run the manager sent for DockYard's own Compose project is
+// TestGuardStacksRefusesUpdatesOfDockerManagerProject (#32 × #20): an
+// update.run the manager sent for Docker Manager's own Compose project is
 // refused by the agent before any step acts; other projects' updates run.
-func TestGuardStacksRefusesUpdatesOfDockYardProject(t *testing.T) {
+func TestGuardStacksRefusesUpdatesOfDockerManagerProject(t *testing.T) {
 	fe := enginefake.New("ENG")
 	d := fe.Deploy(true)
 	g := New(Options{SelfContainerID: d.AgentID, StacksVolume: d.Stacks})
@@ -94,11 +94,11 @@ func TestGuardStacksRefusesUpdatesOfDockYardProject(t *testing.T) {
 		}
 		return res
 	}
-	if res := run("dockyard"); res.Outcome != jobexec.OutcomeFailed || res.ErrorClass != protection.CodeProtected {
-		t.Fatalf("update of DockYard's project: %+v", res)
+	if res := run("docker-manager"); res.Outcome != jobexec.OutcomeFailed || res.ErrorClass != protection.CodeProtected {
+		t.Fatalf("update of Docker Manager's project: %+v", res)
 	}
 	if len(ran) != 0 {
-		t.Fatalf("a step ran for DockYard's project: %v", ran)
+		t.Fatalf("a step ran for Docker Manager's project: %v", ran)
 	}
 	if res := run("shop"); res.Outcome != jobexec.OutcomeSucceeded || len(ran) != len(spec.Steps) {
 		t.Fatalf("update of another project: %+v (steps %v)", res, ran)

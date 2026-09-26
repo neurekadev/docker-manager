@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Import from backup (#10, #24): a new, empty DockYard recovers the
+	// Import from backup (#10, #24): a new, empty Docker Manager recovers the
 	// manager from its backups before any owner exists. Destination (local
 	// or S3 with newly issued keys) and the Recovery Key → connection test
 	// (which repositories open, with which key) → the backup sets found in
@@ -107,7 +107,7 @@
 		{
 			id: 'test',
 			label: 'Check access',
-			description: 'Which repositories this DockYard can open.'
+			description: 'Which repositories this Docker Manager can open.'
 		},
 		{
 			id: 'set',
@@ -192,17 +192,18 @@
 	}
 </script>
 
-<svelte:head><title>Import from backup · DockYard</title></svelte:head>
+<svelte:head><title>Import from backup · Docker Manager</title></svelte:head>
 
 <div class="stack">
 	<header>
 		<a class="back" href={routes.setup()}
-			><ArrowLeft size={14} aria-hidden="true" /> Set up a new DockYard instead</a
+			><ArrowLeft size={14} aria-hidden="true" /> Set up a new Docker Manager instead</a
 		>
 		<h1>Import from backup</h1>
 		<p class="lead">
-			Recover a DockYard from its backups on this new, empty manager. You need the backup
-			location, its access keys if it is S3, and your Recovery Key; not the old manager.
+			Recover a Docker Manager from its backups on this new, empty manager. You need the
+			backup location, its access keys if it is S3, and your Recovery Key; not the old
+			manager.
 		</p>
 	</header>
 
@@ -213,11 +214,11 @@
 			<Notice
 				tone="danger"
 				icon={ShieldAlert}
-				title="Import on DockYard's public URL"
+				title="Import on Docker Manager's public URL"
 				live="alert"
 			>
 				{status.data?.explanation ??
-					'This request did not reach DockYard over HTTPS on DOCKYARD_PUBLIC_URL.'}
+					'This request did not reach Docker Manager over HTTPS on DOCKER_MANAGER_PUBLIC_URL.'}
 			</Notice>
 		{/if}
 		<StepWizard
@@ -235,7 +236,7 @@
 					<Fields>
 						<DestinationFields
 							bind:value={dest}
-							localDescription="The directory with the backups, mounted into this manager below DOCKYARD_BACKUP_LOCAL_ROOTS. It may be a new path."
+							localDescription="The directory with the backups, mounted into this manager below DOCKER_MANAGER_BACKUP_LOCAL_ROOTS. It may be a new path."
 						/>
 						<TextArea
 							label="Recovery Key"
@@ -306,8 +307,8 @@
 					<Fields>
 						{#if preview.sets.length === 0}
 							<Notice tone="warn" title="No backup sets found" live="none">
-								The repositories hold no DockYard backup set. Check the destination
-								and the key.
+								The repositories hold no Docker Manager backup set. Check the
+								destination and the key.
 							</Notice>
 						{:else}
 							<RadioGroup
@@ -319,7 +320,7 @@
 									label: setLabel(x),
 									description:
 										importBlocker(x) ??
-										`${x.completeness ? setState(x.completeness).label : 'Unknown'} set${x.appVersion ? `, DockYard ${x.appVersion}` : ''}`,
+										`${x.completeness ? setState(x.completeness).label : 'Unknown'} set${x.appVersion ? `, Docker Manager ${x.appVersion}` : ''}`,
 									disabled: !!importBlocker(x)
 								}))}
 							/>
@@ -334,7 +335,7 @@
 											<span class="name">{itemName(m)}</span>
 											<span class="muted small"
 												>{m.kind === 'manager_state'
-													? 'DockYard itself'
+													? 'Docker Manager itself'
 													: KIND_LABEL[m.kind]}{m.environmentName
 													? `, ${m.environmentName}`
 													: ''}</span
@@ -396,8 +397,8 @@
 							/>
 						{:else if done}
 							<Notice tone="info" title="Imported" live="status">
-								DockYard restarted with the backup. Sign in with your owner account
-								from the backup.
+								Docker Manager restarted with the backup. Sign in with your owner
+								account from the backup.
 							</Notice>
 							<ol class="plain steps" role="list">
 								<li>
@@ -427,7 +428,7 @@
 							<div aria-busy="true" class="progress">
 								<Badge tone="info" dot pulse
 									>{job?.restartPending || health.isError
-										? 'Restarting DockYard'
+										? 'Restarting Docker Manager'
 										: job?.state === 'running'
 											? 'Restoring the manager state'
 											: 'Queued'}</Badge

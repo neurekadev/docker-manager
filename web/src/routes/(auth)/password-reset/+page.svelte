@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Password reset redemption (#16): an owner-issued reset code, or an
-	// owner-recovery code from `dockyard-manager owner-recovery`, in the URL
+	// owner-recovery code from `docker-manager owner-recovery`, in the URL
 	// fragment. Every session of the account ends; the user signs in after.
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -54,7 +54,7 @@
 	}
 </script>
 
-<svelte:head><title>Set a new password · DockYard</title></svelte:head>
+<svelte:head><title>Set a new password · Docker Manager</title></svelte:head>
 
 <div class="stack">
 	<header>
@@ -64,7 +64,8 @@
 
 	{#if error?.code === 'invalid_code'}
 		<Notice tone="danger" title="This reset link does not work" live="alert">
-			It may have expired or been used already. Ask the owner of this DockYard for a new one.
+			It may have expired or been used already. Ask the owner of this Docker Manager for a new
+			one.
 		</Notice>
 	{:else if error && !error.fields.length}
 		<Notice tone="danger" title="The password was not changed" live="alert"

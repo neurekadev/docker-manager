@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // RFC 6238 appendix B, SHA-1 test vectors (8 digits there; the last six
@@ -35,11 +35,11 @@ func TestGenerate(t *testing.T) {
 		t.Fatalf("secret %q", k.Secret)
 	}
 	u, err := url.Parse(k.URI)
-	if err != nil || u.Scheme != "otpauth" || u.Host != "totp" || u.Path != "/DockYard:alice" {
+	if err != nil || u.Scheme != "otpauth" || u.Host != "totp" || u.Path != "/Docker Manager:alice" {
 		t.Fatalf("uri %q", k.URI)
 	}
 	q := u.Query()
-	if q.Get("secret") != k.Secret || q.Get("issuer") != "DockYard" || q.Get("digits") != "6" || q.Get("period") != "30" || q.Get("algorithm") != "SHA1" {
+	if q.Get("secret") != k.Secret || q.Get("issuer") != "Docker Manager" || q.Get("digits") != "6" || q.Get("period") != "30" || q.Get("algorithm") != "SHA1" {
 		t.Fatalf("uri query %v", q)
 	}
 	k2, _ := Generate("alice")

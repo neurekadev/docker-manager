@@ -7,11 +7,11 @@
 
 ## Context
 
-DockYard needs local accounts with passwords, TOTP, passkeys, recovery,
+Docker Manager needs local accounts with passwords, TOTP, passkeys, recovery,
 server-side sessions, CSRF protection and throttling, inside one static
 (`CGO_ENABLED=0`) manager binary on Bun/SQLite, with every JSON route in
 the Huma/OpenAPI contract. #18 asked to reuse maintained components for the
-security-sensitive primitives and keep DockYard's own code to the product
+security-sensitive primitives and keep Docker Manager's own code to the product
 workflows (owner, invitations, factor policy, permissions), and to prove the
 combination before #16/#17 build on it.
 
@@ -20,7 +20,7 @@ passkeys and mounts its own routes; PocketBase brings its own data model and
 stateless tokens; theauth-go has no SQLite/Bun adapter and a fixed password
 policy; an external identity server adds a deployable service. This ADR
 records the library choice, how each is integrated and pinned, the threat
-model, and what DockYard still owns.
+model, and what Docker Manager still owns.
 
 ## Decisions
 
@@ -43,12 +43,12 @@ license check and govulncheck are manual reviews now; neither runs in CI.)
 | `golang.org/x/text/unicode/norm` | v0.42.0 (already in the graph) | BSD-3-Clause | NFKC normalization of passwords |
 | `github.com/descope/virtualwebauthn` | v1.0.5, **tests only** | MIT | software authenticator for passkey tests (never linked into a binary) |
 
-Packages under `internal/manager/auth/` wrap each library with DockYard's
+Packages under `internal/manager/auth/` wrap each library with Docker Manager's
 policy: `sessions`, `password`, `totp`, `passkey`, `csrf`, `throttle`, and
 `auth.Kit`, which assembles them from the configuration at startup (an
-unusable `DOCKYARD_PUBLIC_URL` fails startup before anything listens).
+unusable `DOCKER_MANAGER_PUBLIC_URL` fails startup before anything listens).
 
-### Sessions: SCS with a DockYard Bun store (departure from `scs/bunstore`)
+### Sessions: SCS with a Docker Manager Bun store (departure from `scs/bunstore`)
 
 The provisional plan named SCS's Bun store. Upstream
 `github.com/alexedwards/scs/bunstore` exists but is **not used**:
@@ -57,7 +57,7 @@ The provisional plan named SCS's Bun store. Upstream
   `v0.0.0-20251002162104-209de6e426de`), so it cannot be pinned to a
   reviewed release;
 - it reads `time.Now()` directly and starts an unmanaged cleanup goroutine
-  that logs with the standard library logger (DockYard injects its clock
+  that logs with the standard library logger (Docker Manager injects its clock
   and uses `log/slog` only);
 - `FindCtx` reports "not found" when the query fails, turning a database
   outage into silent sign-outs instead of an error;
@@ -71,14 +71,14 @@ clock, and the manager sweeps expired rows every 15 minutes
 creates the `STRICT` table `sessions(token TEXT PK, data BLOB, expiry TEXT)`
 plus an expiry index. It never uses SCS's CGO-based `sqlite3store`.
 
-Cookie policy (`sessions.NewManager`): name `__Host-dockyard_session`
+Cookie policy (`sessions.NewManager`): name `__Host-docker_manager_session`
 (browser-enforced `Secure`, `Path=/`, no `Domain`), `HttpOnly`,
 `SameSite=Strict`, `Secure` always (browsers accept it on
 `http://localhost`, the only plain-HTTP mode), persistent until the
 session's expiry. `HashTokenInStore` is on: the database holds only
 SHA-256 hashes of session tokens. Idle timeout 1 h and absolute lifetime
 24 h by default (NIST SP 800-63B AAL2), configurable with
-`DOCKYARD_SESSION_IDLE_TIMEOUT` / `DOCKYARD_SESSION_LIFETIME`. Handlers call
+`DOCKER_MANAGER_SESSION_IDLE_TIMEOUT` / `DOCKER_MANAGER_SESSION_LIFETIME`. Handlers call
 `RenewToken` on every privilege change (sign-in, second factor, step-up,
 completed enrollment, password change) against session fixation.
 
@@ -120,13 +120,13 @@ the 38,451 passwords of at least 8 characters among the 100,000 most
 common in the xato-net breach corpus (SecLists, MIT, embedded gzip, see
 `internal/manager/auth/password/THIRD_PARTY.md`; a full offline breach
 corpus such as HIBP is tens of gigabytes and out of scope), passwords
-built mostly from the username/email/name or "dockyard"/"docker", and
+built mostly from the username/email/name or "docker-manager"/"docker", and
 single repeated or sequential runs.
 
 ### TOTP
 
 `pquerna/otp` generates 160-bit secrets and the `otpauth://` URI and
-computes/compares HOTP values. DockYard owns the window and replay rules
+computes/compares HOTP values. Docker Manager owns the window and replay rules
 (`totp.Verify`): SHA-1, 6 digits, 30 s steps (what every authenticator app
 supports), ±1 step of clock skew, and only steps strictly after the last
 accepted step are valid, so a code can never be used twice, not even
@@ -138,7 +138,7 @@ enrollment, activated only after a correct code, and never returned again.
 ### Passkeys
 
 `go-webauthn` verifies both ceremonies. The relying party is derived from
-`DOCKYARD_PUBLIC_URL` only: RP ID = its host name, the single accepted
+`DOCKER_MANAGER_PUBLIC_URL` only: RP ID = its host name, the single accepted
 origin = its exact origin (scheme, host, port). Requests that reach the
 manager on its internal address or another host name can never complete a
 ceremony (tested with a software authenticator for five origin/RP ID
@@ -166,7 +166,7 @@ origin-checked by `server/ws` (#27).
 
 `throttle.Limiter` is a bounded table of `x/time/rate` buckets, keyed by
 `requestinfo.ClientIP` (IPv6 per /64; forwarding headers are honoured only
-from `DOCKYARD_TRUSTED_PROXIES`) and by the account name as typed, whether
+from `DOCKER_MANAGER_TRUSTED_PROXIES`) and by the account name as typed, whether
 or not it exists. Only failed attempts consume tokens: 20 per client IP
 refilled every 6 s, 10 per account refilled every minute. A full table
 refuses new keys instead of growing (fail closed).
@@ -183,7 +183,7 @@ rules never grant future capability keys; API tokens (#31) intersect with
 the user's effective permissions.
 
 Casbin can express allow/deny with `priority` or a custom effector, but
-only by encoding DockYard's two-tier specificity order into numeric policy
+only by encoding Docker Manager's two-tier specificity order into numeric policy
 priorities computed outside Casbin, plus custom matching functions for the
 scope hierarchy. The decision logic would then be split between a string
 DSL model file, generated priorities and Go glue; duplicate/ambiguity
@@ -212,7 +212,7 @@ Authorizer); see `docs/architecture/authorization.md`.
 | CSRF | `CrossOriginProtection` on every unsafe `/api/v1` request, `SameSite=Strict`, `__Host-` cookie, bearer requests never use cookies. |
 | Session fixation / theft | Tokens are generated only by SCS, renewed on every privilege change, stored hashed, `HttpOnly`/`Secure`; idle + absolute expiry; revocation is immediate (below). |
 | Replay | WebAuthn challenges single-use and 5-minute bounded, counters checked; TOTP steps single-use; recovery, invitation and reset codes consumed atomically. |
-| Reverse proxy origin / RP ID confusion | RP ID and origin only from `DOCKYARD_PUBLIC_URL`; first-run setup refuses non-HTTPS or wrong-host requests (`requestinfo.CheckSecureOrigin`, `403 insecure_origin`); forwarding headers honoured only from trusted proxies. |
+| Reverse proxy origin / RP ID confusion | RP ID and origin only from `DOCKER_MANAGER_PUBLIC_URL`; first-run setup refuses non-HTTPS or wrong-host requests (`requestinfo.CheckSecureOrigin`, `403 insecure_origin`); forwarding headers honoured only from trusted proxies. |
 | Stolen database | Argon2id hashes, hashed session tokens and one-time codes (only verifiers stored), TOTP seeds sealed with the key file kept outside the database. |
 | Secrets in logs | Passwords, codes, seeds and tokens are never logged or returned after creation; canary tests assert it (`internal/testutil/canary`). |
 
@@ -251,7 +251,7 @@ Authorizer); see `docs/architecture/authorization.md`.
 
 ### Residual app-owned workflows
 
-DockYard code owns, on top of the primitives: first-run owner setup
+Docker Manager code owns, on top of the primitives: first-run owner setup
 (race-safe, single-use, HTTPS-only), invitation issue/redeem, account
 status (disable/reactivate, owner protection), the instance sign-in policy
 (strict passwords; required factors none/TOTP/passkey/either/both; staged
@@ -266,7 +266,7 @@ routes. #16 implements them; #17 the evaluator; #31 API tokens.
 
 - The manager binary stays static and pure Go; the auth libraries add
   about 2 MB.
-- Passkeys are tied to the public host name; moving DockYard to another
+- Passkeys are tied to the public host name; moving Docker Manager to another
   host name requires users to register passkeys again (or use TOTP /
   recovery codes / owner reset).
 - Session revocation does not depend on SCS iteration; SCS remains

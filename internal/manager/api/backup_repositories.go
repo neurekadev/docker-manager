@@ -9,15 +9,15 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/backup"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/backups"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/restic"
+	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // Backup repositories and the Recovery Key (#10, #24). The flows live in
@@ -229,7 +229,7 @@ type BackupRepository struct {
 	View       string                 `json:"view" enum:"minimal,full"`
 	Actions    []string               `json:"actions"`
 	Executor   string                 `json:"executor,omitempty" doc:"Local repositories: manager or the environment ID whose agent owns the path."`
-	Location   string                 `json:"location,omitempty" example:"https://s3.example.com/backups/dockyard" doc:"Where the restic repositories live (no credentials). Below it: dockyard-manager and dockyard-env-<environmentId>."`
+	Location   string                 `json:"location,omitempty" example:"https://s3.example.com/backups/docker-manager" doc:"Where the restic repositories live (no credentials). Below it: docker-manager and docker-manager-env-<environmentId>."`
 	Path       string                 `json:"path,omitempty"`
 	Endpoint   string                 `json:"endpoint,omitempty"`
 	Bucket     string                 `json:"bucket,omitempty"`
@@ -300,7 +300,7 @@ type RecoveryKeyState struct {
 	RotationInProgress  bool       `json:"rotationInProgress"`
 	// PendingLocations lists repository scopes still on an older key.
 	PendingLocations []string `json:"pendingLocations,omitempty" example:"0190a6e0-...:env:0190a6e1-..."`
-	Scope            string   `json:"scope" enum:"instance" doc:"One Recovery Key opens every DockYard repository of this instance (manager and every environment, local and S3)."`
+	Scope            string   `json:"scope" enum:"instance" doc:"One Recovery Key opens every Docker Manager repository of this instance (manager and every environment, local and S3)."`
 }
 
 func newRecoveryKeyState(k domain.BackupKeyState, pending []domain.BackupLocation) RecoveryKeyState {
@@ -321,9 +321,9 @@ type RecoveryKeyReveal struct {
 }
 
 var recoveryKeyNotice = []string{
-	"This key opens every DockYard backup repository of this instance. A fresh manager can restore only with it.",
+	"This key opens every Docker Manager backup repository of this instance. A fresh manager can restore only with it.",
 	"If this manager's key store and your saved copy are both lost, the backup data cannot be restored.",
-	"Save it outside DockYard now; confirming below proves only that you typed it, not that it is stored safely.",
+	"Save it outside Docker Manager now; confirming below proves only that you typed it, not that it is stored safely.",
 }
 
 func newRecoveryKeyReveal(k backups.RecoveryKey) *RecoveryKeyReveal {
@@ -451,10 +451,10 @@ type createBackupRepositoryInput struct {
 		Name            string `json:"name" minLength:"1" maxLength:"100" example:"Offsite S3"`
 		Kind            string `json:"kind" enum:"local,s3"`
 		Executor        string `json:"executor,omitempty" maxLength:"64" doc:"Local repositories: manager, or the environment ID whose agent owns the path."`
-		Path            string `json:"path,omitempty" maxLength:"1024" example:"/backups/dockyard" doc:"Local repositories: an absolute directory below the executor's DOCKYARD_BACKUP_LOCAL_ROOTS, outside every backup source."`
+		Path            string `json:"path,omitempty" maxLength:"1024" example:"/backups/docker-manager" doc:"Local repositories: an absolute directory below the executor's DOCKER_MANAGER_BACKUP_LOCAL_ROOTS, outside every backup source."`
 		Endpoint        string `json:"endpoint,omitempty" maxLength:"255" example:"https://s3.eu-central-1.amazonaws.com"`
 		Bucket          string `json:"bucket,omitempty" maxLength:"63"`
-		Prefix          string `json:"prefix,omitempty" maxLength:"512" example:"dockyard"`
+		Prefix          string `json:"prefix,omitempty" maxLength:"512" example:"docker-manager"`
 		Region          string `json:"region,omitempty" maxLength:"64"`
 		PathStyle       bool   `json:"pathStyle,omitempty" doc:"Path-style bucket addressing (MinIO and most self-hosted S3)."`
 		AccessKeyID     string `json:"accessKeyId,omitempty" maxLength:"256" writeOnly:"true"`
@@ -596,7 +596,7 @@ type recoveryConfirmationInput struct {
 	RepositoryID string `path:"repositoryId" maxLength:"64" doc:"Backup repository ID."`
 	Body         struct {
 		RecoveryKey string `json:"recoveryKey" example:"dyrk-4V7Q-2M9X-KP3T-8WRH-6JDN-CF5B-ZL2A" minLength:"1" maxLength:"256" writeOnly:"true" doc:"Type (or paste) the Recovery Key. Never logged, stored or audited."`
-		BackedUp    bool   `json:"backedUp" doc:"Must be true: you saved the key outside DockYard."`
+		BackedUp    bool   `json:"backedUp" doc:"Must be true: you saved the key outside Docker Manager."`
 	}
 }
 
@@ -731,8 +731,8 @@ func registerBackupRepositories(a huma.API, h *backupsAPI) {
 			OperationID: "create-backup-repository", Method: http.MethodPost, Path: BasePath + "/backup-repositories",
 			Summary: "Add a backup repository", DefaultStatus: http.StatusCreated,
 			Description: "Stores a destination: a local directory on the manager or on one environment's agent, or an S3 bucket/prefix " +
-				"(credentials sealed, write-only). Below it DockYard keeps one restic repository per scope (dockyard-manager, " +
-				"dockyard-env-<environmentId>). The first repository of an instance generates the Recovery Key (returned once in " +
+				"(credentials sealed, write-only). Below it Docker Manager keeps one restic repository per scope (docker-manager, " +
+				"docker-manager-env-<environmentId>). The first repository of an instance generates the Recovery Key (returned once in " +
 				"recoveryKey; owner only). Every repository starts awaiting_confirmation: nothing is initialized and no policy can use it " +
 				"until the owner re-enters the key." + recoveryKeyNote,
 			Tags: []string{tagBackups}, Security: cookieOnly,
@@ -764,7 +764,7 @@ func registerBackupRepositories(a huma.API, h *backupsAPI) {
 		Operation: huma.Operation{
 			OperationID: "delete-backup-repository", Method: http.MethodDelete, Path: BasePath + "/backup-repositories/{repositoryId}",
 			Summary: "Remove a backup repository", DefaultStatus: http.StatusNoContent,
-			Description: "Removes the repository from DockYard (409 backup_repository_in_use while a policy uses it). The restic " +
+			Description: "Removes the repository from Docker Manager (409 backup_repository_in_use while a policy uses it). The restic " +
 				"repositories at the destination are left untouched. Requires If-Match.",
 			Tags: []string{tagBackups}, Errors: editErrs,
 		},

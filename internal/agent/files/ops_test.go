@@ -17,9 +17,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 )
 
 // TestHardlinkToOutsideIsRefused runs on every platform (hard links need
@@ -237,7 +237,7 @@ func TestReadWriteETagAndConflicts(t *testing.T) {
 	// No temporary files are left behind.
 	entries, _ := os.ReadDir(filepath.Join(f.root, "conf"))
 	for _, de := range entries {
-		if strings.HasPrefix(de.Name(), ".dockyard-") {
+		if strings.HasPrefix(de.Name(), ".docker-manager-") {
 			t.Fatalf("temporary file left: %s", de.Name())
 		}
 	}
@@ -268,7 +268,7 @@ func TestReadWriteETagAndConflicts(t *testing.T) {
 	if e, err := f.svc.Mkdir(f.ctx, protocol.FilesMkdirInput{Scope: f.vol, Path: "newdir/n.txt", Type: protocol.FileTypeFile, Data: []byte("n")}); err != nil || e.Size != 1 {
 		t.Fatalf("new file %+v %v", e, err)
 	}
-	// DockYard's own changes are reported as invalidations (never content).
+	// Docker Manager's own changes are reported as invalidations (never content).
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var paths []string
@@ -363,7 +363,7 @@ func TestUploads(t *testing.T) {
 	}
 	entries, _ := os.ReadDir(f.root)
 	for _, de := range entries {
-		if strings.HasPrefix(de.Name(), ".dockyard-") {
+		if strings.HasPrefix(de.Name(), ".docker-manager-") {
 			t.Fatalf("temporary file left: %s", de.Name())
 		}
 	}

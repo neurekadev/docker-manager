@@ -1,4 +1,4 @@
-// Package agent is the root of the dockyard-agent code:
+// Package agent is the root of the docker-agent code:
 //
 //	internal/agent/config     environment configuration
 //	internal/agent/runtime    main loop, root check, Engine connection, health file

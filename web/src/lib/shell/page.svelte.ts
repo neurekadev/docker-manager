@@ -13,7 +13,7 @@ export interface PageMeta {
 }
 
 class PageState {
-	current = $state<PageMeta>({ title: 'DockYard', crumbs: [] });
+	current = $state<PageMeta>({ title: 'Docker Manager', crumbs: [] });
 }
 
 export const pageState = new PageState();
@@ -27,6 +27,7 @@ export function usePage(meta: PageMeta | (() => PageMeta)) {
 	$effect(() => {
 		const m = get();
 		pageState.current = m;
-		document.title = m.title === 'DockYard' ? 'DockYard' : `${m.title} · DockYard`;
+		document.title =
+			m.title === 'Docker Manager' ? 'Docker Manager' : `${m.title} · Docker Manager`;
 	});
 }

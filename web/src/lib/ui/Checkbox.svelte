@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Checkbox (#22): a native input (form semantics, keyboard, screen
-	// readers) with DockYard styling; `indeterminate` shows the mixed state
+	// readers) with Docker Manager styling; `indeterminate` shows the mixed state
 	// (aria-checked="mixed" via the DOM property).
 	import type { HTMLInputAttributes } from 'svelte/elements';
 

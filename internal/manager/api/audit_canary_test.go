@@ -9,13 +9,13 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobspec"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/jobs"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil/canary"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/canary"
 )
 
 type rotateInput struct {
@@ -76,7 +76,7 @@ func TestSecretCanariesNeverReachTheAuditTrail(t *testing.T) {
 		"composeFile": "services:\n  db:\n    environment:\n      PASSWORD: " + v[canary.EnvValue] + "\n",
 	})
 	rec := f.do(http.MethodPost, BasePath+"/test/registries/reg-1/credential-rotations", string(body),
-		"X-Test-User", "owner", "Authorization", "Bearer "+v[canary.APIToken], "Cookie", "__Host-dockyard_session="+v[canary.Password])
+		"X-Test-User", "owner", "Authorization", "Bearer "+v[canary.APIToken], "Cookie", "__Host-docker_manager_session="+v[canary.Password])
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("rotate: %d %s", rec.Code, rec.Body)
 	}

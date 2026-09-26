@@ -11,7 +11,7 @@
 //  3. the stacks volume exists, uses the local driver and its Mountpoint is
 //     covered by an agent mount whose host source is the same path, visible
 //     and writable inside the agent;
-//  4. <DockerRootDir>/volumes and every DOCKYARD_STACK_ROOTS entry pass the
+//  4. <DockerRootDir>/volumes and every DOCKER_AGENT_STACK_ROOTS entry pass the
 //     same identical-path check.
 //
 // A failed check produces a Diagnostic with a stable code; stack operations
@@ -28,7 +28,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
 )
 
 // Diagnostic codes (stable; shown by the manager and UI).
@@ -111,7 +111,7 @@ func (r Result) rootOK(kind, p string) bool {
 }
 
 // Allows returns nil when dir (a stack project directory) is inside a
-// verified stack root: the stacks volume or a verified DOCKYARD_STACK_ROOTS
+// verified stack root: the stacks volume or a verified DOCKER_AGENT_STACK_ROOTS
 // entry. Otherwise it returns the Diagnostic that blocks it.
 func (r Result) Allows(dir string) error {
 	d := clean(dir)
@@ -178,7 +178,7 @@ func Verify(ctx context.Context, o Options) Result {
 	switch {
 	case id.Rootless:
 		return global(CodeRootlessEngine, "the Docker Engine runs rootless: its data root ("+r.DockerRootDir+
-			") and socket live in the user's home and runtime directories, so the identical-path layout DockYard needs "+
+			") and socket live in the user's home and runtime directories, so the identical-path layout Docker Manager needs "+
 			"does not apply. Rootless Engines are not supported in v1; stack operations are disabled")
 	case id.DockerDesktop:
 		return global(CodeDockerDesktop, "the Docker Engine runs inside Docker Desktop's VM: volume and bind paths are VM paths, "+
@@ -189,7 +189,7 @@ func Verify(ctx context.Context, o Options) Result {
 	if err != nil {
 		if engine.IsCode(err, engine.CodeNotFound) {
 			return global(CodeStacksVolumeMissing, fmt.Sprintf("the stacks volume %q does not exist: create it "+
-				"(the deploy examples declare it with `name: %s`) or set DOCKYARD_STACKS_VOLUME", o.StacksVolume, o.StacksVolume))
+				"(the deploy examples declare it with `name: %s`) or set DOCKER_AGENT_STACKS_VOLUME", o.StacksVolume, o.StacksVolume))
 		}
 		return global(CodeEngineUnavailable, "cannot inspect the stacks volume: "+err.Error())
 	}
@@ -264,7 +264,7 @@ func checkPath(kind, p string, containerized bool, mounts []engine.Mount, docker
 	if !needWrite {
 		return nil
 	}
-	f, err := os.CreateTemp(local, ".dockyard-write-check-*")
+	f, err := os.CreateTemp(local, ".docker-manager-write-check-*")
 	if err != nil {
 		return diag(CodeNotWritable, "%s is not writable by the agent (%v); the agent must run as root with a read-write mount", p, err)
 	}

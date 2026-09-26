@@ -1,8 +1,8 @@
 # Architecture overview
 
-DockYard is a centralized manager with a web UI that controls Docker Engines
+Docker Manager is a centralized manager with a web UI that controls Docker Engines
 on several machines through enrolled agents. The code lives at
-`https://code.neureka.dev/dockyard/dockyard`; the roadmap and decisions are
+`https://code.neureka.dev/docker-manager/docker-manager`; the roadmap and decisions are
 recorded in the GitHub issues of `neurekadev/dockyard`, #1 (roadmap) and
 #25 (decision register).
 
@@ -11,34 +11,34 @@ recorded in the GitHub issues of `neurekadev/dockyard`, #1 (roadmap) and
 ```
  browser (PWA) ──HTTPS──┐
  API clients  ──HTTPS──┤   reverse proxy (TLS)   ┌────────────────────────┐
- remote agent ──HTTPS──┴──── one public origin ──▶│ dockyard-manager :8080 │
+ remote agent ──HTTPS──┴──── one public origin ──▶│ docker-manager :8080 │
                                                  │  /        embedded UI  │
  co-located agent ──http (opt-in, internal)─────▶│  /api/v1  public API   │
                                                  │  /agent/v1 agent (#3)  │
                                                  │  SQLite (data volume)  │
                                                  └────────────────────────┘
- dockyard-agent (one per Docker Engine = one Environment)
+ docker-agent (one per Docker Engine = one Environment)
    dials the manager, never listens; owns Docker socket + volume paths
 ```
 
-- **dockyard-manager** — users, authorization, configuration, stacks and
+- **docker-manager** — users, authorization, configuration, stacks and
   revisions, jobs, audit, metrics, persistence. Serves the embedded SvelteKit
   PWA, the public `/api/v1` API and the private `/agent/v1` endpoint on a
   single plain-HTTP listener behind the operator's TLS proxy (#27). Never
   mounts a Docker socket.
-- **dockyard-agent** — outbound-only connector for one Docker Engine: Engine
+- **docker-agent** — outbound-only connector for one Docker Engine: Engine
   API access via the official Moby Go SDK (#21), Compose, file operations and
   restic backups on manager instructions. Runs as root with Docker's volume
   directory mounted at its identical host path (#28).
 - **Images** — separate manager and agent images from `deploy/docker/`, each
   with its static binary and a pinned, checksum-verified restic. Published as
-  rolling `code.neureka.dev/dockyard/dockyard-{manager,agent}:edge` from `main`.
+  rolling `code.neureka.dev/docker-manager/docker-{manager,agent}:edge` from `main`.
 
 ## Package boundaries
 
 | Path | Responsibility | May import |
 | --- | --- | --- |
-| `cmd/dockyard-manager`, `cmd/dockyard-agent` | Entry points, subcommands, signal handling | anything below |
+| `cmd/docker-manager`, `cmd/docker-agent` | Entry points, subcommands, signal handling | anything below |
 | `internal/manager/app` | Manager startup order and lifecycle | manager packages |
 | `internal/manager/config` | Manager env configuration | `envconfig`, `logging` |
 | `internal/manager/server` | HTTP mux, middleware, SPA serving | `api` |
@@ -57,7 +57,7 @@ recorded in the GitHub issues of `neurekadev/dockyard`, #1 (roadmap) and
 | `internal/agent/jobs` | Agent job runner: fencing, fsync'd journal, reconnect report | `jobexec`, `protocol` |
 | `internal/agent/resources` | Docker resource requests and job executors (#6) over the Engine adapter | `engine`, `session`, `jobexec`, `protocol` |
 | `internal/manager/resources` | Docker resources of every environment (#6): agent requests, job requests, recreate specifications, Locators, self-protection checks (#32) | `store`, `jobs`, `authz`, `permissions`, `protection`, `protocol` |
-| `internal/agent/protect` | Identifies DockYard's own resources on the agent's Engine (#32) | `engine`, `session`, `protection`, `protocol` |
+| `internal/agent/protect` | Identifies Docker Manager's own resources on the agent's Engine (#32) | `engine`, `session`, `protection`, `protocol` |
 | `internal/protection` | Self-protection decisions and exclusion helpers shared by manager and agent (#32) | `protocol` |
 | `internal/selfid` | ID of the container the process runs in (#32) | stdlib |
 | `internal/manager/migrations` | Environment migration (#35): previews, the `stack.migrate`/`volume.migrate` executors relaying data between agents, source removals | `jobs`, `store`, `authz`, `permissions`, `registries`, `transfer`, `protocol` |
@@ -65,7 +65,7 @@ recorded in the GitHub issues of `neurekadev/dockyard`, #1 (roadmap) and
 | `internal/transfer` | Checksummed chunk framing and bandwidth limiter of migration data (shared) | `clock` |
 | `internal/db/migrations` | Versioned Bun migrations (one file each) | `bun` |
 | `internal/agent/config`, `internal/agent/runtime` | Agent configuration and main loop | `protocol`, shared |
-| `internal/protocol` | Manager↔agent frame envelope (`dockyard.agent/v1`) | stdlib, websocket |
+| `internal/protocol` | Manager↔agent frame envelope (`docker-manager.agent/v1`) | stdlib, websocket |
 | `internal/domain` | Shared domain types, no HTTP/DB/Docker concerns | stdlib |
 | `internal/clock`, `internal/logging`, `internal/envconfig`, `internal/ids`, `internal/buildinfo` | Small shared utilities | stdlib |
 | `internal/testutil` | Test-only helpers (canaries, in-memory hostile path corpus `fscorpus`) | anything |
@@ -87,7 +87,7 @@ domain types (`domain`) are separate and converted explicitly.
   to `index.html` for client-side routing.
 - **Agent → manager (#3):** the agent enrolls once (`POST /agent/v1/enroll`,
   one-use `dye_` token → `dya_` credential), then dials `/agent/v1/session`
-  (WebSocket, subprotocol `dockyard.agent/v1`) and exchanges JSON frames
+  (WebSocket, subprotocol `docker-manager.agent/v1`) and exchanges JSON frames
   (`internal/protocol`): hello, heartbeat, capabilities, command/ack/
   progress/result, events, file invalidations, stream relay, cancel, error.
   Commands carry job ID, attempt, fencing token and deadline (#26). Manager
@@ -119,7 +119,7 @@ domain types (`domain`) are separate and converted explicitly.
 
 ## Persistence
 
-One SQLite database (`dockyard.db`) in the manager data volume, WAL mode,
+One SQLite database (`docker-manager.db`) in the manager data volume, WAL mode,
 single-connection writer. Migrations are Go files in `internal/db/migrations`.
 Sampled metrics live in a separate database file (`metrics.db`, own
 migrations in `internal/db/metricsmigrations`, #5) so sample writes never

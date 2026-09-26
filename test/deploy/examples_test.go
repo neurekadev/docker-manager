@@ -16,9 +16,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	agentconfig "github.com/neurekadev/dockyard/internal/agent/config"
-	"github.com/neurekadev/dockyard/internal/manager/config"
-	"github.com/neurekadev/dockyard/internal/manager/server/sse"
+	agentconfig "code.neureka.dev/docker-manager/docker-manager/internal/agent/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/config"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/sse"
 )
 
 type service struct {
@@ -76,16 +76,16 @@ func TestProxyExamplesTopology(t *testing.T) {
 	for dir, proxy := range proxies {
 		t.Run(dir, func(t *testing.T) {
 			c := load(t, "deploy/"+dir+"/compose.yaml")
-			m, a, p := c.Services["dockyard-manager"], c.Services["dockyard-agent"], c.Services[proxy]
-			if m.Image != "code.neureka.dev/dockyard/dockyard-manager:edge" || a.Image != "code.neureka.dev/dockyard/dockyard-agent:edge" {
-				t.Errorf("DockYard images %q %q", m.Image, a.Image)
+			m, a, p := c.Services["docker-manager"], c.Services["docker-agent"], c.Services[proxy]
+			if m.Image != "code.neureka.dev/docker-manager/docker-manager:edge" || a.Image != "code.neureka.dev/docker-manager/docker-agent:edge" {
+				t.Errorf("Docker Manager images %q %q", m.Image, a.Image)
 			}
 			if !pinnedRE.MatchString(p.Image) {
 				t.Errorf("proxy image %q is not pinned by digest", p.Image)
 			}
 			// One public HTTPS origin, reached through the proxy.
-			if interp(m.Environment["DOCKYARD_PUBLIC_URL"]) != "https://localhost" {
-				t.Errorf("public URL %q", m.Environment["DOCKYARD_PUBLIC_URL"])
+			if interp(m.Environment["DOCKER_MANAGER_PUBLIC_URL"]) != "https://localhost" {
+				t.Errorf("public URL %q", m.Environment["DOCKER_MANAGER_PUBLIC_URL"])
 			}
 			checkTrustedProxies(t, c, m, p)
 			if len(m.Ports) != 0 || len(a.Ports) != 0 {
@@ -95,13 +95,13 @@ func TestProxyExamplesTopology(t *testing.T) {
 				t.Errorf("proxy ports %v lack 443", p.Ports)
 			}
 			// Co-located agent: internal URL with the explicit opt-in.
-			if a.Environment["DOCKYARD_MANAGER_URL"] != "http://dockyard-manager:8080" || a.Environment["DOCKYARD_MANAGER_ALLOW_HTTP"] != "true" {
+			if a.Environment["DOCKER_AGENT_MANAGER_URL"] != "http://docker-manager:8080" || a.Environment["DOCKER_AGENT_MANAGER_ALLOW_HTTP"] != "true" {
 				t.Errorf("co-located agent env %v", a.Environment)
 			}
 			checkStorage(t, c, m, a)
 			checkStacksVolume(t, c, a)
 			checkVolumes(t, c, "data", "agent", "stacks")
-			if !slices.Contains(m.Volumes, "data:/var/lib/dockyard") || !slices.Contains(a.Volumes, "agent:/var/lib/dockyard-agent") {
+			if !slices.Contains(m.Volumes, "data:/var/lib/docker-manager") || !slices.Contains(a.Volumes, "agent:/var/lib/docker-agent") {
 				t.Errorf("manager volumes %v, agent volumes %v", m.Volumes, a.Volumes)
 			}
 		})
@@ -113,12 +113,12 @@ func TestProxyExamplesTopology(t *testing.T) {
 const defaultTrustedProxies = "172.16.0.0/12,192.168.0.0/16"
 
 // checkTrustedProxies: the manager trusts forwarded headers from Docker's
-// default address pools unless .env overrides DOCKYARD_TRUSTED_PROXIES, and
-// the proxy shares the plain "dockyard" network with the manager (no fixed
+// default address pools unless .env overrides DOCKER_MANAGER_TRUSTED_PROXIES, and
+// the proxy shares the plain "docker-manager" network with the manager (no fixed
 // address or subnet: whatever Docker assigns lies in those pools).
 func checkTrustedProxies(t *testing.T, c composeFile, m, p service) {
 	t.Helper()
-	if got := m.Environment["DOCKYARD_TRUSTED_PROXIES"]; got != "${DOCKYARD_TRUSTED_PROXIES:-"+defaultTrustedProxies+"}" {
+	if got := m.Environment["DOCKER_MANAGER_TRUSTED_PROXIES"]; got != "${DOCKER_MANAGER_TRUSTED_PROXIES:-"+defaultTrustedProxies+"}" {
 		t.Errorf("trusted proxies %q, want Docker's default pools overridable from .env", got)
 	}
 	if _, err := config.ParseTrustedProxies(defaultTrustedProxies); err != nil {
@@ -126,16 +126,16 @@ func checkTrustedProxies(t *testing.T, c composeFile, m, p service) {
 	}
 	for _, svc := range []service{m, p} {
 		var nets []string
-		if err := svc.Networks.Decode(&nets); err != nil || !slices.Equal(nets, []string{"dockyard"}) {
-			t.Errorf("%s networks: want the plain list [dockyard] (no fixed address), err %v", svc.Image, err)
+		if err := svc.Networks.Decode(&nets); err != nil || !slices.Equal(nets, []string{"docker-manager"}) {
+			t.Errorf("%s networks: want the plain list [docker-manager] (no fixed address), err %v", svc.Image, err)
 		}
 	}
-	if n := c.Networks["dockyard"]; len(n) != 1 || n["name"] != "dockyard" {
-		t.Errorf("network dockyard must only be named (no ipam subnet): %v", n)
+	if n := c.Networks["docker-manager"]; len(n) != 1 || n["name"] != "docker-manager" {
+		t.Errorf("network docker-manager must only be named (no ipam subnet): %v", n)
 	}
 }
 
-// checkStorage enforces #28: DockYard state only in named volumes, plus the
+// checkStorage enforces #28: Docker Manager state only in named volumes, plus the
 // Docker socket and the identical-path mount of Docker's volume directory.
 func checkStorage(t *testing.T, c composeFile, svcs ...service) {
 	t.Helper()
@@ -166,18 +166,18 @@ func checkStorage(t *testing.T, c composeFile, svcs ...service) {
 
 func TestRemoteAgentExample(t *testing.T) {
 	c := load(t, "deploy/remote-agent/compose.yaml")
-	a, ok := c.Services["dockyard-agent"]
+	a, ok := c.Services["docker-agent"]
 	if !ok || len(c.Services) != 1 {
 		t.Fatalf("services %v", c.Services)
 	}
-	if u := interp(a.Environment["DOCKYARD_MANAGER_URL"]); !strings.HasPrefix(u, "https://") {
+	if u := interp(a.Environment["DOCKER_AGENT_MANAGER_URL"]); !strings.HasPrefix(u, "https://") {
 		t.Errorf("remote agent must use the public https origin, got %q", u)
 	}
-	if _, ok := a.Environment["DOCKYARD_MANAGER_ALLOW_HTTP"]; ok {
-		t.Error("remote agent sets DOCKYARD_MANAGER_ALLOW_HTTP")
+	if _, ok := a.Environment["DOCKER_AGENT_MANAGER_ALLOW_HTTP"]; ok {
+		t.Error("remote agent sets DOCKER_AGENT_MANAGER_ALLOW_HTTP")
 	}
-	if _, ok := a.Environment["DOCKYARD_MANAGER_CA_FILE"]; !ok {
-		t.Error("remote agent does not expose DOCKYARD_MANAGER_CA_FILE")
+	if _, ok := a.Environment["DOCKER_AGENT_MANAGER_CA_FILE"]; !ok {
+		t.Error("remote agent does not expose DOCKER_AGENT_MANAGER_CA_FILE")
 	}
 	if len(a.Ports) != 0 {
 		t.Error("agent publishes ports")
@@ -188,14 +188,14 @@ func TestRemoteAgentExample(t *testing.T) {
 	checkStorage(t, c, a)
 	checkStacksVolume(t, c, a)
 	checkVolumes(t, c, "agent", "stacks")
-	if !slices.Contains(a.Volumes, "agent:/var/lib/dockyard-agent") {
+	if !slices.Contains(a.Volumes, "agent:/var/lib/docker-agent") {
 		t.Errorf("agent volumes %v", a.Volumes)
 	}
 }
 
 // checkStacksVolume enforces the #28 stacks volume: the volume key
-// "stacks" in the project "dockyard" is the volume dockyard_stacks (the
-// agent's DOCKYARD_STACKS_VOLUME default), mounted into the agent at its
+// "stacks" in the project "docker-manager" is the volume docker-manager_stacks (the
+// agent's DOCKER_AGENT_STACKS_VOLUME default), mounted into the agent at its
 // own mountpoint, i.e. the identical path under Docker's volume directory.
 func checkStacksVolume(t *testing.T, c composeFile, agent service) {
 	t.Helper()
@@ -208,15 +208,15 @@ func checkStacksVolume(t *testing.T, c composeFile, agent service) {
 	}
 }
 
-// checkVolumes: every example is the Compose project "dockyard" and
-// declares DockYard's volumes under the plain keys data (manager), agent
-// (agent state) and stacks, so they are dockyard_data, dockyard_agent and
-// dockyard_stacks on every host. No volume is renamed with name: or has
+// checkVolumes: every example is the Compose project "docker-manager" and
+// declares Docker Manager's volumes under the plain keys data (manager), agent
+// (agent state) and stacks, so they are docker-manager_data, docker-manager_agent and
+// docker-manager_stacks on every host. No volume is renamed with name: or has
 // other keys; the project name decides.
 func checkVolumes(t *testing.T, c composeFile, keys ...string) {
 	t.Helper()
-	if c.Name != "dockyard" {
-		t.Errorf("project name %q, want dockyard", c.Name)
+	if c.Name != "docker-manager" {
+		t.Errorf("project name %q, want docker-manager", c.Name)
 	}
 	for _, k := range keys {
 		if _, ok := c.Volumes[k]; !ok {
@@ -233,17 +233,17 @@ func checkVolumes(t *testing.T, c composeFile, keys ...string) {
 // TestProxySettings pins the proxy settings the manager relies on.
 func TestProxySettings(t *testing.T) {
 	caddy := read(t, "deploy/caddy/Caddyfile")
-	for _, want := range []string{"reverse_proxy dockyard-manager:8080", "flush_interval -1", "read_timeout {$DOCKYARD_PROXY_READ_TIMEOUT:60s}", "max_size {$DOCKYARD_MAX_BODY_SIZE:1GB}"} {
+	for _, want := range []string{"reverse_proxy docker-manager:8080", "flush_interval -1", "read_timeout {$DOCKER_MANAGER_PROXY_READ_TIMEOUT:60s}", "max_size {$DOCKER_MANAGER_MAX_BODY_SIZE:1GB}"} {
 		if !strings.Contains(caddy, want) {
 			t.Errorf("Caddyfile lacks %q", want)
 		}
 	}
-	nginx := read(t, "deploy/nginx/templates/dockyard.conf.template")
+	nginx := read(t, "deploy/nginx/templates/docker-manager.conf.template")
 	for _, want := range []string{
 		"http2 on;", "proxy_http_version 1.1;", "proxy_set_header Host              $http_host;",
 		"X-Forwarded-For   $remote_addr;", "X-Forwarded-Proto $scheme;", "X-Forwarded-Host  $http_host;",
 		"proxy_set_header Upgrade    $http_upgrade;", "proxy_set_header Connection $connection_upgrade;",
-		"proxy_read_timeout ${DOCKYARD_PROXY_READ_TIMEOUT};", "client_max_body_size ${DOCKYARD_MAX_BODY_SIZE};",
+		"proxy_read_timeout ${DOCKER_MANAGER_PROXY_READ_TIMEOUT};", "client_max_body_size ${DOCKER_MANAGER_MAX_BODY_SIZE};",
 		"resolver 127.0.0.11",
 	} {
 		if !strings.Contains(nginx, want) {
@@ -257,17 +257,17 @@ func TestProxySettings(t *testing.T) {
 	if !slices.Contains(traefik.Command, "--entryPoints.websecure.transport.respondingTimeouts.readTimeout=0s") {
 		t.Errorf("traefik must disable the 60 s readTimeout that cuts streams: %v", traefik.Command)
 	}
-	dyn := read(t, "deploy/traefik/dynamic/dockyard.yml")
-	for _, want := range []string{"url: http://dockyard-manager:8080", "passHostHeader: true", "certResolver: letsencrypt"} {
+	dyn := read(t, "deploy/traefik/dynamic/docker-manager.yml")
+	for _, want := range []string{"url: http://docker-manager:8080", "passHostHeader: true", "certResolver: letsencrypt"} {
 		if !strings.Contains(dyn, want) {
 			t.Errorf("traefik dynamic config lacks %q", want)
 		}
 	}
 	// Every default proxy idle timeout leaves room for several heartbeats.
 	for _, f := range []string{"deploy/caddy/compose.yaml", "deploy/nginx/compose.yaml", "deploy/caddy/.env.example", "deploy/nginx/.env.example"} {
-		m := regexp.MustCompile(`DOCKYARD_PROXY_READ_TIMEOUT(?::-|=)(\d+s)`).FindStringSubmatch(read(t, f))
+		m := regexp.MustCompile(`DOCKER_MANAGER_PROXY_READ_TIMEOUT(?::-|=)(\d+s)`).FindStringSubmatch(read(t, f))
 		if m == nil {
-			t.Errorf("%s: no DOCKYARD_PROXY_READ_TIMEOUT default", f)
+			t.Errorf("%s: no DOCKER_MANAGER_PROXY_READ_TIMEOUT default", f)
 			continue
 		}
 		d, err := time.ParseDuration(m[1])
@@ -278,12 +278,12 @@ func TestProxySettings(t *testing.T) {
 }
 
 var (
-	configVarRE  = regexp.MustCompile(`"(DOCKYARD_[A-Z0-9_]+)"`)
-	envExampleRE = regexp.MustCompile(`(?m)^#?\s*(DOCKYARD_[A-Z0-9_]+)=`)
-	composeRefRE = regexp.MustCompile(`\$\{(DOCKYARD_[A-Z0-9_]+)(:?[-?][^}]*)?\}`)
+	configVarRE  = regexp.MustCompile(`"(DOCKER_(?:MANAGER|AGENT)_[A-Z0-9_]+)"`)
+	envExampleRE = regexp.MustCompile(`(?m)^#?\s*(DOCKER_(?:MANAGER|AGENT)_[A-Z0-9_]+)=`)
+	composeRefRE = regexp.MustCompile(`\$\{(DOCKER_(?:MANAGER|AGENT)_[A-Z0-9_]+)(:?[-?][^}]*)?\}`)
 )
 
-// configVars returns the DOCKYARD_* variables a config package reads.
+// configVars returns the DOCKER_MANAGER_* / DOCKER_AGENT_* variables a config package reads.
 func configVars(t *testing.T, rel string) map[string]bool {
 	t.Helper()
 	out := map[string]bool{}
@@ -309,19 +309,19 @@ func TestExampleVariablesAreKnown(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			base := "deploy/" + dir
 			c := load(t, base+"/compose.yaml")
-			for name, known := range map[string]map[string]bool{"dockyard-manager": manager, "dockyard-agent": agent} {
+			for name, known := range map[string]map[string]bool{"docker-manager": manager, "docker-agent": agent} {
 				svc, ok := c.Services[name]
 				if !ok {
-					if name == "dockyard-agent" || dir != "remote-agent" {
+					if name == "docker-agent" || dir != "remote-agent" {
 						t.Errorf("no service %s", name)
 					}
 					continue
 				}
-				if svc.Image != "code.neureka.dev/dockyard/"+name+":edge" {
+				if svc.Image != "code.neureka.dev/docker-manager/"+name+":edge" {
 					t.Errorf("%s image %q, want the published edge image", name, svc.Image)
 				}
 				for k := range svc.Environment {
-					if strings.HasPrefix(k, "DOCKYARD_") && !known[k] {
+					if strings.HasPrefix(k, "DOCKER_MANAGER_") && !known[k] {
 						t.Errorf("%s sets %s, which %s does not read", name, k, name)
 					}
 				}

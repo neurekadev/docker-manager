@@ -1,4 +1,4 @@
-// Package permissions is DockYard's authorization service (#17): rule
+// Package permissions is Docker Manager's authorization service (#17): rule
 // storage for groups and user overrides, the Authorizer every route and
 // the job engine call, the resource graph (Locators) and the owner-only
 // management flows (groups, default group, rule documents, effective
@@ -21,11 +21,11 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/manager/authz/policy"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/policy"
 )
 
 // Guard checks the caller of owner-only flows (the identity service,

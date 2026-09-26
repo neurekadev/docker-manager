@@ -5,12 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/secrets"
-	"github.com/neurekadev/dockyard/internal/manager/stacks"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/stacks"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 type fakeSystems struct{ caps string }
@@ -32,7 +32,7 @@ func TestFileManagerHooks(t *testing.T) {
 		t.Fatal(err)
 	}
 	caps := `{"roots":[{"kind":"volumes","path":"/var/lib/docker/volumes","watch":"inotify"},` +
-		`{"kind":"stacks","path":"/var/lib/docker/volumes/dockyard_stacks/_data","watch":"inotify"}]}`
+		`{"kind":"stacks","path":"/var/lib/docker/volumes/docker-manager_stacks/_data","watch":"inotify"}]}`
 	svc, err := stacks.New(stacks.Options{DB: h.db, Clock: h.clk, Logger: testutil.Logger(t), Keyring: secrets.NewKeyring(key),
 		Agents: h.agents, Environments: fakeEnvironments{h.agents}, Jobs: h.eng, Bus: h.bus, Systems: fakeSystems{caps}})
 	if err != nil {
@@ -40,7 +40,7 @@ func TestFileManagerHooks(t *testing.T) {
 	}
 	st := h.create("shop", shopYAML, shopEnv)
 	root, err := svc.StackFileRoot(h.ctx, st.ID)
-	if err != nil || root.EnvironmentID != env || root.Dir != "/var/lib/docker/volumes/dockyard_stacks/_data/shop" {
+	if err != nil || root.EnvironmentID != env || root.Dir != "/var/lib/docker/volumes/docker-manager_stacks/_data/shop" {
 		t.Fatalf("root %+v %v", root, err)
 	}
 	if _, err := svc.StackFileRoot(h.ctx, "nope"); !errors.Is(err, domain.ErrFileScopeNotFound) {

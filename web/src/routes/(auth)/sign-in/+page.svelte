@@ -47,7 +47,7 @@
 						? 'That code did not work. Codes change every 30 seconds; enter the current one.'
 						: what === 'recovery'
 							? 'That recovery code did not work. Each code works once.'
-							: 'That passkey did not work for this DockYard.';
+							: 'That passkey did not work for this Docker Manager.';
 			case 'rate_limited':
 				return 'Too many attempts. Wait a minute, then try again.';
 			case 'no_pending_flow':
@@ -156,11 +156,11 @@
 	}
 </script>
 
-<svelte:head><title>Sign in · DockYard</title></svelte:head>
+<svelte:head><title>Sign in · Docker Manager</title></svelte:head>
 
 <div class="stack">
 	<header>
-		<h1>Sign in to DockYard</h1>
+		<h1>Sign in to Docker Manager</h1>
 		{#if step === 'second'}
 			<p class="lead">Confirm it's you with your second factor.</p>
 		{:else if step === 'recovery'}
@@ -215,7 +215,9 @@
 				onclick={passkey}>Sign in with a passkey</Button
 			>
 		{/if}
-		<p class="help">Forgot your password? Ask the owner of this DockYard for a reset link.</p>
+		<p class="help">
+			Forgot your password? Ask the owner of this Docker Manager for a reset link.
+		</p>
 	{:else if step === 'second'}
 		{#if factors.includes('totp')}
 			<form onsubmit={submitCode}>

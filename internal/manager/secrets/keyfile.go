@@ -15,7 +15,7 @@ import (
 //
 //	openssl rand -base64 32 > secret.key
 //
-// and mount it separately from the data volume (DOCKYARD_SECRET_KEY_FILE).
+// and mount it separately from the data volume (DOCKER_MANAGER_SECRET_KEY_FILE).
 
 // ErrKeyFileMissing is returned by LoadKeyFile when the file does not exist.
 var ErrKeyFileMissing = errors.New("secrets: key file does not exist")

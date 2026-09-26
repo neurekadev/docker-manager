@@ -1,4 +1,4 @@
-// Package protection is the one place that decides what DockYard may do to
+// Package protection is the one place that decides what Docker Manager may do to
 // its own containers, images, volumes and networks (#32). The agent
 // identifies them (internal/agent/protect) and annotates its inventory with
 // protocol.Protection; the manager and the agent both call Check before any
@@ -10,31 +10,31 @@
 // Docker access is the escape hatch.
 package protection
 
-import "github.com/neurekadev/dockyard/internal/protocol"
+import "code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 
 // Roles of protected objects (protocol.Protection.Role).
 const (
-	// RoleAgent is a DockYard agent container (Self: the connected one).
+	// RoleAgent is a Docker Agent container (Self: the connected one).
 	RoleAgent = "agent"
-	// RoleManager is a DockYard manager container (Self: this instance's,
+	// RoleManager is a Docker Manager container (Self: this instance's,
 	// matched through manager.identity).
 	RoleManager = "manager"
-	// RoleProject is another container of DockYard's own Compose project
+	// RoleProject is another container of Docker Manager's own Compose project
 	// (e.g. the reverse proxy of the deploy examples).
-	RoleProject = "dockyard_project"
-	// RoleImage is an image a DockYard container runs.
-	RoleImage = "dockyard_image"
+	RoleProject = "docker_manager_project"
+	// RoleImage is an image a Docker Manager container runs.
+	RoleImage = "docker_manager_image"
 	// RoleManagerData is the manager's data volume.
 	RoleManagerData = "manager_data"
 	// RoleAgentState is the agent's state volume (its credential).
 	RoleAgentState = "agent_state"
 	// RoleStacks is the stacks volume (#28).
 	RoleStacks = "stacks"
-	// RoleVolume is another volume mounted into a DockYard container (for
-	// example a local backup repository, #10) or of DockYard's project.
-	RoleVolume = "dockyard_volume"
-	// RoleNetwork is a network of DockYard's containers or project.
-	RoleNetwork = "dockyard_network"
+	// RoleVolume is another volume mounted into a Docker Manager container (for
+	// example a local backup repository, #10) or of Docker Manager's project.
+	RoleVolume = "docker_manager_volume"
+	// RoleNetwork is a network of Docker Manager's containers or project.
+	RoleNetwork = "docker_manager_network"
 )
 
 // Action is an operation on a Docker object.
@@ -52,7 +52,7 @@ const (
 	Update Action = "update"
 	// Mount is mounting a volume into a new container.
 	Mount Action = "mount"
-	// Stack actions on DockYard's own Compose project (#7): deploy, down,
+	// Stack actions on Docker Manager's own Compose project (#7): deploy, down,
 	// stop.
 	Deploy Action = "deploy"
 	Down   Action = "down"
@@ -80,14 +80,14 @@ func (r *Refusal) ErrorClass() string { return r.Code }
 // Recovery implements jobexec.ClassedError.
 func (r *Refusal) Recovery() string {
 	if r.Code == CodeConfirmationRequired {
-		return "Confirm the restart: the DockYard UI and API disconnect until the manager is back."
+		return "Confirm the restart: the Docker Manager UI and API disconnect until the manager is back."
 	}
-	return "DockYard does not change its own containers, images and volumes; use Docker on the host if you really need to."
+	return "Docker Manager does not change its own containers, images and volumes; use Docker on the host if you really need to."
 }
 
 // Check decides whether action may run on an object with protection p
 // (nil: not protected). confirmed is the caller's explicit confirmation of
-// a restart that interrupts DockYard (the co-located manager).
+// a restart that interrupts Docker Manager (the co-located manager).
 func Check(p *protocol.Protection, action Action, confirmed bool) error {
 	if p == nil {
 		return nil
@@ -101,10 +101,10 @@ func Check(p *protocol.Protection, action Action, confirmed bool) error {
 				return nil
 			}
 			return &Refusal{Code: CodeConfirmationRequired, Action: action,
-				Reason: "restarting this container interrupts DockYard (" + p.Reason + "); confirm the restart to continue"}
+				Reason: "restarting this container interrupts Docker Manager (" + p.Reason + "); confirm the restart to continue"}
 		}
 	}
-	return &Refusal{Code: CodeProtected, Action: action, Reason: "refused to " + string(action) + " a protected DockYard resource: " + p.Reason}
+	return &Refusal{Code: CodeProtected, Action: action, Reason: "refused to " + string(action) + " a protected Docker Manager resource: " + p.Reason}
 }
 
 // Excluded reports whether an object must be left out of prune candidates,

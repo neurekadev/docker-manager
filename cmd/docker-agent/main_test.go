@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neurekadev/dockyard/internal/envconfig"
+	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
 )
 
 func runCmd(args []string, vars map[string]string, uid int) (int, string, string) {
@@ -17,7 +17,7 @@ func runCmd(args []string, vars map[string]string, uid int) (int, string, string
 }
 
 func TestRunRefusesPlainHTTPManager(t *testing.T) {
-	code, _, stderr := runCmd(nil, map[string]string{"DOCKYARD_MANAGER_URL": "http://dockyard-manager:8080"}, 0)
+	code, _, stderr := runCmd(nil, map[string]string{"DOCKER_AGENT_MANAGER_URL": "http://docker-manager:8080"}, 0)
 	if code != exitConfig || !strings.Contains(stderr, "refusing plain-HTTP") {
 		t.Fatalf("code %d stderr %q", code, stderr)
 	}
@@ -25,8 +25,8 @@ func TestRunRefusesPlainHTTPManager(t *testing.T) {
 
 func TestRunRefusesNonRoot(t *testing.T) {
 	vars := map[string]string{
-		"DOCKYARD_MANAGER_URL":     "https://docker.example.com",
-		"DOCKYARD_AGENT_STATE_DIR": t.TempDir(),
+		"DOCKER_AGENT_MANAGER_URL": "https://docker.example.com",
+		"DOCKER_AGENT_STATE_DIR":   t.TempDir(),
 	}
 	code, _, stderr := runCmd([]string{"run"}, vars, 1000)
 	if code != exitFail || !strings.Contains(stderr, "must run as root") {
@@ -35,14 +35,14 @@ func TestRunRefusesNonRoot(t *testing.T) {
 }
 
 func TestHealthcheckWithoutHealthFileFails(t *testing.T) {
-	code, _, stderr := runCmd([]string{"healthcheck"}, map[string]string{"DOCKYARD_AGENT_STATE_DIR": t.TempDir()}, 0)
+	code, _, stderr := runCmd([]string{"healthcheck"}, map[string]string{"DOCKER_AGENT_STATE_DIR": t.TempDir()}, 0)
 	if code != exitFail || !strings.Contains(stderr, "health file") {
 		t.Fatalf("code %d stderr %q", code, stderr)
 	}
 }
 
 func TestVersionAndUnknown(t *testing.T) {
-	if code, out, _ := runCmd([]string{"version"}, nil, 0); code != exitOK || !strings.HasPrefix(out, "dockyard-agent ") {
+	if code, out, _ := runCmd([]string{"version"}, nil, 0); code != exitOK || !strings.HasPrefix(out, "docker-agent ") {
 		t.Fatalf("version: %d %q", code, out)
 	}
 	if code, _, _ := runCmd([]string{"serve"}, nil, 0); code != exitConfig {
@@ -52,7 +52,7 @@ func TestVersionAndUnknown(t *testing.T) {
 
 func TestEnrollCommandHandsOverToken(t *testing.T) {
 	dir := t.TempDir()
-	vars := map[string]string{"DOCKYARD_AGENT_STATE_DIR": dir}
+	vars := map[string]string{"DOCKER_AGENT_STATE_DIR": dir}
 	withStdin := func(s string) {
 		old := stdin
 		stdin = strings.NewReader(s)

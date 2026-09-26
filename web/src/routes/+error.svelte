@@ -9,7 +9,7 @@
 	const notFound = $derived(page.status === 404);
 </script>
 
-<svelte:head><title>{notFound ? 'Page not found' : 'Error'} · DockYard</title></svelte:head>
+<svelte:head><title>{notFound ? 'Page not found' : 'Error'} · Docker Manager</title></svelte:head>
 
 <div class="error-page">
 	<Logo />
@@ -19,7 +19,7 @@
 		color="slate"
 		title={notFound
 			? 'There is nothing at this address.'
-			: 'DockYard hit an unexpected problem showing this page.'}
+			: 'Docker Manager hit an unexpected problem showing this page.'}
 		description={notFound
 			? 'Check the link, or go back to the dashboard.'
 			: 'Reload the page. If it keeps happening, the manager logs have the details.'}

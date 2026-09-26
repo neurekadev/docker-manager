@@ -156,12 +156,12 @@
 			{#if b.kind === 'manager_state'}
 				<Notice
 					tone="info"
-					title="Manager state restores happen on a new DockYard"
+					title="Manager state restores happen on a new Docker Manager"
 					live="none"
 				>
-					To recover the manager, set up a fresh DockYard and choose Import from backup
-					during setup, with this repository and your Recovery Key. A running manager is
-					never overwritten.
+					To recover the manager, set up a fresh Docker Manager and choose Import from
+					backup during setup, with this repository and your Recovery Key. A running
+					manager is never overwritten.
 				</Notice>
 			{/if}
 			{#if verifyJob}

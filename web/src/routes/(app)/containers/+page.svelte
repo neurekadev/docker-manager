@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Containers (#6): every container of the selected environment (or of
 	// all visible ones), filtered by name/image, state, stack and label.
-	// DockYard's own containers carry the "DockYard system" badge (#32),
+	// Docker Manager's own containers carry the "Docker Manager system" badge (#32),
 	// containers of a Compose project their stack. Row actions follow the
 	// container's state and granted actions (#17); refusals show the
 	// server's reason.
@@ -206,7 +206,7 @@
 	<DeniedState
 		level={1}
 		title="You don't have access to containers."
-		description="Ask the owner of this DockYard to grant access."
+		description="Ask the owner of this Docker Manager to grant access."
 	/>
 {:else}
 	<Page>

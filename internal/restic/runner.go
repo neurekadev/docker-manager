@@ -20,7 +20,7 @@ import (
 )
 
 // Runner executes the restic binary. It is the only process execution in
-// DockYard's backup code (see the package documentation for the rules).
+// Docker Manager's backup code (see the package documentation for the rules).
 type Runner struct {
 	// Binary is the restic executable (default DefaultBinary).
 	Binary string
@@ -720,7 +720,7 @@ func (p *repo) AddKey(ctx context.Context, newPassword string) error {
 	if newPassword == "" {
 		return errorf("key add", CodeFailed, "empty key")
 	}
-	_, err := p.run(ctx, call{op: "key add", args: []string{"key", "add", "--user", "dockyard", "--host", "dockyard"}, newPassword: newPassword})
+	_, err := p.run(ctx, call{op: "key add", args: []string{"key", "add", "--user", "docker-manager", "--host", "docker-manager"}, newPassword: newPassword})
 	return err
 }
 

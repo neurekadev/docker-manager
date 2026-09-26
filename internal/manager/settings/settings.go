@@ -1,5 +1,5 @@
 // Package settings owns the editable instance settings (#4,
-// GET/PATCH /api/v1/settings): the display name of this DockYard. The
+// GET/PATCH /api/v1/settings): the display name of this Docker Manager. The
 // sign-in policy (#16), schedule defaults (#13) and maintenance defaults
 // (#14) are separate resources owned by their packages; deployment
 // configuration comes from environment variables and is read-only.
@@ -14,9 +14,9 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 )
 
 // MaxNameLength bounds the display name (characters).

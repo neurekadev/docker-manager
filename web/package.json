@@ -1,5 +1,5 @@
 {
-	"name": "dockyard-web",
+	"name": "docker-manager-web",
 	"private": true,
 	"version": "0.0.0-edge",
 	"type": "module",

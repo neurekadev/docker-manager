@@ -9,10 +9,10 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/neurekadev/dockyard/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 )
 
-// Recreate specifications of DockYard-managed standalone containers (#6).
+// Recreate specifications of Docker Manager-managed standalone containers (#6).
 // The spec column holds a sealed envelope; internal/manager/resources seals
 // and opens it.
 

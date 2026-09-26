@@ -16,7 +16,7 @@ import {
 	type SwDeps
 } from './sw-core';
 
-const origin = 'https://dockyard.example';
+const origin = 'https://docker-manager.example';
 
 class FakeCache implements CacheLike {
 	entries = new Map<string, Response>();
@@ -125,7 +125,7 @@ describe('route', () => {
 			expect(r('/stacks', 'navigate', m), m).toBe('network');
 		}
 		expect(r('/_app/immutable/a.js', 'cors', 'GET', 'https://evil.example')).toBe('network');
-		expect(r('/stacks', 'navigate', 'GET', 'http://dockyard.example')).toBe('network');
+		expect(r('/stacks', 'navigate', 'GET', 'http://docker-manager.example')).toBe('network');
 	});
 
 	it('routes navigations (deep links) to the network-first shell handler', () => {
@@ -213,7 +213,7 @@ describe('install and activate', () => {
 		await expect(precache(redirected.deps)).rejects.toThrow('redirected');
 	});
 
-	it('activation deletes only older DockYard caches', async () => {
+	it('activation deletes only older Docker Manager caches', async () => {
 		const { storage, deps } = setup();
 		for (const n of [cacheName('v1'), cacheName('v2'), 'someone-else']) await storage.open(n);
 		expect(await removeStaleCaches(deps)).toEqual([CACHE_PREFIX + 'v1']);

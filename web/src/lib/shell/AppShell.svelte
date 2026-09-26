@@ -55,7 +55,8 @@
 
 	// UI preference only (not API data): the collapsed rail on wide screens.
 	let collapsed = $state(
-		typeof localStorage !== 'undefined' && localStorage.getItem('dockyard:sidebar') === 'rail'
+		typeof localStorage !== 'undefined' &&
+			localStorage.getItem('docker-manager:sidebar') === 'rail'
 	);
 	let drawerOpen = $state(false);
 	let paletteOpen = $state(false);
@@ -135,7 +136,7 @@
 		}
 		collapsed = !rail;
 		try {
-			localStorage.setItem('dockyard:sidebar', collapsed ? 'rail' : 'full');
+			localStorage.setItem('docker-manager:sidebar', collapsed ? 'rail' : 'full');
 		} catch {
 			// not persisted
 		}
@@ -219,8 +220,8 @@
 
 		{#if liveBanner}
 			<Notice tone="offline" icon={CloudOff} title="Live updates are disconnected" bar>
-				Pages may be out of date. DockYard keeps trying to reconnect; nothing you do is
-				queued.
+				Pages may be out of date. Docker Manager keeps trying to reconnect; nothing you do
+				is queued.
 			</Notice>
 		{/if}
 		{#if selected && !selected.online}

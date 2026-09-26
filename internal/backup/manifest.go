@@ -30,15 +30,15 @@ import (
 // It never contains credentials: S3 locations are endpoint, bucket and
 // prefix only, and the Recovery Key is identified by its fingerprint.
 //
-// Encoding: one header line "DOCKYARD-MANIFEST v1 length=<n> sha256=<hex>"
+// Encoding: one header line "DOCKER-MANAGER-MANIFEST v1 length=<n> sha256=<hex>"
 // followed by exactly n bytes of JSON. Decode detects truncation and
 // corruption before parsing.
 
 // Manifest format and version.
 const (
-	ManifestFormat  = "dockyard-backup-manifest"
+	ManifestFormat  = "docker-manager-backup-manifest"
 	ManifestVersion = 1
-	manifestMagic   = "DOCKYARD-MANIFEST"
+	manifestMagic   = "DOCKER-MANAGER-MANIFEST"
 	// MaxManifestSize bounds an encoded manifest.
 	MaxManifestSize = 4 << 20
 )
@@ -97,7 +97,7 @@ type Manifest struct {
 	Members      []Member        `json:"members"`
 }
 
-// AppInfo identifies the DockYard build that wrote a manifest.
+// AppInfo identifies the Docker Manager build that wrote a manifest.
 type AppInfo struct {
 	Version string `json:"version"`
 	Commit  string `json:"commit,omitempty"`
@@ -173,7 +173,7 @@ type Member struct {
 var (
 	ErrManifestTruncated   = errors.New("manifest is truncated")
 	ErrManifestCorrupt     = errors.New("manifest is corrupt (checksum mismatch or unreadable)")
-	ErrManifestUnsupported = errors.New("manifest was written by a newer DockYard (unsupported version)")
+	ErrManifestUnsupported = errors.New("manifest was written by a newer Docker Manager (unsupported version)")
 )
 
 // Normalize sorts the manifest's lists (stable encoding).

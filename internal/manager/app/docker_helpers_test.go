@@ -13,22 +13,22 @@ import (
 
 	"github.com/coder/websocket"
 
-	agentio "github.com/neurekadev/dockyard/internal/agent/containerio"
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/engine/enginefake"
-	agentjobs "github.com/neurekadev/dockyard/internal/agent/jobs"
-	"github.com/neurekadev/dockyard/internal/agent/observe"
-	"github.com/neurekadev/dockyard/internal/agent/protect"
-	agentprune "github.com/neurekadev/dockyard/internal/agent/prune"
-	agentres "github.com/neurekadev/dockyard/internal/agent/resources"
-	"github.com/neurekadev/dockyard/internal/agent/session"
-	"github.com/neurekadev/dockyard/internal/agent/state"
-	"github.com/neurekadev/dockyard/internal/buildinfo"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/jobexec"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/protocol"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	agentio "code.neureka.dev/docker-manager/docker-manager/internal/agent/containerio"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
+	agentjobs "code.neureka.dev/docker-manager/docker-manager/internal/agent/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/observe"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
+	agentprune "code.neureka.dev/docker-manager/docker-manager/internal/agent/prune"
+	agentres "code.neureka.dev/docker-manager/docker-manager/internal/agent/resources"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
+	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 // A real agent for the Docker resource tests (#6): the agent session client
@@ -38,7 +38,7 @@ import (
 // manager. Everything between the public API and the Engine adapter is the
 // production code.
 
-const stacksRoot = "/var/lib/docker/volumes/dockyard_stacks/_data"
+const stacksRoot = "/var/lib/docker/volumes/docker-manager_stacks/_data"
 
 type testAgent struct {
 	env    string
@@ -154,7 +154,7 @@ func (e *env) connectAgentParts(name string, fe *enginefake.Engine, parts agentP
 		DialOptions: func(h http.Header) *websocket.DialOptions {
 			return &websocket.DialOptions{HTTPHeader: h, Subprotocols: []string{protocol.Version}}
 		},
-		AgentVersion: buildinfo.Get().Version, UserAgent: "dockyard-agent/test",
+		AgentVersion: buildinfo.Get().Version, UserAgent: "docker-agent/test",
 		Capabilities: func() (protocol.CapabilitiesPayload, bool) {
 			cmds := make([]string, 0, len(execs))
 			for _, x := range execs {

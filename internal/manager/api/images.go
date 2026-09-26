@@ -9,11 +9,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz"
-	"github.com/neurekadev/dockyard/internal/manager/authz/catalog"
-	"github.com/neurekadev/dockyard/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 // Image capabilities (#17).
@@ -34,7 +34,7 @@ type Image struct {
 	ID            string              `json:"id" example:"sha256:4e1b5f1a6d8e..."`
 	EnvironmentID string              `json:"environmentId"`
 	RepoTags      []string            `json:"repoTags" doc:"References (repository:tag); empty for untagged (dangling) images."`
-	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for images DockYard's own containers run (#32): removal is refused."`
+	Protection    *ResourceProtection `json:"protection,omitempty" doc:"Set for images Docker Manager's own containers run (#32): removal is refused."`
 	View          string              `json:"view" enum:"minimal,full"`
 	Actions       []string            `json:"actions"`
 

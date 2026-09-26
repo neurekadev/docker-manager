@@ -1,4 +1,4 @@
-module github.com/neurekadev/dockyard
+module code.neureka.dev/docker-manager/docker-manager
 
 go 1.27
 

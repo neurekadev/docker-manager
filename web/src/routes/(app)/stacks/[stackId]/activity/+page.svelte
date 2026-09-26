@@ -41,7 +41,7 @@
 		if (j.origin === 'scheduled') return 'Schedule';
 		const mine = j.initiatorUserId && j.initiatorUserId === me;
 		if (j.origin === 'api_token') return mine ? 'You (API token)' : 'API token';
-		return mine ? 'You' : j.initiatorUserId ? 'Another user' : 'DockYard';
+		return mine ? 'You' : j.initiatorUserId ? 'Another user' : 'Docker Manager';
 	}
 
 	function actor(e: AuditEvent): string {
@@ -51,7 +51,7 @@
 			case 'api_token':
 				return 'API token';
 			case 'service':
-				return 'DockYard';
+				return 'Docker Manager';
 			case 'agent':
 				return 'Agent';
 		}

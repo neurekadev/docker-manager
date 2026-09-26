@@ -1,4 +1,4 @@
-// Package testutil holds helpers shared by DockYard's unit tests.
+// Package testutil holds helpers shared by Docker Manager's unit tests.
 //
 // It must only be imported from _test.go files. Time control lives in
 // internal/clock (clock.NewFake); this package wires common fixtures.
@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
 )
 
 // Epoch is the default start time for fake clocks in tests.

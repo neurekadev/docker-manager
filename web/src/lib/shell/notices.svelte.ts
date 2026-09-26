@@ -73,7 +73,7 @@ export function environmentNotices(target: Notices = notices) {
 					kind: 'environment',
 					tone: 'warn',
 					title: `${e.name} is offline`,
-					body: 'Its agent is not connected. DockYard shows its last known state.',
+					body: 'Its agent is not connected. Docker Manager shows its last known state.',
 					href: routes.environment(e.id)
 				});
 			} else if (e.online && was === false) {

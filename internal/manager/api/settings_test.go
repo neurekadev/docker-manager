@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurekadev/dockyard/internal/clock"
-	"github.com/neurekadev/dockyard/internal/db/migrations"
-	"github.com/neurekadev/dockyard/internal/domain"
-	"github.com/neurekadev/dockyard/internal/manager/audit"
-	"github.com/neurekadev/dockyard/internal/manager/authz/authztest"
-	"github.com/neurekadev/dockyard/internal/manager/events"
-	"github.com/neurekadev/dockyard/internal/manager/settings"
-	"github.com/neurekadev/dockyard/internal/manager/store"
-	"github.com/neurekadev/dockyard/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/db/migrations"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/settings"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 type settingsFixture struct {
@@ -33,7 +33,7 @@ func newSettingsFixture(t *testing.T, pol *authztest.Policy) settingsFixture {
 	t.Helper()
 	ctx := testutil.Context(t)
 	dir := t.TempDir()
-	db, err := store.Open(ctx, filepath.Join(dir, "dockyard.db"))
+	db, err := store.Open(ctx, filepath.Join(dir, "docker-manager.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestSettingsReadAndEdit(t *testing.T) {
 	}
 	want := DeploymentSettings{PublicURL: "https://docker.example.com", TrustedProxyCount: 2, StreamHeartbeatSeconds: 20,
 		FilesMaxUploadBytes: 1 << 20, MetricsEndpoint: true}
-	if s.Name != "DockYard" || s.InstanceID != "inst-1" || s.Revision != 1 || s.Deployment != want {
+	if s.Name != "Docker Manager" || s.InstanceID != "inst-1" || s.Revision != 1 || s.Deployment != want {
 		t.Fatalf("%+v", s)
 	}
 	patch := func(ifMatch string, body any) authztest.Response {
@@ -146,7 +146,7 @@ func TestSettingsReadAndEdit(t *testing.T) {
 			diff = string(rec.Details)
 		}
 	}
-	if !strings.Contains(diff, `"DockYard"`) || !strings.Contains(diff, `"Homelab"`) {
+	if !strings.Contains(diff, `"Docker Manager"`) || !strings.Contains(diff, `"Homelab"`) {
 		t.Fatalf("audit details %s", diff)
 	}
 	if r := patch(`"1"`, map[string]any{"name": "Other"}); r.Status != http.StatusPreconditionFailed || r.Header.Get("ETag") != `"2"` {

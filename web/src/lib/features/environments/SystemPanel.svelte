@@ -56,13 +56,13 @@
 		<Notice
 			tone={agent.compatibility === 'unsupported' ? 'danger' : 'warn'}
 			title={agent.compatibility === 'unsupported'
-				? `The agent ${agent.version} is too old for this DockYard`
+				? `The agent ${agent.version} is too old for this Docker Manager`
 				: `The agent ${agent.version} is outdated`}
 			live="none"
 		>
 			{agent.compatibility === 'unsupported'
-				? 'DockYard refuses its connection until it is upgraded.'
-				: 'It works, but upgrade it soon: the next DockYard release will refuse it.'}
+				? 'Docker Manager refuses its connection until it is upgraded.'
+				: 'It works, but upgrade it soon: the next Docker Manager release will refuse it.'}
 			{#if agent.upgradeInstructions ?? env.upgradeInstructions}
 				<pre class="mono instructions">{agent.upgradeInstructions ??
 						env.upgradeInstructions}</pre>
@@ -73,7 +73,7 @@
 	{#if transport?.plainHttp}
 		<Notice tone="warn" title="The agent uses plain HTTP" live="none">
 			It connects to <span class="mono">{transport.managerUrl}</span> without TLS. That is only
-			safe on the manager's own Docker network (DOCKYARD_MANAGER_ALLOW_HTTP).
+			safe on the manager's own Docker network (DOCKER_AGENT_MANAGER_ALLOW_HTTP).
 		</Notice>
 	{/if}
 

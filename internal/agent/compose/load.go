@@ -17,8 +17,8 @@ import (
 	"github.com/docker/compose/v5/pkg/api"
 	"go.yaml.in/yaml/v4"
 
-	"github.com/neurekadev/dockyard/internal/agent/engine"
-	"github.com/neurekadev/dockyard/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
 )
 
 // DefaultConfigFiles are the file names searched in the project directory,
@@ -100,11 +100,11 @@ type Bind struct {
 	ReadOnly bool
 }
 
-// Display metadata labels a Compose file may carry (#7). DockYard imports
+// Display metadata labels a Compose file may carry (#7). Docker Manager imports
 // them once as the service's display metadata; it never writes them.
 const (
-	LabelDescription = "dev.neureka.dockyard.description"
-	LabelIcon        = "dev.neureka.dockyard.icon"
+	LabelDescription = "dev.neureka.docker-manager.description"
+	LabelIcon        = "dev.neureka.docker-manager.icon"
 )
 
 // ServiceInfo summarizes a service.
@@ -375,7 +375,7 @@ func within(dir, rel string) (string, error) {
 
 // withComposeLabels adds the labels the Compose CLI's loader sets, so the
 // SDK and `docker compose` recognize the project's containers, plus
-// DockYard's dependency label.
+// Docker Manager's dependency label.
 func withComposeLabels(p *types.Project, envFiles []string) *types.Project {
 	for name, s := range p.Services {
 		s.CustomLabels = map[string]string{
