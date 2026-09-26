@@ -116,6 +116,22 @@ export function retentionText(r: BackupRetention | undefined): string {
 	return `Keep ${parts.join(', ')}${floor}`;
 }
 
+/**
+ * Retention of a new policy: the newest 168 snapshots (a week of hourly
+ * backups, the default schedule), every other rule off (0), and a recovery
+ * floor of 1.
+ */
+export const DEFAULT_RETENTION: BackupRetention = {
+	last: 168,
+	hourly: 0,
+	daily: 0,
+	weekly: 0,
+	monthly: 0,
+	yearly: 0,
+	withinDays: 0,
+	minKeep: 1
+};
+
 export function hasRetentionRules(r: BackupRetention | undefined): boolean {
 	return (
 		!!r &&

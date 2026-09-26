@@ -25,9 +25,10 @@ type Systems interface {
 }
 
 var (
-	_ files.StackRoots     = (*Service)(nil)
-	_ files.SourceObserver = (*Service)(nil)
-	_ files.WatchedStacks  = (*Service)(nil)
+	_ files.StackRoots      = (*Service)(nil)
+	_ files.SourceObserver  = (*Service)(nil)
+	_ files.SourceValidator = (*Service)(nil)
+	_ files.WatchedStacks   = (*Service)(nil)
 )
 
 // StackFileRoot resolves a stack's project directory to its absolute host
@@ -90,6 +91,48 @@ func (s *Service) stacksDir(ctx context.Context, environmentID string) (string, 
 		}
 	}
 	return "", errNoStacksRoot
+}
+
+// ValidateSourceSave checks the stack's definition with content in place
+// of relPath before the file manager writes it (#7, #15): the definition
+// on disk is read from the agent, the file is replaced (or added) and the
+// whole project is validated like a new stack's. Errors refuse the save
+// (invalid_definition); warnings do not. Files outside the definition are
+// not checked.
+func (s *Service) ValidateSourceSave(ctx context.Context, stackID, relPath string, content []byte) error {
+	st, err := store.GetStack(ctx, s.db, stackID)
+	if errors.Is(err, domain.ErrStackNotFound) {
+		return domain.ErrFileScopeNotFound
+	}
+	if err != nil {
+		return err
+	}
+	root, err := s.Root(ctx, stackID)
+	if err != nil {
+		return err
+	}
+	if !IsDefinitionFile(st, root.DefinitionFiles, relPath) {
+		return nil
+	}
+	var cur protocol.ComposeReadOutput
+	if err := s.call(ctx, st.EnvironmentID, protocol.ReqComposeRead, protocol.ComposeReadInput{Stack: Ref(st)}, &cur); err != nil {
+		return err
+	}
+	defs := make([]domain.StackFile, 0, len(cur.Snapshot.Files)+1)
+	for _, f := range cur.Snapshot.Files {
+		if f.Path != relPath {
+			defs = append(defs, domain.StackFile{Path: f.Path, Content: f.Content})
+		}
+	}
+	defs = append(defs, domain.StackFile{Path: relPath, Content: content})
+	var v protocol.ComposeValidateOutput
+	if err := s.call(ctx, st.EnvironmentID, protocol.ReqComposeValidate, protocol.ComposeValidateInput{Stack: Ref(st), Files: sourceFiles(defs)}, &v); err != nil {
+		return err
+	}
+	if !v.Valid {
+		return invalidDefinition(v)
+	}
+	return nil
 }
 
 // sourceObserveTimeout bounds the background recording of a file-manager

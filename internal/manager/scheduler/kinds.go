@@ -86,7 +86,7 @@ func (k Kind) validate() error {
 // prune and update runs never start at an unexpected time.
 func BuiltinKinds() []Kind {
 	return []Kind{
-		{Key: KindBackup, Label: "Backups", Suggested: "0 2 * * *", CatchUp: domain.CatchUpOnce,
+		{Key: KindBackup, Label: "Backups", Suggested: "0 * * * *", CatchUp: domain.CatchUpOnce,
 			PolicyType: catalog.TypeBackupPolicy, ReadCapability: "backup_policy.read",
 			JobKinds: []domain.JobKind{jobspec.BackupRun, jobspec.ManagerBackup}},
 		{Key: KindUpdateCheck, Label: "Image update checks", Suggested: "0 3 * * *", CatchUp: domain.CatchUpOnce,

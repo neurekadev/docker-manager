@@ -146,6 +146,12 @@ on-disk files are authoritative (#7):
 - changing them (save, create, upload over them, delete, move, move or copy
   a Compose name into the root, extract into the root, chmod/chown) needs
   `stack.definition.write`;
+- a save or a new file with content (`PUT .../content`, `POST .../entries`)
+  is validated first with the rest of the definition on disk
+  (`files.SourceValidator`, #7): when the definition would no longer load,
+  nothing is written and the answer is 422 `invalid_definition` with one
+  `body.content` detail per finding (warnings do not block). Uploads,
+  moves, extractions and deletions are not validated;
 - every change Docker Manager makes to them is reported to the stack service
   (`files.SourceObserver`, #7), which records a revision and marks
   undeployed changes; nothing is deployed automatically. Job-based changes

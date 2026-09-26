@@ -58,6 +58,14 @@ type SourceObserver interface {
 	StackSourcesChanged(ctx context.Context, stackID string, paths []string)
 }
 
+// SourceValidator checks a stack's definition with new content for one of
+// its files before the file manager writes it (#7): a save that would
+// leave the definition invalid is refused with the validator's error
+// (*domain.StackError invalid_definition). The observer may implement it.
+type SourceValidator interface {
+	ValidateSourceSave(ctx context.Context, stackID, path string, content []byte) error
+}
+
 // Agents is the session hub as used here (*agents.Hub).
 type Agents interface {
 	RequestEnvironment(ctx context.Context, environmentID, name string, input any, timeout time.Duration) (json.RawMessage, error)
@@ -218,6 +226,9 @@ func (s *Service) Read(ctx context.Context, r api.FileRoot, in protocol.FilesRea
 // Write replaces or creates a file (inline content).
 func (s *Service) Write(ctx context.Context, r api.FileRoot, in protocol.FilesWriteInput) (protocol.FileEntry, error) {
 	in.Scope = r.Scope
+	if err := s.validateSource(ctx, r, in.Path, in.Data); err != nil {
+		return protocol.FileEntry{}, err
+	}
 	e, err := request[protocol.FileEntry](ctx, s, r, protocol.ReqFilesWrite, in)
 	if err == nil {
 		s.sourcesChanged(ctx, r, e.Path)
@@ -228,6 +239,11 @@ func (s *Service) Write(ctx context.Context, r api.FileRoot, in protocol.FilesWr
 // Mkdir creates a directory or a new file.
 func (s *Service) Mkdir(ctx context.Context, r api.FileRoot, in protocol.FilesMkdirInput) (protocol.FileEntry, error) {
 	in.Scope = r.Scope
+	if in.Type == protocol.FileTypeFile {
+		if err := s.validateSource(ctx, r, in.Path, in.Data); err != nil {
+			return protocol.FileEntry{}, err
+		}
+	}
 	e, err := request[protocol.FileEntry](ctx, s, r, protocol.ReqFilesMkdir, in)
 	if err == nil {
 		s.sourcesChanged(ctx, r, e.Path)
@@ -400,6 +416,17 @@ func jobSourcePaths(kind domain.JobKind, in protocol.FilesJobInput) []string {
 }
 
 // sourcesChanged tells the observer about changed definition files.
+// validateSource refuses writing content to a stack's definition file
+// when the definition would no longer load (SourceValidator).
+func (s *Service) validateSource(ctx context.Context, r api.FileRoot, path string, content []byte) error {
+	_, observer := s.deps()
+	v, ok := observer.(SourceValidator)
+	if !ok || r.Scope.Kind != protocol.ScopeStack {
+		return nil
+	}
+	return v.ValidateSourceSave(ctx, r.Scope.ID, path, content)
+}
+
 func (s *Service) sourcesChanged(ctx context.Context, r api.FileRoot, paths ...string) {
 	_, observer := s.deps()
 	if observer == nil || r.Scope.Kind != protocol.ScopeStack {

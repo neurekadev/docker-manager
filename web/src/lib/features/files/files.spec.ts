@@ -2,8 +2,9 @@
 // the typing guard, per-item conflict grouping, diff, Markdown safety,
 // language detection and Compose sources.
 import { describe, expect, it } from 'vitest';
+import { ApiRequestError } from '$lib/api/client';
 import { groupRequests, ConflictQueue, decisionSummary, type ConflictItem } from './conflicts';
-import { isDefinitionFile } from './definition';
+import { definitionRefusal, isDefinitionFile } from './definition';
 import { diffLines, diffRows } from './diff';
 import { directoriesOf } from './dropped';
 import { modeString } from './icons';
@@ -330,5 +331,20 @@ describe('column sorting', () => {
 		expect(nextSort('type', 'size')).toBe('-size');
 		expect(nextSort('-size', 'size')).toBe('size');
 		expect(sortDirection('-modified')).toBe('descending');
+	});
+});
+
+describe('definitionRefusal', () => {
+	it('lists the findings of a save refused as an invalid definition', () => {
+		const e = new ApiRequestError('invalid', 422, {
+			code: 'invalid_definition',
+			message: 'not saved: the Compose definition would be invalid',
+			details: [{ field: 'body.content', message: 'invalid_project: yaml: line 2' }]
+		} as never);
+		expect(definitionRefusal(e)).toBe(
+			'Nothing was written: the Compose definition would be invalid: invalid_project: yaml: line 2. Your edits are kept; fix them and save again.'
+		);
+		expect(definitionRefusal(new ApiRequestError('gone', 404))).toBeNull();
+		expect(definitionRefusal(new Error('x'))).toBeNull();
 	});
 });

@@ -10,7 +10,7 @@ export type ScheduleDefaults = Schema<'ScheduleDefaults'>;
 
 /** Docker Manager's shipped suggestions (#13), used when defaults are not readable. */
 export const SUGGESTED: Record<string, string> = {
-	backup: '0 2 * * *',
+	backup: '0 * * * *',
 	update_check: '0 3 * * *',
 	update_run: '0 4 * * *',
 	prune: '0 3 * * 0',

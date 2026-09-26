@@ -7,6 +7,8 @@
 // ($lib/live criticalWork: unsaved edits, terminals, restores, uploads), so
 // they are never interrupted.
 import { criticalWork, type CriticalItem } from '$lib/live/critical.svelte';
+import { liveStatus } from '$lib/live/status.svelte';
+import { connectivity } from './connectivity.svelte';
 import { SKIP_WAITING } from './sw-core';
 
 export const SW_URL = '/service-worker.js';
@@ -154,6 +156,31 @@ export class PwaState {
 export const pwa = new PwaState();
 
 /**
+ * Checks for a new build when the manager comes back after the connection
+ * was lost: a restart is usually an upgrade, and the browser would
+ * otherwise only look on the next navigation or hourly check.
+ */
+export class ReconnectCheck {
+	#lost = false;
+	#check: () => void;
+
+	constructor(check: () => void) {
+		this.#check = check;
+	}
+
+	/** Feeds the connection state (false while reconnecting or unreachable). */
+	observe(connected: boolean): void {
+		if (!connected) {
+			this.#lost = true;
+			return;
+		}
+		if (!this.#lost) return;
+		this.#lost = false;
+		this.#check();
+	}
+}
+
+/**
  * Browser entry point (called once from the root layout). No-op where
  * service workers are unavailable (plain-HTTP origins other than
  * localhost, some private modes) and in `vite dev`.
@@ -164,8 +191,22 @@ export function startServiceWorker(): () => void {
 	const check = () => void pwa.checkForUpdate();
 	const timer = setInterval(check, UPDATE_CHECK_MS);
 	window.addEventListener('online', check);
+	const visible = () => {
+		if (document.visibilityState === 'visible') check();
+	};
+	document.addEventListener('visibilitychange', visible);
+	const reconnect = new ReconnectCheck(check);
+	const stopWatching = $effect.root(() => {
+		$effect(() => {
+			const s = liveStatus.state;
+			const lost = s === 'reconnecting' || s === 'polling' || !connectivity.managerReachable;
+			reconnect.observe(!lost);
+		});
+	});
 	return () => {
 		clearInterval(timer);
 		window.removeEventListener('online', check);
+		document.removeEventListener('visibilitychange', visible);
+		stopWatching();
 	};
 }

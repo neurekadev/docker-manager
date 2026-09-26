@@ -79,3 +79,36 @@ func TestFileManagerHooks(t *testing.T) {
 		t.Errorf("revision %+v", revs[0])
 	}
 }
+
+// TestValidateSourceSave (#7, #15): a file-manager save of a definition
+// file is validated with the rest of the definition on disk; errors refuse
+// it, other files are never checked.
+func TestValidateSourceSave(t *testing.T) {
+	h := newHarness(t)
+	st := h.create("shop", shopYAML, shopEnv)
+	if err := h.svc.ValidateSourceSave(h.ctx, st.ID, "compose.yaml", []byte(shopYAML+"# still fine\n")); err != nil {
+		t.Errorf("valid save: %v", err)
+	}
+	err := h.svc.ValidateSourceSave(h.ctx, st.ID, "compose.yaml", []byte("services:\n  web:\n    image: [nginx\n"))
+	if stackErrCode(err) != domain.StackErrInvalidDefinition {
+		t.Errorf("broken YAML: %v", err)
+	}
+	var se *domain.StackError
+	if errors.As(err, &se) && len(se.Issues) == 0 {
+		t.Error("the refusal lists no findings")
+	}
+	// The .env feeds interpolation: a missing required variable breaks it.
+	if err := h.svc.ValidateSourceSave(h.ctx, st.ID, "compose.yaml",
+		[]byte("services:\n  web:\n    image: nginx:${MISSING:?set MISSING}\n")); stackErrCode(err) != domain.StackErrInvalidDefinition {
+		t.Errorf("unset required variable: %v", err)
+	}
+	if err := h.svc.ValidateSourceSave(h.ctx, st.ID, ".env", []byte("DB_TAG=17\n")); err != nil {
+		t.Errorf("valid .env: %v", err)
+	}
+	if err := h.svc.ValidateSourceSave(h.ctx, st.ID, "html/index.html", []byte("services: [")); err != nil {
+		t.Errorf("a workspace file is not a definition file: %v", err)
+	}
+	if err := h.svc.ValidateSourceSave(h.ctx, "nope", "compose.yaml", nil); !errors.Is(err, domain.ErrFileScopeNotFound) {
+		t.Errorf("unknown stack: %v", err)
+	}
+}

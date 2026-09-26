@@ -27,7 +27,7 @@
 	} from '$lib/ui';
 	import { liveScopeOf, type FilesApi } from './api';
 	import CompareDialog from './CompareDialog.svelte';
-	import { isDefinitionFile } from './definition';
+	import { definitionRefusal, isDefinitionFile } from './definition';
 	import { isDirty, SaveBlockedError, type EditorSession, type EditorTab } from './editor.svelte';
 	import EditorDocument from './EditorDocument.svelte';
 	import { formattable, LANGUAGE_LABELS } from './language';
@@ -109,7 +109,10 @@
 				toast.warn(`${basename(t.path)} was not saved`, {
 					body: 'It changed on disk since you opened it. Your edits are kept; choose how to resolve it.'
 				});
-			} else toast.error(`${basename(t.path)} was not saved`, { body: errorMessage(e) });
+			} else
+				toast.error(`${basename(t.path)} was not saved`, {
+					body: definitionRefusal(e) ?? errorMessage(e)
+				});
 		}
 	}
 

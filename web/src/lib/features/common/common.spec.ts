@@ -113,7 +113,7 @@ describe('schedule defaults', () => {
 		).toEqual({ cron: '0 1 * * 6', timeZone: 'Europe/Berlin' });
 		expect(defaultSchedule('backup', undefined).cron).toBe(SUGGESTED.backup);
 		expect(SUGGESTED).toMatchObject({
-			backup: '0 2 * * *',
+			backup: '0 * * * *',
 			update_check: '0 3 * * *',
 			update_run: '0 4 * * *',
 			prune: '0 3 * * 0'
