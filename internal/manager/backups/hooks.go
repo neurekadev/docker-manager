@@ -88,11 +88,15 @@ func (s *Service) onManagerBackup(ctx context.Context, db bun.IDB, j domain.Job)
 func (s *Service) recordMembers(ctx context.Context, db bun.IDB, j domain.Job, setID, policyID, repositoryID, scope string,
 	items map[string]bool, results []backup.Member, resticID string, keyGen int, manifestID string) error {
 	now := s.now()
+	known, err := repositoryExists(ctx, db, repositoryID)
+	if err != nil {
+		return err
+	}
 	byItem := map[string]backup.Member{}
 	var latest *time.Time
 	for _, m := range results {
 		byItem[m.Item] = m
-		if m.SnapshotID == "" {
+		if m.SnapshotID == "" || !known {
 			continue
 		}
 		env, _ := backup.ScopeEnvironment(scope)
@@ -227,9 +231,13 @@ func (s *Service) onVerify(ctx context.Context, db bun.IDB, j domain.Job) error 
 
 // indexListing adds snapshots found in a repository that the index does
 // not know yet (a restored manager learns the snapshots written after its
-// manager-state snapshot, #24). Known ones are left unchanged.
+// manager-state snapshot, #24). Known ones are left unchanged; nothing is
+// added once the repository was removed.
 func (s *Service) indexListing(ctx context.Context, db bun.IDB, repositoryID, scope string, snaps []restic.Snapshot,
 	manifests []backup.Manifest, jobID string) error {
+	if known, err := repositoryExists(ctx, db, repositoryID); err != nil || !known {
+		return err
+	}
 	members := map[string]backup.Member{}
 	for _, m := range manifests {
 		for _, mem := range m.Members {
@@ -276,4 +284,14 @@ func (s *Service) indexListing(ctx context.Context, db bun.IDB, repositoryID, sc
 		}
 	}
 	return nil
+}
+
+// repositoryExists reports whether a repository is still configured: jobs
+// finishing after its removal must not index snapshots in it again.
+func repositoryExists(ctx context.Context, db bun.IDB, id string) (bool, error) {
+	_, err := store.GetBackupRepository(ctx, db, id)
+	if errors.Is(err, domain.ErrBackupRepositoryNotFound) {
+		return false, nil
+	}
+	return err == nil, err
 }

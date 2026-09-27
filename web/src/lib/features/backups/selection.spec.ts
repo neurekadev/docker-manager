@@ -49,6 +49,19 @@ describe('backup path selection (#10)', () => {
 		expect(tickState(sel, '/v/thumbs/sub')).toBe('unchecked');
 	});
 
+	it('ignores a listing that names its own directory', () => {
+		const withSelf = (dir: string) => {
+			const entries = children(dir);
+			return entries && [dir, ...entries];
+		};
+		expect(toggle(['/v'], '/v/thumbs/sub/x.png', withSelf)).toEqual([
+			'/v/a.jpg',
+			'/v/docs',
+			'/v/thumbs/1.png',
+			'/v/thumbs/2.png'
+		]);
+	});
+
 	it('leaves the selection alone when a listing is not loaded', () => {
 		expect(toggle(['/v'], '/v/docs/readme.md', children)).toEqual(['/v']);
 	});

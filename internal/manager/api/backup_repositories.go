@@ -772,8 +772,9 @@ func registerBackupRepositories(a huma.API, h *backupsAPI) {
 		Operation: huma.Operation{
 			OperationID: "delete-backup-repository", Method: http.MethodDelete, Path: BasePath + "/backup-repositories/{repositoryId}",
 			Summary: "Remove a backup repository", DefaultStatus: http.StatusNoContent,
-			Description: "Removes the repository from Docker Manager (409 backup_repository_in_use while a policy uses it). The restic " +
-				"repositories at the destination are left untouched. Requires If-Match.",
+			Description: "Removes the repository from Docker Manager (409 backup_repository_in_use while a policy uses it), with its " +
+				"backups and the backup sets held only by it from the index. The restic repositories at the destination are left " +
+				"untouched. Requires If-Match.",
 			Tags: []string{tagBackups}, Errors: editErrs,
 		},
 		Capability: CapBackupRepositoryManage, Scope: ScopeResource,

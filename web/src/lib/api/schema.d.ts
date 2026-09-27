@@ -610,7 +610,7 @@ export interface paths {
         post?: never;
         /**
          * Remove a backup repository
-         * @description Removes the repository from Docker Manager (409 backup_repository_in_use while a policy uses it). The restic repositories at the destination are left untouched. Requires If-Match.
+         * @description Removes the repository from Docker Manager (409 backup_repository_in_use while a policy uses it), with its backups and the backup sets held only by it from the index. The restic repositories at the destination are left untouched. Requires If-Match.
          */
         delete: operations["delete-backup-repository"];
         options?: never;

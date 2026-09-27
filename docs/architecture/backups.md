@@ -24,6 +24,10 @@ only production process execution in Docker Manager.
   `docker-manager-env-<environmentId>` for an environment's data. A local
   repository serves only its own executor's scope; an S3 repository serves
   every scope. Ownership, locking and retention stay per location.
+- Removing a repository (refused while a policy uses it) also removes
+  its snapshots from the index and the sets held only by it: they cannot
+  be browsed or restored without it. Finish hooks do not index snapshots
+  of a removed repository; the restic data at the destination is kept.
 - A **policy** covers one environment or all environments. Overlap is
   rejected (`backup_scope_overlap`). Every managed stack and standalone
   volume in its scope is selected at preview and run time unless its stack

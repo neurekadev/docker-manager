@@ -503,6 +503,20 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 	owner.fail(http.StatusConflict, "backup_not_a_file", http.MethodGet, "/api/v1/backups/"+kinds["stack"]+"/contents/download?path="+
 		strings.TrimSuffix(index, "/index.html"), nil)
 
+	// One directory lists its entries, never itself (restic ls prints the
+	// directory first; the file picker would open it inside itself).
+	html := strings.TrimSuffix(index, "/index.html")
+	var level struct {
+		Entries []struct {
+			Path string `json:"path"`
+		} `json:"entries"`
+		Truncated bool `json:"truncated"`
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backups/"+kinds["stack"]+"/contents?limit=1&path="+html, nil).json(t, &level)
+	if len(level.Entries) != 1 || level.Entries[0].Path != index || level.Truncated {
+		t.Errorf("listing of %s: %+v", html, level)
+	}
+
 	// The manager-state snapshot holds the database, the sealed secret-key
 	// bundle and state.json; the manifest describes the whole set.
 	var mcontents struct {

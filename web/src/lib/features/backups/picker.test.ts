@@ -25,9 +25,15 @@ const node = (path: string, type: 'dir' | 'file') => ({
 	mtime: '2026-09-26T10:00:00Z'
 });
 
+// Like restic, a listing starts with the directory itself.
 const listings: Record<string, ReturnType<typeof node>[]> = {
-	'/vol/up/_data': [node('/vol/up/_data/a.jpg', 'file'), node('/vol/up/_data/thumbs', 'dir')],
+	'/vol/up/_data': [
+		node('/vol/up/_data', 'dir'),
+		node('/vol/up/_data/a.jpg', 'file'),
+		node('/vol/up/_data/thumbs', 'dir')
+	],
 	'/vol/up/_data/thumbs': [
+		node('/vol/up/_data/thumbs', 'dir'),
 		node('/vol/up/_data/thumbs/1.png', 'file'),
 		node('/vol/up/_data/thumbs/2.png', 'file')
 	]

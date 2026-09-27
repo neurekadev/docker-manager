@@ -300,14 +300,24 @@ func repositoryAuditView(r domain.BackupRepository) map[string]any {
 		"verifyCron": r.VerifyCron, "verifyTimeZone": r.VerifyTimeZone, "verifyEnabled": r.VerifyEnabled, "verifyReadData": r.VerifyReadData}
 }
 
-// DeleteRepository removes a repository that no policy uses. The restic
-// repositories at the destination are left untouched.
+// DeleteRepository removes a repository that no policy uses and the
+// backups indexed in it (they cannot be browsed or restored without it).
+// The restic repositories at the destination are left untouched.
 func (s *Service) DeleteRepository(ctx context.Context, id string, revision int64) error {
-	if err := store.DeleteBackupRepository(ctx, s.db, id, revision); err != nil {
+	var removed []string
+	if err := s.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		var err error
+		removed, err = store.DeleteBackupRepository(ctx, tx, id, revision)
+		return err
+	}); err != nil {
 		return err
 	}
+	audit.SetDetail(ctx, "backupCount", len(removed))
 	if s.opts.ForgetResource != nil {
 		_, _ = s.opts.ForgetResource(ctx, authz.ResourceRef{Type: catalog.TypeBackupRepository, ID: id})
+		for _, sn := range removed {
+			_, _ = s.opts.ForgetResource(ctx, authz.ResourceRef{Type: catalog.TypeBackup, ID: sn})
+		}
 	}
 	s.notify()
 	return nil

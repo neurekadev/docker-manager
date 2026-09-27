@@ -22084,7 +22084,7 @@
     },
     "/api/v1/backup-repositories/{repositoryId}": {
       "delete": {
-        "description": "Removes the repository from Docker Manager (409 backup_repository_in_use while a policy uses it). The restic repositories at the destination are left untouched. Requires If-Match.",
+        "description": "Removes the repository from Docker Manager (409 backup_repository_in_use while a policy uses it), with its backups and the backup sets held only by it from the index. The restic repositories at the destination are left untouched. Requires If-Match.",
         "operationId": "delete-backup-repository",
         "parameters": [
           {
