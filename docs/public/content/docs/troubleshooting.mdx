@@ -32,6 +32,7 @@ contains secrets, but it does contain host names and IP addresses.
 | A job ended as `interrupted` | The manager or agent restarted during it. Check the result, then run it again. |
 | Connecting a host fails with `engine_already_enrolled` | This host already has an agent. Remove the old agent under **Environments**, or create the token to replace it. |
 | An update is refused with `update_source_drift` | The stack's files changed but were not deployed. Deploy or undo the change first. |
+| A backup or retention job fails with `repository_locked` | Another backup, restore or retention run is using the same repository right now. Wait for it to finish and run the job again, or give your backup policies different start times. Locks left behind by a restart are removed automatically. |
 | Importing a backup fails with `backup_import_key_rejected` | Wrong Recovery Key, or the key was changed after that backup: enter the previous key too. |
 | Passkeys stop working after you changed the address | Passkeys belong to one address. Sign in with your password and authenticator code (or a recovery code) and add the passkey again. |
 
