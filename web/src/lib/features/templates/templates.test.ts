@@ -225,9 +225,7 @@ describe('CreateFromTemplateDialog', () => {
 		});
 		mount(CreateFromTemplateDialog, { open: true, environmentId: 'env-1', templateId: 'tp-1' });
 		const d = await screen.findByRole('dialog', { name: 'Create stack from Next Cloud' });
-		await waitFor(() =>
-			expect(within(d).getByLabelText('Name', { exact: false })).toHaveValue('next-cloud')
-		);
+		await waitFor(() => expect(within(d).getByLabelText(/^Name/)).toHaveValue('next-cloud'));
 		await user.click(within(d).getByRole('button', { name: 'Create stack' }));
 		await waitFor(() => expect(posted).toHaveLength(1));
 		expect(posted[0].body).toMatchObject({
