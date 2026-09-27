@@ -5,11 +5,18 @@ kept as the written record (#1 roadmap, #25 decisions, #4 API catalog); the
 code lives at https://code.neureka.dev/docker-manager/docker-manager. Background:
 `docs/architecture/overview.md`, `docs/adr/0001-foundation.md`.
 
-## Local gate and CI
+## Local checks and CI
 
-`bash scripts/check.sh` must pass before every push. It mirrors the `lint`,
-`unit-tests` and `build` jobs of `.github/workflows/CI.yaml` (run one class
-with `bash scripts/check.sh lint|unit-tests|build`):
+Forgejo CI is the gate: it runs the full `lint`, `unit-tests` and `build`
+jobs on every push to `main`, and publishes `:edge` only when they pass.
+Before pushing, run only fast checks on what changed: gofmt, Prettier on
+the changed web files, and `go vet`/`go test` of the changed Go packages
+(plus the web tests touching changed web code). Do not run the full
+`bash scripts/check.sh`, golangci-lint over the repository or
+`scripts/policy-check.sh` locally unless asked (they take many minutes on
+the Windows workstation). When a CI run fails, fetch its log and fix
+forward. `scripts/check.sh` mirrors the CI jobs for anyone who wants the
+whole suite (`bash scripts/check.sh lint|unit-tests|build`):
 
 - **lint:** gofmt, `npm --prefix web run format:check` (Prettier),
   golangci-lint v2.13.2 (also `GOOS=linux` on other hosts; govet runs

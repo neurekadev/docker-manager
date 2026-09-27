@@ -17,11 +17,14 @@ The code lives at `https://code.neureka.dev/docker-manager/docker-manager` (Forg
 the GitHub issues of `neurekadev/dockyard` stay the written record of the
 roadmap and decisions.
 
-## Local gate and CI
+## Local checks and CI
 
-`bash scripts/check.sh` must pass before every push. It mirrors the `Lint`,
-`Unit Tests` and `Build` jobs of `.github/workflows/CI.yaml` and fails fast
-with a summary. Run one or more classes with
+Forgejo CI is the gate for `main`: its `Lint`, `Unit Tests` and `Build`
+jobs run on every push and images are published only when they pass. Before
+pushing, run the fast checks for what you changed (gofmt, Prettier, `go vet`
+and `go test` of the changed packages, the related web tests).
+`bash scripts/check.sh` mirrors the three CI jobs for a full local run; it
+fails fast with a summary. Run one or more classes with
 `bash scripts/check.sh lint|unit-tests|build`:
 
 | class | what runs |
