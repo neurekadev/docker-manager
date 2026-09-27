@@ -495,6 +495,38 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 			t.Errorf("location %+v", l)
 		}
 	}
+	// restic's own view (#10): every snapshot of both locations, the
+	// manifests included, linked to the backups the index holds.
+	var listing struct {
+		Locations []struct {
+			Scope      string `json:"scope"`
+			ErrorClass string `json:"errorClass"`
+			Snapshots  []struct {
+				Class    string `json:"class"`
+				BackupID string `json:"backupId"`
+				SetID    string `json:"setId"`
+			} `json:"snapshots"`
+		} `json:"locations"`
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backup-repositories/"+id+"/snapshots", nil).json(t, &listing)
+	classes := map[string]int{}
+	linked := 0
+	for _, l := range listing.Locations {
+		if l.ErrorClass != "" {
+			t.Errorf("location %s: %s", l.Scope, l.ErrorClass)
+		}
+		for _, sn := range l.Snapshots {
+			classes[sn.Class]++
+			if sn.BackupID != "" {
+				linked++
+			}
+		}
+	}
+	if len(listing.Locations) != 2 || classes["stack"] != 1 || classes["volume"] != 1 || classes["manager_state"] != 1 ||
+		classes["set_manifest"] != 1 || classes["host_manifest"] != 1 || linked != 3 {
+		t.Errorf("restic snapshots %v (%d linked): %+v", classes, linked, listing)
+	}
+
 	// Nothing runs any more.
 	var running struct {
 		Jobs []any `json:"jobs"`

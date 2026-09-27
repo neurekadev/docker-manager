@@ -36,6 +36,8 @@ type fakeComposer struct {
 	upAuth []engine.RegistryAuth
 	// onCreate scripts Create (#20 updates).
 	onCreate func(p *compose.Project, o compose.CreateOptions) error
+	// onDown scripts Down (the project's containers go away).
+	onDown func(name string)
 }
 
 func (f *fakeComposer) record(s string) {
@@ -71,6 +73,9 @@ func (f *fakeComposer) Build(_ context.Context, p *compose.Project, _ compose.Bu
 
 func (f *fakeComposer) Down(_ context.Context, name string, _ *compose.Project, _ compose.DownOptions) error {
 	f.record("down:" + name)
+	if f.onDown != nil {
+		f.onDown(name)
+	}
 	return nil
 }
 

@@ -58,7 +58,7 @@ type StackService interface {
 	Create(ctx context.Context, p authz.Principal, r domain.StackCreate) (domain.Stack, domain.StackValidation, error)
 	Validate(ctx context.Context, d domain.StackDefinition) (domain.StackValidation, error)
 	Update(ctx context.Context, id string, expectRevision int64, p domain.StackPatch) (domain.Stack, error)
-	Delete(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest) (domain.Job, error)
+	Delete(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest, o domain.StackRemoveOptions) (domain.Job, error)
 	Deploy(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest, o domain.StackDeployOptions) (domain.Job, error)
 	Build(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest, o domain.StackBuildOptions) (domain.Job, error)
 	Operate(ctx context.Context, p authz.Principal, st domain.Stack, action string, r domain.StackJobRequest) (domain.Job, error)
@@ -717,19 +717,24 @@ func (h *stacksAPI) update(ctx context.Context, in *updateStackInput) (*stackOut
 	return h.stackOut(ctx, st, v), nil
 }
 
-type stackJobInput struct {
+type deleteStackInput struct {
 	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
 	IdempotencyKeyParam
+	RemoveVolumes bool `query:"removeVolumes" doc:"Also remove the volumes the stack owns: named volumes its definition declares (not external) that Compose created for the project, and the anonymous volumes of its containers. External volumes, other projects' volumes, volumes other containers use and Docker Manager's own are kept. Default false: every volume is kept."`
 }
 
-func (h *stacksAPI) remove(ctx context.Context, in *stackJobInput) (*JobAccepted, error) {
+func (h *stacksAPI) remove(ctx context.Context, in *deleteStackInput) (*JobAccepted, error) {
 	_, p, st, _, err := h.requireStack(ctx, in.StackID, CapStackRemove)
 	if err != nil {
 		return nil, err
 	}
-	j, err := h.svc.Delete(ctx, p, st, domain.StackJobRequest{IdempotencyKey: in.IdempotencyKey})
+	j, err := h.svc.Delete(ctx, p, st, domain.StackJobRequest{IdempotencyKey: in.IdempotencyKey},
+		domain.StackRemoveOptions{Volumes: in.RemoveVolumes})
 	if err != nil {
 		return nil, stackErr(err)
+	}
+	if in.RemoveVolumes {
+		audit.SetDetail(ctx, "removeVolumes", true)
 	}
 	return Accepted(j), nil
 }
@@ -1324,9 +1329,11 @@ func registerStacks(a huma.API, deps Deps) {
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "delete-stack", Method: http.MethodDelete, Path: one, Summary: "Delete a stack",
-		Description: "Starts a stack.remove job (202): the stack is taken down (containers and networks removed; named volumes and the " +
-			"project directory are kept on the host) and, when that succeeds, removed from Docker Manager with its revisions and the " +
-			"permission rules naming it.",
+		Description: "Starts a stack.remove job (202): the stack is taken down (containers and networks removed; the project directory " +
+			"is kept on the host) and, when that succeeds, removed from Docker Manager with its revisions and the permission rules naming " +
+			"it. Volumes are kept unless removeVolumes=true, which also removes the volumes the stack owns (never external, other " +
+			"projects', in-use or protected ones; each is reported as a job item, kept ones with the reason). removeVolumes needs an " +
+			"up-to-date, connected agent (501 agent_unsupported).",
 		Tags: []string{tagStacks}, Errors: jobErrs, DefaultStatus: http.StatusAccepted,
 	}, Capability: CapStackRemove, Scope: ScopeResource, Idempotency: IdempotencyJob}, h.remove)
 

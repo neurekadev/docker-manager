@@ -47,13 +47,37 @@ export function operateStack(
 	);
 }
 
-/** DELETE /stacks/{id}: takes it down, keeps volumes and the project directory. */
-export function deleteStack(stackId: string, client: ApiClient = api): Promise<Job> {
+/**
+ * DELETE /stacks/{id}: takes it down and keeps the project directory. Its
+ * volumes stay unless `removeVolumes` asks to remove the ones it owns
+ * (never external, other stacks', in-use or protected ones).
+ */
+export function deleteStack(
+	stackId: string,
+	options: { removeVolumes?: boolean } = {},
+	client: ApiClient = api
+): Promise<Job> {
 	return unwrap(
 		client.DELETE('/api/v1/stacks/{stackId}', {
-			params: { path: { stackId }, header: { 'Idempotency-Key': key() } }
+			params: {
+				path: { stackId },
+				header: { 'Idempotency-Key': key() },
+				query: options.removeVolumes ? { removeVolumes: true } : undefined
+			}
 		})
 	);
+}
+
+/** Volumes a stack removal kept and removed (its job items). */
+export function volumeResults(items: { name: string; status: string }[] | undefined): {
+	removed: number;
+	kept: number;
+} {
+	const vols = (items ?? []).filter((i) => i.name.startsWith('volume '));
+	return {
+		removed: vols.filter((i) => i.status === 'succeeded').length,
+		kept: vols.filter((i) => i.status === 'skipped').length
+	};
 }
 
 /** PATCH /stacks/{id}: display metadata only (never Compose files). */

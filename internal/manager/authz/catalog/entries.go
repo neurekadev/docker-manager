@@ -149,7 +149,7 @@ func capabilities() []Capability {
 		adv(normal("stack.down", TypeStack, "Take stack down", "Stop and remove a stack's containers and networks (volumes are kept).", stackScope)),
 		adv(normal("stack.build", TypeStack, "Build stack images", "Build the images of a stack's Compose build sections.", stackScope)),
 		adv(normal("stack.update", TypeStack, "Update stack images", "Pull a stack's images and recreate changed services.", stackScope)),
-		adv(high("stack.remove", TypeStack, "Delete stacks", "Remove a stack and its containers.", stackScope)),
+		adv(high("stack.remove", TypeStack, "Delete stacks", "Remove a stack and its containers, optionally with the volumes it owns.", stackScope)),
 		adv(high("stack.migrate", TypeStack, "Migrate stacks", "Move a stack and its volumes to another environment (also needs stack.create on the target environment). Stack rules follow the stack; environment rules do not.", stackScope)),
 	)
 	add(fileCaps(TypeStack, "the stack's project directory (compose.yaml, override files and .env additionally need the Compose definition capabilities)", stackScope)...)

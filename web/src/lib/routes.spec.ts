@@ -104,6 +104,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 	backup: [routes.backup('bk-1')],
 	backupRestore: [routes.backupRestore('bk-1')],
 	backupPolicies: [routes.backupPolicies()],
+	backupList: [routes.backupList()],
 	backupSnapshots: [routes.backupSnapshots()],
 	backupPolicyNew: [routes.backupPolicyNew()],
 	backupPolicy: [routes.backupPolicy('bp-1')],

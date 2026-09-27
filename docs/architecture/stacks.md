@@ -105,6 +105,25 @@ otherwise) and removing definition files the revision does not have — and
 records a `restore` revision. It **never deploys**: `deployOffered` tells
 the client to offer one.
 
+### Removal
+
+`stack.remove` takes the stack down (compose down: containers and networks)
+and forgets it when that succeeds; the project directory stays. Volumes stay
+too unless the request sets `removeVolumes` (the delete dialog's checkbox,
+off by default). Then the agent, inside the `down` step, records before
+anything is stopped which volumes the stack owns: the top-level volumes its
+definition declares that are not external, and the anonymous volumes of its
+containers (the definition must load, else nothing changes,
+`project_unreadable`). After compose down it re-checks each one and removes
+it without force only if it still carries this project's Compose labels
+(`com.docker.compose.project` and `com.docker.compose.volume` = the key;
+anonymous: `com.docker.volume.anonymous`), no container mounts it, it is not
+Docker Manager's own (#32) and the manager does not hold it (a migrated
+stack's retained source of the same project, #35). Kept volumes are skipped
+job items with the reason; the removal still succeeds. Never the Compose
+SDK's `down --volumes`. Agents announce `stack.remove_volumes`; the manager
+refuses the option (501 `agent_unsupported`) for other or offline agents.
+
 ### Offline environments
 
 Requests to the agent fail with `503 environment_offline`: creation,

@@ -596,6 +596,21 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	// until the user confirms its removal, prune runs keep its project
 	// and volumes and the Docker resource routes refuse to remove them (#35).
 	m.resources.SetRetainedProjects(m.migrations.RetainedProjects)
+	// Removing a stack with its volumes keeps a retained source's volumes of
+	// the same project.
+	m.stacks.SetVolumeHolds(func(ctx context.Context, environmentID, project string) ([]string, error) {
+		rs, err := m.migrations.RetainedSources(ctx, environmentID)
+		if err != nil {
+			return nil, err
+		}
+		var keep []string
+		for _, r := range rs {
+			if r.Project == project {
+				keep = append(keep, r.Volumes...)
+			}
+		}
+		return keep, nil
+	})
 	m.maint.AddReferences(func(ctx context.Context, environmentID string) ([]maintenance.Reference, error) {
 		rs, err := m.migrations.RetainedSources(ctx, environmentID)
 		if err != nil {

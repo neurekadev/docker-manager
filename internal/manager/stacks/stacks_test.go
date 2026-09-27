@@ -417,7 +417,7 @@ func TestDeleteRemovesStackButKeepsFiles(t *testing.T) {
 	st := h.create("shop", shopYAML, shopEnv)
 	sub := h.bus.Subscribe(0, func(e events.Event) bool { return e.Type == events.StackRemoved })
 	defer sub.Close()
-	j, err := h.svc.Delete(h.ctx, alice, st, domain.StackJobRequest{})
+	j, err := h.svc.Delete(h.ctx, alice, st, domain.StackJobRequest{}, domain.StackRemoveOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -590,12 +590,28 @@ func TestDockerManagerProjectIsProtected(t *testing.T) {
 		j, err := h.svc.Operate(h.ctx, alice, own, action, domain.StackJobRequest{})
 		refused(action, j, err)
 	}
-	j, err = h.svc.Delete(h.ctx, alice, own, domain.StackJobRequest{})
+	j, err = h.svc.Delete(h.ctx, alice, own, domain.StackJobRequest{}, domain.StackRemoveOptions{})
 	refused("delete", j, err)
 	if _, err := h.svc.Operate(h.ctx, alice, own, "start", domain.StackJobRequest{}); err != nil {
 		t.Errorf("start: %v", err)
 	}
 	if _, err := h.svc.Deploy(h.ctx, alice, other, domain.StackJobRequest{}, domain.StackDeployOptions{}); err != nil {
 		t.Errorf("deploy another stack: %v", err)
+	}
+}
+
+// TestDeleteWithVolumesNeedsAnAgentThatSupportsIt: an agent that does not
+// announce stack.remove_volumes would ignore the option and keep the
+// volumes; the removal is refused instead and nothing is queued.
+func TestDeleteWithVolumesNeedsAnAgentThatSupportsIt(t *testing.T) {
+	h := newHarness(t)
+	st := h.create("shop", shopYAML, shopEnv)
+	_, err := h.svc.Delete(h.ctx, alice, st, domain.StackJobRequest{}, domain.StackRemoveOptions{Volumes: true})
+	var se *domain.StackError
+	if !errors.As(err, &se) || se.Code != domain.StackErrEnvironmentUnsupported {
+		t.Fatalf("err = %v", err)
+	}
+	if cur := h.get(st.ID); cur.LastJobKind == jobspec.StackRemove {
+		t.Error("a removal was queued")
 	}
 }

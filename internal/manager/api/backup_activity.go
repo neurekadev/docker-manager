@@ -143,3 +143,100 @@ func registerBackupActivity(a huma.API, h *backupsAPI) {
 		Capability: CapJobRead, Scope: ScopeResource,
 	}, h.listActivity)
 }
+
+// ResticSnapshot is one restic snapshot of a location (#10).
+type ResticSnapshot struct {
+	ID       string    `json:"id"`
+	ShortID  string    `json:"shortId"`
+	Time     time.Time `json:"time"`
+	Hostname string    `json:"hostname,omitempty"`
+	Paths    []string  `json:"paths"`
+	Tags     []string  `json:"tags"`
+	// Class is what the snapshot holds, from its tags.
+	Class    string `json:"class" enum:"stack,volume,manager_state,set_manifest,host_manifest,foreign" doc:"foreign: not written by Docker Manager."`
+	Item     string `json:"item,omitempty" example:"volume/media"`
+	SetID    string `json:"setId,omitempty"`
+	PolicyID string `json:"policyId,omitempty"`
+	// BackupID links the Docker Manager backup (only when the caller may see it).
+	BackupID  string `json:"backupId,omitempty"`
+	Name      string `json:"name,omitempty" doc:"The stack or volume name from the index (with BackupID)."`
+	Forgotten bool   `json:"forgotten,omitempty" doc:"The index marks it removed by retention (restic still lists it until then)."`
+	// From restic's summary (absent for snapshots taken before restic 0.17).
+	FilesProcessed *int64 `json:"filesProcessed,omitempty"`
+	BytesProcessed *int64 `json:"bytesProcessed,omitempty"`
+	DataAdded      *int64 `json:"dataAdded,omitempty"`
+}
+
+// ResticLocationSnapshots is one location's snapshots, newest first.
+type ResticLocationSnapshots struct {
+	Scope              string           `json:"scope" example:"env:01a0"`
+	EnvironmentID      string           `json:"environmentId,omitempty"`
+	ResticRepositoryID string           `json:"resticRepositoryId,omitempty"`
+	ErrorClass         string           `json:"errorClass,omitempty" doc:"Why the location could not be listed (agent_offline, repository_locked, storage_unreachable, ...)."`
+	Truncated          bool             `json:"truncated" doc:"Older snapshots exist beyond the listed ones (at most 1000 per location; 200 from a local repository on an agent)."`
+	Snapshots          []ResticSnapshot `json:"snapshots"`
+}
+
+// ResticSnapshotList is every location of a repository.
+type ResticSnapshotList struct {
+	RepositoryID string                    `json:"repositoryId"`
+	Locations    []ResticLocationSnapshots `json:"locations"`
+}
+
+type resticSnapshotsOutput struct{ Body ResticSnapshotList }
+
+func (h *backupsAPI) listResticSnapshots(ctx context.Context, in *backupRepositoryIDInput) (*resticSnapshotsOutput, error) {
+	svc, c, _, r, _, err := h.requireRepository(ctx, in.RepositoryID, CapBackupRepositoryRead)
+	if err != nil {
+		return nil, err
+	}
+	locs, err := svc.ResticSnapshots(ctx, r.ID)
+	if err != nil {
+		return nil, backupError(err)
+	}
+	out := ResticSnapshotList{RepositoryID: r.ID, Locations: []ResticLocationSnapshots{}}
+	for _, l := range locs {
+		ol := ResticLocationSnapshots{Scope: l.Scope, EnvironmentID: l.EnvironmentID, ResticRepositoryID: l.ResticRepositoryID,
+			ErrorClass: l.ErrorClass, Truncated: l.Truncated, Snapshots: []ResticSnapshot{}}
+		for _, s := range l.Snapshots {
+			sn := s.Snapshot
+			rs := ResticSnapshot{ID: sn.ID, ShortID: sn.ShortID, Time: sn.Time, Hostname: sn.Hostname, Paths: sn.Paths, Tags: sn.Tags,
+				Class: s.Class, Item: s.Item, SetID: s.SetID, PolicyID: s.PolicyID}
+			if rs.Paths == nil {
+				rs.Paths = []string{}
+			}
+			if rs.Tags == nil {
+				rs.Tags = []string{}
+			}
+			if sm := sn.Summary; sm != nil {
+				rs.FilesProcessed, rs.BytesProcessed, rs.DataAdded = &sm.TotalFilesProcessed, &sm.TotalBytesProcessed, &sm.DataAdded
+			}
+			if b := s.Backup; b != nil && authz.ViewOf(c, backupResource(*b)).Visible() {
+				rs.BackupID, rs.Forgotten = b.ID, b.ForgottenAt != nil
+				rs.Name = b.StackName
+				if rs.Name == "" {
+					rs.Name = b.Volume
+				}
+			}
+			ol.Snapshots = append(ol.Snapshots, rs)
+		}
+		out.Locations = append(out.Locations, ol)
+	}
+	return &resticSnapshotsOutput{Body: out}, nil
+}
+
+func registerResticSnapshots(a huma.API, h *backupsAPI) {
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "list-backup-repository-snapshots", Method: http.MethodGet,
+			Path:    BasePath + "/backup-repositories/{repositoryId}/snapshots",
+			Summary: "List a repository's restic snapshots",
+			Description: "Every restic snapshot of every location of the repository, read live from restic (snapshot files only): " +
+				"backups, set and host manifests, and snapshots Docker Manager did not write. Newest first, at most 1000 per location " +
+				"(200 from a local repository on an agent). A location that cannot be read reports errorClass; the others are listed. " +
+				"backupId links the Docker Manager backup when the caller may see it.",
+			Tags: []string{tagBackups}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict},
+		},
+		Capability: CapBackupRepositoryRead, Scope: ScopeResource,
+	}, h.listResticSnapshots)
+}

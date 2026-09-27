@@ -194,3 +194,11 @@ type StackRestore struct {
 	// revision; the client offers a deploy (never started automatically).
 	DeployOffered bool
 }
+
+// StackRemoveOptions are the choices of a stack removal.
+type StackRemoveOptions struct {
+	// Volumes also removes the volumes the stack owns (declared, not
+	// external, created by Compose for the project; anonymous volumes of
+	// its containers). Others are always kept.
+	Volumes bool
+}

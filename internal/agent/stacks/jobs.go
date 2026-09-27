@@ -462,8 +462,10 @@ func (s *Service) lifecycleStep(op lifecycleOp) jobexec.StepFunc {
 }
 
 // down stops and removes the project's containers and networks through the
-// Compose SDK (volumes are always kept). The project is found by its name
-// and labels, so a stack whose files are gone can still be taken down.
+// Compose SDK (volumes are kept). The project is found by its name and
+// labels, so a stack whose files are gone can still be taken down. A
+// stack.remove with RemoveVolumes plans the stack's own volumes first and
+// removes them afterwards (volumes.go).
 func (s *Service) down(ctx context.Context, sc *jobexec.StepContext) error {
 	in, err := input(sc)
 	if err != nil {
@@ -476,6 +478,12 @@ func (s *Service) down(ctx context.Context, sc *jobexec.StepContext) error {
 	eng, err := s.engine()
 	if err != nil {
 		return err
+	}
+	withVolumes := sc.Kind == jobspec.StackRemove && in.RemoveVolumes
+	if withVolumes {
+		if err := s.planVolumes(ctx, sc, in, eng); err != nil {
+			return err
+		}
 	}
 	before, err := serviceStates(ctx, eng, in.Stack.ProjectName)
 	if err != nil {
@@ -498,6 +506,9 @@ func (s *Service) down(ctx context.Context, sc *jobexec.StepContext) error {
 	after, err := serviceStates(ctx, eng, in.Stack.ProjectName)
 	if uerr := update(ctx, sc, func(o *protocol.StackJobOutput) { o.After = after }); uerr != nil && err == nil {
 		err = uerr
+	}
+	if err == nil && withVolumes {
+		err = s.removeVolumes(ctx, sc, in, eng)
 	}
 	return err
 }

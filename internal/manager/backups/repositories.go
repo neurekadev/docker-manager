@@ -470,22 +470,8 @@ func (s *Service) probeScopes(ctx context.Context, r domain.BackupRepository, cr
 		// Without a confirmed key only reachability was tested.
 		return nil
 	}
-	scopes := []string{}
-	if Serves(r, backup.ScopeManager) {
-		scopes = append(scopes, backup.ScopeManager)
-	}
-	if locs, err := store.ListBackupLocations(ctx, s.db, r.ID); err == nil {
-		for _, l := range locs {
-			if !slices.Contains(scopes, l.Scope) {
-				scopes = append(scopes, l.Scope)
-			}
-		}
-	}
-	if r.Kind == backup.KindLocal && r.Executor != domain.BackupExecutorManager && !slices.Contains(scopes, backup.EnvironmentScope(r.Executor)) {
-		scopes = append(scopes, backup.EnvironmentScope(r.Executor))
-	}
 	var out []domain.BackupScopeProbe
-	for _, scope := range scopes {
+	for _, scope := range s.knownScopes(ctx, r) {
 		p := domain.BackupScopeProbe{Scope: scope}
 		if env, ok := backup.ScopeEnvironment(scope); ok && r.Kind == backup.KindLocal {
 			p = s.probeAgentScope(ctx, r, env, scope)
@@ -517,6 +503,27 @@ func (s *Service) probeScopes(ctx context.Context, r domain.BackupRepository, cr
 		out = append(out, p)
 	}
 	return out
+}
+
+// knownScopes are the scopes of a repository Docker Manager knows: the
+// manager scope when it serves it, every recorded location and a local
+// repository's own environment.
+func (s *Service) knownScopes(ctx context.Context, r domain.BackupRepository) []string {
+	scopes := []string{}
+	if Serves(r, backup.ScopeManager) {
+		scopes = append(scopes, backup.ScopeManager)
+	}
+	if locs, err := store.ListBackupLocations(ctx, s.db, r.ID); err == nil {
+		for _, l := range locs {
+			if !slices.Contains(scopes, l.Scope) {
+				scopes = append(scopes, l.Scope)
+			}
+		}
+	}
+	if r.Kind == backup.KindLocal && r.Executor != domain.BackupExecutorManager && !slices.Contains(scopes, backup.EnvironmentScope(r.Executor)) {
+		scopes = append(scopes, backup.EnvironmentScope(r.Executor))
+	}
+	return scopes
 }
 
 func (s *Service) probeAgentScope(ctx context.Context, r domain.BackupRepository, env, scope string) domain.BackupScopeProbe {

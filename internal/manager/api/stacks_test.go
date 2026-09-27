@@ -112,7 +112,7 @@ func (f *fakeStacks) job(kind domain.JobKind, st domain.Stack) (domain.Job, erro
 		Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: st.ID}}, Attempt: 1}, nil
 }
 
-func (f *fakeStacks) Delete(_ context.Context, _ authz.Principal, st domain.Stack, _ domain.StackJobRequest) (domain.Job, error) {
+func (f *fakeStacks) Delete(_ context.Context, _ authz.Principal, st domain.Stack, _ domain.StackJobRequest, _ domain.StackRemoveOptions) (domain.Job, error) {
 	return f.job("stack.remove", st)
 }
 
