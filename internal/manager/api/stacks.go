@@ -717,11 +717,6 @@ func (h *stacksAPI) update(ctx context.Context, in *updateStackInput) (*stackOut
 	return h.stackOut(ctx, st, v), nil
 }
 
-type stackJobInput struct {
-	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
-	IdempotencyKeyParam
-}
-
 type deleteStackInput struct {
 	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
 	IdempotencyKeyParam

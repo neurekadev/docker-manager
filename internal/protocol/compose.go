@@ -430,7 +430,7 @@ type StackJobInput struct {
 }
 
 // FeatureStackRemoveVolumes is the capabilities feature of agents whose
-// stack.remove honours StackJobInput.RemoveVolumes.
+// stack.remove honors StackJobInput.RemoveVolumes.
 const FeatureStackRemoveVolumes = "stack.remove_volumes"
 
 // ComposeVolumeLabel is the Compose key of a volume Compose created.
