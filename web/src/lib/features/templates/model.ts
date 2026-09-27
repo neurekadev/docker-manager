@@ -83,3 +83,14 @@ export function tagProblem(tag: string): string {
 		return `${tag}: use lowercase letters, digits and dashes.`;
 	return '';
 }
+
+/** A Compose project name suggested for a stack from a template's name. */
+export function projectNameFor(name: string): string {
+	return name
+		.toLowerCase()
+		.normalize('NFKD')
+		.replace(/[^a-z0-9_-]+/g, '-')
+		.replace(/^[^a-z0-9]+/, '')
+		.replace(/-+$/, '')
+		.slice(0, 63);
+}

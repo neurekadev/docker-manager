@@ -968,7 +968,7 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
 | `files.upload` | stream | manager_to_agent | `stack.files.write` / `volume.files.write` | #15 |
 | `backup.file` | stream | agent_to_manager | `backup.contents.download` | #10 |
 | `migration.send` | stream | agent_to_manager | job-linked (`stack.migrate` / `volume.migrate`) | #35 |
-| `migration.receive` | stream | manager_to_agent | job-linked (`stack.migrate` / `volume.migrate`) | #35 |
+| `migration.receive` | stream | manager_to_agent | job-linked (`stack.migrate` / `volume.migrate`); also a stack's creation from a template (the manager writes the version's tar itself, then `migration.commit` / `migration.cleanup`) | #35 |
 
 `container.exec` runs a process **inside a container** through the Engine
 exec API with the argv the user supplied (or the container's own shell the

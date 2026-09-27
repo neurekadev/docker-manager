@@ -84,6 +84,18 @@ func (f *fakeStacks) Create(_ context.Context, _ authz.Principal, r domain.Stack
 	return st, domain.StackValidation{Valid: true, ProjectName: r.Name}, nil
 }
 
+func (f *fakeStacks) CreateFromTemplate(_ context.Context, _ authz.Principal, r domain.StackFromTemplate) (domain.Stack, domain.StackValidation, error) {
+	if f.err != nil {
+		return domain.Stack{}, domain.StackValidation{}, f.err
+	}
+	if r.TemplateID == "missing" {
+		return domain.Stack{}, domain.StackValidation{}, domain.ErrTemplateNotFound
+	}
+	st := domain.Stack{ID: "st-tpl", EnvironmentID: r.EnvironmentID, Name: r.Name, Status: domain.StackUndeployed, Revision: 1,
+		Template: &domain.StackTemplateRef{InstanceID: r.InstanceID, TemplateID: r.TemplateID, Name: "Template", Version: r.Version, VersionLabel: "1.0.0"}}
+	return st, domain.StackValidation{Valid: true, ProjectName: r.Name}, nil
+}
+
 func (f *fakeStacks) Validate(_ context.Context, d domain.StackDefinition) (domain.StackValidation, error) {
 	return domain.StackValidation{Valid: true, ProjectName: d.Name, Warnings: []domain.StackIssue{{Code: "obsolete_version", Message: "version"}}}, f.err
 }

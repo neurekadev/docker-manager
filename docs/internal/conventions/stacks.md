@@ -8,10 +8,17 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
 
 - The on-disk definition is the source of truth (#25 Q1). Never write
   Compose/override/env files except through `compose.write` (creation,
-  explicit restores) or an import by copy (`stack.import`, which creates a
+  explicit restores), an import by copy (`stack.import`, which creates a
   new project directory from the original's bytes and never modifies the
-  original); deploys and updates only read and report the bytes they used
-  (`protocol.StackJobOutput.Sources`).
+  original) or a creation from a template (`CreateFromTemplate`, which
+  streams the version's tar through `migration.receive` into the stacks
+  volume's staging area and `migration.commit`s it into a new directory,
+  never an existing one); deploys and updates only read and report the
+  bytes they used (`protocol.StackJobOutput.Sources`).
+- Stacks created from a template carry `domain.Stack.Template` (registry
+  instance ID, template ID, name, version): informational only, never a
+  dependency. The user's own `.env` reaches the new stack through the file
+  routes afterwards, never through the creation request.
 - Import by copy (`internal/agent/stacks/import.go`): projects outside the
   stack roots are read through the agent's optional import mounts (at or
   below `/import`, `storage.Result.ImportSource`), stopped, copied with

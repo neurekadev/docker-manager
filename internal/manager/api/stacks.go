@@ -65,6 +65,7 @@ type StackService interface {
 	Get(ctx context.Context, id string) (domain.Stack, error)
 	Online(ctx context.Context, environmentID string) bool
 	Create(ctx context.Context, p authz.Principal, r domain.StackCreate) (domain.Stack, domain.StackValidation, error)
+	CreateFromTemplate(ctx context.Context, p authz.Principal, r domain.StackFromTemplate) (domain.Stack, domain.StackValidation, error)
 	Validate(ctx context.Context, d domain.StackDefinition) (domain.StackValidation, error)
 	Update(ctx context.Context, id string, expectRevision int64, p domain.StackPatch) (domain.Stack, error)
 	Delete(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest, o domain.StackRemoveOptions) (domain.Job, error)
@@ -190,6 +191,7 @@ type Stack struct {
 	Description string            `json:"description,omitempty"`
 	Icon        string            `json:"icon,omitempty" doc:"Lucide icon name override."`
 	Origin      string            `json:"origin,omitempty" enum:"created,imported"`
+	Template    *StackTemplateRef `json:"template,omitempty" doc:"The template version the stack was created from (its files are the stack's own)."`
 	Location    *StackLocation    `json:"location,omitempty"`
 	ConfigFiles []string          `json:"configFiles,omitempty" doc:"Explicit Compose files (empty: compose.yaml plus its override file)."`
 	Services    []StackServiceDef `json:"services,omitempty" doc:"Services of the last deploy (or of the definition before the first deploy)."`
@@ -270,6 +272,7 @@ func newStack(st domain.Stack, v authz.View, online bool) Stack {
 	out.Revision = st.Revision
 	out.DisplayName, out.Description, out.Icon, out.Origin = st.DisplayName, st.Meta.Description, st.Meta.Icon, st.Origin
 	out.Location = &StackLocation{Root: st.Root, Dir: st.Dir}
+	out.Template = newStackTemplateRef(st.Template)
 	out.ConfigFiles = st.ConfigFiles
 	out.Services = serviceDefs(st)
 	out.AppliedRevision = revRef(st.Applied, st.AppliedAt)
@@ -1521,6 +1524,7 @@ func registerStacks(a huma.API, deps Deps) {
 	jobErrs := []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity}
 	stacks := BasePath + "/stacks"
 	one := stacks + "/{stackId}"
+	registerStackTemplates(a, h)
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "list-stacks", Method: http.MethodGet, Path: stacks, Summary: "List stacks",

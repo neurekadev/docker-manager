@@ -129,6 +129,8 @@ type Service struct {
 
 	volumeHolds func(ctx context.Context, environmentID, project string) ([]string, error)
 	renamed     []func(ctx context.Context, db bun.IDB, r domain.StackRenamed) error
+	// templates resolves template versions (template registry).
+	templates TemplateSource
 }
 
 // New creates the service and registers its job finish hooks.

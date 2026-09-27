@@ -59,6 +59,7 @@ type TemplateService interface {
 	Version(ctx context.Context, id string, number int) (domain.TemplateVersion, error)
 	Publish(ctx context.Context, id, label, notes string, acknowledged bool, userID string) (domain.TemplateVersion, error)
 	DeleteVersion(ctx context.Context, id string, number int) error
+	Definition(ctx context.Context, id string, number int) (domain.TemplateVersion, []domain.TemplateFileContent, error)
 }
 
 func templateResource(id string) authz.Resource {
@@ -191,8 +192,9 @@ func newTemplate(t domain.Template, v authz.View) Template {
 // --- handlers ---
 
 type templatesAPI struct {
-	svc   TemplateService
-	authz authz.Authorizer
+	svc        TemplateService
+	authz      authz.Authorizer
+	instanceID string
 }
 
 func (h *templatesAPI) checker(ctx context.Context) (TemplateService, authz.Checker, authz.Principal, error) {
@@ -549,7 +551,8 @@ func (h *templatesAPI) deleteVersion(ctx context.Context, in *templateVersionInp
 }
 
 func registerTemplates(a huma.API, deps Deps) {
-	h := &templatesAPI{svc: deps.Templates, authz: authz.OrDenyAll(deps.Authorizer)}
+	h := &templatesAPI{svc: deps.Templates, authz: authz.OrDenyAll(deps.Authorizer), instanceID: deps.InstanceID}
+	registerTemplateUse(a, h)
 	editErrs := []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusPreconditionFailed,
 		http.StatusPreconditionRequired, http.StatusUnprocessableEntity}
 	Register(a, Operation{Operation: huma.Operation{

@@ -135,6 +135,13 @@ type TemplateVersion struct {
 	CreatedAt         time.Time
 }
 
+// TemplateFileContent is a file of a published version with its content
+// (Compose files and .env: never log or audit the content).
+type TemplateFileContent struct {
+	Path    string
+	Content []byte
+}
+
 // TemplateInput creates a template.
 type TemplateInput struct {
 	Name        string

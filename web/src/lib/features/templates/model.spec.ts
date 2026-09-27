@@ -3,6 +3,7 @@ import { applyListFilters, emptyFilterState } from '$lib/features/resources/filt
 import {
 	nextVersionLabel,
 	parseTags,
+	projectNameFor,
 	tagCounts,
 	tagProblem,
 	templateFilters,
@@ -63,5 +64,11 @@ describe('templates model', () => {
 		expect(tagProblem('web')).toBe('');
 		expect(tagProblem('-web')).not.toBe('');
 		expect(tagProblem('a'.repeat(33))).not.toBe('');
+	});
+
+	it('suggests project names', () => {
+		expect(projectNameFor('Nextcloud AIO')).toBe('nextcloud-aio');
+		expect(projectNameFor('  _Café & Bar!')).toBe('cafe-bar');
+		expect(projectNameFor('x'.repeat(80))).toHaveLength(63);
 	});
 });

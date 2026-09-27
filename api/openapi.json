@@ -4785,6 +4785,60 @@
         },
         "type": "object"
       },
+      "CreateStackFromTemplateInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "displayName": {
+            "examples": [
+              "Nextcloud"
+            ],
+            "maxLength": 128,
+            "type": "string"
+          },
+          "environmentId": {
+            "description": "The environment to create the stack in.",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "instanceId": {
+            "description": "The registry (the owning manager's instance ID); empty: this instance.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "name": {
+            "description": "Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume.",
+            "examples": [
+              "nextcloud"
+            ],
+            "maxLength": 63,
+            "minLength": 1,
+            "type": "string"
+          },
+          "templateId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "description": "The published version number.",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "environmentId",
+          "name",
+          "templateId",
+          "version"
+        ],
+        "type": "object"
+      },
       "CreateStackInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -14220,6 +14274,10 @@
             ],
             "type": "string"
           },
+          "template": {
+            "$ref": "#/components/schemas/StackTemplateRef",
+            "description": "The template version the stack was created from (its files are the stack's own)."
+          },
           "undeployedChanges": {
             "description": "The definition on disk differs from the last applied revision.",
             "type": "boolean"
@@ -15303,6 +15361,43 @@
         ],
         "type": "object"
       },
+      "StackTemplateRef": {
+        "additionalProperties": false,
+        "properties": {
+          "instanceId": {
+            "description": "The registry: the manager instance that owns the template.",
+            "type": "string"
+          },
+          "name": {
+            "description": "The template's name when the stack was created.",
+            "examples": [
+              "Nextcloud"
+            ],
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionLabel": {
+            "examples": [
+              "1.2.0"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "instanceId",
+          "templateId",
+          "name",
+          "version",
+          "versionLabel"
+        ],
+        "type": "object"
+      },
       "StackValidation": {
         "additionalProperties": false,
         "properties": {
@@ -15703,6 +15798,45 @@
         ],
         "type": "object"
       },
+      "TemplateDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateDefinitionFile"
+            },
+            "type": "array"
+          },
+          "version": {
+            "$ref": "#/components/schemas/TemplateVersion"
+          }
+        },
+        "required": [
+          "version",
+          "files"
+        ],
+        "type": "object"
+      },
+      "TemplateDefinitionFile": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "UTF-8 text (.env values included: needs template.use).",
+            "type": "string"
+          },
+          "path": {
+            "examples": [
+              ".env"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ],
+        "type": "object"
+      },
       "TemplateFileInfo": {
         "additionalProperties": false,
         "properties": {
@@ -15762,6 +15896,49 @@
           "size",
           "url",
           "updatedAt"
+        ],
+        "type": "object"
+      },
+      "TemplateIconMap": {
+        "additionalProperties": false,
+        "properties": {
+          "instanceId": {
+            "description": "This instance's ID (its own templates' registry).",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateIconRef"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "instanceId",
+          "items"
+        ],
+        "type": "object"
+      },
+      "TemplateIconRef": {
+        "additionalProperties": false,
+        "properties": {
+          "instanceId": {
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "url": {
+            "examples": [
+              "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "instanceId",
+          "templateId",
+          "url"
         ],
         "type": "object"
       },
@@ -39804,6 +39981,13 @@
                     "seq": 1
                   },
                   "status": "undeployed",
+                  "template": {
+                    "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "name": "Nextcloud",
+                    "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "version": 1,
+                    "versionLabel": "1.2.0"
+                  },
                   "undeployedChanges": false,
                   "updatedAt": "2026-09-25T12:00:00Z",
                   "view": "minimal"
@@ -57007,6 +57191,13 @@
                         "seq": 1
                       },
                       "status": "undeployed",
+                      "template": {
+                        "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                        "name": "Nextcloud",
+                        "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                        "version": 1,
+                        "versionLabel": "1.2.0"
+                      },
                       "undeployedChanges": false,
                       "updatedAt": "2026-09-25T12:00:00Z",
                       "view": "minimal"
@@ -57216,6 +57407,13 @@
                       "seq": 1
                     },
                     "status": "undeployed",
+                    "template": {
+                      "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "name": "Nextcloud",
+                      "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "version": 1,
+                      "versionLabel": "1.2.0"
+                    },
                     "undeployedChanges": false,
                     "updatedAt": "2026-09-25T12:00:00Z",
                     "view": "minimal"
@@ -57431,6 +57629,388 @@
           }
         ],
         "summary": "Create a stack",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-audit": "stack.create",
+        "x-docker-manager-capability": "stack.create",
+        "x-docker-manager-scope": "environment"
+      }
+    },
+    "/api/v1/stacks/template-creations": {
+      "post": {
+        "description": "Creates a stack from a published template version: validates its Compose definition on the environment's agent, copies every file of the version into a new project directory of the stacks volume (never an existing one) and records it as the first revision. Nothing is deployed; to use your own .env values, save the stack's .env (file routes) before deploying. Needs stack.create in the environment and template.use on the template (added registries: on the instance). 409 stack_name_taken, compose_project_exists, stack_directory_exists; 422 invalid_definition.",
+        "operationId": "create-stack-template-creation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "displayName": "Nextcloud",
+                "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                "name": "nextcloud",
+                "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                "version": 1
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CreateStackFromTemplateInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "stack": {
+                    "actions": [
+                      "example"
+                    ],
+                    "appliedRevision": {
+                      "at": "2026-09-25T12:00:00Z",
+                      "hash": "example",
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "seq": 1
+                    },
+                    "binds": [
+                      {
+                        "external": false,
+                        "readOnly": false,
+                        "relPath": "config/app.conf",
+                        "service": "example",
+                        "source": "example",
+                        "target": "example"
+                      }
+                    ],
+                    "configFiles": [
+                      "example"
+                    ],
+                    "createdAt": "2026-09-25T12:00:00Z",
+                    "description": "example",
+                    "displayName": "web",
+                    "engine": {
+                      "observedAt": "2026-09-25T12:00:00Z",
+                      "services": [
+                        {
+                          "containers": 1,
+                          "running": 1,
+                          "service": "example"
+                        }
+                      ],
+                      "state": "unknown"
+                    },
+                    "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "environmentOnline": false,
+                    "failedRevision": {
+                      "at": "2026-09-25T12:00:00Z",
+                      "hash": "example",
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "seq": 1
+                    },
+                    "icon": "example",
+                    "id": "0190a6e0-7777-7000-8000-000000000007",
+                    "images": [
+                      {
+                        "build": false,
+                        "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                        "image": "nginx:1.27",
+                        "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                        "platform": "linux/amd64",
+                        "pulledAt": "2026-09-25T12:00:00Z",
+                        "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                        "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                        "service": "example"
+                      }
+                    ],
+                    "lastJob": {
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "kind": "example"
+                    },
+                    "location": {
+                      "dir": "example",
+                      "hostPath": "config/app.conf",
+                      "root": "stacks"
+                    },
+                    "name": "shop",
+                    "origin": "created",
+                    "previousState": [
+                      {
+                        "containers": 1,
+                        "running": 1,
+                        "service": "example"
+                      }
+                    ],
+                    "protection": {
+                      "reason": "example",
+                      "restartAllowed": false,
+                      "role": "agent",
+                      "self": false
+                    },
+                    "readOnly": false,
+                    "recovery": "example",
+                    "revision": 1,
+                    "services": [
+                      {
+                        "build": false,
+                        "dependsOn": [
+                          {
+                            "condition": "service_started",
+                            "required": false,
+                            "restart": false,
+                            "service": "example"
+                          }
+                        ],
+                        "description": "example",
+                        "icon": "example",
+                        "image": "nginx:1.27",
+                        "name": "web"
+                      }
+                    ],
+                    "sourceRevision": {
+                      "at": "2026-09-25T12:00:00Z",
+                      "hash": "example",
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "seq": 1
+                    },
+                    "status": "undeployed",
+                    "template": {
+                      "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "name": "Nextcloud",
+                      "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "version": 1,
+                      "versionLabel": "1.2.0"
+                    },
+                    "undeployedChanges": false,
+                    "updatedAt": "2026-09-25T12:00:00Z",
+                    "view": "minimal"
+                  },
+                  "validation": {
+                    "binds": [
+                      {
+                        "external": false,
+                        "readOnly": false,
+                        "relPath": "config/app.conf",
+                        "service": "example",
+                        "source": "example",
+                        "target": "example"
+                      }
+                    ],
+                    "errors": [
+                      {
+                        "code": "example",
+                        "message": "services.web.ports: invalid port \"80a\"",
+                        "service": "example"
+                      }
+                    ],
+                    "projectName": "web",
+                    "services": [
+                      {
+                        "build": false,
+                        "dependsOn": [
+                          {
+                            "condition": "service_started",
+                            "required": false,
+                            "restart": false,
+                            "service": "example"
+                          }
+                        ],
+                        "description": "example",
+                        "icon": "example",
+                        "image": "nginx:1.27",
+                        "name": "web"
+                      }
+                    ],
+                    "valid": false,
+                    "warnings": [
+                      {
+                        "code": "example",
+                        "message": "services.web.ports: invalid port \"80a\"",
+                        "service": "example"
+                      }
+                    ]
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/CreateStackOutputBody"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              },
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error501"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error504"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Create a stack from a template",
         "tags": [
           "Stacks"
         ],
@@ -58018,6 +58598,13 @@
                     "seq": 1
                   },
                   "status": "undeployed",
+                  "template": {
+                    "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "name": "Nextcloud",
+                    "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "version": 1,
+                    "versionLabel": "1.2.0"
+                  },
                   "undeployedChanges": false,
                   "updatedAt": "2026-09-25T12:00:00Z",
                   "view": "minimal"
@@ -58268,6 +58855,13 @@
                     "seq": 1
                   },
                   "status": "undeployed",
+                  "template": {
+                    "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "name": "Nextcloud",
+                    "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "version": 1,
+                    "versionLabel": "1.2.0"
+                  },
                   "undeployedChanges": false,
                   "updatedAt": "2026-09-25T12:00:00Z",
                   "view": "minimal"
@@ -64758,6 +65352,13 @@
                       "seq": 1
                     },
                     "status": "undeployed",
+                    "template": {
+                      "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "name": "Nextcloud",
+                      "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "version": 1,
+                      "versionLabel": "1.2.0"
+                    },
                     "undeployedChanges": false,
                     "updatedAt": "2026-09-25T12:00:00Z",
                     "view": "minimal"
@@ -65671,6 +66272,78 @@
         ],
         "x-docker-manager-capability": "system.metrics.read",
         "x-docker-manager-scope": "instance"
+      }
+    },
+    "/api/v1/template-icons": {
+      "get": {
+        "description": "The current icon of every template with one, by registry (instance ID) and template ID, so stack lists show the icon of the template a stack was created from. Any signed-in user may read it; it changes with the templates live topic.",
+        "operationId": "list-template-icons",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "items": [
+                    {
+                      "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateIconMap"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "List template icons",
+        "tags": [
+          "Templates"
+        ],
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
       }
     },
     "/api/v1/templates": {
@@ -71254,6 +71927,163 @@
           "Templates"
         ],
         "x-docker-manager-capability": "template.read",
+        "x-docker-manager-scope": "resource"
+      }
+    },
+    "/api/v1/templates/{templateId}/versions/{version}/definition": {
+      "get": {
+        "description": "The Compose files and .env at the root of a published version, as text: what a stack created from it starts with. Contains .env values; needs template.use.",
+        "operationId": "get-template-version-definition",
+        "parameters": [
+          {
+            "description": "Template ID.",
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "description": "Template ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Version number.",
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "description": "Version number.",
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "files": [
+                    {
+                      "content": "example",
+                      "path": ".env"
+                    }
+                  ],
+                  "version": {
+                    "archiveSha256": "example",
+                    "archiveSize": 1,
+                    "contentSize": 1,
+                    "definition": [
+                      {
+                        "path": "compose.yaml",
+                        "size": 1
+                      }
+                    ],
+                    "entries": 1,
+                    "label": "1.2.0",
+                    "notes": "example",
+                    "number": 1,
+                    "publishedAt": "2026-09-25T12:00:00Z"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateDefinition"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get a version's Compose files",
+        "tags": [
+          "Templates"
+        ],
+        "x-docker-manager-audit": "template.use",
+        "x-docker-manager-capability": "template.use",
         "x-docker-manager-scope": "resource"
       }
     },

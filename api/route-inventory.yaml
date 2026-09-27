@@ -1696,6 +1696,33 @@ routes:
     kind: json
     status: implemented
   - method: GET
+    path: "/api/v1/templates/{templateId}/versions/{version}/definition"
+    operationId: get-template-version-definition
+    capability: template.use
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Compose files and .env of a version (the create dialog's .env editor)."
+  - method: GET
+    path: "/api/v1/template-icons"
+    operationId: list-template-icons
+    capability: authenticated
+    scope: none
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Current template icons by registry and template, for stacks created from templates."
+  - method: POST
+    path: "/api/v1/stacks/template-creations"
+    operationId: create-stack-template-creation
+    capability: stack.create
+    scope: environment
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Creates a stack from a published template version (also needs template.use)."
+  - method: GET
     path: "/api/v1/templates/{templateId}/files"
     operationId: list-template-files
     capability: template.files.read
