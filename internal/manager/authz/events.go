@@ -53,6 +53,8 @@ func filesVisible(c Checker, e events.Event) bool {
 		return c.Can("stack.files.read", Resource{Type: catalog.TypeStack, ID: e.Attributes["scopeId"], EnvironmentID: e.EnvironmentID}).Allowed
 	case catalog.TypeVolume:
 		return c.Can("volume.files.read", Resource{Type: catalog.TypeVolume, ID: e.Attributes["scopeId"], EnvironmentID: e.EnvironmentID}).Allowed
+	case catalog.TypeTemplate:
+		return c.Can("template.files.read", Resource{Type: catalog.TypeTemplate, ID: e.Attributes["scopeId"], Parents: []ResourceRef{}}).Allowed
 	}
 	return c.Can("stack.files.read", Instance()).Allowed && c.Can("volume.files.read", Instance()).Allowed
 }

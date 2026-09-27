@@ -68,6 +68,7 @@ const (
 	TypeBackup            = "backup"
 	TypeRegistry          = "registry"
 	TypeGitCredential     = "git_credential" //nolint:gosec // G101: a resource type name, not a credential
+	TypeTemplate          = "template"
 	TypeJob               = "job"
 	TypeSchedule          = "schedule"
 	TypeAPIToken          = "api_token"

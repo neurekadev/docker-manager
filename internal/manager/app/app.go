@@ -66,6 +66,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/settings"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/stacks"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/templates"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/updates"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
@@ -153,6 +154,7 @@ type Manager struct {
 	// resources is the Docker resource service (#6).
 	resources *resources.Service
 	files     *files.Service
+	templates *templates.Service
 	// Live synchronization (#23): the live stream hub, its job source and
 	// the file watch set of every agent.
 	live      *live.Hub
@@ -498,6 +500,26 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	// service (#7), which records a revision when a definition file changes.
 	m.files = files.New(files.Options{Agents: m.agents.Hub(), Jobs: m.jobs, Logger: log.With("component", "files")})
 	m.files.SetStacks(m.stacks, m.stacks)
+	// Stack templates (template registry): drafts in the data directory,
+	// served to the file manager; template.files.* jobs run here.
+	m.templates, err = templates.New(ctx, templates.Options{
+		DB: db, Keyring: m.keyring, Clock: opts.Clock, Logger: log.With("component", "templates"), DataDir: cfg.DataDir,
+		MaxSize: cfg.TemplateMaxSize, Bus: m.events, Executors: m.jobs.RegisterManagerExecutor, ForgetResource: m.perms.ForgetResource,
+	})
+	if err != nil {
+		return nil, err
+	}
+	m.files.SetTemplates(m.templates)
+	m.perms.RegisterLocator(catalog.TypeTemplate, permissions.LocatorFunc(func(ctx context.Context, ref authz.ResourceRef) (permissions.Location, error) {
+		err := m.templates.Exists(ctx, ref.ID)
+		if errors.Is(err, domain.ErrTemplateNotFound) {
+			return permissions.Location{}, nil
+		}
+		if err != nil {
+			return permissions.Location{}, err
+		}
+		return permissions.Location{Found: true, Parents: []authz.ResourceRef{}}, nil
+	}))
 	// Live synchronization (#23): every agent watches its stacks and the
 	// open volume views (files.watch); external definition edits become
 	// revisions; the live stream relays the bus (jobs through the engine's
@@ -693,6 +715,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Migrations:     m.migrations,
 			Updates:        m.updates,
 			Backups:        m.backups,
+			Templates:      m.templates,
 			Removal:        removal.New(db),
 			Diagnostics:    m.diag,
 			Live:           m.live,

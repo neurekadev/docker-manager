@@ -52,6 +52,9 @@ const (
 	EnvMetricsMaxSeries        = "DOCKER_MANAGER_METRICS_MAX_SERIES"
 
 	EnvFilesMaxUploadMB = "DOCKER_MANAGER_FILES_MAX_UPLOAD_MB"
+	// EnvTemplateMaxSizeMB bounds a stack template's files (template
+	// registry).
+	EnvTemplateMaxSizeMB = "DOCKER_MANAGER_TEMPLATE_MAX_SIZE_MB"
 
 	EnvMigrationBandwidthLimit = "DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT"
 	// Backups (#10).
@@ -94,6 +97,8 @@ const (
 
 	// DefaultFilesMaxUploadMB is also the agents' own upper bound (#15).
 	DefaultFilesMaxUploadMB = 2048
+	// DefaultTemplateMaxSizeMB bounds a template's draft and versions.
+	DefaultTemplateMaxSizeMB = 32
 )
 
 // MetricsConfig bounds the metrics database (#5).
@@ -170,6 +175,9 @@ type Config struct {
 	// FilesMaxUpload bounds one file-manager upload in bytes (#15); the
 	// reverse proxy's body limit must allow it (#27).
 	FilesMaxUpload int64
+	// TemplateMaxSize bounds a stack template's files in bytes (draft and
+	// each published version).
+	TemplateMaxSize int64
 	// MigrationBandwidthLimit caps the data environment migrations relay
 	// through the manager, in bytes per second (#35; 0: unlimited).
 	MigrationBandwidthLimit int64
@@ -227,6 +235,7 @@ func (c Config) Settings() []Setting {
 		{EnvMetricsMaxSizeMB, mb(c.Metrics.MaxBytes)},
 		{EnvMetricsMaxSeries, i(c.Metrics.MaxSeries)},
 		{EnvFilesMaxUploadMB, mb(c.FilesMaxUpload)},
+		{EnvTemplateMaxSizeMB, mb(c.TemplateMaxSize)},
 		{EnvMigrationBandwidthLimit, strconv.FormatInt(c.MigrationBandwidthLimit, 10) + " B/s (0: unlimited)"},
 		{EnvBackupLocalRoots, strings.Join(c.BackupLocalRoots, ",")},
 		{EnvResticBinary, c.ResticBinary},
@@ -352,6 +361,12 @@ func Load(src envconfig.Source) (Config, error) {
 		errs = append(errs, err)
 	}
 	cfg.FilesMaxUpload = int64(uploadMB) << 20
+
+	templateMB, err := src.Int(EnvTemplateMaxSizeMB, DefaultTemplateMaxSizeMB, 1, 1024)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	cfg.TemplateMaxSize = int64(templateMB) << 20
 
 	if cfg.MigrationBandwidthLimit, err = transfer.ParseRate(src.String(EnvMigrationBandwidthLimit, "0")); err != nil {
 		errs = append(errs, fmt.Errorf("%s: %w", EnvMigrationBandwidthLimit, err))

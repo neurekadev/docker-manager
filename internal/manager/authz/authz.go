@@ -139,8 +139,11 @@ func ServiceID(stackID, service string) string { return stackID + "/" + service 
 
 // targetType maps job target types to catalog resource types.
 func targetType(t domain.TargetType) string {
-	if t == domain.TargetRepository {
+	switch t {
+	case domain.TargetRepository:
 		return catalog.TypeBackupRepository
+	case domain.TargetTemplate:
+		return catalog.TypeTemplate
 	}
 	return string(t)
 }
@@ -150,13 +153,13 @@ func targetType(t domain.TargetType) string {
 // paths inside a stack or volume root are covered by that root (the file
 // service enforces containment) and the images a build definition run
 // tags are covered by the definition (its tags are part of the definition,
-// managed with build_definition.manage, #33). Repository targets are
+// managed with build_definition.manage, #33). Repository and template targets are
 // instance resources. A job without targets is authorized on its
 // environment (or the instance).
 func TargetResources(environmentID string, targets []domain.JobTarget) []Resource {
 	hasRoot, hasDefinition := false, false
 	for _, t := range targets {
-		if t.Type == domain.TargetStack || t.Type == domain.TargetVolume {
+		if t.Type == domain.TargetStack || t.Type == domain.TargetVolume || t.Type == domain.TargetTemplate {
 			hasRoot = true
 		}
 		if t.Type == domain.TargetBuildDefinition {
@@ -175,7 +178,7 @@ func TargetResources(environmentID string, targets []domain.JobTarget) []Resourc
 		if env == "" {
 			env = environmentID
 		}
-		if t.Type == domain.TargetRepository {
+		if t.Type == domain.TargetRepository || t.Type == domain.TargetTemplate {
 			env = ""
 		}
 		out = append(out, Resource{Type: targetType(t.Type), ID: t.ID, EnvironmentID: env})

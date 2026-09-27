@@ -59,3 +59,40 @@ func TestCapabilities(t *testing.T) {
 		t.Fatal("invalid input capability accepted")
 	}
 }
+
+// Template file jobs run on the manager in a template's draft: their
+// capabilities are template.files.*, they need no environment and lock the
+// template exclusively.
+func TestTemplateFileKinds(t *testing.T) {
+	tmpl := []domain.JobTarget{{Type: domain.TargetTemplate, ID: "t1"}}
+	cp, _ := Lookup(TemplateFilesCopy)
+	if got, err := cp.Capabilities(tmpl, []byte(`{}`)); err != nil || !slices.Equal(got, []string{"template.files.copy"}) {
+		t.Fatalf("copy capabilities %v %v", got, err)
+	}
+	if _, err := cp.Capabilities([]domain.JobTarget{{Type: domain.TargetStack, ID: "s1"}}, []byte(`{}`)); !errors.Is(err, domain.ErrJobInvalid) {
+		t.Fatalf("a stack target for a template kind: %v", err)
+	}
+	if cp.RequiresEnvironment() || cp.Executor != domain.ExecutorManager {
+		t.Fatalf("template kinds run on the manager without an environment")
+	}
+	locks, err := cp.ComputeLocks("", tmpl)
+	if err != nil || len(locks) != 1 || locks[0].Scope != domain.LockTemplate || locks[0].Mode != domain.LockExclusive || locks[0].EnvironmentID != "" {
+		t.Fatalf("locks %+v %v", locks, err)
+	}
+	meta, _ := Lookup(TemplateFilesMetadata)
+	if got := meta.PossibleCapabilities(); !slices.Equal(got, []string{"template.files.chmod", "template.files.chown"}) {
+		t.Fatalf("possible %v", got)
+	}
+	if got := meta.capabilityDoc(); got != "`template.files.chmod`, `template.files.chown`" {
+		t.Fatalf("doc %q", got)
+	}
+	for _, k := range []domain.JobKind{FilesArchive, FilesExtract, FilesMetadata, FilesCopy, FilesMove, FilesDelete} {
+		tk, ok := TemplateFilesKind(k)
+		if _, found := Lookup(tk); !ok || !found {
+			t.Errorf("%s has no template kind (%s)", k, tk)
+		}
+	}
+	if _, ok := TemplateFilesKind(StackDeploy); ok {
+		t.Error("stack.deploy has a template kind")
+	}
+}

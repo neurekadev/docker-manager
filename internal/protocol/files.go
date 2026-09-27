@@ -34,10 +34,12 @@ const (
 	MaxOperationPaths = 1000
 )
 
-// File scope kinds.
+// File scope kinds. Template scopes are served by the manager itself (a
+// template's draft in its data directory); agents refuse them.
 const (
-	ScopeStack  = "stack"
-	ScopeVolume = "volume"
+	ScopeStack    = "stack"
+	ScopeVolume   = "volume"
+	ScopeTemplate = "template"
 )
 
 // IsAbsHostPath reports whether p, a slash-separated host path reported by
@@ -50,9 +52,9 @@ func IsAbsHostPath(p string) bool {
 
 // FileScope names the root every path of an operation is relative to.
 type FileScope struct {
-	// Kind is stack or volume.
+	// Kind is stack, volume or template.
 	Kind string `json:"kind"`
-	// ID is the stack ID or the Docker volume name.
+	// ID is the stack ID, the Docker volume name or the template ID.
 	ID string `json:"id"`
 	// Dir is the stack's project directory (absolute host path, identical
 	// inside the agent, #28); the agent refuses it unless it lies in a
@@ -74,6 +76,10 @@ func (s FileScope) Validate() error {
 	case ScopeVolume:
 		if !ValidVolumeName(s.ID) || s.Dir != "" {
 			return invalid("volume scope needs a valid volume name and no dir")
+		}
+	case ScopeTemplate:
+		if s.ID == "" || len(s.ID) > 64 || s.Dir != "" {
+			return invalid("template scope needs a template ID and no dir")
 		}
 	default:
 		return invalid("scope kind %q", s.Kind)

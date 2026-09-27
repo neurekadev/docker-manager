@@ -2,7 +2,9 @@
 // resolves a stack's file root, relays the files.* requests and the
 // files.download/files.upload byte streams to the environment's agent,
 // enqueues the files.* jobs, and tells the stack workstream (#7) when
-// Docker Manager changed a stack's Compose sources. It implements
+// Docker Manager changed a stack's Compose sources. Template drafts are
+// served locally by the template service's internal/fsroot instance
+// (template.files.* jobs run on the manager). It implements
 // api.FilesService.
 //
 // It does not authorize: the API layer (#17) checks the caller's
@@ -25,6 +27,7 @@ import (
 	"time"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/fsroot"
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/api"
@@ -66,6 +69,19 @@ type SourceValidator interface {
 	ValidateSourceSave(ctx context.Context, stackID, path string, content []byte) error
 }
 
+// Templates serves template drafts (*templates.Service).
+type Templates interface {
+	// Exists returns domain.ErrTemplateNotFound for unknown templates.
+	Exists(ctx context.Context, id string) error
+	// Files is the file service of the drafts.
+	Files() *fsroot.Service
+	// CheckQuota refuses adding bytes beyond the template size limit
+	// (*domain.TemplateTooLargeError).
+	CheckQuota(ctx context.Context, id string, adding int64) error
+	// Writing holds off publications while a file changes.
+	Writing(id string) func()
+}
+
 // Agents is the session hub as used here (*agents.Hub).
 type Agents interface {
 	RequestEnvironment(ctx context.Context, environmentID, name string, input any, timeout time.Duration) (json.RawMessage, error)
@@ -97,13 +113,14 @@ type Service struct {
 	opts Options
 	log  *slog.Logger
 
-	mu       sync.Mutex
-	stacks   StackRoots
-	observer SourceObserver
-	watcher  *Watcher
-	closed   bool
-	watchers sync.WaitGroup
-	stop     chan struct{}
+	mu        sync.Mutex
+	stacks    StackRoots
+	observer  SourceObserver
+	templates Templates
+	watcher   *Watcher
+	closed    bool
+	watchers  sync.WaitGroup
+	stop      chan struct{}
 }
 
 var _ api.FilesService = (*Service)(nil)
@@ -125,6 +142,56 @@ func (s *Service) SetStacks(r StackRoots, o SourceObserver) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.stacks, s.observer = r, o
+}
+
+// SetTemplates installs the template draft service.
+func (s *Service) SetTemplates(t Templates) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.templates = t
+}
+
+func (s *Service) tmpl() Templates {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.templates
+}
+
+// TemplateRoot resolves a template's draft (domain.ErrFileScopeNotFound).
+func (s *Service) TemplateRoot(ctx context.Context, templateID string) (api.FileRoot, error) {
+	t := s.tmpl()
+	if t == nil {
+		return api.FileRoot{}, domain.ErrFileScopeNotFound
+	}
+	if err := t.Exists(ctx, templateID); err != nil {
+		if errors.Is(err, domain.ErrTemplateNotFound) {
+			return api.FileRoot{}, domain.ErrFileScopeNotFound
+		}
+		return api.FileRoot{}, err
+	}
+	return api.FileRoot{Scope: protocol.FileScope{Kind: protocol.ScopeTemplate, ID: templateID}}, nil
+}
+
+// local returns the draft file service for template roots (nil for agent
+// roots).
+func (s *Service) local(r api.FileRoot) (Templates, error) {
+	if r.Scope.Kind != protocol.ScopeTemplate {
+		return nil, nil
+	}
+	t := s.tmpl()
+	if t == nil {
+		return nil, domain.ErrFileScopeNotFound
+	}
+	return t, nil
+}
+
+// localErr maps fsroot errors like agent errors.
+func localErr(err error) error {
+	var pe *protocol.Error
+	if errors.As(err, &pe) {
+		return &domain.FileError{Code: pe.Code, Message: pe.Message}
+	}
+	return err
 }
 
 // SetWatcher installs the file watcher (#23): volume listings keep the
@@ -203,6 +270,13 @@ func request[O any](ctx context.Context, s *Service, r api.FileRoot, name string
 // List lists a directory page.
 func (s *Service) List(ctx context.Context, r api.FileRoot, in protocol.FilesListInput) (protocol.FilesListOutput, error) {
 	in.Scope = r.Scope
+	if t, err := s.local(r); t != nil || err != nil {
+		if err != nil {
+			return protocol.FilesListOutput{}, err
+		}
+		out, err := t.Files().List(ctx, in)
+		return out, localErr(err)
+	}
 	s.mu.Lock()
 	w := s.watcher
 	s.mu.Unlock()
@@ -214,18 +288,43 @@ func (s *Service) List(ctx context.Context, r api.FileRoot, in protocol.FilesLis
 
 // Stat returns one entry's metadata (with its content ETag when asked).
 func (s *Service) Stat(ctx context.Context, r api.FileRoot, p string, etag bool) (protocol.FileEntry, error) {
+	if t, err := s.local(r); t != nil || err != nil {
+		if err != nil {
+			return protocol.FileEntry{}, err
+		}
+		out, err := t.Files().Stat(ctx, protocol.FilesStatInput{Scope: r.Scope, Path: p, ETag: etag})
+		return out, localErr(err)
+	}
 	return request[protocol.FileEntry](ctx, s, r, protocol.ReqFilesStat, protocol.FilesStatInput{Scope: r.Scope, Path: p, ETag: etag})
 }
 
 // Read reads a bounded slice of a regular file.
 func (s *Service) Read(ctx context.Context, r api.FileRoot, in protocol.FilesReadInput) (protocol.FilesReadOutput, error) {
 	in.Scope = r.Scope
+	if t, err := s.local(r); t != nil || err != nil {
+		if err != nil {
+			return protocol.FilesReadOutput{}, err
+		}
+		out, err := t.Files().Read(ctx, in)
+		return out, localErr(err)
+	}
 	return request[protocol.FilesReadOutput](ctx, s, r, protocol.ReqFilesRead, in)
 }
 
 // Write replaces or creates a file (inline content).
 func (s *Service) Write(ctx context.Context, r api.FileRoot, in protocol.FilesWriteInput) (protocol.FileEntry, error) {
 	in.Scope = r.Scope
+	if t, err := s.local(r); t != nil || err != nil {
+		if err != nil {
+			return protocol.FileEntry{}, err
+		}
+		if err := t.CheckQuota(ctx, r.Scope.ID, int64(len(in.Data))); err != nil {
+			return protocol.FileEntry{}, err
+		}
+		defer t.Writing(r.Scope.ID)()
+		out, err := t.Files().Write(ctx, in)
+		return out, localErr(err)
+	}
 	if err := s.validateSource(ctx, r, in.Path, in.Data); err != nil {
 		return protocol.FileEntry{}, err
 	}
@@ -239,6 +338,17 @@ func (s *Service) Write(ctx context.Context, r api.FileRoot, in protocol.FilesWr
 // Mkdir creates a directory or a new file.
 func (s *Service) Mkdir(ctx context.Context, r api.FileRoot, in protocol.FilesMkdirInput) (protocol.FileEntry, error) {
 	in.Scope = r.Scope
+	if t, err := s.local(r); t != nil || err != nil {
+		if err != nil {
+			return protocol.FileEntry{}, err
+		}
+		if err := t.CheckQuota(ctx, r.Scope.ID, int64(len(in.Data))); err != nil {
+			return protocol.FileEntry{}, err
+		}
+		defer t.Writing(r.Scope.ID)()
+		out, err := t.Files().Mkdir(ctx, in)
+		return out, localErr(err)
+	}
 	if in.Type == protocol.FileTypeFile {
 		if err := s.validateSource(ctx, r, in.Path, in.Data); err != nil {
 			return protocol.FileEntry{}, err
@@ -254,33 +364,81 @@ func (s *Service) Mkdir(ctx context.Context, r api.FileRoot, in protocol.FilesMk
 // Preview lists conflicts and counts the impact of an operation.
 func (s *Service) Preview(ctx context.Context, r api.FileRoot, in protocol.FilesPreviewInput) (protocol.FilesPreviewOutput, error) {
 	in.Scope = r.Scope
+	if t, err := s.local(r); t != nil || err != nil {
+		if err != nil {
+			return protocol.FilesPreviewOutput{}, err
+		}
+		out, err := t.Files().Preview(ctx, in)
+		return out, localErr(err)
+	}
 	return request[protocol.FilesPreviewOutput](ctx, s, r, protocol.ReqFilesConflictPreview, in)
 }
 
 // Download opens a files.download stream. The caller reads it (the
 // agent's failure arrives as a Read error; map it with FileStreamError)
 // and must end it with CloseWrite or Abort. ctx ending aborts it.
-func (s *Service) Download(ctx context.Context, r api.FileRoot, in protocol.FilesDownloadInput) (*streammux.Stream, error) {
+func (s *Service) Download(ctx context.Context, r api.FileRoot, in protocol.FilesDownloadInput) (api.ByteStream, error) {
+	in.Scope = r.Scope
+	if t, err := s.local(r); t != nil || err != nil {
+		if err != nil {
+			return nil, err
+		}
+		return localDownload(ctx, t, in), nil
+	}
 	if s.opts.Agents == nil {
 		return nil, domain.ErrFileAgentOffline
 	}
-	in.Scope = r.Scope
 	st, err := s.opts.Agents.OpenStream(ctx, r.EnvironmentID, protocol.StreamFilesDownload, in, streammux.OpenOptions{})
 	return st, agentErr(err)
 }
 
 // StreamError maps an error read from a download stream.
-func (s *Service) StreamError(err error) error { return agentErr(err) }
+func (s *Service) StreamError(err error) error { return localErr(agentErr(err)) }
+
+// pipeStream is a local download: fsroot writes into the pipe while the
+// handler reads it.
+type pipeStream struct {
+	*io.PipeReader
+	cancel context.CancelFunc
+}
+
+func (p pipeStream) CloseWrite() error { p.cancel(); return p.Close() }
+
+func (p pipeStream) Abort(_, _, _ string) {
+	p.cancel()
+	_ = p.CloseWithError(context.Canceled)
+}
+
+func localDownload(ctx context.Context, t Templates, in protocol.FilesDownloadInput) api.ByteStream {
+	ctx, cancel := context.WithCancel(ctx)
+	pr, pw := io.Pipe()
+	go func() {
+		// A nil error closes the pipe with EOF.
+		_ = pw.CloseWithError(t.Files().Download(ctx, in, pw))
+	}()
+	return pipeStream{PipeReader: pr, cancel: cancel}
+}
 
 // Upload streams body (exactly in.Size bytes) into a file and returns the
 // agent's result. Backpressure: body is read only as fast as the agent
 // grants stream credit.
 func (s *Service) Upload(ctx context.Context, r api.FileRoot, in protocol.FilesUploadInput, body io.Reader) (protocol.FilesUploadResult, error) {
 	var out protocol.FilesUploadResult
+	in.Scope = r.Scope
+	if t, err := s.local(r); t != nil || err != nil {
+		if err != nil {
+			return out, err
+		}
+		if err := t.CheckQuota(ctx, r.Scope.ID, in.Size); err != nil {
+			return out, err
+		}
+		defer t.Writing(r.Scope.ID)()
+		out, err := t.Files().Upload(ctx, in, io.LimitReader(body, in.Size))
+		return out, localErr(err)
+	}
 	if s.opts.Agents == nil {
 		return out, domain.ErrFileAgentOffline
 	}
-	in.Scope = r.Scope
 	st, err := s.opts.Agents.OpenStream(ctx, r.EnvironmentID, protocol.StreamFilesUpload, in, streammux.OpenOptions{MaxBytes: in.Size})
 	if err != nil {
 		return out, agentErr(err)
@@ -350,6 +508,17 @@ func (s *Service) StartJob(ctx context.Context, r api.FileRoot, kind domain.JobK
 		return domain.Job{}, errors.New("files: the job engine is not available")
 	}
 	in.Scope = r.Scope
+	if r.Scope.Kind == protocol.ScopeTemplate {
+		// Template drafts are small: one exclusive lock on the template,
+		// no per-path locks (those belong to an environment).
+		tk, ok := jobspec.TemplateFilesKind(kind)
+		if !ok {
+			return domain.Job{}, fmt.Errorf("files: %s has no template kind", kind)
+		}
+		j, _, err := s.opts.Jobs.Enqueue(ctx, jobs.Request{Kind: tk, Principal: p,
+			Targets: []domain.JobTarget{{Type: domain.TargetTemplate, ID: r.Scope.ID}}, Input: in, IdempotencyKey: key})
+		return j, err
+	}
 	rootType := domain.TargetVolume
 	if r.Scope.Kind == protocol.ScopeStack {
 		rootType = domain.TargetStack

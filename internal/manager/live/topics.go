@@ -21,12 +21,14 @@ const (
 	TopicSettings     = "settings"
 	TopicPermissions  = "permissions"
 	TopicMetrics      = "metrics"
+	TopicTemplates    = "templates"
 )
 
 // Topics returns every topic.
 func Topics() []string {
 	return []string{TopicEnvironments, TopicAgents, TopicContainers, TopicImages, TopicVolumes, TopicNetworks, TopicStacks,
-		TopicJobs, TopicFiles, TopicPolicies, TopicBackups, TopicRegistries, TopicSettings, TopicPermissions, TopicMetrics}
+		TopicJobs, TopicFiles, TopicPolicies, TopicBackups, TopicRegistries, TopicSettings, TopicPermissions, TopicMetrics,
+		TopicTemplates}
 }
 
 // Invalidation actions.
@@ -50,6 +52,7 @@ var topicOfType = map[string]string{
 	"settings": TopicSettings, "setting": TopicSettings,
 	"group": TopicPermissions, "user": TopicPermissions, "invitation": TopicPermissions, "permission": TopicPermissions,
 	"api_token": TopicPermissions,
+	"template":  TopicTemplates,
 }
 
 // Classify returns the topic and invalidation kind of a bus event ("" when

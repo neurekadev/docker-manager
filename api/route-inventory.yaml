@@ -1584,6 +1584,234 @@ routes:
     status: implemented
     notes: "chmod and/or chown, optional recursion (202 + job); each requested change needs its capability."
   - method: GET
+    path: "/api/v1/templates"
+    operationId: list-templates
+    capability: template.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Own templates; q, tag and visibility filters."
+  - method: POST
+    path: "/api/v1/templates"
+    operationId: create-template
+    capability: template.create
+    scope: instance
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Private template with a starter compose.yaml draft."
+  - method: GET
+    path: "/api/v1/templates/{templateId}"
+    operationId: get-template
+    capability: template.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+  - method: PATCH
+    path: "/api/v1/templates/{templateId}"
+    operationId: update-template
+    capability: template.manage
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "If-Match required."
+  - method: DELETE
+    path: "/api/v1/templates/{templateId}"
+    operationId: delete-template
+    capability: template.remove
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "If-Match required; stacks created from it keep working."
+  - method: PUT
+    path: "/api/v1/templates/{templateId}/visibility"
+    operationId: replace-template-visibility
+    capability: template.publish
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "public needs acknowledgePublic."
+  - method: GET
+    path: "/api/v1/templates/{templateId}/icon"
+    operationId: get-template-icon
+    capability: authenticated
+    scope: none
+    owner: 7
+    kind: stream
+    status: implemented
+    notes: "Icon bytes for any signed-in user; ?v=<sha256> is cacheable forever."
+  - method: PUT
+    path: "/api/v1/templates/{templateId}/icon"
+    operationId: replace-template-icon
+    capability: template.manage
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Base64 PNG, JPEG, GIF, WebP or SVG up to 256 KiB."
+  - method: DELETE
+    path: "/api/v1/templates/{templateId}/icon"
+    operationId: delete-template-icon
+    capability: template.manage
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+  - method: GET
+    path: "/api/v1/templates/{templateId}/versions"
+    operationId: list-template-versions
+    capability: template.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+  - method: POST
+    path: "/api/v1/templates/{templateId}/versions"
+    operationId: create-template-version
+    capability: template.publish
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Publishes the draft as an immutable version."
+  - method: GET
+    path: "/api/v1/templates/{templateId}/versions/{version}"
+    operationId: get-template-version
+    capability: template.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+  - method: DELETE
+    path: "/api/v1/templates/{templateId}/versions/{version}"
+    operationId: delete-template-version
+    capability: template.publish
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+  - method: GET
+    path: "/api/v1/templates/{templateId}/files"
+    operationId: list-template-files
+    capability: template.files.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Directory listing; ?path= is a root-relative path."
+  - method: GET
+    path: "/api/v1/templates/{templateId}/files/content"
+    operationId: get-template-file-content
+    capability: template.files.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: Returns the ETag used by PUT.
+  - method: PUT
+    path: "/api/v1/templates/{templateId}/files/content"
+    operationId: replace-template-file-content
+    capability: template.files.write
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: If-Match required; 412 on external change.
+  - method: GET
+    path: "/api/v1/templates/{templateId}/files/downloads"
+    operationId: download-template-files
+    capability: template.files.download
+    scope: resource
+    owner: 7
+    kind: stream
+    status: implemented
+    notes: Bounded binary download (file or streamed archive).
+  - method: POST
+    path: "/api/v1/templates/{templateId}/files/entries"
+    operationId: create-template-file-entry
+    capability: template.files.write
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+  - method: POST
+    path: "/api/v1/templates/{templateId}/files/uploads"
+    operationId: upload-template-files
+    capability: template.files.write
+    scope: resource
+    owner: 7
+    kind: stream
+    status: implemented
+    notes: Bounded binary upload.
+  - method: POST
+    path: "/api/v1/templates/{templateId}/files/conflict-previews"
+    operationId: create-template-file-conflict-preview
+    capability: template.files.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+  - method: POST
+    path: "/api/v1/templates/{templateId}/files/copies"
+    operationId: create-template-file-copy
+    capability: template.files.copy
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: 202 + template.files.* job run by the manager.
+  - method: POST
+    path: "/api/v1/templates/{templateId}/files/moves"
+    operationId: create-template-file-move
+    capability: template.files.move
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: 202 + template.files.* job run by the manager.
+  - method: POST
+    path: "/api/v1/templates/{templateId}/files/deletions"
+    operationId: create-template-file-deletion
+    capability: template.files.delete
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: 202 + template.files.* job run by the manager.
+  - method: POST
+    path: "/api/v1/templates/{templateId}/files/archives"
+    operationId: create-template-file-archive
+    capability: template.files.archive
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: 202 + template.files.* job run by the manager.
+  - method: POST
+    path: "/api/v1/templates/{templateId}/files/extractions"
+    operationId: create-template-file-extraction
+    capability: template.files.extract
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: 202 + template.files.* job run by the manager.
+  - method: PATCH
+    path: "/api/v1/templates/{templateId}/files/metadata"
+    operationId: update-template-file-metadata
+    capability: "template.files.{change}"
+    capabilityValues: [template.files.chmod, template.files.chown]
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "chmod and/or chown, optional recursion (202 + job); each requested change needs its capability."
+  - method: GET
     path: /api/v1/schedule-defaults
     operationId: get-schedule-defaults
     capability: settings.read

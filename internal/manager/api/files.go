@@ -25,7 +25,6 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
-	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 )
 
 // Scoped file manager (#15): the same routes under
@@ -59,11 +58,20 @@ const (
 	MaxFilesPerJob = 256
 )
 
-// FileRoot is a resolved file scope: the agent-protocol scope and the
-// environment whose agent serves it.
+// FileRoot is a resolved file scope: the protocol scope and the
+// environment whose agent serves it (none for template drafts, which the
+// manager serves itself).
 type FileRoot struct {
 	Scope         protocol.FileScope
 	EnvironmentID string
+}
+
+// ByteStream is a download in progress: read it to the end, then
+// CloseWrite; Abort stops it early (*streammux.Stream for agent roots).
+type ByteStream interface {
+	io.Reader
+	CloseWrite() error
+	Abort(reason, code, message string)
 }
 
 // FilesService is the manager's file service (internal/manager/files).
@@ -71,13 +79,15 @@ type FileRoot struct {
 type FilesService interface {
 	// StackRoot resolves a stack (domain.ErrFileScopeNotFound).
 	StackRoot(ctx context.Context, stackID string) (FileRoot, error)
+	// TemplateRoot resolves a template's draft (domain.ErrFileScopeNotFound).
+	TemplateRoot(ctx context.Context, templateID string) (FileRoot, error)
 	List(ctx context.Context, r FileRoot, in protocol.FilesListInput) (protocol.FilesListOutput, error)
 	Stat(ctx context.Context, r FileRoot, path string, etag bool) (protocol.FileEntry, error)
 	Read(ctx context.Context, r FileRoot, in protocol.FilesReadInput) (protocol.FilesReadOutput, error)
 	Write(ctx context.Context, r FileRoot, in protocol.FilesWriteInput) (protocol.FileEntry, error)
 	Mkdir(ctx context.Context, r FileRoot, in protocol.FilesMkdirInput) (protocol.FileEntry, error)
 	Preview(ctx context.Context, r FileRoot, in protocol.FilesPreviewInput) (protocol.FilesPreviewOutput, error)
-	Download(ctx context.Context, r FileRoot, in protocol.FilesDownloadInput) (*streammux.Stream, error)
+	Download(ctx context.Context, r FileRoot, in protocol.FilesDownloadInput) (ByteStream, error)
 	// StreamError maps an error read from a download stream.
 	StreamError(err error) error
 	Upload(ctx context.Context, r FileRoot, in protocol.FilesUploadInput, body io.Reader) (protocol.FilesUploadResult, error)
@@ -192,6 +202,15 @@ type FilesVolumeScope struct {
 
 func (s *FilesVolumeScope) scopeRef() fileScopeRef {
 	return fileScopeRef{kind: protocol.ScopeVolume, id: s.VolumeID, env: s.EnvironmentID}
+}
+
+// FilesTemplateScope is the path scope of the template draft file routes.
+type FilesTemplateScope struct {
+	TemplateID string `path:"templateId" maxLength:"64" doc:"Template ID."`
+}
+
+func (s *FilesTemplateScope) scopeRef() fileScopeRef {
+	return fileScopeRef{kind: protocol.ScopeTemplate, id: s.TemplateID}
 }
 
 type fileScopeRef struct{ kind, id, env string }
@@ -455,6 +474,54 @@ type (
 		FilesVolumeScope
 		FilesMetadataInput
 	}
+	listTemplateFilesInput struct {
+		FilesTemplateScope
+		FilesListQuery
+	}
+	getTemplateContentInput struct {
+		FilesTemplateScope
+		FilesContentQuery
+	}
+	replaceTemplateContentInput struct {
+		FilesTemplateScope
+		FilesReplaceInput
+	}
+	downloadTemplateInput struct {
+		FilesTemplateScope
+		FilesDownloadQuery
+	}
+	createTemplateEntryInput struct {
+		FilesTemplateScope
+		FilesCreateEntryInput
+	}
+	uploadTemplateInput struct {
+		FilesTemplateScope
+		FilesUploadQuery
+	}
+	previewTemplateInput struct {
+		FilesTemplateScope
+		FilesPreviewInput
+	}
+	transferTemplateInput struct {
+		FilesTemplateScope
+		FilesTransferInput
+	}
+	deletionTemplateInput struct {
+		FilesTemplateScope
+		FilesDeletionInput
+	}
+	archiveTemplateInput struct {
+		FilesTemplateScope
+		FilesArchiveInput
+	}
+	extractionTemplateInput struct {
+		FilesTemplateScope
+		FilesExtractionInput
+	}
+	metadataTemplateInput struct {
+		FilesTemplateScope
+		FilesMetadataInput
+	}
 )
 
 // Outputs.
@@ -556,6 +623,19 @@ func (h *filesAPI) open(ctx context.Context, ref fileScopeRef) (*fileCtx, error)
 		}
 		f.root = r
 		f.res = authz.Resource{Type: catalog.TypeStack, ID: ref.id, EnvironmentID: r.EnvironmentID}
+	case protocol.ScopeTemplate:
+		f.root = FileRoot{Scope: protocol.FileScope{Kind: protocol.ScopeTemplate, ID: ref.id}}
+		f.res = authz.Resource{Type: catalog.TypeTemplate, ID: ref.id, Parents: []authz.ResourceRef{}}
+		if h.svc != nil {
+			r, err := h.svc.TemplateRoot(ctx, ref.id)
+			if errors.Is(err, domain.ErrFileScopeNotFound) {
+				return nil, NotFound("template not found")
+			}
+			if err != nil {
+				return nil, Internal(err)
+			}
+			f.root = r
+		}
 	}
 	if !authz.ViewOf(c, f.res).Visible() {
 		return nil, NotFound(ref.kind + " not found")
@@ -609,9 +689,12 @@ func touchesDefinition(paths ...string) bool {
 func fileErr(err error, field string, conflict412 bool) error {
 	var fe *domain.FileError
 	var se *domain.StackError
+	var tooLarge *domain.TemplateTooLargeError
 	switch {
 	case err == nil:
 		return nil
+	case errors.As(err, &tooLarge):
+		return NewError(http.StatusRequestEntityTooLarge, CodeTemplateTooLarge, tooLarge.Message)
 	case errors.As(err, &se):
 		// A save of a definition file that would leave the stack's
 		// Compose definition invalid (#7).
@@ -1401,6 +1484,7 @@ func registerFiles(a huma.API, deps Deps) {
 	}{
 		{protocol.ScopeStack, BasePath + "/stacks/{stackId}/files", "stack"},
 		{protocol.ScopeVolume, BasePath + "/environments/{environmentId}/volumes/{volumeId}/files", "volume"},
+		{protocol.ScopeTemplate, BasePath + "/templates/{templateId}/files", "template"},
 	}
 	std := []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity,
 		http.StatusServiceUnavailable, http.StatusGatewayTimeout, http.StatusNotImplemented}
@@ -1415,21 +1499,30 @@ func registerFiles(a huma.API, deps Deps) {
 		kind := sc.idName
 		what := "the stack's project directory"
 		defNote := " Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write."
-		if kind == "volume" {
+		switch kind {
+		case "volume":
 			what = "the volume"
 			defNote = " Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported)."
+		case "template":
+			what = "the template's draft"
+			defNote = " The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large." +
+				" Jobs here run on the manager (template.files.* kinds)."
 		}
 		registerFileOp(a, h, op(sc, "list-"+kind+"-files", http.MethodGet, "", "List a directory of "+what,
 			"One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where "+
 				"it resolves, never followed out of the root. Path encoding and limits: docs/internal/api/files.md."+defNote, "read", std),
 			h.list, func(in *listStackFilesInput) (fileScopeRef, *FilesListQuery) { return in.scopeRef(), in.common() },
-			func(in *listVolumeFilesInput) (fileScopeRef, *FilesListQuery) { return in.scopeRef(), in.common() })
+			func(in *listVolumeFilesInput) (fileScopeRef, *FilesListQuery) { return in.scopeRef(), in.common() },
+			func(in *listTemplateFilesInput) (fileScopeRef, *FilesListQuery) { return in.scopeRef(), in.common() })
 
 		registerFileOp(a, h, op(sc, "get-"+kind+"-file-content", http.MethodGet, "/content", "Read a file of "+what,
 			"At most 512 KiB of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; "+
 				"send it as If-Match when saving."+defNote, "read", std),
 			h.getContent, func(in *getStackContentInput) (fileScopeRef, *FilesContentQuery) { return in.scopeRef(), in.common() },
-			func(in *getVolumeContentInput) (fileScopeRef, *FilesContentQuery) { return in.scopeRef(), in.common() })
+			func(in *getVolumeContentInput) (fileScopeRef, *FilesContentQuery) { return in.scopeRef(), in.common() },
+			func(in *getTemplateContentInput) (fileScopeRef, *FilesContentQuery) {
+				return in.scopeRef(), in.common()
+			})
 
 		registerFileOp(a, h, op(sc, "replace-"+kind+"-file-content", http.MethodPut, "/content", "Save a file of "+what,
 			"Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current "+
@@ -1440,6 +1533,9 @@ func registerFiles(a huma.API, deps Deps) {
 				return in.scopeRef(), in.common()
 			},
 			func(in *replaceVolumeContentInput) (fileScopeRef, *FilesReplaceInput) {
+				return in.scopeRef(), in.common()
+			},
+			func(in *replaceTemplateContentInput) (fileScopeRef, *FilesReplaceInput) {
 				return in.scopeRef(), in.common()
 			})
 
@@ -1460,7 +1556,8 @@ func registerFiles(a huma.API, deps Deps) {
 		}
 		registerFileOp(a, h, dl, h.download,
 			func(in *downloadStackInput) (fileScopeRef, *FilesDownloadQuery) { return in.scopeRef(), in.common() },
-			func(in *downloadVolumeInput) (fileScopeRef, *FilesDownloadQuery) { return in.scopeRef(), in.common() })
+			func(in *downloadVolumeInput) (fileScopeRef, *FilesDownloadQuery) { return in.scopeRef(), in.common() },
+			func(in *downloadTemplateInput) (fileScopeRef, *FilesDownloadQuery) { return in.scopeRef(), in.common() })
 
 		ce := op(sc, "create-"+kind+"-file-entry", http.MethodPost, "/entries", "Create a file or directory in "+what,
 			"Creates an empty directory or a new file (optional initial content up to 512 KiB). 409 file_exists when the name exists."+defNote,
@@ -1471,6 +1568,9 @@ func registerFiles(a huma.API, deps Deps) {
 				return in.scopeRef(), in.common()
 			},
 			func(in *createVolumeEntryInput) (fileScopeRef, *FilesCreateEntryInput) {
+				return in.scopeRef(), in.common()
+			},
+			func(in *createTemplateEntryInput) (fileScopeRef, *FilesCreateEntryInput) {
 				return in.scopeRef(), in.common()
 			})
 
@@ -1488,7 +1588,8 @@ func registerFiles(a huma.API, deps Deps) {
 			"application/octet-stream": {Schema: &huma.Schema{Type: "string", Format: "binary"}}}}
 		registerFileOp(a, h, up, h.upload,
 			func(in *uploadStackInput) (fileScopeRef, *FilesUploadQuery) { return in.scopeRef(), in.common() },
-			func(in *uploadVolumeInput) (fileScopeRef, *FilesUploadQuery) { return in.scopeRef(), in.common() })
+			func(in *uploadVolumeInput) (fileScopeRef, *FilesUploadQuery) { return in.scopeRef(), in.common() },
+			func(in *uploadTemplateInput) (fileScopeRef, *FilesUploadQuery) { return in.scopeRef(), in.common() })
 
 		registerFileOp(a, h, op(sc, "create-"+kind+"-file-conflict-preview", http.MethodPost, "/conflict-previews",
 			"Preview conflicts and impact in "+what,
@@ -1496,7 +1597,8 @@ func registerFiles(a huma.API, deps Deps) {
 				"by default in the UI) and counts what it touches, recursively where the operation recurses (delete, recursive chmod/chown).",
 			"read", std),
 			h.preview, func(in *previewStackInput) (fileScopeRef, *FilesPreviewInput) { return in.scopeRef(), in.common() },
-			func(in *previewVolumeInput) (fileScopeRef, *FilesPreviewInput) { return in.scopeRef(), in.common() })
+			func(in *previewVolumeInput) (fileScopeRef, *FilesPreviewInput) { return in.scopeRef(), in.common() },
+			func(in *previewTemplateInput) (fileScopeRef, *FilesPreviewInput) { return in.scopeRef(), in.common() })
 
 		jobErrs := append(std, http.StatusConflict)
 		for _, t := range []struct{ id, suffix, verb, summary, desc string }{
@@ -1512,7 +1614,8 @@ func registerFiles(a huma.API, deps Deps) {
 			kindOf := map[string]domain.JobKind{"copy": jobspec.FilesCopy, "move": jobspec.FilesMove}[t.verb]
 			registerFileOp(a, h, o, h.transfer(kindOf, t.verb),
 				func(in *transferStackInput) (fileScopeRef, *FilesTransferInput) { return in.scopeRef(), in.common() },
-				func(in *transferVolumeInput) (fileScopeRef, *FilesTransferInput) { return in.scopeRef(), in.common() })
+				func(in *transferVolumeInput) (fileScopeRef, *FilesTransferInput) { return in.scopeRef(), in.common() },
+				func(in *transferTemplateInput) (fileScopeRef, *FilesTransferInput) { return in.scopeRef(), in.common() })
 		}
 
 		del := op(sc, "create-"+kind+"-file-deletion", http.MethodPost, "/deletions", "Delete files in "+what,
@@ -1521,7 +1624,8 @@ func registerFiles(a huma.API, deps Deps) {
 		del.Idempotency = IdempotencyJob
 		registerFileOp(a, h, del, h.deletion,
 			func(in *deletionStackInput) (fileScopeRef, *FilesDeletionInput) { return in.scopeRef(), in.common() },
-			func(in *deletionVolumeInput) (fileScopeRef, *FilesDeletionInput) { return in.scopeRef(), in.common() })
+			func(in *deletionVolumeInput) (fileScopeRef, *FilesDeletionInput) { return in.scopeRef(), in.common() },
+			func(in *deletionTemplateInput) (fileScopeRef, *FilesDeletionInput) { return in.scopeRef(), in.common() })
 
 		arc := op(sc, "create-"+kind+"-file-archive", http.MethodPost, "/archives", "Create an archive in "+what,
 			"Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, "+
@@ -1529,7 +1633,8 @@ func registerFiles(a huma.API, deps Deps) {
 		arc.Idempotency = IdempotencyJob
 		registerFileOp(a, h, arc, h.archive,
 			func(in *archiveStackInput) (fileScopeRef, *FilesArchiveInput) { return in.scopeRef(), in.common() },
-			func(in *archiveVolumeInput) (fileScopeRef, *FilesArchiveInput) { return in.scopeRef(), in.common() })
+			func(in *archiveVolumeInput) (fileScopeRef, *FilesArchiveInput) { return in.scopeRef(), in.common() },
+			func(in *archiveTemplateInput) (fileScopeRef, *FilesArchiveInput) { return in.scopeRef(), in.common() })
 
 		ext := op(sc, "create-"+kind+"-file-extraction", http.MethodPost, "/extractions", "Extract an archive in "+what,
 			"Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, "+
@@ -1543,6 +1648,9 @@ func registerFiles(a huma.API, deps Deps) {
 			},
 			func(in *extractionVolumeInput) (fileScopeRef, *FilesExtractionInput) {
 				return in.scopeRef(), in.common()
+			},
+			func(in *extractionTemplateInput) (fileScopeRef, *FilesExtractionInput) {
+				return in.scopeRef(), in.common()
 			})
 
 		md := op(sc, "update-"+kind+"-file-metadata", http.MethodPatch, "/metadata", "Change permissions or ownership in "+what,
@@ -1555,19 +1663,28 @@ func registerFiles(a huma.API, deps Deps) {
 		md.Idempotency = IdempotencyJob
 		registerFileOp(a, h, md, h.metadata,
 			func(in *metadataStackInput) (fileScopeRef, *FilesMetadataInput) { return in.scopeRef(), in.common() },
-			func(in *metadataVolumeInput) (fileScopeRef, *FilesMetadataInput) { return in.scopeRef(), in.common() })
+			func(in *metadataVolumeInput) (fileScopeRef, *FilesMetadataInput) { return in.scopeRef(), in.common() },
+			func(in *metadataTemplateInput) (fileScopeRef, *FilesMetadataInput) { return in.scopeRef(), in.common() })
 	}
 }
 
 // registerFileOp registers op for the scope its path belongs to, with a
 // handler taking the scope and the common input part. S is the stack
-// input, V the volume input; the one matching op.Path is registered.
-func registerFileOp[S, V, C, O any](a huma.API, _ *filesAPI, op Operation, fn func(context.Context, fileScopeRef, *C) (*O, error),
-	stack func(*S) (fileScopeRef, *C), volume func(*V) (fileScopeRef, *C)) {
+// input, V the volume input, T the template input; the one matching
+// op.Path is registered.
+func registerFileOp[S, V, T, C, O any](a huma.API, _ *filesAPI, op Operation, fn func(context.Context, fileScopeRef, *C) (*O, error),
+	stack func(*S) (fileScopeRef, *C), volume func(*V) (fileScopeRef, *C), template func(*T) (fileScopeRef, *C)) {
 	op.Middlewares = append(huma.Middlewares{captureHeaders}, op.Middlewares...)
 	if strings.HasPrefix(op.Path, BasePath+"/stacks/") {
 		Register(a, op, func(ctx context.Context, in *S) (*O, error) {
 			ref, c := stack(in)
+			return fn(ctx, ref, c)
+		})
+		return
+	}
+	if strings.HasPrefix(op.Path, BasePath+"/templates/") {
+		Register(a, op, func(ctx context.Context, in *T) (*O, error) {
+			ref, c := template(in)
 			return fn(ctx, ref, c)
 		})
 		return

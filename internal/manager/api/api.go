@@ -132,6 +132,8 @@ type Deps struct {
 	// Backups serves backup repositories, the Recovery Key, policies and
 	// backups (#10); nil answers those routes with 503.
 	Backups BackupService
+	// Templates serves the instance's stack templates (template registry).
+	Templates TemplateService
 	// Removal previews environment removals (#34); nil answers the
 	// preview with 503 (after authorization).
 	Removal RemovalService
@@ -222,6 +224,7 @@ func New(mux *http.ServeMux, deps Deps) huma.API {
 	registerMaintenance(a, deps)
 	registerUpdates(a, deps)
 	registerBackups(a, deps)
+	registerTemplates(a, deps)
 	registerLive(a, deps)
 	registerSearch(a, deps)
 	addExamples(a)

@@ -45,7 +45,8 @@ export const TOPICS = [
 	'registries',
 	'settings',
 	'permissions',
-	'metrics'
+	'metrics',
+	'templates'
 ] as const;
 export type Topic = (typeof TOPICS)[number];
 

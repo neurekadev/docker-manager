@@ -149,6 +149,8 @@ same change.
 | `update_source_drift` | 409 | no | The stack's definition on disk differs from the applied revision (undeployed changes); deploy it first. An update never deploys an edit or writes a file. | #20 |
 | `update_preview_stale` | 409 | no | The candidates, digests or the stack's definition changed since the given preview; preview again. | #20 |
 | `backup_repository_name_taken` | 409 | no | Another backup repository already uses this name. | #10 |
+| `template_name_taken` | 409 | no | Another template already uses this name. | #7 |
+| `template_version_label_taken` | 409 | no | Another version of the template already uses this label. | #7 |
 | `backup_policy_name_taken` | 409 | no | Another backup policy already uses this name. | #10 |
 | `backup_scope_overlap` | 409 | no | A backup policy already covers this environment. | #10 |
 | `backup_repository_in_use` | 409 | no | A backup policy uses the repository; change or delete the policy first. | #10 |
@@ -168,7 +170,10 @@ same change.
 | `precondition_failed` | 412 | no | `If-Match` does not name the current revision. The response carries the current `ETag`; refetch, merge and retry. | #4 |
 | `payload_too_large` | 413 | no | The request body exceeds the route's documented limit. | #2 |
 | `backup_file_too_large` | 413 | no | The file in the backup is larger than the download limit (2 GiB); restore it instead. | #10 |
+| `template_too_large` | 413 | no | The template's draft would exceed its size or entry limit (`DOCKER_MANAGER_TEMPLATE_MAX_SIZE_MB`, 5000 entries); remove files first. | #7 |
+| `template_icon_too_large` | 413 | no | Template icons are limited to 256 KiB. | #7 |
 | `unsupported_media_type` | 415 | no | The `Content-Type` is not accepted by the route. | #2 |
+| `template_icon_unsupported` | 415 | no | The icon is not a PNG, JPEG, GIF, WebP or SVG image within the limits (raster images at most 1024x1024 pixels; SVG without scripts, embedded documents or DOCTYPE/ENTITY). | #7 |
 | `range_not_satisfiable` | 416 | no | The `Range` of a single-file download lies outside the file; `Content-Range` carries its size. | #15 |
 | `validation_failed` | 422 | no | One or more inputs are invalid; `details` lists each field. | #2 |
 | `recreate_required` | 422 | no | The requested container settings cannot change in place; create a new container (or use a Compose stack). `details` lists the fields. | #6 |
@@ -181,6 +186,8 @@ same change.
 | `backup_import_unreachable` | 422 | no | The import destination could not be read (storage refused access, unreachable, locked or damaged); the message names the class and what to do. | #24 |
 | `invalid_definition` | 422 | no | The Compose definition does not validate (syntax, paths or unsupported features); `details` lists each finding. | #7 |
 | `definition_too_large` | 422 | no | The Compose definition exceeds its bounds (256 KiB per file, 512 KiB and 32 files in total). | #7 |
+| `template_public_ack_required` | 422 | no | Making a template public, or publishing a version of a public one, needs `acknowledgePublic`: every file of it, `.env` included, becomes readable by anyone with the registry URL. | #7 |
+| `template_definition_invalid` | 422 | no | The template's draft cannot be published: no `compose.yaml` at its root, a Compose file that sets a top-level `name:`, or a device, socket, hard-linked file or symlink leaving the template; the message says which. | #7 |
 | `recovery_key_mismatch` | 422 | no | The re-entered Recovery Key is well-formed but is not the instance's (pending or current) key. | #10 |
 | `recovery_key_malformed` | 422 | no | The Recovery Key has a typo: its length or checksum is wrong (DYRK- followed by 13 groups of four characters). | #10 |
 | `version_unsupported` | 426 | no | Agent routes: the agent's protocol or version is outside the manager's window (same or previous minor release, never newer than the manager); upgrade as the message says. | #3 |

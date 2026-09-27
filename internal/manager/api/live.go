@@ -52,6 +52,7 @@ type streamLiveEventsInput struct {
 	EnvironmentID string `query:"environmentId" maxLength:"64" doc:"Only events of this environment (plus instance-wide ones such as jobs without an environment, policies and settings)."`
 	StackID       string `query:"stackId" maxLength:"1200" doc:"Comma-separated stack IDs (at most 16): narrows file events to these stacks' project directories (open file views)."`
 	Volume        string `query:"volume" maxLength:"4200" doc:"Comma-separated <environmentId>/<volume name> (at most 16): narrows file events to these volumes and keeps them watched while the stream is open (needs volume.files.read)."`
+	TemplateID    string `query:"templateId" maxLength:"1200" doc:"Comma-separated template IDs (at most 16): narrows file events to these templates' drafts (open file views)."`
 }
 
 // LiveHello opens the live stream.
@@ -94,8 +95,8 @@ type LiveAgentStatus struct {
 
 // LiveFileScope names a watched file scope.
 type LiveFileScope struct {
-	Kind          string `json:"kind" enum:"stack,volume,environment" doc:"environment: every file scope of the environment."`
-	ID            string `json:"id" doc:"Stack ID, volume name, or the environment ID."`
+	Kind          string `json:"kind" enum:"stack,volume,template,environment" doc:"environment: every file scope of the environment."`
+	ID            string `json:"id" doc:"Stack ID, volume name, template ID, or the environment ID."`
 	EnvironmentID string `json:"environmentId"`
 }
 
@@ -123,10 +124,11 @@ type LiveReset struct {
 
 // liveFilter is a stream's topic and scope selection.
 type liveFilter struct {
-	topics  map[string]bool
-	env     string
-	stacks  map[string]bool
-	volumes map[string]bool // "<env>/<name>"
+	topics    map[string]bool
+	env       string
+	stacks    map[string]bool
+	volumes   map[string]bool // "<env>/<name>"
+	templates map[string]bool
 }
 
 func parseLiveFilter(in *streamLiveEventsInput) (liveFilter, error) {
@@ -166,6 +168,9 @@ func parseLiveFilter(in *streamLiveEventsInput) (liveFilter, error) {
 	if f.stacks, err = list(in.StackID, "query.stackId", liveIDRE.MatchString); err != nil {
 		return f, err
 	}
+	if f.templates, err = list(in.TemplateID, "query.templateId", liveIDRE.MatchString); err != nil {
+		return f, err
+	}
 	f.volumes, err = list(in.Volume, "query.volume", func(s string) bool {
 		env, name, ok := strings.Cut(s, "/")
 		return ok && liveIDRE.MatchString(env) && protocol.ValidVolumeName(name)
@@ -178,7 +183,7 @@ func (f liveFilter) envMatch(env string) bool { return f.env == "" || env == "" 
 
 // filesMatch applies the stack/volume narrowing of file events.
 func (f liveFilter) filesMatch(e events.Event) bool {
-	if f.stacks == nil && f.volumes == nil {
+	if f.stacks == nil && f.volumes == nil && f.templates == nil {
 		return true
 	}
 	switch e.Attributes["scopeKind"] {
@@ -186,6 +191,8 @@ func (f liveFilter) filesMatch(e events.Event) bool {
 		return f.stacks[e.Attributes["scopeId"]]
 	case protocol.ScopeVolume:
 		return f.volumes[e.EnvironmentID+"/"+e.Attributes["scopeId"]]
+	case protocol.ScopeTemplate:
+		return f.templates[e.Attributes["scopeId"]]
 	}
 	return e.ResourceID == "*" // whole-environment invalidations reach every file view
 }
