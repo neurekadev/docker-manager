@@ -828,11 +828,13 @@ func (a *Agent) Run(ctx context.Context) error {
 		}
 	}()
 
+	// The ticker exists before the first write, so whoever sees that write
+	// (tests advancing a fake clock) also sees the next tick scheduled.
+	ticker := clk.NewTicker(HealthInterval)
+	defer ticker.Stop()
 	if err := a.writeHealth(clk.Now()); err != nil {
 		return err
 	}
-	ticker := clk.NewTicker(HealthInterval)
-	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
