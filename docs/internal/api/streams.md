@@ -18,6 +18,9 @@ the [route inventory](../../../api/route-inventory.yaml) is listed here
 | `GET /environments/{environmentId}/volumes/{volumeId}/files/downloads` | `download-volume-files` | binary response | #15 |
 | `POST /stacks/{stackId}/files/uploads` | `upload-stack-files` | binary request | #15 |
 | `POST /environments/{environmentId}/volumes/{volumeId}/files/uploads` | `upload-volume-files` | binary request | #15 |
+| `GET /templates/{templateId}/files/downloads` | `download-template-files` | binary response | #7 |
+| `POST /templates/{templateId}/files/uploads` | `upload-template-files` | binary request | #7 |
+| `GET /templates/{templateId}/icon` | `get-template-icon` | image response | #7 |
 | `GET /backups/{backupId}/contents/download` | `download-backup-content` | binary response | #10 |
 | `GET /audit/exports` | `export-audit-events` | NDJSON/CSV response | #30 |
 | `GET /system/metrics` | `get-system-metrics` | Prometheus text response | #34 |
@@ -102,6 +105,7 @@ Query parameters (all optional):
 | `environmentId` | only events of this environment (instance-wide events such as policies, settings and jobs without an environment still pass) |
 | `stackId` | comma-separated stack IDs (at most 16): narrows `files.changed` to these stacks (the tab's open file views) |
 | `volume` | comma-separated `<environmentId>/<volume name>` (at most 16): narrows `files.changed` to these volumes **and keeps them watched** by the agent while the stream is open (needs `volume.files.read`; volumes are otherwise watched only for 5 minutes after a listing) |
+| `templateId` | comma-separated template IDs (at most 16): narrows `files.changed` to these templates' drafts (served by the manager; `scope.kind` is `template`, no environment) |
 | `cursor` | resume position for clients that reconnect with a new `EventSource` (which cannot send `Last-Event-ID`); `Last-Event-ID` wins |
 
 Whole-environment file invalidations reach every file view of the
@@ -110,7 +114,7 @@ reconnects with its cursor; nothing is lost.
 
 Topics: `environments`, `agents`, `containers`, `images`, `volumes`,
 `networks`, `stacks`, `jobs`, `files`, `policies`, `backups`, `registries`,
-`settings`, `permissions`, `metrics`.
+`settings`, `permissions`, `metrics`, `templates`.
 
 ### Events
 

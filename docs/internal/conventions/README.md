@@ -24,6 +24,7 @@ follows [checks-and-ci.md](checks-and-ci.md) and the "Always" rules in
 | Containers, images, volumes, networks | `internal/manager/resources`, `internal/agent/resources`, `protocol/docker.go` | [docker-resources.md](docker-resources.md) |
 | Byte streams and file manager | `internal/streammux`, `internal/fsroot`, `internal/agent/files`, `internal/manager/files` | [files-and-streams.md](files-and-streams.md) |
 | Compose stacks, import by copy | `internal/manager/stacks`, `internal/agent/stacks`, `lifecycle`, `compose` | [stacks.md](stacks.md) |
+| Stack templates (template registry) | `internal/manager/templates`, `api/templates.go`, template file scope | [templates.md](templates.md) |
 | Docker Manager's own containers | `internal/protection`, `internal/agent/protect`, destructive or bulk features | [self-protection.md](self-protection.md) |
 | Container logs and terminals | `containerio` (agent and manager), `api/container_io.go` | [logs-and-terminals.md](logs-and-terminals.md) |
 | Schedules | `internal/cron`, `internal/manager/scheduler`, policy owners | [scheduler.md](scheduler.md) |

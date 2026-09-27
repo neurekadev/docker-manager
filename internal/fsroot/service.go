@@ -505,3 +505,7 @@ func (s *Service) stat(ctx context.Context, r *scopeRoot, rel string, etag bool)
 	}
 	return e, nil
 }
+
+// OpenLinks returns the hard link count of an opened file (0 when the
+// platform cannot tell).
+func OpenLinks(f *os.File, fi fs.FileInfo) uint64 { return openLinks(f, fi) }

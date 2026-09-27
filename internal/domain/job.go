@@ -124,12 +124,15 @@ const (
 	// TargetMaintenancePolicy is the prune policy a prune.run executes
 	// (#14): runs are authorized on the policy (maintenance.run).
 	TargetMaintenancePolicy TargetType = "maintenance_policy"
+	// TargetTemplate is a stack template of the instance (its draft is
+	// the root of template file jobs).
+	TargetTemplate TargetType = "template"
 )
 
 // TargetTypes returns every target type.
 func TargetTypes() []TargetType {
 	return []TargetType{TargetStack, TargetContainer, TargetVolume, TargetImage, TargetNetwork,
-		TargetRepository, TargetPath, TargetDestinationPath, TargetBuildDefinition, TargetMaintenancePolicy}
+		TargetRepository, TargetPath, TargetDestinationPath, TargetBuildDefinition, TargetMaintenancePolicy, TargetTemplate}
 }
 
 // JobTarget is one resource a job acts on.
@@ -157,11 +160,17 @@ const (
 	LockNetwork    LockScope = "network"
 	LockFilePath   LockScope = "file_path"
 	LockRepository LockScope = "repository"
+	// LockTemplate serializes jobs on one stack template.
+	LockTemplate LockScope = "template"
 )
+
+// InstanceLevel reports whether locks of the scope belong to no environment
+// (backup repositories and templates are instance resources).
+func (s LockScope) InstanceLevel() bool { return s == LockRepository || s == LockTemplate }
 
 // LockScopes returns every scope.
 func LockScopes() []LockScope {
-	return []LockScope{LockHost, LockStack, LockContainer, LockVolume, LockImage, LockNetwork, LockFilePath, LockRepository}
+	return []LockScope{LockHost, LockStack, LockContainer, LockVolume, LockImage, LockNetwork, LockFilePath, LockRepository, LockTemplate}
 }
 
 // LockMode is shared or exclusive.

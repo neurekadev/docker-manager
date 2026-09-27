@@ -38,6 +38,8 @@ func resourceTypes() []ResourceType {
 			Minimal: "id, name, registry host (never credentials)"},
 		{Key: TypeGitCredential, Label: "Git credentials", Scopable: true, Read: "git_credential.read",
 			Minimal: "id, name, host (never credentials)"},
+		{Key: TypeTemplate, Label: "Stack templates", Scopable: true, Read: "template.read",
+			Minimal: "id, name, visibility, icon"},
 		{Key: TypeJob, Label: "Jobs", Read: "job.read"},
 		{Key: TypeSchedule, Label: "Schedules", Read: "schedule.read"},
 		{Key: TypeAPIToken, Label: "API tokens"},
@@ -256,10 +258,24 @@ func capabilities() []Capability {
 		adv(normal("git_credential.read", TypeGitCredential, "View Git credentials", "See Git credential metadata (never secrets).", instRes(TypeGitCredential))),
 	)
 
+	// Stack templates (template registry): instance resources. Version
+	// contents include .env files, so using them is high risk; drafts are
+	// file roots with their own file capabilities.
+	tmplScope := instRes(TypeTemplate)
+	add(
+		normal("template.read", TypeTemplate, "View templates", "See templates, their tags and published versions (not their files).", tmplScope),
+		high("template.use", TypeTemplate, "Use templates", "Read the files of published versions (.env included) and create stacks from them (also needs stack.create).", tmplScope),
+		normal("template.create", TypeTemplate, "Create templates", "Create new templates (the creator still needs template capabilities to edit them).", instanceOnly),
+		normal("template.manage", TypeTemplate, "Edit templates", "Change a template's name, description, tags and icon.", tmplScope),
+		high("template.publish", TypeTemplate, "Publish templates", "Publish and delete versions and make templates public: every file of a public template, .env included, becomes readable by anyone with the registry URL.", tmplScope),
+		high("template.remove", TypeTemplate, "Delete templates", "Delete templates with their draft and versions (stacks created from them keep working).", tmplScope),
+	)
+	add(fileCaps(TypeTemplate, "the template's draft (compose.yaml, .env and the files next to them)", tmplScope)...)
+
 	// Jobs: job.read/job.cancel are evaluated on the job's targets. Holding
 	// the job kind's own capability on every target also shows and cancels
 	// the job (a restart-only user follows their restart).
-	jobScope := res(TypeStack, TypeService, TypeContainer, TypeImage, TypeVolume, TypeNetwork, TypeBackupRepository)
+	jobScope := res(TypeStack, TypeService, TypeContainer, TypeImage, TypeVolume, TypeNetwork, TypeBackupRepository, TypeTemplate)
 	add(
 		normal("job.read", TypeJob, "View jobs", "See jobs and their progress for the targeted resources, regardless of who started them.", jobScope),
 		adv(normal("job.cancel", TypeJob, "Cancel jobs", "Cancel jobs acting on the targeted resources, regardless of who started them.", jobScope)),

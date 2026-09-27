@@ -1,12 +1,20 @@
 # Scoped file manager (`…/files`, #15)
 
 A file browser and editor for one **root**: a managed stack's project
-directory or a Docker volume. The same routes exist under both roots:
+directory, a Docker volume or a stack template's draft. The same routes
+exist under every root:
 
 | root | prefix | capabilities |
 | --- | --- | --- |
 | stack project directory | `/api/v1/stacks/{stackId}/files` | `stack.files.*` (+ `stack.definition.*` for Compose sources) |
 | volume | `/api/v1/environments/{environmentId}/volumes/{volumeId}/files` | `volume.files.*` |
+| template draft | `/api/v1/templates/{templateId}/files` | `template.files.*` |
+
+Template drafts live on the manager (`<data dir>/templates/<id>/draft`),
+not on an agent: the manager serves them with the same operations
+(`internal/fsroot`), jobs are `template.files.*` kinds run by the manager
+with one exclusive template lock, and changes beyond the template size
+limit answer `413 template_too_large`.
 
 The manager authorizes (#17); the environment's agent confines every path to
 the root (`internal/fsroot`, with the scope checks of `internal/agent/files`);

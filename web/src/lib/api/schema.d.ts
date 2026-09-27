@@ -3962,6 +3962,389 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List templates
+         * @description The instance's own stack templates in creation order, filtered per item (#17): template.read shows one in full, any other capability on it only id, name, visibility and icon. q, tag and visibility filter the list.
+         */
+        get: operations["list-templates"];
+        put?: never;
+        /**
+         * Create a template
+         * @description Creates a private template whose draft holds a starter compose.yaml. Edit the draft with the file routes (/templates/{templateId}/files), then publish a version.
+         */
+        post: operations["create-template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a template */
+        get: operations["get-template"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a template
+         * @description Deletes the template with its draft, icon and versions. Stacks created from it keep working with their own files. Requires If-Match.
+         */
+        delete: operations["delete-template"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a template
+         * @description Edits the name, description and tags. Requires If-Match.
+         */
+        patch: operations["update-template"];
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a directory of the template's draft
+         * @description One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/internal/api/files.md. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).
+         */
+        get: operations["list-template-files"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/files/archives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an archive in the template's draft
+         * @description Starts a files.archive job (202 + job) packing the paths into a zip or tar.gz file inside the root (escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt). The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).
+         */
+        post: operations["create-template-file-archive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/files/conflict-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview conflicts and impact in the template's draft
+         * @description Lists the destinations an operation would overwrite (for per-item overwrite / skip / keep both decisions; apply-to-all is off by default in the UI) and counts what it touches, recursively where the operation recurses (delete, recursive chmod/chown).
+         */
+        post: operations["create-template-file-conflict-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/files/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a file of the template's draft
+         * @description At most 512 KiB of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).
+         */
+        get: operations["get-template-file-content"];
+        /**
+         * Save a file of the template's draft
+         * @description Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).
+         */
+        put: operations["replace-template-file-content"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/files/copies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy files in the template's draft
+         * @description Starts a files.copy job (202 + job): sources are copied recursively into destination; symlinks are copied as symlinks (never followed), hard-linked and special files fail per item. conflict applies per top-level item. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).
+         */
+        post: operations["create-template-file-copy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/files/deletions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete files in the template's draft
+         * @description Starts a files.delete job (202 + job) deleting each path recursively; symlinks are removed, never followed. Preview the impact first (conflict preview, operation delete). The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).
+         */
+        post: operations["create-template-file-deletion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/files/downloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download files of the template's draft
+         * @description One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/internal/api/streams.md. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).
+         */
+        get: operations["download-template-files"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/files/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a file or directory in the template's draft
+         * @description Creates an empty directory or a new file (optional initial content up to 512 KiB). 409 file_exists when the name exists. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).
+         */
+        post: operations["create-template-file-entry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/files/extractions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extract an archive in the template's draft
+         * @description Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (10 GiB and 100x the archive size) as well as the entry count (100 000). Nested archives are not extracted. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).
+         */
+        post: operations["create-template-file-extraction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/files/metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change permissions or ownership in the template's draft
+         * @description Starts a files.metadata job (202 + job): chmod (needs template.files.chmod) and/or chown (needs template.files.chown) of the paths, optionally recursive. Symlinks are skipped (never followed), special and hard-linked files fail per item; changes go through the opened file (fchmod/fchown). Preview the count with a conflict preview of operation metadata. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).
+         */
+        patch: operations["update-template-file-metadata"];
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/files/moves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move or rename files in the template's draft
+         * @description Starts a files.move job (202 + job): each source is renamed into destination (a rename is a move into the same directory under a new name: use conflict and one source). conflict applies per item. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).
+         */
+        post: operations["create-template-file-move"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/files/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a file into the template's draft
+         * @description Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKER_MANAGER_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).
+         */
+        post: operations["upload-template-files"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/icon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a template's icon
+         * @description The icon's bytes (image/png, image/jpeg, image/gif, image/webp or image/svg+xml) for any signed-in user. With v set to the icon's sha256 the response is cacheable forever; icons are served with a sandboxing Content-Security-Policy.
+         */
+        get: operations["get-template-icon"];
+        /**
+         * Set a template's icon
+         * @description Replaces the icon: PNG, JPEG, GIF, WebP or SVG, at most 256 KiB (413 template_icon_too_large), raster images at most 1024x1024 pixels; the type is detected from the bytes (415 template_icon_unsupported). SVG icons may not contain scripts, embedded documents or DOCTYPE/ENTITY declarations. Stacks created from the template show the new icon at once.
+         */
+        put: operations["replace-template-icon"];
+        post?: never;
+        /** Remove a template's icon */
+        delete: operations["delete-template-icon"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a template's versions
+         * @description Published versions, newest first.
+         */
+        get: operations["list-template-versions"];
+        put?: never;
+        /**
+         * Publish a version
+         * @description Freezes the draft as a new immutable version: a canonical tar.gz of every file, stored encrypted. The draft needs a compose.yaml (or compose.yml, docker-compose.y(a)ml) at its root and no Compose file may set a top-level name: (422 template_definition_invalid); devices, sockets, hard-linked files and symlinks leaving the template are refused. Public templates need acknowledgePublic (422 template_public_ack_required). 409 template_version_label_taken, 413 template_too_large.
+         */
+        post: operations["create-template-version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/versions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a template version */
+        get: operations["get-template-version"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a template version
+         * @description Removes a published version. Stacks created from it keep working; other managers stop offering it after their next registry sync. Its number is never reused.
+         */
+        delete: operations["delete-template-version"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/visibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Make a template public or private
+         * @description public lists the template's published versions in this instance's public registry: anyone with the registry URL can read every file of them, .env included (422 template_public_ack_required without acknowledgePublic). private removes it from the registry; managers that already downloaded a version keep their copy. Requires If-Match.
+         */
+        put: operations["replace-template-visibility"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/update-policies": {
         parameters: {
             query?: never;
@@ -4424,6 +4807,27 @@ export interface components {
             plainHttp: boolean;
         };
         ArchiveStackInputBody: {
+            /** @enum {string} */
+            conflict?: "fail" | "overwrite" | "keep_both";
+            /**
+             * @description Archive file to create (root-relative).
+             * @example exports/site.zip
+             */
+            destination?: string;
+            /**
+             * @description Default zip.
+             * @enum {string}
+             */
+            format?: "zip" | "tar.gz";
+            /**
+             * @example [
+             *       "html",
+             *       "config"
+             *     ]
+             */
+            paths?: string[];
+        };
+        ArchiveTemplateInputBody: {
             /** @enum {string} */
             conflict?: "fail" | "overwrite" | "keep_both";
             /**
@@ -5917,6 +6321,31 @@ export interface components {
             stack: components["schemas"]["Stack"];
             validation: components["schemas"]["StackValidation"];
         };
+        CreateTemplateEntryInputBody: {
+            /** @description Initial content of a new file (UTF-8). */
+            content?: string;
+            contentBase64?: string;
+            /**
+             * @description Root-relative path of the new entry (its parent must exist).
+             * @example config/nginx.conf
+             */
+            path?: string;
+            /** @enum {string} */
+            type?: "file" | "dir";
+        };
+        CreateTemplateInputBody: {
+            description?: string;
+            /** @example Nextcloud */
+            name: string;
+            /**
+             * @description Lowercase letters, digits and dashes (at most 32 characters each).
+             * @example [
+             *       "cloud",
+             *       "files"
+             *     ]
+             */
+            tags?: string[];
+        };
         CreateUpdateRunInputBody: {
             /**
              * @description Candidate IDs or service names (default: every update available).
@@ -5993,6 +6422,15 @@ export interface components {
             warning?: string;
         };
         DeletionStackInputBody: {
+            /**
+             * @description Entries to delete, recursively (symlinks are removed, never followed). Preview first with a conflict preview of operation delete.
+             * @example [
+             *       "logs/old.log"
+             *     ]
+             */
+            paths?: string[];
+        };
+        DeletionTemplateInputBody: {
             /**
              * @description Entries to delete, recursively (symlinks are removed, never followed). Preview first with a conflict preview of operation delete.
              * @example [
@@ -6576,6 +7014,23 @@ export interface components {
             ticket: string;
         };
         ExtractionStackInputBody: {
+            /**
+             * @description Per entry when the name exists (default fail: the entry is reported and skipped).
+             * @enum {string}
+             */
+            conflict?: "fail" | "overwrite" | "skip" | "keep_both";
+            /**
+             * @description Directory to extract into (created when missing).
+             * @example html
+             */
+            destination?: string;
+            /**
+             * @description The zip or tar.gz archive (root-relative).
+             * @example uploads/site.zip
+             */
+            path?: string;
+        };
+        ExtractionTemplateInputBody: {
             /**
              * @description Per entry when the name exists (default fail: the entry is reported and skipped).
              * @enum {string}
@@ -7191,13 +7646,13 @@ export interface components {
         };
         LiveFileScope: {
             environmentId: string;
-            /** @description Stack ID, volume name, or the environment ID. */
+            /** @description Stack ID, volume name, template ID, or the environment ID. */
             id: string;
             /**
              * @description environment: every file scope of the environment.
              * @enum {string}
              */
-            kind: "stack" | "volume" | "environment";
+            kind: "stack" | "volume" | "template" | "environment";
         };
         LiveFilesChanged: {
             /** Format: date-time */
@@ -7419,6 +7874,15 @@ export interface components {
             rules: components["schemas"]["MaintenanceRule"][];
         };
         MetadataStackInputBody: {
+            /** @description Needs <root>.files.chmod. */
+            chmod?: components["schemas"]["ChmodDTO"];
+            /** @description Needs <root>.files.chown. */
+            chown?: components["schemas"]["ChownDTO"];
+            paths?: string[];
+            /** @description Apply below directories too (symlinks are never followed). */
+            recursive?: boolean;
+        };
+        MetadataTemplateInputBody: {
             /** @description Needs <root>.files.chmod. */
             chmod?: components["schemas"]["ChmodDTO"];
             /** @description Needs <root>.files.chown. */
@@ -7957,6 +8421,28 @@ export interface components {
              */
             total?: number;
         };
+        PageTemplate: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["Template"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
+        PageTemplateVersion: {
+            /** @description Items on this page (possibly empty, also when nextCursor is present). */
+            items: components["schemas"]["TemplateVersion"][];
+            /** @description Opaque cursor for the next page; absent on the last page. */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Number of items matching the filters that the caller may see, across all pages. Only on routes that document it.
+             */
+            total?: number;
+        };
         PageUpdateCandidate: {
             /** @description Items on this page (possibly empty, also when nextCursor is present). */
             items: components["schemas"]["UpdateCandidate"][];
@@ -8245,6 +8731,29 @@ export interface components {
             /** @description metadata: count recursively. */
             recursive?: boolean;
         };
+        PreviewTemplateInputBody: {
+            /**
+             * @description Target directory (copy, move, upload, extract) or archive file (archive).
+             * @example backup
+             */
+            destination?: string;
+            /** @description File names to upload into destination. */
+            names?: string[];
+            /**
+             * @example copy
+             * @enum {string}
+             */
+            operation?: "copy" | "move" | "delete" | "upload" | "extract" | "archive" | "metadata";
+            /**
+             * @description Sources (copy, move, delete, metadata, archive) or the archive (extract).
+             * @example [
+             *       "config/nginx.conf"
+             *     ]
+             */
+            paths?: string[];
+            /** @description metadata: count recursively. */
+            recursive?: boolean;
+        };
         PreviewUpdateInputBody: {
             /**
              * @description Candidate IDs or service names (default: every update available).
@@ -8340,6 +8849,17 @@ export interface components {
             policyId: string;
             /** Format: int64 */
             remove: number;
+        };
+        PublishTemplateInputBody: {
+            /** @description Required when the template is public: every file of the version, .env included, becomes readable by anyone with the registry URL. */
+            acknowledgePublic?: boolean;
+            /**
+             * @description Letters, digits and . + _ -; unique per template.
+             * @example 1.2.0
+             */
+            label: string;
+            /** @description What changed (shown to people creating stacks from it). */
+            notes?: string;
         };
         PullImageInputBody: {
             /**
@@ -8677,6 +9197,15 @@ export interface components {
             rules: components["schemas"]["PermissionRule"][];
         };
         ReplaceStackContentInputBody: {
+            /**
+             * @description New content as UTF-8 text (at most 512 KiB).
+             * @example server_tokens off;
+             */
+            content?: string;
+            /** @description New content as base64 (binary; at most 512 KiB decoded). */
+            contentBase64?: string;
+        };
+        ReplaceTemplateContentInputBody: {
             /**
              * @description New content as UTF-8 text (at most 512 KiB).
              * @example server_tokens off;
@@ -9229,6 +9758,13 @@ export interface components {
             state: "second_factor_required" | "enrollment_required" | "authenticated";
             /** @description The signed-in account (enrollment_required and authenticated). */
             user?: components["schemas"]["Account"];
+        };
+        SetTemplateIconInputBody: {
+            /**
+             * @description The image bytes, base64-encoded: PNG, JPEG, GIF, WebP or SVG, at most 256 KiB (raster images at most 1024x1024 pixels). The type is detected from the bytes.
+             * @example PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4=
+             */
+            data: string;
         };
         SetupBackupImport: {
             errorCode?: string;
@@ -9813,6 +10349,93 @@ export interface components {
             /** @description Default latest. */
             tag?: string;
         };
+        Template: {
+            actions: string[];
+            /** Format: date-time */
+            createdAt?: string;
+            description?: string;
+            icon?: components["schemas"]["TemplateIconInfo"];
+            id: string;
+            /** @description The newest published version (absent before the first). */
+            latest?: components["schemas"]["TemplateVersion"];
+            /** @example Nextcloud */
+            name: string;
+            /** Format: int64 */
+            revision?: number;
+            tags?: string[];
+            /** Format: date-time */
+            updatedAt?: string;
+            /**
+             * Format: int64
+             * @description Published versions.
+             */
+            versions: number;
+            /** @enum {string} */
+            view: "minimal" | "full";
+            /**
+             * @description public: listed in this instance's public registry for other managers (every file, .env included, is readable there).
+             * @enum {string}
+             */
+            visibility: "private" | "public";
+        };
+        TemplateFileInfo: {
+            /** @example compose.yaml */
+            path: string;
+            /** Format: int64 */
+            size: number;
+        };
+        TemplateIconInfo: {
+            /** @enum {string} */
+            mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/svg+xml";
+            /** @description Changes with the icon; part of url so browsers cache each icon forever. */
+            sha256: string;
+            /** Format: int64 */
+            size: number;
+            /** Format: date-time */
+            updatedAt: string;
+            /**
+             * @description Any signed-in user may load it.
+             * @example /api/v1/templates/0190a6e0-.../icon?v=3f2a...
+             */
+            url: string;
+        };
+        TemplateVersion: {
+            /** @description SHA-256 of the version's tar.gz archive. */
+            archiveSha256: string;
+            /** Format: int64 */
+            archiveSize: number;
+            /**
+             * Format: int64
+             * @description Bytes of the files it contains.
+             */
+            contentSize: number;
+            /** @description The Compose files and .env at its root. */
+            definition: components["schemas"]["TemplateFileInfo"][];
+            /**
+             * Format: int64
+             * @description Files, directories and symlinks it contains.
+             */
+            entries: number;
+            /** @example 1.2.0 */
+            label: string;
+            notes: string;
+            /**
+             * Format: int64
+             * @description Increases with every publication; never reused.
+             */
+            number: number;
+            /** Format: date-time */
+            publishedAt: string;
+        };
+        TemplateVisibilityInputBody: {
+            /** @description Required to make a template public: every file of its published versions, .env included, becomes readable by anyone with the registry URL. */
+            acknowledgePublic?: boolean;
+            /**
+             * @example public
+             * @enum {string}
+             */
+            visibility: "private" | "public";
+        };
         TokenGrant: {
             /** @example container.restart */
             capability: string;
@@ -9836,6 +10459,27 @@ export interface components {
             uri: string;
         };
         TransferStackInputBody: {
+            /**
+             * @description Per top-level item when the name exists in the destination (default fail: that item fails). Apply-to-all is this one setting; the UI asks per item and sends one request per decision group.
+             * @enum {string}
+             */
+            conflict?: "fail" | "overwrite" | "skip" | "keep_both";
+            /**
+             * @description Target directory.
+             * @example config-backup
+             */
+            destination?: string;
+            /** @description New name of a single source (rename: move into the source's own directory under this name). */
+            name?: string;
+            /**
+             * @description Sources (root-relative).
+             * @example [
+             *       "config/nginx.conf"
+             *     ]
+             */
+            paths?: string[];
+        };
+        TransferTemplateInputBody: {
             /**
              * @description Per top-level item when the name exists in the destination (default fail: that item fails). Apply-to-all is this one setting; the UI asks per item and sends one request per decision group.
              * @enum {string}
@@ -10194,6 +10838,18 @@ export interface components {
              * @enum {string}
              */
             type: "stack" | "container";
+        };
+        UpdateTemplateInputBody: {
+            description?: string;
+            /** @example Nextcloud */
+            name?: string;
+            /**
+             * @example [
+             *       "cloud",
+             *       "files"
+             *     ]
+             */
+            tags?: string[];
         };
         UpdateWindow: {
             /** @description Days of the week, 0 (Sunday) to 6; empty: every day. */
@@ -30497,6 +31153,8 @@ export interface operations {
                 stackId?: string;
                 /** @description Comma-separated <environmentId>/<volume name> (at most 16): narrows file events to these volumes and keeps them watched while the stream is open (needs volume.files.read). */
                 volume?: string;
+                /** @description Comma-separated template IDs (at most 16): narrows file events to these templates' drafts (open file views). */
+                templateId?: string;
             };
             header?: {
                 /** @description Resume after this cursor (sent automatically by EventSource on reconnect). */
@@ -41427,6 +42085,3549 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-templates": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Matches the name, description or a tag (case-insensitive). */
+                q?: string;
+                /** @description Only templates with this tag. */
+                tag?: string;
+                /** @description Only private or public templates. */
+                visibility?: "private" | "public";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "actions": [
+                     *             "example"
+                     *           ],
+                     *           "createdAt": "2026-09-25T12:00:00Z",
+                     *           "description": "example",
+                     *           "icon": {
+                     *             "mediaType": "image/png",
+                     *             "sha256": "example",
+                     *             "size": 1,
+                     *             "updatedAt": "2026-09-25T12:00:00Z",
+                     *             "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                     *           },
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "latest": {
+                     *             "archiveSha256": "example",
+                     *             "archiveSize": 1,
+                     *             "contentSize": 1,
+                     *             "definition": [
+                     *               {
+                     *                 "path": "compose.yaml",
+                     *                 "size": 1
+                     *               }
+                     *             ],
+                     *             "entries": 1,
+                     *             "label": "1.2.0",
+                     *             "notes": "example",
+                     *             "number": 1,
+                     *             "publishedAt": "2026-09-25T12:00:00Z"
+                     *           },
+                     *           "name": "Nextcloud",
+                     *           "revision": 1,
+                     *           "tags": [
+                     *             "example"
+                     *           ],
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "versions": 1,
+                     *           "view": "minimal",
+                     *           "visibility": "private"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PageTemplate"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "Nextcloud",
+                 *       "tags": [
+                 *         "cloud",
+                 *         "files"
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["CreateTemplateInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "icon": {
+                     *         "mediaType": "image/png",
+                     *         "sha256": "example",
+                     *         "size": 1,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                     *       },
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "latest": {
+                     *         "archiveSha256": "example",
+                     *         "archiveSize": 1,
+                     *         "contentSize": 1,
+                     *         "definition": [
+                     *           {
+                     *             "path": "compose.yaml",
+                     *             "size": 1
+                     *           }
+                     *         ],
+                     *         "entries": 1,
+                     *         "label": "1.2.0",
+                     *         "notes": "example",
+                     *         "number": 1,
+                     *         "publishedAt": "2026-09-25T12:00:00Z"
+                     *       },
+                     *       "name": "Nextcloud",
+                     *       "revision": 1,
+                     *       "tags": [
+                     *         "example"
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "versions": 1,
+                     *       "view": "minimal",
+                     *       "visibility": "private"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "icon": {
+                     *         "mediaType": "image/png",
+                     *         "sha256": "example",
+                     *         "size": 1,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                     *       },
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "latest": {
+                     *         "archiveSha256": "example",
+                     *         "archiveSize": 1,
+                     *         "contentSize": 1,
+                     *         "definition": [
+                     *           {
+                     *             "path": "compose.yaml",
+                     *             "size": 1
+                     *           }
+                     *         ],
+                     *         "entries": 1,
+                     *         "label": "1.2.0",
+                     *         "notes": "example",
+                     *         "number": 1,
+                     *         "publishedAt": "2026-09-25T12:00:00Z"
+                     *       },
+                     *       "name": "Nextcloud",
+                     *       "revision": 1,
+                     *       "tags": [
+                     *         "example"
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "versions": 1,
+                     *       "view": "minimal",
+                     *       "visibility": "private"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-template": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-template": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "Nextcloud",
+                 *       "tags": [
+                 *         "cloud",
+                 *         "files"
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["UpdateTemplateInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "icon": {
+                     *         "mediaType": "image/png",
+                     *         "sha256": "example",
+                     *         "size": 1,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                     *       },
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "latest": {
+                     *         "archiveSha256": "example",
+                     *         "archiveSize": 1,
+                     *         "contentSize": 1,
+                     *         "definition": [
+                     *           {
+                     *             "path": "compose.yaml",
+                     *             "size": 1
+                     *           }
+                     *         ],
+                     *         "entries": 1,
+                     *         "label": "1.2.0",
+                     *         "notes": "example",
+                     *         "number": 1,
+                     *         "publishedAt": "2026-09-25T12:00:00Z"
+                     *       },
+                     *       "name": "Nextcloud",
+                     *       "revision": 1,
+                     *       "tags": [
+                     *         "example"
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "versions": 1,
+                     *       "view": "minimal",
+                     *       "visibility": "private"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-template-files": {
+        parameters: {
+            query?: {
+                /** @description Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root. */
+                path?: string;
+                /** @description Opaque cursor from a previous page's nextCursor. Only valid with the same filters and sort. */
+                cursor?: string;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Order (default name; ties by name; type puts directories first). */
+                sort?: "name" | "-name" | "size" | "-size" | "modified" | "-modified" | "type" | "-type";
+                /** @description Only names containing this text (case-insensitive). */
+                q?: string;
+                /** @description Include dot files. */
+                hidden?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "dir": {
+                     *         "etag": "example",
+                     *         "gid": 1,
+                     *         "linkStatus": "inside",
+                     *         "linkTarget": "example",
+                     *         "links": 1,
+                     *         "mode": "0644",
+                     *         "modifiedAt": "2026-09-25T12:00:00Z",
+                     *         "name": "compose.yaml",
+                     *         "path": "config/app.env",
+                     *         "size": 1,
+                     *         "type": "file",
+                     *         "uid": 1
+                     *       },
+                     *       "items": [
+                     *         {
+                     *           "etag": "example",
+                     *           "gid": 1,
+                     *           "linkStatus": "inside",
+                     *           "linkTarget": "example",
+                     *           "links": 1,
+                     *           "mode": "0644",
+                     *           "modifiedAt": "2026-09-25T12:00:00Z",
+                     *           "name": "compose.yaml",
+                     *           "path": "config/app.env",
+                     *           "size": 1,
+                     *           "type": "file",
+                     *           "uid": 1
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1,
+                     *       "truncated": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["FileListing"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template-file-archive": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "destination": "exports/site.zip",
+                 *       "paths": [
+                 *         "html",
+                 *         "config"
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["ArchiveTemplateInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template-file-conflict-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "destination": "backup",
+                 *       "operation": "copy",
+                 *       "paths": [
+                 *         "config/nginx.conf"
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["PreviewTemplateInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "conflicts": [
+                     *         {
+                     *           "destination": "example",
+                     *           "existing": {
+                     *             "etag": "example",
+                     *             "gid": 1,
+                     *             "linkStatus": "inside",
+                     *             "linkTarget": "example",
+                     *             "links": 1,
+                     *             "mode": "0644",
+                     *             "modifiedAt": "2026-09-25T12:00:00Z",
+                     *             "name": "compose.yaml",
+                     *             "path": "config/app.env",
+                     *             "size": 1,
+                     *             "type": "file",
+                     *             "uid": 1
+                     *           },
+                     *           "source": "example"
+                     *         }
+                     *       ],
+                     *       "conflictsTruncated": false,
+                     *       "impact": {
+                     *         "bytes": 1,
+                     *         "dirs": 1,
+                     *         "entries": 1,
+                     *         "files": 1,
+                     *         "other": 1,
+                     *         "symlinks": 1,
+                     *         "truncated": false
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["FilePreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-template-file-content": {
+        parameters: {
+            query?: {
+                /** @description Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root. */
+                path?: string;
+                /** @description Byte offset for paging through large files. */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "binary": false,
+                     *       "content": "example",
+                     *       "contentBase64": "example",
+                     *       "entry": {
+                     *         "etag": "example",
+                     *         "gid": 1,
+                     *         "linkStatus": "inside",
+                     *         "linkTarget": "example",
+                     *         "links": 1,
+                     *         "mode": "0644",
+                     *         "modifiedAt": "2026-09-25T12:00:00Z",
+                     *         "name": "compose.yaml",
+                     *         "path": "config/app.env",
+                     *         "size": 1,
+                     *         "type": "file",
+                     *         "uid": 1
+                     *       },
+                     *       "offset": 1,
+                     *       "truncated": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["FileContent"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-template-file-content": {
+        parameters: {
+            query?: {
+                /** @description Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root. */
+                path?: string;
+            };
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+                /** @description * creates the file only if it does not exist (412 otherwise). */
+                "If-None-Match"?: string;
+            };
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "content": "server_tokens off;"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ReplaceTemplateContentInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "etag": "example",
+                     *       "gid": 1,
+                     *       "linkStatus": "inside",
+                     *       "linkTarget": "example",
+                     *       "links": 1,
+                     *       "mode": "0644",
+                     *       "modifiedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "compose.yaml",
+                     *       "path": "config/app.env",
+                     *       "size": 1,
+                     *       "type": "file",
+                     *       "uid": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["FileEntry"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template-file-copy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "destination": "config-backup",
+                 *       "paths": [
+                 *         "config/nginx.conf"
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["TransferTemplateInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template-file-deletion": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "paths": [
+                 *         "logs/old.log"
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["DeletionTemplateInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "download-template-files": {
+        parameters: {
+            query?: {
+                /** @description Paths to download (repeat the parameter). One regular file downloads raw unless format is set; several paths or a directory download as an archive. */
+                path?: string[];
+                /** @description Archive format (default zip for archives). */
+                format?: "zip" | "tar.gz";
+            };
+            header?: {
+                /** @description Single byte range (bytes=start-end) for resuming a single-file download. */
+                Range?: string;
+            };
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description File or archive bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/gzip": string;
+                    "application/octet-stream": string;
+                    "application/zip": string;
+                };
+            };
+            /** @description Requested range of a single file */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Requested Range Not Satisfiable */
+            416: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template-file-entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "path": "config/nginx.conf"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CreateTemplateEntryInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "etag": "example",
+                     *       "gid": 1,
+                     *       "linkStatus": "inside",
+                     *       "linkTarget": "example",
+                     *       "links": 1,
+                     *       "mode": "0644",
+                     *       "modifiedAt": "2026-09-25T12:00:00Z",
+                     *       "name": "compose.yaml",
+                     *       "path": "config/app.env",
+                     *       "size": 1,
+                     *       "type": "file",
+                     *       "uid": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["FileEntry"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template-file-extraction": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "destination": "html",
+                 *       "path": "uploads/site.zip"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ExtractionTemplateInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "update-template-file-metadata": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "chmod": {
+                 *         "dirMode": "0755",
+                 *         "mode": "0644"
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["MetadataTemplateInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template-file-move": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "destination": "config-backup",
+                 *       "paths": [
+                 *         "config/nginx.conf"
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["TransferTemplateInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "upload-template-files": {
+        parameters: {
+            query?: {
+                /** @description Root-relative path (slash-separated, percent-encoded in the URL; no leading /, no . or .. segments). Empty or . is the root. */
+                path?: string;
+                /** @description File name in the target directory (path). */
+                name?: string;
+                /** @description What to do when the name exists, instead of If-Match/If-None-Match. */
+                conflict?: "overwrite" | "skip" | "keep_both";
+            };
+            header?: {
+                /** @description Replace exactly this revision (ETag). */
+                "If-Match"?: string;
+                /** @description * creates only (412 when the name exists). */
+                "If-None-Match"?: string;
+                /** @description Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413). */
+                "Content-Length"?: number;
+                /** @description Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch). */
+                "X-Docker-Manager-Content-SHA256"?: string;
+            };
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        /** @description The file's bytes. */
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "entry": {
+                     *         "etag": "example",
+                     *         "gid": 1,
+                     *         "linkStatus": "inside",
+                     *         "linkTarget": "example",
+                     *         "links": 1,
+                     *         "mode": "0644",
+                     *         "modifiedAt": "2026-09-25T12:00:00Z",
+                     *         "name": "compose.yaml",
+                     *         "path": "config/app.env",
+                     *         "size": 1,
+                     *         "type": "file",
+                     *         "uid": 1
+                     *       },
+                     *       "skipped": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["FileUploadResult"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Length Required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-template-icon": {
+        parameters: {
+            query?: {
+                /** @description The icon's sha256 (from icon.url): the response is then cacheable forever. */
+                v?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Icon bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-template-icon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "data": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4="
+                 *     }
+                 */
+                "application/json": components["schemas"]["SetTemplateIconInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "icon": {
+                     *         "mediaType": "image/png",
+                     *         "sha256": "example",
+                     *         "size": 1,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                     *       },
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "latest": {
+                     *         "archiveSha256": "example",
+                     *         "archiveSize": 1,
+                     *         "contentSize": 1,
+                     *         "definition": [
+                     *           {
+                     *             "path": "compose.yaml",
+                     *             "size": 1
+                     *           }
+                     *         ],
+                     *         "entries": 1,
+                     *         "label": "1.2.0",
+                     *         "notes": "example",
+                     *         "number": 1,
+                     *         "publishedAt": "2026-09-25T12:00:00Z"
+                     *       },
+                     *       "name": "Nextcloud",
+                     *       "revision": 1,
+                     *       "tags": [
+                     *         "example"
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "versions": 1,
+                     *       "view": "minimal",
+                     *       "visibility": "private"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-template-icon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "icon": {
+                     *         "mediaType": "image/png",
+                     *         "sha256": "example",
+                     *         "size": 1,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                     *       },
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "latest": {
+                     *         "archiveSha256": "example",
+                     *         "archiveSize": 1,
+                     *         "contentSize": 1,
+                     *         "definition": [
+                     *           {
+                     *             "path": "compose.yaml",
+                     *             "size": 1
+                     *           }
+                     *         ],
+                     *         "entries": 1,
+                     *         "label": "1.2.0",
+                     *         "notes": "example",
+                     *         "number": 1,
+                     *         "publishedAt": "2026-09-25T12:00:00Z"
+                     *       },
+                     *       "name": "Nextcloud",
+                     *       "revision": 1,
+                     *       "tags": [
+                     *         "example"
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "versions": 1,
+                     *       "view": "minimal",
+                     *       "visibility": "private"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-template-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "archiveSha256": "example",
+                     *           "archiveSize": 1,
+                     *           "contentSize": 1,
+                     *           "definition": [
+                     *             {
+                     *               "path": "compose.yaml",
+                     *               "size": 1
+                     *             }
+                     *           ],
+                     *           "entries": 1,
+                     *           "label": "1.2.0",
+                     *           "notes": "example",
+                     *           "number": 1,
+                     *           "publishedAt": "2026-09-25T12:00:00Z"
+                     *         }
+                     *       ],
+                     *       "nextCursor": "example",
+                     *       "total": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PageTemplateVersion"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-template-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "label": "1.2.0"
+                 *     }
+                 */
+                "application/json": components["schemas"]["PublishTemplateInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "archiveSha256": "example",
+                     *       "archiveSize": 1,
+                     *       "contentSize": 1,
+                     *       "definition": [
+                     *         {
+                     *           "path": "compose.yaml",
+                     *           "size": 1
+                     *         }
+                     *       ],
+                     *       "entries": 1,
+                     *       "label": "1.2.0",
+                     *       "notes": "example",
+                     *       "number": 1,
+                     *       "publishedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["TemplateVersion"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-template-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+                /** @description Version number. */
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "archiveSha256": "example",
+                     *       "archiveSize": 1,
+                     *       "contentSize": 1,
+                     *       "definition": [
+                     *         {
+                     *           "path": "compose.yaml",
+                     *           "size": 1
+                     *         }
+                     *       ],
+                     *       "entries": 1,
+                     *       "label": "1.2.0",
+                     *       "notes": "example",
+                     *       "number": 1,
+                     *       "publishedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["TemplateVersion"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-template-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+                /** @description Version number. */
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "replace-template-visibility": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "visibility": "public"
+                 *     }
+                 */
+                "application/json": components["schemas"]["TemplateVisibilityInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "actions": [
+                     *         "example"
+                     *       ],
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "icon": {
+                     *         "mediaType": "image/png",
+                     *         "sha256": "example",
+                     *         "size": 1,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                     *       },
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "latest": {
+                     *         "archiveSha256": "example",
+                     *         "archiveSize": 1,
+                     *         "contentSize": 1,
+                     *         "definition": [
+                     *           {
+                     *             "path": "compose.yaml",
+                     *             "size": 1
+                     *           }
+                     *         ],
+                     *         "entries": 1,
+                     *         "label": "1.2.0",
+                     *         "notes": "example",
+                     *         "number": 1,
+                     *         "publishedAt": "2026-09-25T12:00:00Z"
+                     *       },
+                     *       "name": "Nextcloud",
+                     *       "revision": 1,
+                     *       "tags": [
+                     *         "example"
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "versions": 1,
+                     *       "view": "minimal",
+                     *       "visibility": "private"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Template"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

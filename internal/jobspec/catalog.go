@@ -3,6 +3,7 @@ package jobspec
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
@@ -73,6 +74,15 @@ const (
 	FilesCopy     domain.JobKind = "files.copy"
 	FilesMove     domain.JobKind = "files.move"
 	FilesDelete   domain.JobKind = "files.delete"
+
+	// Template file jobs: the files.* operations in a template's draft,
+	// run by the manager (template registry).
+	TemplateFilesArchive  domain.JobKind = "template.files.archive"
+	TemplateFilesExtract  domain.JobKind = "template.files.extract"
+	TemplateFilesMetadata domain.JobKind = "template.files.metadata"
+	TemplateFilesCopy     domain.JobKind = "template.files.copy"
+	TemplateFilesMove     domain.JobKind = "template.files.move"
+	TemplateFilesDelete   domain.JobKind = "template.files.delete"
 
 	ManagerBackup    domain.JobKind = "manager.backup"
 	ManagerRetention domain.JobKind = "manager.retention"
@@ -165,6 +175,29 @@ func filesKind(kind domain.JobKind, summary string, locks []LockRule, steps ...S
 		OfflineDeadline: deadlineInteractive,
 		Steps:           steps,
 	}
+}
+
+// templateFilesKind builds a template file job spec: the manager runs it
+// in the template's draft, exclusive on the template (drafts are small, so
+// no per-path locks). Its capability is template.<files.verb>.
+func templateFilesKind(kind domain.JobKind, summary string, st Step) Spec {
+	return Spec{
+		Kind: kind, Summary: summary, Capability: strings.TrimPrefix(string(kind), "template."), RootScoped: true,
+		Roots: []domain.TargetType{domain.TargetTemplate}, Executor: domain.ExecutorManager,
+		Locks:            []LockRule{target(domain.LockTemplate, exclusive, domain.TargetTemplate)},
+		OnManagerRestart: RestartInterrupt,
+		Steps:            []Step{st},
+	}
+}
+
+// TemplateFilesKind returns the template file kind of an agent files.*
+// kind (and false for other kinds).
+func TemplateFilesKind(k domain.JobKind) (domain.JobKind, bool) {
+	switch k {
+	case FilesArchive, FilesExtract, FilesMetadata, FilesCopy, FilesMove, FilesDelete:
+		return "template." + k, true
+	}
+	return "", false
 }
 
 func catalogSpecs() []Spec {
@@ -501,6 +534,21 @@ func catalogSpecs() []Spec {
 		filesKind(FilesDelete, "Delete files",
 			[]LockRule{target(domain.LockFilePath, exclusive, domain.TargetPath)},
 			idem("delete")),
+
+		// Template files (the same operations in a template's draft).
+		templateFilesKind(TemplateFilesArchive, "Create an archive from template files", idem("archive")),
+		templateFilesKind(TemplateFilesExtract, "Extract an archive in a template",
+			step("extract", false, true, "The destination may contain a partial extraction. Inspect it before extracting again.")),
+		func() Spec {
+			s := templateFilesKind(TemplateFilesMetadata, "Change ownership or permissions in a template", idem("apply"))
+			s.CapabilityByInput = map[string]string{"chmod": "files.chmod", "chown": "files.chown"}
+			return s
+		}(),
+		templateFilesKind(TemplateFilesCopy, "Copy template files",
+			step("copy", false, true, "The destination may contain a partial copy. Inspect it before copying again.")),
+		templateFilesKind(TemplateFilesMove, "Move template files",
+			step("move", false, true, "Some files may already have been moved. Compare source and destination before moving again.")),
+		templateFilesKind(TemplateFilesDelete, "Delete template files", idem("delete")),
 	}
 }
 

@@ -26,3 +26,7 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
   `internal/manager/api/files.go` (checks `<root>.files.*` and
   `stack.definition.*`); shared types `internal/protocol/files.go`; contract
   `docs/internal/api/files.md`. Never log file contents or put them in audit details.
+- **Template drafts** are a third root served by the manager itself: the
+  template service's `fsroot` instance (`files.Service.SetTemplates`),
+  `template.files.*` manager jobs, `files.invalidated` events with
+  `scopeKind=template`. See [templates.md](templates.md).

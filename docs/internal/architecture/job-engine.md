@@ -25,7 +25,8 @@ Stored in SQLite (`jobs`, `job_targets`, `job_locks`, `job_events`,
   `api_token`), initiator user and API-token IDs (**audit metadata only**,
   never an access-control owner), `policy_id`, `environment_id`, targets
   (`stack`, `container`, `volume`, `image`, `network`, `repository`, `path`,
-  `destination_path`; a target may name another environment for migrations).
+  `destination_path`, `template`; a target may name another environment for
+  migrations).
 - canonical JSON `input` and its `input_hash`, optional idempotency key.
 - `attempt`, `state`, progress (percent/step/message), item-level results,
   error class, error message, **recovery guidance**, `blocked_by` and
@@ -75,8 +76,9 @@ maps to **409 `idempotency_key_reused`**.
 ## Resource locking
 
 Scopes: `host` (the environment), `stack`, `container`, `volume`, `image`,
-`network`, `file_path`, and `repository` (instance-wide restic repository —
-added so retention/verify/backup serialize correctly). Modes: `shared` and
+`network`, `file_path`, `repository` (instance-wide restic repository —
+added so retention/verify/backup serialize correctly) and `template` (a
+stack template's draft; instance-wide like `repository`). Modes: `shared` and
 `exclusive`. Two locks of different jobs **conflict** when they overlap and
 at least one is exclusive. They overlap when scope and environment match
 and the names are equal, either name is `*` (all resources of the scope in
@@ -159,6 +161,12 @@ S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
 | `stack.start` | agent | `stack.start` | `host` S (each environment)<br>`stack` **X** (stack targets) | `start` (i,c) | 10m | — | — | — |
 | `stack.stop` | agent | `stack.stop` | `host` S (each environment)<br>`stack` **X** (stack targets) | `stop` (i,c) | 10m | — | — | — |
 | `stack.update` | agent | `stack.update` | `host` S (each environment)<br>`stack` **X** (stack targets) | `pull_images` (i,c) → `apply` (i,c) | 30m | pull | — | — |
+| `template.files.archive` | manager | `template.files.archive` | `template` **X** (template targets) | `archive` (i,c) | — | — | — | interrupt |
+| `template.files.copy` | manager | `template.files.copy` | `template` **X** (template targets) | `copy` (c) | — | — | — | interrupt |
+| `template.files.delete` | manager | `template.files.delete` | `template` **X** (template targets) | `delete` (i,c) | — | — | — | interrupt |
+| `template.files.extract` | manager | `template.files.extract` | `template` **X** (template targets) | `extract` (c) | — | — | — | interrupt |
+| `template.files.metadata` | manager | `template.files.chmod`, `template.files.chown` | `template` **X** (template targets) | `apply` (i,c) | — | — | — | interrupt |
+| `template.files.move` | manager | `template.files.move` | `template` **X** (template targets) | `move` (c) | — | — | — | interrupt |
 | `update.check` | manager | `update.check` | `host` S (each environment)<br>`stack` S (stack targets, optional)<br>`container` S (container targets, optional) | `check` (i,c) | — | — | — | resume |
 | `update.run` | agent | `update.run` | `host` S (each environment)<br>`stack` **X** (stack targets, optional)<br>`container` **X** (container targets, optional) | `pull_images` (i,c) → `recreate` (i,c) → `wait_healthy` (i) | 1h | pull | — | — |
 | `volume.create` | agent | `volume.create` | `host` S (each environment)<br>`volume` **X** (volume targets) | `create` (i,c) | 10m | — | — | — |

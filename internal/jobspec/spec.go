@@ -106,9 +106,11 @@ type Spec struct {
 	// on every target (see Capabilities for root-scoped and input-selected
 	// kinds). Scheduled jobs run as the manager service identity.
 	Capability string
-	// RootScoped: the kind acts inside one stack or volume (file jobs);
-	// the capability is "<root type>.<Capability>".
+	// RootScoped: the kind acts inside one file root (file jobs); the
+	// capability is "<root type>.<Capability>". Roots lists the root target
+	// types (default stack and volume).
 	RootScoped bool
+	Roots      []domain.TargetType
 	// CapabilityByInput selects the capabilities from top-level input keys
 	// (files.metadata: chmod and/or chown); it replaces Capability.
 	CapabilityByInput map[string]string
@@ -190,7 +192,7 @@ func (s Spec) RequiresEnvironment() bool {
 		return true
 	}
 	for _, r := range s.Locks {
-		if r.Source != FromTargets || r.Scope != domain.LockRepository {
+		if r.Source != FromTargets || !r.Scope.InstanceLevel() {
 			return true
 		}
 	}
@@ -254,8 +256,8 @@ func (s Spec) Validate() error {
 			if r.TargetType != "" || r.Optional {
 				bad("%s: %s rule takes no target type/optional flag", s.Kind, r.Source)
 			}
-			if r.Scope == domain.LockRepository {
-				bad("%s: repository locks come from repository targets", s.Kind)
+			if r.Scope.InstanceLevel() {
+				bad("%s: %s locks come from %s targets", s.Kind, r.Scope, r.Scope)
 			}
 			if r.Source == FromEnvironments && r.Scope != domain.LockHost {
 				bad("%s: only host locks come from environments", s.Kind)
@@ -400,7 +402,7 @@ func (s Spec) ComputeLocks(environmentID string, targets []domain.JobTarget) ([]
 					continue
 				}
 				env := envOf(t)
-				if r.Scope == domain.LockRepository {
+				if r.Scope.InstanceLevel() {
 					env = ""
 				} else if env == "" {
 					return nil, fmt.Errorf("%w: %s target %q needs an environment", domain.ErrJobInvalid, t.Type, t.ID)

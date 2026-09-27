@@ -15,9 +15,12 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
 ## Security defaults
 
 - Containers run as UID 0 (decided, #25/#28); do not add non-root users.
-- All `/api/v1` and `/agent/v1` responses are `no-store`; never cache API data
-  in the service worker.
+- All `/api/v1` and `/agent/v1` responses are `no-store` (the one exception:
+  template icons requested with their current `?v=<sha256>`, which are
+  immutable); never cache API data in the service worker.
 - Secrets at rest: `secrets.Keyring.Seal(value, "<table>/<id>/<field>")`.
+  Template versions are sealed; template drafts are plain files in the
+  data directory (mode 0700), like stack directories on hosts.
 - Client IP / scheme / host: `requestinfo.From(ctx)` (trusted proxies are
   resolved once; never read `X-Forwarded-*` or `RemoteAddr`). SSE goes
   through `api.StartSSE` (Huma) or `server/sse` (plain handlers; the one
