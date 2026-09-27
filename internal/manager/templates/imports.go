@@ -77,7 +77,7 @@ func (s *Service) extract(ctx context.Context, dir string, r io.Reader) (skipped
 				return skipped, fmt.Errorf("templates: create %s: %w", parent, err)
 			}
 		}
-		perm := os.FileMode(h.Mode) & os.ModePerm
+		perm := h.FileInfo().Mode().Perm()
 		switch h.Typeflag {
 		case tar.TypeDir:
 			if err := root.MkdirAll(name, 0o755); err != nil {
