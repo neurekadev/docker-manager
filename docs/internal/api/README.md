@@ -95,9 +95,12 @@ and a new account in the initial **Restricted** group sees nothing.
 ### Public routes
 
 Liveness/readiness (`/health`, `/health/ready`), `/capabilities`,
-`/setup/status`, sign-in and redemption flows, and the protected first-run
+`/setup/status`, sign-in and redemption flows, the protected first-run
 setup routes (which additionally require the setup session and HTTPS and are
-refused once an owner exists).
+refused once an owner exists), and this instance's public template registry
+(`/template-registry`, its icons and version archives: public templates with
+a published version only, rate limited per client address, 404 when
+`DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED=false`).
 
 ## Authorization metadata in OpenAPI
 

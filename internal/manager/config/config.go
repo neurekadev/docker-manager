@@ -55,6 +55,9 @@ const (
 	// EnvTemplateMaxSizeMB bounds a stack template's files (template
 	// registry).
 	EnvTemplateMaxSizeMB = "DOCKER_MANAGER_TEMPLATE_MAX_SIZE_MB"
+	// EnvTemplateRegistryEnabled serves this instance's public template
+	// registry (template registry).
+	EnvTemplateRegistryEnabled = "DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED"
 
 	EnvMigrationBandwidthLimit = "DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT"
 	// Backups (#10).
@@ -178,6 +181,9 @@ type Config struct {
 	// TemplateMaxSize bounds a stack template's files in bytes (draft and
 	// each published version).
 	TemplateMaxSize int64
+	// TemplateRegistryEnabled serves the public template registry (public
+	// templates only; default true).
+	TemplateRegistryEnabled bool
 	// MigrationBandwidthLimit caps the data environment migrations relay
 	// through the manager, in bytes per second (#35; 0: unlimited).
 	MigrationBandwidthLimit int64
@@ -236,6 +242,7 @@ func (c Config) Settings() []Setting {
 		{EnvMetricsMaxSeries, i(c.Metrics.MaxSeries)},
 		{EnvFilesMaxUploadMB, mb(c.FilesMaxUpload)},
 		{EnvTemplateMaxSizeMB, mb(c.TemplateMaxSize)},
+		{EnvTemplateRegistryEnabled, strconv.FormatBool(c.TemplateRegistryEnabled)},
 		{EnvMigrationBandwidthLimit, strconv.FormatInt(c.MigrationBandwidthLimit, 10) + " B/s (0: unlimited)"},
 		{EnvBackupLocalRoots, strings.Join(c.BackupLocalRoots, ",")},
 		{EnvResticBinary, c.ResticBinary},
@@ -367,6 +374,9 @@ func Load(src envconfig.Source) (Config, error) {
 		errs = append(errs, err)
 	}
 	cfg.TemplateMaxSize = int64(templateMB) << 20
+	if cfg.TemplateRegistryEnabled, err = src.Bool(EnvTemplateRegistryEnabled, true); err != nil {
+		errs = append(errs, err)
+	}
 
 	if cfg.MigrationBandwidthLimit, err = transfer.ParseRate(src.String(EnvMigrationBandwidthLimit, "0")); err != nil {
 		errs = append(errs, fmt.Errorf("%s: %w", EnvMigrationBandwidthLimit, err))

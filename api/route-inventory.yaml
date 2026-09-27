@@ -1723,6 +1723,33 @@ routes:
     status: implemented
     notes: "Creates a stack from a published template version (also needs template.use)."
   - method: GET
+    path: "/api/v1/template-registry"
+    operationId: get-template-registry
+    capability: public
+    scope: none
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "This instance's public template registry (public templates with versions); If-None-Match; rate limited."
+  - method: GET
+    path: "/api/v1/template-registry/templates/{templateId}/icon"
+    operationId: get-template-registry-icon
+    capability: public
+    scope: none
+    owner: 7
+    kind: stream
+    status: implemented
+    notes: "Icon bytes of a public template."
+  - method: GET
+    path: "/api/v1/template-registry/templates/{templateId}/versions/{version}/archive"
+    operationId: download-template-registry-archive
+    capability: public
+    scope: none
+    owner: 7
+    kind: stream
+    status: implemented
+    notes: "A public version's tar.gz; lower rate limit."
+  - method: GET
     path: "/api/v1/templates/{templateId}/files"
     operationId: list-template-files
     capability: template.files.read

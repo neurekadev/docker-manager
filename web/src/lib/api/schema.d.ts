@@ -4002,6 +4002,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/template-registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get this instance's public template registry
+         * @description The published versions of this instance's public templates (newest 50 per template), for other Docker Manager instances that added this instance's URL as a registry. Private templates, drafts and templates without a version never appear. Revalidate with If-None-Match (304). Public: no sign-in; rate limited per client address (429 with Retry-After). 404 when the instance does not share templates (DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED=false).
+         */
+        get: operations["get-template-registry"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/template-registry/templates/{templateId}/icon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a public template's icon
+         * @description Served sandboxed; cacheable forever with v set to its sha256. Public: no sign-in; rate limited per client address (429 with Retry-After). 404 when the instance does not share templates (DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED=false).
+         */
+        get: operations["get-template-registry-icon"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/template-registry/templates/{templateId}/versions/{version}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a public template version
+         * @description The version's tar.gz (every file, .env included). Check its SHA-256 against the index. Archives have a lower rate limit than the index. Public: no sign-in; rate limited per client address (429 with Retry-After). 404 when the instance does not share templates (DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED=false).
+         */
+        get: operations["download-template-registry-archive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/templates": {
         parameters: {
             query?: never;
@@ -10515,6 +10575,75 @@ export interface components {
             templateId: string;
             /** @example /api/v1/templates/0190a6e0-.../icon?v=3f2a... */
             url: string;
+        };
+        TemplateRegistryArchive: {
+            /** Format: int64 */
+            contentSize: number;
+            /** Format: int64 */
+            entries: number;
+            /** @description SHA-256 of the tar.gz: check it after downloading. */
+            sha256: string;
+            /** Format: int64 */
+            size: number;
+            /** @description Relative to the registry URL. */
+            url: string;
+        };
+        TemplateRegistryEntry: {
+            description?: string;
+            icon?: components["schemas"]["TemplateRegistryIcon"];
+            id: string;
+            /** @example Nextcloud */
+            name: string;
+            tags: string[];
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description Newest first (at most 50). */
+            versions: components["schemas"]["TemplateRegistryVersion"][];
+        };
+        TemplateRegistryIcon: {
+            /** @example image/svg+xml */
+            mediaType: string;
+            /** @description Changes with the icon. */
+            sha256: string;
+            /** Format: int64 */
+            size: number;
+            /**
+             * @description Relative to the registry URL.
+             * @example /api/v1/template-registry/templates/0190a6e0-.../icon?v=3f2a...
+             */
+            url: string;
+        };
+        TemplateRegistryIndex: {
+            /** @enum {string} */
+            format: "docker-manager.template-registry/v1";
+            /** @description Identifies the registry: an instance added again under another URL is recognized. */
+            instanceId: string;
+            /**
+             * @description The instance's display name.
+             * @example Homelab
+             */
+            name: string;
+            templates: components["schemas"]["TemplateRegistryEntry"][];
+            /**
+             * Format: date-time
+             * @description The newest change of a listed template or version.
+             */
+            updatedAt: string;
+            /**
+             * @description The registry URL (DOCKER_MANAGER_PUBLIC_URL).
+             * @example https://docker.example.com
+             */
+            url?: string;
+        };
+        TemplateRegistryVersion: {
+            archive: components["schemas"]["TemplateRegistryArchive"];
+            /** @example 1.2.0 */
+            label: string;
+            notes?: string;
+            /** Format: int64 */
+            number: number;
+            /** Format: date-time */
+            publishedAt: string;
         };
         TemplateVersion: {
             /** @description SHA-256 of the version's tar.gz archive. */
@@ -42581,6 +42710,238 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-template-registry": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The ETag of a copy you have: 304 when it is current. */
+                "If-None-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "format": "docker-manager.template-registry/v1",
+                     *       "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "name": "Homelab",
+                     *       "templates": [
+                     *         {
+                     *           "description": "example",
+                     *           "icon": {
+                     *             "mediaType": "image/svg+xml",
+                     *             "sha256": "example",
+                     *             "size": 1,
+                     *             "url": "/api/v1/template-registry/templates/0190a6e0-.../icon?v=3f2a..."
+                     *           },
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "Nextcloud",
+                     *           "tags": [
+                     *             "example"
+                     *           ],
+                     *           "updatedAt": "2026-09-25T12:00:00Z",
+                     *           "versions": [
+                     *             {
+                     *               "archive": {
+                     *                 "contentSize": 1,
+                     *                 "entries": 1,
+                     *                 "sha256": "example",
+                     *                 "size": 1,
+                     *                 "url": "example"
+                     *               },
+                     *               "label": "1.2.0",
+                     *               "notes": "example",
+                     *               "number": 1,
+                     *               "publishedAt": "2026-09-25T12:00:00Z"
+                     *             }
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z",
+                     *       "url": "https://docker.example.com"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["TemplateRegistryIndex"];
+                };
+            };
+            /** @description Not modified: your copy (If-None-Match) is current. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-template-registry-icon": {
+        parameters: {
+            query?: {
+                /** @description The icon's sha256: the response is then cacheable forever. */
+                v?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Icon bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": string;
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "download-template-registry-archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+                /** @description Version number. */
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The version's tar.gz */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/gzip": string;
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

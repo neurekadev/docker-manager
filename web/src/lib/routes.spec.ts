@@ -98,6 +98,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 	buildDefinitions: [routes.buildDefinitions()],
 	newBuild: [routes.newBuild(), routes.newBuild('env-1', 'def-1')],
 	build: [routes.build('env-1', 'b-1')],
+	registry: [routes.registry()],
 	templates: [routes.templates(), routes.templates('web')],
 	newTemplate: [routes.newTemplate()],
 	template: [
