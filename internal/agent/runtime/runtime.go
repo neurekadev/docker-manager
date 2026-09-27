@@ -657,6 +657,14 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	if slices.Contains(p.Commands, "stack.import") {
 		p.Features = append(p.Features, protocol.FeatureStackImportCopy)
 	}
+	// It pulls a stack's images without deploying them.
+	if slices.Contains(p.Commands, "stack.pull") {
+		p.Features = append(p.Features, protocol.FeatureStackPull)
+	}
+	// It renames stacks, moving their volumes and directory (#7).
+	if slices.Contains(p.Commands, "stack.rename") {
+		p.Features = append(p.Features, protocol.FeatureStackRename)
+	}
 	// Its backup.run reports live activity when asked (#10).
 	if slices.Contains(p.Commands, "backup.run") {
 		p.Features = append(p.Features, protocol.FeatureBackupActivity)

@@ -85,6 +85,7 @@ const ALL = [
 	'stack.remove',
 	'stack.migrate',
 	'stack.manage',
+	'stack.update',
 	'update.check'
 ];
 
@@ -274,12 +275,53 @@ describe('StackHeader', () => {
 	it('deploys from the split button without a confirmation (the files on disk are the definition)', async () => {
 		const user = setup();
 		const tray = header(stack());
-		await user.click(screen.getByRole('button', { name: 'More deploy options' }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Deploy with pull' }));
-		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Deploy with pull Silo'));
+		await user.click(screen.getByRole('button', { name: 'Deploy' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Deploy Silo'));
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
 			path: '/api/v1/stacks/st-1/deployments',
-			body: { pull: 'always' }
+			body: {}
+		});
+		// A deploy that changed nothing says so (its last deploy time stays).
+		expect(tray.jobs[0].successFor).toBeTypeOf('function');
+	});
+
+	it('pulls the images without deploying them', async () => {
+		const user = setup();
+		const tray = header(stack());
+		await user.click(screen.getByRole('button', { name: 'Pull' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Pull Silo'));
+		const post = seen.find((s) => s.method === 'POST');
+		expect(post?.path).toBe('/api/v1/stacks/st-1/pulls');
+		expect(seen.some((s) => s.path.endsWith('/deployments'))).toBe(false);
+	});
+
+	it('hides Pull without stack.update', () => {
+		header(stack({ actions: ALL.filter((a) => a !== 'stack.update') }));
+		expect(screen.queryByRole('button', { name: 'Pull' })).not.toBeInTheDocument();
+	});
+
+	it('removes orphaned containers only from the deploy menu, after a confirmation', async () => {
+		const user = setup();
+		const tray = header(stack());
+		await user.click(screen.getByRole('button', { name: 'More deploy options' }));
+		const menu = await screen.findByRole('menu');
+		expect(
+			within(menu)
+				.getAllByRole('menuitem')
+				.map((i) => i.textContent?.trim())
+		).toEqual(['Deploy', 'Deploy and remove orphaned containers…']);
+		await user.click(
+			within(menu).getByRole('menuitem', { name: 'Deploy and remove orphaned containers…' })
+		);
+		const dialog = await screen.findByRole('alertdialog', {
+			name: 'Deploy Silo and remove orphaned containers?'
+		});
+		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
+		await user.click(within(dialog).getByRole('button', { name: 'Deploy and remove orphans' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Deploy Silo and remove orphans'));
+		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
+			path: '/api/v1/stacks/st-1/deployments',
+			body: { removeOrphans: true }
 		});
 	});
 });

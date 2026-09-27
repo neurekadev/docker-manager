@@ -241,6 +241,14 @@ type fakeAgents struct {
 	online   bool
 	handlers map[string]session.RequestHandler
 	requests []string
+	// features are the capabilities features the agent announces.
+	features map[string]bool
+}
+
+func (f *fakeAgents) EnvironmentHasFeature(environmentID, feature string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.online && environmentID == env && f.features[feature]
 }
 
 func (f *fakeAgents) RequestEnvironment(ctx context.Context, environmentID, name string, input any, _ time.Duration) (json.RawMessage, error) {

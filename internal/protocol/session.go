@@ -64,6 +64,7 @@ const (
 	ReqComposeRead             = "compose.read"
 	ReqComposeWrite            = "compose.write"
 	ReqComposeServices         = "compose.services"
+	ReqComposeRenamePreview    = "compose.rename_preview"
 	ReqFilesList               = "files.list"
 	ReqFilesStat               = "files.stat"
 	ReqFilesRead               = "files.read"
@@ -121,7 +122,7 @@ var requestNames = []string{
 	ReqContainerStats, ReqContainerLogs, ReqContainerExecCreate, ReqContainerExecResize,
 	ReqContainerExecDelete, ReqImageList, ReqImageInspect, ReqImageTag, ReqVolumeList,
 	ReqVolumeInspect, ReqVolumeUsage, ReqNetworkList, ReqNetworkInspect, ReqComposeDiscover, ReqComposeValidate,
-	ReqComposeRead, ReqComposeWrite, ReqComposeServices,
+	ReqComposeRead, ReqComposeWrite, ReqComposeServices, ReqComposeRenamePreview,
 	ReqFilesList, ReqFilesStat, ReqFilesRead, ReqFilesWrite, ReqFilesMkdir, ReqFilesConflictPreview, ReqFilesWatch,
 	ReqBackupSnapshots, ReqBackupContents, ReqBackupScopePreview, ReqRestorePreview,
 	ReqMaintenancePreview, ReqMigrationPreview, ReqMigrationStop, ReqMigrationStart, ReqMigrationCommit,

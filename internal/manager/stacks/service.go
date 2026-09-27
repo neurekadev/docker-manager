@@ -128,6 +128,7 @@ type Service struct {
 	log  *slog.Logger
 
 	volumeHolds func(ctx context.Context, environmentID, project string) ([]string, error)
+	renamed     []func(ctx context.Context, db bun.IDB, r domain.StackRenamed) error
 }
 
 // New creates the service and registers its job finish hooks.

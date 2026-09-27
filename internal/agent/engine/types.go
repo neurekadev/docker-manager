@@ -213,6 +213,29 @@ type ConfigInspector interface {
 	CreatedConfig(ctx context.Context, id string) (CreatedConfig, error)
 }
 
+// CloneOptions configures Cloner.CloneContainer.
+type CloneOptions struct {
+	// Name is the clone's name (rename the original aside first when it
+	// keeps its name).
+	Name string
+	// Volumes maps volume names the original mounts to the names the clone
+	// mounts instead (a volume that moved to a new name).
+	Volumes map[string]string
+}
+
+// Cloner is implemented by Engines that recreate a container from its
+// complete configuration (the Moby adapter and the in-memory fake): a
+// container Docker Manager did not create keeps every setting, not only
+// the ones ContainerSpec knows.
+type Cloner interface {
+	// CloneContainer creates (never starts) a container with the whole
+	// configuration of id: Config, HostConfig and its networks, the image
+	// it runs, with the volumes of o.Volumes renamed and its anonymous
+	// volumes mounted by name (their data is kept). A hostname Docker
+	// derived from the old ID is left to Docker.
+	CloneContainer(ctx context.Context, id string, o CloneOptions) (string, error)
+}
+
 // EndpointInfo is a container's attachment to a network.
 type EndpointInfo struct {
 	NetworkID   string

@@ -78,6 +78,27 @@ func TestHostAccessCapabilitiesAreHighRisk(t *testing.T) {
 	}
 }
 
+// TestDisruptiveStackCapabilitiesAreHighRisk: the stack actions that stop
+// a stack and move or delete its data (and, for a rename, recreate
+// containers outside the stack) are high risk, advanced and grantable on
+// one stack; stack.manage only edits display settings.
+func TestDisruptiveStackCapabilitiesAreHighRisk(t *testing.T) {
+	cat := catalog.Default()
+	for _, key := range []string{"stack.remove", "stack.migrate", "stack.rename"} {
+		cp, ok := cat.Lookup(key)
+		if !ok {
+			t.Errorf("%s is not in the catalog", key)
+			continue
+		}
+		if cp.Risk != catalog.RiskHigh || !cp.Advanced || !contains(cp.Resources, catalog.TypeStack) {
+			t.Errorf("%s: risk %q advanced %v resources %v", key, cp.Risk, cp.Advanced, cp.Resources)
+		}
+	}
+	if cp, _ := cat.Lookup("stack.manage"); cp.Risk != catalog.RiskNormal || strings.Contains(strings.ToLower(cp.Description), "rename") {
+		t.Errorf("stack.manage: %+v", cp)
+	}
+}
+
 func TestAuditCapabilitiesMatchCatalog(t *testing.T) {
 	cat := catalog.Default()
 	for _, a := range audit.Capabilities() {

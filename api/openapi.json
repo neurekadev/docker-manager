@@ -5071,7 +5071,7 @@
             "type": "string"
           },
           "removeOrphans": {
-            "description": "Remove containers of services no longer in the definition.",
+            "description": "Also remove the containers of services that are no longer in the Compose file (orphans, reported as drift unexpected_service). A deploy without it keeps them.",
             "type": "boolean"
           },
           "services": {
@@ -12038,6 +12038,27 @@
         ],
         "type": "object"
       },
+      "RenameStackInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "Required: the new Compose project name (lower-case letters, digits, '-' and '_', starting with a letter or digit).",
+            "examples": [
+              "store"
+            ],
+            "maxLength": 63,
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "description": "Stop grace period of the stack's services and the recreated containers (default: each one's own).",
+            "format": "int64",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ReplaceDocumentBody": {
         "additionalProperties": false,
         "properties": {
@@ -14145,6 +14166,19 @@
             ],
             "type": "string"
           },
+          "pulledAt": {
+            "description": "When the pull found it.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "pulledDigest": {
+            "description": "Repository digest of pulledImageId.",
+            "type": "string"
+          },
+          "pulledImageId": {
+            "description": "A newer image for the reference that a pull without deploy put on the host; the next deploy runs it (absent after a deploy).",
+            "type": "string"
+          },
           "service": {
             "type": "string"
           }
@@ -14196,6 +14230,17 @@
           },
           "policyId": {
             "description": "The stack's update policy.",
+            "type": "string"
+          },
+          "pulledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pulledDigest": {
+            "type": "string"
+          },
+          "pulledImageId": {
+            "description": "A newer image for the service's reference is on the host (POST /stacks/{id}/pulls); deploy the stack to run it.",
             "type": "string"
           },
           "reason": {
@@ -14403,6 +14448,183 @@
         ],
         "type": "object"
       },
+      "StackRenameBody": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "Required: the new Compose project name (lower-case letters, digits, '-' and '_', starting with a letter or digit).",
+            "examples": [
+              "store"
+            ],
+            "maxLength": 63,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "StackRenameContainer": {
+        "additionalProperties": false,
+        "properties": {
+          "hidden": {
+            "description": "The caller cannot see this container; the rename is blocked unless the caller may stop and remove it (container.stop, container.remove).",
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "description": "Absent when the caller cannot see the container (hidden is true).",
+            "type": "string"
+          },
+          "running": {
+            "description": "It runs now: it is stopped, recreated on the new volume names and started again.",
+            "type": "boolean"
+          },
+          "volumes": {
+            "description": "The moved volumes it mounts (current names).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "running",
+          "volumes"
+        ],
+        "type": "object"
+      },
+      "StackRenamePreview": {
+        "additionalProperties": false,
+        "properties": {
+          "blockers": {
+            "description": "Reasons the rename is refused (nothing changes); empty when it can run.",
+            "items": {
+              "$ref": "#/components/schemas/StackIssue"
+            },
+            "type": "array"
+          },
+          "containers": {
+            "description": "Containers outside the stack that mount a moved volume: stopped and recreated on the new names with their full configuration.",
+            "items": {
+              "$ref": "#/components/schemas/StackRenameContainer"
+            },
+            "type": "array"
+          },
+          "declaredName": {
+            "description": "The top-level name: the Compose files set. Such a stack is renamed by changing name: in its files (a blocker unless it is the requested name).",
+            "type": "string"
+          },
+          "from": {
+            "description": "Current Compose project name.",
+            "examples": [
+              "shop"
+            ],
+            "type": "string"
+          },
+          "fromDir": {
+            "description": "Current project directory (relative to its root).",
+            "examples": [
+              "shop"
+            ],
+            "type": "string"
+          },
+          "running": {
+            "description": "Services that run now: they stop and start again under the new name.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "to": {
+            "description": "New Compose project name.",
+            "examples": [
+              "store"
+            ],
+            "type": "string"
+          },
+          "toDir": {
+            "description": "Project directory after the rename: renamed in place when it is named after the project, else unchanged.",
+            "examples": [
+              "store"
+            ],
+            "type": "string"
+          },
+          "volumes": {
+            "description": "Volumes of the stack and what happens to each.",
+            "items": {
+              "$ref": "#/components/schemas/StackRenameVolume"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/StackIssue"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "fromDir",
+          "toDir",
+          "running",
+          "volumes",
+          "containers",
+          "blockers",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "StackRenameVolume": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "move: the data moves to a volume with the new name (same disk, nothing is copied); recreate: a volume with driver options (host path, NFS, ...) is recreated with the same options under the new name, the data stays where they point; absent: the volume does not exist yet and is created on the first start.",
+            "enum": [
+              "move",
+              "recreate",
+              "absent"
+            ],
+            "type": "string"
+          },
+          "key": {
+            "description": "Compose key of a named volume (absent for an anonymous volume).",
+            "examples": [
+              "data"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Current volume name.",
+            "examples": [
+              "shop_data"
+            ],
+            "type": "string"
+          },
+          "newName": {
+            "description": "Name after the rename (an anonymous volume's is only known once its container is recreated).",
+            "examples": [
+              "store_data"
+            ],
+            "type": "string"
+          },
+          "service": {
+            "description": "Service of an anonymous volume's mount.",
+            "type": "string"
+          },
+          "target": {
+            "description": "Mount path of an anonymous volume.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "action"
+        ],
+        "type": "object"
+      },
       "StackRestoreResult": {
         "additionalProperties": false,
         "properties": {
@@ -14534,7 +14756,7 @@
         "additionalProperties": false,
         "properties": {
           "at": {
-            "description": "When it was applied (appliedRevision) or last seen on disk (sourceRevision).",
+            "description": "appliedRevision: when a deploy last created, recreated or started a container (a deploy that found everything running as defined keeps the earlier time; absent when none did). sourceRevision: when it was last seen on disk.",
             "format": "date-time",
             "type": "string"
           },
@@ -14667,7 +14889,7 @@
             "type": "string"
           },
           "drift": {
-            "description": "missing, not_running, running_while_stopped, unexpected_service, image_changed.",
+            "description": "missing (no container), not_running (stopped or exited, not a finished one-shot), running_while_stopped (runs although the stack was stopped or taken down), unexpected_service (an orphan: the service is no longer in the deployed definition but its containers are still on the host; a deploy with removeOrphans removes them), image_changed (runs another image than the last deploy applied).",
             "items": {
               "type": "string"
             },
@@ -38882,6 +39104,9 @@
                       "image": "nginx:1.27",
                       "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "platform": "linux/amd64",
+                      "pulledAt": "2026-09-25T12:00:00Z",
+                      "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                      "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "service": "example"
                     }
                   ],
@@ -56071,6 +56296,9 @@
                           "image": "nginx:1.27",
                           "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                           "platform": "linux/amd64",
+                          "pulledAt": "2026-09-25T12:00:00Z",
+                          "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                          "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                           "service": "example"
                         }
                       ],
@@ -56277,6 +56505,9 @@
                         "image": "nginx:1.27",
                         "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                         "platform": "linux/amd64",
+                        "pulledAt": "2026-09-25T12:00:00Z",
+                        "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                        "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                         "service": "example"
                       }
                     ],
@@ -57076,6 +57307,9 @@
                       "image": "nginx:1.27",
                       "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "platform": "linux/amd64",
+                      "pulledAt": "2026-09-25T12:00:00Z",
+                      "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                      "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "service": "example"
                     }
                   ],
@@ -57323,6 +57557,9 @@
                       "image": "nginx:1.27",
                       "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "platform": "linux/amd64",
+                      "pulledAt": "2026-09-25T12:00:00Z",
+                      "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                      "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "service": "example"
                     }
                   ],
@@ -61705,6 +61942,9 @@
                       "nonVersionTag": false,
                       "platform": "example",
                       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "pulledAt": "2026-09-25T12:00:00Z",
+                      "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                      "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "reason": "build_only",
                       "reasonMessage": "example",
                       "service": "web",
@@ -62872,6 +63112,829 @@
         "x-docker-manager-scope": "resource"
       }
     },
+    "/api/v1/stacks/{stackId}/pulls": {
+      "post": {
+        "description": "Starts a stack.pull job (202): the agent pulls the images of the stack's definition on disk (with the registry connections a deploy would use; build-only services are skipped) and changes no container. Services whose reference now names another image than the one they run show it in image-status (pulledImageId) until the next deploy runs it. Needs stack.update and an up-to-date, connected agent (501 agent_unsupported, 503 environment_offline).",
+        "operationId": "create-stack-pull",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "attempt": 1,
+                  "blockedBy": {
+                    "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "reason": "lock"
+                  },
+                  "cancelRequested": false,
+                  "cancellable": false,
+                  "createdAt": "2026-09-25T12:00:00Z",
+                  "dispatchedAt": "2026-09-25T12:00:00Z",
+                  "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "error": {
+                    "class": "agent_offline",
+                    "message": "example",
+                    "recovery": "example"
+                  },
+                  "executor": "agent",
+                  "finishedAt": "2026-09-25T12:00:00Z",
+                  "id": "0190a6e0-0000-7000-8000-000000000001",
+                  "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "items": [
+                    {
+                      "message": "example",
+                      "name": "web",
+                      "status": "succeeded"
+                    }
+                  ],
+                  "kind": "stack.deploy",
+                  "locks": [
+                    {
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "mode": "shared",
+                      "name": "web",
+                      "scope": "host"
+                    }
+                  ],
+                  "locksHeld": false,
+                  "origin": "manual",
+                  "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "progress": {
+                    "message": "example",
+                    "percent": 1,
+                    "step": "example"
+                  },
+                  "startedAt": "2026-09-25T12:00:00Z",
+                  "state": "queued",
+                  "targets": [
+                    {
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "type": "stack"
+                    }
+                  ],
+                  "updatedAt": "2026-09-25T12:00:00Z"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error501"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Pull a stack's images",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-audit": "stack.update",
+        "x-docker-manager-capability": "stack.update",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/rename-previews": {
+      "post": {
+        "description": "Computes what renaming the stack's Compose project to name does, before anything changes: the services that stop and start again, each volume and its new name (move: the data moves; recreate: a volume with driver options is recreated with the same options; absent: created on the first start), the containers outside the stack that mount a moved volume (stopped and recreated on the new names; hidden when the caller cannot see them; blocked unless the caller may stop and remove them), the project directory's new name and blockers: the Compose files set a top-level name: (rename such a stack by changing name:; declaredName is the only allowed target when it differs from the current name), Docker Manager's own project, a target volume or directory that exists, a moved volume another Compose project uses or Docker Manager holds, an outside container on one of the project's networks. 409 stack_name_taken when another stack has the name or directory, 422 for an invalid or unchanged name, 501 agent_unsupported for older agents, 503 environment_offline. Changes nothing.",
+        "operationId": "create-stack-rename-preview",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "name": "store"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/StackRenameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "blockers": [
+                    {
+                      "code": "example",
+                      "message": "services.web.ports: invalid port \"80a\"",
+                      "service": "example"
+                    }
+                  ],
+                  "containers": [
+                    {
+                      "hidden": false,
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "name": "web",
+                      "running": false,
+                      "volumes": [
+                        "example"
+                      ]
+                    }
+                  ],
+                  "declaredName": "web",
+                  "from": "shop",
+                  "fromDir": "shop",
+                  "running": [
+                    "example"
+                  ],
+                  "to": "store",
+                  "toDir": "store",
+                  "volumes": [
+                    {
+                      "action": "move",
+                      "key": "data",
+                      "name": "shop_data",
+                      "newName": "store_data",
+                      "service": "example",
+                      "target": "example"
+                    }
+                  ],
+                  "warnings": [
+                    {
+                      "code": "example",
+                      "message": "services.web.ports: invalid port \"80a\"",
+                      "service": "example"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/StackRenamePreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error501"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error504"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Preview a stack rename",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-audit": "stack.rename.preview",
+        "x-docker-manager-capability": "stack.rename",
+        "x-docker-manager-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/renames": {
+      "post": {
+        "description": "Re-runs the preview (409 stack_rename_blocked with the blockers in details) and starts a stack.rename job (202). The stack stops, its named volumes move to the new project's names (their data follows), containers outside the stack that mount them are stopped and recreated on the new names, the project directory is renamed when it is named after the project, the old project's containers are removed, the project is created under the new name from the files on disk (undeployed changes are applied) and the services that ran start again. A failure before the old containers are removed undoes everything; after that the stack has its new name and is failed until a deploy finishes it. The stack keeps its ID, revisions, policies and permission rules. Requires If-Match (the stack's ETag). Idempotency-Key replays the first answer (the rename changes what the request is checked against). 409 protected for Docker Manager's own project.",
+        "operationId": "create-stack-rename",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag.",
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "description": "ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag.",
+              "maxLength": 1024,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "name": "store"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/RenameStackInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "attempt": 1,
+                  "blockedBy": {
+                    "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "reason": "lock"
+                  },
+                  "cancelRequested": false,
+                  "cancellable": false,
+                  "createdAt": "2026-09-25T12:00:00Z",
+                  "dispatchedAt": "2026-09-25T12:00:00Z",
+                  "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "error": {
+                    "class": "agent_offline",
+                    "message": "example",
+                    "recovery": "example"
+                  },
+                  "executor": "agent",
+                  "finishedAt": "2026-09-25T12:00:00Z",
+                  "id": "0190a6e0-0000-7000-8000-000000000001",
+                  "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "items": [
+                    {
+                      "message": "example",
+                      "name": "web",
+                      "status": "succeeded"
+                    }
+                  ],
+                  "kind": "stack.deploy",
+                  "locks": [
+                    {
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "mode": "shared",
+                      "name": "web",
+                      "scope": "host"
+                    }
+                  ],
+                  "locksHeld": false,
+                  "origin": "manual",
+                  "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "progress": {
+                    "message": "example",
+                    "percent": 1,
+                    "step": "example"
+                  },
+                  "startedAt": "2026-09-25T12:00:00Z",
+                  "state": "queued",
+                  "targets": [
+                    {
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "type": "stack"
+                    }
+                  ],
+                  "updatedAt": "2026-09-25T12:00:00Z"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error412"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Failed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error428"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Required"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error501"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error504"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Rename a stack's Compose project",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-audit": "stack.rename",
+        "x-docker-manager-capability": "stack.rename",
+        "x-docker-manager-idempotency": "stored",
+        "x-docker-manager-scope": "resource"
+      }
+    },
     "/api/v1/stacks/{stackId}/revision-restores": {
       "post": {
         "description": "Writes the revision's bytes back to the project directory (the definition currently on disk is recorded first; 409 stack_definition_changed if it changes meanwhile) and records a restore revision. It never deploys: when the result differs from the applied revision, deployOffered is true. 503 environment_offline while the agent is offline (revisions are read-only then).",
@@ -62984,6 +64047,9 @@
                         "image": "nginx:1.27",
                         "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                         "platform": "linux/amd64",
+                        "pulledAt": "2026-09-25T12:00:00Z",
+                        "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                        "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                         "service": "example"
                       }
                     ],
@@ -63563,6 +64629,9 @@
                         "image": "nginx:1.27",
                         "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                         "platform": "linux/amd64",
+                        "pulledAt": "2026-09-25T12:00:00Z",
+                        "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                        "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                         "service": "example"
                       },
                       "build": false,

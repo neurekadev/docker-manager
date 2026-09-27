@@ -65,6 +65,7 @@ export { default as Dialog } from './Dialog.svelte';
 export { default as ConfirmDialog } from './ConfirmDialog.svelte';
 export { default as DestructiveConfirm } from './DestructiveConfirm.svelte';
 export type { AffectedResource } from './DestructiveConfirm.svelte';
+export { default as TypeToConfirm } from './TypeToConfirm.svelte';
 export { default as Drawer } from './Drawer.svelte';
 export { default as Popover } from './Popover.svelte';
 export { default as Tooltip } from './Tooltip.svelte';

@@ -9,7 +9,8 @@
 	import { routes } from '$lib/routes';
 	import { IconButton, JobProgress, toast } from '$lib/ui';
 	import { stackKeys } from './queries';
-	import type { JobTray, TrackedJob } from './tray.svelte';
+	import { stackJobGuidance } from './rename';
+	import type { JobTray, SuccessToast, TrackedJob } from './tray.svelte';
 
 	interface Props {
 		tray: JobTray;
@@ -18,17 +19,29 @@
 	let { tray }: Props = $props();
 	const queryClient = useQueryClient();
 
+	async function successToast(t: TrackedJob, job: Job): Promise<SuccessToast> {
+		if (!t.successFor) return { title: t.success };
+		try {
+			const s = await t.successFor(job);
+			return typeof s === 'string' ? { title: s } : s;
+		} catch {
+			return { title: t.success };
+		}
+	}
+
 	function finished(t: TrackedJob, job: Job) {
 		tray.markFinished(t.id);
 		if (t.silent) {
 			// reported by the caller
 		} else if (job.state === 'succeeded') {
-			toast.success(t.success);
+			void successToast(t, job).then((s) =>
+				toast.success(s.title, { body: s.body, action: s.action })
+			);
 		} else if (job.state === 'cancelled') {
 			toast.info(`${t.title} was cancelled`);
 		} else {
 			toast.error(t.failure, {
-				body: job.error?.recovery ?? job.error?.message,
+				body: stackJobGuidance(job.error),
 				action: { label: 'Open job', onclick: () => void goto(routes.job(job.id)) }
 			});
 		}

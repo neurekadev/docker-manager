@@ -3,7 +3,7 @@
 	// all visible ones), filtered by name/image, state, stack and label,
 	// with a live uptime (ticking every second), CPU and memory from the
 	// newest 10 s samples (#5, refreshed by metrics events) and addresses.
-	// Docker Manager's own containers carry the "Docker Manager system" badge (#32),
+	// Docker Manager's own containers carry the "Docker Manager" badge (#32),
 	// containers of a Compose project their stack. Row actions follow the
 	// container's state and granted actions (#17); refusals show the
 	// server's reason.

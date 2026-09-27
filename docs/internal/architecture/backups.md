@@ -106,6 +106,14 @@ secret of the call. Exit codes map to stable classes (`repository_not_found`,
 `storage_unreachable`, `repository_damaged`, `snapshot_not_found`,
 `restic_unavailable`, `restic_failed`), which are job error classes.
 Cancellation sends SIGINT (restic releases its locks), then kills.
+Every call waits `--retry-lock` (2 min) for a lock. restic never removes a
+lock itself, so a lock left by a killed process (a manager or agent
+restart during a run) would block every later run: when a call still finds
+the repository locked, the runner runs `restic unlock` (it removes only
+stale locks: not refreshed for 30 minutes, or whose process is gone on the
+same host) and repeats the call once. Calls reading stdin are not
+repeated. A `repository_locked` failure therefore means a live run holds
+the lock.
 restic retries every backend error its S3 backend does not deem permanent
 for 15 minutes, with no option to shorten that (a wrong secret key,
 `SignatureDoesNotMatch`, is retried); the runner reads restic's retry
@@ -257,7 +265,10 @@ the repository is S3):
 
 The snapshot records where the project directory and each volume were
 (`projectPath`, `volumePaths`), and `restore.run` maps them to their current
-places. The preview reports targets, files and bytes, how many files are
+places. A stack renamed since the snapshot (#7) has its project volumes
+under the new project's names: the manager restores `<old>_<key>` into
+`<current>_<key>` (`restore.run` input `volumes[].name`, with the snapshot's
+`source`), also for single files and paths. The preview reports targets, files and bytes, how many files are
 overwritten, removed and added, the owners the files carry, free space, the
 containers that stop, and what blocks the restore (running containers
 without shutdown, Docker Manager's own containers, insufficient space, paths that

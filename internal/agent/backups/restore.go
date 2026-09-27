@@ -247,6 +247,11 @@ func (s *Service) resolveFile(ctx context.Context, eng engine.Engine, in protoco
 				continue
 			}
 			name := path.Base(path.Dir(p))
+			// The manager names the volume holding the data now (a stack
+			// renamed since the snapshot, #7).
+			if i := slices.IndexFunc(in.Volumes, func(v protocol.RestoreVolume) bool { return v.Source == p }); i >= 0 {
+				name = in.Volumes[i].Name
+			}
 			vol, err := eng.InspectVolume(ctx, name)
 			if err != nil {
 				return t, backup.Refuse("target_missing", "volume "+name+" does not exist on this host", "Restore the whole volume instead.")

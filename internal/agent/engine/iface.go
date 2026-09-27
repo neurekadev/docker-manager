@@ -69,4 +69,7 @@ type Engine interface {
 	PathExists(ctx context.Context, containerID, path string) (bool, error)
 }
 
-var _ Engine = (*Client)(nil)
+var (
+	_ Engine = (*Client)(nil)
+	_ Cloner = (*Client)(nil)
+)

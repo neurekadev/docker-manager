@@ -119,16 +119,20 @@ func (s *Service) planRestore(ctx context.Context, sn domain.BackupSnapshot, req
 		p.targets = append(p.targets, domain.JobTarget{Type: domain.TargetStack, ID: st.ID})
 		return nil
 	}
+	// addVolume restores snapshot volume v into the volume that holds its
+	// data now: a stack renamed since (#7) has its project volumes under
+	// the new project's names.
 	addVolume := func(v string) {
-		if slices.ContainsFunc(in.Volumes, func(x protocol.RestoreVolume) bool { return x.Name == v }) {
+		name, project, key := currentVolume(sn, st, v)
+		if slices.ContainsFunc(in.Volumes, func(x protocol.RestoreVolume) bool { return x.Name == name }) {
 			return
 		}
-		rv := protocol.RestoreVolume{Name: v, Source: sn.VolumePaths[v]}
-		if sn.Kind == backup.MemberStack && sn.StackName != "" && strings.HasPrefix(v, sn.StackName+"_") {
-			rv.ComposeProject, rv.ComposeKey = sn.StackName, strings.TrimPrefix(v, sn.StackName+"_")
+		src := sn.VolumePaths[v]
+		if src == "" && name != v {
+			src = volumeDataPath(sn.Paths, v)
 		}
-		in.Volumes = append(in.Volumes, rv)
-		p.targets = append(p.targets, domain.JobTarget{Type: domain.TargetVolume, ID: v, EnvironmentID: p.environmentID})
+		in.Volumes = append(in.Volumes, protocol.RestoreVolume{Name: name, Source: src, ComposeProject: project, ComposeKey: key})
+		p.targets = append(p.targets, domain.JobTarget{Type: domain.TargetVolume, ID: name, EnvironmentID: p.environmentID})
 	}
 	switch req.Scope {
 	case protocol.RestoreScopeStack:
@@ -182,7 +186,13 @@ func (s *Service) planRestore(ctx context.Context, sn domain.BackupSnapshot, req
 		if err != nil {
 			return restorePlan{}, err
 		}
-		p.targets = append(p.targets, t)
+		if name, _, _ := currentVolume(sn, st, t.ID); t.Type == domain.TargetVolume && name != t.ID {
+			// Tell the agent where the renamed volume is (it would
+			// otherwise take the name from the snapshot path).
+			addVolume(t.ID)
+		} else {
+			p.targets = append(p.targets, t)
+		}
 	case protocol.RestoreScopePaths:
 		if err := protocol.ValidRestorePaths(req.Paths); err != nil {
 			return restorePlan{}, fieldErr("paths", "%s", strings.TrimPrefix(err.Error(), "restore: "))
@@ -223,6 +233,31 @@ func (s *Service) planRestore(ctx context.Context, sn domain.BackupSnapshot, req
 
 // pathTarget is the root a snapshot path belongs to: one of the
 // snapshot's volumes, else the stack's project directory.
+// currentVolume maps a volume of stack snapshot sn to the volume holding
+// its data now: a project volume (<project>_<key>) of a stack renamed since
+// the snapshot is <current project>_<key>. project and key label a volume
+// the restore must create.
+func currentVolume(sn domain.BackupSnapshot, st *domain.Stack, v string) (name, project, key string) {
+	if sn.Kind != backup.MemberStack || sn.StackName == "" || !strings.HasPrefix(v, sn.StackName+"_") {
+		return v, "", ""
+	}
+	key = strings.TrimPrefix(v, sn.StackName+"_")
+	if st != nil && st.Name != sn.StackName {
+		return st.Name + "_" + key, st.Name, key
+	}
+	return v, sn.StackName, key
+}
+
+// volumeDataPath is volume v's data directory among a snapshot's paths.
+func volumeDataPath(paths []string, v string) string {
+	for _, p := range paths {
+		if strings.HasSuffix(p, "/"+v+"/_data") {
+			return p
+		}
+	}
+	return ""
+}
+
 func (s *Service) pathTarget(sn domain.BackupSnapshot, st *domain.Stack, sp, env string) (domain.JobTarget, error) {
 	owner := ""
 	for v, vp := range sn.VolumePaths {

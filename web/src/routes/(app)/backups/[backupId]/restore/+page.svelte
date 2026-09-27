@@ -26,6 +26,7 @@
 		StepWizard,
 		Switch,
 		TextField,
+		TypeToConfirm,
 		formatDateTime,
 		toast
 	} from '$lib/ui';
@@ -340,11 +341,9 @@
 												</li>
 											</ul>
 										</Notice>
-										<TextField
-											label="Type {itemName(b)} to confirm"
+										<TypeToConfirm
+											text={itemName(b)}
 											bind:value={confirmText}
-											autocomplete="off"
-											spellcheck="false"
 										/>
 									</Fields>
 								{:else}

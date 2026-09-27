@@ -13,6 +13,19 @@ Your files are the source of truth: Docker Manager deploys exactly what is
 in them. Put files your services need, such as `./html` or a config file,
 into the stack's **Files** tab before deploying.
 
+### Deploy, pull and clean up
+
+- **Deploy** applies your files right away. It recreates only the services
+  whose settings changed. If everything already runs as your files say, you
+  see "Nothing to deploy" and **Last deployed** keeps its time.
+- **Pull** downloads newer versions of the stack's images and changes
+  nothing else. Docker Manager tells you which services got a newer image;
+  press **Deploy** when you want to run them.
+- When you remove a service from `compose.yaml`, its container stays on the
+  host after a normal deploy. The stack page tells you so. To remove such
+  leftover containers, open the menu next to **Deploy** and choose **Deploy
+  and remove orphaned containers**.
+
 ## Import projects you already run
 
 **Stacks → Import project** lists the Compose projects running on a host
@@ -64,6 +77,33 @@ Good to know:
   redeploy or remove it.
 - Remove the `/import` mount when you are done importing.
 
+## Rename a stack
+
+A stack's name is its Compose project name. It names its containers,
+volumes and folder. To change it, open the stack and choose **More stack
+actions → Rename**. Type the new name, for example `photos`, and press
+**Preview changes** to see what will happen:
+
+1. The stack stops.
+2. Its volumes and its folder move to the new name. The data comes along.
+3. Containers outside the stack that use those volumes are stopped and
+   recreated with the new volume names. Those that were running start again.
+4. The stack starts again under the new name.
+
+Good to know:
+
+- If the stack's `compose.yaml` sets `name:` at the top, change `name:` in
+  the file first, then choose **Rename**: the new name is filled in for you.
+  **Deploy** refuses until you do, so the stack never starts a second time
+  with empty volumes.
+- Containers outside the stack are only recreated if you are allowed to
+  stop and remove them.
+- If anything fails before the old containers are removed, everything goes
+  back to how it was. If it fails later, the stack already has its new name:
+  press **Deploy** to finish.
+- Only the project name changes. To change the name shown in lists, use
+  **Edit details**.
+
 ## Invite people
 
 **Access → Users → Invite user** creates a single-use link; send it
@@ -81,7 +121,10 @@ Nothing automatic or destructive runs until you turn it on:
   remove.
 - **Backups** use restic to local folders or S3-compatible storage. Your
   **Recovery Key** is shown once: store it outside Docker Manager. Without
-  it, backups cannot be restored. Include **manager state** in at least one
+  it, backups cannot be restored. A stack backup holds the stack's folder
+  and its named volumes. Host folders it mounts from elsewhere, such as
+  `/mnt:/mnt`, are left out unless you add them to the backup policy (and
+  the host's agent allows them). Include **manager state** in at least one
   backup policy that stores its backups away from the manager's own disk
   (S3, or a folder on another host).
 

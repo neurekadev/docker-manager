@@ -102,7 +102,7 @@ export function protectionLabel(p: Protection): string {
 		case 'docker_manager_network':
 			return 'A network Docker Manager uses';
 	}
-	return 'A Docker Manager system resource';
+	return 'A Docker Manager resource';
 }
 
 /** The subject of a refused action on a protected resource. */

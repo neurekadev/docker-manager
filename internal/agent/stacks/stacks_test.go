@@ -40,6 +40,8 @@ type fakeComposer struct {
 	onCreate func(p *compose.Project, o compose.CreateOptions) error
 	// onDown scripts Down (the project's containers go away).
 	onDown func(name string)
+	// onPull scripts Pull (tags move to newer images).
+	onPull func(p *compose.Project)
 }
 
 func (f *fakeComposer) record(s string) {
@@ -66,6 +68,9 @@ func (f *fakeComposer) Up(_ context.Context, p *compose.Project, o compose.UpOpt
 
 func (f *fakeComposer) Pull(_ context.Context, p *compose.Project, _ compose.RunOptions) error {
 	f.record("pull:" + p.Name)
+	if f.onPull != nil {
+		f.onPull(p)
+	}
 	return nil
 }
 

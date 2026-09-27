@@ -25,4 +25,6 @@ tests: `internal/agent/engine/enginefake`.
   (#19; `jobspec.CredentialRefs` in the input, `regauth` on the agent).
 - Recreate specifications of standalone containers created through
   Docker Manager: `resources.Service.ManagedSpec` (sealed; never return
-  environment values).
+  environment values). Anything that renames Docker objects a
+  specification references updates it in the same transaction (stack
+  renames: `resources.Service.StackRenamed`).

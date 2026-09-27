@@ -124,4 +124,31 @@ describe('DestructiveConfirm', () => {
 		await user.click(button);
 		expect(onconfirm).toHaveBeenCalledTimes(1);
 	});
+
+	it('shows the name to type as code with a copy button', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		const write = vi.spyOn(navigator.clipboard, 'writeText');
+		const name = 'dockyard-e2e_e2e-caddy-with-a-very-long-name-that-must-not-wrap';
+		render(DestructiveConfirm, {
+			props: {
+				open: true,
+				title: 'Remove container?',
+				consequences: ['Removes the container.'],
+				confirmText: name,
+				confirmLabel: 'Remove container',
+				onconfirm: vi.fn()
+			}
+		});
+		const dialog = await screen.findByRole('alertdialog', { name: 'Remove container?' });
+		const code = dialog.querySelector('code');
+		expect(code).toHaveTextContent(name);
+		await user.click(screen.getByRole('button', { name: 'Copy name' }));
+		expect(write).toHaveBeenCalledWith(name);
+		expect(await navigator.clipboard.readText()).toBe(name);
+		expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
+		// Pasting the copied name enables the action.
+		await user.click(screen.getByLabelText(`Type ${name} to confirm`));
+		await user.paste(name);
+		expect(screen.getByRole('button', { name: 'Remove container' })).toBeEnabled();
+	});
 });

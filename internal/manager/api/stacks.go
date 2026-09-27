@@ -6,7 +6,9 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -32,9 +34,13 @@ const (
 	CapStackRemove          Capability = "stack.remove"
 	CapStackDeploy          Capability = "stack.deploy"
 	CapStackBuild           Capability = "stack.build"
+	CapStackRename          Capability = "stack.rename"
+	CapStackUpdate          Capability = "stack.update"
 	CapStackDefinitionRead  Capability = "stack.definition.read"
 	CapStackDefinitionWrite Capability = "stack.definition.write"
 	capContainerDetailsRead            = "container.details.read"
+	capContainerStop                   = "container.stop"
+	capContainerRemove                 = "container.remove"
 )
 
 // Stack error codes (#7).
@@ -49,6 +55,7 @@ const (
 	CodeRevisionContentUnavailable = "revision_content_unavailable"
 	CodeInvalidDefinition          = "invalid_definition"
 	CodeDefinitionTooLarge         = "definition_too_large"
+	CodeStackRenameBlocked         = "stack_rename_blocked"
 )
 
 // StackService is the stack service as seen by the API (implemented by
@@ -72,6 +79,9 @@ type StackService interface {
 	Discovered(ctx context.Context, environmentID string) ([]domain.DiscoveredStack, error)
 	Import(ctx context.Context, p authz.Principal, r domain.StackImport) (domain.Stack, error)
 	ImportCopy(ctx context.Context, p authz.Principal, r domain.StackImport, jr domain.StackJobRequest) (domain.Stack, domain.Job, error)
+	PreviewRename(ctx context.Context, st domain.Stack, name string) (domain.StackRenamePlan, error)
+	Rename(ctx context.Context, p authz.Principal, st domain.Stack, name string, jr domain.StackJobRequest) (domain.Job, error)
+	Pull(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest) (domain.Job, error)
 }
 
 // StackRevisionRef identifies a revision of the stack's definition.
@@ -79,7 +89,7 @@ type StackRevisionRef struct {
 	ID   string     `json:"id"`
 	Seq  int64      `json:"seq" doc:"Revision number (1 = first)."`
 	Hash string     `json:"hash" doc:"SHA-256 of the definition (files and their hashes)."`
-	At   *time.Time `json:"at,omitempty" doc:"When it was applied (appliedRevision) or last seen on disk (sourceRevision)."`
+	At   *time.Time `json:"at,omitempty" doc:"appliedRevision: when a deploy last created, recreated or started a container (a deploy that found everything running as defined keeps the earlier time; absent when none did). sourceRevision: when it was last seen on disk."`
 }
 
 // StackDependency is a depends_on entry.
@@ -109,6 +119,11 @@ type StackImage struct {
 	Digest   string `json:"digest,omitempty" doc:"Repository digest applied on this host (empty for locally built images)."`
 	Platform string `json:"platform,omitempty" example:"linux/amd64"`
 	Build    bool   `json:"build"`
+	// Pulled* describe a newer image a pull (POST /stacks/{id}/pulls) left
+	// on the host; the next deploy runs it.
+	PulledImageID string     `json:"pulledImageId,omitempty" doc:"A newer image for the reference that a pull without deploy put on the host; the next deploy runs it (absent after a deploy)."`
+	PulledDigest  string     `json:"pulledDigest,omitempty" doc:"Repository digest of pulledImageId."`
+	PulledAt      *time.Time `json:"pulledAt,omitempty" doc:"When the pull found it."`
 }
 
 // StackBind is a resolved bind-mount source.
@@ -511,6 +526,12 @@ func stackCodeErr(se *domain.StackError) error {
 		return NewError(http.StatusUnprocessableEntity, CodeInvalidDefinition, se.Message, details...)
 	case domain.StackErrDefinitionTooLarge:
 		return NewError(http.StatusUnprocessableEntity, CodeDefinitionTooLarge, se.Message)
+	case domain.StackErrRenameBlocked:
+		var details []ErrorDetail
+		for _, i := range se.Issues {
+			details = append(details, ErrorDetail{Field: "rename." + i.Code, Message: i.Message})
+		}
+		return NewError(http.StatusConflict, CodeStackRenameBlocked, se.Message, details...)
 	case domain.StackErrProjectNotFound:
 		return NotFound(se.Message)
 	case domain.StackErrAgent:
@@ -762,7 +783,7 @@ type deployStackInput struct {
 		Pull                string   `json:"pull,omitempty" example:"missing" enum:"missing,always" doc:"missing (default): pull only images that are not on the host; always: pull every image first."`
 		Build               bool     `json:"build,omitempty" doc:"Rebuild every build section (default: only missing images are built)."`
 		ForceRecreate       bool     `json:"forceRecreate,omitempty"`
-		RemoveOrphans       bool     `json:"removeOrphans,omitempty" doc:"Remove containers of services no longer in the definition."`
+		RemoveOrphans       bool     `json:"removeOrphans,omitempty" doc:"Also remove the containers of services that are no longer in the Compose file (orphans, reported as drift unexpected_service). A deploy without it keeps them."`
 		Services            []string `json:"services,omitempty" example:"web" maxItems:"64" doc:"Deploy only these services (and their dependencies)."`
 		TimeoutSeconds      int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period for recreated containers."`
 		BuildTimeoutSeconds int      `json:"buildTimeoutSeconds,omitempty" minimum:"0" maximum:"21600" doc:"Bounds the images the deploy builds (default 3600)."`
@@ -782,6 +803,23 @@ func (h *stacksAPI) deploy(ctx context.Context, in *deployStackInput) (*JobAccep
 			BuildTimeoutSeconds: b.BuildTimeoutSeconds}
 	}
 	j, err := h.svc.Deploy(ctx, p, st, r, o)
+	if err != nil {
+		return nil, stackErr(err)
+	}
+	return Accepted(j), nil
+}
+
+type pullStackInput struct {
+	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
+	IdempotencyKeyParam
+}
+
+func (h *stacksAPI) pull(ctx context.Context, in *pullStackInput) (*JobAccepted, error) {
+	_, p, st, _, err := h.requireStack(ctx, in.StackID, CapStackUpdate)
+	if err != nil {
+		return nil, err
+	}
+	j, err := h.svc.Pull(ctx, p, st, domain.StackJobRequest{IdempotencyKey: in.IdempotencyKey})
 	if err != nil {
 		return nil, stackErr(err)
 	}
@@ -997,7 +1035,7 @@ type StackServiceStatus struct {
 	Applied     *StackImage       `json:"applied,omitempty" doc:"Image applied by the last deploy."`
 	Status      string            `json:"status" enum:"running,partial,exited,created,missing"`
 	Containers  []StackContainer  `json:"containers"`
-	Drift       []string          `json:"drift" doc:"missing, not_running, running_while_stopped, unexpected_service, image_changed."`
+	Drift       []string          `json:"drift" doc:"missing (no container), not_running (stopped or exited, not a finished one-shot), running_while_stopped (runs although the stack was stopped or taken down), unexpected_service (an orphan: the service is no longer in the deployed definition but its containers are still on the host; a deploy with removeOrphans removes them), image_changed (runs another image than the last deploy applied)."`
 	// Metrics are #5's (per-service metrics are not part of this response yet).
 }
 
@@ -1083,6 +1121,10 @@ type StackImageStatus struct {
 	PolicyID        string     `json:"policyId,omitempty" doc:"The stack's update policy."`
 	CandidateDigest string     `json:"candidateDigest,omitempty" doc:"The registry's newer host-platform digest (update_available, quarantined)."`
 	CheckedAt       *time.Time `json:"checkedAt,omitempty"`
+	// Pulled* report a newer image a pull without deploy left on the host.
+	PulledImageID string     `json:"pulledImageId,omitempty" doc:"A newer image for the service's reference is on the host (POST /stacks/{id}/pulls); deploy the stack to run it."`
+	PulledDigest  string     `json:"pulledDigest,omitempty"`
+	PulledAt      *time.Time `json:"pulledAt,omitempty"`
 }
 
 type imageStatusOutput struct {
@@ -1119,7 +1161,7 @@ func (h *stacksAPI) imageStatus(ctx context.Context, in *stackIDInput) (*imageSt
 	for _, i := range h.svc.ImageStatus(st) {
 		s := StackImageStatus{Service: i.Service, Image: i.Image, ImageID: i.ImageID, Digest: i.Digest, Platform: i.Platform, Build: i.Build,
 			Eligible: i.Eligible, Reason: i.Reason, ReasonMessage: i.ReasonMessage, NonVersionTag: i.NonVersionTag, Update: "no_policy",
-			PolicyID: policyID}
+			PolicyID: policyID, PulledImageID: i.PulledImageID, PulledDigest: i.PulledDigest, PulledAt: i.PulledAt}
 		if policyID != "" {
 			s.Update = string(domain.CandidateUnchecked)
 			if c, ok := cands[i.Service]; ok {
@@ -1336,6 +1378,138 @@ func (h *stacksAPI) importCopy(ctx context.Context, in *importCopyInput) (*JobAc
 	return Accepted(j), nil
 }
 
+// StackRenameVolume is a volume a stack rename moves to the new project's
+// name.
+type StackRenameVolume struct {
+	Key     string `json:"key,omitempty" example:"data" doc:"Compose key of a named volume (absent for an anonymous volume)."`
+	Name    string `json:"name" example:"shop_data" doc:"Current volume name."`
+	NewName string `json:"newName,omitempty" example:"store_data" doc:"Name after the rename (an anonymous volume's is only known once its container is recreated)."`
+	Service string `json:"service,omitempty" doc:"Service of an anonymous volume's mount."`
+	Target  string `json:"target,omitempty" doc:"Mount path of an anonymous volume."`
+	Action  string `json:"action" enum:"move,recreate,absent" doc:"move: the data moves to a volume with the new name (same disk, nothing is copied); recreate: a volume with driver options (host path, NFS, ...) is recreated with the same options under the new name, the data stays where they point; absent: the volume does not exist yet and is created on the first start."`
+}
+
+// StackRenameContainer is a container outside the stack that mounts a
+// volume the rename moves.
+type StackRenameContainer struct {
+	ID      string   `json:"id,omitempty"`
+	Name    string   `json:"name,omitempty" doc:"Absent when the caller cannot see the container (hidden is true)."`
+	Hidden  bool     `json:"hidden,omitempty" doc:"The caller cannot see this container; the rename is blocked unless the caller may stop and remove it (container.stop, container.remove)."`
+	Running bool     `json:"running" doc:"It runs now: it is stopped, recreated on the new volume names and started again."`
+	Volumes []string `json:"volumes" doc:"The moved volumes it mounts (current names)."`
+}
+
+// StackRenamePreview is what renaming a stack's Compose project does,
+// computed before anything changes.
+type StackRenamePreview struct {
+	From         string                 `json:"from" example:"shop" doc:"Current Compose project name."`
+	To           string                 `json:"to" example:"store" doc:"New Compose project name."`
+	FromDir      string                 `json:"fromDir" example:"shop" doc:"Current project directory (relative to its root)."`
+	ToDir        string                 `json:"toDir" example:"store" doc:"Project directory after the rename: renamed in place when it is named after the project, else unchanged."`
+	DeclaredName string                 `json:"declaredName,omitempty" doc:"The top-level name: the Compose files set. Such a stack is renamed by changing name: in its files (a blocker unless it is the requested name)."`
+	Running      []string               `json:"running" doc:"Services that run now: they stop and start again under the new name."`
+	Volumes      []StackRenameVolume    `json:"volumes" doc:"Volumes of the stack and what happens to each."`
+	Containers   []StackRenameContainer `json:"containers" doc:"Containers outside the stack that mount a moved volume: stopped and recreated on the new names with their full configuration."`
+	Blockers     []StackIssue           `json:"blockers" doc:"Reasons the rename is refused (nothing changes); empty when it can run."`
+	Warnings     []StackIssue           `json:"warnings"`
+}
+
+func newRenamePreview(c authz.Checker, env string, p domain.StackRenamePlan) StackRenamePreview {
+	out := StackRenamePreview{From: p.From, To: p.To, FromDir: p.FromDir, ToDir: p.ToDir, DeclaredName: p.DeclaredName,
+		Running: []string{}, Volumes: []StackRenameVolume{}, Containers: []StackRenameContainer{}, Blockers: []StackIssue{}, Warnings: []StackIssue{}}
+	out.Running = append(out.Running, p.Running...)
+	for _, v := range p.Volumes {
+		out.Volumes = append(out.Volumes, StackRenameVolume{Key: v.Key, Name: v.Name, NewName: v.NewName, Service: v.Service, Target: v.Target, Action: v.Action})
+	}
+	for _, ct := range p.Containers {
+		rc := StackRenameContainer{Running: ct.Running, Volumes: append([]string{}, ct.Volumes...)}
+		// Containers outside the stack are named only to callers who may
+		// see them (#17); the others are counted.
+		res := authz.Resource{Type: catalog.TypeContainer, ID: ct.Name, EnvironmentID: env}
+		if authz.ViewOf(c, res).Visible() {
+			rc.ID, rc.Name = ct.ID, ct.Name
+		} else {
+			rc.Hidden = true
+		}
+		out.Containers = append(out.Containers, rc)
+		// The rename refuses to recreate a container the caller may not
+		// stop and remove (Service.Rename, MayRecreate).
+		if !c.Can(capContainerStop, res).Allowed || !c.Can(capContainerRemove, res).Allowed {
+			out.Blockers = append(out.Blockers, StackIssue{Code: "container_not_permitted",
+				Message: "a container outside the stack that uses volume " + strings.Join(ct.Volumes, ", ") +
+					" would be stopped and recreated, and you may not do that (it needs container.stop and container.remove on it)"})
+		}
+	}
+	for _, i := range p.Blockers {
+		out.Blockers = append(out.Blockers, StackIssue(i))
+	}
+	for _, i := range p.Warnings {
+		out.Warnings = append(out.Warnings, StackIssue(i))
+	}
+	return out
+}
+
+// StackRenameBody names a stack's new Compose project name.
+type StackRenameBody struct {
+	Name string `json:"name,omitempty" example:"store" maxLength:"63" doc:"Required: the new Compose project name (lower-case letters, digits, '-' and '_', starting with a letter or digit)."`
+}
+
+type renamePreviewInput struct {
+	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
+	Body    StackRenameBody
+}
+
+type renamePreviewOutput struct{ Body StackRenamePreview }
+
+func (h *stacksAPI) previewRename(ctx context.Context, in *renamePreviewInput) (*renamePreviewOutput, error) {
+	c, _, st, _, err := h.requireStack(ctx, in.StackID, CapStackRename)
+	if err != nil {
+		return nil, err
+	}
+	plan, err := h.svc.PreviewRename(ctx, st, in.Body.Name)
+	if err != nil {
+		return nil, stackErr(err)
+	}
+	return &renamePreviewOutput{Body: newRenamePreview(c, st.EnvironmentID, plan)}, nil
+}
+
+type renameStackInput struct {
+	StackID string `path:"stackId" maxLength:"64" doc:"Stack ID."`
+	IfMatchParam
+	IdempotencyKeyParam
+	Body struct {
+		StackRenameBody
+		TimeoutSeconds int `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period of the stack's services and the recreated containers (default: each one's own)."`
+	}
+}
+
+func (h *stacksAPI) rename(ctx context.Context, in *renameStackInput) (*JobAccepted, error) {
+	c, p, st, _, err := h.requireStack(ctx, in.StackID, CapStackRename)
+	if err != nil {
+		return nil, err
+	}
+	if err := in.CheckIfMatch(RevisionETag(st.Revision)); err != nil {
+		return nil, err
+	}
+	// Names only (#30): the Compose project's old and new name.
+	audit.SetDetail(ctx, "fromName", st.Name)
+	audit.SetDetail(ctx, "toName", in.Body.Name)
+	// Outside containers the rename recreates need the caller's own rights
+	// on them: stack.rename alone never stops or replaces them.
+	may := func(ct domain.StackRenameContainer) bool {
+		res := authz.Resource{Type: catalog.TypeContainer, ID: ct.Name, EnvironmentID: st.EnvironmentID}
+		return c.Can(capContainerStop, res).Allowed && c.Can(capContainerRemove, res).Allowed
+	}
+	j, err := h.svc.Rename(ctx, p, st, in.Body.Name, domain.StackJobRequest{IdempotencyKey: in.IdempotencyKey,
+		TimeoutSeconds: in.Body.TimeoutSeconds, MayRecreate: may})
+	if err != nil {
+		return nil, stackErr(err)
+	}
+	audit.SetDetail(ctx, "jobId", j.ID)
+	logging.FromContext(ctx).Info("stack rename requested", "stack_id", st.ID, "from", st.Name, "to", in.Body.Name, "job_id", j.ID)
+	return Accepted(j), nil
+}
+
 func registerStacks(a huma.API, deps Deps) {
 	h := &stacksAPI{svc: deps.Stacks, authz: authz.OrDenyAll(deps.Authorizer), deps: deps, heartbeat: deps.SSEHeartbeat}
 	if h.heartbeat <= 0 {
@@ -1420,6 +1594,16 @@ func registerStacks(a huma.API, deps Deps) {
 			"revision. Deploys of one stack serialize (job lock). A failed deploy keeps the last applied revision; nothing is rolled back.",
 		Tags: []string{tagStacks}, Errors: jobErrs, DefaultStatus: http.StatusAccepted,
 	}, Capability: CapStackDeploy, Scope: ScopeResource, Idempotency: IdempotencyJob}, h.deploy)
+
+	Register(a, Operation{Operation: huma.Operation{
+		OperationID: "create-stack-pull", Method: http.MethodPost, Path: one + "/pulls", Summary: "Pull a stack's images",
+		Description: "Starts a stack.pull job (202): the agent pulls the images of the stack's definition on disk (with the registry " +
+			"connections a deploy would use; build-only services are skipped) and changes no container. Services whose reference now " +
+			"names another image than the one they run show it in image-status (pulledImageId) until the next deploy runs it. Needs " +
+			"stack.update and an up-to-date, connected agent (501 agent_unsupported, 503 environment_offline).",
+		Tags: []string{tagStacks}, Errors: append(slices.Clone(jobErrs), http.StatusNotImplemented, http.StatusServiceUnavailable),
+		DefaultStatus: http.StatusAccepted,
+	}, Capability: CapStackUpdate, Scope: ScopeResource, Idempotency: IdempotencyJob}, h.pull)
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "create-stack-build", Method: http.MethodPost, Path: one + "/builds", Summary: "Build a stack's images",
@@ -1516,4 +1700,34 @@ func registerStacks(a huma.API, deps Deps) {
 			"import mount, adoptable in place, or the directory exists), stack_name_taken; 501 agent_unsupported for older agents.",
 		Tags: []string{tagStacks}, Errors: mutate,
 	}, Capability: CapStackImport, Scope: ScopeEnvironment, Idempotency: IdempotencyStored}, h.importCopy)
+
+	renameErrs := []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict,
+		http.StatusUnprocessableEntity, http.StatusNotImplemented, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout}
+	Register(a, Operation{Operation: huma.Operation{
+		OperationID: "create-stack-rename-preview", Method: http.MethodPost, Path: one + "/rename-previews", Summary: "Preview a stack rename",
+		Description: "Computes what renaming the stack's Compose project to name does, before anything changes: the services that stop " +
+			"and start again, each volume and its new name (move: the data moves; recreate: a volume with driver options is recreated " +
+			"with the same options; absent: created on the first start), the containers outside the stack that mount a moved volume " +
+			"(stopped and recreated on the new names; hidden when the caller cannot see them; blocked unless the caller may stop and remove them), the project directory's new name and " +
+			"blockers: the Compose files set a top-level name: (rename such a stack by changing name:; declaredName is the only " +
+			"allowed target when it differs from the current name), Docker Manager's own project, a target volume or directory that " +
+			"exists, a moved volume another Compose project uses or Docker Manager holds, an outside container on one of the project's " +
+			"networks. 409 stack_name_taken when another stack has the name or directory, 422 for an invalid or unchanged name, 501 " +
+			"agent_unsupported for older agents, 503 environment_offline. Changes nothing.",
+		Tags: []string{tagStacks}, Errors: renameErrs,
+	}, Capability: CapStackRename, Scope: ScopeResource, AuditAction: "stack.rename.preview"}, h.previewRename)
+
+	Register(a, Operation{Operation: huma.Operation{
+		OperationID: "create-stack-rename", Method: http.MethodPost, Path: one + "/renames", Summary: "Rename a stack's Compose project",
+		DefaultStatus: http.StatusAccepted,
+		Description: "Re-runs the preview (409 stack_rename_blocked with the blockers in details) and starts a stack.rename job (202). " +
+			"The stack stops, its named volumes move to the new project's names (their data follows), containers outside the stack " +
+			"that mount them are stopped and recreated on the new names, the project directory is renamed when it is named after the " +
+			"project, the old project's containers are removed, the project is created under the new name from the files on disk " +
+			"(undeployed changes are applied) and the services that ran start again. A failure before the old containers are removed " +
+			"undoes everything; after that the stack has its new name and is failed until a deploy finishes it. The stack keeps its ID, " +
+			"revisions, policies and permission rules. Requires If-Match (the stack's ETag). Idempotency-Key replays the first answer " +
+			"(the rename changes what the request is checked against). 409 protected for Docker Manager's own project.",
+		Tags: []string{tagStacks}, Errors: append(slices.Clone(renameErrs), http.StatusPreconditionFailed, http.StatusPreconditionRequired),
+	}, Capability: CapStackRename, Scope: ScopeResource, Idempotency: IdempotencyStored}, h.rename)
 }

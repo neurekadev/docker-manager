@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"net/netip"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -182,6 +183,84 @@ func (c *Client) CreateContainer(ctx context.Context, spec ContainerSpec) (strin
 		return "", nil, wrap(op, err)
 	}
 	return res.ID, res.Warnings, nil
+}
+
+// CloneContainer implements Cloner.
+func (c *Client) CloneContainer(ctx context.Context, id string, o CloneOptions) (string, error) {
+	const op = "container.clone"
+	ctx, cancel := c.bound(ctx)
+	defer cancel()
+	res, err := c.api.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
+	if err != nil {
+		return "", wrap("container.inspect", err)
+	}
+	r := res.Container
+	if r.Config == nil || r.HostConfig == nil {
+		return "", &Error{Op: op, Code: CodeInvalidArgument, Message: "container " + id + " reports no configuration"}
+	}
+	cfg, hc := *r.Config, *r.HostConfig
+	if len(r.ID) >= 12 && cfg.Hostname == r.ID[:12] {
+		cfg.Hostname = ""
+	}
+	// The image the container runs, also when its tag moved since.
+	if img, err := c.api.ImageInspect(ctx, cfg.Image); err != nil || img.ID != r.Image {
+		cfg.Image = r.Image
+	}
+	hc.Binds, hc.Mounts = slices.Clone(hc.Binds), slices.Clone(hc.Mounts)
+	configured := map[string]bool{}
+	for i, b := range hc.Binds {
+		parts := strings.SplitN(b, ":", 3)
+		if len(parts) < 2 {
+			continue
+		}
+		configured[parts[1]] = true
+		if n, ok := o.Volumes[parts[0]]; ok {
+			parts[0] = n
+			hc.Binds[i] = strings.Join(parts, ":")
+		}
+	}
+	for i, m := range hc.Mounts {
+		configured[m.Target] = true
+		if m.Type == mount.TypeVolume {
+			if n, ok := o.Volumes[m.Source]; ok {
+				hc.Mounts[i].Source = n
+			}
+		}
+	}
+	// Anonymous volumes (and the image's VOLUMEs) keep their data: the
+	// clone mounts them by name.
+	for _, m := range r.Mounts {
+		if m.Type == mount.TypeVolume && m.Name != "" && !configured[m.Destination] {
+			name := m.Name
+			if n, ok := o.Volumes[name]; ok {
+				name = n
+			}
+			hc.Mounts = append(hc.Mounts, mount.Mount{Type: mount.TypeVolume, Source: name, Target: m.Destination, ReadOnly: !m.RW})
+		}
+	}
+	var nc *network.NetworkingConfig
+	if ns := r.NetworkSettings; ns != nil && len(ns.Networks) > 0 && !hc.NetworkMode.IsHost() && !hc.NetworkMode.IsNone() &&
+		!hc.NetworkMode.IsContainer() {
+		nc = &network.NetworkingConfig{EndpointsConfig: map[string]*network.EndpointSettings{}}
+		for name, ep := range ns.Networks {
+			if ep == nil {
+				continue
+			}
+			var aliases []string
+			for _, a := range ep.Aliases {
+				if len(r.ID) < 12 || a != r.ID[:12] {
+					aliases = append(aliases, a)
+				}
+			}
+			nc.EndpointsConfig[name] = &network.EndpointSettings{IPAMConfig: ep.IPAMConfig, Links: ep.Links, Aliases: aliases,
+				DriverOpts: ep.DriverOpts, GwPriority: ep.GwPriority}
+		}
+	}
+	created, err := c.api.ContainerCreate(ctx, client.ContainerCreateOptions{Name: o.Name, Config: &cfg, HostConfig: &hc, NetworkingConfig: nc})
+	if err != nil {
+		return "", wrap(op, err)
+	}
+	return created.ID, nil
 }
 
 func containerConfig(spec ContainerSpec) (*container.Config, *container.HostConfig, *network.NetworkingConfig, *ocispec.Platform, error) {

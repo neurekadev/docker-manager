@@ -26,6 +26,18 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   recreate). Docker Manager's own project is copied while it runs
   (`import.live`): never stopped nor recreated; its next deploy moves it
   onto the copy.
+- Rename (`internal/agent/stacks/rename.go`, `stack.rename`): the project
+  name changes only through this job, which moves the volumes whose names
+  follow the project (a local volume's `_data` is renamed, never copied;
+  new volumes get Compose's labels and config hash from
+  `compose.Project.VolumeSpec`), recreates outside containers with
+  `engine.Cloner` and undoes everything before the switch. A Compose file's
+  top-level `name:` pins the project name (`compose.DeclaredName`): deploys
+  refuse a `name:` that differs from the stack's (`stack_project_renamed`).
+  Anything the manager keys by a stack's project name or its volume names
+  follows a rename through `stacks.Service.OnRenamed` (transactional, like
+  `Migrations().OnStackMoved`); outside containers need the caller's own
+  container rights (`StackJobRequest.MayRecreate`).
 - Revisions are immutable and sealed; record observed changes with
   `stacks.Service.RecordObserved` (#23) / `RecordFileSave` (#15); resolve a
   stack's files with `Root`; paths needing `stack.definition.*`:

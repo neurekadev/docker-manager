@@ -1,13 +1,15 @@
 <script lang="ts">
 	// Stack header (#22 mockup): icon tile, name, status, description, meta
 	// row (services, containers, created, logical location with the host
-	// path on hover and copy) and the actions: Deploy split button, Restart,
+	// path on hover and copy) and the actions: Deploy split button (Deploy,
+	// Build and deploy, Deploy and remove orphaned containers), Pull (images
+	// only, nothing is recreated), Restart,
 	// Stop (Start when stopped), Update with its "update available" dot, and
-	// overflow (Down, Migrate, Edit details, Delete). Each action is shown
+	// overflow (Down, Migrate, Rename, Edit details, Delete). Each action is shown
 	// only with its capability (the server still decides) and confirms with
 	// its exact consequences before it starts a job. Docker Manager's own
-	// stack (#32) deploys and updates; Restart, Stop, Take down, Migrate
-	// and Delete stay visible but disabled, with the reason.
+	// stack (#32) deploys and updates; Restart, Stop, Take down, Migrate,
+	// Rename and Delete stay visible but disabled, with the reason.
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
@@ -21,8 +23,10 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Play from '@lucide/svelte/icons/play';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+	import Eraser from '@lucide/svelte/icons/eraser';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Square from '@lucide/svelte/icons/square';
+	import TextCursorInput from '@lucide/svelte/icons/text-cursor-input';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Workflow from '@lucide/svelte/icons/workflow';
 	import type { Environment } from '$lib/api/client';
@@ -47,16 +51,20 @@
 		type MenuEntry,
 		type MetaItem
 	} from '$lib/ui';
-	import {
-		deleteStack,
-		deployStack,
-		operateStack,
-		volumeResults,
-		type DeployMode,
-		type StackOperation
-	} from './actions';
+	import { deleteStack, operateStack, volumeResults, type StackOperation } from './actions';
+	import { RemoveOrphansRequest, startDeploy, startPull } from './deploy.svelte';
+	import RemoveOrphansDialog from './RemoveOrphansDialog.svelte';
 	import EditDetailsDialog from './EditDetailsDialog.svelte';
-	import { serviceCounts, stackIcon, stackStatus, stackTitle, updateAvailable } from './model';
+	import RenameStackDialog from './RenameStackDialog.svelte';
+	import {
+		deployFailure,
+		serviceCounts,
+		stackIcon,
+		stackStatus,
+		stackTitle,
+		updateAvailable,
+		type DeployChoice
+	} from './model';
 	import { stackImageStatusQuery, stackJobsQuery, stackKeys, type Stack } from './queries';
 	import { activeRestore } from '$lib/features/backups/restore';
 	import type { JobTray } from './tray.svelte';
@@ -67,10 +75,18 @@
 		stack: Stack;
 		environment?: Environment;
 		tray: JobTray;
+		/** The "deploy and remove orphans" confirmation (shared with the drift notice). */
+		removeOrphans?: RemoveOrphansRequest;
 		now?: Date;
 	}
 
-	let { stack, environment, tray, now = new Date() }: Props = $props();
+	let {
+		stack,
+		environment,
+		tray,
+		removeOrphans = new RemoveOrphansRequest(),
+		now = new Date()
+	}: Props = $props();
 
 	const queryClient = useQueryClient();
 	const title = $derived(stackTitle(stack));
@@ -81,7 +97,7 @@
 	// delete Docker Manager.
 	const protectedStack = $derived(!!stack.protection);
 	const selfReason =
-		'Docker Manager cannot stop, take down, migrate or delete its own stack. Deploy and Update work.';
+		'Docker Manager cannot stop, take down, migrate, rename or delete its own stack. Deploy and Update work.';
 	// A restore of the stack's data starts what was running itself; the
 	// server refuses starts meanwhile (restore_in_progress), so hide them.
 	const jobs = createQuery(() => stackJobsQuery(stack.id));
@@ -141,8 +157,9 @@
 		if (!deleting) removeVolumes = false;
 	});
 	let editing = $state(false);
+	let renaming = $state(false);
 	let updating = $state(false);
-	let starting = $state<string | null>(null);
+	let starting = $state<'deploy' | 'build' | 'pull' | null>(null);
 
 	const OPS: Record<
 		StackOperation,
@@ -190,20 +207,31 @@
 		]
 	}));
 
-	async function deploy(mode: DeployMode) {
+	async function deploy(choice: DeployChoice) {
 		if (starting) return;
-		starting = mode;
-		const what =
-			mode === 'build' ? 'Build and deploy' : mode === 'pull' ? 'Deploy with pull' : 'Deploy';
+		starting = choice.build ? 'build' : 'deploy';
 		try {
-			const job = await deployStack(stack.id, mode);
-			tray.add(job, {
-				title: `${what} ${title}`,
-				success: mode === 'build' ? `Built and deployed ${title}` : `Deployed ${title}`,
-				failure: `${title} was not deployed`
-			});
+			await startDeploy(stack, choice, tray, queryClient);
 		} catch (e) {
-			toast.error(`${title} was not deployed`, { body: errorMessage(e) });
+			toast.error(deployFailure(title, choice), { body: errorMessage(e) });
+		} finally {
+			starting = null;
+		}
+	}
+
+	// Pull downloads the images only; nothing is recreated until a deploy.
+	async function pull() {
+		if (starting) return;
+		starting = 'pull';
+		try {
+			await startPull(
+				stack,
+				tray,
+				queryClient,
+				can('stack.deploy') ? () => void deploy({}) : undefined
+			);
+		} catch (e) {
+			toast.error(`The images of ${title} were not pulled`, { body: errorMessage(e) });
 		} finally {
 			starting = null;
 		}
@@ -262,15 +290,19 @@
 
 	const deployItems = $derived.by((): MenuEntry[] => {
 		const items: MenuEntry[] = [
-			{ label: 'Deploy', icon: Download, onSelect: () => deploy('deploy') },
-			{ label: 'Deploy with pull', icon: CircleArrowDown, onSelect: () => deploy('pull') }
+			{ label: 'Deploy', icon: Download, onSelect: () => deploy({}) }
 		];
 		if (hasBuild)
 			items.push({
 				label: 'Build and deploy',
 				icon: Hammer,
-				onSelect: () => deploy('build')
+				onSelect: () => deploy({ build: true })
 			});
+		items.push({
+			label: 'Deploy and remove orphaned containers…',
+			icon: Eraser,
+			onSelect: () => removeOrphans.request()
+		});
 		return items;
 	});
 
@@ -296,6 +328,13 @@
 				icon: ArrowRightLeft,
 				href: protectedStack ? undefined : routes.stack(stack.id, 'migrate'),
 				disabled: protectedStack
+			});
+		if (can('stack.rename') && stack.revision !== undefined)
+			items.push({
+				label: 'Rename',
+				icon: TextCursorInput,
+				onSelect: () => (renaming = true),
+				disabled: offline || protectedStack
 			});
 		if (can('stack.manage') && stack.revision !== undefined)
 			items.push({ label: 'Edit details', icon: Pencil, onSelect: () => (editing = true) });
@@ -334,11 +373,20 @@
 				label="Deploy"
 				icon={Download}
 				menuLabel="More deploy options"
-				loading={starting !== null}
-				disabled={offline}
-				onclick={() => deploy('deploy')}
+				loading={starting === 'deploy' || starting === 'build'}
+				disabled={offline || (starting !== null && starting !== 'deploy')}
+				onclick={() => deploy({})}
 				items={deployItems}
 			/>
+		{/if}
+		{#if can('stack.update') && !restoring}
+			<Button
+				icon={CircleArrowDown}
+				loading={starting === 'pull'}
+				disabled={offline || (starting !== null && starting !== 'pull')}
+				title="Downloads newer versions of the stack's images. Nothing is recreated: deploy to run them."
+				onclick={pull}>Pull</Button
+			>
 		{/if}
 		{#if can('stack.restart') && !stoppedLike && !restoring}
 			<Button
@@ -417,8 +465,16 @@
 	{/snippet}
 </DestructiveConfirm>
 
+{#if can('stack.deploy')}
+	<RemoveOrphansDialog request={removeOrphans} {stack} {tray} />
+{/if}
+
 {#if editing}
 	<EditDetailsDialog {stack} onclose={() => (editing = false)} />
+{/if}
+
+{#if can('stack.rename')}
+	<RenameStackDialog bind:open={renaming} {stack} {tray} />
 {/if}
 
 {#if canUpdate}

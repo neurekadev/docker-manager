@@ -145,6 +145,19 @@ scope (`ActionMatrix`), in three modes: `group` (No rule / Allow / Deny),
 (scope keys, diffs, inheritance precedence) is in `permissions.ts`;
 `RulesSaveBar` lists every change before the revisioned, step-up save.
 
+Stack actions that start jobs go through `$lib/features/stacks/deploy.svelte.ts`
+(`startDeploy`, `startPull`) and the page's `JobTray`: a tracked job's
+`successFor` computes the success toast once it ended, from data read
+again (a deploy whose `appliedRevision.at` did not move started no
+container: "Nothing to deploy"; a pull names the services whose
+image-status gained a `pulledImageId`). The Deploy split button deploys at
+once; its menu has "Build and deploy" and "Deploy and remove orphaned
+containers…", whose confirmation (`RemoveOrphansDialog`, opened through the
+stack page context's `removeOrphans` request) the overview's drift notice
+opens too. Pull (`stack.update`) only downloads images. Rename
+(`RenameStackDialog`, `stack.rename`) previews the new project name before
+the type-to-confirm.
+
 Changes the manager guards with recent authentication answer
 `403 step_up_required`; wrap the call in `withStepUp(() => …)` from
 `$lib/auth/stepup.svelte`: the signed-in layout's `StepUpDialog` asks for

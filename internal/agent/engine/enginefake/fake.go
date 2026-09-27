@@ -445,6 +445,50 @@ func (e *Engine) CreatedConfig(_ context.Context, id string) (engine.CreatedConf
 
 var _ engine.ConfigInspector = (*Engine)(nil)
 
+// CloneContainer implements engine.Cloner: the clone gets the original's
+// settings the fake keeps, its mounts (renamed volumes, anonymous ones by
+// name) and its first network.
+func (e *Engine) CloneContainer(_ context.Context, id string, o engine.CloneOptions) (string, error) {
+	const op = "container.clone"
+	e.mu.Lock()
+	defer e.unlock()
+	if err := e.call(op); err != nil {
+		return "", err
+	}
+	c, ok := e.findContainer(id)
+	if !ok {
+		return "", notFound(op, "container", id)
+	}
+	d := c.Details
+	spec := engine.ContainerSpec{Name: o.Name, Image: d.Image, Cmd: slices.Clone(d.Cmd), Entrypoint: slices.Clone(d.Entrypoint),
+		Env: slices.Clone(c.Env), Labels: maps.Clone(d.Labels), WorkingDir: d.WorkingDir, User: d.User, RestartPolicy: d.RestartPolicy,
+		NetworkMode: d.NetworkMode, Resources: d.Resources, Healthcheck: d.Healthcheck}
+	if spec.NetworkMode == "default" {
+		spec.NetworkMode = ""
+	}
+	for _, m := range d.Mounts {
+		src := m.Source
+		if m.Type == "volume" {
+			src = m.Name
+			if n, ok := o.Volumes[src]; ok {
+				src = n
+			}
+		}
+		spec.Mounts = append(spec.Mounts, engine.MountSpec{Type: m.Type, Source: src, Target: m.Destination, ReadOnly: !m.ReadWrite})
+	}
+	nid, err := e.create(spec)
+	if err != nil {
+		return "", err
+	}
+	nc := e.containers[nid]
+	nc.Details.ImageID = d.ImageID
+	nc.Command = c.Command
+	e.containerEvent(nc, "create")
+	return nid, nil
+}
+
+var _ engine.Cloner = (*Engine)(nil)
+
 // InspectContainer implements engine.Engine.
 func (e *Engine) InspectContainer(_ context.Context, id string) (engine.ContainerDetails, error) {
 	e.mu.Lock()

@@ -456,6 +456,8 @@ const JOB_KINDS: Record<string, string> = {
 	'stack.build': 'Build images',
 	'stack.migrate': 'Migrate',
 	'stack.remove_source': 'Remove from source',
+	'stack.rename': 'Rename',
+	'stack.pull': 'Pull images',
 	'update.check': 'Update check',
 	'update.run': 'Update',
 	'backup.run': 'Backup',
@@ -473,6 +475,7 @@ const AUDIT_ACTIONS: Record<string, string> = {
 	'stack.definition.read': 'Opened the definition',
 	'stack.definition.write': 'Changed the definition',
 	'stack.manage': 'Edited details',
+	'stack.rename.preview': 'Previewed a rename',
 	'stack.create': 'Created',
 	'stack.import': 'Imported',
 	'job.queued': 'Job queued',
@@ -531,4 +534,116 @@ export function importCandidates<P extends { name: string; stackId?: string }>(
 /** The update states shown as "update available" on the stack (#20). */
 export function updateAvailable(images: Schema<'StackImageStatus'>[] | undefined): boolean {
 	return !!images?.some((i) => i.update === 'update_available');
+}
+
+// Deploys (#7): what a finished deploy did, and orphaned services.
+
+/** The kind of deploy a button or dialog started. */
+export interface DeployChoice {
+	/** Pull every image first ("Pull"). */
+	pull?: boolean;
+	/** Rebuild every build section. */
+	build?: boolean;
+	/** Also remove the containers of services no longer in the Compose file. */
+	removeOrphans?: boolean;
+}
+
+/** What runs while a deploy job is in the tray, e.g. "Pull Silo". */
+export function deployTitle(title: string, c: DeployChoice): string {
+	if (c.build) return `Build and deploy ${title}`;
+	if (c.pull) return `Pull ${title}`;
+	if (c.removeOrphans) return `Deploy ${title} and remove orphans`;
+	return `Deploy ${title}`;
+}
+
+/** The failure toast title of a deploy. */
+export function deployFailure(title: string, c: DeployChoice): string {
+	return c.pull ? `${title} was not pulled` : `${title} was not deployed`;
+}
+
+/**
+ * The success toast of a deploy. A deploy that started no container keeps
+ * the stack's last deploy time (appliedRevision.at), so an unchanged time
+ * means the Engine already ran the definition.
+ */
+export function deploySuccess(
+	title: string,
+	c: DeployChoice,
+	before: string | undefined,
+	after: string | undefined
+): string {
+	const unchanged = before === after;
+	if (c.removeOrphans)
+		return unchanged
+			? `Removed the orphaned containers of ${title}; everything else already ran its definition`
+			: `Deployed ${title} and removed its orphaned containers`;
+	if (!unchanged) {
+		if (c.build) return `Built and deployed ${title}`;
+		if (c.pull) return `Pulled newer images and redeployed ${title}`;
+		return `Deployed ${title}`;
+	}
+	if (c.pull) return `Nothing to update: ${title} already runs the newest images`;
+	if (c.build) return `Built the images of ${title}; nothing needed to be redeployed`;
+	return `Nothing to deploy: ${title} already runs its definition`;
+}
+
+/** What a finished pull found, from the image status before and after it. */
+export function pullResult(
+	title: string,
+	before: { service: string; pulledImageId?: string }[] | undefined,
+	after: { service: string; pulledImageId?: string }[] | undefined
+): { title: string; body?: string; newer: string[] } {
+	if (!after) return { title: `Pulled the images of ${title}`, newer: [] };
+	const was = new Map((before ?? []).map((i) => [i.service, i.pulledImageId]));
+	const newer = after
+		.filter((i) => i.pulledImageId && i.pulledImageId !== was.get(i.service))
+		.map((i) => i.service);
+	const waiting = after.filter((i) => i.pulledImageId).map((i) => i.service);
+	if (newer.length)
+		return { title: `Pulled newer images for ${newer.join(', ')}: deploy to run them`, newer };
+	if (waiting.length)
+		return {
+			title: `No newer images since the last pull`,
+			body: `${waiting.join(', ')} ${waiting.length === 1 ? 'waits' : 'wait'} for a deploy to run the image pulled before.`,
+			newer
+		};
+	return { title: `Images of ${title} are up to date`, newer };
+}
+
+/** Services with containers on the host that the deployed definition no longer has. */
+export function orphanedServices(services: { name: string; drift: string[] }[] | undefined) {
+	return (services ?? [])
+		.filter((s) => s.drift.includes('unexpected_service'))
+		.map((s) => s.name);
+}
+
+export interface DriftNote {
+	service: string;
+	text: string;
+	/** An orphan: removed from the Compose file, container still on the host. */
+	orphan: boolean;
+}
+
+const DRIFT_TEXT: Record<string, (s: string) => string> = {
+	missing: (s) => `${s} has no container. Deploy the stack to create it.`,
+	not_running: (s) => `${s} is not running. Start it, or deploy the stack.`,
+	running_while_stopped: (s) =>
+		`${s} runs although the stack was stopped. Stop the stack again, or start it to keep it running.`,
+	unexpected_service: (s) =>
+		`${s} is no longer in the Compose file, but its container is still on the host. Use “Deploy and remove orphaned containers” to remove it.`,
+	image_changed: (s) =>
+		`${s} runs another image than the last deploy used. Deploy the stack to run the image its Compose file names.`
+};
+
+/** One plain sentence per drift finding, orphans first. */
+export function driftNotes(services: { name: string; drift: string[] }[] | undefined): DriftNote[] {
+	const out: DriftNote[] = [];
+	for (const s of services ?? [])
+		for (const d of s.drift)
+			out.push({
+				service: s.name,
+				orphan: d === 'unexpected_service',
+				text: DRIFT_TEXT[d]?.(s.name) ?? `${s.name}: ${d.replaceAll('_', ' ')}.`
+			});
+	return out.sort((a, b) => Number(b.orphan) - Number(a.orphan));
 }

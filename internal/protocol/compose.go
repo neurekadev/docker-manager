@@ -453,6 +453,127 @@ type StackJobInput struct {
 	// (a new directory of the stacks volume). Sent only to agents
 	// announcing FeatureStackImportCopy.
 	Import *StackImportSource `json:"import,omitempty"`
+	// Rename (stack.rename) is the project's new name and directory. Sent
+	// only to agents announcing FeatureStackRename.
+	Rename *StackRename `json:"rename,omitempty"`
+}
+
+// FeatureStackRename is the capabilities feature of agents that execute
+// stack.rename and serve compose.rename_preview.
+const FeatureStackRename = "stack.rename"
+
+// StackRename moves a stack's Compose project to another project name
+// (stack.rename, compose.rename_preview): its containers stop, its named
+// volumes move to the new project's names (so their data follows), the
+// containers outside the stack that mount them are recreated on the new
+// names, the project directory is renamed and the stack starts again.
+type StackRename struct {
+	// ProjectName is the new Compose project name.
+	ProjectName string `json:"projectName"`
+	// Dir is the new project directory relative to the root: the current
+	// one renamed to ProjectName when it is named after the project, else
+	// the current one.
+	Dir string `json:"dir"`
+}
+
+// Validate checks the rename of from.
+func (r StackRename) Validate(from ProjectRef) error {
+	if !ValidProjectName(r.ProjectName) {
+		return fmt.Errorf("rename: invalid project name %q", r.ProjectName)
+	}
+	if r.ProjectName == from.ProjectName {
+		return errors.New("rename: the project already has this name")
+	}
+	if r.Dir == from.Dir {
+		return nil
+	}
+	if !ValidRelativePath(r.Dir) || r.Dir == "." || path.Dir(r.Dir) != path.Dir(from.Dir) ||
+		path.Base(r.Dir) != r.ProjectName || path.Base(from.Dir) != from.ProjectName {
+		return errors.New("rename: only a directory named after the project is renamed, in place, to the new name")
+	}
+	return nil
+}
+
+// Rename volume actions (StackRenameVolume.Action).
+const (
+	// RenameVolumeMove: a local volume whose data moves to a new volume
+	// with the new name (a rename on the same disk, nothing is copied).
+	RenameVolumeMove = "move"
+	// RenameVolumeRecreate: a volume with driver options (a host path,
+	// NFS, ...): a new volume with the same driver and options replaces
+	// it; the data stays where the options point.
+	RenameVolumeRecreate = "recreate"
+	// RenameVolumeAbsent: the volume does not exist yet; Compose creates
+	// it under the new name.
+	RenameVolumeAbsent = "absent"
+)
+
+// StackRenameVolume is a volume a rename moves.
+type StackRenameVolume struct {
+	// Key is the Compose key of a named volume ("" for an anonymous one).
+	Key string `json:"key,omitempty"`
+	// Name is the volume's current name; NewName the name after the rename
+	// (an anonymous volume's is only known once its container is created).
+	Name    string `json:"name"`
+	NewName string `json:"newName,omitempty"`
+	// Service, Number and Target locate an anonymous volume's mount.
+	Service string `json:"service,omitempty"`
+	Number  string `json:"number,omitempty"`
+	Target  string `json:"target,omitempty"`
+	Action  string `json:"action"`
+	// Done: the data is under NewName (journaled per volume).
+	Done bool `json:"done,omitempty"`
+}
+
+// StackRenameContainer is a container outside the stack that mounts a
+// volume the rename moves: it is stopped and recreated on the new names
+// with its complete configuration.
+type StackRenameContainer struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Running bool   `json:"running"`
+	// Volumes are the moved volumes it mounts (current names).
+	Volumes []string `json:"volumes"`
+	// NewID is the recreated container.
+	NewID string `json:"newId,omitempty"`
+}
+
+// StackRenamePlan is what a rename does (compose.rename_preview, and the
+// plan a stack.rename journals before it changes anything).
+type StackRenamePlan struct {
+	From    string `json:"from"`
+	To      string `json:"to"`
+	FromDir string `json:"fromDir"`
+	ToDir   string `json:"toDir"`
+	// DeclaredName is the top-level name: of the Compose files ("" none).
+	DeclaredName string `json:"declaredName,omitempty"`
+	// Running are the services that run (stopped and started again).
+	Running    []string               `json:"running,omitempty"`
+	Volumes    []StackRenameVolume    `json:"volumes,omitempty"`
+	Containers []StackRenameContainer `json:"containers,omitempty"`
+	// Blockers refuse the rename (nothing changes); Warnings do not.
+	Blockers []ComposeIssue `json:"blockers,omitempty"`
+	Warnings []ComposeIssue `json:"warnings,omitempty"`
+}
+
+// StackRenameReport is what a stack.rename did.
+type StackRenameReport struct {
+	StackRenamePlan
+	// Stopped: the stack and the outside containers were stopped.
+	Stopped bool `json:"stopped,omitempty"`
+	// DirMoved: the project directory has its new name.
+	DirMoved bool `json:"dirMoved,omitempty"`
+	// Switched: the old project's containers were removed; the stack lives
+	// under the new name even if the job failed afterwards.
+	Switched bool `json:"switched,omitempty"`
+}
+
+// ComposeRenamePreviewInput is compose.rename_preview's input.
+type ComposeRenamePreviewInput struct {
+	Stack  ProjectRef  `json:"stack"`
+	Rename StackRename `json:"rename"`
+	// KeepVolumes are volumes the manager holds (see StackJobInput).
+	KeepVolumes []string `json:"keepVolumes,omitempty"`
 }
 
 // FeatureStackRemoveVolumes is the capabilities feature of agents whose
@@ -571,4 +692,18 @@ type StackJobOutput struct {
 	// Import (stack.import) reports the copy and whether the project
 	// switched to it.
 	Import *StackImportReport `json:"import,omitempty"`
+	// Rename (stack.rename) reports the plan and how far the rename got.
+	Rename *StackRenameReport `json:"rename,omitempty"`
+	// Unchanged (stack.deploy): the deploy started no container (none was
+	// created, recreated or restarted): the Engine already ran the
+	// definition. The manager then keeps the stack's last deploy time.
+	// Older agents never set it.
+	Unchanged bool `json:"unchanged,omitempty"`
+	// Pulled (stack.pull) are the services whose image reference names a
+	// different image after the pull than before: the next deploy runs it.
+	Pulled []string `json:"pulled,omitempty"`
 }
+
+// FeatureStackPull is the capabilities feature of agents that execute
+// stack.pull (pull a stack's images without recreating containers).
+const FeatureStackPull = "stack.pull"

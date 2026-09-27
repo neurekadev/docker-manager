@@ -113,6 +113,13 @@ type StackImage struct {
 	Digest   string
 	Platform string
 	Build    bool
+	// PulledImageID is a newer image a pull without deploy (stack.pull)
+	// left on the host for the service's reference: the next deploy runs
+	// it. Cleared by every deploy (and by a pull that finds the running
+	// image again).
+	PulledImageID string
+	PulledDigest  string
+	PulledAt      *time.Time
 }
 
 // StackBind is a resolved bind-mount source (#10).
@@ -280,10 +287,13 @@ const (
 	StackErrDefinitionTooLarge     = "definition_too_large"
 	StackErrProjectNotFound        = "compose_project_not_found"
 	StackErrEnvironmentUnsupported = "agent_unsupported"
+	// StackErrRenameBlocked: the rename preview has blockers (Issues).
+	StackErrRenameBlocked = "stack_rename_blocked"
 )
 
 // StackError is a stack operation failure with a stable code; Issues
-// carries validation findings of invalid_definition.
+// carries validation findings of invalid_definition and the blockers of
+// stack_rename_blocked.
 type StackError struct {
 	Code    string
 	Message string

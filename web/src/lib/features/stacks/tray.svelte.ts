@@ -6,12 +6,24 @@
 import { getContext, setContext } from 'svelte';
 import type { Job } from '$lib/api/client';
 
+/** A success toast with a body or an action ("Deploy"). */
+export interface SuccessToast {
+	title: string;
+	body?: string;
+	action?: { label: string; onclick: () => void };
+}
+
 export interface TrackedJob {
 	id: string;
 	/** What runs, e.g. "Deploy Silo". */
 	title: string;
 	/** Toast when it succeeds, e.g. "Deployed Silo". */
 	success: string;
+	/**
+	 * The success toast computed once the job ended (e.g. "Nothing to
+	 * deploy" when a deploy changed nothing); `success` when it fails.
+	 */
+	successFor?: (job: Job) => Promise<string | SuccessToast>;
 	/** Toast title when it fails, e.g. "Silo was not deployed". */
 	failure: string;
 	/** Called once when the job ends (any terminal state). */
