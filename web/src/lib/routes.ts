@@ -11,6 +11,7 @@
 //   /volumes/{env}/{name}[/files|backups|migrate] volume detail, files, backups, migration
 //   /builds[/new|/definitions], /builds/{env}/{buildId}
 //   /registries[/git|/matches]          registry connections, Git credentials, match preview
+//   /templates[?create=1], /templates/{id}[/files|versions|settings]   stack templates
 //   /jobs[/{jobId}], /schedules
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
 //   /backups[/{backupId}[/restore]|/all|/snapshots|/policies[/{id}]|/repositories[/new|/{id}]]
@@ -88,6 +89,11 @@ export const routes = {
 		return `/builds/new${s ? `?${s}` : ''}`;
 	},
 	build: (env: string, id: string) => `/builds/${e(env)}/${e(id)}`,
+	templates: (tag?: string) => `/templates${tag ? `?tag=${e(tag)}` : ''}`,
+	/** The templates page with the create dialog open. */
+	newTemplate: () => '/templates?create=1',
+	template: (id: string, tab?: 'files' | 'versions' | 'settings') =>
+		`/templates/${e(id)}${tab ? `/${tab}` : ''}`,
 	registries: () => '/registries',
 	gitCredentials: () => '/registries/git',
 	registryMatches: () => '/registries/matches',

@@ -67,7 +67,8 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   the ⌘K palette; new searchable resource types go there, filtered with the
   resource's own `ViewOf` and identity/status fields only.
 - **Files, logs, terminals** (`docs/internal/web.md`): reuse
-  `$lib/features/files/FileManager.svelte` (stack or volume scope),
+  `$lib/features/files/FileManager.svelte` (stack, volume or template
+  scope),
   `$lib/features/logs/LogPanel.svelte` (stack or container; `LogDock` as a
   bottom drawer) and `$lib/features/terminal/TerminalPanel.svelte`; link to
   them with `routes.stack(id, 'files' | 'logs' | 'terminal')`,

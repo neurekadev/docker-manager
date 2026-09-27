@@ -23,7 +23,8 @@ web/src/
   lib/design/                 tokens.css, global.css, service hues, icon registry, demo data
   lib/ui/                     the component library ($lib/ui barrel)
   lib/features/<area>/        feature-local components and logic (resources: Docker
-                              objects, refusals, job follow-up; builds; registries)
+                              objects, refusals, job follow-up; builds; registries;
+                              templates: cards, icons, publish and visibility dialogs)
   lib/shell/                  app shell: sidebar, nav filter, environment switcher,
                               top bar, command palette, notices, page title/breadcrumbs
   lib/auth/                   route guard, session lifecycle, WebAuthn, QR, one-time codes

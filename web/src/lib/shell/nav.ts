@@ -10,6 +10,7 @@ import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 import Hammer from '@lucide/svelte/icons/hammer';
 import HardDrive from '@lucide/svelte/icons/hard-drive';
 import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
+import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 import Layers from '@lucide/svelte/icons/layers';
 import Network from '@lucide/svelte/icons/network';
 import PackageCheck from '@lucide/svelte/icons/package-check';
@@ -122,6 +123,14 @@ export const NAV_ITEMS: NavItem[] = [
 		icon: Hammer,
 		group: 'resources',
 		visible: (a) => hasAny(a, 'image.build', 'build_definition.', 'git_credential.')
+	},
+	{
+		id: 'templates',
+		label: 'Templates',
+		href: routes.templates(),
+		icon: LayoutTemplate,
+		group: 'resources',
+		visible: (a) => hasAny(a, 'template.')
 	},
 	{
 		id: 'registries',
