@@ -34,6 +34,8 @@ type fakeComposer struct {
 	upErr  error
 	onUp   func(p *compose.Project)
 	upAuth []engine.RegistryAuth
+	// upServices are the Services of every Up call.
+	upServices [][]string
 	// onCreate scripts Create (#20 updates).
 	onCreate func(p *compose.Project, o compose.CreateOptions) error
 	// onDown scripts Down (the project's containers go away).
@@ -54,6 +56,7 @@ func (f *fakeComposer) Up(_ context.Context, p *compose.Project, o compose.UpOpt
 	f.record("up:" + p.Name)
 	f.mu.Lock()
 	f.upAuth = o.Auth
+	f.upServices = append(f.upServices, o.Services)
 	f.mu.Unlock()
 	if f.onUp != nil {
 		f.onUp(p)

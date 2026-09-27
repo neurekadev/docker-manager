@@ -37,6 +37,7 @@ type Engine interface {
 	AttachExec(ctx context.Context, execID string, stdio engine.ExecIO) error
 	ResizeExec(ctx context.Context, execID string, height, width uint) error
 	InspectExec(ctx context.Context, execID string) (engine.ExecStatus, error)
+	PathExists(ctx context.Context, containerID, path string) (bool, error)
 }
 
 // Options configures the service.
@@ -304,10 +305,25 @@ func (s *Service) waitRunning(ctx context.Context, eng Engine, id string) error 
 	}
 }
 
-// CreateExec creates an exec instance in a running container.
+// CreateExec creates an exec instance in a running container. The input
+// names an argv (Cmd) or a shell (Shell): the first of the shell's
+// candidate paths that exists in the container runs (command_not_found
+// when none does). The output carries the argv actually run.
 func (s *Service) CreateExec(ctx context.Context, in protocol.ExecCreateInput) (protocol.ExecCreateOutput, error) {
 	var out protocol.ExecCreateOutput
-	if !validContainerRef(in.ContainerID) || len(in.Cmd) == 0 || len(in.Cmd) > protocol.MaxExecArgs {
+	var candidates []string
+	if in.Shell != "" {
+		if len(in.Cmd) > 0 {
+			return out, fail(protocol.CodeInvalidFrame, "invalid exec input: a command and a shell")
+		}
+		var ok bool
+		if candidates, ok = protocol.ShellCandidates(in.Shell); !ok {
+			return out, fail(protocol.CodeInvalidArgument, "unknown shell %q", in.Shell)
+		}
+	} else if len(in.Cmd) == 0 {
+		return out, fail(protocol.CodeInvalidFrame, "invalid exec input")
+	}
+	if !validContainerRef(in.ContainerID) || len(in.Cmd) > protocol.MaxExecArgs {
 		return out, fail(protocol.CodeInvalidFrame, "invalid exec input")
 	}
 	n := 0
@@ -331,6 +347,12 @@ func (s *Service) CreateExec(ctx context.Context, in protocol.ExecCreateInput) (
 	if !d.State.Running || d.State.Paused {
 		return out, fail(protocol.CodeConflict, "the container is not running")
 	}
+	cmd := in.Cmd
+	if in.Shell != "" {
+		if cmd, err = findShell(ctx, eng, d.ID, in.Shell, candidates); err != nil {
+			return out, err
+		}
+	}
 	s.mu.Lock()
 	s.expireLocked()
 	full := len(s.execs) >= s.opts.MaxExecs
@@ -338,7 +360,7 @@ func (s *Service) CreateExec(ctx context.Context, in protocol.ExecCreateInput) (
 	if full {
 		return out, fail(protocol.CodeBusy, "too many exec sessions on this agent")
 	}
-	id, err := eng.CreateExec(ctx, d.ID, engine.ExecSpec{Cmd: in.Cmd, Tty: in.Tty, AttachStdin: true, WorkingDir: in.WorkingDir,
+	id, err := eng.CreateExec(ctx, d.ID, engine.ExecSpec{Cmd: cmd, Tty: in.Tty, AttachStdin: true, WorkingDir: in.WorkingDir,
 		User: in.User, Height: in.Rows, Width: in.Cols})
 	if err != nil {
 		return out, engineErr(err)
@@ -346,7 +368,28 @@ func (s *Service) CreateExec(ctx context.Context, in protocol.ExecCreateInput) (
 	s.mu.Lock()
 	s.execs[id] = &execState{containerID: d.ID, tty: in.Tty, created: s.opts.Clock.Now()}
 	s.mu.Unlock()
-	return protocol.ExecCreateOutput{ExecID: id}, nil
+	return protocol.ExecCreateOutput{ExecID: id, Cmd: slices.Clone(cmd)}, nil
+}
+
+// shellNames are the shells' names in command_not_found messages.
+var shellNames = map[string]string{
+	protocol.ShellAuto: "bash or sh", protocol.ShellBash: "bash", protocol.ShellSh: "sh", protocol.ShellZsh: "zsh",
+}
+
+// findShell returns the argv of the first candidate path that exists in
+// the container (the Engine resolves the path inside the container's
+// filesystem, following its symlinks).
+func findShell(ctx context.Context, eng Engine, containerID, shell string, candidates []string) ([]string, error) {
+	for _, p := range candidates {
+		ok, err := eng.PathExists(ctx, containerID, p)
+		if err != nil {
+			return nil, engineErr(err)
+		}
+		if ok {
+			return []string{p}, nil
+		}
+	}
+	return nil, fail(protocol.CodeCommandNotFound, "no %s found in this container (tried %s)", shellNames[shell], strings.Join(candidates, ", "))
 }
 
 // expireLocked forgets exec instances that were never attached in time.

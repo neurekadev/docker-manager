@@ -197,7 +197,7 @@
 				{#if overview.isPending}
 					<div class="grid" aria-busy="true">
 						{#each [0, 1] as i (i)}<div class="card-skeleton">
-								<Skeleton lines={5} height="18px" />
+								<Skeleton lines={2} height="18px" />
 							</div>{/each}
 					</div>
 				{:else if !rows.length}
@@ -351,10 +351,11 @@
 		font-size: var(--text-caption);
 	}
 
+	/* One full-width row per environment. */
 	.grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
-		gap: var(--space-4);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
 	}
 
 	.table-skeleton {

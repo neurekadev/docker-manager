@@ -214,6 +214,7 @@ Import from `$lib/ui` (one barrel). Snippet props (`trigger`, `children`,
 | `KpiCard` | `label`, `value`, `unit`, `secondary`, `icon`, `color`, `tone`, `sparkline` / `bar` snippets, `changed` | Row of KPI cards: `KpiRow` (`repeat(auto-fit, minmax(210px, 1fr))`, two per row below 768 px). The card is a size container: at 230 px or less it switches to the compact layout (36 px tile, 18 px value that may wrap, 12 px label), so the stack overview keeps the mockup's six cards in one row from about 1120 px of content (1440 px screens) and phones show two per row. |
 | `IconTile` | `icon`, `color: TileColor`, `size: sm \| md \| lg` | Decorative (the adjacent text names the thing). |
 | `Meter` | `value`, `max`, `label`, `valueText`, `warnAt`, `dangerAt` | `role="meter"`. |
+| `Uptime` | `since` (ISO start; absent: "—"), `prefix` | Live duration ticking once a second (`formatUptime`: "5m 03s", "3h 12m 08s", "4d 3h 12m"), tabular numerals, `<time>` with the absolute start as title. Other live values read the shared `clock.now` (one interval, only while a component reads it). |
 | `PageHeader` | `title` (h1), `description`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` snippets | Icon-led meta items with thin dividers (not middle dots). `MetaItem.title` is the full value on hover, `MetaItem.copy` adds a copy button (the stack's host path). The icon tile marks one object (a stack, container, environment, policy, job): section pages (Containers, Jobs, …) and create forms have none. |
 | `Table` | `rows`, `columns: Column<T>[]`, `rowKey`, **`label`**, `sort` (bindable), `manualSort` + `onsort`, `selectable` + `selected` (bindable) + `rowLabel`, `changed`, `maxHeight`, `virtualizeAfter` (500), `rowHeight`, `layout`, `empty` | Sortable headers with `aria-sort`, sticky header inside `maxHeight`, stacked cards < 768 px (`Column.stack`: title, status, meta, actions, hidden), windowed rendering past 500 rows (`virtualWindow`, `aria-rowcount`/`aria-rowindex`). |
 | `Tabs` | `items: TabItem[]`, `value` (bindable), **`label`**, `panel` snippet `(id)` | In-page tabs (Bits UI). |
@@ -291,6 +292,7 @@ loading.
 ### Formatting
 
 `formatBytes` (312 MB, 1.8 GB), `formatPercent` (12.4%), `formatDuration`,
+`formatUptime` (live uptimes), `secondsSince(iso, nowMs)`,
 `formatRelative(iso, now)`, `formatDateTime(iso, zone)`, `shortId`.
 
 ## Adding a page

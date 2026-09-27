@@ -242,8 +242,17 @@ func (s *Service) apply(ctx context.Context, sc *jobexec.StepContext) error {
 		d := time.Duration(in.TimeoutSeconds) * time.Second
 		timeout = &d
 	}
-	upErr := c.Up(ctx, p, compose.UpOptions{RunOptions: compose.RunOptions{Events: s.progress(ctx, sc), Auth: creds},
-		Services: in.Services, ForceRecreate: in.ForceRecreate, RemoveOrphans: in.RemoveOrphans, StopTimeout: timeout})
+	// Docker Manager's own project (#32): the agent's own service is
+	// converged by a helper container after the job.
+	services, handoff, err := s.selfHandoff(ctx, p, in.Stack.ProjectName, in.Services, in.RemoveOrphans)
+	if err != nil {
+		return err
+	}
+	var upErr error
+	if len(handoff) == 0 || len(services) > 0 {
+		upErr = c.Up(ctx, p, compose.UpOptions{RunOptions: compose.RunOptions{Events: s.progress(ctx, sc), Auth: creds},
+			Services: services, ForceRecreate: in.ForceRecreate, RemoveOrphans: in.RemoveOrphans, StopTimeout: timeout})
+	}
 	if upErr != nil && ctx.Err() != nil {
 		return upErr // shutdown: the attempt is recovered from the journal
 	}
@@ -263,12 +272,18 @@ func (s *Service) apply(ctx context.Context, sc *jobexec.StepContext) error {
 		o.Images = images
 		o.Binds = bs
 		o.Warnings = warnings(p, bs)
+		if len(handoff) > 0 && upErr == nil {
+			o.Warnings = append(o.Warnings, protocol.ComposeIssue{Code: protocol.IssueAgentSelfUpdate, Message: selfUpdateMessage(handoff)})
+		}
 		o.After = after
 	}); err != nil {
 		return errors.Join(upErr, err)
 	}
 	if upErr != nil {
 		return upErr
+	}
+	if len(handoff) > 0 {
+		s.scheduleSelf(sc, in.Stack, dir, snap, handoff, in.ForceRecreate, in.TimeoutSeconds)
 	}
 	return aerr
 }

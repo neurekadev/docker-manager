@@ -3,11 +3,13 @@
 	// uses it, its driver and whether Docker Manager can open its files (#28:
 	// non-local drivers and NFS/CIFS-backed volumes are read-only, with the
 	// reason). Docker Manager's own volumes (#32) are marked and never removed.
-	import { createQuery } from '@tanstack/svelte-query';
+	// Sizes load separately (the Engine walks the volumes; the manager
+	// reuses the answer for a minute), so the list never waits for them.
+	import { createQueries, createQuery } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
 	import Plus from '@lucide/svelte/icons/plus';
-	import { volumesQuery, type Volume } from '$lib/api/queries';
+	import { volumeUsageQuery, volumesQuery, type Volume } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
@@ -24,6 +26,7 @@
 		Skeleton,
 		Table,
 		TextField,
+		formatBytes,
 		formatRelative,
 		type Column,
 		type MenuEntry
@@ -48,6 +51,65 @@
 		...volumesQuery(scope.targets),
 		enabled: scope.ready && scope.targets.length > 0
 	}));
+
+	// Sizes per environment (volume.read only; the server filters).
+	const usage = createQueries(() => ({
+		queries: scope.hasAny('volume.read') ? scope.targets.map((t) => volumeUsageQuery(t.id)) : []
+	}));
+	type Size =
+		| { state: 'loading' }
+		| { state: 'known'; bytes: number }
+		| { state: 'unknown'; reason: string };
+	// By environment ID (the whole environment: loading, failed or an
+	// older agent) and by `<environment>/<volume>` (a known size).
+	const sizes = $derived(
+		new Map<string, Size>(
+			scope.targets.flatMap((t, i): [string, Size][] => {
+				const u = usage[i];
+				if (!u) return [];
+				if (u.isPending) return [[t.id, { state: 'loading' }]];
+				if (u.isError)
+					return [
+						[
+							t.id,
+							{
+								state: 'unknown',
+								reason: 'The sizes could not be computed. They are retried in a minute.'
+							}
+						]
+					];
+				if (u.data && !u.data.supported)
+					return [
+						[
+							t.id,
+							{
+								state: 'unknown',
+								reason: 'Upgrade the agent of this environment to see volume sizes.'
+							}
+						]
+					];
+				return (u.data?.items ?? []).flatMap((item): [string, Size][] =>
+					item.sizeBytes === undefined
+						? []
+						: [[`${t.id}/${item.name}`, { state: 'known', bytes: item.sizeBytes }]]
+				);
+			})
+		)
+	);
+	function sizeOf(v: Volume): Size {
+		const env = sizes.get(v.environmentId);
+		if (env) return env;
+		return (
+			sizes.get(`${v.environmentId}/${v.name}`) ?? {
+				state: 'unknown',
+				reason: 'The Engine does not report a size for this volume.'
+			}
+		);
+	}
+	const bytesOf = (v: Volume) => {
+		const s = sizeOf(v);
+		return s.state === 'known' ? s.bytes : null;
+	};
 
 	let q = $state('');
 	let use = $state('');
@@ -122,6 +184,14 @@
 			stack: 'status'
 		},
 		{
+			id: 'size',
+			header: 'Size',
+			cell: sizeCell,
+			sortValue: bytesOf,
+			numeric: true,
+			width: '96px'
+		},
+		{
 			id: 'access',
 			header: 'Files',
 			cell: accessCell,
@@ -184,6 +254,14 @@
 		</span>
 	{:else if v.inUse}<Badge tone="ok" dot>In use</Badge>
 	{:else}<Badge>Unused</Badge>{/if}
+{/snippet}
+{#snippet sizeCell(v: Volume)}
+	{@const s = sizeOf(v)}
+	{#if s.state === 'known'}<span class="nowrap">{formatBytes(s.bytes)}</span>
+	{:else if s.state === 'loading'}<span class="muted" title="Computing the size"
+			>…<span class="sr-only">Computing the size</span></span
+		>
+	{:else}<span class="muted" title={s.reason}>—</span>{/if}
 {/snippet}
 {#snippet accessCell(v: Volume)}
 	{@const a = volumeAccess(v)}
@@ -351,6 +429,10 @@
 {/if}
 
 <style>
+	.nowrap {
+		white-space: nowrap;
+	}
+
 	.name-cell {
 		display: flex;
 		flex-direction: column;

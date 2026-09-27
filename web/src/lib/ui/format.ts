@@ -36,6 +36,29 @@ export function formatDuration(seconds: number): string {
 	return `${d} ${d === 1 ? 'day' : 'days'}`;
 }
 
+/**
+ * A live uptime, compact and with seconds below a day so it visibly ticks:
+ * "42s", "5m 03s", "3h 12m 08s", "4d 3h 12m". Negative values (clock skew)
+ * read as "0s".
+ */
+export function formatUptime(seconds: number): string {
+	const s = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
+	const pad = (n: number) => String(n).padStart(2, '0');
+	if (s < 60) return `${s}s`;
+	const m = Math.floor(s / 60);
+	if (m < 60) return `${m}m ${pad(s % 60)}s`;
+	const h = Math.floor(m / 60);
+	if (h < 24) return `${h}h ${pad(m % 60)}m ${pad(s % 60)}s`;
+	return `${Math.floor(h / 24)}d ${h % 24}h ${m % 60}m`;
+}
+
+/** Seconds from an ISO start time to `nowMs`; null when absent or invalid. */
+export function secondsSince(iso: string | null | undefined, nowMs: number): number | null {
+	if (!iso) return null;
+	const t = Date.parse(iso);
+	return Number.isFinite(t) ? (nowMs - t) / 1000 : null;
+}
+
 const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 
 /** "2 days ago", "in 5 minutes", "just now". */

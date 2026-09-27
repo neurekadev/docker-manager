@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -445,6 +446,10 @@ func stackContainer(c engine.Container, d engine.ContainerDetails) protocol.Stac
 	}
 	for _, p := range ports {
 		sc.Ports = append(sc.Ports, protocol.PortMapping{PrivatePort: p.PrivatePort, PublicPort: p.PublicPort, HostIP: p.HostIP, Protocol: p.Protocol})
+	}
+	for _, n := range slices.Sorted(maps.Keys(d.Networks)) {
+		ep := d.Networks[n]
+		sc.Networks = append(sc.Networks, protocol.ContainerNetwork{Name: n, NetworkID: ep.NetworkID, IPAddress: ep.IPAddress, IPv6Address: ep.IPv6Address})
 	}
 	return sc
 }

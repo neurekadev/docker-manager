@@ -131,6 +131,7 @@ func ErrorCodes() []ErrorCode {
 		{CodeRangeNotSatisfiable, http.StatusRequestedRangeNotSatisfiable, false, "The Range of a single-file download lies outside the file; Content-Range carries its size.", 15},
 		{CodeValidationFailed, http.StatusUnprocessableEntity, false, "One or more inputs are invalid; details lists each field.", 2},
 		{CodeRecreateRequired, http.StatusUnprocessableEntity, false, "The requested container settings cannot change in place; create a new container (or use a Compose stack). details lists the fields.", 6},
+		{CodeCommandNotFound, http.StatusUnprocessableEntity, false, "The container has none of the requested shell's usual paths (for example a distroless image without sh); choose another shell or command.", 8},
 		{CodeContentDigestMismatch, http.StatusUnprocessableEntity, false, "The uploaded bytes do not match X-Docker-Manager-Content-SHA256; nothing was written.", 15},
 		{CodeBackupImportKeyRejected, http.StatusUnprocessableEntity, false, "The Recovery Key does not open the manager repository. Check it for typos; after a rotation also enter the previous key. A lost Recovery Key cannot be recovered: nobody can decrypt the backups.", 24},
 		{CodeBackupImportNotFound, http.StatusUnprocessableEntity, false, "No Docker Manager repository (or no such backup set) at the import destination; check endpoint, bucket, prefix or the mounted path.", 24},

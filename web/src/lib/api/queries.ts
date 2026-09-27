@@ -68,6 +68,11 @@ export const queryKeys = {
 	},
 	containerMetrics: (env: string, name: string, rangeSeconds: number) =>
 		liveKeys.metrics(env, 'container', name, rangeSeconds),
+	// Refreshed by metrics.sampled (at most every 10 s, #23).
+	latestContainerMetrics: (env: string) => liveKeys.metrics(env, 'containers-latest'),
+	// Under the volume lists: volume events refresh it too (the manager
+	// answers from its one-minute cache).
+	volumeUsage: (env: string) => liveKeys.list('volumes', 'usage', env),
 	images: {
 		all: ['images'] as const,
 		list: (envIds: string[]) => liveKeys.list('images', envIds.join(',')),
@@ -508,6 +513,8 @@ export type RegistryConnection = Schema<'RegistryConnection'>;
 export type GitCredential = Schema<'GitCredential'>;
 export type ContainerMetrics = Schema<'ContainerMetrics'>;
 export type RegistryMatch = Schema<'RegistryMatch'>;
+export type LatestContainerMetric = Schema<'LatestContainerMetric'>;
+export type VolumeUsageList = Schema<'VolumeUsageList'>;
 
 const LIST_LIMIT = 200;
 const envIds = (targets: EnvTarget[]) => targets.map((t) => t.id);
@@ -574,6 +581,50 @@ export function containerMetricsQuery(
 				)
 			),
 		staleTime: 10_000,
+		retry: false
+	});
+}
+
+/**
+ * The newest CPU and memory sample of each container of an environment the
+ * caller may chart (#5), by container name. Live: metrics events refresh
+ * it about every 10 s; the interval covers a stream outage.
+ */
+export function latestContainerMetricsQuery(env: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.latestContainerMetrics(env),
+		queryFn: async ({ signal }): Promise<Record<string, LatestContainerMetric>> => {
+			const r = await unwrap(
+				client.GET('/api/v1/environments/{environmentId}/metrics/containers', {
+					params: { path: { environmentId: env } },
+					signal
+				})
+			);
+			return Object.fromEntries(r.items.map((m) => [m.container, m]));
+		},
+		staleTime: 10_000,
+		refetchInterval: 30_000,
+		retry: false
+	});
+}
+
+/**
+ * The sizes of an environment's volumes (#6). The Engine walks the volumes
+ * to compute them and the manager reuses the answer for a minute, so this
+ * refreshes at most once a minute; the first answer may take a while.
+ */
+export function volumeUsageQuery(env: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: queryKeys.volumeUsage(env),
+		queryFn: ({ signal }): Promise<VolumeUsageList> =>
+			unwrap(
+				client.GET('/api/v1/environments/{environmentId}/disk-usage/volumes', {
+					params: { path: { environmentId: env } },
+					signal
+				})
+			),
+		staleTime: 60_000,
+		refetchInterval: 60_000,
 		retry: false
 	});
 }

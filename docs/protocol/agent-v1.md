@@ -391,7 +391,11 @@ announced it (#34). Likewise `backup.activity`
 frames with `activity`. And `stack.remove_volumes`
 (`protocol.FeatureStackRemoveVolumes`): only those agents get
 `stack.remove` inputs with `removeVolumes` (and `keepVolumes`); the manager
-refuses the option for other agents (they would keep the volumes). Upgrade procedure: `docs/operations/upgrades.md`.
+refuses the option for other agents (they would keep the volumes). And
+`exec.shell` (`protocol.FeatureExecShell`, #8): only those agents get
+`container.exec.create` inputs with `shell`; for other agents the manager
+sends the shell's most common path as `cmd` (`protocol.LegacyShellCommand`:
+`/bin/bash`, `/bin/zsh`, else `/bin/sh`). Upgrade procedure: `docs/operations/upgrades.md`.
 
 ### command, ack, progress, result, job_report, cancel (jobs, #26)
 
@@ -757,9 +761,18 @@ Agent side `internal/agent/containerio`, manager side
   credit from the agent.
 - `container.exec.create` (request, `ExecCreateInput` → `ExecCreateOutput`):
   creates an Engine exec instance on a running, unpaused container
-  (`conflict` otherwise) with stdin attached. At most 256 argv entries /
-  64 KiB and 256 instances per agent (`busy`). An instance that is not
-  attached within 2 minutes is forgotten.
+  (`conflict` otherwise) with stdin attached. The input names either
+  `cmd` (an argv) or `shell` (`auto`, `bash`, `sh`, `zsh`; agents
+  announcing `exec.shell` only; both → `invalid_frame`, an unknown shell →
+  `invalid_argument`). For a shell the agent runs the first of its paths
+  that exists in the container (`protocol.ShellCandidates`, checked with
+  the Engine's archive stat: bash `/bin/bash`, `/usr/bin/bash`,
+  `/usr/local/bin/bash`; zsh `/bin/zsh`, `/usr/bin/zsh`,
+  `/usr/local/bin/zsh`; sh `/bin/sh`, `/usr/bin/sh`, `/busybox/sh`; auto
+  the bash paths, then the sh paths) and fails with `command_not_found`
+  when none exists. The output's `cmd` is the argv actually run. At most
+  256 argv entries / 64 KiB and 256 instances per agent (`busy`). An
+  instance that is not attached within 2 minutes is forgotten.
 - `container.exec.resize`, `container.exec.delete` (requests): resize the
   TTY; delete closes the instance's stdin (Engine exec has no kill).
 - `container.exec` (stream, `both`, input `ExecStreamInput{execId}`): one
@@ -858,7 +871,7 @@ on a new session with a new frame ID.
 | `engine.disk_usage` | request | `environment.metrics.read` | no | #5 |
 | `engine.compatibility` | request | manager service (session setup) | no | #21 |
 | `host.metrics` | request | `environment.metrics.read` | no | #5 |
-| `container.list` | request | any container capability (fields shaped per #17) | no | #6 |
+| `container.list` | request | any container capability (fields shaped per #17; entries carry their network addresses and, while running, `startedAt`) | no | #6 |
 | `container.inspect` | request | `container.details.read` | no | #6 |
 | `container.stats` | request | `container.metrics.read` | no | #5 |
 | `container.logs` | request | `container.logs.read` (bounded tail) | no | #8 |
@@ -871,6 +884,7 @@ on a new session with a new frame ID.
 | `image.local_digests` | request | `update.check` / manager service | no | #20 |
 | `volume.list` | request | `volume.read` | no | #6 |
 | `volume.inspect` | request | `volume.read` | no | #6 |
+| `volume.usage` | request | `volume.read` (sizes of the volumes the caller sees; the manager caches the answer for 60 s per environment and sends it only to agents that advertise it) | no | #6 |
 | `network.list` | request | `network.read` | no | #6 |
 | `network.inspect` | request | `network.read` | no | #6 |
 | `compose.discover` | request | `stack.import` | no | #7 |
@@ -936,7 +950,8 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
 | `migration.receive` | stream | manager_to_agent | job-linked (`stack.migrate` / `volume.migrate`) | #35 |
 
 `container.exec` runs a process **inside a container** through the Engine
-exec API with the argv the user supplied; it is not a host shell.
+exec API with the argv the user supplied (or the container's own shell the
+agent found); it is not a host shell.
 
 ## Error codes
 
@@ -982,6 +997,7 @@ Codes of `error` frames and of `stream_close {reason: error}`:
 | `snapshot_path_unknown` | a restore names a path the backup does not hold (#10) |
 | `path_not_restorable` | a restore names a path outside the stack's project directory and its volumes, or one that cannot be replaced in place |
 | `target_missing` | a restore of a volume's file names a volume missing on the host |
+| `command_not_found` | none of a terminal shell's paths exists in the container (#8) |
 
 The manager maps them to public errors: `not_found` → 404,
 `conflict` → 409/412, `deadline_exceeded` → 504 `timeout`,
@@ -991,6 +1007,7 @@ The manager maps them to public errors: `not_found` → 404,
 `is_directory` → 409 `file_type_mismatch`, `unsupported_file` → 409
 `file_unsupported`, `unsupported_volume` → 409 `volume_files_unsupported`,
 `too_large` → 413, `digest_mismatch` → 422 `content_digest_mismatch`,
+`command_not_found` → 422 `command_not_found`,
 `unsupported_request`/`unsupported_stream` → 501, the rest → 500
 `internal` or 502.
 
@@ -1045,7 +1062,7 @@ The manager maps them to public errors: `not_found` → 404,
 | byte streams: open/accept, credit flow control, half close, results, aborts, limits | `internal/streammux` (both ends), `agents.Session.OpenStream` / `Hub.OpenStream`, `session.Options.Streams` | implemented (#15) |
 | scoped files: `files.*` requests, `files.download` / `files.upload` streams, `files.*` job executors | `internal/agent/files`, `internal/manager/files` | implemented (#15) |
 | `engine.info`, `host.metrics`, Docker event relay (coalescing, rate bound) | `internal/agent/observe`, `internal/manager/observe` | implemented (#5) |
-| Docker resource requests (`container.list/inspect`, `image.list/inspect/tag`, `volume.list/inspect`, `network.list/inspect`) and executors (`container.*`, `image.pull/remove`, `volume.*`, `network.*`) | `internal/protocol/docker.go` (inputs/outputs), `internal/agent/resources` | implemented (#6) |
+| Docker resource requests (`container.list/inspect`, `image.list/inspect/tag`, `volume.list/inspect/usage`, `network.list/inspect`) and executors (`container.*`, `image.pull/remove`, `volume.*`, `network.*`) | `internal/protocol/docker.go` (inputs/outputs), `internal/agent/resources` | implemented (#6) |
 | `files.watch` watch set, scoped filesystem watcher (inotify, debounce, rename handling, watch-limit accounting, bounded reconciliation), `rescan` | `internal/agent/watch`, `internal/manager/files` (`Watcher`), `agents.Session.Rescan` | implemented (#23) |
 | agent-opened streams (manager answers `stream_close` `unsupported_stream`) | stub | not needed in v1 |
 | `compose.discover/validate/read/write/services` requests, `stack.deploy/start/stop/restart/down/remove` executors, result `output` | `internal/agent/stacks`, `internal/jobexec`, `internal/manager/stacks` | implemented (#7) |

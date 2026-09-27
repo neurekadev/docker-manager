@@ -1,16 +1,18 @@
 <script lang="ts">
 	// Containers (#6): every container of the selected environment (or of
-	// all visible ones), filtered by name/image, state, stack and label.
+	// all visible ones), filtered by name/image, state, stack and label,
+	// with a live uptime (ticking every second), CPU and memory from the
+	// newest 10 s samples (#5, refreshed by metrics events) and addresses.
 	// Docker Manager's own containers carry the "Docker Manager system" badge (#32),
 	// containers of a Compose project their stack. Row actions follow the
 	// container's state and granted actions (#17); refusals show the
 	// server's reason.
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createQueries, createQuery } from '@tanstack/svelte-query';
 	import ContainerIcon from '@lucide/svelte/icons/container';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Layers from '@lucide/svelte/icons/layers';
-	import { containersQuery, type Container } from '$lib/api/queries';
+	import { containersQuery, latestContainerMetricsQuery, type Container } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
@@ -27,10 +29,14 @@
 		StatusBadge,
 		Table,
 		TextField,
+		Uptime,
+		formatBytes,
+		formatPercent,
 		formatRelative,
 		type Column,
 		type MenuEntry
 	} from '$lib/ui';
+	import AddressList from '$lib/features/resources/AddressList.svelte';
 	import ContainerActionHost from '$lib/features/resources/ContainerActionHost.svelte';
 	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
@@ -42,10 +48,13 @@
 	import { containerActions } from '$lib/features/resources/container-actions';
 	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
 	import {
+		containerAddresses,
 		containerStatus,
 		filterContainers,
 		portText,
-		uniquePorts
+		uniquePorts,
+		upSince,
+		uptimeSortValue
 	} from '$lib/features/resources/model';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
@@ -56,6 +65,27 @@
 		...containersQuery(scope.targets),
 		enabled: scope.ready && scope.targets.length > 0
 	}));
+
+	// Current CPU and memory per environment (only for callers who may
+	// chart containers; the server filters per container).
+	const latest = createQueries(() => ({
+		queries: scope.hasAny('container.metrics.read')
+			? scope.targets.map((t) => latestContainerMetricsQuery(t.id))
+			: []
+	}));
+	const samples = $derived(
+		new Map(
+			scope.targets.flatMap((t, i) =>
+				Object.values(latest[i]?.data ?? {}).map(
+					(m) => [`${t.id}/${m.container}`, m] as const
+				)
+			)
+		)
+	);
+	/** The newest sample of a running container (none while stopped). */
+	const sample = (c: Container) =>
+		c.state === 'running' ? samples.get(`${c.environmentId}/${c.name}`) : undefined;
+	const addresses = (c: Container) => containerAddresses([c.networks]);
 
 	let q = $state('');
 	let stateFilter = $state('');
@@ -120,11 +150,28 @@
 			stack: 'status'
 		},
 		{
-			id: 'update',
-			header: 'Image update',
-			cell: updateCell,
-			sortValue: (c) => c.update ?? '',
-			width: '150px'
+			id: 'uptime',
+			header: 'Uptime',
+			cell: uptimeCell,
+			sortValue: (c) => uptimeSortValue(upSince(c)),
+			numeric: true,
+			width: '112px'
+		},
+		{
+			id: 'cpu',
+			header: 'CPU',
+			cell: cpuCell,
+			sortValue: (c) => sample(c)?.cpuPercent,
+			numeric: true,
+			width: '72px'
+		},
+		{
+			id: 'memory',
+			header: 'Memory',
+			cell: memoryCell,
+			sortValue: (c) => sample(c)?.memoryUsedBytes,
+			numeric: true,
+			width: '88px'
 		},
 		{ id: 'stack', header: 'Stack', cell: stackCell, sortValue: (c) => c.stack?.project ?? '' },
 		...(scope.single
@@ -137,7 +184,26 @@
 						sortValue: (c: Container) => envName(c.environmentId)
 					} satisfies Column<Container>
 				]),
-		{ id: 'ports', header: 'Ports', cell: portsCell },
+		{
+			id: 'addresses',
+			header: 'IP addresses',
+			cell: addressesCell,
+			sortValue: (c) => addresses(c)[0]?.address,
+			width: '140px'
+		},
+		{
+			id: 'ports',
+			header: 'Ports',
+			cell: portsCell,
+			sortValue: (c) => uniquePorts(c.ports).find((p) => p.hostPort)?.hostPort
+		},
+		{
+			id: 'update',
+			header: 'Image update',
+			cell: updateCell,
+			sortValue: (c) => c.update ?? '',
+			width: '150px'
+		},
 		{
 			id: 'created',
 			header: 'Created',
@@ -169,6 +235,17 @@
 	<StatusBadge status={containerStatus(c)} />
 {/snippet}
 {#snippet updateCell(c: Container)}<UpdateStatusBadge status={c.update} />{/snippet}
+{#snippet uptimeCell(c: Container)}<Uptime since={upSince(c)} />{/snippet}
+{#snippet cpuCell(c: Container)}{formatPercent(sample(c)?.cpuPercent)}{/snippet}
+{#snippet memoryCell(c: Container)}
+	{@const m = sample(c)}
+	<span
+		title={m?.memoryUsedBytes !== undefined && m.memoryLimitBytes
+			? `${formatBytes(m.memoryUsedBytes)} of the ${formatBytes(m.memoryLimitBytes)} limit`
+			: undefined}>{formatBytes(m?.memoryUsedBytes)}</span
+	>
+{/snippet}
+{#snippet addressesCell(c: Container)}<AddressList addresses={addresses(c)} />{/snippet}
 {#snippet stackCell(c: Container)}
 	{#if c.stack}<StackBadge stack={c.stack} />{:else}<span class="muted">Standalone</span>{/if}
 {/snippet}

@@ -127,6 +127,12 @@ func TestContainerMetricsOnly(t *testing.T) {
 			t.Errorf("%s: %d, want 404", p, r.Status)
 		}
 	}
+	// The current usage lists only the container mia may chart.
+	var latest LatestContainerMetrics
+	if r := f.get("mia", "/api/v1/environments/env-1/metrics/containers", &latest); r.Status != http.StatusOK || len(latest.Items) != 1 ||
+		latest.Items[0].Container != "web" || latest.Items[0].CPUPercent == nil || latest.Items[0].MemoryUsedBytes == nil {
+		t.Fatalf("latest metrics: %d %s", r.Status, r.Body)
+	}
 	// Other resource types are invisible.
 	for _, p := range []string{"/api/v1/environments/env-1/images", "/api/v1/environments/env-1/volumes", "/api/v1/environments/env-1/networks"} {
 		var pg struct{ Items []json.RawMessage }
@@ -466,6 +472,53 @@ func TestContainerListFiltersSortAndPages(t *testing.T) {
 	}
 	if r := f.get("olga", base+"?sort=bogus", nil); r.Status != http.StatusUnprocessableEntity {
 		t.Fatalf("bad sort: %d", r.Status)
+	}
+}
+
+// TestContainerListShowsUptimeAndAddresses: running containers carry their
+// start time and addresses in the full view; stopped ones neither.
+func TestContainerListShowsUptimeAndAddresses(t *testing.T) {
+	f := newDockerFixture(t, authztest.New().Owner("olga"))
+	var page struct{ Items []Container }
+	f.get("olga", "/api/v1/environments/env-1/containers", &page)
+	byName := map[string]Container{}
+	for _, c := range page.Items {
+		byName[c.Name] = c
+	}
+	web, db := byName["web"], byName["db"]
+	if web.StartedAt == nil || len(web.Networks) != 1 || web.Networks[0].Name != "bridge" || web.Networks[0].IPAddress == "" {
+		t.Fatalf("running container %+v", web)
+	}
+	if db.StartedAt != nil || len(db.Networks) != 1 || db.Networks[0].IPAddress != "" {
+		t.Fatalf("stopped container %+v", db)
+	}
+}
+
+// TestVolumeUsageRoute: sizes of the volumes the caller reads in full,
+// unknown sizes absent; an agent without volume.usage is reported as
+// unsupported, not as an error.
+func TestVolumeUsageRoute(t *testing.T) {
+	f := newDockerFixture(t, authztest.New().Owner("olga").Member("vic", "vols").Group("vols", "allow volume.read @volume:env-1/scratch"))
+	f.engines["env-1"].SetVolumeSize("scratch", 1234)
+	path := "/api/v1/environments/env-1/disk-usage/volumes"
+	var u VolumeUsageList
+	if r := f.get("olga", path, &u); r.Status != http.StatusOK || !u.Supported || u.ComputedAt == nil || len(u.Items) != 2 ||
+		u.Items[0].Name != "scratch" || u.Items[0].SizeBytes == nil || *u.Items[0].SizeBytes != 1234 ||
+		u.Items[1].Name != "shop_data" || u.Items[1].SizeBytes != nil {
+		t.Fatalf("owner: %d %s", r.Status, r.Body)
+	}
+	u = VolumeUsageList{}
+	if r := f.get("vic", path, &u); r.Status != http.StatusOK || len(u.Items) != 1 || u.Items[0].Name != "scratch" {
+		t.Fatalf("volume.read on scratch: %d %s", r.Status, r.Body)
+	}
+	// An agent that does not serve volume.usage (env-2 here).
+	f.req.mu.Lock()
+	f.req.drop = map[string]bool{protocol.ReqVolumeUsage: true}
+	f.req.mu.Unlock()
+	f.engines["env-2"].AddVolume("fresh", nil)
+	u = VolumeUsageList{}
+	if r := f.get("olga", "/api/v1/environments/env-2/disk-usage/volumes", &u); r.Status != http.StatusOK || u.Supported || len(u.Items) != 0 {
+		t.Fatalf("older agent: %d %s", r.Status, r.Body)
 	}
 }
 

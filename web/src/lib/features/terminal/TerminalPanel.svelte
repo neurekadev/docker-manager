@@ -9,22 +9,26 @@
 
 <script lang="ts">
 	// Container terminal (#8, #22): pick the container (a stack's services),
-	// the command (default /bin/sh) and connect; xterm fills the space and
-	// follows its size. The status line shows the connection; an idle warning
-	// appears at 25 minutes (the session closes at 30). Close code 4422 says
-	// the image has no such command.
+	// the shell (Automatic: Bash if present, else sh; the agent finds it in
+	// the container) and connect; xterm fills the space and follows its size.
+	// The status line shows the connection and the command started; an idle
+	// warning appears at 25 minutes (the session closes at 30). A 422
+	// command_not_found (or close code 4422 from older agents) says the
+	// image has no such shell.
 	import { onDestroy } from 'svelte';
 	import Plug from '@lucide/svelte/icons/plug';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
 	import Unplug from '@lucide/svelte/icons/unplug';
 	import { api, ApiRequestError, unwrap } from '$lib/api/client';
 	import type { TerminalHandle } from '$lib/lazy';
-	import { Badge, Button, Notice, Select, TerminalView, TextField } from '$lib/ui';
+	import { Badge, Button, Notice, Select, TerminalView } from '$lib/ui';
 	import {
 		canReconnect,
 		ExecTerminal,
-		parseCommand,
+		SHELLS,
+		shellName,
 		type ExecSession,
+		type Shell,
 		type WebSocketLike
 	} from './session.svelte';
 
@@ -38,8 +42,10 @@
 
 	let { choices, initial = null, label }: Props = $props();
 
-	function createError(e: unknown, t: ExecTarget): Error {
+	function createError(e: unknown, t: ExecTarget, s: Shell): Error {
 		if (!(e instanceof ApiRequestError)) return e instanceof Error ? e : new Error(String(e));
+		if (e.apiError?.code === 'command_not_found')
+			return new Error(`${t.label} has no ${shellName(s)}. Choose another shell.`);
 		switch (e.status) {
 			case 403:
 				return new Error(
@@ -75,7 +81,7 @@
 					)
 				);
 			} catch (e) {
-				throw createError(e, t);
+				throw createError(e, t, body.shell);
 			}
 		},
 		remove: async (t, id) => {
@@ -99,7 +105,7 @@
 
 	let term = $state<TerminalHandle | null>(null);
 	let selected = $state('');
-	let command = $state('/bin/sh');
+	let shell = $state<Shell>('auto');
 	const target = $derived(choices.find((c) => c.containerId === selected) ?? null);
 	const busy = $derived(session.state === 'creating' || session.state === 'connecting');
 	const open = $derived(session.state === 'open');
@@ -128,12 +134,10 @@
 
 	async function connect() {
 		if (!target || !term) return;
-		const argv = parseCommand(command);
-		if (!argv.length) return;
 		term.clear();
 		const size = term.fit();
 		try {
-			await session.connect(target, argv, size);
+			await session.connect(target, shell, size);
 		} catch {
 			// session.message says what happened
 		}
@@ -181,13 +185,11 @@
 			</div>
 		{/if}
 		<div class="cmd">
-			<TextField
-				label="Command"
-				mono
-				bind:value={command}
+			<Select
+				label="Shell"
+				bind:value={() => shell, (v) => (shell = v as Shell)}
 				disabled={open || busy}
-				autocomplete="off"
-				spellcheck="false"
+				options={SHELLS.map((s) => ({ value: s.value, label: s.label }))}
 			/>
 		</div>
 		<div class="buttons">
@@ -239,8 +241,8 @@
 				live="status"
 				title={session.message}
 			>
-				{#if session.closeCode === 4422}Choose another command, for example /bin/bash, sh or
-					a program the image ships, and connect again.{/if}
+				{#if session.closeCode === 4422}Choose another shell, for example sh, and connect
+					again.{/if}
 				{#if session.closeCode !== null && !canReconnect(session.closeCode)}Close the other
 					terminal first, or ask the owner of this Docker Manager about your access.{/if}
 			</Notice>
@@ -253,7 +255,8 @@
 			<div class="overlay" aria-hidden="true">
 				<SquareTerminal size={28} strokeWidth={1.5} />
 				<p>
-					Connect to run {command || 'a command'} in {target?.label ?? 'the container'}.
+					Connect to open {shell === 'auto' ? 'a shell' : shellName(shell)} in {target?.label ??
+						'the container'}.
 				</p>
 			</div>
 		{/if}
@@ -261,6 +264,7 @@
 
 	<footer class="status">
 		<Badge tone={statusTone} dot>{statusText}</Badge>
+		{#if session.command && open}<span class="mono muted">{session.command}</span>{/if}
 		{#if session.sessionId && open}<span class="mono muted"
 				>session {session.sessionId.slice(0, 8)}</span
 			>{/if}
@@ -294,9 +298,7 @@
 	}
 
 	.cmd {
-		flex: 1;
-		min-width: 180px;
-		max-width: 420px;
+		width: 180px;
 	}
 
 	.buttons {

@@ -123,6 +123,10 @@ type Service struct {
 
 	mu    sync.Mutex
 	stack map[cacheKey]protocol.StackRef
+
+	// usage caches the volume disk usage per environment (usage.go).
+	usageMu sync.Mutex
+	usage   map[string]*usageEntry
 }
 
 type cacheKey struct{ typ, env, name string }
@@ -139,7 +143,8 @@ func New(opts Options) (*Service, error) {
 		opts.Logger = slog.Default()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Service{opts: opts, clk: opts.Clock, log: opts.Logger, lifetime: ctx, stop: cancel, stack: map[cacheKey]protocol.StackRef{}}, nil
+	return &Service{opts: opts, clk: opts.Clock, log: opts.Logger, lifetime: ctx, stop: cancel, stack: map[cacheKey]protocol.StackRef{},
+		usage: map[string]*usageEntry{}}, nil
 }
 
 // SetStackResolver installs the #7 stack resolver.

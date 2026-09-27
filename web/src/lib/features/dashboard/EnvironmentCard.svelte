@@ -1,8 +1,9 @@
 <script lang="ts">
-	// One environment on the dashboard (#5, #22): status, Engine, CPU and
-	// memory with the last 30 minutes as sparklines (gaps are breaks), disk,
-	// Docker counts, stacks with undeployed changes and available updates.
-	// An offline environment shows its last known values and says so.
+	// One environment on the dashboard (#5, #22), a long full-width row:
+	// status, Engine, CPU and memory with the last 30 minutes as sparklines
+	// (gaps are breaks), disk, Docker counts, stacks with undeployed changes
+	// and available updates. An offline environment shows its last known
+	// values and says so.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Server from '@lucide/svelte/icons/server';
 	import type { Schema } from '$lib/api/client';
@@ -63,40 +64,69 @@
 	const usage = $derived(env.usage);
 	const engine = $derived(system.data?.engine);
 	const docker = $derived(env.docker);
+	const disk = $derived(
+		usage?.diskUsedBytes !== undefined && usage?.diskTotalBytes
+			? { used: usage.diskUsedBytes, total: usage.diskTotalBytes }
+			: undefined
+	);
 	const known = (n: number | undefined) => (n === undefined || n < 0 ? '—' : String(n));
 </script>
 
 <article class="env" class:offline={!env.online} aria-labelledby="env-{env.id}">
-	<header class="head">
-		<IconTile icon={Server} color={env.online ? 'blue' : 'slate'} size="md" />
-		<div class="names">
-			<h3 id="env-{env.id}"><a href={routes.environment(env.id)}>{env.name}</a></h3>
-			<p class="engine">
-				{#if engine}
-					Docker {engine.version}<span class="sep" aria-hidden="true"
-					></span>{engine.os}/{engine.arch}
-				{:else if canSystem && system.isPending}
-					<span class="muted">Reading Engine…</span>
-				{:else}
-					<span class="muted">Engine not reported yet</span>
-				{/if}
-			</p>
-		</div>
-		<StatusBadge status={env.online ? 'online' : 'offline'} />
-	</header>
+	<div class="ident">
+		<header class="head">
+			<IconTile icon={Server} color={env.online ? 'blue' : 'slate'} size="md" />
+			<div class="names">
+				<h3 id="env-{env.id}"><a href={routes.environment(env.id)}>{env.name}</a></h3>
+				<p class="engine">
+					{#if engine}
+						Docker {engine.version}<span class="sep" aria-hidden="true"
+						></span>{engine.os}/{engine.arch}
+					{:else if canSystem && system.isPending}
+						<span class="muted">Reading Engine…</span>
+					{:else}
+						<span class="muted">Engine not reported yet</span>
+					{/if}
+				</p>
+			</div>
+			<StatusBadge status={env.online ? 'online' : 'offline'} />
+		</header>
 
-	{#if !env.online}
-		<p class="offline-note">
-			{since ? `Offline since ${formatRelative(since, now)}.` : 'Offline.'} Values are the last
-			known.
-		</p>
-	{/if}
+		{#if !env.online}
+			<p class="offline-note">
+				{since ? `Offline since ${formatRelative(since, now)}.` : 'Offline.'} Values are the last
+				known.
+			</p>
+		{/if}
+
+		{#if undeployed || updates}
+			<div class="flags">
+				{#if undeployed}
+					<a href={routes.stacks()}
+						><Badge tone="warn" dot
+							>{undeployed}
+							{undeployed === 1 ? 'stack has' : 'stacks have'} undeployed changes</Badge
+						></a
+					>
+				{/if}
+				{#if updates}
+					<a href={routes.updates()}
+						><Badge tone="warn" dot
+							>{updates} {updates === 1 ? 'update' : 'updates'} available</Badge
+						></a
+					>
+				{/if}
+			</div>
+		{/if}
+	</div>
 
 	{#if canMetrics}
-		<div class="usage">
-			<div class="row">
-				<span class="k">CPU</span>
-				<span class="value num">{formatPercent(usage?.cpuPercent)}</span>
+		{#if usage}
+			<div class="metric">
+				<p class="line">
+					<span class="k">CPU</span>
+					<span class="value num">{formatPercent(usage.cpuPercent)}</span>
+				</p>
 				<span class="spark">
 					<Sparkline
 						values={cpu}
@@ -107,14 +137,16 @@
 					/>
 				</span>
 			</div>
-			<div class="row">
-				<span class="k">Memory</span>
-				<span class="value num">
-					{formatBytes(usage?.memoryUsedBytes)}
-					{#if usage?.memoryTotalBytes}<span class="muted"
-							>/ {formatBytes(usage.memoryTotalBytes)}</span
-						>{/if}
-				</span>
+			<div class="metric">
+				<p class="line">
+					<span class="k">Memory</span>
+					<span class="value num">
+						{formatBytes(usage.memoryUsedBytes)}
+						{#if usage.memoryTotalBytes}<span class="muted"
+								>/ {formatBytes(usage.memoryTotalBytes)}</span
+							>{/if}
+					</span>
+				</p>
 				<span class="spark">
 					<Sparkline
 						values={mem}
@@ -123,41 +155,32 @@
 					/>
 				</span>
 			</div>
-			{#if usage?.memoryUsedBytes !== undefined && usage?.memoryTotalBytes}
-				<div class="meter">
-					<Meter
-						value={usage.memoryUsedBytes}
-						max={usage.memoryTotalBytes}
-						label="Memory of {env.name}"
-						valueText="{formatBytes(usage.memoryUsedBytes)} of {formatBytes(
-							usage.memoryTotalBytes
-						)}"
-					/>
-				</div>
-			{/if}
-			{#if usage?.diskUsedBytes !== undefined && usage?.diskTotalBytes}
-				<div class="row disk">
+			<div class="metric">
+				<p class="line">
 					<span class="k">Disk</span>
-					<span class="value num">
-						{formatBytes(usage.diskUsedBytes)}
-						<span class="muted">/ {formatBytes(usage.diskTotalBytes)}</span>
-					</span>
-					<span class="spark">
+					{#if disk}
+						<span class="value num">
+							{formatBytes(disk.used)}
+							<span class="muted">/ {formatBytes(disk.total)}</span>
+						</span>
+					{:else}
+						<span class="value num muted">—</span>
+					{/if}
+				</p>
+				{#if disk}
+					<span class="bar">
 						<Meter
-							value={usage.diskUsedBytes}
-							max={usage.diskTotalBytes}
+							value={disk.used}
+							max={disk.total}
 							label="Docker data disk of {env.name}"
-							valueText="{formatBytes(usage.diskUsedBytes)} of {formatBytes(
-								usage.diskTotalBytes
-							)}"
+							valueText="{formatBytes(disk.used)} of {formatBytes(disk.total)}"
 						/>
 					</span>
-				</div>
-			{/if}
-			{#if !usage}
-				<p class="muted none">No usage samples yet.</p>
-			{/if}
-		</div>
+				{/if}
+			</div>
+		{:else}
+			<p class="muted none">No usage samples yet.</p>
+		{/if}
 	{/if}
 
 	{#if docker}
@@ -183,38 +206,28 @@
 			</div>
 		</dl>
 	{/if}
-
-	{#if undeployed || updates}
-		<div class="flags">
-			{#if undeployed}
-				<a href={routes.stacks()}
-					><Badge tone="warn" dot
-						>{undeployed}
-						{undeployed === 1 ? 'stack has' : 'stacks have'} undeployed changes</Badge
-					></a
-				>
-			{/if}
-			{#if updates}
-				<a href={routes.updates()}
-					><Badge tone="warn" dot
-						>{updates} {updates === 1 ? 'update' : 'updates'} available</Badge
-					></a
-				>
-			{/if}
-		</div>
-	{/if}
 </article>
 
 <style>
+	/* A long, thin row: identity, CPU, memory, disk and the Docker counts
+	   side by side; the columns stack on narrower screens. */
 	.env {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
+		display: grid;
+		grid-template-columns: minmax(240px, 1.3fr) repeat(3, minmax(140px, 1fr)) auto;
+		align-items: center;
+		gap: var(--space-3) var(--space-6);
 		min-width: 0;
-		padding: var(--space-4) var(--space-5) var(--space-5);
+		padding: var(--space-3) var(--space-5);
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-lg);
 		background: var(--surface-panel);
+	}
+
+	.ident {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		min-width: 0;
 	}
 
 	.head {
@@ -230,8 +243,11 @@
 	}
 
 	h3 {
+		overflow: hidden;
 		font-size: var(--text-section);
 		line-height: var(--leading-section);
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	h3 a {
@@ -255,25 +271,30 @@
 
 	.offline-note {
 		color: var(--text-muted);
+		font-size: var(--text-caption);
+		line-height: var(--leading-caption);
 	}
 
-	.usage {
-		display: grid;
+	.metric {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		min-width: 0;
+	}
+
+	.line {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
 		gap: var(--space-2);
-		margin: 0;
-	}
-
-	.row {
-		display: grid;
-		grid-template-columns: 64px minmax(96px, auto) 1fr;
-		align-items: center;
-		gap: var(--space-3);
-		min-height: 32px;
+		white-space: nowrap;
 	}
 
 	dt,
 	.k {
 		color: var(--text-muted);
+		font-size: var(--text-caption);
+		line-height: var(--leading-caption);
 	}
 
 	dd {
@@ -287,39 +308,30 @@
 	}
 
 	.spark {
-		height: 32px;
+		display: block;
+		height: 28px;
 		min-width: 0;
 	}
 
-	.disk .spark {
+	.bar {
 		display: flex;
 		align-items: center;
+		height: 28px;
 	}
 
-	.disk .spark :global(.meter-row) {
+	.bar :global(.meter-row) {
 		flex: 1;
 	}
 
-	.meter {
-		padding-left: calc(64px + var(--space-3));
-	}
-
 	.none {
-		padding: var(--space-1) 0;
+		grid-column: span 3;
 	}
 
 	.counts {
 		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
-		gap: var(--space-3);
+		grid-template-columns: repeat(4, auto);
+		gap: var(--space-5);
 		margin: 0;
-		padding-top: var(--space-4);
-		border-top: 1px solid var(--border-subtle);
-	}
-
-	.counts dt {
-		font-size: var(--text-caption);
-		line-height: var(--leading-caption);
 	}
 
 	.counts dd {
@@ -336,5 +348,66 @@
 	.offline .value,
 	.offline .counts dd {
 		color: var(--text-default);
+	}
+
+	/* Laptops and tablets: identity and counts share the first row, the
+	   three usage columns the second. */
+	@media (max-width: 1279px) {
+		.env {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+
+		.ident {
+			grid-column: span 2;
+		}
+
+		.counts {
+			grid-row: 1;
+			grid-column: 3;
+			justify-self: end;
+		}
+
+		.none {
+			grid-column: 1 / -1;
+		}
+	}
+
+	/* Phones: a stacked card like before, each usage figure one thin row
+	   (label and value, then its sparkline or bar). */
+	@media (max-width: 639px) {
+		.env {
+			grid-template-columns: minmax(0, 1fr);
+			gap: var(--space-2);
+			padding: var(--space-4);
+		}
+
+		.ident {
+			padding-bottom: var(--space-2);
+		}
+
+		.metric {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+			align-items: center;
+			gap: var(--space-3);
+		}
+
+		.counts {
+			padding-top: var(--space-3);
+			border-top: 1px solid var(--border-subtle);
+		}
+
+		.ident,
+		.none,
+		.counts {
+			grid-row: auto;
+			grid-column: auto;
+		}
+
+		.counts {
+			justify-self: stretch;
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+			gap: var(--space-3);
+		}
 	}
 </style>

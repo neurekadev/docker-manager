@@ -141,6 +141,9 @@ type Container struct {
 	// Networks are the names of the networks the container is configured
 	// for (also while stopped), sorted.
 	Networks []string
+	// Endpoints are the container's endpoints by network name (addresses
+	// are empty while it is stopped).
+	Endpoints map[string]EndpointInfo
 }
 
 // ContainerState is the runtime state of a container.

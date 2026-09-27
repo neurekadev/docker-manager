@@ -304,11 +304,13 @@ only wire resources to it:
   (`GET …/logs?since=`, every 3 s); over HTTP/2 or HTTP/3 it streams up to
   twelve. Service colours come from `serviceIdentity` (the services table's
   tile colour).
-- **Terminals:** `ExecTerminal` creates the exec session, opens the
+- **Terminals:** `ExecTerminal` creates the exec session for the chosen
+  shell (Automatic, Bash, sh, Zsh; the agent finds its path in the
+  container and the session reports the command it started), opens the
   WebSocket with the ticket in the subprotocol, frames stdin/stdout,
   sends `resize` when `TerminalView` (`fit`) changes size, maps close codes
-  to messages (4422: "This image has no /bin/sh — try another command.") and
-  warns after 25 idle minutes.
+  to messages (4422: "This container has no Bash — choose another shell.")
+  and warns after 25 idle minutes.
 
 ## Lazy-loaded libraries
 

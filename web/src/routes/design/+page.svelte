@@ -76,12 +76,17 @@
 		TextField,
 		Tooltip,
 		TriState,
+		Uptime,
 		formatBytes,
 		formatPercent,
 		toast,
 		type Column,
 		type MenuEntry
 	} from '$lib/ui';
+
+	// Live uptimes: started 42 s, 3 h and 4 days before the gallery opened.
+	const opened = Date.now();
+	const startedAgo = (seconds: number) => new Date(opened - seconds * 1000).toISOString();
 
 	const tokenGroups: { title: string; tokens: string[] }[] = [
 		{
@@ -609,6 +614,12 @@
 			<StatusBadge status="partial" kind="job" />
 			<StatusBadge status="running" kind="job" />
 			<Badge tone="warn" dot>Update available</Badge>
+		</div>
+		<div class="row">
+			<span>Uptime <Uptime since={startedAgo(42)} /></span>
+			<span>Uptime <Uptime since={startedAgo(3 * 3600 + 12 * 60)} /></span>
+			<span>Uptime <Uptime since={startedAgo(4 * 86400 + 3 * 3600)} /></span>
+			<span>Stopped <Uptime /></span>
 		</div>
 	</section>
 

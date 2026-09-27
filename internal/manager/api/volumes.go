@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -226,6 +227,72 @@ func (h *dockerAPI) deleteVolume(ctx context.Context, in *deleteVolumeInput) (*J
 	return Accepted(j), nil
 }
 
+// VolumeSize is a volume's size on disk.
+type VolumeSize struct {
+	Name      string `json:"name" example:"shop_data"`
+	SizeBytes *int64 `json:"sizeBytes,omitempty" doc:"Absent when the Engine does not know it (volumes of other drivers) or the volume is newer than computedAt."`
+}
+
+// VolumeUsageList is the disk usage of an environment's volumes.
+type VolumeUsageList struct {
+	EnvironmentID string       `json:"environmentId"`
+	Supported     bool         `json:"supported" doc:"false: the environment's agent predates volume sizes (upgrade it); items is empty."`
+	ComputedAt    *time.Time   `json:"computedAt,omitempty" doc:"When the Engine computed the sizes (reused for up to a minute)."`
+	Items         []VolumeSize `json:"items" doc:"The volumes the caller holds volume.read on, sorted by name."`
+}
+
+type volumeUsageInput struct {
+	EnvironmentID string `path:"environmentId" maxLength:"64" doc:"Environment ID."`
+}
+
+type volumeUsageOutput struct{ Body VolumeUsageList }
+
+// volumeUsage lists the sizes of the volumes the caller may read in full.
+// The Engine walks every local volume to compute them, so the resource
+// service reuses one computation per environment for a minute and shares
+// it between concurrent callers.
+func (h *dockerAPI) volumeUsage(ctx context.Context, in *volumeUsageInput) (*volumeUsageOutput, error) {
+	sc, err := h.environment(ctx, in.EnvironmentID, false)
+	if err != nil {
+		return nil, err
+	}
+	all, err := h.svc.ListVolumes(ctx, sc.env.ID)
+	if err != nil {
+		return nil, dockerErr(err)
+	}
+	stacks := sc.stacks(ctx, h.svc)
+	var visible []string
+	for _, vol := range all {
+		if authz.ViewOf(sc.c, volumeResource(sc.env.ID, vol, stacks)).Full() {
+			visible = append(visible, vol.Name)
+		}
+	}
+	out := VolumeUsageList{EnvironmentID: sc.env.ID, Supported: true, Items: []VolumeSize{}}
+	if len(visible) == 0 {
+		// Nothing to show: the walk is not worth starting.
+		return &volumeUsageOutput{Body: out}, nil
+	}
+	r, err := h.svc.VolumeUsage(ctx, sc.env.ID)
+	if err != nil {
+		return nil, dockerErr(err)
+	}
+	if r.Unsupported {
+		out.Supported = false
+		return &volumeUsageOutput{Body: out}, nil
+	}
+	at := r.ComputedAt
+	out.ComputedAt = &at
+	slices.Sort(visible)
+	for _, name := range visible {
+		item := VolumeSize{Name: name}
+		if n, ok := r.Sizes[name]; ok && n >= 0 {
+			item.SizeBytes = &n
+		}
+		out.Items = append(out.Items, item)
+	}
+	return &volumeUsageOutput{Body: out}, nil
+}
+
 func registerVolumes(a huma.API, deps Deps) {
 	h := newDockerAPI(deps)
 	base := BasePath + "/environments/{environmentId}/volumes"
@@ -263,4 +330,16 @@ func registerVolumes(a huma.API, deps Deps) {
 		},
 		Capability: CapVolumeRemove, Scope: ScopeResource, Idempotency: IdempotencyJob,
 	}, h.deleteVolume)
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "list-volume-usage", Method: http.MethodGet, Path: BasePath + "/environments/{environmentId}/disk-usage/volumes",
+			Summary: "List the disk usage of volumes",
+			Description: "The size of every volume the caller holds volume.read on. The Engine computes the sizes by walking the " +
+				"volumes, so Docker Manager reuses one computation per environment for up to a minute (computedAt) and concurrent " +
+				"requests share it; the first request after that can take a while on large volumes. supported is false (and items " +
+				"empty) when the environment's agent predates the request.",
+			Tags: []string{tagVolumes}, Errors: dockerReadErrors,
+		},
+		Capability: CapVolumeRead, Scope: ScopeEnvironment,
+	}, h.volumeUsage)
 }

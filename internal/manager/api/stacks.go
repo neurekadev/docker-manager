@@ -18,6 +18,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
 const tagStacks = "Stacks"
@@ -187,6 +188,7 @@ type Stack struct {
 	Recovery          string              `json:"recovery,omitempty" doc:"How to recover from a failed deploy."`
 	Binds             []StackBind         `json:"binds,omitempty" doc:"Resolved bind sources (with stack.definition.read)."`
 	LastJob           *StackJobRef        `json:"lastJob,omitempty"`
+	Protection        *ResourceProtection `json:"protection,omitempty" doc:"Docker Manager's own Compose project (#32; get-stack only, while the environment is online): it can be imported, redeployed and updated, but stop, restart, take down, delete and migrate are refused with 409 protected."`
 	EnvironmentOnline bool                `json:"environmentOnline,omitempty" doc:"The environment's agent is connected."`
 	ReadOnly          bool                `json:"readOnly,omitempty" doc:"The environment is offline: the last known revision and state are shown read-only."`
 	CreatedAt         time.Time           `json:"createdAt,omitzero"`
@@ -375,6 +377,11 @@ func newRevision(r domain.StackRevision, st domain.Stack, withContent bool) Stac
 		out.Files = append(out.Files, rf)
 	}
 	return out
+}
+
+// stackProtection reports Docker Manager's own Compose project (#32).
+type stackProtection interface {
+	Protection(ctx context.Context, st domain.Stack) (*protocol.Protection, error)
 }
 
 type stacksAPI struct {
@@ -597,6 +604,12 @@ func (h *stacksAPI) get(ctx context.Context, in *stackIDInput) (*stackOutput, er
 		return nil, err
 	}
 	out := h.stackOut(ctx, st, v)
+	if sp, ok := h.svc.(stackProtection); ok && out.Body.EnvironmentOnline {
+		// Best effort: the UI disables the refused actions with the reason.
+		if p, err := sp.Protection(ctx, st); err == nil {
+			out.Body.Protection = newProtection(p)
+		}
+	}
 	if hp, ok := h.svc.(stackHostPaths); ok && out.Body.Location != nil && v.Has(string(CapStackDefinitionRead)) {
 		// Best effort: unknown while the agent has not reported its roots.
 		if p, err := hp.HostPath(ctx, st.ID); err == nil {
@@ -952,21 +965,22 @@ type StackPort struct {
 // with any view of the stack; image, ports, restart policy and resources
 // need container.details.read on the container.
 type StackContainer struct {
-	ID            string      `json:"id,omitempty"`
-	Name          string      `json:"name,omitempty"`
-	State         string      `json:"state" enum:"created,running,paused,restarting,removing,exited,dead"`
-	Health        string      `json:"health,omitempty"`
-	View          string      `json:"view" enum:"minimal,full"`
-	Image         string      `json:"image,omitempty"`
-	ImageID       string      `json:"imageId,omitempty"`
-	ExitCode      *int        `json:"exitCode,omitempty"`
-	RestartPolicy string      `json:"restartPolicy,omitempty"`
-	Ports         []StackPort `json:"ports,omitempty"`
-	NanoCPUs      int64       `json:"nanoCpus,omitempty" doc:"CPU limit in 1e-9 CPUs (0: unlimited)."`
-	CPUShares     int64       `json:"cpuShares,omitempty"`
-	Memory        int64       `json:"memory,omitempty" doc:"Memory limit in bytes (0: unlimited)."`
-	PidsLimit     *int64      `json:"pidsLimit,omitempty"`
-	StartedAt     *time.Time  `json:"startedAt,omitempty"`
+	ID            string             `json:"id,omitempty"`
+	Name          string             `json:"name,omitempty"`
+	State         string             `json:"state" enum:"created,running,paused,restarting,removing,exited,dead"`
+	Health        string             `json:"health,omitempty"`
+	View          string             `json:"view" enum:"minimal,full"`
+	Image         string             `json:"image,omitempty"`
+	ImageID       string             `json:"imageId,omitempty"`
+	ExitCode      *int               `json:"exitCode,omitempty"`
+	RestartPolicy string             `json:"restartPolicy,omitempty"`
+	Ports         []StackPort        `json:"ports,omitempty"`
+	NanoCPUs      int64              `json:"nanoCpus,omitempty" doc:"CPU limit in 1e-9 CPUs (0: unlimited)."`
+	CPUShares     int64              `json:"cpuShares,omitempty"`
+	Memory        int64              `json:"memory,omitempty" doc:"Memory limit in bytes (0: unlimited)."`
+	PidsLimit     *int64             `json:"pidsLimit,omitempty"`
+	StartedAt     *time.Time         `json:"startedAt,omitempty"`
+	Networks      []ContainerNetwork `json:"networks,omitempty" doc:"The container's addresses per network (empty while it is stopped). Full view."`
 }
 
 // StackServiceStatus is a service with its containers and drift.
@@ -1041,6 +1055,9 @@ func shapeContainer(c authz.Checker, st domain.Stack, service string, ct domain.
 	out.NanoCPUs, out.CPUShares, out.Memory, out.PidsLimit = ct.NanoCPUs, ct.CPUShares, ct.Memory, ct.PidsLimit
 	for _, p := range ct.Ports {
 		out.Ports = append(out.Ports, StackPort(p))
+	}
+	for _, n := range ct.Networks {
+		out.Networks = append(out.Networks, ContainerNetwork{Name: n.Network, IPAddress: n.IPv4, IPv6Address: n.IPv6})
 	}
 	return out
 }

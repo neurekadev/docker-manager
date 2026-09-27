@@ -1,9 +1,14 @@
 # Upgrading Docker Manager (#34)
 
-Docker Manager has no in-app self-update in v1 (#25): an agent recreating its own
-container through its own Docker socket is fragile. You upgrade the images
-where they run. The API and UI show which agents are outdated and how to
-upgrade them.
+You upgrade the images where they run, or let Docker Manager do it: once its
+own Compose project is imported as a stack (see [deployment.md](../deployment.md),
+"Docker Manager's own containers"), **Deploy with pull** or a digest update
+policy (#20) pulls and recreates the manager and the co-located agent. The
+agent never recreates its own container in the middle of a job: it hands
+that service to a short-lived helper container after the job (#32), which
+starts the previous agent again if Compose fails. The rules below (manager
+first, then agents; a pre-migration snapshot) apply either way. The API and
+UI show which agents are outdated and how to upgrade them.
 
 ## Rules
 

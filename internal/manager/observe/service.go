@@ -217,6 +217,12 @@ func (s *Service) Latest(ctx context.Context, environmentID string) (domain.Late
 	return s.opts.Store.Latest(ctx, environmentID)
 }
 
+// LatestContainers returns the latest sample of each container of an
+// environment sampled within window.
+func (s *Service) LatestContainers(ctx context.Context, environmentID string, window time.Duration) ([]domain.LatestContainerMetrics, error) {
+	return s.opts.Store.LatestContainers(ctx, environmentID, window)
+}
+
 // noteEnvironment remembers an environment seen on the bus.
 func (s *Service) noteEnvironment(id string) {
 	if id == "" {

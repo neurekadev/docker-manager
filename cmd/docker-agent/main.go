@@ -6,6 +6,7 @@
 //	docker-agent [run]         run the agent (default)
 //	docker-agent enroll        hand an enrollment token (stdin) to the running agent
 //	docker-agent healthcheck   check the health file is fresh (image HEALTHCHECK)
+//	docker-agent self-update   recreate the agent's own container (helper, #32)
 //	docker-agent version       print build information
 package main
 
@@ -16,6 +17,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -26,6 +28,7 @@ import (
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/config"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/runtime"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/selfupdate"
 	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
 	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
 	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
@@ -66,6 +69,8 @@ func run(args []string, env envconfig.Source, stdout, stderr io.Writer, geteuid 
 			return exitFail
 		}
 		return exitOK
+	case selfupdate.Subcommand:
+		return selfUpdateCmd(args[1:], env, stderr)
 	case "version", "--version", "-v":
 		_, _ = fmt.Fprintln(stdout, "docker-agent", buildinfo.Get())
 		return exitOK
@@ -88,6 +93,8 @@ Commands:
                    printf '%s\n' "$TOKEN" | docker exec -i docker-agent docker-agent enroll
                  flags: -token-file PATH (instead of stdin), -wait 90s (0: do not wait)
   healthcheck    exit 0 if the agent health file is fresh
+  self-update    recreate the agent's own container from a plan the agent
+                 wrote (run by the agent in a helper container)
   version        print build information
 
 Configuration is read from environment variables; see docs/configuration.md.
@@ -105,6 +112,28 @@ func runAgent(env envconfig.Source, stderr io.Writer, geteuid func() int) int {
 	defer stop()
 	if err := runtime.Run(ctx, runtime.Options{Config: cfg, Logger: logger, Geteuid: geteuid, Observe: true, Files: true, ContainerIO: true, Backups: true}); err != nil {
 		logger.Error("docker-agent stopped with error", "error", err)
+		return exitFail
+	}
+	return exitOK
+}
+
+// selfUpdateCmd is the helper container's command (#32): it recreates the
+// agent's own Compose service from the plan the agent wrote.
+func selfUpdateCmd(args []string, env envconfig.Source, stderr io.Writer) int {
+	if len(args) != 1 {
+		_, _ = fmt.Fprintln(stderr, "self-update: pass the plan file written by the agent")
+		return exitConfig
+	}
+	level, err := logging.ParseLevel(env.String(config.EnvLogLevel, "info"))
+	if err != nil {
+		level = slog.LevelInfo
+	}
+	logger := logging.New(stderr, level, logging.FormatJSON)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := selfupdate.Run(ctx, selfupdate.RunOptions{PlanPath: args[0], DockerHost: env.String(config.EnvDockerHost, ""),
+		Grace: selfupdate.DefaultGrace, Logger: logger}); err != nil {
+		logger.Error("self-update failed", "error", err)
 		return exitFail
 	}
 	return exitOK

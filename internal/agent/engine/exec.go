@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/containerd/platforms"
 	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/client"
@@ -34,6 +35,25 @@ func (c *Client) CreateExec(ctx context.Context, containerID string, spec ExecSp
 		return "", wrap(op, err)
 	}
 	return res.ID, nil
+}
+
+// PathExists reports whether path exists in the container's filesystem
+// (the Engine resolves it inside the container, following the container's
+// own symlinks such as /bin -> usr/bin). A missing path is (false, nil).
+// The Engine answers a missing container the same way, so callers inspect
+// the container first.
+func (c *Client) PathExists(ctx context.Context, containerID, path string) (bool, error) {
+	const op = "container.stat_path"
+	ctx, cancel := c.bound(ctx)
+	defer cancel()
+	_, err := c.api.ContainerStatPath(ctx, containerID, client.ContainerStatPathOptions{Path: path})
+	switch {
+	case err == nil:
+		return true, nil
+	case cerrdefs.IsNotFound(err):
+		return false, nil
+	}
+	return false, wrap(op, err)
 }
 
 // ExecIO connects an exec session. Stdin may be nil. Without a TTY the

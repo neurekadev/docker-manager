@@ -103,6 +103,16 @@ type ProjectProtection interface {
 // after the stack service).
 func (s *Service) SetProtection(p ProjectProtection) { s.opts.Protection = p }
 
+// Protection reports whether st is Docker Manager's own Compose project (#32):
+// it can be redeployed and updated, never stopped, taken down or deleted
+// (nil: another project, or no check installed).
+func (s *Service) Protection(ctx context.Context, st domain.Stack) (*protocol.Protection, error) {
+	if s.opts.Protection == nil {
+		return nil, nil
+	}
+	return s.opts.Protection.ProjectProtection(ctx, st.EnvironmentID, st.Name)
+}
+
 // SetVolumeHolds installs the volumes a stack removal must keep although
 // they carry the project's labels (a migrated stack's retained source,
 // #35), by environment and Compose project.

@@ -367,6 +367,82 @@ describe('ServicesTable', () => {
 		await user.click(await screen.findByRole('menuitem', { name: 'Start worker' }));
 		expect(onoperate).toHaveBeenCalledWith('worker', 'start');
 	});
+
+	it('shows uptime, CPU and memory right after the status, and the addresses', () => {
+		const day = 86400;
+		const web = services[0];
+		const live = [
+			{
+				...web,
+				containers: [
+					{
+						...web.containers[0],
+						startedAt: new Date(Date.now() - (2 * day + 3600) * 1000).toISOString(),
+						networks: [
+							{ name: 'silo_default', ipAddress: '172.18.0.2' },
+							{ name: 'edge', ipAddress: '10.0.0.5' }
+						]
+					}
+				]
+			},
+			services[1]
+		] as StackServiceStatus[];
+		render(ServicesTable, {
+			props: {
+				stack: stack(),
+				services: live,
+				usage: {
+					cpu: [],
+					cpuNow: 12.5,
+					memoryNow: 64 << 20,
+					containers: { 'silo-web-1': { cpu: 12.5, memory: 64 << 20 } }
+				}
+			}
+		});
+		const headers = screen.getAllByRole('columnheader').map((h) => h.textContent ?? '');
+		const at = (name: string) => headers.findIndex((h) => h.includes(name));
+		expect([at('Status'), at('Uptime'), at('CPU'), at('Memory')]).toEqual([1, 2, 3, 4]);
+		expect(at('IP addresses')).toBeLessThan(at('Image'));
+		expect(screen.getByText('2d 1h 0m')).toBeInTheDocument();
+		expect(screen.getByText('12.5%')).toBeInTheDocument();
+		expect(screen.getByText('64 MB')).toBeInTheDocument();
+		expect(screen.getByText('172.18.0.2')).toBeInTheDocument();
+		expect(screen.getByText('+1')).toBeInTheDocument();
+	});
+
+	it("disables restart and stop of Docker Manager's own stack (not start)", async () => {
+		const user = setup();
+		render(ServicesTable, {
+			props: {
+				stack: stack({
+					protection: {
+						role: 'docker_manager_project',
+						reason: "Docker Manager's own Compose project",
+						self: true,
+						restartAllowed: false
+					}
+				}),
+				services,
+				usage: null,
+				onoperate: vi.fn()
+			}
+		});
+		await user.click(screen.getByRole('button', { name: 'More actions for web' }));
+		expect(await screen.findByRole('menuitem', { name: 'Restart web' })).toHaveAttribute(
+			'aria-disabled',
+			'true'
+		);
+		expect(screen.getByRole('menuitem', { name: 'Stop web' })).toHaveAttribute(
+			'aria-disabled',
+			'true'
+		);
+		await user.keyboard('{Escape}');
+		await user.click(screen.getByRole('button', { name: 'More actions for worker' }));
+		expect(await screen.findByRole('menuitem', { name: 'Start worker' })).not.toHaveAttribute(
+			'aria-disabled',
+			'true'
+		);
+	});
 });
 
 describe('DiffView', () => {

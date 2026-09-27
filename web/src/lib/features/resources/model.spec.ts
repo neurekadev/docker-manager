@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	compactDuration,
+	containerAddresses,
 	containerStatus,
 	envLines,
 	filterContainers,
@@ -14,6 +15,8 @@ import {
 	shortDigest,
 	splitCommand,
 	uniquePorts,
+	upSince,
+	uptimeSortValue,
 	volumeAccess
 } from './model';
 
@@ -188,5 +191,44 @@ describe('container list filters (#6: state, stack, label)', () => {
 		expect(containerStatus({ state: 'running', health: 'unhealthy' })).toBe('unhealthy');
 		expect(containerStatus({ state: 'running', health: 'healthy' })).toBe('running');
 		expect(containerStatus({ state: 'exited', health: 'unhealthy' })).toBe('exited');
+	});
+});
+
+describe('container addresses and uptime', () => {
+	it('lists IPv4 before IPv6 per network, once, skipping address-less networks', () => {
+		expect(
+			containerAddresses([
+				[
+					{ name: 'shop_default', ipAddress: '172.18.0.3', ipv6Address: 'fd00::3' },
+					{ name: 'bridge' }
+				],
+				[
+					{ name: 'shop_default', ipAddress: '172.18.0.3' },
+					{ name: 'edge', ipAddress: '10.0.0.7' }
+				],
+				undefined
+			])
+		).toEqual([
+			{ network: 'shop_default', address: '172.18.0.3' },
+			{ network: 'shop_default', address: 'fd00::3' },
+			{ network: 'edge', address: '10.0.0.7' }
+		]);
+		expect(containerAddresses([])).toEqual([]);
+	});
+
+	it('counts uptime only while a container is up', () => {
+		const at = '2026-09-25T12:00:00Z';
+		expect(upSince({ state: 'running', startedAt: at })).toBe(at);
+		expect(upSince({ state: 'paused', startedAt: at })).toBe(at);
+		expect(upSince({ state: 'exited', startedAt: at })).toBeNull();
+		expect(upSince({ state: 'running' })).toBeNull();
+	});
+
+	it('sorts longer uptimes (earlier starts) after shorter ones, unknown last', () => {
+		const earlier = uptimeSortValue('2026-09-25T10:00:00Z')!;
+		const later = uptimeSortValue('2026-09-25T12:00:00Z')!;
+		expect(later).toBeLessThan(earlier);
+		expect(uptimeSortValue(undefined)).toBeNull();
+		expect(uptimeSortValue('nope')).toBeNull();
 	});
 });

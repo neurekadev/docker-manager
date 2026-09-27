@@ -1230,7 +1230,7 @@ export interface paths {
         put?: never;
         /**
          * Open a terminal in a container
-         * @description Creates an exec session running command inside the container (never on the host) and a one-use attach ticket; attach within 60 s with GET …/exec-sessions/{sessionId}/stream (WebSocket, subprotocols docker-manager.exec.v1 and docker-manager.ticket.<ticket>). Needs container.exec (API tokens only with container.exec in their own grants). 409 when the container is not running, 429 beyond 4 terminals per user or 8 per container.
+         * @description Creates an exec session running command, or a shell the agent finds in the container (default: shell auto, Bash if present, else sh), inside the container (never on the host) and a one-use attach ticket; attach within 60 s with GET …/exec-sessions/{sessionId}/stream (WebSocket, subprotocols docker-manager.exec.v1 and docker-manager.ticket.<ticket>). The response's command is the argv actually started. Needs container.exec (API tokens only with container.exec in their own grants). 409 when the container is not running, 422 command_not_found when the container has none of the shell's paths, 429 beyond 4 terminals per user or 8 per container.
          */
         post: operations["create-container-exec-session"];
         delete?: never;
@@ -1459,6 +1459,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/disk-usage/volumes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the disk usage of volumes
+         * @description The size of every volume the caller holds volume.read on. The Engine computes the sizes by walking the volumes, so Docker Manager reuses one computation per environment for up to a minute (computedAt) and concurrent requests share it; the first request after that can take a while on large volumes. supported is false (and items empty) when the environment's agent predates the request.
+         */
+        get: operations["list-volume-usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/events/stream": {
         parameters: {
             query?: never;
@@ -1635,6 +1655,26 @@ export interface paths {
          * @description Host CPU, memory, load, network and per-filesystem disk series of a time range, downsampled to one value per step from the finest storage level still holding the range (10 s for 24 h, 1 min for 7 d, 15 min for 90 d). Missing samples (the agent was offline, a value unknown) are null, never zero. Units and flags: docs/architecture/metrics.md.
          */
         get: operations["get-environment-metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environments/{environmentId}/metrics/containers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the current usage of an environment's containers
+         * @description The newest CPU and memory sample (#5, 10 s resolution) of every container sampled within the last windowSeconds, for the containers the caller holds container.metrics.read on (others are absent). Tables poll it (or refresh on metrics.sampled) instead of one range query per container. Unknown values are absent, never zero.
+         */
+        get: operations["list-latest-container-metrics"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5280,11 +5320,18 @@ export interface components {
             mounts?: components["schemas"]["ContainerMount"][];
             /** @example web */
             name: string;
+            /** @description The container's addresses per network (empty while it is stopped). Full view. */
+            networks?: components["schemas"]["ContainerNetwork"][];
             ports?: components["schemas"]["ContainerPort"][];
             /** @description Set for Docker Manager's own containers (#32): stop, pause, update and removal are refused. */
             protection?: components["schemas"]["ResourceProtection"];
             /** @description Compose project and service. */
             stack?: components["schemas"]["StackMembership"];
+            /**
+             * Format: date-time
+             * @description Last start of a running, paused or restarting container (uptime). Full view.
+             */
+            startedAt?: string;
             /**
              * @example running
              * @enum {string}
@@ -6395,7 +6442,7 @@ export interface components {
              */
             cols?: number;
             /**
-             * @description argv run inside the container (default ["/bin/sh"]). Never a host shell.
+             * @description argv run inside the container. Never a host shell. Mutually exclusive with shell; without either the shell is auto.
              * @example [
              *       "/bin/sh"
              *     ]
@@ -6407,6 +6454,11 @@ export interface components {
              * @example 32
              */
             rows?: number;
+            /**
+             * @description A shell the agent finds in the container: the first of its common paths that exists (bash: /bin/bash, /usr/bin/bash, /usr/local/bin/bash; zsh: /bin/zsh, /usr/bin/zsh, /usr/local/bin/zsh; sh: /bin/sh, /usr/bin/sh, /busybox/sh; auto: Bash if present, else sh). 422 command_not_found when none exists. Mutually exclusive with command; the default when neither is given is auto.
+             * @enum {string}
+             */
+            shell?: "auto" | "bash" | "sh" | "zsh";
             /** @description Allocate a terminal (default true). */
             tty?: boolean;
             /** @description User (and group) in the container, e.g. 0 or www-data. */
@@ -6414,6 +6466,13 @@ export interface components {
             workingDir?: string;
         };
         ExecSessionDTO: {
+            /**
+             * @description The argv actually started (the resolved shell).
+             * @example [
+             *       "/bin/bash"
+             *     ]
+             */
+            command: string[];
             /**
              * Format: date-time
              * @description Attach before this time (60 s).
@@ -6976,6 +7035,40 @@ export interface components {
             keyState: components["schemas"]["RecoveryKeyState"];
             nextStep: string;
             recoveryKey: components["schemas"]["RecoveryKeyReveal"];
+        };
+        LatestContainerMetric: {
+            /**
+             * Format: date-time
+             * @description When the sample was taken.
+             */
+            at: string;
+            /** @description Container name. */
+            container: string;
+            /**
+             * Format: double
+             * @description Share of the environment's cores, 0..100; absent when unknown.
+             */
+            cpuPercent?: number;
+            /**
+             * Format: int64
+             * @description The container's memory limit; absent when unlimited or unknown.
+             */
+            memoryLimitBytes?: number;
+            /**
+             * Format: int64
+             * @description Absent when unknown.
+             */
+            memoryUsedBytes?: number;
+        };
+        LatestContainerMetrics: {
+            environmentId: string;
+            /** @description Sorted by container name; containers without a recent sample (stopped, new) are absent. */
+            items: components["schemas"]["LatestContainerMetric"][];
+            /**
+             * Format: int64
+             * @description Only containers sampled within this many seconds are listed.
+             */
+            windowSeconds: number;
         };
         LiveAgentStatus: {
             /** Format: date-time */
@@ -9081,6 +9174,8 @@ export interface components {
             origin?: "created" | "imported";
             /** @description Engine state before the last deploy (recovery of a failed deploy). */
             previousState?: components["schemas"]["StackServiceState"][];
+            /** @description Docker Manager's own Compose project (#32; get-stack only, while the environment is online): it can be imported, redeployed and updated, but stop, restart, take down, delete and migrate are refused with 409 protected. */
+            protection?: components["schemas"]["ResourceProtection"];
             /** @description The environment is offline: the last known revision and state are shown read-only. */
             readOnly?: boolean;
             /** @description How to recover from a failed deploy. */
@@ -9137,6 +9232,8 @@ export interface components {
              * @description CPU limit in 1e-9 CPUs (0: unlimited).
              */
             nanoCpus?: number;
+            /** @description The container's addresses per network (empty while it is stopped). Full view. */
+            networks?: components["schemas"]["ContainerNetwork"][];
             /** Format: int64 */
             pidsLimit?: number;
             ports?: components["schemas"]["StackPort"][];
@@ -9964,6 +10061,27 @@ export interface components {
              * @example web_data
              */
             targetName?: string;
+        };
+        VolumeSize: {
+            /** @example shop_data */
+            name: string;
+            /**
+             * Format: int64
+             * @description Absent when the Engine does not know it (volumes of other drivers) or the volume is newer than computedAt.
+             */
+            sizeBytes?: number;
+        };
+        VolumeUsageList: {
+            /**
+             * Format: date-time
+             * @description When the Engine computed the sizes (reused for up to a minute).
+             */
+            computedAt?: string;
+            environmentId: string;
+            /** @description The volumes the caller holds volume.read on, sorted by name. */
+            items: components["schemas"]["VolumeSize"][];
+            /** @description false: the environment's agent predates volume sizes (upgrade it); items is empty. */
+            supported: boolean;
         };
     };
     responses: never;
@@ -18845,6 +18963,17 @@ export interface operations {
                      *             }
                      *           ],
                      *           "name": "web",
+                     *           "networks": [
+                     *             {
+                     *               "aliases": [
+                     *                 "example"
+                     *               ],
+                     *               "ipAddress": "example",
+                     *               "ipv6Address": "example",
+                     *               "macAddress": "example",
+                     *               "name": "web"
+                     *             }
+                     *           ],
                      *           "ports": [
                      *             {
                      *               "containerPort": 1,
@@ -18865,6 +18994,7 @@ export interface operations {
                      *             "service": "example",
                      *             "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *           },
+                     *           "startedAt": "2026-09-25T12:00:00Z",
                      *           "state": "running",
                      *           "status": "example",
                      *           "update": "ineligible",
@@ -19237,6 +19367,17 @@ export interface operations {
                      *         }
                      *       ],
                      *       "name": "web",
+                     *       "networks": [
+                     *         {
+                     *           "aliases": [
+                     *             "example"
+                     *           ],
+                     *           "ipAddress": "example",
+                     *           "ipv6Address": "example",
+                     *           "macAddress": "example",
+                     *           "name": "web"
+                     *         }
+                     *       ],
                      *       "ports": [
                      *         {
                      *           "containerPort": 1,
@@ -19257,6 +19398,7 @@ export interface operations {
                      *         "service": "example",
                      *         "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
                      *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
                      *       "state": "running",
                      *       "status": "example",
                      *       "update": "ineligible",
@@ -19716,6 +19858,9 @@ export interface operations {
                 content: {
                     /**
                      * @example {
+                     *       "command": [
+                     *         "/bin/bash"
+                     *       ],
                      *       "expiresAt": "2026-09-25T12:00:00Z",
                      *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "streamUrl": "example",
@@ -21330,6 +21475,105 @@ export interface operations {
             };
         };
     };
+    "list-volume-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "computedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "name": "shop_data",
+                     *           "sizeBytes": 1
+                     *         }
+                     *       ],
+                     *       "supported": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["VolumeUsageList"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "stream-environment-events": {
         parameters: {
             query?: never;
@@ -22741,6 +22985,98 @@ export interface operations {
             };
         };
     };
+    "list-latest-container-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "container": "example",
+                     *           "cpuPercent": 1,
+                     *           "memoryLimitBytes": 1,
+                     *           "memoryUsedBytes": 1
+                     *         }
+                     *       ],
+                     *       "windowSeconds": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["LatestContainerMetrics"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-networks": {
         parameters: {
             query?: {
@@ -24029,6 +24365,12 @@ export interface operations {
                      *           "service": "example"
                      *         }
                      *       ],
+                     *       "protection": {
+                     *         "reason": "example",
+                     *         "restartAllowed": false,
+                     *         "role": "agent",
+                     *         "self": false
+                     *       },
                      *       "readOnly": false,
                      *       "recovery": "example",
                      *       "revision": 1,
@@ -35084,6 +35426,12 @@ export interface operations {
                      *               "service": "example"
                      *             }
                      *           ],
+                     *           "protection": {
+                     *             "reason": "example",
+                     *             "restartAllowed": false,
+                     *             "role": "agent",
+                     *             "self": false
+                     *           },
                      *           "readOnly": false,
                      *           "recovery": "example",
                      *           "revision": 1,
@@ -35256,6 +35604,12 @@ export interface operations {
                      *             "service": "example"
                      *           }
                      *         ],
+                     *         "protection": {
+                     *           "reason": "example",
+                     *           "restartAllowed": false,
+                     *           "role": "agent",
+                     *           "self": false
+                     *         },
                      *         "readOnly": false,
                      *         "recovery": "example",
                      *         "revision": 1,
@@ -35672,6 +36026,12 @@ export interface operations {
                      *           "service": "example"
                      *         }
                      *       ],
+                     *       "protection": {
+                     *         "reason": "example",
+                     *         "restartAllowed": false,
+                     *         "role": "agent",
+                     *         "self": false
+                     *       },
                      *       "readOnly": false,
                      *       "recovery": "example",
                      *       "revision": 1,
@@ -35995,6 +36355,12 @@ export interface operations {
                      *           "service": "example"
                      *         }
                      *       ],
+                     *       "protection": {
+                     *         "reason": "example",
+                     *         "restartAllowed": false,
+                     *         "role": "agent",
+                     *         "self": false
+                     *       },
                      *       "readOnly": false,
                      *       "recovery": "example",
                      *       "revision": 1,
@@ -39521,6 +39887,12 @@ export interface operations {
                      *             "service": "example"
                      *           }
                      *         ],
+                     *         "protection": {
+                     *           "reason": "example",
+                     *           "restartAllowed": false,
+                     *           "role": "agent",
+                     *           "self": false
+                     *         },
                      *         "readOnly": false,
                      *         "recovery": "example",
                      *         "revision": 1,
@@ -39882,6 +40254,17 @@ export interface operations {
                      *               "memory": 1,
                      *               "name": "web",
                      *               "nanoCpus": 1,
+                     *               "networks": [
+                     *                 {
+                     *                   "aliases": [
+                     *                     "example"
+                     *                   ],
+                     *                   "ipAddress": "example",
+                     *                   "ipv6Address": "example",
+                     *                   "macAddress": "example",
+                     *                   "name": "web"
+                     *                 }
+                     *               ],
                      *               "pidsLimit": 1,
                      *               "ports": [
                      *                 {

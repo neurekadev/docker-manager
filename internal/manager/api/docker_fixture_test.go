@@ -183,6 +183,17 @@ func (f *fakeObserve) Latest(context.Context, string) (domain.LatestMetrics, boo
 	return domain.LatestMetrics{}, false, nil
 }
 func (f *fakeObserve) Journal() *observe.Journal { return nil }
+
+// LatestContainers reports a recent sample of web, db and shop-web-1 in
+// every environment (db without a memory value).
+func (f *fakeObserve) LatestContainers(context.Context, string, time.Duration) ([]domain.LatestContainerMetrics, error) {
+	cpu, mem := 12.5, int64(64<<20)
+	return []domain.LatestContainerMetrics{
+		{At: testutil.Epoch, Values: domain.ContainerValues{Name: "db", CPUPercent: &cpu}},
+		{At: testutil.Epoch, Values: domain.ContainerValues{Name: "shop-web-1", CPUPercent: &cpu, MemoryBytes: &mem}},
+		{At: testutil.Epoch, Values: domain.ContainerValues{Name: "web", CPUPercent: &cpu, MemoryBytes: &mem}},
+	}, nil
+}
 func (f *fakeObserve) Query(_ context.Context, q domain.MetricQuery) (domain.MetricResult, error) {
 	f.mu.Lock()
 	f.queries = append(f.queries, q)

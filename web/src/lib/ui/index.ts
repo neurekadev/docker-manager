@@ -25,6 +25,8 @@ export { default as Card } from './Card.svelte';
 export { default as KpiCard } from './KpiCard.svelte';
 export { default as IconTile } from './IconTile.svelte';
 export { default as Meter } from './Meter.svelte';
+export { default as Uptime } from './Uptime.svelte';
+export { clock, TICK_MS } from './clock.svelte';
 export { default as Kbd } from './Kbd.svelte';
 export { default as PageHeader } from './PageHeader.svelte';
 export type { MetaItem } from './PageHeader.svelte';

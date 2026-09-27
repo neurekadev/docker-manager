@@ -84,6 +84,8 @@ type ExecSession struct {
 	ID        string
 	Ticket    string
 	ExpiresAt time.Time
+	// Command is the argv the agent started (the resolved shell).
+	Command []string
 }
 
 // ExecAttach identifies a session for attach and delete.
@@ -142,7 +144,8 @@ type containerLogsOutput struct{ Body ContainerLogs }
 
 // ExecSessionCreate is the body of POST …/exec-sessions.
 type ExecSessionCreate struct {
-	Command    []string `json:"command,omitempty" example:"/bin/sh" maxItems:"256" doc:"argv run inside the container (default [\"/bin/sh\"]). Never a host shell."`
+	Command    []string `json:"command,omitempty" example:"/bin/sh" maxItems:"256" doc:"argv run inside the container. Never a host shell. Mutually exclusive with shell; without either the shell is auto."`
+	Shell      string   `json:"shell,omitempty" enum:"auto,bash,sh,zsh" doc:"A shell the agent finds in the container: the first of its common paths that exists (bash: /bin/bash, /usr/bin/bash, /usr/local/bin/bash; zsh: /bin/zsh, /usr/bin/zsh, /usr/local/bin/zsh; sh: /bin/sh, /usr/bin/sh, /busybox/sh; auto: Bash if present, else sh). 422 command_not_found when none exists. Mutually exclusive with command; the default when neither is given is auto."`
 	Tty        *bool    `json:"tty,omitempty" doc:"Allocate a terminal (default true)."`
 	Cols       uint     `json:"cols,omitempty" example:"120" minimum:"1" maximum:"1000" doc:"Terminal columns (default 80)."`
 	Rows       uint     `json:"rows,omitempty" example:"32" minimum:"1" maximum:"1000" doc:"Terminal rows (default 24)."`
@@ -157,6 +160,7 @@ type ExecSessionDTO struct {
 	Subprotocol string    `json:"subprotocol" example:"docker-manager.exec.v1"`
 	Ticket      string    `json:"ticket" doc:"One-use attach ticket: offer it as the WebSocket subprotocol docker-manager.ticket.<ticket> next to docker-manager.exec.v1. Bound to this session and caller; expires with expiresAt."`
 	ExpiresAt   time.Time `json:"expiresAt" doc:"Attach before this time (60 s)."`
+	Command     []string  `json:"command" example:"/bin/bash" doc:"The argv actually started (the resolved shell)."`
 }
 
 type createExecInput struct {
@@ -375,9 +379,15 @@ func (h *ioAPI) createExec(ctx context.Context, in *createExecInput) (*createExe
 		return nil, err
 	}
 	b := in.Body
-	cmd := b.Command
-	if len(cmd) == 0 {
-		cmd = []string{"/bin/sh"}
+	cmd, shell := b.Command, b.Shell
+	switch {
+	case len(cmd) > 0 && shell != "":
+		return nil, Invalid("give either a command or a shell", Field("body.shell", "cannot be combined with command"))
+	case len(cmd) == 0 && shell == "":
+		shell = protocol.ShellAuto
+	}
+	if _, ok := protocol.ShellCandidates(shell); shell != "" && !ok {
+		return nil, Invalid("unknown shell", Field("body.shell", "one of auto, bash, sh, zsh"))
 	}
 	for i, a := range cmd {
 		if a == "" && i == 0 || strings.ContainsRune(a, 0) || len(a) > 4096 {
@@ -393,14 +403,19 @@ func (h *ioAPI) createExec(ctx context.Context, in *createExecInput) (*createExe
 		rows = 24
 	}
 	s, err := h.io.CreateExec(ctx, ExecRequest{Principal: sc.p, EnvironmentID: sc.env.ID, Container: res,
-		Input: protocol.ExecCreateInput{ContainerID: d.ID, Cmd: cmd, Tty: tty, Cols: cols, Rows: rows, WorkingDir: b.WorkingDir, User: b.User}})
+		Input: protocol.ExecCreateInput{ContainerID: d.ID, Cmd: cmd, Shell: shell, Tty: tty, Cols: cols, Rows: rows,
+			WorkingDir: b.WorkingDir, User: b.User}})
 	if err != nil {
 		return nil, execErr(err)
 	}
 	audit.SetDetail(ctx, "sessionId", s.ID)
 	audit.SetDetail(ctx, "tty", tty)
+	command := s.Command
+	if command == nil {
+		command = []string{}
+	}
 	return &createExecOutput{Body: ExecSessionDTO{ID: s.ID, Subprotocol: ExecSubprotocol, Ticket: s.Ticket, ExpiresAt: s.ExpiresAt,
-		StreamURL: BasePath + "/environments/" + sc.env.ID + "/containers/" + in.ContainerID + "/exec-sessions/" + s.ID + "/stream"}}, nil
+		Command: command, StreamURL: BasePath + "/environments/" + sc.env.ID + "/containers/" + in.ContainerID + "/exec-sessions/" + s.ID + "/stream"}}, nil
 }
 
 // ticketFrom extracts the attach ticket from the offered subprotocols.
@@ -491,10 +506,12 @@ func registerContainerIO(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "create-container-exec-session", Method: http.MethodPost, Path: base + "/exec-sessions",
 			Summary: "Open a terminal in a container",
-			Description: "Creates an exec session running command inside the container (never on the host) and a one-use attach ticket; " +
+			Description: "Creates an exec session running command, or a shell the agent finds in the container (default: shell auto, " +
+				"Bash if present, else sh), inside the container (never on the host) and a one-use attach ticket; " +
 				"attach within 60 s with GET …/exec-sessions/{sessionId}/stream (WebSocket, subprotocols docker-manager.exec.v1 and " +
-				"docker-manager.ticket.<ticket>). Needs container.exec (API tokens only with container.exec in their own grants). 409 when the " +
-				"container is not running, 429 beyond 4 terminals per user or 8 per container.",
+				"docker-manager.ticket.<ticket>). The response's command is the argv actually started. Needs container.exec (API tokens only " +
+				"with container.exec in their own grants). 409 when the container is not running, 422 command_not_found when the container " +
+				"has none of the shell's paths, 429 beyond 4 terminals per user or 8 per container.",
 			Tags: []string{tagContainers}, DefaultStatus: http.StatusCreated,
 			Errors: append(errs, http.StatusConflict, http.StatusTooManyRequests),
 		},

@@ -69,6 +69,10 @@ type Options struct {
 	// Guard identifies Docker Manager's own containers (#32): an update never
 	// recreates one. nil: no check (tests).
 	Guard *protect.Guard
+	// Self hands the agent's own service to a helper container when a
+	// deploy or update of Docker Manager's own project would recreate it
+	// (#32). nil: no handoff (tests, agents outside a container).
+	Self SelfUpdater
 }
 
 // Service serves the compose.* requests and runs the stack.* jobs.

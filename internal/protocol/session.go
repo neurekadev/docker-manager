@@ -56,6 +56,7 @@ const (
 	ReqImageTag                = "image.tag"
 	ReqVolumeList              = "volume.list"
 	ReqVolumeInspect           = "volume.inspect"
+	ReqVolumeUsage             = "volume.usage"
 	ReqNetworkList             = "network.list"
 	ReqNetworkInspect          = "network.inspect"
 	ReqComposeDiscover         = "compose.discover"
@@ -119,7 +120,7 @@ var requestNames = []string{
 	ReqEngineInfo, ReqEngineDiskUsage, ReqHostMetrics, ReqContainerList, ReqContainerInspect,
 	ReqContainerStats, ReqContainerLogs, ReqContainerExecCreate, ReqContainerExecResize,
 	ReqContainerExecDelete, ReqImageList, ReqImageInspect, ReqImageTag, ReqVolumeList,
-	ReqVolumeInspect, ReqNetworkList, ReqNetworkInspect, ReqComposeDiscover, ReqComposeValidate,
+	ReqVolumeInspect, ReqVolumeUsage, ReqNetworkList, ReqNetworkInspect, ReqComposeDiscover, ReqComposeValidate,
 	ReqComposeRead, ReqComposeWrite, ReqComposeServices,
 	ReqFilesList, ReqFilesStat, ReqFilesRead, ReqFilesWrite, ReqFilesMkdir, ReqFilesConflictPreview, ReqFilesWatch,
 	ReqBackupSnapshots, ReqBackupContents, ReqBackupScopePreview, ReqRestorePreview,
@@ -214,6 +215,9 @@ const (
 	CodeSnapshotPathUnknown = "snapshot_path_unknown"
 	CodePathNotRestorable   = "path_not_restorable"
 	CodeTargetMissing       = "target_missing"
+	// CodeCommandNotFound: none of a terminal shell's paths exists in the
+	// container (#8, container.exec.create with a shell).
+	CodeCommandNotFound = "command_not_found"
 )
 
 var errorCodes = []string{
@@ -225,6 +229,7 @@ var errorCodes = []string{
 	CodeRepositoryNotFound, CodeRecoveryKeyRejected, CodeRepositoryLocked, CodeRepositoryDamaged, CodeStorageAccessDenied,
 	CodeStorageUnreachable, CodeSnapshotNotFound, CodeResticUnavailable, CodeResticFailed, CodePathNotAllowed,
 	CodeRepositoryInsideSource, CodeSnapshotPathUnknown, CodePathNotRestorable, CodeTargetMissing,
+	CodeCommandNotFound,
 }
 
 // ErrorCodes returns every error frame code.

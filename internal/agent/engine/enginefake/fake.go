@@ -41,6 +41,9 @@ type Engine struct {
 	// volumeRoot is where volume mountpoints live (SetVolumeRoot).
 	volumeRoot string
 	execs      []ExecInstance
+	// paths are the files that exist in a container's filesystem, by
+	// container ID (SetPaths; none by default).
+	paths map[string]map[string]bool
 	// events is the Engine's event log (Docker API operations only, not
 	// the Add* seeding helpers' containers); notify is closed and replaced
 	// whenever an event is appended.
@@ -367,8 +370,18 @@ func (e *Engine) summary(c *Container) engine.Container {
 	out := engine.Container{ID: d.ID, Names: []string{d.Name}, Image: d.Image, ImageID: d.ImageID, Command: c.Command,
 		Created: d.Created, State: d.State.Status, Status: d.State.Status, Labels: maps.Clone(d.Labels), Ports: slices.Clone(d.Ports),
 		Mounts: slices.Clone(d.Mounts), SizeRw: e.sizes[d.ID]}
-	for n := range d.Networks {
+	for n, ep := range d.Networks {
 		out.Networks = append(out.Networks, n)
+		// Like the Engine's list: the endpoint of every network, with
+		// addresses only while the container runs.
+		if !d.State.Running {
+			ep.IPAddress, ep.IPv6Address = "", ""
+		}
+		ep.Aliases = slices.Clone(ep.Aliases)
+		if out.Endpoints == nil {
+			out.Endpoints = map[string]engine.EndpointInfo{}
+		}
+		out.Endpoints[n] = ep
 	}
 	sort.Strings(out.Networks)
 	if d.State.Health != nil {
@@ -1291,6 +1304,37 @@ func (e *Engine) Execs() []ExecInstance {
 	e.mu.Lock()
 	defer e.unlock()
 	return append([]ExecInstance(nil), e.execs...)
+}
+
+// SetPaths declares paths that exist in a container's filesystem
+// (PathExists); by default none do.
+func (e *Engine) SetPaths(idOrName string, paths ...string) {
+	e.mu.Lock()
+	defer e.unlock()
+	id := idOrName
+	if c, ok := e.findContainer(idOrName); ok {
+		id = c.Details.ID
+	}
+	if e.paths == nil {
+		e.paths = map[string]map[string]bool{}
+	}
+	if e.paths[id] == nil {
+		e.paths[id] = map[string]bool{}
+	}
+	for _, p := range paths {
+		e.paths[id][p] = true
+	}
+}
+
+// PathExists implements engine.Engine: the paths declared with SetPaths.
+func (e *Engine) PathExists(_ context.Context, id, path string) (bool, error) {
+	e.mu.Lock()
+	defer e.unlock()
+	c, ok := e.findContainer(id)
+	if !ok {
+		return false, Err("container.stat_path", engine.CodeNotFound, "no such container: %s", id)
+	}
+	return e.paths[c.Details.ID][path], nil
 }
 
 // AttachExec implements engine.Engine.

@@ -15,6 +15,7 @@ import {
 	revisionLabel,
 	revisionSource,
 	runningOf,
+	serviceAddresses,
 	serviceCounts,
 	servicePorts,
 	serviceUrl,
@@ -190,6 +191,45 @@ describe('usage', () => {
 		const u = stackUsage([]);
 		expect(u.cpuNow).toBeNull();
 		expect(u.memoryNow).toBeNull();
+	});
+
+	it('takes the current values from the newest samples when given', () => {
+		const u = stackUsage(
+			[metrics('a', [1, 2], [100, 200]), metrics('b', [3, 4], [50, 60])],
+			[
+				{ container: 'a', cpuPercent: 1.5, memoryUsedBytes: 120 },
+				{ container: 'c', memoryUsedBytes: 30 }
+			]
+		);
+		// The chart keeps the history; b has no recent sample (stopped).
+		expect(u.cpu).toEqual([4, 6]);
+		expect(u.cpuNow).toBe(1.5);
+		expect(u.memoryNow).toBe(150);
+		expect(u.containers).toEqual({
+			a: { cpu: 1.5, memory: 120 },
+			c: { cpu: null, memory: 30 }
+		});
+		expect(stackUsage([], []).cpuNow).toBeNull();
+	});
+});
+
+describe('service addresses', () => {
+	it('collects the addresses of the containers once, IPv4 first', () => {
+		const s = svc('web', [
+			ctr({ name: 'a', networks: [{ name: 'shop_default', ipAddress: '172.18.0.2' }] }),
+			ctr({
+				name: 'b',
+				networks: [
+					{ name: 'shop_default', ipAddress: '172.18.0.3', ipv6Address: 'fd00::3' }
+				]
+			}),
+			ctr({ name: 'c', state: 'exited', networks: [{ name: 'shop_default' }] })
+		]);
+		expect(serviceAddresses(s).map((a) => a.address)).toEqual([
+			'172.18.0.2',
+			'172.18.0.3',
+			'fd00::3'
+		]);
 	});
 });
 

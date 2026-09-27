@@ -166,6 +166,8 @@ type Container struct {
 	Command   string              `json:"command,omitempty"`
 	Status    string              `json:"status,omitempty" doc:"The Engine's description, e.g. \"Up 3 hours\"."`
 	CreatedAt *time.Time          `json:"createdAt,omitempty"`
+	StartedAt *time.Time          `json:"startedAt,omitempty" doc:"Last start of a running, paused or restarting container (uptime). Full view."`
+	Networks  []ContainerNetwork  `json:"networks,omitempty" doc:"The container's addresses per network (empty while it is stopped). Full view."`
 	Labels    map[string]string   `json:"labels,omitempty"`
 	Ports     []ContainerPort     `json:"ports,omitempty"`
 	Mounts    []ContainerMount    `json:"mounts,omitempty"`
@@ -200,6 +202,13 @@ func newContainer(env string, c protocol.ContainerSummary, v authz.View, stackID
 	}
 	for _, m := range c.Mounts {
 		out.Mounts = append(out.Mounts, ContainerMount{Type: m.Type, Name: m.Name, Source: m.Source, Destination: m.Destination, ReadOnly: m.ReadOnly})
+	}
+	if c.StartedAt != nil && (c.State == "running" || c.State == "paused" || c.State == "restarting") {
+		started := *c.StartedAt
+		out.StartedAt = &started
+	}
+	for _, n := range c.NetworkList {
+		out.Networks = append(out.Networks, ContainerNetwork{Name: n.Name, IPAddress: n.IPAddress, IPv6Address: n.IPv6Address})
 	}
 	if c.Labels[protocol.LabelManaged] == protocol.ManagedStandalone {
 		out.Managed = &ContainerOwnership{Kind: protocol.ManagedStandalone, ThisInstance: instanceID != "" && c.Labels[protocol.LabelInstance] == instanceID}

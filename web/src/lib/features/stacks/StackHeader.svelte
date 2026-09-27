@@ -5,7 +5,9 @@
 	// Stop (Start when stopped), Update with its "update available" dot, and
 	// overflow (Down, Migrate, Edit details, Delete). Each action is shown
 	// only with its capability (the server still decides) and confirms with
-	// its exact consequences before it starts a job.
+	// its exact consequences before it starts a job. Docker Manager's own
+	// stack (#32) deploys and updates; Restart, Stop, Take down, Migrate
+	// and Delete stay visible but disabled, with the reason.
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
@@ -59,6 +61,7 @@
 	import { activeRestore } from '$lib/features/backups/restore';
 	import type { JobTray } from './tray.svelte';
 	import UpdateDrawer from './UpdateDrawer.svelte';
+	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
 
 	interface Props {
 		stack: Stack;
@@ -74,6 +77,11 @@
 	const can = (a: string) => stack.actions.includes(a);
 	const full = $derived(stack.view === 'full');
 	const offline = $derived(stack.readOnly || stack.environmentOnline === false);
+	// Docker Manager's own stack: the server refuses what would stop or
+	// delete Docker Manager.
+	const protectedStack = $derived(!!stack.protection);
+	const selfReason =
+		'Docker Manager cannot stop, take down, migrate or delete its own stack. Deploy and Update work.';
 	// A restore of the stack's data starts what was running itself; the
 	// server refuses starts meanwhile (restore_in_progress), so hide them.
 	const jobs = createQuery(() => stackJobsQuery(stack.id));
@@ -280,13 +288,14 @@
 				label: 'Take down',
 				icon: CircleArrowDown,
 				onSelect: () => ask('down'),
-				disabled: offline
+				disabled: offline || protectedStack
 			});
 		if (can('stack.migrate'))
 			items.push({
 				label: 'Migrate',
 				icon: ArrowRightLeft,
-				href: routes.stack(stack.id, 'migrate')
+				href: protectedStack ? undefined : routes.stack(stack.id, 'migrate'),
+				disabled: protectedStack
 			});
 		if (can('stack.manage') && stack.revision !== undefined)
 			items.push({ label: 'Edit details', icon: Pencil, onSelect: () => (editing = true) });
@@ -297,7 +306,7 @@
 				icon: Trash2,
 				tone: 'danger',
 				onSelect: () => (deleting = true),
-				disabled: offline
+				disabled: offline || protectedStack
 			});
 		}
 		return items;
@@ -316,6 +325,7 @@
 	{#snippet status()}
 		<StatusBadge status={stackStatus(stack)} />
 		{#if offline}<Badge tone="offline" dot>Read-only while {envName} is offline</Badge>{/if}
+		{#if stack.protection}<ProtectionBadge protection={stack.protection} />{/if}
 		{#if restoring}<Badge tone="warn" dot>Restoring from a backup</Badge>{/if}
 	{/snippet}
 	{#snippet actions()}
@@ -331,8 +341,11 @@
 			/>
 		{/if}
 		{#if can('stack.restart') && !stoppedLike && !restoring}
-			<Button icon={RotateCw} disabled={offline} onclick={() => ask('restart')}
-				>Restart</Button
+			<Button
+				icon={RotateCw}
+				disabled={offline || protectedStack}
+				title={protectedStack ? selfReason : undefined}
+				onclick={() => ask('restart')}>Restart</Button
 			>
 		{/if}
 		{#if current === 'stopped' && can('stack.start') && !restoring}
@@ -341,7 +354,8 @@
 			<Button
 				variant="danger-soft"
 				icon={Square}
-				disabled={offline}
+				disabled={offline || protectedStack}
+				title={protectedStack ? selfReason : undefined}
 				onclick={() => ask('stop')}>Stop</Button
 			>
 		{/if}
@@ -353,6 +367,7 @@
 					>{/if}
 			</Button>
 		{/if}
+		{#if protectedStack}<span class="sr-only">{selfReason}</span>{/if}
 		{#if overflow.length}
 			<Menu label="More stack actions" items={overflow} align="end">
 				{#snippet trigger(props)}<IconButton

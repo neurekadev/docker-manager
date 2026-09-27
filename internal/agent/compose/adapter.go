@@ -166,6 +166,10 @@ type UpOptions struct {
 	WaitTimeout time.Duration
 	// StopTimeout overrides the stop grace period when recreating.
 	StopTimeout *time.Duration
+	// KeepDependencies never recreates the services' dependencies (they
+	// are still started when stopped): the agent's self-update helper
+	// converges only its own service (internal/agent/selfupdate).
+	KeepDependencies bool
 }
 
 // Up creates and starts the project, honoring depends_on order and
@@ -188,16 +192,19 @@ func (a *Adapter) Up(ctx context.Context, p *Project, o UpOptions) error {
 	if err != nil {
 		return engine.Wrap(op, err)
 	}
-	recreate := api.RecreateDiverged
+	recreate, recreateDeps := api.RecreateDiverged, api.RecreateDiverged
 	if o.ForceRecreate {
 		recreate = api.RecreateForce
+	}
+	if o.KeepDependencies {
+		recreateDeps = api.RecreateNever
 	}
 	err = svc.Up(ctx, model, api.UpOptions{
 		Create: api.CreateOptions{
 			Services:             o.Services,
 			RemoveOrphans:        o.RemoveOrphans,
 			Recreate:             recreate,
-			RecreateDependencies: api.RecreateDiverged,
+			RecreateDependencies: recreateDeps,
 			// The CLI's default (Inherit: !renewAnonVolumes); the SDK's
 			// zero value would give every recreated container empty
 			// anonymous volumes and lose their data.

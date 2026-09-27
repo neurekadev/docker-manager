@@ -1,7 +1,9 @@
 # Upgrades and migrations
 
-Docker Manager has no in-app self-update (#25): you upgrade the images where they
-run. There are no versioned releases yet; `main` publishes the rolling
+You upgrade the images where they run, or, once Docker Manager's own Compose
+project is imported as a stack, with **Deploy with pull** or a digest update
+policy from the UI (#32: the agent hands its own container to a helper
+container after the job). There are no versioned releases yet; `main` publishes the rolling
 `:edge` tag, so "upgrading" means pulling a newer `:edge` digest. The full
 procedure, including the rollback, is
 [operations/upgrades.md](../operations/upgrades.md); this page is the
