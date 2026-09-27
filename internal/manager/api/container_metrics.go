@@ -125,18 +125,18 @@ const LatestContainerWindow = time.Minute
 
 // LatestContainerMetric is one container's most recent sample.
 type LatestContainerMetric struct {
-	Container        string    `json:"container" doc:"Container name."`
-	At               time.Time `json:"at" doc:"When the sample was taken."`
-	CPUPercent       *float64  `json:"cpuPercent,omitempty" doc:"Share of the environment's cores, 0..100; absent when unknown."`
-	MemoryUsedBytes  *int64    `json:"memoryUsedBytes,omitempty" doc:"Absent when unknown."`
-	MemoryLimitBytes *int64    `json:"memoryLimitBytes,omitempty" doc:"The container's memory limit; absent when unlimited or unknown."`
+	Container        string    `json:"container" example:"shop-web-1" doc:"Container name."`
+	At               time.Time `json:"at" example:"2026-09-27T06:40:10Z" doc:"When the sample was taken."`
+	CPUPercent       *float64  `json:"cpuPercent,omitempty" example:"3.5" doc:"Share of the environment's cores, 0..100; absent when unknown."`
+	MemoryUsedBytes  *int64    `json:"memoryUsedBytes,omitempty" example:"134217728" doc:"Absent when unknown."`
+	MemoryLimitBytes *int64    `json:"memoryLimitBytes,omitempty" example:"536870912" doc:"The container's memory limit; absent when unlimited or unknown."`
 }
 
 // LatestContainerMetrics are the current usage of an environment's
 // containers.
 type LatestContainerMetrics struct {
 	EnvironmentID string                  `json:"environmentId"`
-	WindowSeconds int                     `json:"windowSeconds" doc:"Only containers sampled within this many seconds are listed."`
+	WindowSeconds int                     `json:"windowSeconds" example:"60" doc:"Only containers sampled within this many seconds are listed."`
 	Items         []LatestContainerMetric `json:"items" doc:"Sorted by container name; containers without a recent sample (stopped, new) are absent."`
 }
 

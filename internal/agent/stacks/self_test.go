@@ -50,7 +50,8 @@ func TestDeployOfDockerManagerHandsTheAgentOver(t *testing.T) {
 	if res.Outcome != jobexec.OutcomeSucceeded {
 		t.Fatalf("result %+v", res)
 	}
-	if len(e.c.upServices) != 1 || !slices.Equal(e.c.upServices[0], []string{"docker-manager", "caddy"}) {
+	// compose-go lists services by name.
+	if len(e.c.upServices) != 1 || !slices.Equal(e.c.upServices[0], []string{"caddy", "docker-manager"}) {
 		t.Fatalf("up services %v", e.c.upServices)
 	}
 	if len(self.plans) != 1 {

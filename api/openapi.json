@@ -7937,25 +7937,40 @@
         "properties": {
           "at": {
             "description": "When the sample was taken.",
+            "examples": [
+              "2026-09-27T06:40:10Z"
+            ],
             "format": "date-time",
             "type": "string"
           },
           "container": {
             "description": "Container name.",
+            "examples": [
+              "shop-web-1"
+            ],
             "type": "string"
           },
           "cpuPercent": {
             "description": "Share of the environment's cores, 0..100; absent when unknown.",
+            "examples": [
+              3.5
+            ],
             "format": "double",
             "type": "number"
           },
           "memoryLimitBytes": {
             "description": "The container's memory limit; absent when unlimited or unknown.",
+            "examples": [
+              536870912
+            ],
             "format": "int64",
             "type": "integer"
           },
           "memoryUsedBytes": {
             "description": "Absent when unknown.",
+            "examples": [
+              134217728
+            ],
             "format": "int64",
             "type": "integer"
           }
@@ -7981,6 +7996,9 @@
           },
           "windowSeconds": {
             "description": "Only containers sampled within this many seconds are listed.",
+            "examples": [
+              60
+            ],
             "format": "int64",
             "type": "integer"
           }
@@ -36491,14 +36509,14 @@
                   "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                   "items": [
                     {
-                      "at": "2026-09-25T12:00:00Z",
-                      "container": "example",
-                      "cpuPercent": 1,
-                      "memoryLimitBytes": 1,
-                      "memoryUsedBytes": 1
+                      "at": "2026-09-27T06:40:10Z",
+                      "container": "shop-web-1",
+                      "cpuPercent": 3.5,
+                      "memoryLimitBytes": 536870912,
+                      "memoryUsedBytes": 134217728
                     }
                   ],
-                  "windowSeconds": 1
+                  "windowSeconds": 60
                 },
                 "schema": {
                   "$ref": "#/components/schemas/LatestContainerMetrics"

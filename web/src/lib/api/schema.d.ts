@@ -7040,23 +7040,30 @@ export interface components {
             /**
              * Format: date-time
              * @description When the sample was taken.
+             * @example 2026-09-27T06:40:10Z
              */
             at: string;
-            /** @description Container name. */
+            /**
+             * @description Container name.
+             * @example shop-web-1
+             */
             container: string;
             /**
              * Format: double
              * @description Share of the environment's cores, 0..100; absent when unknown.
+             * @example 3.5
              */
             cpuPercent?: number;
             /**
              * Format: int64
              * @description The container's memory limit; absent when unlimited or unknown.
+             * @example 536870912
              */
             memoryLimitBytes?: number;
             /**
              * Format: int64
              * @description Absent when unknown.
+             * @example 134217728
              */
             memoryUsedBytes?: number;
         };
@@ -7067,6 +7074,7 @@ export interface components {
             /**
              * Format: int64
              * @description Only containers sampled within this many seconds are listed.
+             * @example 60
              */
             windowSeconds: number;
         };
@@ -23008,14 +23016,14 @@ export interface operations {
                      *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "items": [
                      *         {
-                     *           "at": "2026-09-25T12:00:00Z",
-                     *           "container": "example",
-                     *           "cpuPercent": 1,
-                     *           "memoryLimitBytes": 1,
-                     *           "memoryUsedBytes": 1
+                     *           "at": "2026-09-27T06:40:10Z",
+                     *           "container": "shop-web-1",
+                     *           "cpuPercent": 3.5,
+                     *           "memoryLimitBytes": 536870912,
+                     *           "memoryUsedBytes": 134217728
                      *         }
                      *       ],
-                     *       "windowSeconds": 1
+                     *       "windowSeconds": 60
                      *     }
                      */
                     "application/json": components["schemas"]["LatestContainerMetrics"];
