@@ -19,6 +19,7 @@
 	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
 	import Folder from '@lucide/svelte/icons/folder';
 	import Hammer from '@lucide/svelte/icons/hammer';
+	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import Package from '@lucide/svelte/icons/package';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Play from '@lucide/svelte/icons/play';
@@ -69,6 +70,7 @@
 	import { activeRestore } from '$lib/features/backups/restore';
 	import type { JobTray } from './tray.svelte';
 	import UpdateDrawer from './UpdateDrawer.svelte';
+	import StackIcon from './StackIcon.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
 
 	interface Props {
@@ -132,6 +134,11 @@
 				icon: Clock,
 				label: `Created ${formatRelative(stack.createdAt, now)}`,
 				title: formatDateTime(stack.createdAt)
+			});
+		if (stack.template)
+			out.push({
+				icon: LayoutTemplate,
+				label: `From template ${stack.template.name} ${stack.template.versionLabel}`
 			});
 		const host = stack.location?.hostPath;
 		out.push({
@@ -361,6 +368,7 @@
 	color={icon.color}
 	{meta}
 >
+	{#snippet media()}<StackIcon {stack} size="lg" />{/snippet}
 	{#snippet status()}
 		<StatusBadge status={stackStatus(stack)} />
 		{#if offline}<Badge tone="offline" dot>Read-only while {envName} is offline</Badge>{/if}

@@ -510,6 +510,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		return nil, err
 	}
 	m.files.SetTemplates(m.templates)
+	m.stacks.SetTemplates(templateSource{own: m.templates, instanceID: m.instance.ID})
 	m.perms.RegisterLocator(catalog.TypeTemplate, permissions.LocatorFunc(func(ctx context.Context, ref authz.ResourceRef) (permissions.Location, error) {
 		err := m.templates.Exists(ctx, ref.ID)
 		if errors.Is(err, domain.ErrTemplateNotFound) {

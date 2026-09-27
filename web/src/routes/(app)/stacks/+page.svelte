@@ -5,21 +5,23 @@
 	// update dot say what needs attention. Searched by name or description
 	// and filtered by status, changes and environment (ListCard, kept per
 	// list and browser tab). Create and import are shown only with
-	// stack.create / stack.import (the server still decides).
+	// stack.create / stack.import (the server still decides). The Create
+	// stack button's menu creates a stack from a template.
 	import { createQuery } from '@tanstack/svelte-query';
 	import FolderSearch from '@lucide/svelte/icons/folder-search';
 	import Layers from '@lucide/svelte/icons/layers';
+	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import Plus from '@lucide/svelte/icons/plus';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
-	import { serviceIcon } from '$lib/design/icons';
 	import {
 		canAnywhere,
 		canInEnvironment,
 		serviceCounts,
-		stackIcon,
 		stackStatus,
 		stackTitle
 	} from '$lib/features/stacks/model';
+	import StackIcon from '$lib/features/stacks/StackIcon.svelte';
+	import CreateFromTemplateDialog from '$lib/features/templates/CreateFromTemplateDialog.svelte';
 	import { stacksQuery, updatePoliciesQuery, type Stack } from '$lib/features/stacks/queries';
 	import { stackFilters, stackSearch } from '$lib/features/stacks/filters';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
@@ -38,8 +40,8 @@
 		Button,
 		EmptyState,
 		ErrorState,
-		IconTile,
 		Skeleton,
+		SplitButton,
 		StatusBadge,
 		Table,
 		formatRelative,
@@ -57,6 +59,8 @@
 	const createDialog = urlDialog('create', ['environment']);
 	// routes.importStack() opens the import dialog (discovered projects).
 	const importDialog = urlDialog('import', ['environment']);
+	// routes.stackFromTemplate() opens the template dialog.
+	const templateDialog = urlDialog('fromTemplate', ['template', 'environment']);
 
 	const envById = $derived(new Map((envs.data ?? []).map((e) => [e.id, e])));
 	const envName = $derived(envId ? (envById.get(envId)?.name ?? 'this environment') : null);
@@ -153,9 +157,8 @@
 </script>
 
 {#snippet nameCell(s: Stack)}
-	{@const icon = stackIcon(s)}
 	<a class="name" href={routes.stack(s.id)}>
-		<IconTile icon={serviceIcon(icon.icon)} color={icon.color} size="sm" />
+		<StackIcon stack={s} size="sm" />
 		<span class="text">
 			<span class="title">{stackTitle(s)}</span>
 			{#if s.description}<span class="desc">{s.description}</span
@@ -210,9 +213,19 @@
 				>
 			{/if}
 			{#if canCreate}
-				<Button variant="primary" icon={Plus} onclick={() => (createDialog.open = true)}
-					>Create stack</Button
-				>
+				<SplitButton
+					label="Create stack"
+					icon={Plus}
+					menuLabel="More ways to create a stack"
+					onclick={() => (createDialog.open = true)}
+					items={[
+						{
+							label: 'Create stack from template',
+							icon: LayoutTemplate,
+							onSelect: () => (templateDialog.open = true)
+						}
+					]}
+				/>
 			{/if}
 		</div>
 	</header>
@@ -269,6 +282,8 @@
 											variant="primary"
 											onclick={() => (createDialog.open = true)}
 											>Create stack</Button
+										><Button onclick={() => (templateDialog.open = true)}
+											>Create from template</Button
 										>{/if}
 									{#if canImport}<Button
 											onclick={() => (importDialog.open = true)}
@@ -290,6 +305,11 @@
 	<ImportStackDialog
 		bind:open={importDialog.open}
 		environmentId={importDialog.param('environment') ?? envId}
+	/>
+	<CreateFromTemplateDialog
+		bind:open={templateDialog.open}
+		environmentId={templateDialog.param('environment') ?? envId}
+		templateId={templateDialog.param('template')}
 	/>
 </div>
 

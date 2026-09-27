@@ -42,6 +42,17 @@ store: `internal/manager/store/templates.go`.
 - Deleting a template removes its row, versions, icon and directory and
   calls `ForgetResource`; startup (`sweep`) removes directories without a
   template. Stacks created from a template never depend on it.
+- Stacks from templates: `stacks.Service.CreateFromTemplate` gets the
+  version from a `stacks.TemplateSource` (app's `templateSource` for this
+  instance's templates), checks its digest, validates the default Compose
+  files on the agent, streams the unzipped tar with `transfer.NewWriter`
+  over `migration.receive`, commits, reads revision 1 back and cleans up
+  staging (removing the committed directory again when a later step
+  fails). The route needs `stack.create` in the environment and
+  `template.use` on the template. `GET /template-icons` (any signed-in
+  user) maps registry + template to the current icon URL; the web joins it
+  to `stack.template` (`StackIcon.svelte`), so icon changes need no stack
+  writes; a stack's own icon wins.
 - Capabilities: `template.read`, `template.use` (high: version files incl.
   `.env`), `template.create` (instance), `template.manage`,
   `template.publish` (high), `template.remove` (high) and the

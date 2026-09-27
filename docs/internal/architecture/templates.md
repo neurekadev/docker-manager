@@ -61,6 +61,22 @@ canonical tar.gz (see the conventions) within the limits, seals it and
 stores the version with the next `version_seq`. The same draft always
 produces the same bytes, so its sha256 identifies the content.
 
+## Stacks from templates
+
+`POST /api/v1/stacks/template-creations` (synchronous, like creating a stack
+from files): the version's archive (digest checked) is gunzipped and
+streamed through the migration transfer (`migration.receive` into
+`<stacks>/.docker-manager-migrations/<id>/project`, `migration.commit`
+into `<stacks>/<name>`, which must not exist), `compose.read` records
+revision 1, and `migration.cleanup` removes the staging area (or, when a
+later step fails, the committed directory). The stack remembers the
+template version (`stacks.template_*` columns, migration
+`20260928000500_stack_templates`) but never depends on it. The create
+dialog reads the version's Compose files and `.env`
+(`GET .../versions/{version}/definition`, `template.use`); an edited `.env`
+is saved to the new stack with the stack file routes before an optional
+deploy, so secrets never travel in the creation request.
+
 ## Icons and live updates
 
 Icons are served by `GET /api/v1/templates/{id}/icon` to any signed-in

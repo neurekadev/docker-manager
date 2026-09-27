@@ -84,6 +84,18 @@ func (f *fakeStacks) Create(_ context.Context, _ authz.Principal, r domain.Stack
 	return st, domain.StackValidation{Valid: true, ProjectName: r.Name}, nil
 }
 
+func (f *fakeStacks) CreateFromTemplate(_ context.Context, _ authz.Principal, r domain.StackFromTemplate) (domain.Stack, domain.StackValidation, error) {
+	if f.err != nil {
+		return domain.Stack{}, domain.StackValidation{}, f.err
+	}
+	if r.TemplateID == "missing" {
+		return domain.Stack{}, domain.StackValidation{}, domain.ErrTemplateNotFound
+	}
+	st := domain.Stack{ID: "st-tpl", EnvironmentID: r.EnvironmentID, Name: r.Name, Status: domain.StackUndeployed, Revision: 1,
+		Template: &domain.StackTemplateRef{InstanceID: r.InstanceID, TemplateID: r.TemplateID, Name: "Template", Version: r.Version, VersionLabel: "1.0.0"}}
+	return st, domain.StackValidation{Valid: true, ProjectName: r.Name}, nil
+}
+
 func (f *fakeStacks) Validate(_ context.Context, d domain.StackDefinition) (domain.StackValidation, error) {
 	return domain.StackValidation{Valid: true, ProjectName: d.Name, Warnings: []domain.StackIssue{{Code: "obsolete_version", Message: "version"}}}, f.err
 }
@@ -255,8 +267,11 @@ func stackRoutesFor(t *testing.T, stackID string) []authztest.Call {
 		"/api/v1/stacks", "/api/v1/environments/{environmentId}/stacks")
 	var calls []authztest.Call
 	for _, c := range all {
-		// The stack file scope is #15's and migrations are #35's (tested there).
-		if !strings.Contains(c.OperationID, "-file") && !strings.Contains(c.OperationID, "-migration") {
+		// The stack file scope is #15's, migrations are #35's and stacks from
+		// templates (which also need template.use) the template registry's
+		// (tested there).
+		if !strings.Contains(c.OperationID, "-file") && !strings.Contains(c.OperationID, "-migration") &&
+			c.OperationID != "create-stack-template-creation" {
 			calls = append(calls, c)
 		}
 	}

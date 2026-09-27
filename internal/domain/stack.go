@@ -185,10 +185,26 @@ type Stack struct {
 	EngineObservedAt *time.Time
 	LastJobID        string
 	LastJobKind      JobKind
+	// Template is the template version the stack was created from (nil for
+	// stacks created from files or imported). Informational: the stack's
+	// files are its own and never follow the template.
+	Template *StackTemplateRef
 	// Revision is the edit revision (ETag) of the stack record.
 	Revision  int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+// StackTemplateRef names the template version a stack was created from.
+// InstanceID identifies the registry (the manager instance that owns the
+// template), so a registry that is removed and added again finds its
+// stacks again.
+type StackTemplateRef struct {
+	InstanceID   string
+	TemplateID   string
+	Name         string
+	Version      int
+	VersionLabel string
 }
 
 // RevisionRef identifies a revision.

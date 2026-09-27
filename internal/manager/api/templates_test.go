@@ -125,6 +125,11 @@ func (f *fakeTemplates) Publish(_ context.Context, id, label, _ string, _ bool, 
 
 func (f *fakeTemplates) DeleteVersion(context.Context, string, int) error { return nil }
 
+func (f *fakeTemplates) Definition(ctx context.Context, id string, n int) (domain.TemplateVersion, []domain.TemplateFileContent, error) {
+	v, err := f.Version(ctx, id, n)
+	return v, []domain.TemplateFileContent{{Path: ".env", Content: []byte("PASSWORD=from-template")}}, err
+}
+
 var _ TemplateService = (*fakeTemplates)(nil)
 
 func templatesHandler(t *testing.T, pol *authztest.Policy) http.Handler {
@@ -250,4 +255,52 @@ func TestTemplateIconsAreSandboxedAndCacheable(t *testing.T) {
 	if r := authztest.Do(t, h, "rita", authztest.Call{Method: http.MethodPut, Path: "/api/v1/templates/t-a/icon", Body: map[string]any{"data": []byte("<svg/>")}}); r.Status != http.StatusNotFound {
 		t.Errorf("set icon of an invisible template: %d", r.Status)
 	}
+}
+
+func TestStackFromTemplateRoutes(t *testing.T) {
+	pol := authztest.New().Owner("olga").
+		Member("sam", "creators").Group("creators", "allow stack.create @env:env-1").
+		Member("uma", "users").Group("users", "allow stack.create @env:env-1", "allow template.use @template:t-a", "allow template.read @template:t-a").
+		Member("rita", "nobody")
+	mux := http.NewServeMux()
+	New(mux, Deps{Stacks: newFakeStacks(), Templates: newFakeTemplates(), InstanceID: "inst-self", Authorizer: pol,
+		Clock: testutil.FakeClock(), Idempotency: &memIdempotency{}, Builds: emptyBuilds{}})
+	h := authztest.Authenticate(withTestContext(t, mux, ""))
+
+	create := func(user, templateID string) authztest.Response {
+		return authztest.Do(t, h, user, authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/template-creations",
+			Body: map[string]any{"environmentId": "env-1", "name": "cloud", "templateId": templateID, "version": 1}})
+	}
+	if r := create("sam", "t-a"); r.Status != http.StatusForbidden || !strings.Contains(string(r.Body), "template.use") {
+		t.Errorf("without template.use: %d %s", r.Status, r.Body)
+	}
+	r := create("uma", "t-a")
+	var out struct {
+		Stack Stack `json:"stack"`
+	}
+	if r.Status != http.StatusCreated || json.Unmarshal(r.Body, &out) != nil || out.Stack.ID != "st-tpl" {
+		t.Fatalf("create from template: %d %s", r.Status, r.Body)
+	}
+	if r := create("olga", "missing"); r.Status != http.StatusNotFound {
+		t.Errorf("unknown template: %d %s", r.Status, r.Body)
+	}
+
+	def := func(user string) authztest.Response {
+		return authztest.Do(t, h, user, authztest.Call{Method: http.MethodGet, Path: "/api/v1/templates/t-a/versions/1/definition"})
+	}
+	if r := def("uma"); r.Status != http.StatusOK || !strings.Contains(string(r.Body), "from-template") {
+		t.Errorf("definition with template.use: %d %s", r.Status, r.Body)
+	}
+	if r := def("sam"); r.Status != http.StatusNotFound {
+		t.Errorf("definition of an invisible template: %d", r.Status)
+	}
+
+	// The icon map reaches every signed-in user; it names no template.
+	r = authztest.Do(t, h, "rita", authztest.Call{Method: http.MethodGet, Path: "/api/v1/template-icons"})
+	var icons TemplateIconMap
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &icons) != nil || icons.InstanceID != "inst-self" || len(icons.Items) != 2 ||
+		icons.Items[0].InstanceID != "inst-self" || !strings.Contains(icons.Items[0].URL, "/icon?v=abc") {
+		t.Fatalf("icon map: %d %s", r.Status, r.Body)
+	}
+	authztest.AssertAbsent(t, "icon map", r.Body, "Template t-a", "secret-ish")
 }

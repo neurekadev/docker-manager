@@ -29,13 +29,24 @@
 		meta?: MetaItem[];
 		status?: Snippet;
 		actions?: Snippet;
+		/** Replaces the icon tile (e.g. a template's image icon). */
+		media?: Snippet;
 	}
 
-	let { title, description, icon, color = 'blue', meta = [], status, actions }: Props = $props();
+	let {
+		title,
+		description,
+		icon,
+		color = 'blue',
+		meta = [],
+		status,
+		actions,
+		media
+	}: Props = $props();
 </script>
 
 <header class="page-header">
-	{#if icon}<IconTile {icon} {color} size="lg" />{/if}
+	{#if media}{@render media()}{:else if icon}<IconTile {icon} {color} size="lg" />{/if}
 	<div class="main">
 		<div class="title-row">
 			<h1>{title}</h1>

@@ -20,6 +20,18 @@ type StackCreate struct {
 	Meta        DisplayMeta
 }
 
+// StackFromTemplate creates a stack from a published template version.
+// InstanceID names the registry (the instance that owns the template).
+type StackFromTemplate struct {
+	EnvironmentID string
+	Name          string
+	DisplayName   string
+	Meta          DisplayMeta
+	InstanceID    string
+	TemplateID    string
+	Version       int
+}
+
 // StackImport adopts a discovered Compose project: in place (Files empty)
 // or from an explicit Compose source written into a new directory.
 type StackImport struct {

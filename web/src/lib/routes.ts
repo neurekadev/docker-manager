@@ -4,7 +4,7 @@
 //   /                                   Dashboard
 //   /environments[/{id}]                environments and environment detail
 //   /stacks[/{stackId}[/files|logs|terminal|revisions|policies|activity|migrate]]
-//   /stacks?create=1, /stacks?import=1 (create and import dialogs)
+//   /stacks?create=1, /stacks?import=1, /stacks?fromTemplate=1[&template=] (create, import and template dialogs)
 //   /containers, /images, /volumes, /networks   lists (all or the selected environment)
 //   /containers/new, /containers/{env}/{name}[/logs|terminal]   create; detail tabs
 //   /images/{env}/{imageId}, /networks/{env}/{name}
@@ -59,6 +59,13 @@ export const routes = {
 	/** The stack list with the create dialog open. */
 	newStack: (environmentId?: string | null) =>
 		`/stacks?create=1${environmentId ? `&environment=${e(environmentId)}` : ''}`,
+	/** The stack list with the create-from-template dialog open. */
+	stackFromTemplate: (templateId?: string, environmentId?: string | null) => {
+		const q = new URLSearchParams({ fromTemplate: '1' });
+		if (templateId) q.set('template', templateId);
+		if (environmentId) q.set('environment', environmentId);
+		return `/stacks?${q}`;
+	},
 	/** The stack list with the import dialog open (discovered projects). */
 	importStack: (environmentId?: string | null) =>
 		`/stacks?import=1${environmentId ? `&environment=${e(environmentId)}` : ''}`,

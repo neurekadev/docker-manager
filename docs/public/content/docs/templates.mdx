@@ -22,6 +22,22 @@ A template can hold up to 32 MB of files. Its Compose file must not set a
 top-level `name:`, because every stack you create from it gets its own
 name.
 
+## Create a stack from a template
+
+1. **Stacks → Create stack ▾ → Create stack from template**, or **Create
+   stack** on a template's page.
+2. Find the template: search by name or pick a tag.
+3. Pick the version, the host and a name for the stack. The template's
+   `.env` is shown: change the values for this stack, such as passwords.
+4. Press **Create stack** (or tick **Deploy after creating**).
+
+Docker Manager copies every file of the version into a new folder on the
+host and saves your `.env` there before anything starts. It never
+overwrites an existing folder. The stack page shows **From template** with
+the template's name and version, and the stack shows the template's icon
+until you choose another icon for it. After that, the stack's files are its
+own: changing the template later does not change the stack.
+
 ## Icons and tags
 
 - **Settings → Icon** takes a PNG, JPEG, GIF, WebP or SVG image up to

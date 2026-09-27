@@ -55,9 +55,15 @@ type stackRow struct {
 	EngineObservedAt   *time.Time `bun:"engine_observed_at,nullzero"`
 	LastJobID          string     `bun:"last_job_id,notnull"`
 	LastJobKind        string     `bun:"last_job_kind,notnull"`
-	Revision           int64      `bun:"revision,notnull"`
-	CreatedAt          time.Time  `bun:"created_at,notnull"`
-	UpdatedAt          time.Time  `bun:"updated_at,notnull"`
+	// The template version the stack was created from ('' / 0: none).
+	TemplateInstanceID   string    `bun:"template_instance_id,notnull"`
+	TemplateID           string    `bun:"template_id,notnull"`
+	TemplateName         string    `bun:"template_name,notnull"`
+	TemplateVersion      int       `bun:"template_version,notnull"`
+	TemplateVersionLabel string    `bun:"template_version_label,notnull"`
+	Revision             int64     `bun:"revision,notnull"`
+	CreatedAt            time.Time `bun:"created_at,notnull"`
+	UpdatedAt            time.Time `bun:"updated_at,notnull"`
 }
 
 // JSON column shapes (stable storage format, independent of domain field
@@ -168,6 +174,10 @@ func fromStack(s *domain.Stack) stackRow {
 	r.AppliedRevisionID, r.AppliedSeq, r.AppliedHash = refFields(s.Applied)
 	r.ObservedRevisionID, r.ObservedSeq, r.ObservedHash = refFields(s.Observed)
 	r.FailedRevisionID, r.FailedSeq, r.FailedHash = refFields(s.Failed)
+	if t := s.Template; t != nil {
+		r.TemplateInstanceID, r.TemplateID, r.TemplateName = t.InstanceID, t.TemplateID, t.Name
+		r.TemplateVersion, r.TemplateVersionLabel = t.Version, t.VersionLabel
+	}
 	return r
 }
 
@@ -208,6 +218,10 @@ func (r stackRow) toDomain() domain.Stack {
 		EngineServices: statesOf(r.EngineServices), EngineObservedAt: utcPtr(r.EngineObservedAt),
 		LastJobID: r.LastJobID, LastJobKind: domain.JobKind(r.LastJobKind), Revision: r.Revision,
 		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(),
+	}
+	if r.TemplateID != "" {
+		s.Template = &domain.StackTemplateRef{InstanceID: r.TemplateInstanceID, TemplateID: r.TemplateID, Name: r.TemplateName,
+			Version: r.TemplateVersion, VersionLabel: r.TemplateVersionLabel}
 	}
 	var meta map[string]metaJSON
 	_ = json.Unmarshal([]byte(r.ServiceMeta), &meta)

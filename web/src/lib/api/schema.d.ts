@@ -3330,6 +3330,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stacks/template-creations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a stack from a template
+         * @description Creates a stack from a published template version: validates its Compose definition on the environment's agent, copies every file of the version into a new project directory of the stacks volume (never an existing one) and records it as the first revision. Nothing is deployed; to use your own .env values, save the stack's .env (file routes) before deploying. Needs stack.create in the environment and template.use on the template (added registries: on the instance). 409 stack_name_taken, compose_project_exists, stack_directory_exists; 422 invalid_definition.
+         */
+        post: operations["create-stack-template-creation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stacks/validations": {
         parameters: {
             query?: never;
@@ -3962,6 +3982,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/template-icons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List template icons
+         * @description The current icon of every template with one, by registry (instance ID) and template ID, so stack lists show the icon of the template a stack was created from. Any signed-in user may read it; it changes with the templates live topic.
+         */
+        get: operations["list-template-icons"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/templates": {
         parameters: {
             query?: never;
@@ -4320,6 +4360,26 @@ export interface paths {
          * @description Removes a published version. Stacks created from it keep working; other managers stop offering it after their next registry sync. Its number is never reused.
          */
         delete: operations["delete-template-version"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/templates/{templateId}/versions/{version}/definition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a version's Compose files
+         * @description The Compose files and .env at the root of a published version, as text: what a stack created from it starts with. Contains .env values; needs template.use.
+         */
+        get: operations["get-template-version-definition"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6296,6 +6356,26 @@ export interface components {
             path?: string;
             /** @enum {string} */
             type?: "file" | "dir";
+        };
+        CreateStackFromTemplateInputBody: {
+            description?: string;
+            /** @example Nextcloud */
+            displayName?: string;
+            /** @description The environment to create the stack in. */
+            environmentId: string;
+            /** @description The registry (the owning manager's instance ID); empty: this instance. */
+            instanceId?: string;
+            /**
+             * @description Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume.
+             * @example nextcloud
+             */
+            name: string;
+            templateId: string;
+            /**
+             * Format: int64
+             * @description The published version number.
+             */
+            version: number;
         };
         CreateStackInputBody: {
             /** @description Required: compose.yaml content. */
@@ -9854,6 +9934,8 @@ export interface components {
              * @enum {string}
              */
             status: "undeployed" | "deployed" | "stopped" | "down" | "failed";
+            /** @description The template version the stack was created from (its files are the stack's own). */
+            template?: components["schemas"]["StackTemplateRef"];
             /** @description The definition on disk differs from the last applied revision. */
             undeployedChanges?: boolean;
             /** Format: date-time */
@@ -10244,6 +10326,20 @@ export interface components {
             observedAt?: string;
             services: components["schemas"]["StackServiceStatus"][];
         };
+        StackTemplateRef: {
+            /** @description The registry: the manager instance that owns the template. */
+            instanceId: string;
+            /**
+             * @description The template's name when the stack was created.
+             * @example Nextcloud
+             */
+            name: string;
+            templateId: string;
+            /** Format: int64 */
+            version: number;
+            /** @example 1.2.0 */
+            versionLabel: string;
+        };
         StackValidation: {
             binds: components["schemas"]["StackBind"][];
             errors: components["schemas"]["StackIssue"][];
@@ -10378,6 +10474,16 @@ export interface components {
              */
             visibility: "private" | "public";
         };
+        TemplateDefinition: {
+            files: components["schemas"]["TemplateDefinitionFile"][];
+            version: components["schemas"]["TemplateVersion"];
+        };
+        TemplateDefinitionFile: {
+            /** @description UTF-8 text (.env values included: needs template.use). */
+            content: string;
+            /** @example .env */
+            path: string;
+        };
         TemplateFileInfo: {
             /** @example compose.yaml */
             path: string;
@@ -10397,6 +10503,17 @@ export interface components {
              * @description Any signed-in user may load it.
              * @example /api/v1/templates/0190a6e0-.../icon?v=3f2a...
              */
+            url: string;
+        };
+        TemplateIconMap: {
+            /** @description This instance's ID (its own templates' registry). */
+            instanceId: string;
+            items: components["schemas"]["TemplateIconRef"][];
+        };
+        TemplateIconRef: {
+            instanceId: string;
+            templateId: string;
+            /** @example /api/v1/templates/0190a6e0-.../icon?v=3f2a... */
             url: string;
         };
         TemplateVersion: {
@@ -25450,6 +25567,13 @@ export interface operations {
                      *         "seq": 1
                      *       },
                      *       "status": "undeployed",
+                     *       "template": {
+                     *         "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "name": "Nextcloud",
+                     *         "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "version": 1,
+                     *         "versionLabel": "1.2.0"
+                     *       },
                      *       "undeployedChanges": false,
                      *       "updatedAt": "2026-09-25T12:00:00Z",
                      *       "view": "minimal"
@@ -36516,6 +36640,13 @@ export interface operations {
                      *             "seq": 1
                      *           },
                      *           "status": "undeployed",
+                     *           "template": {
+                     *             "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "name": "Nextcloud",
+                     *             "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "version": 1,
+                     *             "versionLabel": "1.2.0"
+                     *           },
                      *           "undeployedChanges": false,
                      *           "updatedAt": "2026-09-25T12:00:00Z",
                      *           "view": "minimal"
@@ -36697,6 +36828,13 @@ export interface operations {
                      *           "seq": 1
                      *         },
                      *         "status": "undeployed",
+                     *         "template": {
+                     *           "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "Nextcloud",
+                     *           "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "version": 1,
+                     *           "versionLabel": "1.2.0"
+                     *         },
                      *         "undeployedChanges": false,
                      *         "updatedAt": "2026-09-25T12:00:00Z",
                      *         "view": "minimal"
@@ -36798,6 +36936,302 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-template-creation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "displayName": "Nextcloud",
+                 *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "name": "nextcloud",
+                 *       "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "version": 1
+                 *     }
+                 */
+                "application/json": components["schemas"]["CreateStackFromTemplateInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    ETag?: string;
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "stack": {
+                     *         "actions": [
+                     *           "example"
+                     *         ],
+                     *         "appliedRevision": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "hash": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "seq": 1
+                     *         },
+                     *         "binds": [
+                     *           {
+                     *             "external": false,
+                     *             "readOnly": false,
+                     *             "relPath": "config/app.conf",
+                     *             "service": "example",
+                     *             "source": "example",
+                     *             "target": "example"
+                     *           }
+                     *         ],
+                     *         "configFiles": [
+                     *           "example"
+                     *         ],
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "description": "example",
+                     *         "displayName": "web",
+                     *         "engine": {
+                     *           "observedAt": "2026-09-25T12:00:00Z",
+                     *           "services": [
+                     *             {
+                     *               "containers": 1,
+                     *               "running": 1,
+                     *               "service": "example"
+                     *             }
+                     *           ],
+                     *           "state": "unknown"
+                     *         },
+                     *         "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "environmentOnline": false,
+                     *         "failedRevision": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "hash": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "seq": 1
+                     *         },
+                     *         "icon": "example",
+                     *         "id": "0190a6e0-7777-7000-8000-000000000007",
+                     *         "images": [
+                     *           {
+                     *             "build": false,
+                     *             "digest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "image": "nginx:1.27",
+                     *             "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "platform": "linux/amd64",
+                     *             "pulledAt": "2026-09-25T12:00:00Z",
+                     *             "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "service": "example"
+                     *           }
+                     *         ],
+                     *         "lastJob": {
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "kind": "example"
+                     *         },
+                     *         "location": {
+                     *           "dir": "example",
+                     *           "hostPath": "config/app.conf",
+                     *           "root": "stacks"
+                     *         },
+                     *         "name": "shop",
+                     *         "origin": "created",
+                     *         "previousState": [
+                     *           {
+                     *             "containers": 1,
+                     *             "running": 1,
+                     *             "service": "example"
+                     *           }
+                     *         ],
+                     *         "protection": {
+                     *           "reason": "example",
+                     *           "restartAllowed": false,
+                     *           "role": "agent",
+                     *           "self": false
+                     *         },
+                     *         "readOnly": false,
+                     *         "recovery": "example",
+                     *         "revision": 1,
+                     *         "services": [
+                     *           {
+                     *             "build": false,
+                     *             "dependsOn": [
+                     *               {
+                     *                 "condition": "service_started",
+                     *                 "required": false,
+                     *                 "restart": false,
+                     *                 "service": "example"
+                     *               }
+                     *             ],
+                     *             "description": "example",
+                     *             "icon": "example",
+                     *             "image": "nginx:1.27",
+                     *             "name": "web"
+                     *           }
+                     *         ],
+                     *         "sourceRevision": {
+                     *           "at": "2026-09-25T12:00:00Z",
+                     *           "hash": "example",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "seq": 1
+                     *         },
+                     *         "status": "undeployed",
+                     *         "template": {
+                     *           "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "Nextcloud",
+                     *           "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "version": 1,
+                     *           "versionLabel": "1.2.0"
+                     *         },
+                     *         "undeployedChanges": false,
+                     *         "updatedAt": "2026-09-25T12:00:00Z",
+                     *         "view": "minimal"
+                     *       },
+                     *       "validation": {
+                     *         "binds": [
+                     *           {
+                     *             "external": false,
+                     *             "readOnly": false,
+                     *             "relPath": "config/app.conf",
+                     *             "service": "example",
+                     *             "source": "example",
+                     *             "target": "example"
+                     *           }
+                     *         ],
+                     *         "errors": [
+                     *           {
+                     *             "code": "example",
+                     *             "message": "services.web.ports: invalid port \"80a\"",
+                     *             "service": "example"
+                     *           }
+                     *         ],
+                     *         "projectName": "web",
+                     *         "services": [
+                     *           {
+                     *             "build": false,
+                     *             "dependsOn": [
+                     *               {
+                     *                 "condition": "service_started",
+                     *                 "required": false,
+                     *                 "restart": false,
+                     *                 "service": "example"
+                     *               }
+                     *             ],
+                     *             "description": "example",
+                     *             "icon": "example",
+                     *             "image": "nginx:1.27",
+                     *             "name": "web"
+                     *           }
+                     *         ],
+                     *         "valid": false,
+                     *         "warnings": [
+                     *           {
+                     *             "code": "example",
+                     *             "message": "services.web.ports: invalid port \"80a\"",
+                     *             "service": "example"
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CreateStackOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -37122,6 +37556,13 @@ export interface operations {
                      *         "seq": 1
                      *       },
                      *       "status": "undeployed",
+                     *       "template": {
+                     *         "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "name": "Nextcloud",
+                     *         "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "version": 1,
+                     *         "versionLabel": "1.2.0"
+                     *       },
                      *       "undeployedChanges": false,
                      *       "updatedAt": "2026-09-25T12:00:00Z",
                      *       "view": "minimal"
@@ -37454,6 +37895,13 @@ export interface operations {
                      *         "seq": 1
                      *       },
                      *       "status": "undeployed",
+                     *       "template": {
+                     *         "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "name": "Nextcloud",
+                     *         "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "version": 1,
+                     *         "versionLabel": "1.2.0"
+                     *       },
                      *       "undeployedChanges": false,
                      *       "updatedAt": "2026-09-25T12:00:00Z",
                      *       "view": "minimal"
@@ -41522,6 +41970,13 @@ export interface operations {
                      *           "seq": 1
                      *         },
                      *         "status": "undeployed",
+                     *         "template": {
+                     *           "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "Nextcloud",
+                     *           "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "version": 1,
+                     *           "versionLabel": "1.2.0"
+                     *         },
                      *         "undeployedChanges": false,
                      *         "updatedAt": "2026-09-25T12:00:00Z",
                      *         "view": "minimal"
@@ -42085,6 +42540,56 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-template-icons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["TemplateIconMap"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -45439,6 +45944,102 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-template-version-definition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template ID. */
+                templateId: string;
+                /** @description Version number. */
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "files": [
+                     *         {
+                     *           "content": "example",
+                     *           "path": ".env"
+                     *         }
+                     *       ],
+                     *       "version": {
+                     *         "archiveSha256": "example",
+                     *         "archiveSize": 1,
+                     *         "contentSize": 1,
+                     *         "definition": [
+                     *           {
+                     *             "path": "compose.yaml",
+                     *             "size": 1
+                     *           }
+                     *         ],
+                     *         "entries": 1,
+                     *         "label": "1.2.0",
+                     *         "notes": "example",
+                     *         "number": 1,
+                     *         "publishedAt": "2026-09-25T12:00:00Z"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["TemplateDefinition"];
+                };
             };
             /** @description Unauthorized */
             401: {

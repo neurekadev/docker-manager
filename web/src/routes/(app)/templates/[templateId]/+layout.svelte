@@ -6,6 +6,7 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
+	import Plus from '@lucide/svelte/icons/plus';
 	import Upload from '@lucide/svelte/icons/upload';
 	import { ApiRequestError } from '$lib/api/client';
 	import PublishDialog from '$lib/features/templates/PublishDialog.svelte';
@@ -95,11 +96,18 @@
 					{/each}
 				</div>
 			</div>
-			{#if can('template.publish')}
+			{#if can('template.publish') || (can('template.use') && t.latest)}
 				<div class="actions">
-					<Button variant="primary" icon={Upload} onclick={() => (publishing = true)}
-						>Publish version</Button
-					>
+					{#if can('template.use') && t.latest}
+						<Button icon={Plus} href={routes.stackFromTemplate(t.id)}
+							>Create stack</Button
+						>
+					{/if}
+					{#if can('template.publish')}
+						<Button variant="primary" icon={Upload} onclick={() => (publishing = true)}
+							>Publish version</Button
+						>
+					{/if}
 				</div>
 			{/if}
 		</header>

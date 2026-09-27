@@ -88,6 +88,22 @@ export async function deleteVersion(
 	);
 }
 
+/** Creates a stack from a published template version (nothing is deployed). */
+export function createStackFromTemplate(
+	body: {
+		environmentId: string;
+		name: string;
+		displayName?: string;
+		description?: string;
+		instanceId?: string;
+		templateId: string;
+		version: number;
+	},
+	client: ApiClient = api
+) {
+	return unwrap(client.POST('/api/v1/stacks/template-creations', { body }));
+}
+
 /** Reads a picked file as base64 (the icon upload body). */
 export function fileToBase64(file: Blob): Promise<string> {
 	return new Promise((resolve, reject) => {

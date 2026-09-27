@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
 import QueryHarness from '../../../test/QueryHarness.svelte';
+import CreateFromTemplateDialog from './CreateFromTemplateDialog.svelte';
 import PublishDialog from './PublishDialog.svelte';
 import type { Template } from './queries';
 import TemplateCard from './TemplateCard.svelte';
@@ -135,5 +136,105 @@ describe('TemplateCard', () => {
 		expect(screen.getByText('Public')).toBeInTheDocument();
 		await user.click(screen.getByRole('button', { name: '#files' }));
 		expect(onTag).toHaveBeenCalledWith('files');
+	});
+});
+
+describe('CreateFromTemplateDialog', () => {
+	it('creates a stack from the preselected template with a suggested name', async () => {
+		const { goto } = await import('$app/navigation');
+		const user = setup();
+		const posted: Seen[] = [];
+		vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+			const req = input instanceof Request ? input : new Request(String(input), init);
+			const url = new URL(req.url);
+			const text = await req.text();
+			const body = text ? JSON.parse(text) : undefined;
+			const json = (status: number, b: unknown) =>
+				new Response(JSON.stringify(b), {
+					status,
+					headers: { 'Content-Type': 'application/json' }
+				});
+			switch (url.pathname) {
+				case '/api/v1/me/permissions':
+					return json(200, {
+						owner: true,
+						entries: [],
+						environments: [],
+						catalogVersion: 1
+					});
+				case '/api/v1/environments':
+					return json(200, {
+						items: [
+							{
+								id: 'env-1',
+								name: 'nas',
+								online: true,
+								status: 'active',
+								view: 'full',
+								actions: []
+							}
+						]
+					});
+				case '/api/v1/templates':
+					return json(200, {
+						items: [
+							{
+								...template,
+								name: 'Next Cloud',
+								actions: ['template.read', 'template.use'],
+								latest: { number: 3, label: '1.2.0', definition: [] }
+							}
+						]
+					});
+				case '/api/v1/templates/tp-1/versions':
+					return json(200, { items: [{ number: 3, label: '1.2.0', definition: [] }] });
+				case '/api/v1/templates/tp-1/versions/3/definition':
+					return json(200, {
+						version: { number: 3, label: '1.2.0', definition: [] },
+						files: [
+							{ path: 'compose.yaml', content: 'services: {}\n' },
+							{ path: '.env', content: 'A=1\n' }
+						]
+					});
+				case '/api/v1/stacks/template-creations':
+					posted.push({
+						method: req.method,
+						path: url.pathname,
+						headers: req.headers,
+						body
+					});
+					return json(201, {
+						stack: {
+							id: 'st-9',
+							environmentId: 'env-1',
+							name: 'next-cloud',
+							status: 'undeployed',
+							view: 'full',
+							actions: []
+						},
+						validation: {
+							valid: true,
+							errors: [],
+							warnings: [],
+							services: [],
+							binds: []
+						}
+					});
+			}
+			return json(404, { code: 'not_found', message: 'no', details: [], retryable: false });
+		});
+		mount(CreateFromTemplateDialog, { open: true, environmentId: 'env-1', templateId: 'tp-1' });
+		const d = await screen.findByRole('dialog', { name: 'Create stack from Next Cloud' });
+		await waitFor(() => expect(within(d).getByLabelText(/^Name/)).toHaveValue('next-cloud'));
+		await user.click(within(d).getByRole('button', { name: 'Create stack' }));
+		await waitFor(() => expect(posted).toHaveLength(1));
+		expect(posted[0].body).toMatchObject({
+			environmentId: 'env-1',
+			name: 'next-cloud',
+			templateId: 'tp-1',
+			version: 3
+		});
+		// The unchanged .env is not rewritten; the new stack opens.
+		await waitFor(() => expect(goto).toHaveBeenCalledWith('/stacks/st-9'));
 	});
 });
