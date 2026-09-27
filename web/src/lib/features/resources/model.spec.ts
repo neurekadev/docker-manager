@@ -4,7 +4,6 @@ import {
 	containerAddresses,
 	containerStatus,
 	envLines,
-	filterContainers,
 	imagePresent,
 	joinCommand,
 	megabytes,
@@ -137,56 +136,7 @@ describe('image presence (#25: creating a container never pulls)', () => {
 	});
 });
 
-describe('container list filters (#6: state, stack, label)', () => {
-	type Row = {
-		name: string;
-		image: string;
-		state: string;
-		stack?: { project: string };
-		labels: Record<string, string>;
-	};
-	const rows: Row[] = [
-		{
-			name: 'web',
-			image: 'nginx',
-			state: 'running',
-			stack: { project: 'silo' },
-			labels: { tier: 'front' }
-		},
-		{
-			name: 'db',
-			image: 'postgres:16',
-			state: 'exited',
-			stack: { project: 'silo' },
-			labels: {}
-		},
-		{
-			name: 'pihole',
-			image: 'pihole/pihole',
-			state: 'running',
-			labels: { 'traefik.enable': 'true' }
-		}
-	];
-	const f = { q: '', state: '', stack: '', label: '' };
-
-	it('filters by text on name or image, state, stack and label', () => {
-		expect(filterContainers(rows, { ...f, q: 'POSTGRES' }).map((c) => c.name)).toEqual(['db']);
-		expect(filterContainers(rows, { ...f, state: 'running' }).map((c) => c.name)).toEqual([
-			'web',
-			'pihole'
-		]);
-		expect(filterContainers(rows, { ...f, stack: 'silo' }).map((c) => c.name)).toEqual([
-			'web',
-			'db'
-		]);
-		expect(filterContainers(rows, { ...f, stack: '-' }).map((c) => c.name)).toEqual(['pihole']);
-		expect(filterContainers(rows, { ...f, label: 'tier' }).map((c) => c.name)).toEqual(['web']);
-		expect(
-			filterContainers(rows, { ...f, label: 'traefik.enable=true' }).map((c) => c.name)
-		).toEqual(['pihole']);
-		expect(filterContainers(rows, { ...f, label: 'tier=back' })).toEqual([]);
-	});
-
+describe('container status', () => {
 	it('shows health while running', () => {
 		expect(containerStatus({ state: 'running', health: 'unhealthy' })).toBe('unhealthy');
 		expect(containerStatus({ state: 'running', health: 'healthy' })).toBe('running');

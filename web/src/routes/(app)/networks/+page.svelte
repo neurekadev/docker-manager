@@ -1,5 +1,7 @@
 <script lang="ts">
 	// Networks (#6): every network of the selected environment (or all),
+	// searched by name or subnet and filtered by stack, driver, access,
+	// scope, predefined, Docker Manager system and environment (ListCard);
 	// its driver, subnets and flags; predefined networks (bridge, host,
 	// none) and Docker Manager's own (#32) are marked, and their removal is
 	// refused by the server with the reason.
@@ -13,17 +15,14 @@
 	import {
 		Badge,
 		Button,
-		Card,
 		DeniedState,
 		EmptyState,
 		ErrorState,
 		IconButton,
 		Menu,
 		PageHeader,
-		Select,
 		Skeleton,
 		Table,
-		TextField,
 		formatRelative,
 		type Column,
 		type MenuEntry
@@ -32,10 +31,19 @@
 	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import ObjectRemoveHost from '$lib/features/resources/ObjectRemoveHost.svelte';
+	import ListCard from '$lib/features/resources/ListCard.svelte';
+	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
 	import StackBadge from '$lib/features/resources/StackBadge.svelte';
-	import Toolbar from '$lib/features/resources/Toolbar.svelte';
+	import {
+		applyListFilters,
+		isFiltering,
+		listSummary,
+		networkFilters,
+		networkSearch
+	} from '$lib/features/resources/filters';
+	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import { can } from '$lib/features/resources/permissions';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
 
@@ -47,22 +55,14 @@
 		enabled: scope.ready && scope.targets.length > 0
 	}));
 
-	let q = $state('');
-	let kind = $state('');
+	const filters = new ListFilters('networks');
 	let createOpen = $state(false);
 	let remover = $state<ObjectRemoveHost>();
 
 	const all = $derived(list.data?.items ?? []);
-	const rows = $derived(
-		all.filter((n) => {
-			if (q.trim() && !n.name.toLowerCase().includes(q.trim().toLowerCase())) return false;
-			if (kind === 'user' && (n.builtin || n.stack)) return false;
-			if (kind === 'stack' && !n.stack) return false;
-			if (kind === 'builtin' && !n.builtin) return false;
-			return true;
-		})
-	);
-	const filtered = $derived(!!(q || kind));
+	const defs = $derived(networkFilters(all, { envs: scope.single ? [] : scope.targets }));
+	const rows = $derived(applyListFilters(all, defs, filters.state, networkSearch));
+	const filtered = $derived(isFiltering(defs, filters.state));
 	const creatable = $derived(scope.creatable('network.create'));
 	const key = (n: Net) => `${n.environmentId}/${n.id}`;
 
@@ -213,33 +213,6 @@
 			/>
 		{/if}
 
-		<Toolbar
-			label="Filter networks"
-			summary={list.data
-				? filtered
-					? `${rows.length} of ${all.length} networks`
-					: `${all.length} networks`
-				: undefined}
-		>
-			<TextField
-				label="Search networks"
-				hideLabel
-				type="search"
-				placeholder="Search by name"
-				bind:value={q}
-			/>
-			<Select
-				label="Show"
-				bind:value={kind}
-				options={[
-					{ value: '', label: 'All networks' },
-					{ value: 'user', label: 'Created by you' },
-					{ value: 'stack', label: 'Of Compose projects' },
-					{ value: 'builtin', label: 'Predefined' }
-				]}
-			/>
-		</Toolbar>
-
 		{#if list.isError}
 			<ErrorState
 				error={list.error}
@@ -247,7 +220,18 @@
 				onretry={() => list.refetch()}
 			/>
 		{:else}
-			<Card padding="none">
+			<ListCard
+				title="All networks"
+				id="networks"
+				summary={list.data
+					? listSummary(rows.length, all.length, filtered, 'network', 'networks')
+					: undefined}
+				label="Filter networks"
+				searchLabel="Search networks"
+				placeholder="Search by name or subnet"
+				filters={defs}
+				store={filters}
+			>
 				{#if !list.data}
 					<div class="loading" aria-busy="true"><Skeleton lines={6} height="20px" /></div>
 				{:else}
@@ -260,28 +244,18 @@
 					>
 						{#snippet empty()}
 							{#if filtered}
-								<EmptyState
+								<NoMatches
+									what="networks"
 									icon={Network}
-									color="slate"
-									title="No networks match these filters."
-									level={2}
-									compact
-								>
-									{#snippet actions()}
-										<Button
-											variant="secondary"
-											onclick={() => ((q = ''), (kind = ''))}
-											>Clear filters</Button
-										>
-									{/snippet}
-								</EmptyState>
+									onclear={() => filters.clear()}
+								/>
 							{:else}
 								<EmptyState
 									icon={Network}
 									color="indigo"
 									title="No networks to show."
 									description="Create a network to connect standalone containers, or let a stack create its own."
-									level={2}
+									level={3}
 									compact
 								>
 									{#snippet actions()}
@@ -299,7 +273,7 @@
 						{/snippet}
 					</Table>
 				{/if}
-			</Card>
+			</ListCard>
 		{/if}
 	</Page>
 {/if}

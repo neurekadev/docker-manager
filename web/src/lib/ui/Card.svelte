@@ -13,14 +13,28 @@
 		padding?: 'none' | 'md';
 		children: Snippet;
 		id?: string;
+		/**
+		 * The actions take the free width of the header and wrap below the
+		 * title when they do not fit (a list's search and filters).
+		 */
+		stretchActions?: boolean;
 	}
 
-	let { title, level = 2, subtitle, actions, padding = 'md', children, id }: Props = $props();
+	let {
+		title,
+		level = 2,
+		subtitle,
+		actions,
+		padding = 'md',
+		children,
+		id,
+		stretchActions = false
+	}: Props = $props();
 </script>
 
 <section class="card" aria-labelledby={title && id ? `${id}-title` : undefined} {id}>
 	{#if title || actions}
-		<header class="head">
+		<header class="head" class:stretch={stretchActions}>
 			<div class="titles">
 				{#if title}
 					<svelte:element
@@ -79,6 +93,18 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
+	}
+
+	.stretch {
+		flex-wrap: wrap;
+		row-gap: var(--space-3);
+	}
+
+	.stretch .actions {
+		flex: 1 1 auto;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		min-width: 0;
 	}
 
 	.body {

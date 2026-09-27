@@ -136,6 +136,17 @@ loading/denied/not-found/error states, `Facts`, `NameCell`, `Fields`,
 still follow `liveKeys` (a feature marker after `'list'` keeps cached
 shapes apart).
 
+The section lists (containers, images, volumes, networks, stacks) share
+`$lib/features/resources/ListCard.svelte`: the "All …" card with the
+search and filters in its header. Each page builds its `ListFilter`s
+from its rows (`filters.ts`; stacks: `$lib/features/stacks/filters.ts`),
+filters with `applyListFilters` and keeps the state in a `ListFilters`
+store (`list-filters.svelte.ts`): `sessionStorage` under
+`docker-manager:list-filters:<list>`, so each list keeps its own search
+and filters per browser tab when the user leaves and comes back. The
+stored value is parsed defensively (anything but short strings is
+dropped); without `sessionStorage` it lives in memory.
+
 The permission editor of #17 (the design's "PermissionTree") is
 `$lib/features/access/PermissionEditor.svelte`: a searchable resource tree
 (`ResourceTree`, categories in `tree.ts`) beside the actions of the chosen
