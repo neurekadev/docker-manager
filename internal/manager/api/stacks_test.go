@@ -267,8 +267,11 @@ func stackRoutesFor(t *testing.T, stackID string) []authztest.Call {
 		"/api/v1/stacks", "/api/v1/environments/{environmentId}/stacks")
 	var calls []authztest.Call
 	for _, c := range all {
-		// The stack file scope is #15's and migrations are #35's (tested there).
-		if !strings.Contains(c.OperationID, "-file") && !strings.Contains(c.OperationID, "-migration") {
+		// The stack file scope is #15's, migrations are #35's and stacks from
+		// templates (which also need template.use) the template registry's
+		// (tested there).
+		if !strings.Contains(c.OperationID, "-file") && !strings.Contains(c.OperationID, "-migration") &&
+			c.OperationID != "create-stack-template-creation" {
 			calls = append(calls, c)
 		}
 	}

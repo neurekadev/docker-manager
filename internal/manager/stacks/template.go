@@ -61,6 +61,10 @@ type streams interface {
 // transferTimeout bounds streaming a template to the agent.
 const transferTimeout = 5 * time.Minute
 
+// maxTemplateTar bounds the unzipped tar of a template (decompression
+// bombs): the largest template size setting plus room for headers.
+const maxTemplateTar = 1<<30 + 64<<20
+
 // CreateFromTemplate creates a stack named r.Name in r.EnvironmentID from
 // a template version. Like Create, it refuses taken names and existing
 // Compose projects or directories and validates the definition on the
@@ -192,9 +196,14 @@ func (s *Service) receiveTemplate(ctx context.Context, hub streams, env, id stri
 		return agentError(err)
 	}
 	fw := transfer.NewWriter(st, 0)
-	if _, err := io.Copy(fw, zr); err != nil {
+	n, err := io.CopyN(fw, zr, maxTemplateTar+1)
+	if err != nil && !errors.Is(err, io.EOF) {
 		st.Abort(protocol.CloseReasonError, protocol.CodeInternal, "")
 		return transferErr(st, err)
+	}
+	if n > maxTemplateTar {
+		st.Abort(protocol.CloseReasonError, protocol.CodeTooLarge, "")
+		return &domain.StackError{Code: domain.StackErrDefinitionTooLarge, Message: "the template unpacks to more than 1 GiB"}
 	}
 	if err := fw.Close(); err != nil {
 		st.Abort(protocol.CloseReasonError, protocol.CodeInternal, "")
