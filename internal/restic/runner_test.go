@@ -256,7 +256,7 @@ func TestRunnerDeliversSecretsOutsideArgsAndLogs(t *testing.T) {
 
 func TestRunnerParsesBackupProgressAndSummary(t *testing.T) {
 	out := strings.Join([]string{
-		`{"message_type":"status","percent_done":0.25,"total_files":8,"files_done":2,"total_bytes":800,"bytes_done":200}`,
+		`{"message_type":"status","percent_done":0.25,"total_files":8,"files_done":2,"total_bytes":800,"bytes_done":200,"seconds_remaining":12,"current_files":["/data/a.bin","/data/b.bin"]}`,
 		`{"message_type":"error","error":{"message":"permission denied"},"during":"archival","item":"/data/locked"}`,
 		`{"message_type":"summary","files_new":3,"files_changed":1,"files_unmodified":4,"data_added":4096,"total_files_processed":8,"total_bytes_processed":800,"snapshot_id":"5f2a"}`,
 	}, "\n") + "\n"
@@ -273,8 +273,30 @@ func TestRunnerParsesBackupProgressAndSummary(t *testing.T) {
 	if len(sum.Errors) != 1 || !strings.Contains(sum.Errors[0], "/data/locked") {
 		t.Errorf("errors = %v", sum.Errors)
 	}
-	if len(got) != 1 || got[0].Percent != 25 || got[0].FilesDone != 2 {
+	if len(got) != 1 || got[0].Percent != 25 || got[0].FilesDone != 2 || got[0].SecondsRemaining != 12 || got[0].CurrentFile != "/data/a.bin" {
 		t.Errorf("progress = %+v", got)
+	}
+	// With a progress receiver, restic reports every second.
+	if fps, _ := envValue(f.calls()[0].Env, "RESTIC_PROGRESS_FPS"); fps != "1" {
+		t.Errorf("RESTIC_PROGRESS_FPS = %q, want 1", fps)
+	}
+}
+
+func TestRunnerParsesCompressionStats(t *testing.T) {
+	out := `{"total_size":400,"total_uncompressed_size":1000,"compression_ratio":2.5,"compression_progress":100,` +
+		`"compression_space_saving":60,"total_blob_count":7,"snapshots_count":3}` + "\n"
+	f := newFake(t, map[string]fakeAnswer{"stats": {Stdout: out}})
+	st, err := f.r.Open(Location{Repository: f.dir}, "pw-1234567890").Stats(testutil.Context(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Stats{TotalSize: 400, TotalUncompSize: 1000, SnapshotsCount: 3, TotalBlobCount: 7, CompressionRatio: 2.5,
+		CompressionProgress: 100, CompressionSpaceSaving: 60}
+	if st != want {
+		t.Errorf("stats = %+v, want %+v", st, want)
+	}
+	if args := f.calls()[0].Args; !slices.Contains(args, "raw-data") {
+		t.Errorf("args = %v", args)
 	}
 }
 

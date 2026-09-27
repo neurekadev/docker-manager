@@ -138,8 +138,29 @@ type BackupLocation struct {
 	LastVerifiedAt   *time.Time
 	LastVerifyResult string
 	LastVerifyJobID  string
-	SizeBytes        int64
-	UpdatedAt        time.Time
+	// SizeBytes is what the location stores (compressed, deduplicated);
+	// the fields below come with it from the last measurement (#10).
+	SizeBytes int64
+	// UncompressedBytes is the same data before compression.
+	UncompressedBytes int64
+	// CompressionRatio is restic's uncompressed/stored ratio.
+	CompressionRatio float64
+	// CompressionProgress is the percentage of data stored compressed.
+	CompressionProgress float64
+	// StatsSnapshots counts the restic snapshots of the location.
+	StatsSnapshots int64
+	// StatsAt is when the size was measured (nil: never).
+	StatsAt   *time.Time
+	UpdatedAt time.Time
+}
+
+// LocationStats is a location's measured size (#10).
+type LocationStats struct {
+	SizeBytes           int64
+	UncompressedBytes   int64
+	CompressionRatio    float64
+	CompressionProgress float64
+	Snapshots           int64
 }
 
 // BackupKeyState is the instance's Recovery Key state (never the key).

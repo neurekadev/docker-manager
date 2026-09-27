@@ -487,6 +487,22 @@
 					/>{/snippet}
 			</KpiCard>
 			<KpiCard
+				label="Backup storage"
+				value="79.6 GB"
+				unit="/ 160 GB"
+				icon={Clock}
+				color="blue"
+				secondary="2.01x compression (neutral meter)"
+			>
+				{#snippet bar()}<Meter
+						value={79.6}
+						max={160}
+						label="Stored of the total backed-up data"
+						valueText="79.6 GB of 160 GB"
+						tone="neutral"
+					/>{/snippet}
+			</KpiCard>
+			<KpiCard
 				label="Uptime"
 				value="14 days"
 				icon={Clock}

@@ -18,7 +18,7 @@
 	let { value = $bindable(), policyId, onchange }: Props = $props();
 
 	const RULES: { key: keyof BackupRetention; label: string; hint: string }[] = [
-		{ key: 'last', label: 'Last', hint: 'Newest snapshots' },
+		{ key: 'last', label: 'Last', hint: 'Newest backups' },
 		{ key: 'hourly', label: 'Hourly', hint: 'One per hour' },
 		{ key: 'daily', label: 'Daily', hint: 'One per day' },
 		{ key: 'weekly', label: 'Weekly', hint: 'One per week' },
@@ -44,7 +44,7 @@
 <div class="retention">
 	<FieldGroup
 		legend="Keep"
-		hint="0 turns a rule off; with every rule at 0 every snapshot is kept. Rules combine: a snapshot kept by any rule stays."
+		hint="0 turns a rule off; with every rule at 0 every backup is kept. Rules combine: a backup kept by any rule stays."
 	>
 		<div class="grid">
 			{#each RULES as r (r.key)}
@@ -63,7 +63,7 @@
 		label="Minimum recovery floor"
 		type="number"
 		min="0"
-		description="Always keep at least this many of the newest snapshots of each stack and volume, whatever the rules say."
+		description="Always keep at least this many of the newest backups of each stack and volume, whatever the rules say."
 		value={String(value.minKeep ?? 0)}
 		error={floorError}
 		onchange={(e) => num('minKeep', e.currentTarget.value)}

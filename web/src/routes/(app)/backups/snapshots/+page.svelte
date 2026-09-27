@@ -1,7 +1,7 @@
 <script lang="ts">
-	// Backup snapshots (#10): every snapshot of the instance (or of the
-	// selected environment), whoever configured the policy. Open one to
-	// browse its contents or restore it.
+	// All backups (#10): every backup of a stack, volume or the manager
+	// state in the instance (or the selected environment), whoever
+	// configured the policy. Open one to browse its contents or restore it.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Archive from '@lucide/svelte/icons/archive';
 	import { environmentsQuery } from '$lib/api/queries';
@@ -32,8 +32,8 @@
 	import { backupPoliciesQuery, backupsQuery } from '$lib/features/backups/queries';
 
 	usePage({
-		title: 'Backup snapshots',
-		crumbs: [{ label: 'Backups', href: routes.backups() }, { label: 'Snapshots' }],
+		title: 'All backups',
+		crumbs: [{ label: 'Backups', href: routes.backups() }, { label: 'All backups' }],
 		environmentScoped: true
 	});
 
@@ -74,7 +74,7 @@
 		{ id: 'state', header: 'State', cell: stateCell, width: '130px', stack: 'status' },
 		{
 			id: 'time',
-			header: 'Snapshot time',
+			header: 'Taken',
 			cell: timeCell,
 			sortValue: (b) => b.snapshotTime,
 			width: '190px'
@@ -128,16 +128,16 @@
 <Page>
 	<BackupsHeader />
 	<Card
-		title="Snapshots"
+		title="All backups"
 		subtitle={backups.data
-			? `${rows.length} ${rows.length === 1 ? 'snapshot' : 'snapshots'}, ${formatBytes(totalBytes)}`
+			? `${rows.length} ${rows.length === 1 ? 'backup' : 'backups'}, ${formatBytes(totalBytes)} backed up`
 			: undefined}
 		padding="none"
 	>
 		{#snippet actions()}
 			<div class="filter">
 				<TextField
-					label="Filter snapshots"
+					label="Filter backups"
 					hideLabel
 					placeholder="Filter by name, policy or environment"
 					bind:value={filter}
@@ -146,7 +146,7 @@
 		{/snippet}
 		<QueryView query={backups} errorTitle="The backups could not be loaded.">
 			<Table
-				label="Backup snapshots"
+				label="All backups"
 				{rows}
 				{columns}
 				rowKey={(b) => b.id}
@@ -156,14 +156,12 @@
 					<EmptyState
 						icon={Archive}
 						color="slate"
-						title={filter.trim()
-							? 'No snapshot matches the filter.'
-							: 'No snapshots here.'}
+						title={filter.trim() ? 'No backup matches the filter.' : 'No backups here.'}
 						description={filter.trim()
-							? 'Clear the filter to see every snapshot.'
+							? 'Clear the filter to see every backup.'
 							: environmentSelection.id
 								? 'Nothing from this environment is backed up yet.'
-								: 'Snapshots appear after a policy runs.'}
+								: 'Backups appear after a policy runs.'}
 						level={3}
 						compact
 					/>

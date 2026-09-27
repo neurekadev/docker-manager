@@ -233,6 +233,11 @@ func (s *Service) planRun(ctx context.Context, db bun.IDB, p domain.BackupPolicy
 		if envErr == nil {
 			in.EnvironmentName = env.Name
 		}
+		// Agents reject unknown input fields: live activity is asked only
+		// of agents announcing it (#10; an older agent backs up without).
+		if fh, ok := s.opts.Agents.(FeatureHub); ok && fh.EnvironmentHasFeature(e.EnvironmentID, protocol.FeatureBackupActivity) {
+			in.Activity = true
+		}
 		targets := []domain.JobTarget{}
 		for _, it := range e.Items {
 			if only != nil && !only[scope+"\x00"+it.Key()] {

@@ -1,11 +1,11 @@
 <script lang="ts">
 	// Backups overview (#10): until backups run, the two setup steps (a
 	// repository with a confirmed Recovery Key, then a policy); afterwards
-	// how backups stand (KPIs), every policy with its last set, next run and
-	// a manual run, and the recent sets of the instance (partial ones stay
-	// partial, with each member's own snapshot time). Snapshots and
-	// repositories have their own tabs.
-	import { createQuery } from '@tanstack/svelte-query';
+	// how backups stand (KPIs), what runs now (progress and the file being
+	// read), the storage the repositories use, every policy on one line
+	// and the recent sets on one line each (Details opens a drawer). All
+	// backups and repositories have their own tabs.
+	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import Archive from '@lucide/svelte/icons/archive';
 	import Check from '@lucide/svelte/icons/check';
 	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
@@ -25,7 +25,6 @@
 		KpiCard,
 		Notice,
 		Skeleton,
-		formatBytes,
 		formatDateTime,
 		formatRelative
 	} from '$lib/ui';
@@ -37,10 +36,13 @@
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
 	import BackupPolicyDialog from '$lib/features/backups/BackupPolicyDialog.svelte';
 	import BackupsHeader from '$lib/features/backups/BackupsHeader.svelte';
-	import PolicyCard from '$lib/features/backups/PolicyCard.svelte';
+	import PolicyTable from '$lib/features/backups/PolicyTable.svelte';
+	import RunningBackups from '$lib/features/backups/RunningBackups.svelte';
 	import SetsTable from '$lib/features/backups/SetsTable.svelte';
-	import { recentSets } from '$lib/features/backups/model';
+	import StorageCard from '$lib/features/backups/StorageCard.svelte';
+	import { recentSets, storageTotals } from '$lib/features/backups/model';
 	import {
+		backupActivityQuery,
 		backupPoliciesWithSetsQuery,
 		backupsQuery,
 		repositoriesQuery
@@ -84,8 +86,37 @@
 	const troubled = $derived(
 		sets.filter((s) => s.state === 'partial' || s.state === 'failed').length
 	);
-	const totalBytes = $derived((backups.data ?? []).reduce((n, b) => n + (b.bytes ?? 0), 0));
 	const setupDone = $derived(readyRepos.length > 0 && (policies.data ?? []).length > 0);
+
+	// Running backups: polled every second while one runs or a set is
+	// still pending; when a job ends, the sets, backups and storage refresh.
+	const qc = useQueryClient();
+	const activity = createQuery(() =>
+		backupActivityQuery(() => sets.some((s) => s.state === 'pending'))
+	);
+	const running = $derived(
+		(activity.data ?? []).filter(
+			(a) =>
+				!environmentSelection.id ||
+				!a.environmentId ||
+				a.environmentId === environmentSelection.id
+		)
+	);
+	const runningPolicies = $derived(
+		new Set(running.map((a) => a.policyId).filter((id): id is string => !!id))
+	);
+	let seenJobs = new Set<string>();
+	$effect(() => {
+		const now = new Set((activity.data ?? []).map((a) => a.jobId));
+		if ([...seenJobs].some((id) => !now.has(id))) {
+			void qc.invalidateQueries({ queryKey: ['policies'] });
+			void qc.invalidateQueries({ queryKey: ['backups'] });
+		}
+		seenJobs = now;
+	});
+	const policyName = (id: string | undefined) =>
+		(id && policies.data?.find((p) => p.id === id)?.name) || 'Backup';
+	const storage = $derived(storageTotals(repos.data ?? [], environmentSelection.id));
 </script>
 
 <Page>
@@ -198,9 +229,9 @@
 				tone={troubled ? 'warn' : undefined}
 			/>
 			<KpiCard
-				label="Snapshots"
+				label="Backups"
 				value={String(backups.data?.length ?? 0)}
-				secondary="{formatBytes(totalBytes)} stored"
+				secondary="Stacks, volumes and manager state kept"
 				icon={Archive}
 				color="blue"
 			/>
@@ -216,9 +247,21 @@
 			/>
 		</KpiRow>
 
+		{#if running.length}
+			<Card
+				title="Running now"
+				subtitle="Progress and the file each backup reads, updated every second."
+			>
+				<RunningBackups jobs={running} {policyName} environmentName={envName} />
+			</Card>
+		{/if}
+
+		<StorageCard totals={storage} />
+
 		<Card
 			title="Policies"
-			subtitle="What is backed up, when it runs next and how the last run went."
+			subtitle="What is backed up, how the last run went and when the next one starts."
+			padding="none"
 		>
 			{#snippet actions()}
 				<Button size="sm" variant="ghost" href={routes.backupPolicies()}
@@ -226,15 +269,12 @@
 				>
 			{/snippet}
 			{#if policyList.length}
-				<div class="policies">
-					{#each policyList as p (p.id)}
-						<PolicyCard
-							policy={p}
-							repositoryName={repos.data?.find((r) => r.id === p.repositoryId)?.name}
-							environmentName={envName}
-						/>
-					{/each}
-				</div>
+				<PolicyTable
+					policies={policyList}
+					repositories={repos.data}
+					environmentName={envName}
+					running={runningPolicies}
+				/>
 			{:else}
 				<EmptyState
 					icon={DatabaseBackup}
@@ -247,13 +287,24 @@
 			{/if}
 		</Card>
 
-		<Card title="Recent backup sets" padding="none">
+		<Card
+			title="Recent backup sets"
+			subtitle="Each run of a policy, with the backups it holds."
+			padding="none"
+		>
+			{#snippet actions()}
+				<Button size="sm" variant="ghost" href={routes.backupSnapshots()}
+					>All backups</Button
+				>
+			{/snippet}
 			<QueryView query={policies} errorTitle="The backup sets could not be loaded.">
 				{#if sets.length}
 					<SetsTable
 						{sets}
 						label="Recent backup sets"
 						environmentName={envName}
+						backups={backups.data}
+						activity={running}
 						canRetry={(id) =>
 							has(
 								policies.data?.find((p) => p.id === id),
@@ -280,12 +331,6 @@
 {/if}
 
 <style>
-	.policies {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
-		gap: var(--space-4);
-	}
-
 	.setup {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));

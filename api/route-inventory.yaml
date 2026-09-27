@@ -1962,6 +1962,15 @@ routes:
     status: implemented
     notes: "201 + the retention jobs (one per location); Idempotency-Key; confirm: true."
   - method: GET
+    path: /api/v1/backup-activity
+    operationId: list-backup-activity
+    capability: job.read
+    scope: resource
+    owner: 10
+    kind: json
+    status: implemented
+    notes: "Running backups with the file being read (files-read capability only); live, in memory."
+  - method: GET
     path: /api/v1/backups
     operationId: list-backups
     capability: backup.read

@@ -6,6 +6,7 @@ import { liveKeys } from '$lib/live/keys';
 import { fetchAllPages } from '$lib/features/common/data';
 import type {
 	Backup,
+	BackupActivity,
 	BackupDetail,
 	BackupPolicy,
 	BackupRepository,
@@ -188,6 +189,22 @@ export function backupContentsQuery(id: string, path: string, client: ApiClient 
 			return { ...c, entries: c.entries.filter((e) => e.path !== path) };
 		},
 		staleTime: 5 * 60_000,
+		retry: false
+	});
+}
+
+/**
+ * Running backups with what each reads now (#10). Keyed under the jobs
+ * topic so a backup that starts or ends refreshes it; while one runs it
+ * polls every second (every 3 s while `busy` says a set is still pending
+ * without a job reporting), and stops when nothing runs.
+ */
+export function backupActivityQuery(busy: () => boolean = () => false, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: liveKeys.list('jobs', 'backup-activity'),
+		queryFn: async ({ signal }): Promise<BackupActivity[]> =>
+			(await unwrap(client.GET('/api/v1/backup-activity', { signal }))).jobs,
+		refetchInterval: (q) => ((q.state.data?.length ?? 0) > 0 ? 1000 : busy() ? 3000 : false),
 		retry: false
 	});
 }

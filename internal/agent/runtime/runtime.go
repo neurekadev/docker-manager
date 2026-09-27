@@ -638,6 +638,10 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	if slices.Contains(p.Commands, "restore.run") {
 		p.Features = append(p.Features, protocol.FeatureRestoreSelection)
 	}
+	// Its backup.run reports live activity when asked (#10).
+	if slices.Contains(p.Commands, "backup.run") {
+		p.Features = append(p.Features, protocol.FeatureBackupActivity)
+	}
 	if c.EngineError != nil {
 		p.Diagnostics = append(p.Diagnostics, protocol.Diagnostic{
 			Area: protocol.DiagnosticEngine, Code: string(c.EngineError.Code), Message: bound(c.EngineError.Message),

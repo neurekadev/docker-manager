@@ -254,3 +254,14 @@ func TestDestinations(t *testing.T) {
 		t.Errorf("tag values")
 	}
 }
+
+// TestScopeEnvironment: only environment scopes name an environment; the
+// manager scope (and anything else) names none, even if the caller ignores
+// the second result.
+func TestScopeEnvironment(t *testing.T) {
+	for scope, want := range map[string]string{EnvironmentScope("e1"): "e1", ScopeManager: "", "env:": "", "other": ""} {
+		if got, ok := ScopeEnvironment(scope); got != want || ok != (want != "") {
+			t.Errorf("ScopeEnvironment(%q) = %q, %v", scope, got, ok)
+		}
+	}
+}

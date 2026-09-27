@@ -297,6 +297,7 @@ func (p *repo) Backup(ctx context.Context, req restic.BackupRequest) (restic.Bac
 	files := map[string]*file{}
 	var sum restic.BackupSummary
 	var paths []string
+	var first string // the first regular file, reported as being read
 	if req.Stdin != nil {
 		b, err := io.ReadAll(req.Stdin)
 		if err != nil {
@@ -343,6 +344,9 @@ func (p *repo) Backup(ctx context.Context, req restic.BackupRequest) (restic.Bac
 						return nil
 					}
 					f.data = b
+					if first == "" {
+						first = sp
+					}
 					sum.TotalBytesProcessed += int64(len(b))
 					sum.TotalFilesProcessed++
 				}
@@ -372,6 +376,10 @@ func (p *repo) Backup(ctx context.Context, req restic.BackupRequest) (restic.Bac
 	sum.FilesNew = int64(len(files))
 	sum.DataAdded = sum.TotalBytesProcessed
 	if req.Progress != nil {
+		if first != "" {
+			req.Progress(restic.Progress{Percent: 50, FilesTotal: sum.TotalFilesProcessed, BytesTotal: sum.TotalBytesProcessed,
+				SecondsRemaining: 1, CurrentFile: first})
+		}
 		req.Progress(restic.Progress{Percent: 100, FilesDone: sum.TotalFilesProcessed, FilesTotal: sum.TotalFilesProcessed,
 			BytesDone: sum.TotalBytesProcessed, BytesTotal: sum.TotalBytesProcessed})
 	}
@@ -648,14 +656,18 @@ func (p *repo) Stats(ctx context.Context) (restic.Stats, error) {
 	if err != nil {
 		return restic.Stats{}, err
 	}
+	// Like a compressed repository: every blob stored at half its size.
 	var st restic.Stats
 	for _, sn := range r.snaps {
 		st.SnapshotsCount++
 		for _, f := range sn.files {
-			st.TotalSize += int64(len(f.data))
+			st.TotalUncompSize += int64(len(f.data))
 		}
 	}
-	st.TotalUncompSize = st.TotalSize
+	st.TotalSize = st.TotalUncompSize / 2
+	if st.TotalUncompSize > 0 {
+		st.CompressionRatio, st.CompressionProgress, st.CompressionSpaceSaving = 2, 100, 50
+	}
 	return st, nil
 }
 

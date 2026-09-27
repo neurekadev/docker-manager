@@ -451,11 +451,11 @@
 			<ConfirmDialog
 				bind:open={retentionOpen}
 				title="Apply the retention of {p.name}?"
-				message="Forgets the snapshots the rules no longer keep, then prunes the repositories. Review the preview first."
+				message="Forgets the backups the rules no longer keep, then prunes the repositories. Review the preview first."
 				consequences={[
 					retentionText(p.retention) + '.',
-					'The minimum recovery floor and the newest snapshot of each stack and volume are always kept.',
-					'Forgotten snapshots cannot be restored afterwards. Object Lock may refuse some deletions.'
+					'The minimum recovery floor and the newest backup of each stack and volume are always kept.',
+					'Forgotten backups cannot be restored afterwards. Object Lock may refuse some deletions.'
 				]}
 				confirmLabel="Apply retention"
 				tone="danger"
@@ -469,7 +469,7 @@
 				title="Delete backup policy {p.name}"
 				consequences={[
 					'Scheduled backups of this policy stop.',
-					'Its backup sets and snapshots stay and can still be restored.',
+					'Its backup sets and their backups stay and can still be restored.',
 					'Repositories and the Recovery Key are not touched.'
 				]}
 				confirmText={p.name}

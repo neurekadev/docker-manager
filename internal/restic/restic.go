@@ -149,6 +149,13 @@ type Progress struct {
 	FilesTotal int64
 	BytesDone  int64
 	BytesTotal int64
+	// SecondsRemaining is restic's estimate (0 unknown).
+	SecondsRemaining int64
+	// CurrentFile is a file restic is reading now (backup; absolute path
+	// as restic sees it, "" between files). File paths may reach only
+	// holders of the scope's files-read capability: never log them or put
+	// them in job progress.
+	CurrentFile string
 }
 
 // BackupSummary is the result of a backup.
@@ -245,13 +252,21 @@ type RestoreSummary struct {
 	BytesRestored int64
 }
 
-// Stats is the repository size.
+// Stats is the repository size (restic stats --mode raw-data): what the
+// repository holds on disk and before compression. restic computes it from
+// the index and the directory metadata; no file content is read.
 type Stats struct {
-	TotalSize        int64 `json:"total_size"`
-	TotalUncompSize  int64 `json:"total_uncompressed_size"`
-	SnapshotsCount   int64 `json:"snapshots_count"`
-	TotalBlobCount   int64 `json:"total_blob_count"`
-	CompressionRatio float64
+	TotalSize       int64 `json:"total_size"`
+	TotalUncompSize int64 `json:"total_uncompressed_size"`
+	SnapshotsCount  int64 `json:"snapshots_count"`
+	TotalBlobCount  int64 `json:"total_blob_count"`
+	// CompressionRatio is uncompressed/size (0 when restic reports none).
+	CompressionRatio float64 `json:"compression_ratio"`
+	// CompressionProgress is the percentage (0-100) of data stored
+	// compressed (repository format 2).
+	CompressionProgress float64 `json:"compression_progress"`
+	// CompressionSpaceSaving is the percentage of space compression saved.
+	CompressionSpaceSaving float64 `json:"compression_space_saving"`
 }
 
 // CheckRequest configures a check.

@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"path"
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
@@ -294,9 +297,18 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 			tags = append(tags, backup.PolicyTag(in.PolicyID))
 		}
 		base := 10 + 80*i/n
+		var saved time.Time
 		sum, err := o.Repo.Backup(ctx, restic.BackupRequest{Paths: p.paths, Excludes: p.excludes, Tags: tags, Host: host,
 			Progress: func(pr restic.Progress) {
-				sc.Progress(ctx, base+int(pr.Percent*0.8/float64(n)), "backing up "+it.Key())
+				// restic reports every second; the job record (visible to
+				// job.read holders, no paths) at most every 5 s.
+				if now := s.opts.Clock.Now(); pr.Percent >= 100 || saved.IsZero() || now.Sub(saved) >= progressInterval {
+					saved = now
+					sc.Progress(ctx, base+int(pr.Percent*0.8/float64(n)), progressMessage(it.Key(), pr))
+				}
+				if in.Activity {
+					sc.Activity(ctx, activityOf(p, i, n, pr))
+				}
 			}})
 		if err != nil {
 			if ctx.Err() != nil {
@@ -336,6 +348,47 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 		}
 	}
 	return nil
+}
+
+// progressInterval spaces the persisted progress of a snapshot.
+const progressInterval = 5 * time.Second
+
+// progressMessage is the job progress text of an item: counts, no paths.
+func progressMessage(item string, pr restic.Progress) string {
+	if pr.FilesTotal <= 0 {
+		return "backing up " + item
+	}
+	return fmt.Sprintf("backing up %s (%d of %d files)", item, pr.FilesDone, pr.FilesTotal)
+}
+
+// activityOf is the live activity of item i of n (#10). The current file
+// is given relative to the item: <volume>/<path> inside a volume, the
+// project-relative path inside a stack directory, else its base name.
+func activityOf(p itemPlan, i, n int, pr restic.Progress) protocol.ActivityPayload {
+	a := protocol.ActivityPayload{Item: p.item.Key(), ItemIndex: i, ItemCount: n, Percent: min(100, max(0, int(pr.Percent))),
+		FilesDone: max(0, pr.FilesDone), FilesTotal: max(0, pr.FilesTotal), BytesDone: max(0, pr.BytesDone),
+		BytesTotal: max(0, pr.BytesTotal), SecondsRemaining: max(0, pr.SecondsRemaining)}
+	if pr.CurrentFile != "" {
+		a.CurrentFile = relativeFile(p, snapPath(pr.CurrentFile))
+		if len(a.CurrentFile) > protocol.MaxActivityPath {
+			a.CurrentFile = "…" + a.CurrentFile[len(a.CurrentFile)-protocol.MaxActivityPath+len("…"):]
+		}
+	}
+	return a
+}
+
+func relativeFile(p itemPlan, f string) string {
+	for _, name := range slices.Sorted(maps.Keys(p.volumePaths)) {
+		if dir := p.volumePaths[name]; snapWithin(f, dir) {
+			return path.Join(name, snapRel(f, dir))
+		}
+	}
+	if p.dir != "" {
+		if dir := snapPath(p.dir); snapWithin(f, dir) {
+			return snapRel(f, dir)
+		}
+	}
+	return path.Base(f)
 }
 
 func (s *Service) stepStartContainers(ctx context.Context, sc *jobexec.StepContext) error {
@@ -492,5 +545,6 @@ func (s *Service) stepRecord(ctx context.Context, sc *jobexec.StepContext) error
 	}
 	out.ManifestSnapshotID = sum.SnapshotID
 	out.Members = m.Members
+	out.Stats = protocol.StatsOf(backup.MeasureStats(ctx, o.Repo))
 	return sc.SetOutput(ctx, out)
 }

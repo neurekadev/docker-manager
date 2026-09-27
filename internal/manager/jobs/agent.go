@@ -133,8 +133,18 @@ func (e *Engine) handleProgress(ctx context.Context, env string, f *protocol.Fra
 	if err != nil {
 		return err
 	}
+	if activityOnly(p) {
+		e.activity(env, f.JobID, *p.Activity)
+		return nil
+	}
 	_, err = e.applyProgress(ctx, f.JobID, func(j *domain.Job) bool { return current(j, env, f.Ref()) }, p)
 	return err
+}
+
+// activityOnly reports a transient activity report (#10): kept in memory
+// by the listeners, never written to the job or its events.
+func activityOnly(p protocol.ProgressPayload) bool {
+	return p.Activity != nil && p.Message == "" && p.Item == nil
 }
 
 // applyProgress records progress for the job if match accepts it.

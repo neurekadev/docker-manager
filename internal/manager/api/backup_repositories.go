@@ -66,6 +66,8 @@ type BackupService interface {
 	CreateRepository(ctx context.Context, in domain.BackupRepositoryInput) (backups.CreatedRepository, error)
 	UpdateRepository(ctx context.Context, id string, revision int64, p domain.BackupRepositoryPatch) (before, after domain.BackupRepository, err error)
 	DeleteRepository(ctx context.Context, id string, revision int64) error
+	ListLocations(ctx context.Context, repositoryID string) ([]domain.BackupLocation, error)
+	Activity(ctx context.Context) ([]backups.BackupActivity, error)
 	TestRepository(ctx context.Context, id string) (domain.BackupConnectionTest, error)
 	Health(ctx context.Context, id string) (backups.RepositoryHealth, error)
 	KeyState(ctx context.Context) (domain.BackupKeyState, error)
@@ -250,9 +252,68 @@ type BackupRepository struct {
 	ConfirmedAt          *time.Time            `json:"confirmedAt,omitempty"`
 	Verification         *BackupVerification   `json:"verification,omitempty"`
 	LastTest             *BackupConnectionTest `json:"lastTest,omitempty"`
+	Storage              *BackupStorage        `json:"storage,omitempty" doc:"Measured size (full view; absent until a backup or prune measured a location)."`
 	Revision             int64                 `json:"revision,omitempty"`
 	CreatedAt            time.Time             `json:"createdAt,omitzero"`
 	UpdatedAt            time.Time             `json:"updatedAt,omitzero"`
+}
+
+// BackupStorage is what a repository stores (#10): restic stats --mode
+// raw-data of each location, measured after every backup and prune from
+// the index and directory metadata (no file content is read).
+type BackupStorage struct {
+	SizeBytes           int64                   `json:"sizeBytes" doc:"Stored at the destination (compressed and deduplicated)."`
+	UncompressedBytes   int64                   `json:"uncompressedBytes" doc:"The same data before compression."`
+	CompressionRatio    float64                 `json:"compressionRatio" doc:"uncompressedBytes / sizeBytes (0 when nothing is stored)."`
+	CompressionProgress float64                 `json:"compressionProgress" doc:"Percentage of the data stored compressed, weighted by uncompressed size."`
+	Snapshots           int64                   `json:"snapshots" doc:"restic snapshots in the repository."`
+	MeasuredAt          *time.Time              `json:"measuredAt,omitempty" doc:"The oldest location measurement."`
+	Locations           []BackupLocationStorage `json:"locations"`
+}
+
+// BackupLocationStorage is one measured location of a repository.
+type BackupLocationStorage struct {
+	Scope               string    `json:"scope" example:"env:01a0"`
+	EnvironmentID       string    `json:"environmentId,omitempty" doc:"The environment whose data the location holds (none: the manager state)."`
+	SizeBytes           int64     `json:"sizeBytes"`
+	UncompressedBytes   int64     `json:"uncompressedBytes"`
+	CompressionRatio    float64   `json:"compressionRatio"`
+	CompressionProgress float64   `json:"compressionProgress"`
+	Snapshots           int64     `json:"snapshots"`
+	MeasuredAt          time.Time `json:"measuredAt"`
+}
+
+// newBackupStorage sums the measured locations (nil when none is).
+func newBackupStorage(locs []domain.BackupLocation) *BackupStorage {
+	out := &BackupStorage{Locations: []BackupLocationStorage{}}
+	var compressed float64
+	for _, l := range locs {
+		if l.StatsAt == nil {
+			continue
+		}
+		env, _ := backup.ScopeEnvironment(l.Scope)
+		out.Locations = append(out.Locations, BackupLocationStorage{Scope: l.Scope, EnvironmentID: env, SizeBytes: l.SizeBytes,
+			UncompressedBytes: l.UncompressedBytes, CompressionRatio: l.CompressionRatio, CompressionProgress: l.CompressionProgress,
+			Snapshots: l.StatsSnapshots, MeasuredAt: *l.StatsAt})
+		out.SizeBytes += l.SizeBytes
+		out.UncompressedBytes += l.UncompressedBytes
+		out.Snapshots += l.StatsSnapshots
+		compressed += l.CompressionProgress * float64(l.UncompressedBytes)
+		if out.MeasuredAt == nil || l.StatsAt.Before(*out.MeasuredAt) {
+			t := *l.StatsAt
+			out.MeasuredAt = &t
+		}
+	}
+	if len(out.Locations) == 0 {
+		return nil
+	}
+	if out.SizeBytes > 0 {
+		out.CompressionRatio = float64(out.UncompressedBytes) / float64(out.SizeBytes)
+	}
+	if out.UncompressedBytes > 0 {
+		out.CompressionProgress = compressed / float64(out.UncompressedBytes)
+	}
+	return out
 }
 
 func newBackupConnectionTest(t *domain.BackupConnectionTest) *BackupConnectionTest {
@@ -278,7 +339,7 @@ func recoveryRequirements(r domain.BackupRepository) []string {
 	return []string{"the Recovery Key", "the directory " + r.Path + " on the environment's host, mounted into its (re-enrolled) agent at the same path"}
 }
 
-func newBackupRepository(r domain.BackupRepository, v authz.View) BackupRepository {
+func newBackupRepository(r domain.BackupRepository, v authz.View, locs []domain.BackupLocation) BackupRepository {
 	out := BackupRepository{ID: r.ID, Name: r.Name, Kind: r.Kind, State: r.State, View: v.Level.String(), Actions: Actions(v)}
 	if !v.Full() {
 		return out
@@ -293,6 +354,13 @@ func newBackupRepository(r domain.BackupRepository, v authz.View) BackupReposito
 	out.Verification = &BackupVerification{Cron: r.VerifyCron, TimeZone: r.VerifyTimeZone, Enabled: r.VerifyEnabled, ReadDataSubset: r.VerifyReadData}
 	out.LastTest = newBackupConnectionTest(r.LastTest)
 	out.Revision, out.CreatedAt, out.UpdatedAt = r.Revision, r.CreatedAt, r.UpdatedAt
+	var own []domain.BackupLocation
+	for _, l := range locs {
+		if l.RepositoryID == r.ID {
+			own = append(own, l)
+		}
+	}
+	out.Storage = newBackupStorage(own)
 	return out
 }
 
@@ -406,9 +474,13 @@ func (h *backupsAPI) listRepositories(ctx context.Context, in *struct{ PageParam
 	if err != nil {
 		return nil, Internal(err)
 	}
+	locs, err := svc.ListLocations(ctx, "")
+	if err != nil {
+		return nil, Internal(err)
+	}
 	out := make([]BackupRepository, 0, len(items))
 	for _, r := range items {
-		out = append(out, newBackupRepository(r, authz.ViewOf(c, backupRepositoryResource(r.ID))))
+		out = append(out, newBackupRepository(r, authz.ViewOf(c, backupRepositoryResource(r.ID)), locs))
 	}
 	cursor, err := nextCursor(fp, next)
 	if err != nil {
@@ -446,11 +518,15 @@ func (h *backupsAPI) requireRepository(ctx context.Context, id string, cp Capabi
 }
 
 func (h *backupsAPI) getRepository(ctx context.Context, in *backupRepositoryIDInput) (*backupRepositoryOutput, error) {
-	_, _, _, r, v, err := h.visibleRepository(ctx, in.RepositoryID)
+	svc, _, _, r, v, err := h.visibleRepository(ctx, in.RepositoryID)
 	if err != nil {
 		return nil, err
 	}
-	body := newBackupRepository(r, v)
+	locs, err := svc.ListLocations(ctx, r.ID)
+	if err != nil {
+		return nil, Internal(err)
+	}
+	body := newBackupRepository(r, v, locs)
 	return &backupRepositoryOutput{ETagHeader: repositoryETag(body), Body: body}, nil
 }
 
@@ -506,9 +582,10 @@ func (h *backupsAPI) createRepository(ctx context.Context, in *createBackupRepos
 	if err != nil {
 		return nil, backupError(err)
 	}
-	repo := newBackupRepository(res.Repository, authz.ViewOf(c, backupRepositoryResource(res.Repository.ID)))
+	// A new repository has no measured location yet.
+	repo := newBackupRepository(res.Repository, authz.ViewOf(c, backupRepositoryResource(res.Repository.ID)), nil)
 	if !repo.ViewFull() {
-		repo = newBackupRepository(res.Repository, authz.View{Level: authz.Full, Actions: []string{string(CapBackupRepositoryRead)}})
+		repo = newBackupRepository(res.Repository, authz.View{Level: authz.Full, Actions: []string{string(CapBackupRepositoryRead)}}, nil)
 	}
 	out := CreatedBackupRepository{Repository: repo, KeyState: newRecoveryKeyState(res.Key, nil),
 		NextStep: "Confirm the Recovery Key for this repository (POST .../recovery-confirmations) before policies can use it."}
@@ -559,7 +636,11 @@ func (h *backupsAPI) updateRepository(ctx context.Context, in *updateBackupRepos
 	if err != nil {
 		return nil, backupError(err)
 	}
-	body := newBackupRepository(after, v)
+	locs, err := svc.ListLocations(ctx, after.ID)
+	if err != nil {
+		return nil, Internal(err)
+	}
+	body := newBackupRepository(after, v, locs)
 	return &backupRepositoryOutput{ETagHeader: repositoryETag(body), Body: body}, nil
 }
 
@@ -629,7 +710,8 @@ func (h *backupsAPI) confirmRecoveryKey(ctx context.Context, in *recoveryConfirm
 		return nil, backupError(err)
 	}
 	pending, _ := svc.LocationKeyStatus(ctx)
-	out := RecoveryConfirmation{Repository: newBackupRepository(res.Repository, authz.ViewOf(c, backupRepositoryResource(r.ID))),
+	locs, _ := svc.ListLocations(ctx, r.ID)
+	out := RecoveryConfirmation{Repository: newBackupRepository(res.Repository, authz.ViewOf(c, backupRepositoryResource(r.ID)), locs),
 		KeyState: newRecoveryKeyState(res.Key, pending), Activated: res.Activated}
 	for _, j := range res.RotationJobs {
 		out.Jobs = append(out.Jobs, NewJob(j))
@@ -670,6 +752,11 @@ type BackupLocationHealth struct {
 	LastVerifiedAt     *time.Time `json:"lastVerifiedAt,omitempty"`
 	LastVerifyResult   string     `json:"lastVerifyResult,omitempty"`
 	SizeBytes          int64      `json:"sizeBytes,omitempty"`
+	// Measured with the size (#10; absent before the first measurement).
+	UncompressedBytes   int64      `json:"uncompressedBytes,omitempty"`
+	CompressionRatio    float64    `json:"compressionRatio,omitempty"`
+	CompressionProgress float64    `json:"compressionProgress,omitempty"`
+	MeasuredAt          *time.Time `json:"measuredAt,omitempty"`
 }
 
 // BackupRepositoryHealth summarizes a repository.
@@ -713,7 +800,9 @@ func (h *backupsAPI) repositoryHealth(ctx context.Context, in *backupRepositoryI
 	for _, l := range hl.Locations {
 		out.Locations = append(out.Locations, BackupLocationHealth{Scope: l.Scope, Repository: d.Repository(l.Scope),
 			ResticRepositoryID: l.ResticRepositoryID, KeyGeneration: l.KeyGeneration, LastBackupAt: l.LastBackupAt,
-			LastVerifiedAt: l.LastVerifiedAt, LastVerifyResult: l.LastVerifyResult, SizeBytes: l.SizeBytes})
+			LastVerifiedAt: l.LastVerifiedAt, LastVerifyResult: l.LastVerifyResult, SizeBytes: l.SizeBytes,
+			UncompressedBytes: l.UncompressedBytes, CompressionRatio: l.CompressionRatio, CompressionProgress: l.CompressionProgress,
+			MeasuredAt: l.StatsAt})
 	}
 	return &backupRepositoryHealthOutput{Body: out}, nil
 }

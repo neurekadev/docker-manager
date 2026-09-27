@@ -31,10 +31,14 @@ const envScopePrefix = "env:"
 // EnvironmentScope is the scope of an environment's data.
 func EnvironmentScope(environmentID string) string { return envScopePrefix + environmentID }
 
-// ScopeEnvironment returns the environment of an environment scope.
+// ScopeEnvironment returns the environment of an environment scope ("",
+// false for the manager scope or anything else).
 func ScopeEnvironment(scope string) (string, bool) {
 	id, ok := strings.CutPrefix(scope, envScopePrefix)
-	return id, ok && id != ""
+	if !ok || id == "" {
+		return "", false
+	}
+	return id, true
 }
 
 var scopeIDRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -462,6 +463,45 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 	}
 	if len(page.Items) != 3 || kinds["stack"] == "" || kinds["volume"] == "" || kinds["manager_state"] == "" {
 		t.Fatalf("backups %+v", page.Items)
+	}
+	for _, it := range page.Items {
+		if (it.Kind == "manager_state") != (it.Scope == "manager") {
+			t.Errorf("backup %+v in the wrong scope", it)
+		}
+	}
+
+	// Each backup measured its location (#10): the environment's and the
+	// manager state's, summed on the repository.
+	var measured struct {
+		Storage *struct {
+			SizeBytes         int64   `json:"sizeBytes"`
+			UncompressedBytes int64   `json:"uncompressedBytes"`
+			CompressionRatio  float64 `json:"compressionRatio"`
+			Snapshots         int64   `json:"snapshots"`
+			Locations         []struct {
+				Scope         string `json:"scope"`
+				EnvironmentID string `json:"environmentId"`
+			} `json:"locations"`
+		} `json:"storage"`
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backup-repositories/"+id, nil).json(t, &measured)
+	// The fake stores every location at half its size (rounded down).
+	if st := measured.Storage; st == nil || st.SizeBytes <= 0 || st.UncompressedBytes-2*st.SizeBytes > 2 ||
+		math.Abs(st.CompressionRatio-2) > 0.01 || st.Snapshots == 0 || len(st.Locations) != 2 {
+		t.Fatalf("storage %+v", measured.Storage)
+	}
+	for _, l := range measured.Storage.Locations {
+		if (l.Scope == "manager") != (l.EnvironmentID == "") {
+			t.Errorf("location %+v", l)
+		}
+	}
+	// Nothing runs any more.
+	var running struct {
+		Jobs []any `json:"jobs"`
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backup-activity", nil).json(t, &running)
+	if len(running.Jobs) != 0 {
+		t.Errorf("activity after the run: %+v", running.Jobs)
 	}
 	var detail struct {
 		Set struct {

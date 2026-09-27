@@ -1,6 +1,8 @@
 <script lang="ts">
 	// Header of the Backups section: title, description, the section's
-	// actions and route tabs (Overview, Policies, Snapshots, Repositories).
+	// actions and route tabs (Overview, Policies, All backups, Repositories).
+	// A backup is one stack, volume or the manager state at one time (a
+	// restic snapshot); a backup set is one run of a policy.
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import { routes } from '$lib/routes';
@@ -20,7 +22,7 @@
 	items={[
 		{ href: routes.backups(), label: 'Overview' },
 		{ href: routes.backupPolicies(), label: 'Policies' },
-		{ href: routes.backupSnapshots(), label: 'Snapshots' },
+		{ href: routes.backupSnapshots(), label: 'All backups' },
 		{ href: routes.backupRepositories(), label: 'Repositories' }
 	]}
 />

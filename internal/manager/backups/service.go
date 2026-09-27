@@ -165,6 +165,9 @@ type Service struct {
 	// in memory only, by job ID.
 	importMu sync.Mutex
 	imports  map[string]*importSecrets
+
+	// activity holds the latest live report of running backups (#10).
+	activity activityStore
 }
 
 // SetVolumes installs the resource inventory after the manager wires Docker.

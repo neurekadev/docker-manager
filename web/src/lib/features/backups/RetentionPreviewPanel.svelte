@@ -52,7 +52,7 @@
 		>{/if}
 	{#if preview}
 		{#if preview.locations.length === 0}
-			<p class="muted">No snapshots yet: nothing would be forgotten.</p>
+			<p class="muted">No backups yet: nothing would be forgotten.</p>
 		{/if}
 		{#each preview.locations as loc (loc.repositoryId + loc.scope)}
 			<div class="loc">
