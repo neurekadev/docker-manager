@@ -71,7 +71,26 @@ Nothing automatic or destructive runs until you turn it on:
   remove.
 - **Backups** use restic to local folders or S3-compatible storage. Your
   **Recovery Key** is shown once: store it outside Docker Manager. Without
-  it, backups cannot be restored.
+  it, backups cannot be restored. Include **manager state** in at least one
+  backup policy that stores its backups away from the manager's own disk
+  (S3, or a folder on another host).
+
+## Restore from a backup
+
+Open a backup in **Backups**, browse it and press **Restore**. You can
+restore a whole stack (its files; deploy it again afterwards), a volume
+(containers using it stop and start again) or a single file. If a restore
+fails, the original stays as it was.
+
+If you lost the manager itself:
+
+1. Install Docker Manager again as in the [Quickstart](./quickstart), with
+   an empty data volume.
+2. On the setup page choose **Import from backup**, enter where the
+   backups are and your Recovery Key, pick a backup and import it.
+3. Sign in with your old owner account. Users, stacks and settings are
+   back. Create new API tokens, and connect every host again: create a
+   token for it under **Environments** and enroll its agent.
 
 ## Upgrade Docker Manager
 
@@ -88,3 +107,22 @@ On every other host:
 ```bash
 docker compose pull docker-agent && docker compose up -d docker-agent
 ```
+
+After an upgrade, the web app shows **Reload to update**; reload when it
+suits you.
+
+### Go back after a failed upgrade
+
+Before changing its database, the manager saves a copy of it. To go back,
+restore that copy and run the image you had before:
+
+```bash
+docker compose stop docker-manager
+docker compose run --rm --no-deps docker-manager snapshots list
+docker compose run --rm --no-deps docker-manager snapshots restore <snapshot file>
+```
+
+Then set `image:` of `docker-manager` in `compose.yaml` to the previous
+image (`code.neureka.dev/docker-manager/docker-manager@sha256:<digest>`) and
+run `docker compose up -d docker-manager`. Anything done after the upgrade
+is lost.

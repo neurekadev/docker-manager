@@ -95,7 +95,7 @@ Without the UI (automation), the manager creates the token itself:
 (or put the token in `.env` as `DOCKER_AGENT_ENROLLMENT_TOKEN`, run `docker
 compose up -d`, and remove it again after the agent has enrolled). Agents on
 other hosts use `remote-agent/`. See `docs/internal/deployment.md` and the step-by-step
-[guide](../docs/internal/guide/README.md).
+[user documentation](../docs/public/content/docs/quickstart.mdx).
 
 ## Backups of Docker Manager itself
 

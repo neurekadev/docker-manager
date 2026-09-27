@@ -54,7 +54,8 @@ checked.
   test an S3 endpoint URL or a path below `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS`
   (rate limited, HTTPS origin only, refused once an owner exists). Operators
   must complete setup right after the first start or restrict the origin
-  at the proxy until then (documented in `docs/internal/guide/first-run.md`).
+  at the proxy until then (documented in the public Quickstart,
+  `docs/public/content/docs/quickstart.mdx`).
 
 ## Invite redemption and revocation
 
