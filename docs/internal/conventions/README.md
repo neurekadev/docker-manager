@@ -45,6 +45,6 @@ Other internal documentation (open only when needed):
 - `docs/internal/design/README.md` and `docs/internal/web.md`: UI design
   system and web client.
 - `docs/internal/development.md`, `deployment.md`, `configuration.md`,
-  `support-matrix.md`, `operations/`, `security/`, `adr/`, `guide/`:
-  contributor setup, operator reference, decisions and the long-form
-  operator guide.
+  `support-matrix.md`, `operations/`, `security/`, `adr/`: contributor
+  setup, operator reference and decisions. The only user guide is the
+  public site (`docs/public`).

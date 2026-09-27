@@ -301,7 +301,7 @@ and registry are not verified by automated tests any more.
 ## Storage layout and volumes (#28)
 
 The agent verifies the identical-path layout at startup
-(`internal/agent/storage`, operator guide in
+(`internal/agent/storage`, operator reference in
 [deployment.md](deployment.md#host-storage-layout-28)); stack operations are
 refused with a diagnostic when it does not hold. The layouts below were
 verified on real Engines by the former Compose suite (historical evidence,

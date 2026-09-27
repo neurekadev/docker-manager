@@ -52,10 +52,8 @@ step: the [user documentation](docs/public/content/docs/index.mdx).
 
 For operators and contributors (`docs/internal`):
 
-- Guide: [deployment](docs/internal/guide/deployment.md) · [first run](docs/internal/guide/first-run.md) ·
-  [multi-host](docs/internal/guide/multi-host.md) · [PWA](docs/internal/guide/pwa.md) ·
-  [upgrades](docs/internal/guide/upgrades.md) · [backup and restore](docs/internal/guide/backup-restore.md) ·
-  [policy safety](docs/internal/guide/policy-safety.md) · [troubleshooting](docs/internal/guide/troubleshooting.md)
+- Operations: [upgrades and rollback](docs/internal/operations/upgrades.md) ·
+  [removing hosts](docs/internal/operations/removing-hosts.md) · [diagnostics](docs/internal/operations/diagnostics.md)
 - [Support matrix](docs/internal/support-matrix.md) (hosts, Engine versions, Compose features, browsers, versions)
 - [Deploying with Docker Compose](deploy/README.md) · [Deployment topology](docs/internal/deployment.md) ·
   [Configuration reference](docs/internal/configuration.md)

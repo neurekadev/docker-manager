@@ -30,6 +30,10 @@ contains secrets, but it does contain host names and IP addresses.
 | An action on a Docker Manager container is refused | Docker Manager never stops or removes its own containers, data or images. |
 | A project cannot be imported | Its row in **Import project** says why: usually its folder is not mounted below `/import`, or its containers use settings that are not in its files. |
 | A job ended as `interrupted` | The manager or agent restarted during it. Check the result, then run it again. |
+| Connecting a host fails with `engine_already_enrolled` | This host already has an agent. Remove the old agent under **Environments**, or create the token to replace it. |
+| An update is refused with `update_source_drift` | The stack's files changed but were not deployed. Deploy or undo the change first. |
+| Importing a backup fails with `backup_import_key_rejected` | Wrong Recovery Key, or the key was changed after that backup: enter the previous key too. |
+| Passkeys stop working after you changed the address | Passkeys belong to one address. Sign in with your password and authenticator code (or a recovery code) and add the passkey again. |
 
 ## Locked out of the owner account
 
