@@ -204,6 +204,14 @@
 		overflow: hidden;
 	}
 
+	/* The palette has only a max-height, so overflowing results would
+	   otherwise shrink the input row and the footers along with them. */
+	.input-row,
+	.gaps,
+	.hint {
+		flex-shrink: 0;
+	}
+
 	.input-row {
 		display: flex;
 		align-items: center;
