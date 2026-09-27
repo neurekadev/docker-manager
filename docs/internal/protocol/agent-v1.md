@@ -670,7 +670,8 @@ memory, nothing on disk), optionally rate-limited
 
 The `files.*` requests, the `files.download` / `files.upload` streams and
 the `files.*` job kinds share the types in `internal/protocol/files.go`;
-the agent side is `internal/agent/files`, the manager side
+the agent side is `internal/agent/files` (scope checks and wiring over the
+shared `internal/fsroot` operations), the manager side
 `internal/manager/files` (public API: [files.md](../api/files.md)).
 
 - **Scope:** every input carries `scope {kind, id, dir?}`. `stack` scopes

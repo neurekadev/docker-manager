@@ -6,6 +6,11 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
 - Manager code lives under `internal/manager/...`; agent code under
   `internal/agent/...`. The agent never imports `internal/manager/...` and
   never listens on a socket (enforced by `internal/agent/nolisten_test.go`).
+  Code both sides run lives in neutral packages (`internal/protocol`,
+  `internal/streammux`, `internal/transfer`, `internal/fsroot`, ...) that
+  import neither `internal/agent/...` nor `internal/manager/...`; manager
+  production code never imports `internal/agent/...` (it would pull in the Docker
+  SDK adapters).
 - Keep three kinds of types separate and convert explicitly:
   - transport DTOs in `internal/manager/api` (JSON/Huma tags),
   - database models in `internal/manager/store` (Bun tags, unexported rows),

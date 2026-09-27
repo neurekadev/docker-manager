@@ -6,6 +6,7 @@ import (
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 )
 
 // decode strictly decodes a request input.
@@ -47,7 +48,33 @@ func (s *Service) Requests() map[string]session.RequestHandler {
 // Streams returns the files.download and files.upload stream handlers.
 func (s *Service) Streams() map[string]session.StreamHandler {
 	return map[string]session.StreamHandler{
-		protocol.StreamFilesDownload: s.Download,
-		protocol.StreamFilesUpload:   s.Upload,
+		protocol.StreamFilesDownload: s.download,
+		protocol.StreamFilesUpload:   s.upload,
 	}
+}
+
+// download streams one file or an archive (files.download).
+func (s *Service) download(ctx context.Context, st *streammux.Stream) error {
+	var in protocol.FilesDownloadInput
+	if err := json.Unmarshal(st.Input(), &in); err != nil {
+		return fail(protocol.CodeInvalidFrame, "malformed download input")
+	}
+	if err := s.Download(ctx, in, st); err != nil {
+		return err
+	}
+	return st.CloseWrite()
+}
+
+// upload writes the stream's bytes to a file (files.upload); the result
+// travels in the final stream_close.
+func (s *Service) upload(ctx context.Context, st *streammux.Stream) error {
+	var in protocol.FilesUploadInput
+	if err := json.Unmarshal(st.Input(), &in); err != nil {
+		return fail(protocol.CodeInvalidFrame, "malformed upload input")
+	}
+	res, err := s.Upload(ctx, in, st)
+	if err != nil {
+		return err
+	}
+	return st.CloseWithResult(res)
 }

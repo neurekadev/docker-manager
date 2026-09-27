@@ -1,4 +1,4 @@
-package files
+package fsroot
 
 import (
 	"context"
@@ -10,10 +10,8 @@ import (
 	"path"
 	"strings"
 
-	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
-	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
@@ -80,22 +78,23 @@ func errMessage(err error) error {
 	if errors.Is(err, errWalkLimit) {
 		return errors.New("too many entries")
 	}
-	var he *session.HandlerError
-	if errors.As(err, &he) {
-		return errors.New(he.Code + ": " + he.Message)
+	var pe *protocol.Error
+	if errors.As(err, &pe) {
+		return errors.New(pe.Code + ": " + pe.Message)
 	}
-	return errors.New("internal agent error")
+	return errors.New("internal error")
 }
 
-// Executors returns the files.* job executors.
+// Executors returns the file job executors (Options.Kinds).
 func (s *Service) Executors() []jobexec.Executor {
+	k := s.opts.Kinds
 	return []jobexec.Executor{
-		{Kind: jobspec.FilesDelete, Steps: map[string]jobexec.StepFunc{"delete": s.jobDelete}},
-		{Kind: jobspec.FilesCopy, Steps: map[string]jobexec.StepFunc{"copy": s.jobCopy}},
-		{Kind: jobspec.FilesMove, Steps: map[string]jobexec.StepFunc{"move": s.jobMove}},
-		{Kind: jobspec.FilesArchive, Steps: map[string]jobexec.StepFunc{"archive": s.jobArchive}},
-		{Kind: jobspec.FilesExtract, Steps: map[string]jobexec.StepFunc{"extract": s.jobExtract}},
-		{Kind: jobspec.FilesMetadata, Steps: map[string]jobexec.StepFunc{"apply": s.jobMetadata}},
+		{Kind: k.Delete, Steps: map[string]jobexec.StepFunc{"delete": s.jobDelete}},
+		{Kind: k.Copy, Steps: map[string]jobexec.StepFunc{"copy": s.jobCopy}},
+		{Kind: k.Move, Steps: map[string]jobexec.StepFunc{"move": s.jobMove}},
+		{Kind: k.Archive, Steps: map[string]jobexec.StepFunc{"archive": s.jobArchive}},
+		{Kind: k.Extract, Steps: map[string]jobexec.StepFunc{"extract": s.jobExtract}},
+		{Kind: k.Metadata, Steps: map[string]jobexec.StepFunc{"apply": s.jobMetadata}},
 	}
 }
 

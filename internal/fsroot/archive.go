@@ -1,4 +1,4 @@
-package files
+package fsroot
 
 import (
 	"archive/tar"

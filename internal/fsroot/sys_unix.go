@@ -1,6 +1,6 @@
 //go:build unix
 
-package files
+package fsroot
 
 import (
 	"io/fs"
