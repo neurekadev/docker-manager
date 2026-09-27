@@ -14,7 +14,7 @@
 // L, W, # and ? are not supported. An expression that can never match
 // (0 0 30 2 *) is rejected.
 //
-// Time zones and DST (docs/architecture/scheduler.md): expressions are
+// Time zones and DST (docs/internal/architecture/scheduler.md): expressions are
 // evaluated on the wall clock of an explicit IANA time zone. A local time
 // that does not exist because clocks jump forward (a DST gap) fires once, at
 // the first instant after the gap; several skipped times collapse into that

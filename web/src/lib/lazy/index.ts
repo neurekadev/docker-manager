@@ -1,5 +1,5 @@
 // Lazy entry points for the heavy UI libraries (#11,
-// docs/adr/0002-frontend-libraries.md). Each library is reachable ONLY
+// docs/internal/adr/0002-frontend-libraries.md). Each library is reachable ONLY
 // through a dynamic import() in these functions, so it is split into its
 // own chunks and fetched when a view first needs it. The build check
 // (scripts/verify-build.mjs) fails if any of them lands in a statically

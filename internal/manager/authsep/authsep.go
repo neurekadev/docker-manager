@@ -110,7 +110,7 @@ func newSecret(prefix string) (string, error) {
 // Minted is a freshly generated agent secret with an embedded record ID:
 // "<prefix><id>_<secret>". The manager stores only Verifier (SHA-256 of the
 // secret part) and looks the record up by ID, then compares verifiers in
-// constant time (docs/protocol/agent-v1.md).
+// constant time (docs/internal/protocol/agent-v1.md).
 type Minted struct {
 	// Token is shown (enrollment) or sent (credential) exactly once.
 	Token string

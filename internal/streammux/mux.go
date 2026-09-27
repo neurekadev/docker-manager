@@ -1,5 +1,5 @@
 // Package streammux implements the byte streams of the agent session
-// protocol (docs/protocol/agent-v1.md, "Streams") for both ends of a
+// protocol (docs/internal/protocol/agent-v1.md, "Streams") for both ends of a
 // session: stream_open, stream_data, stream_credit and stream_close frames
 // multiplexed over the one session WebSocket, with per-stream credit-based
 // flow control, sequence checks, size limits and transfer verification

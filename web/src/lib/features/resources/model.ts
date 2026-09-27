@@ -17,7 +17,7 @@ export interface VolumeAccess {
 }
 
 /**
- * Whether Docker Manager can open a volume's files (#28, docs/support-matrix.md):
+ * Whether Docker Manager can open a volume's files (#28, docs/internal/support-matrix.md):
  * only local-driver volumes on the host; plugins and local volumes backed by
  * NFS/CIFS mount options are listed read-only. The agent decides again.
  */

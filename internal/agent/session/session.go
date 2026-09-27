@@ -1,5 +1,5 @@
 // Package session is the agent side of the manager session (GET
-// /agent/v1/session, docs/protocol/agent-v1.md): it dials out with the
+// /agent/v1/session, docs/internal/protocol/agent-v1.md): it dials out with the
 // agent's bearer credential over internal/agent/transport, sends hello,
 // capabilities and the job report, keeps the session alive with
 // heartbeats, feeds command/cancel/ack frames to the job runner
@@ -469,7 +469,7 @@ func (c *Client) rotateCredential(_ context.Context, input json.RawMessage) (any
 }
 
 // Relay forwards events or file invalidations on the live session with
-// per-session sequence numbers (docs/protocol/agent-v1.md, "Sequence
+// per-session sequence numbers (docs/internal/protocol/agent-v1.md, "Sequence
 // numbers and gaps"). Publish never blocks: without a session the item is
 // dropped (the manager resynchronizes after every reconnect); when the send
 // queue is congested it is dropped but still consumes its number, so the

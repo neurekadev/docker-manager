@@ -1,4 +1,4 @@
-// Container log stream contract (#8, docs/api/streams.md "Container logs"):
+// Container log stream contract (#8, docs/internal/api/streams.md "Container logs"):
 // the followed containers, the stream URL, the cursor order and the end
 // reasons. The LogFeed (feed.svelte.ts) builds on these.
 import type { TileColor } from '$lib/design/hue';

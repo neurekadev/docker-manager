@@ -1,6 +1,6 @@
 // Package migrations holds the manager's versioned Bun schema migrations.
 //
-// Adding a migration (see CLAUDE.md):
+// Adding a migration (see docs/internal/conventions/database-migrations.md):
 //
 //   - Create ONE file per migration named <UTC timestamp YYYYMMDDHHMMSS>_<snake_name>.go,
 //     e.g. 20261001093000_create_users.go. Bun derives the migration name from

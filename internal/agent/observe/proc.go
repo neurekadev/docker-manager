@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// Host telemetry from procfs (docs/architecture/metrics.md, "Host
+// Host telemetry from procfs (docs/internal/architecture/metrics.md, "Host
 // telemetry"). The files read here are not namespaced by a container's PID
 // or mount namespace except the network statistics: /proc/stat,
 // /proc/meminfo, /proc/loadavg and /proc/uptime describe the whole host

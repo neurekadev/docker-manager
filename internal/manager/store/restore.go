@@ -16,7 +16,7 @@ import (
 // Rolling back an upgrade (#34): downgrades are unsupported, so the
 // documented rollback is to stop the manager, restore the pre-migration
 // snapshot taken by the upgrade and start the previous image again
-// (docs/operations/upgrades.md). RestoreSnapshot is that restore; the
+// (docs/internal/operations/upgrades.md). RestoreSnapshot is that restore; the
 // manager must not be running.
 
 // ErrSnapshotNotFound means the named snapshot does not exist.

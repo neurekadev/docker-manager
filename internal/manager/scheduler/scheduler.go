@@ -22,7 +22,7 @@
 //     (recorded as skipped).
 //
 // Expressions are parsed and evaluated by internal/cron (DST rules there).
-// See docs/architecture/scheduler.md.
+// See docs/internal/architecture/scheduler.md.
 package scheduler
 
 import (

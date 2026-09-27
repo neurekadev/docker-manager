@@ -1,0 +1,41 @@
+---
+title: Overview
+description: What Docker Manager is and what you need to run it.
+---
+
+Docker Manager is a web app for running Docker on one or more of your own
+machines. From one place in your browser you can deploy and update Compose
+stacks, watch containers, read logs, open terminals, edit files, clean up
+unused images and back up your data.
+
+## How it fits together
+
+- **Manager**: the web app and its API. It runs once, behind your HTTPS
+  address (for example `https://docker.example.com`).
+- **Agent**: a small container on every Docker host you want to manage. It
+  connects out to the manager and does the work on that host. It opens no
+  ports.
+- **Environment**: one agent and the Docker Engine it controls. Each host
+  you add becomes an environment.
+
+Long tasks such as deploying, updating or backing up run as **jobs**: you
+see their progress, and they keep going if you close the browser.
+
+## What you need
+
+- A Linux machine (amd64) with Docker Engine 25.0 or newer and the Compose
+  plugin.
+- A DNS name that points to that machine, and ports 80 and 443 free.
+- Access to the Docker Manager images at `code.neureka.dev` (the registry
+  is private for now: a Forgejo account with an access token).
+
+Not supported: Docker Desktop, rootless Docker and the Docker versions
+built into NAS systems.
+
+Both containers run as root. Access to the Docker socket is the same as
+root on the host, so protect your Docker Manager login like the root
+password of every host you add.
+
+## Next
+
+Follow the [Quickstart](./quickstart) to install it.

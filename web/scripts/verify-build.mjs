@@ -9,7 +9,7 @@
 //      covers every content-hashed build file; the manifest is installable
 //      and its icons exist with the declared pixel sizes.
 //   3. Bundle sizes: prints the initial-load and per-library chunk sizes
-//      (raw and gzip) recorded in docs/adr/0002-frontend-libraries.md.
+//      (raw and gzip) recorded in docs/internal/adr/0002-frontend-libraries.md.
 //
 //   node scripts/verify-build.mjs [--markdown]
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';

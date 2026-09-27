@@ -11,7 +11,7 @@
 #   - the UI mockup image (lives only on issue #22)
 # Keep each check a small function with a clear failure message. The
 # narrowly documented exceptions are listed next to each check and in
-# docs/architecture/engine-integration.md.
+# docs/internal/architecture/engine-integration.md.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -73,7 +73,7 @@ in_list() {
 # Direct Engine HTTP (#21): only the Moby SDK talks to the Engine. A Docker
 # socket literal or a raw Engine API path elsewhere means someone dials the
 # Engine by hand. Exceptions (keep narrow; documented in
-# docs/architecture/engine-integration.md):
+# docs/internal/architecture/engine-integration.md):
 #   internal/agent/engine/            the adapter and its fake Engine for unit tests
 #   internal/agent/compose/*_test.go  tests scripting that fake Engine
 #   internal/agent/config/config.go   the DOCKER_HOST default value only

@@ -23,7 +23,7 @@
 //     once after a kernel queue overflow, so missed notifications heal.
 //
 // File contents are never read, logged or sent; names are only sent to the
-// manager, which filters them per user (docs/api/streams.md).
+// manager, which filters them per user (docs/internal/api/streams.md).
 package watch
 
 import (
@@ -43,7 +43,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
-// Defaults (docs/support-matrix.md, "File watching").
+// Defaults (docs/internal/support-matrix.md, "File watching").
 const (
 	DefaultDebounce       = 200 * time.Millisecond
 	DefaultPollInterval   = 30 * time.Second

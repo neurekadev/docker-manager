@@ -31,7 +31,7 @@ import (
 // Scoped file manager (#15): the same routes under
 // /api/v1/stacks/{stackId}/files… and
 // /api/v1/environments/{environmentId}/volumes/{volumeId}/files…
-// (docs/api/files.md). Capabilities are per root type (stack.files.*,
+// (docs/internal/api/files.md). Capabilities are per root type (stack.files.*,
 // volume.files.*, #17); a stack's Compose sources (compose.yaml, override
 // files, .env at the project root) additionally need
 // stack.definition.read / stack.definition.write.
@@ -1421,7 +1421,7 @@ func registerFiles(a huma.API, deps Deps) {
 		}
 		registerFileOp(a, h, op(sc, "list-"+kind+"-files", http.MethodGet, "", "List a directory of "+what,
 			"One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where "+
-				"it resolves, never followed out of the root. Path encoding and limits: docs/api/files.md."+defNote, "read", std),
+				"it resolves, never followed out of the root. Path encoding and limits: docs/internal/api/files.md."+defNote, "read", std),
 			h.list, func(in *listStackFilesInput) (fileScopeRef, *FilesListQuery) { return in.scopeRef(), in.common() },
 			func(in *listVolumeFilesInput) (fileScopeRef, *FilesListQuery) { return in.scopeRef(), in.common() })
 
@@ -1446,7 +1446,7 @@ func registerFiles(a huma.API, deps Deps) {
 		dl := op(sc, "download-"+kind+"-files", http.MethodGet, "/downloads", "Download files of "+what,
 			"One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip "+
 				"(default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed "+
-				"in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md."+defNote,
+				"in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/internal/api/streams.md."+defNote,
 			"download", append(std, http.StatusRequestedRangeNotSatisfiable, http.StatusRequestEntityTooLarge))
 		dl.Audit = AuditAlways
 		dl.Responses = map[string]*huma.Response{

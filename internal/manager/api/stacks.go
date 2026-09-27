@@ -1392,7 +1392,7 @@ func registerStacks(a huma.API, deps Deps) {
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "create-stack-validation", Method: http.MethodPost, Path: stacks + "/validations", Summary: "Validate a Compose definition",
 		Description: "Validates a definition on the environment's agent as if it were the project <name> in the stacks volume, without " +
-			"side effects: syntax and paths, unsupported features (docs/support-matrix.md), warnings for obsolete keys and bind sources " +
+			"side effects: syntax and paths, unsupported features (docs/internal/support-matrix.md), warnings for obsolete keys and bind sources " +
 			"outside the project directory.",
 		Tags: []string{tagStacks}, Errors: mutate,
 	}, Capability: CapStackCreate, Scope: ScopeEnvironment}, h.validate)

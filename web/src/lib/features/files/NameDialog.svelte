@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Asks for a name (new file, new folder, rename, save as, archive name):
-	// validated like the API (one path component, docs/api/files.md), taken
+	// validated like the API (one path component, docs/internal/api/files.md), taken
 	// names refused before the request, server errors shown inline.
 	import type { Snippet } from 'svelte';
 	import { Button, Dialog, TextField, errorMessage } from '$lib/ui';

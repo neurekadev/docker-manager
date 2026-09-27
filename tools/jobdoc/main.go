@@ -1,5 +1,5 @@
 // Command jobdoc regenerates the lock-matrix table in
-// docs/architecture/job-engine.md from the job kind catalog
+// docs/internal/architecture/job-engine.md from the job kind catalog
 // (internal/jobspec). scripts/generate.sh runs it.
 //
 //	go run ./tools/jobdoc          rewrite the table in place
@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	doc := flag.String("doc", "docs/architecture/job-engine.md", "document containing the lock-matrix markers")
+	doc := flag.String("doc", "docs/internal/architecture/job-engine.md", "document containing the lock-matrix markers")
 	check := flag.Bool("check", false, "fail when the document is stale instead of rewriting it")
 	flag.Parse()
 	if err := run(*doc, *check); err != nil {

@@ -19,7 +19,7 @@ export interface paths {
         put?: never;
         /**
          * Create an agent enrollment token
-         * @description Creates a one-use, short-lived enrollment token with a fixed intent and returns it once, with install commands for a co-located agent and for another Docker host. The manager stores only a verifier. The agent exchanges the token on POST /agent/v1/enroll (docs/protocol/agent-v1.md). Stored-idempotent: a retry with the same Idempotency-Key replays the response.
+         * @description Creates a one-use, short-lived enrollment token with a fixed intent and returns it once, with install commands for a co-located agent and for another Docker host. The manager stores only a verifier. The agent exchanges the token on POST /agent/v1/enroll (docs/internal/protocol/agent-v1.md). Stored-idempotent: a retry with the same Idempotency-Key replays the response.
          */
         post: operations["create-agent-enrollment"];
         delete?: never;
@@ -1268,7 +1268,7 @@ export interface paths {
         };
         /**
          * Attach a terminal (WebSocket)
-         * @description Upgrades to a WebSocket (subprotocol docker-manager.exec.v1; the ticket from the create call as subprotocol docker-manager.ticket.<ticket>). Binary frames: 0+stdin to the process, 1+stdout / 2+stderr from it; text frames: {"type":"resize","cols","rows"} from the client, {"type":"exit","code"} and {"type":"error",...} from the server. Close codes and limits: docs/api/streams.md.
+         * @description Upgrades to a WebSocket (subprotocol docker-manager.exec.v1; the ticket from the create call as subprotocol docker-manager.ticket.<ticket>). Binary frames: 0+stdin to the process, 1+stdout / 2+stderr from it; text frames: {"type":"resize","cols","rows"} from the client, {"type":"exit","code"} and {"type":"error",...} from the server. Close codes and limits: docs/internal/api/streams.md.
          */
         get: operations["stream-container-exec-session"];
         put?: never;
@@ -1328,7 +1328,7 @@ export interface paths {
         };
         /**
          * Follow a container's logs (SSE)
-         * @description Server-sent events: `log` (id = the line's RFC 3339 timestamp, data LogLine), `dropped {count}` when the client could not keep up, `end {reason}` (container_removed, permissions_changed, agent_offline) and `close` (max_age after 1 h, session_expired, permissions_changed). A stopped container keeps the stream open. Reconnect with Last-Event-ID to resume (lines with the same timestamp may repeat). Protocol: docs/api/streams.md.
+         * @description Server-sent events: `log` (id = the line's RFC 3339 timestamp, data LogLine), `dropped {count}` when the client could not keep up, `end {reason}` (container_removed, permissions_changed, agent_offline) and `close` (max_age after 1 h, session_expired, permissions_changed). A stopped container keeps the stream open. Reconnect with Last-Event-ID to resume (lines with the same timestamp may repeat). Protocol: docs/internal/api/streams.md.
          */
         get: operations["stream-container-logs"];
         put?: never;
@@ -1488,7 +1488,7 @@ export interface paths {
         };
         /**
          * Stream an environment's events (SSE)
-         * @description Server-sent events: `hello` (cursor), then `engine` (Docker events), `status` (online/offline/resync), `metrics` (new samples: refetch open charts) and `inventory` (Engine inventory refreshed), each with `id: <cursor>`. Every event is filtered by the capability of its resource; container events of a container the caller sees only minimally carry only name, exit code and health. Reconnect with Last-Event-ID to replay the retained events (newest 1 000 or 15 min); outside them the stream starts with `reset`. `: heartbeat` comments keep it alive. Wire contract: docs/api/streams.md.
+         * @description Server-sent events: `hello` (cursor), then `engine` (Docker events), `status` (online/offline/resync), `metrics` (new samples: refetch open charts) and `inventory` (Engine inventory refreshed), each with `id: <cursor>`. Every event is filtered by the capability of its resource; container events of a container the caller sees only minimally carry only name, exit code and health. Reconnect with Last-Event-ID to replay the retained events (newest 1 000 or 15 min); outside them the stream starts with `reset`. `: heartbeat` comments keep it alive. Wire contract: docs/internal/api/streams.md.
          */
         get: operations["stream-environment-events"];
         put?: never;
@@ -1652,7 +1652,7 @@ export interface paths {
         };
         /**
          * Get an environment's host metrics
-         * @description Host CPU, memory, load, network and per-filesystem disk series of a time range, downsampled to one value per step from the finest storage level still holding the range (10 s for 24 h, 1 min for 7 d, 15 min for 90 d). Missing samples (the agent was offline, a value unknown) are null, never zero. Units and flags: docs/architecture/metrics.md.
+         * @description Host CPU, memory, load, network and per-filesystem disk series of a time range, downsampled to one value per step from the finest storage level still holding the range (10 s for 24 h, 1 min for 7 d, 15 min for 90 d). Missing samples (the agent was offline, a value unknown) are null, never zero. Units and flags: docs/internal/architecture/metrics.md.
          */
         get: operations["get-environment-metrics"];
         put?: never;
@@ -1928,7 +1928,7 @@ export interface paths {
         };
         /**
          * List a directory of the volume
-         * @description One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/api/files.md. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
+         * @description One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/internal/api/files.md. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         get: operations["list-volume-files"];
         put?: never;
@@ -2052,7 +2052,7 @@ export interface paths {
         };
         /**
          * Download files of the volume
-         * @description One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
+         * @description One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/internal/api/streams.md. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).
          */
         get: operations["download-volume-files"];
         put?: never;
@@ -2561,7 +2561,7 @@ export interface paths {
         };
         /**
          * Stream live invalidations (SSE)
-         * @description The one multiplexed live stream per open UI tab (#23): `hello` (cursor; fetch open views), then `invalidate` (a resource changed: refetch it), `job` (job state and progress), `agent` (environment online/offline), `files.changed` (entries of a stack or volume changed), `reset` (discard cached data and refetch), `permissions.changed` + `close` (drop all cached data, refetch /me/permissions, reconnect). Each resumable event has `id: <cursor>`; reconnect with Last-Event-ID (or `cursor`) to replay what was missed (newest 10 000 events or 15 min). Every event is filtered by the caller's permissions: nothing about a resource the caller may not see, file names only with the scope's files-read capability. Events never carry resource bodies, file contents or secrets. `: heartbeat` comments keep it alive; at most 8 streams per user or token (429). Wire contract: docs/api/streams.md.
+         * @description The one multiplexed live stream per open UI tab (#23): `hello` (cursor; fetch open views), then `invalidate` (a resource changed: refetch it), `job` (job state and progress), `agent` (environment online/offline), `files.changed` (entries of a stack or volume changed), `reset` (discard cached data and refetch), `permissions.changed` + `close` (drop all cached data, refetch /me/permissions, reconnect). Each resumable event has `id: <cursor>`; reconnect with Last-Event-ID (or `cursor`) to replay what was missed (newest 10 000 events or 15 min). Every event is filtered by the caller's permissions: nothing about a resource the caller may not see, file names only with the scope's files-read capability. Events never carry resource bodies, file contents or secrets. `: heartbeat` comments keep it alive; at most 8 streams per user or token (429). Wire contract: docs/internal/api/streams.md.
          */
         get: operations["stream-live-events"];
         put?: never;
@@ -3341,7 +3341,7 @@ export interface paths {
         put?: never;
         /**
          * Validate a Compose definition
-         * @description Validates a definition on the environment's agent as if it were the project <name> in the stacks volume, without side effects: syntax and paths, unsupported features (docs/support-matrix.md), warnings for obsolete keys and bind sources outside the project directory.
+         * @description Validates a definition on the environment's agent as if it were the project <name> in the stacks volume, without side effects: syntax and paths, unsupported features (docs/internal/support-matrix.md), warnings for obsolete keys and bind sources outside the project directory.
          */
         post: operations["create-stack-validation"];
         delete?: never;
@@ -3447,7 +3447,7 @@ export interface paths {
         };
         /**
          * List a directory of the stack's project directory
-         * @description One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/api/files.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/internal/api/files.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
          */
         get: operations["list-stack-files"];
         put?: never;
@@ -3571,7 +3571,7 @@ export interface paths {
         };
         /**
          * Download files of the stack's project directory
-         * @description One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/api/streams.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
+         * @description One regular file downloads raw (Content-Length, ETag, single Range requests); several paths or a directory stream as a zip (default) or tar.gz archive without Content-Length. Escaping symlinks, hard-linked and special files are left out and listed in DOCKER-MANAGER-SKIPPED.txt. A failure after the first byte aborts the connection. Protocol: docs/internal/api/streams.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.
          */
         get: operations["download-stack-files"];
         put?: never;
@@ -6223,7 +6223,7 @@ export interface components {
             /** Format: double */
             networkRxBytesPerSecond?: number;
             /**
-             * @description host: the host's interfaces; agent: only the agent container's namespace (see docs/architecture/metrics.md).
+             * @description host: the host's interfaces; agent: only the agent container's namespace (see docs/internal/architecture/metrics.md).
              * @enum {string}
              */
             networkScope?: "host" | "agent";
@@ -6977,7 +6977,7 @@ export interface components {
             initiatorUserId?: string;
             items: components["schemas"]["JobItem"][];
             /**
-             * @description Job kind from the catalog in docs/architecture/job-engine.md.
+             * @description Job kind from the catalog in docs/internal/architecture/job-engine.md.
              * @example stack.deploy
              */
             kind: string;

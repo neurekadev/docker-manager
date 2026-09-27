@@ -327,7 +327,7 @@ const (
 // the stopped services as running. Engines before 26 can return from a
 // container stop while their container list still shows the container as
 // running; the SDK's next start would then skip it and fail waiting for its
-// dependencies (docs/support-matrix.md). Waiting here keeps stop followed by
+// dependencies (docs/internal/support-matrix.md). Waiting here keeps stop followed by
 // start (e.g. backup shutdown and resume, #10) correct on every Engine.
 func (a *Adapter) awaitStopped(ctx context.Context, project string, services []string) error {
 	const op = "compose.stop"

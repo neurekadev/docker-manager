@@ -1,6 +1,6 @@
 package protocol
 
-// Scoped file watching (#23, docs/protocol/agent-v1.md, "fs_invalidation
+// Scoped file watching (#23, docs/internal/protocol/agent-v1.md, "fs_invalidation
 // and rescan"): the manager declares the complete set of file scopes an
 // agent watches with the files.watch request (every stack of the
 // environment, plus the volumes with open file views); the agent watches

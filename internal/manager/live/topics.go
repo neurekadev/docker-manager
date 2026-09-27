@@ -4,7 +4,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
 )
 
-// Topics of the live stream (docs/api/streams.md).
+// Topics of the live stream (docs/internal/api/streams.md).
 const (
 	TopicEnvironments = "environments"
 	TopicAgents       = "agents"

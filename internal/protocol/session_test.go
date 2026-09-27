@@ -21,7 +21,7 @@ import (
 // TestProtocolDocListsCommands: the allowed-command table lists exactly the
 // agent-executed job kinds of the #26 catalog with their capabilities.
 func TestProtocolDocListsCommands(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "docs", "protocol", "agent-v1.md"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "docs", "internal", "protocol", "agent-v1.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestProtocolDocListsCommands(t *testing.T) {
 		agentKinds[string(s.Kind)] = true
 		row := "| `" + string(s.Kind) + "` | command | `" + s.Capability + "` |"
 		if !strings.Contains(doc, row) {
-			t.Errorf("docs/protocol/agent-v1.md lacks the row %q", row)
+			t.Errorf("docs/internal/protocol/agent-v1.md lacks the row %q", row)
 		}
 	}
 	for _, m := range regexp.MustCompile("(?m)^\\| `([a-z_.]+)` \\| command \\|").FindAllStringSubmatch(doc, -1) {
@@ -308,11 +308,11 @@ func TestCloseCodes(t *testing.T) {
 	}
 }
 
-// TestProtocolDocListsNames keeps docs/protocol/agent-v1.md in sync with
+// TestProtocolDocListsNames keeps docs/internal/protocol/agent-v1.md in sync with
 // the code: every frame type, request name, stream kind, error code and
 // close code is documented, and every documented request or stream exists.
 func TestProtocolDocListsNames(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "docs", "protocol", "agent-v1.md"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "docs", "internal", "protocol", "agent-v1.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -330,7 +330,7 @@ func TestProtocolDocListsNames(t *testing.T) {
 	}
 	for _, w := range want {
 		if !strings.Contains(doc, w) {
-			t.Errorf("docs/protocol/agent-v1.md does not mention %s", w)
+			t.Errorf("docs/internal/protocol/agent-v1.md does not mention %s", w)
 		}
 	}
 	// Rows of the request and stream tables must name real entries.

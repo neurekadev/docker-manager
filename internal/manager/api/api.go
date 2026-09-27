@@ -36,7 +36,7 @@ const (
 		"Errors use the Error schema with media type application/problem+json. " +
 		"Every operation declares the capability it requires (x-docker-manager-capability) and the scope at which it is checked (x-docker-manager-scope). " +
 		"Browsers authenticate with the session cookie, other clients with a bearer API token. " +
-		"Conventions, errors, streams and versioning: docs/api/README.md in the Docker Manager repository."
+		"Conventions, errors, streams and versioning: docs/internal/api/README.md in the Docker Manager repository."
 
 	// SessionCookieName is the browser session cookie (#16). The __Host-
 	// prefix pins it to the single public origin: Secure, Path=/, no Domain.

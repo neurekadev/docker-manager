@@ -1,7 +1,7 @@
 package protocol
 
 // Sequence and gap semantics of event and fs_invalidation frames
-// (docs/protocol/agent-v1.md, "Sequence numbers and gaps").
+// (docs/internal/protocol/agent-v1.md, "Sequence numbers and gaps").
 //
 //   - The agent numbers event frames and fs_invalidation frames with two
 //     independent counters that start at 1 on every session and increase by

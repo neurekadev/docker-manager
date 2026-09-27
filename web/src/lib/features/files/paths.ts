@@ -1,4 +1,4 @@
-// Root-relative path helpers of the file manager (#15, docs/api/files.md
+// Root-relative path helpers of the file manager (#15, docs/internal/api/files.md
 // "Paths"): slash-separated, no leading "/", "." is the root.
 
 export const ROOT = '.';
@@ -68,7 +68,7 @@ export function crumbs(path: string, rootLabel: string): PathCrumb[] {
 }
 
 /**
- * Validates a new name (one path component, docs/api/files.md): returns a
+ * Validates a new name (one path component, docs/internal/api/files.md): returns a
  * user-facing problem or null.
  */
 export function nameProblem(name: string): string | null {

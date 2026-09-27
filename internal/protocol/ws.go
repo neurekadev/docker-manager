@@ -7,7 +7,7 @@ import (
 	"github.com/coder/websocket"
 )
 
-// WebSocket close codes of the agent session (docs/protocol/agent-v1.md).
+// WebSocket close codes of the agent session (docs/internal/protocol/agent-v1.md).
 // Application codes mirror the HTTP status they correspond to (4000+status).
 const (
 	// CloseNormal: orderly shutdown by either side (agent stopping).

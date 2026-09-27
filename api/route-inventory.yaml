@@ -24,7 +24,7 @@
 #               owner routes and owner-only capabilities never accept tokens
 #               and do not set it. Checked against the spec's security.
 # The private agent routes are listed under agentRoutes; they are specified
-# in docs/protocol/agent-v1.md, not in the public OpenAPI document.
+# in docs/internal/protocol/agent-v1.md, not in the public OpenAPI document.
 version: 1
 routes:
   - method: GET
@@ -87,7 +87,7 @@ routes:
     owner: 23
     kind: stream
     status: implemented
-    notes: Multiplexed SSE invalidation stream; topics and events are filtered per subscriber (docs/api/streams.md).
+    notes: Multiplexed SSE invalidation stream; topics and events are filtered per subscriber (docs/internal/api/streams.md).
   - method: GET
     path: /api/v1/overview
     operationId: get-overview

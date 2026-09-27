@@ -260,7 +260,7 @@ var (
 	ErrSessionEnded = errors.New("authz: the caller's session ended")
 )
 
-// CloseReason is the stream close reason (docs/api/streams.md) of a request
+// CloseReason is the stream close reason (docs/internal/api/streams.md) of a request
 // context ended by the identity layer: "permissions_changed",
 // "session_expired", or "" when the context is live or ended otherwise.
 func CloseReason(ctx context.Context) string {

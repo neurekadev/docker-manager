@@ -19,7 +19,7 @@ import (
 )
 
 // finishRestore completes a manager-state restore applied at this startup
-// (#24; decisions in docs/architecture/backups.md, "Fresh-manager
+// (#24; decisions in docs/internal/architecture/backups.md, "Fresh-manager
 // import"): no session of the snapshot is revived, every restored API
 // token is revoked (reason restore), every restored agent credential is
 // revoked (environments wait for a reattach enrollment, #34), and the

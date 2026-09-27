@@ -1,0 +1,86 @@
+---
+title: Quickstart
+description: Install Docker Manager, create your account and connect your first host.
+---
+
+## 1. Log in to the image registry
+
+Create a Forgejo access token with the `read:package` scope, then:
+
+```bash
+echo "$FORGEJO_TOKEN" | docker login code.neureka.dev -u <your-forgejo-user> --password-stdin
+```
+
+## 2. Get the example and set your address
+
+The example runs the manager, an agent for this host and the Caddy web
+server, which handles HTTPS for you.
+
+```bash
+git clone https://code.neureka.dev/docker-manager/docker-manager.git
+cd docker-manager/deploy/caddy
+cp .env.example .env
+```
+
+Edit `.env`:
+
+- `DOCKER_MANAGER_HOST`: your DNS name, for example `docker.example.com`.
+- `DOCKER_MANAGER_TLS`: leave `internal` for a private certificate, or put
+  your email address to get a free public certificate (the machine must be
+  reachable from the internet).
+
+Prefer Traefik or nginx? Use `deploy/traefik` or `deploy/nginx` instead;
+the steps are the same.
+
+## 3. Start it
+
+```bash
+docker compose up -d
+docker compose ps
+```
+
+All three containers should show as running and healthy.
+
+## 4. Create your account right away
+
+Open `https://docker.example.com`. The first person to open a new Docker
+Manager becomes its owner, so do this immediately. Choose a username and a
+password of at least 15 characters.
+
+Then open **Settings → Profile and security**, add an authenticator app or
+a passkey, and save your recovery codes somewhere safe.
+
+## 5. Connect this host
+
+1. Go to **Environments → Add environment**, enter a name and create the
+   token. It is shown only once.
+2. Give the token to the agent that is already running:
+
+   ```bash
+   printf '%s\n' '<token>' | docker compose exec -T docker-agent docker-agent enroll
+   ```
+
+The host appears as online within a few seconds, with its containers,
+images, volumes and networks.
+
+## Add another host
+
+On the other machine (Linux, Docker Engine 25.0 or newer), log in to the
+registry as in step 1, then:
+
+```bash
+git clone https://code.neureka.dev/docker-manager/docker-manager.git
+cd docker-manager/deploy/remote-agent
+cp .env.example .env
+```
+
+In `.env`, set `DOCKER_AGENT_MANAGER_URL` to your address
+(`https://docker.example.com`), paste a new token from **Environments → Add
+environment** into `DOCKER_AGENT_ENROLLMENT_TOKEN`, and start it:
+
+```bash
+docker compose up -d
+```
+
+Remove the token from `.env` once the host shows as online; it works only
+once anyway.

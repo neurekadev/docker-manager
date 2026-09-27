@@ -3,7 +3,7 @@
 #   - Go modules linked into the linux binaries (go-licenses)
 #   - production npm dependencies of the web UI (license-checker-rseidelsohn)
 # Fails on any license outside the allowlist, including unknown licenses.
-# Changing the allowlist is a reviewed decision (docs/adr/0001-foundation.md).
+# Changing the allowlist is a reviewed decision (docs/internal/adr/0001-foundation.md).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 

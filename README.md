@@ -42,24 +42,30 @@ printf '%s\n' '<token>' | docker compose exec -T docker-agent docker-agent enrol
 
 Traefik and nginx variants live next to it (`deploy/traefik`,
 `deploy/nginx`), agents for other hosts in `deploy/remote-agent`. Step by
-step: the [user and administrator guide](docs/guide/README.md).
+step: the [user documentation](docs/public/content/docs/index.mdx).
 
 ## Documentation
 
-- Guide: [deployment](docs/guide/deployment.md) · [first run](docs/guide/first-run.md) ·
-  [multi-host](docs/guide/multi-host.md) · [PWA](docs/guide/pwa.md) ·
-  [upgrades](docs/guide/upgrades.md) · [backup and restore](docs/guide/backup-restore.md) ·
-  [policy safety](docs/guide/policy-safety.md) · [troubleshooting](docs/guide/troubleshooting.md)
-- [Support matrix](docs/support-matrix.md) (hosts, Engine versions, Compose features, browsers, versions)
-- [Deploying with Docker Compose](deploy/README.md) · [Deployment topology](docs/deployment.md) ·
-  [Configuration reference](docs/configuration.md)
-- [Security review v1](docs/security/review-v1.md) · [Verification status](docs/support-matrix.md#verification-status)
-- [Architecture overview](docs/architecture/overview.md) · [Engine integration](docs/architecture/engine-integration.md)
-- API: [conventions](docs/api/conventions.md) · [streams](docs/api/streams.md) ·
-  OpenAPI [`api/openapi.json`](api/openapi.json) · agent protocol [`agent-v1.md`](docs/protocol/agent-v1.md)
-- [Development guide](docs/development.md) · [Code conventions](CLAUDE.md)
-- ADRs: [0001 foundation](docs/adr/0001-foundation.md) · [0002 frontend libraries](docs/adr/0002-frontend-libraries.md) ·
-  [0003 auth libraries](docs/adr/0003-auth-libraries.md)
+- **User documentation** ([`docs/public`](docs/public/content/docs/index.mdx), published as the
+  `code.neureka.dev/docker-manager/docker-manager-docs:edge` site image): overview, quickstart,
+  usage, configuration and troubleshooting.
+
+For operators and contributors (`docs/internal`):
+
+- Guide: [deployment](docs/internal/guide/deployment.md) · [first run](docs/internal/guide/first-run.md) ·
+  [multi-host](docs/internal/guide/multi-host.md) · [PWA](docs/internal/guide/pwa.md) ·
+  [upgrades](docs/internal/guide/upgrades.md) · [backup and restore](docs/internal/guide/backup-restore.md) ·
+  [policy safety](docs/internal/guide/policy-safety.md) · [troubleshooting](docs/internal/guide/troubleshooting.md)
+- [Support matrix](docs/internal/support-matrix.md) (hosts, Engine versions, Compose features, browsers, versions)
+- [Deploying with Docker Compose](deploy/README.md) · [Deployment topology](docs/internal/deployment.md) ·
+  [Configuration reference](docs/internal/configuration.md)
+- [Security review v1](docs/internal/security/review-v1.md) · [Verification status](docs/internal/support-matrix.md#verification-status)
+- [Architecture overview](docs/internal/architecture/overview.md) · [Engine integration](docs/internal/architecture/engine-integration.md)
+- API: [conventions](docs/internal/api/conventions.md) · [streams](docs/internal/api/streams.md) ·
+  OpenAPI [`api/openapi.json`](api/openapi.json) · agent protocol [`agent-v1.md`](docs/internal/protocol/agent-v1.md)
+- [Development guide](docs/internal/development.md) · [Code conventions](docs/internal/conventions/README.md)
+- ADRs: [0001 foundation](docs/internal/adr/0001-foundation.md) · [0002 frontend libraries](docs/internal/adr/0002-frontend-libraries.md) ·
+  [0003 auth libraries](docs/internal/adr/0003-auth-libraries.md)
 - Roadmap: issue neurekadev/dockyard#1 · Decision register: issue neurekadev/dockyard#25 · Project board: Docker Manager v1 Roadmap
 
 ## Repository layout
@@ -74,7 +80,8 @@ internal/domain        shared domain types
 internal/db/migrations versioned Bun migrations
 web/                   SvelteKit PWA (embedded into the manager)
 deploy/                Dockerfiles and Compose examples
-docs/                  guide, architecture, API, operations, security
+docs/public            user documentation site (Fumadocs, served by nginx)
+docs/internal          conventions, architecture, API, protocol, operations, security
 scripts/               local gate, code generation, static builds, policy and license checks (bash)
 test/deploy            static checks of the deploy examples
 ```
@@ -87,4 +94,4 @@ golangci-lint, repository policy, ESLint), `unit-tests` (`go test ./...`,
 Vitest) and `build` (web build, `go build`, static linux/amd64 and
 linux/arm64 binaries). The tests are isolated unit tests with in-memory
 fakes; nothing starts Docker, a browser or a real registry. Details:
-[development guide](docs/development.md#local-gate-and-ci).
+[development guide](docs/internal/development.md#local-gate-and-ci).

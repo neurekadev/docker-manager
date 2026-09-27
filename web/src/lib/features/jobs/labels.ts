@@ -5,7 +5,7 @@ import type { Job } from '$lib/api/client';
 import { formatDuration } from '$lib/ui/format';
 import { routes } from '$lib/routes';
 
-/** Every job kind of the catalog (docs/architecture/job-engine.md). */
+/** Every job kind of the catalog (docs/internal/architecture/job-engine.md). */
 export const JOB_KIND_LABELS: Record<string, string> = {
 	'backup.import': 'Import backups',
 	'backup.retention': 'Apply backup retention',

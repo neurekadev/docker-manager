@@ -23,7 +23,7 @@ import (
 // terminals container.exec (api.AuthorizeExec: API tokens only with
 // container.exec in their own grants, #31); metrics, restart or any other
 // container capability never open them. Stream wire contracts:
-// docs/api/streams.md.
+// docs/internal/api/streams.md.
 
 // Capabilities of container logs and terminals (#17).
 const (
@@ -493,7 +493,7 @@ func registerContainerIO(a huma.API, deps Deps) {
 			Description: "Server-sent events: `log` (id = the line's RFC 3339 timestamp, data LogLine), `dropped {count}` when the client " +
 				"could not keep up, `end {reason}` (container_removed, permissions_changed, agent_offline) and `close` (max_age after 1 h, " +
 				"session_expired, permissions_changed). A stopped container keeps the stream open. Reconnect with Last-Event-ID to resume " +
-				"(lines with the same timestamp may repeat). Protocol: docs/api/streams.md.",
+				"(lines with the same timestamp may repeat). Protocol: docs/internal/api/streams.md.",
 			Tags: []string{tagContainers}, Errors: errs,
 			Responses: map[string]*huma.Response{
 				"200": {Description: "Event stream", Content: map[string]*huma.MediaType{"text/event-stream": {Schema: logSchema}}},
@@ -525,7 +525,7 @@ func registerContainerIO(a huma.API, deps Deps) {
 			Description: "Upgrades to a WebSocket (subprotocol docker-manager.exec.v1; the ticket from the create call as subprotocol " +
 				"docker-manager.ticket.<ticket>). Binary frames: 0+stdin to the process, 1+stdout / 2+stderr from it; text frames: " +
 				"{\"type\":\"resize\",\"cols\",\"rows\"} from the client, {\"type\":\"exit\",\"code\"} and {\"type\":\"error\",...} from the " +
-				"server. Close codes and limits: docs/api/streams.md.",
+				"server. Close codes and limits: docs/internal/api/streams.md.",
 			Tags: []string{tagContainers}, Errors: errs,
 			Responses: map[string]*huma.Response{"101": {Description: "Switching to the WebSocket protocol"}},
 		},

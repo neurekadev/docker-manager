@@ -20,7 +20,7 @@ import {
 describe('job labels (#26 catalog)', () => {
 	it('names every job kind of the lock matrix', () => {
 		const doc = readFileSync(
-			new URL('../../../../../docs/architecture/job-engine.md', import.meta.url),
+			new URL('../../../../../docs/internal/architecture/job-engine.md', import.meta.url),
 			'utf8'
 		);
 		const kinds = [...doc.matchAll(/^\| `([a-z_]+\.[a-z_]+)` \| (agent|manager) \|/gm)].map(

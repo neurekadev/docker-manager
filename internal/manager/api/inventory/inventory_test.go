@@ -66,7 +66,7 @@ func TestV1CatalogIsServed(t *testing.T) {
 // protocol document.
 func TestAgentRoutesDocumented(t *testing.T) {
 	inv := load(t)
-	b, err := os.ReadFile(filepath.Join(root, "docs", "protocol", "agent-v1.md"))
+	b, err := os.ReadFile(filepath.Join(root, "docs", "internal", "protocol", "agent-v1.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,16 +75,16 @@ func TestAgentRoutesDocumented(t *testing.T) {
 	}
 	for _, r := range inv.AgentRoutes {
 		if !strings.Contains(string(b), r.Method+" "+r.Path) {
-			t.Errorf("docs/protocol/agent-v1.md does not specify %s %s", r.Method, r.Path)
+			t.Errorf("docs/internal/protocol/agent-v1.md does not specify %s %s", r.Method, r.Path)
 		}
 	}
 }
 
 // TestStreamRoutesDocumented: every stream and WebSocket route has its wire
-// contract in docs/api/streams.md.
+// contract in docs/internal/api/streams.md.
 func TestStreamRoutesDocumented(t *testing.T) {
 	inv := load(t)
-	b, err := os.ReadFile(filepath.Join(root, "docs", "api", "streams.md"))
+	b, err := os.ReadFile(filepath.Join(root, "docs", "internal", "api", "streams.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestStreamRoutesDocumented(t *testing.T) {
 			continue
 		}
 		if !strings.Contains(doc, strings.TrimPrefix(r.Path, api.BasePath)) && !strings.Contains(doc, "`"+r.OperationID+"`") {
-			t.Errorf("docs/api/streams.md does not describe %s %s (%s)", r.Method, r.Path, r.OperationID)
+			t.Errorf("docs/internal/api/streams.md does not describe %s %s (%s)", r.Method, r.Path, r.OperationID)
 		}
 	}
 }

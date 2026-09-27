@@ -13,7 +13,7 @@
 // http://docker-manager:8080, a different proxy host name) can therefore
 // never complete a ceremony, and credentials stay bound to the public host
 // name: changing DOCKER_MANAGER_PUBLIC_URL's host invalidates existing passkeys
-// (docs/deployment.md).
+// (docs/internal/deployment.md).
 package passkey
 
 import (

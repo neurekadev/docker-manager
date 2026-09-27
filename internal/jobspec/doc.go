@@ -11,14 +11,14 @@ import (
 )
 
 // Markers delimiting the generated lock-matrix table in
-// docs/architecture/job-engine.md.
+// docs/internal/architecture/job-engine.md.
 const (
 	MatrixBegin = "<!-- BEGIN GENERATED: lock-matrix (scripts/generate.sh; do not edit) -->"
 	MatrixEnd   = "<!-- END GENERATED: lock-matrix -->"
 )
 
 // MatrixMarkdown renders the lock matrix (one row per kind) as a Markdown
-// table. It is the source of the table in docs/architecture/job-engine.md.
+// table. It is the source of the table in docs/internal/architecture/job-engine.md.
 func MatrixMarkdown() string {
 	var b strings.Builder
 	b.WriteString("| Kind | Executor | Capability | Locks | Steps | Offline deadline | Cap class | Compensations | Manager restart |\n")

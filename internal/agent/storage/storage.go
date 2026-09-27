@@ -453,7 +453,7 @@ type VolumeAccess struct {
 var remoteTypes = []string{"nfs", "nfs4", "cifs", "smb", "smb3", "sshfs", "glusterfs", "ceph"}
 
 // AccessFor decides v1 support for a volume (decided in #28, recorded in
-// docs/support-matrix.md): only local-driver volumes stored under the
+// docs/internal/support-matrix.md): only local-driver volumes stored under the
 // verified volume directory are supported. Non-local drivers (plugins) and
 // local volumes backed by NFS/CIFS mount options live elsewhere or are only
 // mounted while a container uses them; they are shown read-only.

@@ -1,6 +1,6 @@
 // Records the client chunk graph of `vite build` in
 // .svelte-kit/bundle-report.json for scripts/verify-build.mjs (lazy-loading
-// proof and bundle-size table, docs/adr/0002-frontend-libraries.md).
+// proof and bundle-size table, docs/internal/adr/0002-frontend-libraries.md).
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import type { Plugin } from 'vite';

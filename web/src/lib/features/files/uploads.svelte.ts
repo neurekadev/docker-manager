@@ -1,4 +1,4 @@
-// Upload queue of the file manager (#15, docs/api/streams.md "Upload"):
+// Upload queue of the file manager (#15, docs/internal/api/streams.md "Upload"):
 // one POST …/files/uploads per file with the raw bytes, progress from
 // XMLHttpRequest (fetch has no upload progress), cancellable at any time
 // (the agent writes a temporary file and renames it only when complete, so

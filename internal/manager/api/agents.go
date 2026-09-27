@@ -17,7 +17,7 @@ import (
 )
 
 // Agent enrollment and agent routes (#3). Environments: environments.go.
-// Protocol and enrollment semantics: docs/protocol/agent-v1.md.
+// Protocol and enrollment semantics: docs/internal/protocol/agent-v1.md.
 
 const (
 	tagAgents       = "Agents"
@@ -571,7 +571,7 @@ func registerAgents(a huma.API, deps Deps) {
 			Summary: "Create an agent enrollment token",
 			Description: "Creates a one-use, short-lived enrollment token with a fixed intent and returns it once, with install commands for a " +
 				"co-located agent and for another Docker host. The manager stores only a verifier. The agent exchanges the token on " +
-				"POST /agent/v1/enroll (docs/protocol/agent-v1.md). Stored-idempotent: a retry with the same Idempotency-Key replays the response.",
+				"POST /agent/v1/enroll (docs/internal/protocol/agent-v1.md). Stored-idempotent: a retry with the same Idempotency-Key replays the response.",
 			Tags: []string{tagAgents}, DefaultStatus: http.StatusCreated,
 			Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
 		},

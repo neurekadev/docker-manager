@@ -7,7 +7,7 @@
 # labels, so the proxy needs no Docker socket. One public origin serves the
 # UI, /api/v1 and /agent/v1 (#27); agents on other hosts use
 # deploy/remote-agent. Only named volumes plus the agent's identical-path
-# mount are used (#28). See docs/deployment.md.
+# mount are used (#28). See docs/internal/deployment.md.
 name: docker-manager
 
 services:
@@ -39,7 +39,7 @@ services:
       # Optional: import this deployment as a stack in place and redeploy or
       # update Docker Manager from its own UI (#32). Keep this directory in a
       # stack root, e.g. /opt/stacks/docker-manager, and uncomment this line
-      # and the matching bind mount below (docs/deployment.md).
+      # and the matching bind mount below (docs/internal/deployment.md).
       # DOCKER_AGENT_STACK_ROOTS: /opt/stacks
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

@@ -24,7 +24,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 )
 
-// Session is one established agent session (docs/protocol/agent-v1.md,
+// Session is one established agent session (docs/internal/protocol/agent-v1.md,
 // "Session"). Feature code uses it through Hub.Request/RequestEnvironment
 // and Reconcilers.
 type Session struct {
@@ -153,7 +153,7 @@ func (s *Session) SendData(ctx context.Context, f *protocol.Frame) error {
 }
 
 // OpenStream opens a byte stream of kind on this session
-// (docs/protocol/agent-v1.md, "Streams"). The stream is aborted when ctx
+// (docs/internal/protocol/agent-v1.md, "Streams"). The stream is aborted when ctx
 // ends; it fails with streammux.ErrSessionClosed when the session ends,
 // and with a *streammux.CloseError carrying the agent's code
 // (unsupported_stream, not_found, forbidden_path, ...) when the agent
@@ -230,7 +230,7 @@ func (s *Session) Request(ctx context.Context, name string, input any, timeout t
 }
 
 // Rescan asks the agent for a bounded reconciliation of one watched file
-// scope (docs/protocol/agent-v1.md, "fs_invalidation and rescan"). Errors
+// scope (docs/internal/protocol/agent-v1.md, "fs_invalidation and rescan"). Errors
 // are those of Request (unsupported_request from agents without a
 // watcher, not_found for scopes it does not watch).
 func (s *Session) Rescan(ctx context.Context, p protocol.RescanPayload, timeout time.Duration) (protocol.RescanResult, error) {

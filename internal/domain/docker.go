@@ -9,7 +9,7 @@ import "time"
 
 // DockerError is a stable failure of a Docker resource operation. Code is
 // one of the Docker* codes below; the API maps it to its error catalog
-// (docs/api/errors.md).
+// (docs/internal/api/errors.md).
 type DockerError struct {
 	Code    string
 	Message string

@@ -8,7 +8,7 @@
 // panic-recovery, security-header, no-store and route-boundary middleware
 // (the /agent/v1 guard and the cookie/agent-credential separation). The
 // manager serves plain HTTP; TLS terminates at the operator's reverse proxy
-// (#27, docs/deployment.md).
+// (#27, docs/internal/deployment.md).
 package server
 
 import (

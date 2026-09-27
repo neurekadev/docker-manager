@@ -64,7 +64,7 @@ func (r Route) AcceptsAPITokens() bool {
 // Key is "METHOD path".
 func (r Route) Key() string { return r.Method + " " + r.Path }
 
-// AgentRoute is one private /agent/v1 route (docs/protocol/agent-v1.md).
+// AgentRoute is one private /agent/v1 route (docs/internal/protocol/agent-v1.md).
 type AgentRoute struct {
 	Method string `yaml:"method"`
 	Path   string `yaml:"path"`

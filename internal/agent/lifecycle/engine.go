@@ -13,7 +13,7 @@ import (
 // EngineRuntime drives the service containers of one Compose project
 // through the Engine adapter. One-off (`compose run`) containers are
 // ignored. State inspects every container (the container list can lag
-// behind a stop on Engines before 26, docs/support-matrix.md).
+// behind a stop on Engines before 26, docs/internal/support-matrix.md).
 type EngineRuntime struct {
 	Engine  engine.Engine
 	Project string

@@ -32,7 +32,7 @@ func handler[I, O any](fn func(context.Context, I) (O, error)) session.RequestHa
 }
 
 // Requests returns the files.* request handlers
-// (docs/protocol/agent-v1.md, "Allowed requests").
+// (docs/internal/protocol/agent-v1.md, "Allowed requests").
 func (s *Service) Requests() map[string]session.RequestHandler {
 	return map[string]session.RequestHandler{
 		protocol.ReqFilesList:            handler(s.List),

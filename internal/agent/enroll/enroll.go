@@ -1,5 +1,5 @@
 // Package enroll exchanges a one-use enrollment token for the agent's
-// credential (POST /agent/v1/enroll, docs/protocol/agent-v1.md). The token
+// credential (POST /agent/v1/enroll, docs/internal/protocol/agent-v1.md). The token
 // travels only in the Authorization header over the validated transport
 // (internal/agent/transport); it is never logged or put in a URL.
 package enroll

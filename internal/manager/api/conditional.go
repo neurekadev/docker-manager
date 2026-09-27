@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Conditional requests (#4). See docs/api/conventions.md.
+// Conditional requests (#4). See docs/internal/api/conventions.md.
 //
 // Revisioned resources expose their revision as a strong, quoted ETag on GET
 // (embed ETagHeader in the output) and in the resource body (revision

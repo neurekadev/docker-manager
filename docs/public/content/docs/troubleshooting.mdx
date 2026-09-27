@@ -1,0 +1,43 @@
+---
+title: Troubleshooting
+description: First checks and fixes for common problems.
+---
+
+## First checks
+
+```bash
+cd deploy/caddy
+docker compose ps
+docker compose logs --tail 200 docker-manager docker-agent
+```
+
+The logs never contain passwords, tokens or file contents. For more detail,
+set `DOCKER_MANAGER_LOG_LEVEL=debug` and `DOCKER_AGENT_LOG_LEVEL=debug` in
+`.env` and run `docker compose up -d`.
+
+**Settings → Diagnostics** shows versions, the health of every host and the
+state of jobs. The owner can download a support bundle there: it never
+contains secrets, but it does contain host names and IP addresses.
+
+## Common problems
+
+| Problem | What to do |
+| --- | --- |
+| Setup says the request did not come over HTTPS | Open your `https://` address, not the internal one. With your own proxy, add its address to `DOCKER_MANAGER_TRUSTED_PROXIES`. |
+| A host stays offline | Run `docker compose logs docker-agent` on that host. Usual causes: a wrong `DOCKER_AGENT_MANAGER_URL`, an untrusted certificate (set `DOCKER_AGENT_MANAGER_CA_FILE`), or a used or expired token (create a new one). |
+| Stack actions are refused with `storage_mount_missing` or `storage_path_mismatch` | The agent's mount of Docker's volume folder is missing or points elsewhere. See [Configuration](./configuration#mounts-you-must-keep). |
+| Live views stop updating after about a minute | A proxy or load balancer cuts idle connections too early or buffers responses. Allow idle connections longer than 15 seconds. |
+| An action on a Docker Manager container is refused | Docker Manager never stops or removes its own containers, data or images. |
+| A project cannot be imported | Its row in **Import project** says why: usually its folder is not mounted below `/import`, or its containers use settings that are not in its files. |
+| A job ended as `interrupted` | The manager or agent restarted during it. Check the result, then run it again. |
+
+## Locked out of the owner account
+
+On the manager's host, run:
+
+```bash
+docker compose exec docker-manager docker-manager owner-recovery
+```
+
+It prints a one-time link, valid for one hour. Open it, set a new password,
+then add your authenticator app or passkey again.

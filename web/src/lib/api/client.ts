@@ -3,7 +3,7 @@
 // schema.d.ts is GENERATED from api/openapi.json by openapi-typescript; do
 // not edit it. Regenerate with `bash scripts/generate.sh` after changing Go
 // operations. Paths are absolute (/api/v1/...) and same-origin: the browser
-// only ever talks to the manager's public origin. Workflow: docs/web.md.
+// only ever talks to the manager's public origin. Workflow: docs/internal/web.md.
 import createClient from 'openapi-fetch';
 import type { components, paths } from './schema';
 

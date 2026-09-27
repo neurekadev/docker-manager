@@ -416,9 +416,9 @@ func TestComputeLocksSortedDedupedAndValidated(t *testing.T) {
 }
 
 // TestMatrixDocUpToDate fails when the generated lock-matrix table in
-// docs/architecture/job-engine.md differs from the catalog.
+// docs/internal/architecture/job-engine.md differs from the catalog.
 func TestMatrixDocUpToDate(t *testing.T) {
-	path := filepath.Join("..", "..", "docs", "architecture", "job-engine.md")
+	path := filepath.Join("..", "..", "docs", "internal", "architecture", "job-engine.md")
 	doc, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -429,7 +429,7 @@ func TestMatrixDocUpToDate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(doc, want) {
-		t.Fatal("docs/architecture/job-engine.md lock matrix is stale; run: bash scripts/generate.sh")
+		t.Fatal("docs/internal/architecture/job-engine.md lock matrix is stale; run: bash scripts/generate.sh")
 	}
 	for _, k := range Kinds() {
 		if !bytes.Contains(doc, []byte("| `"+string(k)+"` |")) {

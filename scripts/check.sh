@@ -31,7 +31,7 @@ check_lint() {
 	npm --prefix web run --silent format:check || return 1
 	echo "==> golangci-lint"
 	if ! command -v golangci-lint >/dev/null 2>&1; then
-		echo "golangci-lint not found; install v${GOLANGCI_LINT_VERSION} (see docs/development.md)" >&2
+		echo "golangci-lint not found; install v${GOLANGCI_LINT_VERSION} (see docs/internal/development.md)" >&2
 		return 1
 	fi
 	local have

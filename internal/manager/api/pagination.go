@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// List conventions for every list route (#4); docs/api/conventions.md is the
+// List conventions for every list route (#4); docs/internal/api/conventions.md is the
 // client-facing description.
 //
 //   - Pagination: inputs embed PageParams (?cursor=&limit=, default 50, max

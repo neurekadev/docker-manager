@@ -2,7 +2,7 @@
 # Regenerates committed artifacts:
 #   api/openapi.json               from the registered Huma operations
 #   web/src/lib/api/schema.d.ts    TypeScript types via openapi-typescript
-#   docs/architecture/job-engine.md  lock-matrix table from internal/jobspec
+#   docs/internal/architecture/job-engine.md  lock-matrix table from internal/jobspec
 #
 #   bash scripts/generate.sh           regenerate in place
 #   bash scripts/generate.sh --check   fail if anything is stale
@@ -58,5 +58,5 @@ else
 	cp "$tmp/schema.d.ts" web/src/lib/api/schema.d.ts
 	echo "==> job lock matrix"
 	go run ./tools/jobdoc
-	echo "generate: wrote api/openapi.json, web/src/lib/api/schema.d.ts and the lock matrix in docs/architecture/job-engine.md"
+	echo "generate: wrote api/openapi.json, web/src/lib/api/schema.d.ts and the lock matrix in docs/internal/architecture/job-engine.md"
 fi

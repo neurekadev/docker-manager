@@ -3,7 +3,7 @@
 // (internal/db/metricsmigrations), holding 10 s samples, 1 min and 15 min
 // rollups, the collector cursors and the last Engine inventories.
 //
-// Guarantees (docs/architecture/metrics.md):
+// Guarantees (docs/internal/architecture/metrics.md):
 //
 //   - Ingestion is idempotent: the key (series, 10 s slot) ignores a sample
 //     that is delivered twice (agent reconnect, manager restart).
@@ -42,7 +42,7 @@ import (
 const FileName = "metrics.db"
 
 // Defaults (overridable through Options; DOCKER_MANAGER_METRICS_* in
-// docs/configuration.md).
+// docs/internal/configuration.md).
 const (
 	DefaultRawRetention     = 24 * time.Hour
 	DefaultMinuteRetention  = 7 * 24 * time.Hour

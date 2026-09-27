@@ -26,7 +26,7 @@ export default defineConfig({
 				strict: true
 			})
 		}),
-		// Build-time only (docs/adr/0002-frontend-libraries.md): writes
+		// Build-time only (docs/internal/adr/0002-frontend-libraries.md): writes
 		// manifest.webmanifest and injects the precache list into the
 		// SvelteKit-built service worker. No Workbox runtime ships.
 		SvelteKitPWA({
@@ -63,7 +63,7 @@ export default defineConfig({
 	test: {
 		expect: { requireAssertions: true },
 		// *.spec.ts: logic in Node. *.test.ts: components in jsdom with
-		// @testing-library/svelte (docs/design/README.md, "Tests").
+		// @testing-library/svelte (docs/internal/design/README.md, "Tests").
 		projects: [
 			{
 				extends: true,

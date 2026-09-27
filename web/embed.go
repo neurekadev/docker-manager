@@ -1,6 +1,6 @@
 // Package web embeds the SvelteKit PWA into the manager binary.
 //
-// Layout (see docs/development.md):
+// Layout (see docs/internal/development.md):
 //
 //	web/build/fallback/  committed placeholder page (always present)
 //	web/build/app/       `npm run build` output (git-ignored)

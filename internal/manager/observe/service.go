@@ -4,7 +4,7 @@
 // idempotent cursors, the Engine inventory cache refreshed on change
 // (engine.info), and the per-environment event journal behind the
 // environment event stream (bounded replay of Docker events, status and
-// metric invalidations). docs/architecture/metrics.md.
+// metric invalidations). docs/internal/architecture/metrics.md.
 package observe
 
 import (

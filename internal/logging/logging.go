@@ -1,7 +1,7 @@
 // Package logging configures Docker Manager's structured log/slog output and carries
 // request-scoped loggers through contexts.
 //
-// Rules (see CLAUDE.md): never log secrets, tokens, credentials, passwords,
+// Rules (see docs/internal/conventions/logging-and-security.md): never log secrets, tokens, credentials, passwords,
 // file contents, Compose/.env values or raw query strings. Wrap values that
 // might be sensitive in Secret so they render as "[REDACTED]".
 package logging

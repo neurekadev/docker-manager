@@ -1,5 +1,5 @@
 // Package auth is Docker Manager's identity layer (#16) built on the vetted
-// libraries selected in #18 (docs/adr/0003-auth-libraries.md):
+// libraries selected in #18 (docs/internal/adr/0003-auth-libraries.md):
 //
 //	sessions   alexedwards/scs/v2 + a Bun store on the manager database
 //	password   alexedwards/argon2id, versioned parameters, blocklist policy

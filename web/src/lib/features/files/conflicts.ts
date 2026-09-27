@@ -1,4 +1,4 @@
-// Per-item conflict resolution (#15, docs/api/files.md "Conflicts and
+// Per-item conflict resolution (#15, docs/internal/api/files.md "Conflicts and
 // previews"). The preview lists the items whose name exists at the
 // destination; the user decides per item (overwrite, skip, keep both),
 // "Apply to all conflicts" is off by default, and the operation is sent as

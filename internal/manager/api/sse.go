@@ -13,7 +13,7 @@ import (
 )
 
 // Server-sent event streams (#4, #23). The wire contract is in
-// docs/api/streams.md; every SSE route writes through SSEWriter so framing,
+// docs/internal/api/streams.md; every SSE route writes through SSEWriter so framing,
 // headers and heartbeats are identical across streams. SSEWriter is the
 // Huma-facing adapter of the manager's one SSE implementation,
 // internal/manager/server/sse (#27: X-Accel-Buffering: no, no-store, a

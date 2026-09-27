@@ -20,7 +20,7 @@ const (
 // The remote variants mount the Docker socket and Docker's volume
 // directory at its identical path (#28), as deploy/remote-agent does; the
 // socket path literal is the documented policy-check exception for this
-// file (docs/architecture/engine-integration.md).
+// file (docs/internal/architecture/engine-integration.md).
 func InstallCommands(managerURL, image, token, name string) []domain.InstallCommand {
 	colocated := "printf '%s\\n' " + shellQuote(token) + " | docker compose exec -T docker-agent docker-agent enroll"
 

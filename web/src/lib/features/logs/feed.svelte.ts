@@ -1,4 +1,4 @@
-// Log feed (#8, docs/api/streams.md "Container logs"): follows one or more
+// Log feed (#8, docs/internal/api/streams.md "Container logs"): follows one or more
 // containers' logs over SSE (GET …/logs/stream) and merges them by time.
 //
 //   - each `log` event's id is its RFC 3339 nano timestamp: the cursor. A

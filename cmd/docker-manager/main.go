@@ -104,7 +104,7 @@ Commands:
                    rollback of a failed upgrade; stop the manager first:
                    docker compose run --rm --no-deps docker-manager snapshots restore NAME)
 
-Configuration is read from environment variables; see docs/configuration.md.
+Configuration is read from environment variables; see docs/internal/configuration.md.
 `)
 }
 
@@ -163,7 +163,7 @@ removes the owner's TOTP, passkeys and recovery codes; sign in and enroll them a
 
 // snapshots lists pre-migration snapshots or restores one (#34): the
 // rollback of an upgrade is restoring its snapshot and starting the
-// previous image (docs/operations/upgrades.md). The manager must be
+// previous image (docs/internal/operations/upgrades.md). The manager must be
 // stopped; run it in a one-off container on the same data volume.
 func snapshots(args []string, env envconfig.Source, stdout, stderr io.Writer) int {
 	usage := "usage: docker-manager snapshots list | snapshots restore NAME"

@@ -1,4 +1,4 @@
-// Job progress subscription (#26, docs/api/streams.md "Job events"). A
+// Job progress subscription (#26, docs/internal/api/streams.md "Job events"). A
 // JobWatcher follows GET /api/v1/jobs/{id}/events/stream (SSE): the first
 // `job` event is the full job, then state/progress/item/log/warning events.
 // EventSource resumes with Last-Event-ID after a network blip; when the

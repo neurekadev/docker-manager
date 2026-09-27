@@ -2,7 +2,7 @@
 	// Design system gallery (#22): every token and component with sample
 	// data, including a re-composition of the mockup's stack detail from the
 	// library. Public on purpose (no API data, no sign-in) so reviewers and
-	// feature agents can compare against docs/design/README.md. The "Lazy
+	// feature agents can compare against docs/internal/design/README.md. The "Lazy
 	// surfaces" section loads the heavy libraries on demand (#11).
 	import { onDestroy } from 'svelte';
 	import Clock from '@lucide/svelte/icons/clock';
@@ -368,7 +368,7 @@
 		<h1>Docker Manager design system</h1>
 		<p class="muted">
 			Tokens and components from $lib/design and $lib/ui, with sample data. Rules:
-			docs/design/README.md.
+			docs/internal/design/README.md.
 		</p>
 	</header>
 

@@ -1,0 +1,137 @@
+# User documentation site (docs/public): builds the static-site image and
+# publishes code.neureka.dev/docker-manager/docker-manager-docs:edge from
+# main. The Docker build runs the site build; there is no separate Node job.
+#
+# Deviations from the canonical GitHub documentation profile, as in CI.yaml
+# (Forgejo Actions on code.neureka.dev):
+# - The registry is code.neureka.dev, not GHCR: login uses
+#   vars.REGISTRY_USER and secrets.REGISTRY_TOKEN (write:package).
+# - Artifacts use the v4 tags of the Forgejo forks of upload-artifact and
+#   download-artifact.
+# - linux/amd64 only until a native arm64 runner exists (no QEMU).
+# - The BuildKit container joins the runner's forgejo-actions network, the
+#   only network on which the runner's actions cache server is reachable.
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/public/**"
+      - ".github/workflows/Docs.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: code.neureka.dev/docker-manager/docker-manager-docs
+
+jobs:
+  build:
+    name: Build Image ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: AMD64
+            arch: amd64
+            runner: ubuntu-24.04
+            platform: linux/amd64
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set Up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: network=${{ job.container.network || 'forgejo-actions' }}
+      - name: Log In to Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: code.neureka.dev
+          username: ${{ vars.REGISTRY_USER }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
+      - name: Extract Image Metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          labels: |
+            org.opencontainers.image.title=docker-manager-docs
+            org.opencontainers.image.source=https://code.neureka.dev/docker-manager/docker-manager
+            org.opencontainers.image.version=0.0.0-edge
+      - name: Build and Push Image Digest
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: docs/public
+          file: docs/public/Dockerfile
+          build-args: |
+            GIT_TAG=0.0.0-edge
+            GIT_HASH=${{ github.sha }}
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=docs-${{ matrix.arch }}
+          cache-to: type=gha,scope=docs-${{ matrix.arch }},mode=max,ignore-error=true
+      - name: Export Image Digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          case "$DIGEST" in
+            sha256:?*) ;;
+            *) echo "::error::build-push-action returned no digest"; exit 1 ;;
+          esac
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      # Replaces actions/upload-artifact (unsupported on Forgejo).
+      - name: Upload Image Digest
+        uses: https://data.forgejo.org/forgejo/upload-artifact@16871d9e8cfcf27ff31822cac382bbb5450f1e1e # v4.3.1 (Forgejo tag v4: GHES check disabled)
+        with:
+          name: docs-digests-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish Docs
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Download AMD64 Digest
+        uses: https://data.forgejo.org/forgejo/download-artifact@d8d0a99033603453ad2255e58720b460a0555e1e # v4.1.4 (Forgejo tag v4: GHES check disabled)
+        with:
+          name: docs-digests-amd64
+          path: ${{ runner.temp }}/digests
+      - name: Log In to Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: code.neureka.dev
+          username: ${{ vars.REGISTRY_USER }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
+      - name: Set Up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: network=${{ job.container.network || 'forgejo-actions' }}
+      - name: Create Manifest
+        run: |
+          args=(--tag "${IMAGE}:edge"
+            --annotation "index:org.opencontainers.image.title=docker-manager-docs"
+            --annotation "index:org.opencontainers.image.source=https://code.neureka.dev/docker-manager/docker-manager"
+            --annotation "index:org.opencontainers.image.revision=${GITHUB_SHA}")
+          for digest in "$RUNNER_TEMP"/digests/*; do
+            args+=("${IMAGE}@sha256:$(basename "$digest")")
+          done
+          docker buildx imagetools create "${args[@]}"
+      - name: Inspect Manifest
+        run: docker buildx imagetools inspect "${IMAGE}:edge"

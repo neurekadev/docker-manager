@@ -35,7 +35,7 @@ import (
 
 // MinSupportedAPIVersion is Docker Manager's minimum Engine API version: Docker
 // Engine 25.0 (API 1.44) is the lowest Engine of the matrix that passes every
-// planned v1 operation (docs/support-matrix.md, #21, #25 Q2); Docker 24.0's
+// planned v1 operation (docs/internal/support-matrix.md, #21, #25 Q2); Docker 24.0's
 // BuildKit cannot pull base images from insecure registries. The Moby client
 // itself accepts API 1.40 and newer.
 const MinSupportedAPIVersion = "1.44"

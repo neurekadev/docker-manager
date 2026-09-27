@@ -3,7 +3,7 @@ package api
 import "net/http"
 
 // ErrorCode documents one stable error code of the public API. The catalog
-// below is the source of docs/api/errors.md (TestErrorCatalogDocumented) and
+// below is the source of docs/internal/api/errors.md (TestErrorCatalogDocumented) and
 // every code literal used in this package must be listed here
 // (TestErrorCodesCatalogued). Feature workstreams add their specific codes
 // (e.g. stack_name_taken) to this list in the same change that introduces
@@ -14,7 +14,7 @@ type ErrorCode struct {
 	Status int
 	// Retryable is the default retryable flag of the code.
 	Retryable bool
-	// Meaning is the one-line description published in docs/api/errors.md.
+	// Meaning is the one-line description published in docs/internal/api/errors.md.
 	Meaning string
 	// Owner is the issue that introduced the code.
 	Owner int

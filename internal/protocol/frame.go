@@ -2,7 +2,7 @@
 // (docker-manager.agent/v1): a JSON frame envelope exchanged over one WebSocket
 // that the agent dials out to /agent/v1/session.
 //
-// The normative specification is docs/protocol/agent-v1.md (#4): enrollment,
+// The normative specification is docs/internal/protocol/agent-v1.md (#4): enrollment,
 // the session upgrade, every frame type, limits and close codes. This
 // package implements the envelope (frame.go), job command semantics
 // (attempt, fencing tokens, acknowledgements, results and the reconnect

@@ -14,7 +14,7 @@ import (
 // Publisher relays events on the manager session (session.Client.Events()).
 // Publish never blocks and reports whether the event was queued; Drop
 // consumes a sequence number without sending, so the manager sees a gap
-// and resynchronizes the environment (docs/protocol/agent-v1.md, "Sequence
+// and resynchronizes the environment (docs/internal/protocol/agent-v1.md, "Sequence
 // numbers and gaps").
 type Publisher interface {
 	Publish(p protocol.EventPayload) bool

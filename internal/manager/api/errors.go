@@ -16,7 +16,7 @@ import (
 // ErrorContentType is the media type of every error response. The body is a
 // valid RFC 9457 problem document that uses only extension members (so
 // "type" is implicitly "about:blank"); clients should parse it as the Error
-// schema below. See docs/api/conventions.md.
+// schema below. See docs/internal/api/conventions.md.
 const ErrorContentType = "application/problem+json"
 
 // Error is the ONE JSON error shape returned by /api/v1 (and /agent/v1).

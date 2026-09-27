@@ -30,7 +30,7 @@
 //     hardlink targets, special files, setuid bits) and counts the bytes it
 //     actually writes against size, ratio and entry limits.
 //
-// Residual risks (documented in docs/api/files.md): files are replaced by
+// Residual risks (documented in docs/internal/api/files.md): files are replaced by
 // rename, so a concurrent writer outside Docker Manager can still change a file
 // between the precondition check and the rename (the window is a few
 // syscalls); bind mounts inside a volume are traversed like directories

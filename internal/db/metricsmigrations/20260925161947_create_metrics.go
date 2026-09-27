@@ -1,7 +1,7 @@
 package metricsmigrations
 
 func init() {
-	// Metrics storage (#5, docs/architecture/metrics.md).
+	// Metrics storage (#5, docs/internal/architecture/metrics.md).
 	//
 	//   - series maps (environment, kind, name) to a small integer ID so the
 	//     sample tables stay narrow; kind is host (name ''), container

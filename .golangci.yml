@@ -64,7 +64,7 @@ linters:
           msg: use log/slog
         # No Docker/Compose/buildx CLI or credential helpers (#21): process
         # execution is limited to the paths excluded below (see
-        # docs/architecture/engine-integration.md): tests and the pinned
+        # docs/internal/architecture/engine-integration.md): tests and the pinned
         # restic runner (internal/restic/runner.go, #10).
         - pattern: ^exec\.(Command|CommandContext|LookPath)$
           pkg: ^os/exec$

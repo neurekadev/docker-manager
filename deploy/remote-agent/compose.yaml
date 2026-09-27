@@ -7,7 +7,7 @@
 #   docker compose up -d
 #
 # Only named volumes plus the identical-path mount of Docker's volume
-# directory are used (#28). See docs/deployment.md. The project name is
+# directory are used (#28). See docs/internal/deployment.md. The project name is
 # "docker-manager" as in the manager examples, so the volumes are docker-manager_agent
 # (agent state), docker-manager_stacks (the agent's default DOCKER_AGENT_STACKS_VOLUME)
 # and docker-manager_agent_ca.
@@ -29,7 +29,7 @@ services:
     # Host metrics (#5): CPU, memory, load and uptime are host-wide as is;
     # network rates cover only the agent container unless you uncomment
     # this (it shows every host process to the agent). See
-    # docs/architecture/metrics.md, "Host telemetry".
+    # docs/internal/architecture/metrics.md, "Host telemetry".
     # pid: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -38,7 +38,7 @@ services:
       # agent verifies this at startup and disables stack operations with a
       # diagnostic otherwise. Custom Docker data root (`docker info -f
       # '{{.DockerRootDir}}'`): replace /var/lib/docker on both sides here and
-      # below. SELinux hosts: see docs/deployment.md.
+      # below. SELinux hosts: see docs/internal/deployment.md.
       - /var/lib/docker/volumes:/var/lib/docker/volumes
       - stacks:/var/lib/docker/volumes/docker-manager_stacks/_data
       - agent:/var/lib/docker-agent

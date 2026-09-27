@@ -105,15 +105,15 @@ func TestErrorCodesCatalogued(t *testing.T) {
 	}
 	for code, where := range used {
 		if _, ok := LookupErrorCode(code); !ok {
-			t.Errorf("%s: error code %q is not in ErrorCodes() (errorcodes.go) and docs/api/errors.md", where, code)
+			t.Errorf("%s: error code %q is not in ErrorCodes() (errorcodes.go) and docs/internal/api/errors.md", where, code)
 		}
 	}
 }
 
-// TestErrorCatalogDocumented keeps docs/api/errors.md in sync: every code
+// TestErrorCatalogDocumented keeps docs/internal/api/errors.md in sync: every code
 // has a table row "| `code` | status | retryable |".
 func TestErrorCatalogDocumented(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "docs", "api", "errors.md"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "docs", "internal", "api", "errors.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,13 +125,13 @@ func TestErrorCatalogDocumented(t *testing.T) {
 		}
 		row := fmt.Sprintf("| `%s` | %d | %s |", c.Code, c.Status, retry)
 		if !strings.Contains(doc, row) {
-			t.Errorf("docs/api/errors.md lacks the row %q", row)
+			t.Errorf("docs/internal/api/errors.md lacks the row %q", row)
 		}
 	}
 	rows := regexp.MustCompile("(?m)^\\| `([a-z0-9_]+)` \\| \\d{3} \\|").FindAllStringSubmatch(doc, -1)
 	for _, m := range rows {
 		if _, ok := LookupErrorCode(m[1]); !ok {
-			t.Errorf("docs/api/errors.md documents %q, which is not in ErrorCodes()", m[1])
+			t.Errorf("docs/internal/api/errors.md documents %q, which is not in ErrorCodes()", m[1])
 		}
 	}
 }

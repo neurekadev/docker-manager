@@ -58,7 +58,7 @@ func (s JobState) Active() bool {
 func (s JobState) Valid() bool { return slices.Contains(JobStates(), s) }
 
 // jobTransitions is THE table of legal state changes. Every state change of
-// a job goes through CanTransition; keep docs/architecture/job-engine.md in
+// a job goes through CanTransition; keep docs/internal/architecture/job-engine.md in
 // sync.
 var jobTransitions = map[JobState][]JobState{
 	// queued -> failed: offline deadline, lost authorization, unknown kind.

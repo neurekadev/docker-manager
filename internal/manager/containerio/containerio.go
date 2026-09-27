@@ -51,7 +51,7 @@ type FeatureHub interface {
 	EnvironmentHasFeature(environmentID, feature string) bool
 }
 
-// Limits of exec sessions (docs/api/streams.md).
+// Limits of exec sessions (docs/internal/api/streams.md).
 type Limits struct {
 	// AttachWindow: a session must be attached this soon (default 60 s).
 	AttachWindow time.Duration
@@ -504,7 +504,7 @@ func (s *Service) DeleteExec(_ context.Context, a api.ExecAttach) error {
 	return nil
 }
 
-// Close codes of exec WebSockets (docs/api/streams.md).
+// Close codes of exec WebSockets (docs/internal/api/streams.md).
 const (
 	closeSessionExpired   websocket.StatusCode = 4401
 	closeRevoked          websocket.StatusCode = 4403

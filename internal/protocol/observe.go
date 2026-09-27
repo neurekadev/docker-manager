@@ -7,7 +7,7 @@ import (
 )
 
 // Observation requests (#5): the input and output of engine.info and
-// host.metrics. docs/architecture/metrics.md describes units, sampling,
+// host.metrics. docs/internal/architecture/metrics.md describes units, sampling,
 // buffering and how the manager ingests them.
 
 // Sampling constants shared by the agent and the manager.
@@ -82,7 +82,7 @@ type MetricBatch struct {
 	Containers []ContainerSample `json:"containers,omitempty"`
 }
 
-// HostSample holds host-wide values (docs/architecture/metrics.md, "Units").
+// HostSample holds host-wide values (docs/internal/architecture/metrics.md, "Units").
 type HostSample struct {
 	// CPUPercent is busy time of all cores, 0..100 (% of total capacity).
 	CPUPercent *float64 `json:"cpuPercent,omitempty"`

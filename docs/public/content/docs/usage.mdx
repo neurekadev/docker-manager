@@ -1,0 +1,90 @@
+---
+title: Usage
+description: Everyday tasks - stacks, importing existing projects, people, automation and upgrades.
+---
+
+## Create and deploy a stack
+
+1. **Stacks → Create stack**: pick the host, paste your `compose.yaml` (and
+   a `.env` if you use one) and check the validation result.
+2. Create it, then press **Deploy**.
+
+Your files are the source of truth: Docker Manager deploys exactly what is
+in them. Put files your services need, such as `./html` or a config file,
+into the stack's **Files** tab before deploying.
+
+## Import projects you already run
+
+**Stacks → Import project** lists the Compose projects running on a host
+that Docker Manager does not manage yet. Press **Import** on one:
+
+- If its folder is already in a place Docker Manager manages, it is adopted
+  as it is. Nothing restarts.
+- Otherwise Docker Manager moves it: it stops the project, copies its whole
+  folder (the Compose file and every folder next to it, such as database
+  data, with owners and permissions kept), checks the copy, and starts the
+  project again from the copy. Its name and volumes stay the same.
+
+To import projects that live elsewhere on the host, the agent needs to read
+their folder. Add a read-only mount below `/import` to the agent in your
+`compose.yaml` and run `docker compose up -d`:
+
+```yaml
+    volumes:
+      # ...the existing lines...
+      - /opt/stacks:/import:ro
+```
+
+Projects deployed by a tool that runs Compose inside its own container
+(such as Arcane or Dockge) are found too: mount the folder where that tool
+keeps its projects, for example
+`/var/lib/docker/volumes/arcane_data/_data/projects:/import:ro`.
+
+Good to know:
+
+- If anything fails before the containers are recreated, nothing changes:
+  the copy is removed and the project keeps running from its original
+  folder.
+- An import is refused, with the reason, when the running containers use
+  settings that are not in the project's files (for example variables the
+  other tool keeps in its own database). Put them into the project's `.env`
+  and try again.
+- Your original folder is never changed. Delete it yourself once the stack
+  runs well, and stop the old tool from managing that project so it does not
+  redeploy or remove it.
+- Remove the `/import` mount when you are done importing.
+
+## Invite people
+
+**Access → Users → Invite user** creates a single-use link; send it
+yourself. New people see nothing until you grant them access under
+**Access → Groups** (to everything, one host, one stack and so on).
+
+## Automatic updates, cleanup and backups
+
+Nothing automatic or destructive runs until you turn it on:
+
+- **Image updates** check whether the image behind a tag changed and
+  recreate only the services that use it. There is no automatic rollback.
+- **Prune** removes unused containers, images, networks and build cache.
+  Volumes need their own opt-in, and **Preview** shows what a run would
+  remove.
+- **Backups** use restic to local folders or S3-compatible storage. Your
+  **Recovery Key** is shown once: store it outside Docker Manager. Without
+  it, backups cannot be restored.
+
+## Upgrade Docker Manager
+
+Upgrade the manager first, then the agents. On the first host:
+
+```bash
+cd deploy/caddy
+docker compose pull docker-manager && docker compose up -d docker-manager
+docker compose pull docker-agent && docker compose up -d docker-agent
+```
+
+On every other host:
+
+```bash
+docker compose pull docker-agent && docker compose up -d docker-agent
+```

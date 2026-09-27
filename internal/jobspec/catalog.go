@@ -12,7 +12,7 @@ import (
 // primary target type. A new kind needs a constant here AND a registered
 // Spec below; TestEveryJobKindHasLockDefinition fails otherwise. After
 // changing the catalog run scripts/generate.sh to refresh the lock-matrix
-// table in docs/architecture/job-engine.md.
+// table in docs/internal/architecture/job-engine.md.
 const (
 	ImagePull   domain.JobKind = "image.pull"
 	ImageBuild  domain.JobKind = "image.build"

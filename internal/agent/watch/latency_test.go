@@ -22,7 +22,7 @@ import (
 // Docker Manager takes to become an fs_invalidation: file create, edit, rename
 // and delete, in the root and in a nested directory created during the
 // test. The target is 2 s at p95; the measured distribution is logged and
-// recorded in docs/support-matrix.md ("File watching").
+// recorded in docs/internal/support-matrix.md ("File watching").
 func TestRealFilesystemLatency(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {

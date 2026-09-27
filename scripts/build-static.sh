@@ -48,7 +48,7 @@ check_sdk_graph() { # bin out meta
 	done
 }
 
-# The auth libraries pinned in go.mod (#18, docs/adr/0003-auth-libraries.md):
+# The auth libraries pinned in go.mod (#18, docs/internal/adr/0003-auth-libraries.md):
 # the manager must link exactly these versions into its static binary; the
 # agent authenticates with its agent credential only and links none of them.
 auth_modules=(github.com/alexedwards/scs/v2 github.com/go-webauthn/webauthn github.com/pquerna/otp github.com/alexedwards/argon2id golang.org/x/time)

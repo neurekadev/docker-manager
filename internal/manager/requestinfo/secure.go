@@ -51,7 +51,7 @@ func (e *InsecureOriginError) Is(target error) bool { return target == ErrInsecu
 // where plain http is accepted as long as the request addressed that host.
 //
 // Callers turn a failure into a 403 with code "insecure_origin" and show
-// Explanation (see docs/deployment.md, "First-run setup over HTTPS").
+// Explanation (see docs/internal/deployment.md, "First-run setup over HTTPS").
 func CheckSecureOrigin(publicURL *url.URL, localDevelopment bool, info Info) error {
 	if publicURL == nil || publicURL.Host == "" {
 		return &InsecureOriginError{Reason: ReasonPublicURLNotHTTPS, Explanation: "DOCKER_MANAGER_PUBLIC_URL is not configured."}

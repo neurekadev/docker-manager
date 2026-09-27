@@ -12,7 +12,7 @@
 //	internal/agent/jobs       job commands, fencing and journal (#26)
 //
 // Later workstreams add the manager session (#3), files and backups.
-// docs/architecture/engine-integration.md describes the Engine boundary.
+// docs/internal/architecture/engine-integration.md describes the Engine boundary.
 //
 // The agent never opens a listening socket; nolisten_test.go enforces this
 // for every in-module package the agent binary links, and

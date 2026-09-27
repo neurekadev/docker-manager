@@ -2,7 +2,7 @@
 //
 //   import { Button, Card, StatusBadge, toast } from '$lib/ui';
 //
-// Usage rules, props and examples: docs/design/README.md. Heavy
+// Usage rules, props and examples: docs/internal/design/README.md. Heavy
 // libraries stay lazy: CodeEditor, Sparkline and TerminalView load
 // CodeMirror, ECharts and xterm.js only when they mount.
 

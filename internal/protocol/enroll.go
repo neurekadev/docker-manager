@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 )
 
-// Enrollment and credential wire formats (docs/protocol/agent-v1.md,
+// Enrollment and credential wire formats (docs/internal/protocol/agent-v1.md,
 // "Enrollment"). Shared by the manager (internal/manager/agents) and the
 // agent (internal/agent/enroll); the manager-side helpers that mint and
 // verify these secrets live in internal/manager/authsep.

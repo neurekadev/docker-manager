@@ -9,7 +9,7 @@
 // and what happens to a manager-local job when the manager restarts.
 //
 // The catalog lives in catalog.go. The lock-matrix table in
-// docs/architecture/job-engine.md is generated from it (scripts/generate.sh)
+// docs/internal/architecture/job-engine.md is generated from it (scripts/generate.sh)
 // and TestEveryJobKindHasLockDefinition fails when a declared kind has no
 // lock definition.
 package jobspec

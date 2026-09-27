@@ -13,7 +13,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
 )
 
-// Journal limits (docs/api/streams.md, "Environment and stack events").
+// Journal limits (docs/internal/api/streams.md, "Environment and stack events").
 const (
 	DefaultJournalSize   = 1000
 	DefaultJournalAge    = 15 * time.Minute

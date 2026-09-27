@@ -89,7 +89,7 @@ const (
 		"after it). Enter that key too: the newest key as recoveryKey and the other as previousRecoveryKey."
 	guideStateMissing = "This set has no readable manager-state snapshot (the manager repository is missing or the manager part " +
 		"of the set failed). Choose a set whose manager state is present. If only host repositories remain, complete setup as " +
-		"a new instance and restore their data with restic directly (docs/architecture/backups.md, \"Host-only recovery\")."
+		"a new instance and restore their data with restic directly (docs/internal/architecture/backups.md, \"Host-only recovery\")."
 	guideInProgress = "An import is already running on this manager; wait for it to finish (GET /api/v1/setup/status)."
 )
 

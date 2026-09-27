@@ -20,7 +20,7 @@ import (
 
 // Observation routes (#5): metrics, capacity, the cross-environment
 // overview and the environment event stream. Units and storage:
-// docs/architecture/metrics.md; the stream: docs/api/streams.md.
+// docs/internal/architecture/metrics.md; the stream: docs/internal/api/streams.md.
 
 // Observation capabilities (#17 catalog).
 const (
@@ -96,7 +96,7 @@ type EnvironmentCapacity struct {
 	Load15           *float64       `json:"load15,omitempty"`
 	NetworkRxBPS     *float64       `json:"networkRxBytesPerSecond,omitempty"`
 	NetworkTxBPS     *float64       `json:"networkTxBytesPerSecond,omitempty"`
-	NetworkScope     string         `json:"networkScope,omitempty" enum:"host,agent" doc:"host: the host's interfaces; agent: only the agent container's namespace (see docs/architecture/metrics.md)."`
+	NetworkScope     string         `json:"networkScope,omitempty" enum:"host,agent" doc:"host: the host's interfaces; agent: only the agent container's namespace (see docs/internal/architecture/metrics.md)."`
 	UptimeSeconds    *int64         `json:"uptimeSeconds,omitempty"`
 	Disks            []CapacityDisk `json:"disks"`
 }
@@ -358,7 +358,7 @@ func (h *observeAPI) overview(ctx context.Context, _ *struct{}) (*overviewOutput
 	return &overviewOutput{Body: out}, nil
 }
 
-// Environment event stream payloads (docs/api/streams.md).
+// Environment event stream payloads (docs/internal/api/streams.md).
 
 // EnvironmentStreamHello opens the stream.
 type EnvironmentStreamHello struct {
@@ -455,7 +455,7 @@ func streamEvent(c authz.Checker, e events.Event) (string, any, bool) {
 }
 
 // DefaultStreamMaxAge ends SSE streams so clients re-authenticate
-// (docs/api/streams.md, "Max age").
+// (docs/internal/api/streams.md, "Max age").
 const DefaultStreamMaxAge = time.Hour
 
 func (h *observeAPI) stream(ctx context.Context, in *streamEnvironmentEventsInput) (*huma.StreamResponse, error) {
@@ -545,7 +545,7 @@ func registerObserve(a huma.API, deps Deps) {
 			Summary: "Get an environment's host metrics",
 			Description: "Host CPU, memory, load, network and per-filesystem disk series of a time range, downsampled to one value per step " +
 				"from the finest storage level still holding the range (10 s for 24 h, 1 min for 7 d, 15 min for 90 d). Missing samples " +
-				"(the agent was offline, a value unknown) are null, never zero. Units and flags: docs/architecture/metrics.md.",
+				"(the agent was offline, a value unknown) are null, never zero. Units and flags: docs/internal/architecture/metrics.md.",
 			Tags: []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusUnprocessableEntity},
 		},
 		Capability: CapEnvironmentMetricsRead, Scope: ScopeEnvironment,
@@ -588,7 +588,7 @@ func registerObserve(a huma.API, deps Deps) {
 				"Every event is filtered by the capability of its resource; container events of a container the caller sees only " +
 				"minimally carry only name, exit code and health. Reconnect with Last-Event-ID to replay the retained events " +
 				"(newest 1 000 or 15 min); outside them the stream starts with `reset`. `: heartbeat` comments keep it alive. " +
-				"Wire contract: docs/api/streams.md.",
+				"Wire contract: docs/internal/api/streams.md.",
 			Tags: []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound},
 			Responses: map[string]*huma.Response{
 				"200": {

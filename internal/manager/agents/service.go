@@ -15,8 +15,8 @@
 //     named requests, and relayed Docker events and file invalidations
 //     published on the internal event bus (internal/manager/events).
 //
-// Protocol: docs/protocol/agent-v1.md. Usage for feature workstreams: the
-// "Agent transport" section of CLAUDE.md.
+// Protocol: docs/internal/protocol/agent-v1.md. Usage for feature workstreams: the
+// docs/internal/conventions/agent-transport.md.
 package agents
 
 import (

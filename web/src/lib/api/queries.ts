@@ -1,4 +1,4 @@
-// Svelte Query integration for the generated client (docs/web.md).
+// Svelte Query integration for the generated client (docs/internal/web.md).
 //
 // Each server resource gets a query-key factory entry and an options
 // factory built with queryOptions(), so components (createQuery) and

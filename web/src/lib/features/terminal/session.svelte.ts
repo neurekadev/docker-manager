@@ -1,4 +1,4 @@
-// Container terminal session (#8, docs/api/streams.md "Container exec"):
+// Container terminal session (#8, docs/internal/api/streams.md "Container exec"):
 //
 //   1. POST …/exec-sessions {shell, tty, cols, rows} → {id, streamUrl,
 //      subprotocol, ticket, command}; the agent finds the shell in the
@@ -90,7 +90,7 @@ export interface TerminalDeps {
 	clearInterval?: (h: unknown) => void;
 }
 
-/** What a close code means for the user (docs/api/streams.md). */
+/** What a close code means for the user (docs/internal/api/streams.md). */
 export function closeMessage(
 	code: number,
 	o: { exitCode?: number | null; shell?: Shell } = {}

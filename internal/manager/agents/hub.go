@@ -33,7 +33,7 @@ type JobEngine interface {
 type Reconciler func(ctx context.Context, s *Session) error
 
 // SessionOptions tunes the session protocol. Zero values use the protocol
-// constants (docs/protocol/agent-v1.md).
+// constants (docs/internal/protocol/agent-v1.md).
 type SessionOptions struct {
 	HelloTimeout      time.Duration
 	HeartbeatInterval time.Duration

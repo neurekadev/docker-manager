@@ -17,7 +17,7 @@
 //   - Every state change goes through transition(), which enforces the
 //     domain state machine and releases locks on terminal states.
 //
-// See docs/architecture/job-engine.md.
+// See docs/internal/architecture/job-engine.md.
 package jobs
 
 import (

@@ -1,4 +1,4 @@
-// The scoped file API (#15, docs/api/files.md) for both roots through the
+// The scoped file API (#15, docs/internal/api/files.md) for both roots through the
 // generated client: a stack's project directory (/stacks/{id}/files) and a
 // volume (/environments/{env}/volumes/{volume}/files) share every route
 // suffix, body and answer, so the file manager is written once against

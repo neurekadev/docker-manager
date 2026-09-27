@@ -7,7 +7,7 @@
 #
 # Caddy serves HTTP/2 (and HTTP/3) to browsers by default, sets
 # X-Forwarded-For/Proto/Host itself and ignores client-supplied values, and
-# passes the Host header through. See docs/deployment.md.
+# passes the Host header through. See docs/internal/deployment.md.
 {$DOCKER_MANAGER_HOST} {
 	tls {$DOCKER_MANAGER_TLS}
 

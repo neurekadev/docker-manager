@@ -46,7 +46,7 @@ type JobTarget struct {
 	EnvironmentID string `json:"environmentId,omitempty" doc:"Environment of the target when it differs from the job's (migrations)."`
 }
 
-// JobLock is one entry of a job's lock set (see docs/architecture/job-engine.md).
+// JobLock is one entry of a job's lock set (see docs/internal/architecture/job-engine.md).
 type JobLock struct {
 	Scope         string `json:"scope" enum:"host,stack,container,volume,image,network,file_path,repository"`
 	EnvironmentID string `json:"environmentId,omitempty" doc:"Absent for instance-wide scopes (repository)."`
@@ -84,7 +84,7 @@ type JobBlockedBy struct {
 // Job is a durable, manager-owned job (#26).
 type Job struct {
 	ID       string `json:"id" example:"0190a6e0-0000-7000-8000-000000000001"`
-	Kind     string `json:"kind" example:"stack.deploy" doc:"Job kind from the catalog in docs/architecture/job-engine.md."`
+	Kind     string `json:"kind" example:"stack.deploy" doc:"Job kind from the catalog in docs/internal/architecture/job-engine.md."`
 	State    string `json:"state" enum:"queued,blocked,dispatched,running,cancelling,succeeded,failed,partial,cancelled,interrupted"`
 	Origin   string `json:"origin" enum:"manual,scheduled,api_token" doc:"Why the job exists. Audit metadata, not an access-control owner."`
 	Executor string `json:"executor" enum:"agent,manager"`

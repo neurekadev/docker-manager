@@ -176,7 +176,7 @@ func (s *Service) WriteSupportBundle(ctx context.Context, w io.Writer) error {
 	}
 	if err := addJSON("support-matrix.json", map[string]any{
 		"boundary": "Linux amd64/arm64 standalone Docker Engine 25.0 (API 1.44) or newer; rootless Engines, Docker Desktop and NAS " +
-			"vendor Engines are unsupported (docs/support-matrix.md)",
+			"vendor Engines are unsupported (docs/internal/support-matrix.md)",
 		"environments": support}); err != nil {
 		return err
 	}
@@ -209,7 +209,7 @@ func (s *Service) WriteSupportBundle(ctx context.Context, w io.Writer) error {
 }
 
 // supportChecks evaluates an active agent's report against the supported
-// host boundary (#25 Q2, docs/support-matrix.md).
+// host boundary (#25 Q2, docs/internal/support-matrix.md).
 func (s *Service) supportChecks(a domain.Agent, caps *protocol.CapabilitiesPayload, name string) environmentSupport {
 	out := environmentSupport{EnvironmentID: a.EnvironmentID, Name: name}
 	add := func(check, status, detail string) {

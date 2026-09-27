@@ -11,7 +11,7 @@ import (
 // Scoped file operations (#15): the inputs and outputs of the files.*
 // requests, the files.upload/files.download streams and the files.* job
 // kinds. The manager authorizes (#17) and resolves the scope; the agent
-// confines every path to the scope root (docs/protocol/agent-v1.md,
+// confines every path to the scope root (docs/internal/protocol/agent-v1.md,
 // "Scoped files").
 
 // File operation bounds shared by manager and agent.

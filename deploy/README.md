@@ -23,8 +23,8 @@ internal URL and the proxy. Agents on other hosts use `remote-agent/`.
 
 Proxy requirements, timeouts, body sizes, trusted proxies, the optional IP
 allowlist for `/agent/v1`, first-run HTTPS and a complete two-environment
-walkthrough: [`docs/deployment.md`](../docs/deployment.md). Every variable:
-[`docs/configuration.md`](../docs/configuration.md). `test/deploy` checks
+walkthrough: [`docs/internal/deployment.md`](../docs/internal/deployment.md). Every variable:
+[`docs/internal/configuration.md`](../docs/internal/configuration.md). `test/deploy` checks
 these files statically (topology, pinning, volumes, proxy settings, known
 variables); the proxies themselves are not exercised by automated tests.
 
@@ -33,7 +33,7 @@ variables); the proxies themselves are not exercised by automated tests.
 Requirements: a Linux amd64 host with Docker Engine 25.0 or
 later and the Compose plugin, using the default data root
 (`/var/lib/docker`). Rootless Engines, Docker Desktop and NAS vendor Engines
-are not supported; see [../docs/support-matrix.md](../docs/support-matrix.md).
+are not supported; see [../docs/internal/support-matrix.md](../docs/internal/support-matrix.md).
 
 The registry is private, so log in to `code.neureka.dev` first with your
 Forgejo username and a Forgejo access token that has the `read:package`
@@ -94,15 +94,15 @@ Without the UI (automation), the manager creates the token itself:
 
 (or put the token in `.env` as `DOCKER_AGENT_ENROLLMENT_TOKEN`, run `docker
 compose up -d`, and remove it again after the agent has enrolled). Agents on
-other hosts use `remote-agent/`. See `docs/deployment.md` and the step-by-step
-[guide](../docs/guide/README.md).
+other hosts use `remote-agent/`. See `docs/internal/deployment.md` and the step-by-step
+[guide](../docs/internal/guide/README.md).
 
 ## Backups of Docker Manager itself
 
 Back up the `docker-manager_data` volume **including `secret.key`**. Without the key,
 encrypted settings cannot be decrypted. To keep the key outside the volume,
 mount it as a secret and set `DOCKER_MANAGER_SECRET_KEY_FILE` (see
-`docs/configuration.md`). Before each schema upgrade the manager writes a
+`docs/internal/configuration.md`). Before each schema upgrade the manager writes a
 snapshot to `snapshots/` in the data volume (the newest 3 are kept).
 
 ## Updating

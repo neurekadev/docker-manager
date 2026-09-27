@@ -13,7 +13,7 @@ import (
 )
 
 // Session payloads, allowed request/stream names, limits and the agent
-// version window. docs/protocol/agent-v1.md is the normative description;
+// version window. docs/internal/protocol/agent-v1.md is the normative description;
 // keep both in sync (TestProtocolDocListsNames).
 
 // Session timing and limits the manager announces in welcome.
@@ -89,7 +89,7 @@ const (
 
 // Job-linked migration requests (#35): the manager's stack.migrate and
 // volume.migrate jobs stop and restart the source stack and commit or clean
-// up what they wrote on the destination (docs/architecture/migrations.md).
+// up what they wrote on the destination (docs/internal/architecture/migrations.md).
 const (
 	ReqMigrationStop    = "migration.stop"
 	ReqMigrationStart   = "migration.start"
@@ -893,7 +893,7 @@ func CheckAgentVersion(managerVersion, agentVersion string) (string, error) {
 
 // UpgradeGuide is where the upgrade procedure of each deploy method is
 // documented (#34).
-const UpgradeGuide = "docs/operations/upgrades.md"
+const UpgradeGuide = "docs/internal/operations/upgrades.md"
 
 // AgentCompatibility classifies a stored agent version for display (#34):
 // VersionCurrent, VersionOutdated (previous minor release: works, upgrade

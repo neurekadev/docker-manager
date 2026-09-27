@@ -23,7 +23,7 @@ import (
 // The live invalidation stream (#23): GET /api/v1/live/stream. One
 // multiplexed, versioned, permission-filtered SSE stream per open UI tab
 // carrying invalidations (never resource bodies or secrets). Wire contract:
-// docs/api/streams.md ("Live invalidation stream").
+// docs/internal/api/streams.md ("Live invalidation stream").
 
 // LiveHub is the live stream hub as the API uses it (*live.Hub).
 type LiveHub interface {
@@ -398,7 +398,7 @@ func registerLive(a huma.API, deps Deps) {
 				"`cursor`) to replay what was missed (newest 10 000 events or 15 min). Every event is filtered by the caller's permissions: " +
 				"nothing about a resource the caller may not see, file names only with the scope's files-read capability. Events never carry " +
 				"resource bodies, file contents or secrets. `: heartbeat` comments keep it alive; at most 8 streams per user or token (429). " +
-				"Wire contract: docs/api/streams.md.",
+				"Wire contract: docs/internal/api/streams.md.",
 			Tags:   []string{"Live"},
 			Errors: []int{http.StatusUnauthorized, http.StatusUnprocessableEntity, http.StatusTooManyRequests, http.StatusServiceUnavailable},
 			Responses: map[string]*huma.Response{

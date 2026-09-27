@@ -1,6 +1,6 @@
 // Package transfer is the checksummed framing of migration data (#35): the
 // byte stream a source agent sends through the manager to a destination
-// agent (docs/protocol/agent-v1.md, "Migration transfer relay").
+// agent (docs/internal/protocol/agent-v1.md, "Migration transfer relay").
 //
 // The payload (a tar archive of a project directory or volume, or an Engine
 // image archive) is cut into chunks. Every chunk carries its own SHA-256,

@@ -3,7 +3,7 @@
 // Moby adapter (#21), sampled every 10 s into a bounded ring the manager
 // fetches with the host.metrics request, and the Docker event relay
 // (events.go). It never listens on a socket and never runs the docker CLI.
-// Units, buffering and the host mounts it needs: docs/architecture/metrics.md.
+// Units, buffering and the host mounts it needs: docs/internal/architecture/metrics.md.
 package observe
 
 import (

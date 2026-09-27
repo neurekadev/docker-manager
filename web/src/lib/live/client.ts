@@ -1,5 +1,5 @@
 // The live client (#23): one multiplexed EventSource per tab on
-// GET /api/v1/live/stream (docs/api/streams.md, "Live invalidation
+// GET /api/v1/live/stream (docs/internal/api/streams.md, "Live invalidation
 // stream"), turned into Svelte Query invalidations.
 //
 //   - hello: when the stream did not resume (first connection, expired or

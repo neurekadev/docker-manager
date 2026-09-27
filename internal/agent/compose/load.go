@@ -405,7 +405,7 @@ func dependenciesOf(s types.ServiceConfig) []lifecycle.Dependency {
 	return out
 }
 
-// Unsupported Compose features (docs/support-matrix.md). Each is rejected
+// Unsupported Compose features (docs/internal/support-matrix.md). Each is rejected
 // because it would run code outside the Engine, leak credentials or cannot
 // be honored by the Engine's BuildKit without buildx.
 func validate(p *types.Project) error {

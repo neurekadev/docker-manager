@@ -97,7 +97,7 @@ Commands:
                  wrote (run by the agent in a helper container)
   version        print build information
 
-Configuration is read from environment variables; see docs/configuration.md.
+Configuration is read from environment variables; see docs/internal/configuration.md.
 `)
 }
 

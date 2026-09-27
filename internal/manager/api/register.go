@@ -17,7 +17,7 @@ import (
 )
 
 // OpenAPI extension keys carrying Docker Manager's contract metadata. They are
-// documented in docs/api/README.md.
+// documented in docs/internal/api/README.md.
 const (
 	// ExtCapability is the capability an operation requires.
 	ExtCapability = "x-docker-manager-capability"

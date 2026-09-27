@@ -1,4 +1,4 @@
-// $lib/live: live synchronization for the UI (#23). See docs/web.md
+// $lib/live: live synchronization for the UI (#23). See docs/internal/web.md
 // ("Live data") for the query-key conventions views must follow.
 import type { QueryClient } from '@tanstack/svelte-query';
 import { api, unwrap } from '$lib/api/client';

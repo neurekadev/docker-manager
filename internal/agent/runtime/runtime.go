@@ -113,7 +113,7 @@ type Options struct {
 	// theirs; internal/agent/jobs).
 	Executors []jobexec.Executor
 	// Requests are the named request handlers the session serves
-	// (docs/protocol/agent-v1.md, "Allowed requests").
+	// (docs/internal/protocol/agent-v1.md, "Allowed requests").
 	Requests map[string]session.RequestHandler
 	// SelfContainerID overrides the detection of the agent's own container
 	// (selfid.Detect, #32); tests set it.
@@ -691,7 +691,7 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 		return p, false
 	}
 	id := c.Engine
-	// engine.apiVersion is the negotiated version (docs/protocol/agent-v1.md).
+	// engine.apiVersion is the negotiated version (docs/internal/protocol/agent-v1.md).
 	p.Engine = protocol.EngineInfo{
 		ID: id.EngineID, Version: id.Version, APIVersion: id.NegotiatedAPIVersion, MinAPIVersion: id.MinAPIVersion,
 		OS: id.OS, Arch: id.Arch, Rootless: id.Rootless,

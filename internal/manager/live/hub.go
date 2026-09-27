@@ -1,5 +1,5 @@
 // Package live is the manager side of the live invalidation stream (#23,
-// GET /api/v1/live/stream, docs/api/streams.md "Live invalidation stream").
+// GET /api/v1/live/stream, docs/internal/api/streams.md "Live invalidation stream").
 //
 // The Hub consumes the in-process event bus (internal/manager/events):
 // Docker events relayed by agents (#5), environment and agent status,
@@ -49,7 +49,7 @@ import (
 // Version is the stream's schema version (the hello event's version).
 const Version = "docker-manager.live/v1"
 
-// Defaults (docs/api/streams.md).
+// Defaults (docs/internal/api/streams.md).
 const (
 	DefaultReplaySize      = 10_000
 	DefaultReplayAge       = 15 * time.Minute
