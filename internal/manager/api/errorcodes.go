@@ -159,7 +159,7 @@ func ErrorCodes() []ErrorCode {
 		{CodeRateLimited, http.StatusTooManyRequests, true, "Too many requests; retry after the Retry-After delay.", 2},
 		{CodeInternal, http.StatusInternalServerError, false, "Unexpected server error. The cause is logged under the request ID and never returned.", 2},
 		{CodeTemplateRegistryUnreachable, http.StatusBadGateway, true, "The template registry could not be reached (address, network, or it does not share templates); the message says which.", 7},
-		{CodeTemplateRegistryInvalid, http.StatusBadGateway, false, "The template registry answered with something unusable (not a registry, an unknown format, a bad digest or icon); the message says which.", 7},
+		{CodeTemplateRegistryInvalid, http.StatusBadGateway, true, "The template registry answered with something unusable (not a registry, an unknown format, a bad digest or icon); the message says which.", 7},
 		{CodeEngineError, http.StatusBadGateway, true, "The environment's Docker Engine failed the operation; the message carries its explanation. Retrying helps only when the cause was transient.", 6},
 		{CodeNotImplemented, http.StatusNotImplemented, false, "The route is declared but this manager build does not implement it yet.", 2},
 		{CodeAgentUnsupported, http.StatusNotImplemented, false, "The environment's agent does not support this operation (it is older than the manager); upgrade the agent.", 6},

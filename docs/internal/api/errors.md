@@ -198,7 +198,7 @@ same change.
 | `rate_limited` | 429 | yes | Too many requests; retry after the `Retry-After` delay. | #2 |
 | `internal` | 500 | no | Unexpected server error. The cause is logged under the request ID and never returned. | #2 |
 | `template_registry_unreachable` | 502 | yes | The template registry could not be reached (address, network, or it does not share templates); the message says which. | #7 |
-| `template_registry_invalid` | 502 | no | The template registry answered with something unusable (not a registry, an unknown format, a bad digest or icon); the message says which. | #7 |
+| `template_registry_invalid` | 502 | yes | The template registry answered with something unusable (not a registry, an unknown format, a bad digest or icon); the message says which. | #7 |
 | `engine_error` | 502 | yes | The environment's Docker Engine failed the operation; the message carries its explanation. Retrying helps only when the cause was transient. | #6 |
 | `not_implemented` | 501 | no | The route is declared but this manager build does not implement it yet. | #2 |
 | `job_kind_unavailable` | 501 | no | The operation would start a job kind whose executor this manager or agent does not provide yet. | #26 |
