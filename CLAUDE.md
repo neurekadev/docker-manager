@@ -31,18 +31,19 @@ detail. User-facing documentation lives in `docs/public/`.
   conventional commits, branches `feat/<issue>-<slug>`, squash merges; no
   git tags or releases (`main` publishes `:edge`).
 
-## Local checks (fast path)
+## Local checks (tests run in CI only)
 
 Forgejo CI is the gate: it runs the full `lint`, `unit-tests` and `build`
 jobs on every push to `main` and publishes `:edge` only when they pass.
-Before pushing, run only fast checks on what changed: gofmt, Prettier on
-the changed web files, `go vet`/`go test` of the changed Go packages and
-the web tests that cover changed web code. Do not run the full
-`bash scripts/check.sh`, golangci-lint over the repository or
-`scripts/policy-check.sh` locally unless asked (they take many minutes on
-the Windows workstation). When a CI run fails, fetch its log and fix
-forward. When the user says to skip local tests, skip the package tests
-too. Details: `docs/internal/conventions/checks-and-ci.md`.
+**Never run tests locally**: no `go test`, vitest (`npm --prefix web run
+test`), `npm --prefix web run check`, `bash scripts/check.sh`,
+golangci-lint or `scripts/policy-check.sh`, unless the user explicitly asks
+for a local run. Write and update the unit tests; CI runs them. Before
+pushing, run only fast non-test checks on what changed: gofmt, Prettier on
+the changed web files, `go build`/`go vet` of the changed Go packages and
+`bash scripts/generate.sh` when generated artifacts change. Subagents
+follow the same rule. When a CI run fails, fetch its log and fix forward.
+Details: `docs/internal/conventions/checks-and-ci.md`.
 
 ## Keep the documentation true
 
