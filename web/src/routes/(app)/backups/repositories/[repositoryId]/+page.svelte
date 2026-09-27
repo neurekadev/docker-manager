@@ -34,6 +34,7 @@
 		TextField,
 		formatBytes,
 		formatDateTime,
+		formatPercent,
 		formatRelative,
 		toast,
 		type Column,
@@ -54,6 +55,7 @@
 	import RecoveryKeyChallenge from '$lib/features/backups/RecoveryKeyChallenge.svelte';
 	import {
 		RECOVERY_KEY_SCOPE,
+		ratioText,
 		sentenceCase,
 		repositoryLocation,
 		type BackupRepository,
@@ -384,8 +386,27 @@
 											label: 'State',
 											value: h.healthy ? 'Healthy' : 'Needs attention'
 										},
-										{ label: 'Snapshots', value: h.snapshots },
-										{ label: 'Stored', value: formatBytes(h.sizeBytes) },
+										{ label: 'Backups', value: h.snapshots },
+										{
+											label: 'Stored',
+											value: r.storage
+												? `${formatBytes(r.storage.sizeBytes)} of ${formatBytes(r.storage.uncompressedBytes)} (${ratioText(r.storage.compressionRatio)})`
+												: 'Measured after the next backup'
+										},
+										...(r.storage
+											? [
+													{
+														label: 'Restic snapshots',
+														value: r.storage.snapshots
+													},
+													{
+														label: 'Compressed',
+														value: formatPercent(
+															r.storage.compressionProgress
+														)
+													}
+												]
+											: []),
 										{
 											label: 'Newest backup',
 											value: h.lastBackupAt

@@ -21,6 +21,9 @@ export type ScopeItem = Schema<'ScopePreviewItem'>;
 export type RetentionPreview = Schema<'RetentionPreview'>;
 export type RestorePreview = Schema<'RestorePreview'>;
 export type PolicyInput = Schema<'PolicyInputBody'>;
+export type BackupActivity = Schema<'BackupActivity'>;
+export type ActivityItem = Schema<'BackupActivityItem'>;
+export type BackupStorage = Schema<'BackupStorage'>;
 
 /**
  * The safety statement of the Recovery Key (#10, verbatim meaning): the
@@ -276,4 +279,158 @@ export function coveredVolumes(
 /** The exclusion key of a volume: environmentID/name for All Environments. */
 export function volumeKey(all: boolean, environmentId: string, name: string): string {
 	return all ? `${environmentId}/${name}` : name;
+}
+
+// --- Overview (#10): storage, running backups, set summaries ---
+
+/** Storage of the given repositories, summed over their measured locations. */
+export interface StorageTotals {
+	/** Stored at the destinations (compressed, deduplicated). */
+	sizeBytes: number;
+	/** The same data before compression. */
+	uncompressedBytes: number;
+	/** What compression saved (uncompressed − stored, never negative). */
+	freedBytes: number;
+	/** uncompressed ÷ stored (0 when nothing is stored). */
+	ratio: number;
+	/** Share of the data stored compressed, 0–100. */
+	compressedPercent: number;
+	/** restic snapshots. */
+	snapshots: number;
+	/** The oldest measurement. */
+	measuredAt?: string;
+	repositories: {
+		id: string;
+		name: string;
+		sizeBytes: number;
+		uncompressedBytes: number;
+		ratio: number;
+	}[];
+}
+
+/**
+ * Sums the measured locations of repos (only the environment's locations
+ * when environmentId is set; the manager state belongs to no environment).
+ * Undefined when nothing was measured yet.
+ */
+export function storageTotals(
+	repos: BackupRepository[],
+	environmentId: string | null = null
+): StorageTotals | undefined {
+	const t: StorageTotals = {
+		sizeBytes: 0,
+		uncompressedBytes: 0,
+		freedBytes: 0,
+		ratio: 0,
+		compressedPercent: 0,
+		snapshots: 0,
+		repositories: []
+	};
+	let compressed = 0;
+	let measured = false;
+	for (const r of repos) {
+		const locs = (r.storage?.locations ?? []).filter(
+			(l) => !environmentId || l.environmentId === environmentId
+		);
+		if (!locs.length) continue;
+		measured = true;
+		let size = 0;
+		let uncompressed = 0;
+		for (const l of locs) {
+			size += l.sizeBytes;
+			uncompressed += l.uncompressedBytes;
+			t.snapshots += l.snapshots;
+			compressed += l.compressionProgress * l.uncompressedBytes;
+			if (!t.measuredAt || l.measuredAt < t.measuredAt) t.measuredAt = l.measuredAt;
+		}
+		t.sizeBytes += size;
+		t.uncompressedBytes += uncompressed;
+		t.repositories.push({
+			id: r.id,
+			name: r.name,
+			sizeBytes: size,
+			uncompressedBytes: uncompressed,
+			ratio: size > 0 ? uncompressed / size : 0
+		});
+	}
+	if (!measured) return undefined;
+	t.freedBytes = Math.max(0, t.uncompressedBytes - t.sizeBytes);
+	t.ratio = t.sizeBytes > 0 ? t.uncompressedBytes / t.sizeBytes : 0;
+	t.compressedPercent = t.uncompressedBytes > 0 ? compressed / t.uncompressedBytes : 0;
+	return t;
+}
+
+/** A compression ratio: "2.01x" ("—" when unknown). */
+export function ratioText(ratio: number): string {
+	return ratio > 0 && Number.isFinite(ratio) ? `${ratio.toFixed(2)}x` : '—';
+}
+
+/** "Volume media", "Stack shop", "Manager state". */
+export function activityItemName(it: ActivityItem): string {
+	if (it.kind === 'manager_state') return 'Manager state';
+	if (it.kind === 'stack') return `Stack ${it.stackName || it.stackId || it.item}`;
+	return `Volume ${it.volume || it.item}`;
+}
+
+/** Overall percent of a running backup job (-1 unknown). */
+export function activityPercent(a: BackupActivity): number {
+	const c = a.current;
+	if (!c || a.itemCount < 1) return a.percent;
+	return Math.round(((c.index + c.percent / 100) / a.itemCount) * 100);
+}
+
+/**
+ * A long path shortened in the middle so both its start and the file
+ * name stay readable: "stacks/…/deep/file.txt".
+ */
+export function middleTruncate(s: string, max = 72): string {
+	if (s.length <= max) return s;
+	const keep = max - 1;
+	const tail = Math.ceil(keep * 0.6);
+	return `${s.slice(0, keep - tail)}…${s.slice(s.length - tail)}`;
+}
+
+/** "11 of 12 complete", plus the environments of a multi-host set. */
+export function setSummary(s: BackupSet): string {
+	const done = s.members.filter((m) => m.state === 'complete').length;
+	const envs = new Set(s.members.map((m) => m.environmentId).filter(Boolean)).size;
+	const total = s.members.length;
+	const base =
+		total === 0
+			? 'Nothing selected'
+			: done === total
+				? `${total} ${total === 1 ? 'backup' : 'backups'}`
+				: `${done} of ${total} complete`;
+	return envs > 1 ? `${base} · ${envs} environments` : base;
+}
+
+/** Seconds a set ran (undefined while it runs). */
+export function setDuration(s: BackupSet): number | undefined {
+	if (!s.finishedAt) return undefined;
+	return Math.max(0, (Date.parse(s.finishedAt) - Date.parse(s.startedAt)) / 1000);
+}
+
+/** Bytes the backups of a set processed (undefined when none is known). */
+export function setBytes(backups: Backup[] | undefined, setId: string): number | undefined {
+	let sum = 0;
+	let found = false;
+	for (const b of backups ?? []) {
+		if (b.setId === setId && b.bytes !== undefined) {
+			sum += b.bytes;
+			found = true;
+		}
+	}
+	return found ? sum : undefined;
+}
+
+/** A set's members grouped by environment ("" = the manager state). */
+export function membersByEnvironment(s: BackupSet): [string, SetMember[]][] {
+	const groups = new Map<string, SetMember[]>();
+	for (const m of s.members) {
+		const k = m.environmentId ?? '';
+		groups.set(k, [...(groups.get(k) ?? []), m]);
+	}
+	return [...groups.entries()].sort(([a], [b]) =>
+		a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)
+	);
 }

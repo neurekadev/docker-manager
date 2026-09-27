@@ -1,5 +1,6 @@
 <script lang="ts">
-	// Meter (#22 memory KPI: "1.8 GB / 8 GB" with a bar and the percentage).
+	// Meter (#22 memory KPI: "1.8 GB / 8 GB" with a bar and the percentage;
+	// also a share such as compressed / total, or the progress of a task).
 	// A native-like role="meter" with value text; colour turns amber from
 	// `warnAt` and red from `dangerAt` (the text still states the value).
 	interface Props {
@@ -11,6 +12,11 @@
 		warnAt?: number;
 		dangerAt?: number;
 		showPercent?: boolean;
+		/** neutral: always the accent colour (a share, not a limit). */
+		tone?: 'auto' | 'neutral';
+		/** progressbar: the bar measures work done (a running task). */
+		role?: 'meter' | 'progressbar';
+		size?: 'sm' | 'md';
 	}
 
 	let {
@@ -20,16 +26,27 @@
 		valueText,
 		warnAt = 0.8,
 		dangerAt = 0.95,
-		showPercent = true
+		showPercent = true,
+		tone: toneMode = 'auto',
+		role = 'meter',
+		size = 'sm'
 	}: Props = $props();
 	const ratio = $derived(max > 0 ? Math.min(1, Math.max(0, value / max)) : 0);
-	const tone = $derived(ratio >= dangerAt ? 'danger' : ratio >= warnAt ? 'warn' : 'ok');
+	const tone = $derived(
+		toneMode === 'neutral'
+			? 'ok'
+			: ratio >= dangerAt
+				? 'danger'
+				: ratio >= warnAt
+					? 'warn'
+					: 'ok'
+	);
 </script>
 
 <div class="meter-row">
 	<div
-		class="meter"
-		role="meter"
+		class="meter {size}"
+		{role}
 		aria-label={label}
 		aria-valuemin={0}
 		aria-valuemax={max}
@@ -54,6 +71,10 @@
 		overflow: hidden;
 		border-radius: var(--radius-full);
 		background: var(--surface-raised);
+	}
+
+	.meter.md {
+		height: 10px;
 	}
 
 	.fill {
