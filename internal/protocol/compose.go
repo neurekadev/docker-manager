@@ -336,6 +336,12 @@ type DiscoveredProject struct {
 	// otherwise.
 	Adoptable bool   `json:"adoptable"`
 	Reason    string `json:"reason,omitempty"`
+	// Copyable: not adoptable in place, but the agent reads the project
+	// directory through an import mount (below /import, #7) and its
+	// config files are inside it: stack.import copies the directory into
+	// a new directory <name> of the stacks volume. Absent from older
+	// agents.
+	Copyable bool `json:"copyable,omitempty"`
 }
 
 // ComposeDiscoverOutput is the output of compose.discover (no input).
@@ -434,11 +440,53 @@ type StackJobInput struct {
 	// KeepVolumes are volumes the manager holds (a migrated stack's
 	// retained source with the same project name, #35).
 	KeepVolumes []string `json:"keepVolumes,omitempty"`
+	// Import (stack.import) is the discovered project to copy into Stack
+	// (a new directory of the stacks volume). Sent only to agents
+	// announcing FeatureStackImportCopy.
+	Import *StackImportSource `json:"import,omitempty"`
 }
 
 // FeatureStackRemoveVolumes is the capabilities feature of agents whose
 // stack.remove honors StackJobInput.RemoveVolumes.
 const FeatureStackRemoveVolumes = "stack.remove_volumes"
+
+// FeatureStackImportCopy is the capabilities feature of agents that
+// execute stack.import (import a project by copying its directory).
+const FeatureStackImportCopy = "stack.import_copy"
+
+// StackImportSource is where a discovered project lives now (from its
+// containers' labels).
+type StackImportSource struct {
+	// WorkingDir is the project directory's host path.
+	WorkingDir string `json:"workingDir"`
+}
+
+// Validate checks the source's shape (the agent maps it to an import
+// mount).
+func (s StackImportSource) Validate() error {
+	if !strings.HasPrefix(s.WorkingDir, "/") || path.Clean(s.WorkingDir) != s.WorkingDir || s.WorkingDir == "/" {
+		return errors.New("import source: workingDir must be a clean absolute path below /")
+	}
+	return nil
+}
+
+// StackImportReport is what a stack.import did with the files.
+type StackImportReport struct {
+	// Entries and Bytes count the copied tree (bytes of regular files).
+	Entries int64 `json:"entries"`
+	Bytes   int64 `json:"bytes"`
+	// Skipped entries could not be copied (sockets, device nodes).
+	Skipped      []MigrationSkipped `json:"skipped,omitempty"`
+	SkippedCount int64              `json:"skippedCount,omitempty"`
+	// Copied: the complete copy is in place in the stacks volume.
+	Copied bool `json:"copied,omitempty"`
+	// Switched: the containers were (being) recreated from the copy; the
+	// project now lives in the stacks volume even if the job failed.
+	Switched bool `json:"switched,omitempty"`
+	// WasRunning are the services that ran before the import (started
+	// again at the end).
+	WasRunning []string `json:"wasRunning,omitempty"`
+}
 
 // ComposeVolumeLabel is the Compose key of a volume Compose created.
 const ComposeVolumeLabel = "com.docker.compose.volume"
@@ -507,4 +555,7 @@ type StackJobOutput struct {
 	// volumes, determined before anything was taken down.
 	Volumes        []StackVolume `json:"volumes,omitempty"`
 	VolumesPlanned bool          `json:"volumesPlanned,omitempty"`
+	// Import (stack.import) reports the copy and whether the project
+	// switched to it.
+	Import *StackImportReport `json:"import,omitempty"`
 }

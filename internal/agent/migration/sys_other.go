@@ -3,6 +3,7 @@
 package migration
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
@@ -24,3 +25,9 @@ func mkfifoAt(*os.Root, string, fs.FileMode) error {
 func lchown(*os.Root, string, int, int) error { return nil }
 
 func freeBytes(string) int64 { return -1 }
+
+// CopyXattrs copies nothing outside Linux (no extended attributes there).
+func CopyXattrs(context.Context, string, string) (XattrStats, error) { return XattrStats{}, nil }
+
+// Sync is a no-op outside Linux.
+func Sync() {}

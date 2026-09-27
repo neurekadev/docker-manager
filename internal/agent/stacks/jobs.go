@@ -42,6 +42,7 @@ func (s *Service) Executors() []jobexec.Executor {
 			"build_images":  classified(s.stackBuild),
 		}},
 		s.updateExecutor(),
+		s.importExecutor(),
 	}
 }
 

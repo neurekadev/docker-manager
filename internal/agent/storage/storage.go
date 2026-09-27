@@ -16,6 +16,12 @@
 //
 // A failed check produces a Diagnostic with a stable code; stack operations
 // are refused (Result.Allows) while the rest of the agent keeps working.
+//
+// Import mounts are optional: host directories holding existing Compose
+// projects, mounted into the agent at or below ImportDir (read-only is
+// enough). They are only read, to import a project by copying its
+// directory into the stacks volume (Result.ImportSource); nothing is ever
+// deployed from them.
 package storage
 
 import (
@@ -70,6 +76,21 @@ func (d Diagnostic) Error() string { return d.Message }
 // DiagnosticCode lets other packages surface the code (compose.Options.Guard).
 func (d Diagnostic) DiagnosticCode() string { return d.Code }
 
+// ImportDir is where the agent looks for import mounts: every mount whose
+// destination is ImportDir or below it (e.g. /opt/stacks:/import:ro, or
+// several at /import/opt and /import/srv) exposes a host directory whose
+// Compose projects can be imported by copy.
+const ImportDir = "/import"
+
+// ImportMount is a host directory mounted into the agent at or below
+// ImportDir.
+type ImportMount struct {
+	// HostPath is the mount's source on the host (a bind source or a
+	// volume's mountpoint); Path is where the agent sees it.
+	HostPath string
+	Path     string
+}
+
 // Root is a checked directory.
 type Root struct {
 	Kind string
@@ -92,6 +113,44 @@ type Result struct {
 	VolumesDir  string
 	Roots       []Root
 	Diagnostics []Diagnostic
+	// Imports are the agent's import mounts, longest host path first.
+	Imports []ImportMount
+}
+
+// ImportSource maps a host directory (a Compose project's working
+// directory from its labels) to the path the agent reads it at: below an
+// import mount, or the directory itself when the agent runs directly on
+// the host (once its layout was verified). ok is false when the agent
+// cannot see it.
+func (r Result) ImportSource(hostDir string) (string, bool) {
+	d := clean(hostDir)
+	if !path.IsAbs(d) || d == "/" {
+		return "", false
+	}
+	if !r.Containerized && r.StacksOK() {
+		return d, true
+	}
+	for _, m := range r.Imports {
+		if within(m.HostPath, d) {
+			return path.Join(m.Path, strings.TrimPrefix(strings.TrimPrefix(d, m.HostPath), "/")), true
+		}
+	}
+	return "", false
+}
+
+// importMounts returns the mounts at or below ImportDir, longest host path
+// first (the most specific mount wins).
+func importMounts(mounts []engine.Mount) []ImportMount {
+	var out []ImportMount
+	for _, m := range mounts {
+		dst, src := clean(m.Destination), clean(m.Source)
+		if src == "" || !within(ImportDir, dst) {
+			continue
+		}
+		out = append(out, ImportMount{HostPath: src, Path: dst})
+	}
+	slices.SortStableFunc(out, func(a, b ImportMount) int { return len(b.HostPath) - len(a.HostPath) })
+	return out
 }
 
 // StacksOK reports whether stack operations are allowed: the stacks volume
@@ -214,6 +273,7 @@ func Verify(ctx context.Context, o Options) Result {
 		r.SelfContainerID = self.ID
 		mounts = self.Mounts
 	}
+	r.Imports = importMounts(mounts)
 
 	check := func(kind, p string) {
 		// Docker's own volume directory is only read through (volume data

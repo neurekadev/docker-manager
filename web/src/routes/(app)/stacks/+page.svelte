@@ -20,6 +20,7 @@
 	} from '$lib/features/stacks/model';
 	import { stacksQuery, updatePoliciesQuery, type Stack } from '$lib/features/stacks/queries';
 	import CreateStackDialog from '$lib/features/stacks/CreateStackDialog.svelte';
+	import ImportStackDialog from '$lib/features/stacks/ImportStackDialog.svelte';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
 	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
 	import { routes } from '$lib/routes';
@@ -49,6 +50,8 @@
 	const policies = createQuery(() => updatePoliciesQuery(envId));
 	// routes.newStack() opens the create dialog over this list.
 	const createDialog = urlDialog('create', ['environment']);
+	// routes.importStack() opens the import dialog (discovered projects).
+	const importDialog = urlDialog('import', ['environment']);
 
 	const envById = $derived(new Map((envs.data ?? []).map((e) => [e.id, e])));
 	const envName = $derived(envId ? (envById.get(envId)?.name ?? 'this environment') : null);
@@ -194,7 +197,7 @@
 		</div>
 		<div class="actions">
 			{#if canImport}
-				<Button icon={FolderSearch} href={routes.discoveredStacks(envId)}
+				<Button icon={FolderSearch} onclick={() => (importDialog.open = true)}
 					>Import project</Button
 				>
 			{/if}
@@ -268,7 +271,8 @@
 											onclick={() => (createDialog.open = true)}
 											>Create stack</Button
 										>{/if}
-									{#if canImport}<Button href={routes.discoveredStacks(envId)}
+									{#if canImport}<Button
+											onclick={() => (importDialog.open = true)}
 											>Import project</Button
 										>{/if}
 								{/snippet}
@@ -283,6 +287,10 @@
 	<CreateStackDialog
 		bind:open={createDialog.open}
 		environmentId={createDialog.param('environment') ?? envId}
+	/>
+	<ImportStackDialog
+		bind:open={importDialog.open}
+		environmentId={importDialog.param('environment') ?? envId}
 	/>
 </div>
 

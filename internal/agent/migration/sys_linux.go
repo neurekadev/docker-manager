@@ -44,3 +44,7 @@ func freeBytes(dir string) int64 {
 	}
 	return int64(st.Bavail) * int64(st.Bsize) //nolint:gosec // block counts fit
 }
+
+// Sync flushes every filesystem's dirty data to disk (a copy is durable
+// before anything starts using it).
+func Sync() { syscall.Sync() }

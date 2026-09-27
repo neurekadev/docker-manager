@@ -225,6 +225,10 @@ type CreateOptions struct {
 	Services []string
 	// StopTimeout overrides the stop grace period of replaced containers.
 	StopTimeout *time.Duration
+	// ForceRecreate replaces the services' containers even when their
+	// configuration did not change (a project moved to another
+	// directory, #7 import by copy).
+	ForceRecreate bool
 }
 
 // Create converges the services' containers with the loaded definition
@@ -249,9 +253,13 @@ func (a *Adapter) Create(ctx context.Context, p *Project, o CreateOptions) error
 	if err != nil {
 		return engine.Wrap(op, err)
 	}
+	recreate := api.RecreateDiverged
+	if o.ForceRecreate {
+		recreate = api.RecreateForce
+	}
 	return composeError(op, svc.Create(ctx, model, api.CreateOptions{
 		Services:             o.Services,
-		Recreate:             api.RecreateDiverged,
+		Recreate:             recreate,
 		RecreateDependencies: api.RecreateNever,
 		Inherit:              true,
 		Timeout:              o.StopTimeout,

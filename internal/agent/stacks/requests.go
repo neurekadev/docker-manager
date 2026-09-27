@@ -387,7 +387,51 @@ func locate(p *protocol.DiscoveredProject, res *storage.Result) {
 		p.Adoptable = true
 		return
 	}
-	p.Reason = "the project directory is outside the stacks volume and the registered stack roots: move it there or import it with an explicit Compose source"
+	importable(p, res)
+}
+
+// importable decides whether a project outside the stack roots can be
+// imported by copying its directory into the stacks volume (stack.import):
+// the agent must see the directory through an import mount, the Compose
+// and env files must lie inside it and the stacks volume must not have a
+// directory of that name yet.
+func importable(p *protocol.DiscoveredProject, res *storage.Result) {
+	const outside = "the project directory is outside the stacks volume and the registered stack roots"
+	for _, f := range append(slices.Clone(p.ConfigFiles), p.EnvFiles...) {
+		if !strings.HasPrefix(f, p.WorkingDir+"/") {
+			p.Reason = fmt.Sprintf("%s and %s is outside it; import it with an explicit Compose source", outside, f)
+			return
+		}
+	}
+	src, visible := res.ImportSource(p.WorkingDir)
+	switch {
+	case len(p.ConfigFiles) == 0:
+		p.Reason = outside + " and the containers carry no Compose file label; import it with an explicit Compose source"
+		return
+	case !visible:
+		p.Reason = fmt.Sprintf("%s: mount it (or a directory above it) into the agent below %s (read-only is enough) to import it "+
+			"by copy, or import it with an explicit Compose source", outside, storage.ImportDir)
+		return
+	case !res.StacksOK():
+		p.Reason = outside + " and the stacks volume is not verified (see the agent's storage diagnostics)"
+		return
+	case !protocol.ValidProjectName(p.Name):
+		p.Reason = outside + " and its project name cannot name a directory of the stacks volume; import it with an explicit Compose source"
+		return
+	case within(p.WorkingDir, res.StacksDir) || within(res.StacksDir, p.WorkingDir):
+		p.Reason = outside + " and overlaps the stacks volume"
+		return
+	}
+	if fi, err := os.Stat(filepath.FromSlash(src)); err != nil || !fi.IsDir() {
+		p.Reason = fmt.Sprintf("%s and it is not visible inside the agent at %s", outside, src)
+		return
+	}
+	if _, err := os.Lstat(filepath.Join(filepath.FromSlash(res.StacksDir), p.Name)); err == nil {
+		p.Reason = fmt.Sprintf("%s and the stacks volume already has a directory %s: move that away to import the project by copy", outside, p.Name)
+		return
+	}
+	p.Copyable = true
+	p.Reason = outside + ": import it by copy (its whole directory moves into the stacks volume)"
 }
 
 // services serves compose.services: the project's containers as seen on

@@ -1811,6 +1811,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environments/{environmentId}/stacks/import-copies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a Compose project by copying its directory
+         * @description Starts a stack.import job (202) for a discovered project whose directory the agent reads through an import mount (copyable in the discovery list). The stack is created at once (the job's target, origin imported). The job stops the project's running services, copies its whole directory (Compose files and everything next to them, with owners, permissions, times, links and extended attributes) into a new directory <projectName> of the stacks volume, verifies the copy, recreates the containers from it (anonymous volumes are kept) and starts the services that ran before. The original directory is only read. A failure before the containers are recreated changes nothing (the copy is removed, the services start again from the original and the stack is forgotten); after that the stack is failed on its copy and a deploy finishes it. 409 stack_not_copyable (no import mount, adoptable in place, or the directory exists), stack_name_taken, protected (Docker Manager's own project); 501 agent_unsupported for older agents.
+         */
+        post: operations["create-stack-import-copy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/environments/{environmentId}/stacks/imports": {
         parameters: {
             query?: never;
@@ -6001,6 +6021,8 @@ export interface components {
         DiscoveredStack: {
             /** @description Can be imported in place from its real files. */
             adoptable: boolean;
+            /** @description Not adoptable in place, but the agent reads its directory through an import mount (below /import): it can be imported by copy (POST .../stacks/import-copies). */
+            copyable: boolean;
             /** @description Where it lies under a verified stack root (adoptable in place). */
             location?: components["schemas"]["StackLocation"];
             /**
@@ -6008,7 +6030,7 @@ export interface components {
              * @example nextcloud
              */
             name: string;
-            /** @description Why it cannot be adopted in place (import it with an explicit Compose source). */
+            /** @description Why it cannot be adopted in place (import it by copy or with an explicit Compose source). */
             reason?: string;
             services: components["schemas"]["DiscoveredStackService"][];
             /** @description The Docker Manager stack already managing it. */
@@ -6824,6 +6846,21 @@ export interface components {
         };
         ImageStatusOutputBody: {
             images: components["schemas"]["StackImageStatus"][];
+        };
+        ImportCopyInputBody: {
+            description?: string;
+            displayName?: string;
+            icon?: string;
+            /**
+             * @description The discovered Compose project to import (copyable in the discovery list).
+             * @example nextcloud
+             */
+            projectName: string;
+            /**
+             * Format: int64
+             * @description Stop grace period of the project's services (default: each service's own).
+             */
+            timeoutSeconds?: number;
         };
         ImportStackInputBody: {
             description?: string;
@@ -24161,6 +24198,7 @@ export interface operations {
                      *       "projects": [
                      *         {
                      *           "adoptable": false,
+                     *           "copyable": false,
                      *           "location": {
                      *             "dir": "example",
                      *             "hostPath": "config/app.conf",
@@ -24183,6 +24221,181 @@ export interface operations {
                      *     }
                      */
                     "application/json": components["schemas"]["DiscoveredOutputBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-import-copy": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Environment ID. */
+                environmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "projectName": "nextcloud"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ImportCopyInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
                 };
             };
             /** @description Unauthorized */

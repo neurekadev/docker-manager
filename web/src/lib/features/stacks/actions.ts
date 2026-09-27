@@ -135,6 +135,24 @@ export function importStack(
 	);
 }
 
+/**
+ * POST /environments/{id}/stacks/import-copies: a stack.import job copies a
+ * discovered project's whole directory from the agent's import mount into
+ * the stacks volume while the project is stopped, then starts what ran.
+ */
+export function importStackByCopy(
+	environmentId: string,
+	body: Schema<'ImportCopyInputBody'>,
+	client: ApiClient = api
+): Promise<Job> {
+	return unwrap(
+		client.POST('/api/v1/environments/{environmentId}/stacks/import-copies', {
+			params: { path: { environmentId }, header: { 'Idempotency-Key': key() } },
+			body
+		})
+	);
+}
+
 export function previewMigration(
 	stackId: string,
 	body: Schema<'StackMigrationBody'>,

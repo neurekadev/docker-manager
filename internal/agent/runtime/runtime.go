@@ -653,6 +653,10 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	if slices.Contains(p.Commands, "stack.remove") {
 		p.Features = append(p.Features, protocol.FeatureStackRemoveVolumes)
 	}
+	// It imports projects by copying them from its import mounts (#7).
+	if slices.Contains(p.Commands, "stack.import") {
+		p.Features = append(p.Features, protocol.FeatureStackImportCopy)
+	}
 	// Its backup.run reports live activity when asked (#10).
 	if slices.Contains(p.Commands, "backup.run") {
 		p.Features = append(p.Features, protocol.FeatureBackupActivity)

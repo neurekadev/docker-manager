@@ -357,8 +357,16 @@ Guide: `docs/architecture/stacks.md`. Manager: `internal/manager/stacks`
 
 - The on-disk definition is the source of truth (#25 Q1). Never write
   Compose/override/env files except through `compose.write` (creation,
-  explicit restores); deploys and updates only read and report the bytes
-  they used (`protocol.StackJobOutput.Sources`).
+  explicit restores) or an import by copy (`stack.import`, which creates a
+  new project directory from the original's bytes and never modifies the
+  original); deploys and updates only read and report the bytes they used
+  (`protocol.StackJobOutput.Sources`).
+- Import by copy (`internal/agent/stacks/import.go`): projects outside the
+  stack roots are read through the agent's optional import mounts (at or
+  below `/import`, `storage.Result.ImportSource`), stopped, copied with
+  `migration.CopyTree`/`VerifyTree`/`CopyXattrs` into `<stacks>/<project>`
+  (same project name, so volumes keep their names), recreated from the copy
+  and resumed; before the journaled switch every failure rolls back.
 - Revisions are immutable and sealed; record observed changes with
   `stacks.Service.RecordObserved` (#23) / `RecordFileSave` (#15); resolve a
   stack's files with `Root`; paths needing `stack.definition.*`:

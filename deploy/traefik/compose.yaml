@@ -47,6 +47,10 @@ services:
       - stacks:/var/lib/docker/volumes/docker-manager_stacks/_data
       - agent:/var/lib/docker-agent
       # - /opt/stacks:/opt/stacks
+      # Optional: import existing Compose projects from another directory
+      # (Stacks > Import project moves them into the stacks volume). Mount it
+      # below /import, read-only is enough; remove it when you are done.
+      # - /opt/stacks:/import:ro
     labels:
       dev.neureka.docker-manager.role: agent
     networks:

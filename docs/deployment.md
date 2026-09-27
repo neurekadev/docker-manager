@@ -165,6 +165,16 @@ container, so it must see those files at the same paths:
 - Extra host directories with stacks (e.g. `/opt/stacks`) can be registered
   with `DOCKER_AGENT_STACK_ROOTS=/opt/stacks` and must be bind-mounted at the
   identical path (`/opt/stacks:/opt/stacks`).
+- Optional, only to import existing Compose projects that live elsewhere
+  (e.g. `/opt/stacks` of another tool): mount that directory into the agent
+  at or below `/import`, read-only is enough (`/opt/stacks:/import:ro`, or
+  several such as `/srv/apps:/import/apps:ro`). **Import project** then
+  moves a project into the stacks volume: it stops the project, copies its
+  whole directory (Compose files and the data folders next to them, with
+  owners, permissions, times, links and extended attributes), verifies the
+  copy, recreates the containers from it under the same project name and
+  starts what ran before. The original directory is left untouched; remove
+  it and the mount once your imports are done.
 
 At startup (and whenever the Engine comes back) the agent **verifies**
 this: it reads the Engine's `DockerRootDir`, inspects the stacks volume's

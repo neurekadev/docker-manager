@@ -44,6 +44,7 @@ const (
 	CodeStackDirectoryExists       = "stack_directory_exists"
 	CodeStackDefinitionChanged     = "stack_definition_changed"
 	CodeStackNotAdoptable          = "stack_not_adoptable"
+	CodeStackNotCopyable           = "stack_not_copyable"
 	CodeStackRootUnavailable       = "stack_root_unavailable"
 	CodeRevisionContentUnavailable = "revision_content_unavailable"
 	CodeInvalidDefinition          = "invalid_definition"
@@ -70,6 +71,7 @@ type StackService interface {
 	ImageStatus(st domain.Stack) []domain.StackImageView
 	Discovered(ctx context.Context, environmentID string) ([]domain.DiscoveredStack, error)
 	Import(ctx context.Context, p authz.Principal, r domain.StackImport) (domain.Stack, error)
+	ImportCopy(ctx context.Context, p authz.Principal, r domain.StackImport, jr domain.StackJobRequest) (domain.Stack, domain.Job, error)
 }
 
 // StackRevisionRef identifies a revision of the stack's definition.
@@ -519,6 +521,7 @@ func stackCodeErr(se *domain.StackError) error {
 		domain.StackErrDirectoryExists:    CodeStackDirectoryExists,
 		domain.StackErrDefinitionChanged:  CodeStackDefinitionChanged,
 		domain.StackErrNotAdoptable:       CodeStackNotAdoptable,
+		domain.StackErrNotCopyable:        CodeStackNotCopyable,
 		domain.StackErrRootUnavailable:    CodeStackRootUnavailable,
 		domain.StackErrContentUnavailable: CodeRevisionContentUnavailable,
 	}
@@ -1220,7 +1223,8 @@ type DiscoveredStack struct {
 	Location   *StackLocation           `json:"location,omitempty" doc:"Where it lies under a verified stack root (adoptable in place)."`
 	Services   []DiscoveredStackService `json:"services"`
 	Adoptable  bool                     `json:"adoptable" doc:"Can be imported in place from its real files."`
-	Reason     string                   `json:"reason,omitempty" doc:"Why it cannot be adopted in place (import it with an explicit Compose source)."`
+	Copyable   bool                     `json:"copyable" doc:"Not adoptable in place, but the agent reads its directory through an import mount (below /import): it can be imported by copy (POST .../stacks/import-copies)."`
+	Reason     string                   `json:"reason,omitempty" doc:"Why it cannot be adopted in place (import it by copy or with an explicit Compose source)."`
 	StackID    string                   `json:"stackId,omitempty" doc:"The Docker Manager stack already managing it."`
 }
 
@@ -1246,7 +1250,7 @@ func (h *stacksAPI) discovered(ctx context.Context, in *discoveredInput) (*disco
 	out.Body.Projects = []DiscoveredStack{}
 	for _, d := range list {
 		ds := DiscoveredStack{Name: d.Name, WorkingDir: d.WorkingDir, Services: []DiscoveredStackService{}, Adoptable: d.Adoptable,
-			Reason: d.Reason, StackID: d.StackID}
+			Copyable: d.Copyable, Reason: d.Reason, StackID: d.StackID}
 		if d.Root != "" {
 			ds.Location = &StackLocation{Root: d.Root, Dir: d.Dir}
 		}
@@ -1298,6 +1302,36 @@ func (h *stacksAPI) importStack(ctx context.Context, in *importStackInput) (*imp
 	c, _, _ := h.checker(ctx)
 	return &importStackOutput{Location: BasePath + "/stacks/" + st.ID, ETagHeader: ETagHeader{ETag: RevisionETag(st.Revision)},
 		Body: newStack(st, authz.ViewOf(c, stackResource(st)), true)}, nil
+}
+
+type importCopyInput struct {
+	EnvironmentID string `path:"environmentId" maxLength:"64" doc:"Environment ID."`
+	IdempotencyKeyParam
+	Body struct {
+		ProjectName    string `json:"projectName" example:"nextcloud" minLength:"1" maxLength:"63" doc:"The discovered Compose project to import (copyable in the discovery list)."`
+		DisplayName    string `json:"displayName,omitempty" maxLength:"128"`
+		Description    string `json:"description,omitempty" maxLength:"1024"`
+		Icon           string `json:"icon,omitempty" maxLength:"64"`
+		TimeoutSeconds int    `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period of the project's services (default: each service's own)."`
+	}
+}
+
+func (h *stacksAPI) importCopy(ctx context.Context, in *importCopyInput) (*JobAccepted, error) {
+	p, err := h.requireInEnvironment(ctx, in.EnvironmentID, CapStackImport)
+	if err != nil {
+		return nil, err
+	}
+	r := domain.StackImport{EnvironmentID: in.EnvironmentID, ProjectName: in.Body.ProjectName, DisplayName: in.Body.DisplayName,
+		Meta: domain.DisplayMeta{Description: in.Body.Description, Icon: in.Body.Icon}}
+	st, j, err := h.svc.ImportCopy(ctx, p, r, domain.StackJobRequest{TimeoutSeconds: in.Body.TimeoutSeconds})
+	if err != nil {
+		return nil, stackErr(err)
+	}
+	audit.AddTarget(ctx, domain.AuditTarget{Type: catalog.TypeStack, ID: st.ID, EnvironmentID: st.EnvironmentID})
+	audit.SetDetail(ctx, "project", st.Name)
+	audit.SetDetail(ctx, "jobId", j.ID)
+	logging.FromContext(ctx).Info("stack import by copy requested", "stack_id", st.ID, "project", st.Name, "job_id", j.ID)
+	return Accepted(j), nil
 }
 
 func registerStacks(a huma.API, deps Deps) {
@@ -1464,4 +1498,19 @@ func registerStacks(a huma.API, deps Deps) {
 			"when Docker Manager already manages the project, stack_directory_exists when the directory exists.",
 		Tags: []string{tagStacks}, Errors: mutate,
 	}, Capability: CapStackImport, Scope: ScopeEnvironment}, h.importStack)
+
+	Register(a, Operation{Operation: huma.Operation{
+		OperationID: "create-stack-import-copy", Method: http.MethodPost, Path: envStacks + "/import-copies",
+		Summary: "Import a Compose project by copying its directory", DefaultStatus: http.StatusAccepted,
+		Description: "Starts a stack.import job (202) for a discovered project whose directory the agent reads through an import " +
+			"mount (copyable in the discovery list). The stack is created at once (the job's target, origin imported). The job " +
+			"stops the project's running services, copies its whole directory (Compose files and everything next to them, with " +
+			"owners, permissions, times, links and extended attributes) into a new directory <projectName> of the stacks volume, " +
+			"verifies the copy, recreates the containers from it (anonymous volumes are kept) and starts the services that ran " +
+			"before. The original directory is only read. A failure before the containers are recreated changes nothing (the copy " +
+			"is removed, the services start again from the original and the stack is forgotten); after that the stack is failed on " +
+			"its copy and a deploy finishes it. 409 stack_not_copyable (no import mount, adoptable in place, or the directory " +
+			"exists), stack_name_taken, protected (Docker Manager's own project); 501 agent_unsupported for older agents.",
+		Tags: []string{tagStacks}, Errors: mutate,
+	}, Capability: CapStackImport, Scope: ScopeEnvironment, Idempotency: IdempotencyStored}, h.importCopy)
 }

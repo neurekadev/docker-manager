@@ -15,7 +15,6 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/agents"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
-	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
@@ -520,6 +519,7 @@ func (s *Service) registerHooks() {
 		s.opts.Jobs.OnFinish(k, s.onOperationFinished)
 	}
 	s.opts.Jobs.OnFinish(jobspec.StackRemove, s.onRemoveFinished)
+	s.opts.Jobs.OnFinish(jobspec.StackImport, s.onImportFinished)
 }
 
 func stackTarget(j domain.Job) string {
@@ -668,19 +668,5 @@ func (s *Service) onRemoveFinished(ctx context.Context, db bun.IDB, j domain.Job
 	if j.State != domain.JobSucceeded {
 		return s.onOperationFinished(ctx, db, j)
 	}
-	if err := store.DeleteStack(ctx, db, st.ID); err != nil {
-		return err
-	}
-	now := s.now()
-	if _, err := store.DeleteResourceRules(ctx, db, catalog.TypeStack, "", st.ID, now); err != nil {
-		return err
-	}
-	for _, sv := range st.Services {
-		if _, err := store.DeleteResourceRules(ctx, db, catalog.TypeService, "", authz.ServiceID(st.ID, sv.Name), now); err != nil {
-			return err
-		}
-	}
-	s.log.Info("stack removed", "stack_id", st.ID, "environment_id", st.EnvironmentID, "project", st.Name)
-	s.publish(EventRemoved, st, map[string]string{"jobId": j.ID})
-	return nil
+	return s.forget(ctx, db, st, j, "stack removed")
 }

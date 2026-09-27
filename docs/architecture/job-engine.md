@@ -149,6 +149,7 @@ S shared; steps flagged `i` are idempotent, `c` are cancellation safe points
 | `stack.build` | agent | `stack.build` | `host` S (each environment)<br>`stack` **X** (stack targets) | `fetch_sources` (i,c) → `build_images` (i,c) | 30m | build | — | — |
 | `stack.deploy` | agent | `stack.deploy` | `host` S (each environment)<br>`stack` **X** (stack targets) | `resolve_sources` (i,c) → `pull_images` (i,c) → `build_images` (i,c) → `apply` (i,c) | 30m | — | — | — |
 | `stack.down` | agent | `stack.down` | `host` S (each environment)<br>`stack` **X** (stack targets) | `down` (i,c) | 10m | — | — | — |
+| `stack.import` | agent | `stack.import` | `host` S (each environment)<br>`stack` **X** (stack targets) | `prepare` (i,c) → `stop_containers` (i,c) → `copy_files` (i,c) → `recreate` (i,c) → `start_containers` (i) | 10m | — | `start_containers`, `remove_import_copy` | — |
 | `stack.migrate` | manager | `stack.migrate` | `host` S (each environment)<br>`stack` **X** (stack targets)<br>`volume` **X** (volume targets, optional) | `prepare` (i,c) → `stop_source` (i,c) → `transfer` (i,c) → `deploy_destination` (i,c) → `finalize` (i) | — | — | `start_source` | interrupt |
 | `stack.remove` | agent | `stack.remove` | `host` S (each environment)<br>`stack` **X** (stack targets) | `down` (i,c) | 10m | — | — | — |
 | `stack.remove_source` | agent | `stack.migrate` | `host` S (each environment)<br>`stack` **X** (stack targets)<br>`volume` **X** (volume targets, optional) | `down` (i,c) → `remove_volumes` (i,c) → `remove_files` (i) | 30m | — | — | — |

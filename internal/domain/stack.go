@@ -270,6 +270,7 @@ const (
 	StackErrDirectoryExists        = "stack_directory_exists"
 	StackErrDefinitionChanged      = "stack_definition_changed"
 	StackErrNotAdoptable           = "stack_not_adoptable"
+	StackErrNotCopyable            = "stack_not_copyable"
 	StackErrRootUnavailable        = "stack_root_unavailable"
 	StackErrContentUnavailable     = "revision_content_unavailable"
 	StackErrInvalidDefinition      = "invalid_definition"

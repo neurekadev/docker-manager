@@ -150,8 +150,10 @@ Engine's Compose projects from container labels (`compose.discover`):
 services with container counts, the project directory and Compose files
 from the labels, whether the project is **adoptable in place** (its
 directory is below the stacks volume or a verified registered root and its
-Compose/env files are inside it) and the Docker Manager stack already managing
-it. Labels never reconstruct a source.
+Compose/env files are inside it), whether it is **copyable** (not
+adoptable, but the agent reads its directory through an import mount, below)
+and the Docker Manager stack already managing it. Labels never reconstruct a
+source.
 
 `POST /environments/{id}/stacks/imports`:
 
@@ -161,6 +163,83 @@ it. Labels never reconstruct a source.
   changes);
 - with `source` (projects outside the roots): the given definition is
   written into a **new** directory `<projectName>` of the stacks volume.
+
+### Import by copy (`stack.import`)
+
+Projects that live elsewhere on the host (for example `/opt/stacks/<name>`
+from another tool) are imported by **moving** them into the stacks volume.
+The agent needs to read them: mount the host directory, or one above it,
+into the agent **at or below `/import`** (`storage.ImportDir`; read-only is
+enough, e.g. `/opt/stacks:/import:ro`, or several mounts such as
+`/import/opt` and `/import/srv`). The mount is optional: without it
+everything else works and such projects are simply not copyable. The agent
+finds its import mounts in its own container's mounts at startup
+(`storage.Result.Imports`) and maps a project's working directory (a host
+path from its labels) to where it reads it (`ImportSource`); an agent
+running directly on the host reads the path itself.
+
+`POST /environments/{id}/stacks/import-copies {projectName}` (`stack.import`,
+202 + job, stored Idempotency-Key) creates the stack at once (the job's
+target: origin `imported`, **the same project name** and a directory of
+that name in the stacks volume, so the project's named volumes, networks and
+containers keep their Compose names) and enqueues `stack.import`. The
+manager refuses projects that are adoptable in place or not copyable (`409
+stack_not_copyable` with the agent's reason), Docker Manager's own project
+(`409 protected`, it would be stopped) and agents without
+`stack.import_copy` (`501 agent_unsupported`). The agent's steps
+(`internal/agent/stacks/import.go`):
+
+1. `prepare`: loads the project where it is (every profile), refuses
+   definition files outside its directory and bind mounts that reach next
+   to it through a relative path (`import_not_relocatable`: after the move
+   they would point into the stacks volume), refuses when an image of a
+   service is not on the host (`import_image_missing`: nothing is pulled),
+   when a container runs from another directory (`import_source_changed`),
+   when the stacks volume has a directory of that name
+   (`stack_directory_exists`) or not enough free space
+   (`insufficient_space`), and records the services that run. Absolute
+   binds into the original directory are warned about: they keep using it.
+2. `stop_containers`: journals the `start_containers` compensation, stops
+   the running services in dependency order and refuses to continue while
+   any container of the project still runs (`shutdown_failed`): the copy is
+   taken at rest, so databases next to the Compose file are consistent.
+3. `copy_files`: copies the whole directory into
+   `.docker-manager-import-<jobId>` in the stacks volume with the migration
+   archive format (`migration.CopyTree`: numeric owners, permission and
+   setuid/setgid/sticky bits, modification and access times, symlinks as
+   links, hard links, FIFOs, empty directories; sockets and device nodes are
+   skipped and listed), compares both trees entry by entry
+   (`migration.VerifyTree`: type, size, mode, owner, mtime, link targets),
+   copies extended attributes (`migration.CopyXattrs`: POSIX ACLs, file
+   capabilities, user/trusted attributes; not SELinux labels), flushes to
+   disk and renames the staging directory to `<name>`. The
+   `remove_import_copy` compensation (journaled after the staging directory
+   exists, with its device and inode) removes the copy on any failure until
+   the switch, never a directory it did not create.
+4. `recreate`: loads the copy, checks every bind source moved with the
+   directory or stayed the same absolute path, then **switches** (journaled
+   `import.switched`, copy compensation released) and recreates, with
+   Compose `create --force-recreate`, every service that had containers
+   (anonymous volumes inherited, nothing started, nothing pulled).
+5. `start_containers`: starts exactly the services that ran before,
+   dependencies first (`lifecycle.Resume`); a service whose containers still
+   use the original directory is never started (kept stopped, warned).
+
+The original directory is only ever read. A failure **before the switch**
+changes nothing: the copy is removed, the services that ran start again
+from the original directory, and the finish hook forgets the stack. After
+the switch the project lives in the stacks volume: a failure leaves the
+stack `failed` on its copy and a deploy finishes it (no automatic rollback,
+#25). A successful import records the copy's definition as a `deploy`
+revision and makes it the applied revision (Docker Manager created the
+containers from exactly those bytes), with the applied images. Remove the
+original directory by hand once the stack runs from its copy.
+
+The web UI's stack list has one **Import project** dialog
+(`ImportStackDialog`, `routes.importStack()`): the discovered projects of an
+environment, each with one Import button that adopts in place or imports by
+copy (with the job's progress in the row) and otherwise explains how to add
+an import mount. Imports with an explicit source remain an API feature.
 
 Nothing is overwritten silently: a project Docker Manager already manages →
 `409 stack_name_taken` (also enforced by unique indexes on

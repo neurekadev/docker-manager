@@ -392,6 +392,10 @@ frames with `activity`. And `stack.remove_volumes`
 (`protocol.FeatureStackRemoveVolumes`): only those agents get
 `stack.remove` inputs with `removeVolumes` (and `keepVolumes`); the manager
 refuses the option for other agents (they would keep the volumes). And
+`stack.import_copy` (`protocol.FeatureStackImportCopy`, #7): only those
+agents execute `stack.import` (a `stack.*` input with `import`, the
+project's current directory) and report `copyable` in `compose.discover`;
+the manager refuses an import by copy for other agents. And
 `exec.shell` (`protocol.FeatureExecShell`, #8): only those agents get
 `container.exec.create` inputs with `shell`; for other agents the manager
 sends the shell's most common path as `cmd` (`protocol.LegacyShellCommand`:
@@ -831,6 +835,7 @@ enqueueing and again at dispatch for queued manual jobs.
 | `stack.build` | command | `stack.build` |
 | `stack.deploy` | command | `stack.deploy` |
 | `stack.down` | command | `stack.down` |
+| `stack.import` | command | `stack.import` |
 | `stack.remove` | command | `stack.remove` |
 | `stack.remove_source` | command | `stack.migrate` |
 | `stack.restart` | command | `stack.restart` |

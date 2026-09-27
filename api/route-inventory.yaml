@@ -1160,6 +1160,15 @@ routes:
     kind: json
     status: implemented
     notes: "Adopts in place under the stacks volume or a registered root (#28); otherwise needs an explicit Compose source."
+  - method: POST
+    path: "/api/v1/environments/{environmentId}/stacks/import-copies"
+    operationId: create-stack-import-copy
+    capability: stack.import
+    scope: environment
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "202 + stack.import job: copies a project's whole directory from the agent's import mount (/import) into the stacks volume while it is stopped, recreates it from the copy and starts what ran; Idempotency-Key (stored)."
   - method: GET
     path: /api/v1/stacks
     operationId: list-stacks

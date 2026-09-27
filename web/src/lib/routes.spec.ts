@@ -74,7 +74,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 	],
 	stackTerminal: [routes.stackTerminal('st-1'), routes.stackTerminal('st-1', 'silo-web-1')],
 	newStack: [routes.newStack(), routes.newStack('env-1')],
-	discoveredStacks: [routes.discoveredStacks(), routes.discoveredStacks('env-1')],
+	importStack: [routes.importStack(), routes.importStack('env-1')],
 	containers: [routes.containers()],
 	newContainer: [routes.newContainer(), routes.newContainer('env-1', 'nginx:1')],
 	container: [

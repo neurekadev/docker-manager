@@ -36,6 +36,9 @@ const (
 	StackBuild   domain.JobKind = "stack.build"
 	StackUpdate  domain.JobKind = "stack.update"
 	StackMigrate domain.JobKind = "stack.migrate"
+	// StackImport imports a discovered project by copying its directory
+	// from the agent's import mount into the stacks volume (#7).
+	StackImport domain.JobKind = "stack.import"
 	// StackRemoveSource removes a migrated stack's source after the user
 	// confirmed the migration (#35).
 	StackRemoveSource domain.JobKind = "stack.remove_source"
@@ -74,6 +77,9 @@ const (
 const (
 	CompStartContainers = "start_containers"
 	CompStartSource     = "start_source"
+	// CompRemoveImportCopy removes the copy a stack.import made before the
+	// project switched to it.
+	CompRemoveImportCopy = "remove_import_copy"
 )
 
 // Default offline deadlines.
@@ -217,6 +223,26 @@ func catalogSpecs() []Spec {
 			s.StartsContainers = true
 			return s
 		}(),
+		// Import by copy (#7): the project is stopped, its whole directory
+		// (Compose files and everything next to them) is copied from the
+		// agent's read-only import mount into a new directory of the
+		// stacks volume, its containers are recreated from the copy
+		// (anonymous volumes inherited) and the services that ran before
+		// start again. The original directory is only read. Until the
+		// recreate starts, a failure removes the copy and starts the old
+		// containers again; afterwards the project lives in the stacks
+		// volume (no automatic rollback, #25).
+		{
+			Kind: StackImport, Summary: "Import a Compose project by copying its directory into the stacks volume",
+			Capability: "stack.import", Executor: domain.ExecutorAgent,
+			Locks:           []LockRule{hostShared(), target(domain.LockStack, exclusive, domain.TargetStack)},
+			OfflineDeadline: deadlineInteractive,
+			Steps: []Step{idem("prepare"), idem("stop_containers"), idem("copy_files"), idem("recreate"),
+				step("start_containers", true, false, "")},
+			Compensations: []Compensation{compStartContainers, {Name: CompRemoveImportCopy,
+				Description: "remove the copy of the project directory from the stacks volume while the project does not use it yet"}},
+			StartsContainers: true,
+		},
 		// Environment migration (#35): the manager relays the data between
 		// the two agents. Targets: the stack (its environment is the source),
 		// the source volumes and the destination's new volumes (lock only;

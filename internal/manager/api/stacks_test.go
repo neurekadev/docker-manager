@@ -175,6 +175,15 @@ func (f *fakeStacks) Import(_ context.Context, _ authz.Principal, r domain.Stack
 	return domain.Stack{ID: "st-imp", EnvironmentID: r.EnvironmentID, Name: r.ProjectName, Status: domain.StackDeployed, Revision: 1}, nil
 }
 
+func (f *fakeStacks) ImportCopy(_ context.Context, _ authz.Principal, r domain.StackImport, _ domain.StackJobRequest) (domain.Stack, domain.Job, error) {
+	if f.err != nil {
+		return domain.Stack{}, domain.Job{}, f.err
+	}
+	st := domain.Stack{ID: "st-imp", EnvironmentID: r.EnvironmentID, Name: r.ProjectName, Status: domain.StackDeployed, Revision: 1}
+	return st, domain.Job{ID: "job-imp", Kind: "stack.import", EnvironmentID: r.EnvironmentID,
+		Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: st.ID}}}, nil
+}
+
 // fakeStacksRoot is the stacks volume's host path in the fake (#22 header).
 const fakeStacksRoot = "/var/lib/docker/volumes/docker-manager_stacks/_data"
 
