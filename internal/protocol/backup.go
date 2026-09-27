@@ -199,6 +199,37 @@ type BackupRunInput struct {
 	StartedAt time.Time `json:"startedAt"`
 	// EnvironmentName is recorded in the host manifest.
 	EnvironmentName string `json:"environmentName,omitempty"`
+	// Activity asks for live activity reports (progress frames with
+	// activity, #10). Sent only to agents announcing
+	// FeatureBackupActivity.
+	Activity bool `json:"activity,omitempty"`
+}
+
+// FeatureBackupActivity is the capabilities feature of agents that accept
+// BackupRunInput.Activity and then report ProgressPayload.Activity (#10).
+const FeatureBackupActivity = "backup.activity"
+
+// RepositoryStats is a location's size as restic stats --mode raw-data
+// reports it (index and directory metadata only; #10).
+type RepositoryStats struct {
+	// SizeBytes is what the repository stores (compressed, deduplicated).
+	SizeBytes int64 `json:"sizeBytes"`
+	// UncompressedBytes is the same data before compression.
+	UncompressedBytes int64 `json:"uncompressedBytes"`
+	// CompressionRatio is UncompressedBytes/SizeBytes as restic reports it.
+	CompressionRatio float64 `json:"compressionRatio"`
+	// CompressionProgress is the percentage of data stored compressed.
+	CompressionProgress float64 `json:"compressionProgress"`
+	Snapshots           int64   `json:"snapshots"`
+}
+
+// StatsOf converts restic's figures (nil stays nil).
+func StatsOf(s *restic.Stats) *RepositoryStats {
+	if s == nil {
+		return nil
+	}
+	return &RepositoryStats{SizeBytes: s.TotalSize, UncompressedBytes: s.TotalUncompSize, CompressionRatio: s.CompressionRatio,
+		CompressionProgress: s.CompressionProgress, Snapshots: s.SnapshotsCount}
 }
 
 // Validate checks the input.
@@ -256,6 +287,9 @@ type BackupRunOutput struct {
 	ManifestSnapshotID string          `json:"manifestSnapshotId,omitempty"`
 	Shutdown           *ShutdownReport `json:"shutdown,omitempty"`
 	Warnings           []string        `json:"warnings,omitempty"`
+	// Stats is the location's size after the run (absent when it could
+	// not be measured).
+	Stats *RepositoryStats `json:"stats,omitempty"`
 }
 
 // BackupRetentionInput is the input of backup.retention: forget the
@@ -280,6 +314,9 @@ type RetentionOutput struct {
 	// ReclaimedBytes is the raw repository size difference (may be 0).
 	ReclaimedBytes int64  `json:"reclaimedBytes"`
 	PruneError     string `json:"pruneError,omitempty"`
+	// Stats is the location's size after the prune (absent when it could
+	// not be measured).
+	Stats *RepositoryStats `json:"stats,omitempty"`
 }
 
 // BackupVerifyInput is the input of backup.verify.

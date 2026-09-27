@@ -641,3 +641,41 @@ func TestRestoreRefusesStarts(t *testing.T) {
 	h.wantState(r.ID, domain.JobSucceeded)
 	h.enqueue(jobs.Request{Kind: jobspec.StackStart, EnvironmentID: "e1", Targets: []domain.JobTarget{stack("web")}})
 }
+
+// TestActivityFramesStayInMemory: a progress frame carrying only activity
+// (#10) reaches the OnActivity listeners with the session's environment
+// and changes nothing in the job record or its events.
+func TestActivityFramesStayInMemory(t *testing.T) {
+	h := newHarness(t)
+	type report struct {
+		env, job string
+		a        protocol.ActivityPayload
+	}
+	var got []report
+	h.eng.OnActivity(func(env, jobID string, a protocol.ActivityPayload) { got = append(got, report{env, jobID, a}) })
+	h.disp.Connect("e1")
+	j := h.enqueue(jobs.Request{Kind: jobspec.RestoreRun, EnvironmentID: "e1", Targets: []domain.JobTarget{volume("media"), repo("r1")}})
+	h.dispatch()
+	cmd := h.commands("e1")[0]
+	h.ack("e1", cmd, protocol.AckPayload{Accepted: true})
+	h.agentFrame("e1", progressFrame(t, cmd, protocol.ProgressPayload{Step: "restore_data", Percent: 40, Message: "restoring"}))
+	before, err := h.eng.Events(h.ctx, j.ID, 0, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := protocol.ActivityPayload{Item: "volume/media", ItemCount: 1, Percent: 70, FilesDone: 7, FilesTotal: 10, CurrentFile: "media/a.jpg"}
+	h.agentFrame("e1", progressFrame(t, cmd, protocol.ProgressPayload{Step: "restore_data", Percent: -1, Activity: &a}))
+	if len(got) != 1 || got[0].env != "e1" || got[0].job != j.ID || got[0].a != a {
+		t.Fatalf("listener got %+v", got)
+	}
+	after, err := h.eng.Events(h.ctx, j.ID, 0, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) {
+		t.Errorf("activity wrote job events: %d -> %d", len(before), len(after))
+	}
+	if cur := h.job(j.ID); cur.Progress.Percent != 40 || cur.Progress.Message != "restoring" {
+		t.Errorf("activity changed the job progress: %+v", cur.Progress)
+	}
+}

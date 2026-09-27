@@ -130,6 +130,8 @@ type Engine struct {
 	subs   map[string]map[chan struct{}]struct{}
 	// changeListeners observe every job change (OnChange).
 	changeListeners []func(jobIDs []string)
+	// activityListeners receive transient activity reports (OnActivity).
+	activityListeners []func(environmentID, jobID string, a protocol.ActivityPayload)
 
 	mgrMu      sync.Mutex
 	mgrExecs   map[domain.JobKind]jobexec.Executor
@@ -285,6 +287,27 @@ func (e *Engine) notify(jobIDs ...string) {
 	e.subsMu.Unlock()
 	for _, fn := range listeners {
 		fn(jobIDs)
+	}
+}
+
+// OnActivity registers fn, called with every activity report (#10) of an
+// agent session (environmentID) or a manager-local job (""). Reports are
+// transient: nothing is stored, no job event is written and OnChange does
+// not fire. The job ID is the reporter's claim; fn must check it against
+// the job's environment. fn runs on the reporting goroutine and must not
+// block.
+func (e *Engine) OnActivity(fn func(environmentID, jobID string, a protocol.ActivityPayload)) {
+	e.subsMu.Lock()
+	defer e.subsMu.Unlock()
+	e.activityListeners = append(slices.Clone(e.activityListeners), fn)
+}
+
+func (e *Engine) activity(env, jobID string, a protocol.ActivityPayload) {
+	e.subsMu.Lock()
+	listeners := e.activityListeners
+	e.subsMu.Unlock()
+	for _, fn := range listeners {
+		fn(env, jobID, a)
 	}
 }
 

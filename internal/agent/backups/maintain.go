@@ -50,10 +50,13 @@ func (s *Service) stepPrune(ctx context.Context, sc *jobexec.StepContext) error 
 	if err != nil {
 		return err
 	}
-	out.ReclaimedBytes, err = backup.Prune(ctx, o.Repo)
+	var after *restic.Stats
+	out.ReclaimedBytes, after, err = backup.Prune(ctx, o.Repo)
 	if err != nil {
 		out.PruneError = restic.CodeOf(err)
+		after = backup.MeasureStats(ctx, o.Repo) // forget still changed it
 	}
+	out.Stats = protocol.StatsOf(after)
 	if serr := sc.SetOutput(ctx, out); serr != nil {
 		return serr
 	}

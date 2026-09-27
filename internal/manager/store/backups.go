@@ -354,6 +354,11 @@ type backupLocationRow struct {
 	LastVerifyResult   string     `bun:"last_verify_result,notnull"`
 	LastVerifyJobID    string     `bun:"last_verify_job_id,notnull"`
 	SizeBytes          int64      `bun:"size_bytes,notnull"`
+	UncompressedBytes  int64      `bun:"uncompressed_bytes,notnull"`
+	CompressionRatio   float64    `bun:"compression_ratio,notnull"`
+	CompressionProg    float64    `bun:"compression_progress,notnull"`
+	StatsSnapshots     int64      `bun:"stats_snapshots,notnull"`
+	StatsAt            *time.Time `bun:"stats_at"`
 	UpdatedAt          time.Time  `bun:"updated_at,notnull"`
 }
 
@@ -361,7 +366,8 @@ func (r backupLocationRow) toDomain() domain.BackupLocation {
 	return domain.BackupLocation{RepositoryID: r.RepositoryID, Scope: r.Scope, ResticRepositoryID: r.ResticRepositoryID,
 		KeyGeneration: r.KeyGeneration, InitializedAt: utcPtr(r.InitializedAt), LastBackupAt: utcPtr(r.LastBackupAt),
 		LastVerifiedAt: utcPtr(r.LastVerifiedAt), LastVerifyResult: r.LastVerifyResult, LastVerifyJobID: r.LastVerifyJobID,
-		SizeBytes: r.SizeBytes, UpdatedAt: r.UpdatedAt.UTC()}
+		SizeBytes: r.SizeBytes, UncompressedBytes: r.UncompressedBytes, CompressionRatio: r.CompressionRatio,
+		CompressionProgress: r.CompressionProg, StatsSnapshots: r.StatsSnapshots, StatsAt: utcPtr(r.StatsAt), UpdatedAt: r.UpdatedAt.UTC()}
 }
 
 // LocationUpdate is what a finished job learned about a location. Zero
@@ -374,7 +380,8 @@ type LocationUpdate struct {
 	VerifiedAt         *time.Time
 	VerifyResult       string
 	VerifyJobID        string
-	SizeBytes          int64
+	// Stats replaces the measured size (all of its fields, zeros included).
+	Stats *domain.LocationStats
 }
 
 // UpsertBackupLocation records what a job learned about a location.
@@ -407,8 +414,11 @@ func UpsertBackupLocation(ctx context.Context, db bun.IDB, repositoryID, scope s
 			row.LastVerifiedAt = utcPtr(u.VerifiedAt)
 		}
 	}
-	if u.SizeBytes > 0 {
-		row.SizeBytes = u.SizeBytes
+	if st := u.Stats; st != nil {
+		row.SizeBytes, row.UncompressedBytes, row.StatsSnapshots = st.SizeBytes, st.UncompressedBytes, st.Snapshots
+		row.CompressionRatio, row.CompressionProg = st.CompressionRatio, st.CompressionProgress
+		t := now.UTC()
+		row.StatsAt = &t
 	}
 	row.UpdatedAt = now.UTC()
 	if exists {

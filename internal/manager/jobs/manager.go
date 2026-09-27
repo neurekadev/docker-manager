@@ -91,6 +91,10 @@ type managerReporter struct {
 }
 
 func (r managerReporter) Progress(ctx context.Context, st *jobexec.State, p protocol.ProgressPayload) {
+	if activityOnly(p) {
+		r.e.activity("", st.JobID, *p.Activity)
+		return
+	}
 	_, _ = r.e.applyProgress(ctx, st.JobID, func(j *domain.Job) bool { return j.Attempt == r.attempt }, p)
 }
 

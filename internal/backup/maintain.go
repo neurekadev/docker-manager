@@ -90,17 +90,37 @@ func ApplyRetention(ctx context.Context, repo restic.Repo, policyID string, rule
 	return out, nil
 }
 
-// Prune prunes a repository and reports the raw size it reclaimed.
-func Prune(ctx context.Context, repo restic.Repo) (int64, error) {
+// Prune prunes a repository and reports the raw size it reclaimed and
+// the size afterwards (nil when it could not be measured).
+func Prune(ctx context.Context, repo restic.Repo) (int64, *restic.Stats, error) {
 	before, _ := repo.Stats(ctx)
 	if err := repo.Prune(ctx); err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	after, err := repo.Stats(ctx)
-	if err != nil || before.TotalSize < after.TotalSize {
-		return 0, nil
+	if err != nil {
+		return 0, nil, nil
 	}
-	return before.TotalSize - after.TotalSize, nil
+	if before.TotalSize < after.TotalSize {
+		return 0, &after, nil
+	}
+	return before.TotalSize - after.TotalSize, &after, nil
+}
+
+// statsTimeout bounds MeasureStats.
+const statsTimeout = 10 * time.Minute
+
+// MeasureStats measures a repository after a job (#10): restic stats
+// reads the index and directory metadata, never file contents. It returns
+// nil when the size could not be measured; that never fails the job.
+func MeasureStats(ctx context.Context, repo restic.Repo) *restic.Stats {
+	ctx, cancel := context.WithTimeout(ctx, statsTimeout)
+	defer cancel()
+	st, err := repo.Stats(ctx)
+	if err != nil {
+		return nil
+	}
+	return &st
 }
 
 // MaxListedSnapshots bounds the snapshots a verification reports.

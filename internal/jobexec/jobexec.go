@@ -202,6 +202,14 @@ func (sc *StepContext) Progress(ctx context.Context, percent int, message string
 	}
 }
 
+// Activity reports transient live detail (#10; best effort, never
+// journaled). The manager keeps only the latest report in memory.
+func (sc *StepContext) Activity(ctx context.Context, a protocol.ActivityPayload) {
+	if sc.opts.Reporter != nil {
+		sc.opts.Reporter.Progress(ctx, sc.st, protocol.ProgressPayload{Step: sc.st.CurrentStep, Percent: -1, Activity: &a})
+	}
+}
+
 // Item records a per-item result (journaled with the step).
 func (sc *StepContext) Item(ctx context.Context, name, status, message string) {
 	it := protocol.ItemPayload{Name: name, Status: status, Message: message}

@@ -800,6 +800,9 @@ func ValidatePayload(f *Frame) error {
 		if err == nil && (p.Percent < -1 || p.Percent > 100) {
 			err = invalid("progress percent %d out of range", p.Percent)
 		}
+		if err == nil && p.Activity != nil {
+			err = p.Activity.Validate()
+		}
 		return err
 	case TypeResult:
 		p, err := DecodePayload[ResultPayload](f)

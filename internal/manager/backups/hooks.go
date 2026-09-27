@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"strings"
 	"time"
 
@@ -33,6 +34,7 @@ func (s *Service) registerHooks() {
 	e.OnFinish(jobspec.ManagerVerify, s.onVerify)
 	e.OnFinish(jobspec.RestoreRun, s.onRestore)
 	e.OnFinish(jobspec.BackupImport, s.onImport)
+	e.OnActivity(s.recordActivity)
 }
 
 func jobClass(j domain.Job) string {
@@ -46,6 +48,7 @@ func jobClass(j domain.Job) string {
 }
 
 func (s *Service) onBackupRun(ctx context.Context, db bun.IDB, j domain.Job) error {
+	s.forgetActivity(j.ID)
 	var in protocol.BackupRunInput
 	if err := json.Unmarshal(j.Input, &in); err != nil {
 		s.log.Warn("backup job with unreadable input", "job_id", j.ID)
@@ -63,10 +66,11 @@ func (s *Service) onBackupRun(ctx context.Context, db bun.IDB, j domain.Job) err
 		items[it.Key()] = true
 	}
 	return s.recordMembers(ctx, db, j, in.SetID, in.PolicyID, in.Repository.RepositoryID, scope, items, out.Members,
-		out.ResticRepositoryID, out.KeyGeneration, "")
+		out.ResticRepositoryID, out.KeyGeneration, "", out.Stats)
 }
 
 func (s *Service) onManagerBackup(ctx context.Context, db bun.IDB, j domain.Job) error {
+	s.forgetActivity(j.ID)
 	var in managerBackupInput
 	if err := json.Unmarshal(j.Input, &in); err != nil {
 		return nil
@@ -80,13 +84,31 @@ func (s *Service) onManagerBackup(ctx context.Context, db bun.IDB, j domain.Job)
 		members = append(members, *out.Member)
 	}
 	return s.recordMembers(ctx, db, j, in.SetID, in.PolicyID, in.RepositoryID, backup.ScopeManager,
-		map[string]bool{backup.ItemManagerState: true}, members, out.ResticRepositoryID, out.KeyGeneration, out.ManifestSnapshotID)
+		map[string]bool{backup.ItemManagerState: true}, members, out.ResticRepositoryID, out.KeyGeneration, out.ManifestSnapshotID,
+		out.Stats)
+}
+
+// locationStats converts a job's measurement (nil stays nil), clamping
+// what an agent reported.
+func locationStats(st *protocol.RepositoryStats) *domain.LocationStats {
+	if st == nil {
+		return nil
+	}
+	finite := func(f, hi float64) float64 {
+		if math.IsNaN(f) || f < 0 {
+			return 0
+		}
+		return math.Min(f, hi)
+	}
+	return &domain.LocationStats{SizeBytes: max(0, st.SizeBytes), UncompressedBytes: max(0, st.UncompressedBytes),
+		CompressionRatio: finite(st.CompressionRatio, 1e6), CompressionProgress: finite(st.CompressionProgress, 100),
+		Snapshots: max(0, st.Snapshots)}
 }
 
 // recordMembers applies a backup job's results to its set, the snapshot
 // index and the location.
 func (s *Service) recordMembers(ctx context.Context, db bun.IDB, j domain.Job, setID, policyID, repositoryID, scope string,
-	items map[string]bool, results []backup.Member, resticID string, keyGen int, manifestID string) error {
+	items map[string]bool, results []backup.Member, resticID string, keyGen int, manifestID string, stats *protocol.RepositoryStats) error {
 	now := s.now()
 	known, err := repositoryExists(ctx, db, repositoryID)
 	if err != nil {
@@ -116,9 +138,9 @@ func (s *Service) recordMembers(ctx context.Context, db bun.IDB, j domain.Job, s
 			return err
 		}
 	}
-	if resticID != "" || keyGen > 0 {
+	if resticID != "" || keyGen > 0 || stats != nil {
 		if err := store.UpsertBackupLocation(ctx, db, repositoryID, scope, store.LocationUpdate{ResticRepositoryID: resticID,
-			KeyGeneration: keyGen, Initialized: resticID != "", BackupAt: latest}, now); err != nil &&
+			KeyGeneration: keyGen, Initialized: resticID != "", BackupAt: latest, Stats: locationStats(stats)}, now); err != nil &&
 			!errors.Is(err, domain.ErrBackupRepositoryNotFound) {
 			return err
 		}
@@ -187,7 +209,7 @@ func (s *Service) onRetention(ctx context.Context, db bun.IDB, j domain.Job) err
 		return err
 	}
 	if err := store.UpsertBackupLocation(ctx, db, repoID, scope, store.LocationUpdate{ResticRepositoryID: out.ResticRepositoryID,
-		KeyGeneration: out.KeyGeneration}, now); err != nil && !errors.Is(err, domain.ErrBackupRepositoryNotFound) {
+		KeyGeneration: out.KeyGeneration, Stats: locationStats(out.Stats)}, now); err != nil && !errors.Is(err, domain.ErrBackupRepositoryNotFound) {
 		return err
 	}
 	return s.completeRotation(ctx, db)

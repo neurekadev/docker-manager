@@ -421,6 +421,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/backup-activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List running backups
+         * @description Every unfinished backup job the caller may read (job.read), with what it backs up now: the item, its progress, file and byte counts, restic's estimate and the file being read. The file is a path of the backed-up data: it is returned only with stack.files.read / volume.files.read on the item (the manager state: the owner). Live data kept in memory only; poll it while a backup runs.
+         */
+        get: operations["list-backup-activity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/backup-policies": {
         parameters: {
             query?: never;
@@ -4416,6 +4436,64 @@ export interface components {
             };
             volumes?: string[];
         };
+        BackupActivity: {
+            current?: components["schemas"]["BackupActivityItem"];
+            environmentId?: string;
+            /**
+             * Format: int64
+             * @description Stacks, volumes or manager state this job backs up.
+             */
+            itemCount: number;
+            jobId: string;
+            /** @enum {string} */
+            kind: "backup.run" | "manager.backup";
+            message?: string;
+            /**
+             * Format: int64
+             * @description Job progress 0-100, -1 unknown.
+             */
+            percent: number;
+            policyId?: string;
+            setId: string;
+            /** @enum {string} */
+            state: "queued" | "blocked" | "dispatched" | "running" | "cancelling";
+        };
+        BackupActivityItem: {
+            /** Format: int64 */
+            bytesDone: number;
+            /** Format: int64 */
+            bytesTotal: number;
+            /** @description The file being read, relative to the item (<volume>/<path> inside a volume). Only for holders of the scope's files-read capability. */
+            currentFile?: string;
+            /** Format: int64 */
+            filesDone: number;
+            /** Format: int64 */
+            filesTotal: number;
+            /**
+             * Format: int64
+             * @description 0-based position among the job's items.
+             */
+            index: number;
+            /** @example volume/media */
+            item: string;
+            /** @enum {string} */
+            kind: "stack" | "volume" | "manager_state";
+            /**
+             * Format: int64
+             * @description Progress of this item, 0-100.
+             */
+            percent: number;
+            /** Format: date-time */
+            reportedAt: string;
+            /** Format: int64 */
+            secondsRemaining?: number;
+            stackId?: string;
+            stackName?: string;
+            volume?: string;
+        };
+        BackupActivityList: {
+            jobs: components["schemas"]["BackupActivity"][];
+        };
         BackupConnectionTest: {
             /** Format: date-time */
             at: string;
@@ -4640,6 +4718,10 @@ export interface components {
             setId?: string;
         };
         BackupLocationHealth: {
+            /** Format: double */
+            compressionProgress?: number;
+            /** Format: double */
+            compressionRatio?: number;
             /** Format: int64 */
             keyGeneration: number;
             /** Format: date-time */
@@ -4647,12 +4729,34 @@ export interface components {
             /** Format: date-time */
             lastVerifiedAt?: string;
             lastVerifyResult?: string;
+            /** Format: date-time */
+            measuredAt?: string;
             /** @description restic repository location (no credentials). */
             repository: string;
             resticRepositoryId?: string;
             scope: string;
             /** Format: int64 */
             sizeBytes?: number;
+            /** Format: int64 */
+            uncompressedBytes?: number;
+        };
+        BackupLocationStorage: {
+            /** Format: double */
+            compressionProgress: number;
+            /** Format: double */
+            compressionRatio: number;
+            /** @description The environment whose data the location holds (none: the manager state). */
+            environmentId?: string;
+            /** Format: date-time */
+            measuredAt: string;
+            /** @example env:01a0 */
+            scope: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            /** Format: int64 */
+            snapshots: number;
+            /** Format: int64 */
+            uncompressedBytes: number;
         };
         BackupNode: {
             /** Format: int64 */
@@ -4747,6 +4851,8 @@ export interface components {
              * @enum {string}
              */
             state: "awaiting_confirmation" | "ready";
+            /** @description Measured size (full view; absent until a backup or prune measured a location). */
+            storage?: components["schemas"]["BackupStorage"];
             /** Format: date-time */
             updatedAt?: string;
             verification?: components["schemas"]["BackupVerification"];
@@ -4875,6 +4981,39 @@ export interface components {
             volumeExclude?: string[];
             /** @description Back up only these named volumes (Compose keys or Docker names); default: every named volume of the stack. */
             volumeInclude?: string[];
+        };
+        BackupStorage: {
+            /**
+             * Format: double
+             * @description Percentage of the data stored compressed, weighted by uncompressed size.
+             */
+            compressionProgress: number;
+            /**
+             * Format: double
+             * @description uncompressedBytes / sizeBytes (0 when nothing is stored).
+             */
+            compressionRatio: number;
+            locations: components["schemas"]["BackupLocationStorage"][];
+            /**
+             * Format: date-time
+             * @description The oldest location measurement.
+             */
+            measuredAt?: string;
+            /**
+             * Format: int64
+             * @description Stored at the destination (compressed and deduplicated).
+             */
+            sizeBytes: number;
+            /**
+             * Format: int64
+             * @description restic snapshots in the repository.
+             */
+            snapshots: number;
+            /**
+             * Format: int64
+             * @description The same data before compression.
+             */
+            uncompressedBytes: number;
         };
         BackupVerification: {
             /** @example 0 5 * * 0 */
@@ -12108,6 +12247,77 @@ export interface operations {
             };
         };
     };
+    "list-backup-activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "jobs": [
+                     *         {
+                     *           "current": {
+                     *             "bytesDone": 1,
+                     *             "bytesTotal": 1,
+                     *             "currentFile": "example",
+                     *             "filesDone": 1,
+                     *             "filesTotal": 1,
+                     *             "index": 1,
+                     *             "item": "volume/media",
+                     *             "kind": "stack",
+                     *             "percent": 1,
+                     *             "reportedAt": "2026-09-25T12:00:00Z",
+                     *             "secondsRemaining": 1,
+                     *             "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "stackName": "web",
+                     *             "volume": "example"
+                     *           },
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "itemCount": 1,
+                     *           "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "kind": "backup.run",
+                     *           "message": "example",
+                     *           "percent": 1,
+                     *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "setId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "state": "queued"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["BackupActivityList"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-backup-policies": {
         parameters: {
             query?: {
@@ -13727,6 +13937,26 @@ export interface operations {
                      *           "region": "example",
                      *           "revision": 1,
                      *           "state": "awaiting_confirmation",
+                     *           "storage": {
+                     *             "compressionProgress": 1,
+                     *             "compressionRatio": 1,
+                     *             "locations": [
+                     *               {
+                     *                 "compressionProgress": 1,
+                     *                 "compressionRatio": 1,
+                     *                 "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *                 "measuredAt": "2026-09-25T12:00:00Z",
+                     *                 "scope": "env:01a0",
+                     *                 "sizeBytes": 1,
+                     *                 "snapshots": 1,
+                     *                 "uncompressedBytes": 1
+                     *               }
+                     *             ],
+                     *             "measuredAt": "2026-09-25T12:00:00Z",
+                     *             "sizeBytes": 1,
+                     *             "snapshots": 1,
+                     *             "uncompressedBytes": 1
+                     *           },
                      *           "updatedAt": "2026-09-25T12:00:00Z",
                      *           "verification": {
                      *             "cron": "0 5 * * 0",
@@ -13876,6 +14106,26 @@ export interface operations {
                      *         "region": "example",
                      *         "revision": 1,
                      *         "state": "awaiting_confirmation",
+                     *         "storage": {
+                     *           "compressionProgress": 1,
+                     *           "compressionRatio": 1,
+                     *           "locations": [
+                     *             {
+                     *               "compressionProgress": 1,
+                     *               "compressionRatio": 1,
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "measuredAt": "2026-09-25T12:00:00Z",
+                     *               "scope": "env:01a0",
+                     *               "sizeBytes": 1,
+                     *               "snapshots": 1,
+                     *               "uncompressedBytes": 1
+                     *             }
+                     *           ],
+                     *           "measuredAt": "2026-09-25T12:00:00Z",
+                     *           "sizeBytes": 1,
+                     *           "snapshots": 1,
+                     *           "uncompressedBytes": 1
+                     *         },
                      *         "updatedAt": "2026-09-25T12:00:00Z",
                      *         "verification": {
                      *           "cron": "0 5 * * 0",
@@ -14007,6 +14257,26 @@ export interface operations {
                      *       "region": "example",
                      *       "revision": 1,
                      *       "state": "awaiting_confirmation",
+                     *       "storage": {
+                     *         "compressionProgress": 1,
+                     *         "compressionRatio": 1,
+                     *         "locations": [
+                     *           {
+                     *             "compressionProgress": 1,
+                     *             "compressionRatio": 1,
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "measuredAt": "2026-09-25T12:00:00Z",
+                     *             "scope": "env:01a0",
+                     *             "sizeBytes": 1,
+                     *             "snapshots": 1,
+                     *             "uncompressedBytes": 1
+                     *           }
+                     *         ],
+                     *         "measuredAt": "2026-09-25T12:00:00Z",
+                     *         "sizeBytes": 1,
+                     *         "snapshots": 1,
+                     *         "uncompressedBytes": 1
+                     *       },
                      *       "updatedAt": "2026-09-25T12:00:00Z",
                      *       "verification": {
                      *         "cron": "0 5 * * 0",
@@ -14237,6 +14507,26 @@ export interface operations {
                      *       "region": "example",
                      *       "revision": 1,
                      *       "state": "awaiting_confirmation",
+                     *       "storage": {
+                     *         "compressionProgress": 1,
+                     *         "compressionRatio": 1,
+                     *         "locations": [
+                     *           {
+                     *             "compressionProgress": 1,
+                     *             "compressionRatio": 1,
+                     *             "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *             "measuredAt": "2026-09-25T12:00:00Z",
+                     *             "scope": "env:01a0",
+                     *             "sizeBytes": 1,
+                     *             "snapshots": 1,
+                     *             "uncompressedBytes": 1
+                     *           }
+                     *         ],
+                     *         "measuredAt": "2026-09-25T12:00:00Z",
+                     *         "sizeBytes": 1,
+                     *         "snapshots": 1,
+                     *         "uncompressedBytes": 1
+                     *       },
                      *       "updatedAt": "2026-09-25T12:00:00Z",
                      *       "verification": {
                      *         "cron": "0 5 * * 0",
@@ -14480,14 +14770,18 @@ export interface operations {
                      *       "lastVerifiedAt": "2026-09-25T12:00:00Z",
                      *       "locations": [
                      *         {
+                     *           "compressionProgress": 1,
+                     *           "compressionRatio": 1,
                      *           "keyGeneration": 1,
                      *           "lastBackupAt": "2026-09-25T12:00:00Z",
                      *           "lastVerifiedAt": "2026-09-25T12:00:00Z",
                      *           "lastVerifyResult": "example",
+                     *           "measuredAt": "2026-09-25T12:00:00Z",
                      *           "repository": "example",
                      *           "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "scope": "example",
-                     *           "sizeBytes": 1
+                     *           "sizeBytes": 1,
+                     *           "uncompressedBytes": 1
                      *         }
                      *       ],
                      *       "problems": [
@@ -14802,6 +15096,26 @@ export interface operations {
                      *         "region": "example",
                      *         "revision": 1,
                      *         "state": "awaiting_confirmation",
+                     *         "storage": {
+                     *           "compressionProgress": 1,
+                     *           "compressionRatio": 1,
+                     *           "locations": [
+                     *             {
+                     *               "compressionProgress": 1,
+                     *               "compressionRatio": 1,
+                     *               "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "measuredAt": "2026-09-25T12:00:00Z",
+                     *               "scope": "env:01a0",
+                     *               "sizeBytes": 1,
+                     *               "snapshots": 1,
+                     *               "uncompressedBytes": 1
+                     *             }
+                     *           ],
+                     *           "measuredAt": "2026-09-25T12:00:00Z",
+                     *           "sizeBytes": 1,
+                     *           "snapshots": 1,
+                     *           "uncompressedBytes": 1
+                     *         },
                      *         "updatedAt": "2026-09-25T12:00:00Z",
                      *         "verification": {
                      *           "cron": "0 5 * * 0",

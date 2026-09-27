@@ -174,6 +174,51 @@ type ProgressPayload struct {
 	Percent int          `json:"percent"`
 	Message string       `json:"message,omitempty"`
 	Item    *ItemPayload `json:"item,omitempty"`
+	// Activity is transient live detail of a running backup (#10): the
+	// manager keeps the latest one in memory, never in the job record,
+	// its events or the audit trail. Sent only for commands whose input
+	// asked for it (BackupRunInput.Activity).
+	Activity *ActivityPayload `json:"activity,omitempty"`
+}
+
+// MaxActivityPath bounds ActivityPayload.CurrentFile.
+const MaxActivityPath = 4096
+
+// ActivityPayload is what a running backup is doing now (#10).
+type ActivityPayload struct {
+	// Item is the backup item key (stack/<id>, volume/<name>, ...).
+	Item string `json:"item"`
+	// ItemIndex (0-based) of ItemCount items of the command.
+	ItemIndex  int   `json:"itemIndex"`
+	ItemCount  int   `json:"itemCount"`
+	Percent    int   `json:"percent"`
+	FilesDone  int64 `json:"filesDone"`
+	FilesTotal int64 `json:"filesTotal"`
+	BytesDone  int64 `json:"bytesDone"`
+	BytesTotal int64 `json:"bytesTotal"`
+	// SecondsRemaining is restic's estimate for the item (0 unknown).
+	SecondsRemaining int64 `json:"secondsRemaining,omitempty"`
+	// CurrentFile is the file being read, relative to the item's data
+	// ("" between files). A file path: only holders of the scope's
+	// files-read capability may see it.
+	CurrentFile string `json:"currentFile,omitempty"`
+}
+
+// Validate checks the bounds of an activity report.
+func (a ActivityPayload) Validate() error {
+	switch {
+	case a.Item == "" || len(a.Item) > 512:
+		return invalid("activity item must be 1 to 512 bytes")
+	case a.ItemCount < 1 || a.ItemIndex < 0 || a.ItemIndex >= a.ItemCount:
+		return invalid("activity item index %d of %d out of range", a.ItemIndex, a.ItemCount)
+	case a.Percent < 0 || a.Percent > 100:
+		return invalid("activity percent %d out of range", a.Percent)
+	case a.FilesDone < 0 || a.FilesTotal < 0 || a.BytesDone < 0 || a.BytesTotal < 0 || a.SecondsRemaining < 0:
+		return invalid("activity counters must not be negative")
+	case len(a.CurrentFile) > MaxActivityPath:
+		return invalid("activity file path longer than %d bytes", MaxActivityPath)
+	}
+	return nil
 }
 
 // CompensationPayload reports a compensating action's outcome.

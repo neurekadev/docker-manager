@@ -73,6 +73,8 @@ type call struct {
 	raw   io.Writer
 	// ok lists additional exit codes that are not failures (backup: 3).
 	ok []int
+	// fps is RESTIC_PROGRESS_FPS ("" = one status line every 5 s).
+	fps string
 }
 
 type result struct {
@@ -126,7 +128,7 @@ func (p *repo) run(ctx context.Context, c call) (result, error) {
 	runCtx, stop := context.WithCancel(ctx)
 	defer stop()
 	cmd := exec.CommandContext(runCtx, bin, args...) //nolint:gosec // fixed binary; arguments carry no secrets and no shell
-	cmd.Env = p.env(pwPath, tmp)
+	cmd.Env = p.env(pwPath, tmp, c.fps)
 	cmd.Dir = c.dir
 	cmd.Stdin = c.stdin
 	cmd.ExtraFiles = files.extra
@@ -217,12 +219,15 @@ func (p *repo) globalArgs() []string {
 }
 
 // env builds the child's environment from scratch.
-func (p *repo) env(passwordFile, tmp string) []string {
+func (p *repo) env(passwordFile, tmp, fps string) []string {
+	if fps == "" {
+		// JSON status lines every 5 s (restic defaults to 60 per second).
+		fps = "0.2"
+	}
 	env := []string{
 		"RESTIC_REPOSITORY=" + p.loc.Repository,
 		"RESTIC_PASSWORD_FILE=" + passwordFile,
-		// JSON status lines every 5 s (restic defaults to 60 per second).
-		"RESTIC_PROGRESS_FPS=0.2",
+		"RESTIC_PROGRESS_FPS=" + fps,
 		"TMPDIR=" + tmp,
 		"HOME=" + tmp,
 	}
@@ -450,6 +455,9 @@ type message struct {
 	FilesDone   int64   `json:"files_done"`
 	TotalBytes  int64   `json:"total_bytes"`
 	BytesDone   int64   `json:"bytes_done"`
+	// status (backup)
+	SecondsRemaining int64    `json:"seconds_remaining"`
+	CurrentFiles     []string `json:"current_files"`
 	// summary (backup)
 	SnapshotID          string `json:"snapshot_id"`
 	FilesNew            int64  `json:"files_new"`
@@ -473,7 +481,12 @@ type message struct {
 }
 
 func progressOf(m message) Progress {
-	return Progress{Percent: m.PercentDone * 100, FilesDone: m.FilesDone, FilesTotal: m.TotalFiles, BytesDone: m.BytesDone, BytesTotal: m.TotalBytes}
+	pr := Progress{Percent: m.PercentDone * 100, FilesDone: m.FilesDone, FilesTotal: m.TotalFiles, BytesDone: m.BytesDone,
+		BytesTotal: m.TotalBytes, SecondsRemaining: m.SecondsRemaining}
+	if len(m.CurrentFiles) > 0 {
+		pr.CurrentFile = m.CurrentFiles[0]
+	}
+	return pr
 }
 
 func (p *repo) Init(ctx context.Context) (string, error) {
@@ -532,7 +545,11 @@ func (p *repo) Backup(ctx context.Context, req BackupRequest) (BackupSummary, er
 	}
 	var sum BackupSummary
 	var found bool
-	res, err := p.run(ctx, call{op: "backup", args: args, stdin: req.Stdin, dir: req.Dir, ok: []int{3},
+	fps := ""
+	if req.Progress != nil {
+		fps = "1" // the current file is shown live (#10)
+	}
+	res, err := p.run(ctx, call{op: "backup", args: args, stdin: req.Stdin, dir: req.Dir, ok: []int{3}, fps: fps,
 		lines: func(line []byte) {
 			var m message
 			if json.Unmarshal(line, &m) != nil {

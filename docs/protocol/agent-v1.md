@@ -385,7 +385,10 @@ v1, fields and frame types are only added, and receivers reject unknown
 fields, so an addition is used only after both sides announce it (`features`).
 Example: agents announce `frame.request_id` (`protocol.FeatureRequestID`);
 the manager sets the envelope's `requestId` only on sessions whose agent
-announced it (#34). Upgrade procedure: `docs/operations/upgrades.md`.
+announced it (#34). Likewise `backup.activity`
+(`protocol.FeatureBackupActivity`, #10): only those agents get
+`backup.run` inputs with `activity: true`, and only then send progress
+frames with `activity`. Upgrade procedure: `docs/operations/upgrades.md`.
 
 ### command, ack, progress, result, job_report, cancel (jobs, #26)
 
@@ -409,7 +412,14 @@ Defined in `internal/protocol/jobs.go` and
   highWater}`; rejection codes `duplicate`, `stale_fencing_token`,
   `unsupported_kind`, `invalid_command`, `attempt_in_progress`,
   `deadline_exceeded`, `journal_failed`.
-- `progress {step, percent (-1 unknown), message, item}`, `result {outcome,
+- `progress {step, percent (-1 unknown), message, item, activity}`;
+  `activity {item, itemIndex, itemCount, percent, filesDone, filesTotal,
+  bytesDone, bytesTotal, secondsRemaining, currentFile}` is a running
+  backup's live state (#10, `protocol.ActivityPayload`): a frame with only
+  `activity` is kept in the manager's memory, never in the job, its events
+  or the audit trail, and `currentFile` (relative to the item, at most
+  4096 bytes) reaches only holders of the scope's files-read capability.
+  `result {outcome,
   errorClass, message, recovery, items, completedSteps, interruptedStep,
   resumable, compensations, output}`; outcomes `succeeded`, `failed`, `partial`,
   `cancelled`, `interrupted`. `output` is the kind's result data (a JSON

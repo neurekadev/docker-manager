@@ -214,6 +214,32 @@ Verification (`backup.verify`, `manager.verify`) runs `restic check`, with
 `repository_damaged`. Each repository has an editable verification
 schedule (#13 kind `backup_verification`, disabled until enabled).
 
+## Live activity and storage statistics
+
+- **Activity.** restic reports a status line every second while a backup
+  runs (`RESTIC_PROGRESS_FPS=1` when the caller wants progress), including
+  `current_files`. The persisted job progress (at most every 5 s) carries
+  only counts ("backing up volume/media (12 of 30 files)"), because
+  `job.read` holders see it. The file itself travels as
+  `ProgressPayload.Activity` (`protocol.ActivityPayload`, relative to the
+  item: `<volume>/<path>`, a project-relative path, else the base name):
+  the engine hands activity-only frames to `Engine.OnActivity` without a
+  transaction or job event, and `backups.Service` keeps the latest report
+  per job in memory (dropped when the job finishes, stale after 30 s).
+  Agents announce `backup.activity`; only then does `backup.run` get
+  `activity: true`. `GET /backup-activity` lists unfinished backup jobs
+  the caller may read (`job.read`) and returns `currentFile` only with
+  `stack.files.read` / `volume.files.read` on the item (the manager state:
+  the owner). The overview polls it while something runs.
+- **Storage.** After every backup (agent `record`, manager `write_manifest`)
+  and every prune, the executor runs `restic stats --mode raw-data`
+  (`backup.MeasureStats`: index and directory metadata only, never file
+  contents; a failure never fails the job) and returns it as `stats`. The
+  finish hooks store it on the location (`backup_locations`: size,
+  uncompressed size, ratio, compression progress, restic snapshot count,
+  `stats_at`). Repositories expose the sum as `storage` (with every measured
+  location, so views can filter by environment).
+
 ## Restores (host data)
 
 `POST /backups/{id}/restore-previews` and `.../restores` (`confirm: true`)

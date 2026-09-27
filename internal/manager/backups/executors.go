@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
@@ -54,6 +55,8 @@ type managerBackupOutput struct {
 	KeyGeneration      int            `json:"keyGeneration,omitempty"`
 	Member             *backup.Member `json:"member,omitempty"`
 	ManifestSnapshotID string         `json:"manifestSnapshotId,omitempty"`
+	// Stats is the location's size after the run (#10).
+	Stats *protocol.RepositoryStats `json:"stats,omitempty"`
 }
 
 func (s *Service) executors() []jobexec.Executor {
@@ -178,7 +181,18 @@ func (s *Service) stepManagerBackup(ctx context.Context, sc *jobexec.StepContext
 		tags = append(tags, backup.PolicyTag(in.PolicyID))
 	}
 	sum, err := o.Repo.Backup(ctx, restic.BackupRequest{Paths: []string{dir}, Tags: tags, Host: ManagerHost,
-		Progress: func(p restic.Progress) { sc.Progress(ctx, 20+int(p.Percent*0.7), "backing up the manager state") }})
+		Progress: func(p restic.Progress) {
+			sc.Progress(ctx, 20+int(p.Percent*0.7), "backing up the manager state")
+			a := protocol.ActivityPayload{Item: backup.ItemManagerState, ItemCount: 1, Percent: min(100, max(0, int(p.Percent))),
+				FilesDone: max(0, p.FilesDone), FilesTotal: max(0, p.FilesTotal), BytesDone: max(0, p.BytesDone),
+				BytesTotal: max(0, p.BytesTotal), SecondsRemaining: max(0, p.SecondsRemaining)}
+			if p.CurrentFile != "" {
+				if rel, err := filepath.Rel(dir, p.CurrentFile); err == nil && !strings.HasPrefix(rel, "..") {
+					a.CurrentFile = filepath.ToSlash(rel)
+				}
+			}
+			sc.Activity(ctx, a)
+		}})
 	if err != nil {
 		_ = sc.SetOutput(ctx, out)
 		return err
@@ -230,6 +244,7 @@ func (s *Service) stepWriteManifest(ctx context.Context, sc *jobexec.StepContext
 		return err
 	}
 	out.ManifestSnapshotID = sum.SnapshotID
+	out.Stats = protocol.StatsOf(backup.MeasureStats(ctx, o.Repo))
 	return sc.SetOutput(ctx, out)
 }
 
@@ -345,10 +360,13 @@ func (s *Service) stepManagerPrune(ctx context.Context, sc *jobexec.StepContext)
 	if err != nil {
 		return err
 	}
-	out.ReclaimedBytes, err = backup.Prune(ctx, o.Repo)
+	var after *restic.Stats
+	out.ReclaimedBytes, after, err = backup.Prune(ctx, o.Repo)
 	if err != nil {
 		out.PruneError = restic.CodeOf(err)
+		after = backup.MeasureStats(ctx, o.Repo) // forget still changed it
 	}
+	out.Stats = protocol.StatsOf(after)
 	if serr := sc.SetOutput(ctx, out); serr != nil {
 		return serr
 	}
