@@ -96,6 +96,8 @@ export interface LiveScopes {
 	stackIds?: string[];
 	/** `<environmentId>/<volume name>` of open volume file views. */
 	volumes?: string[];
+	/** Template IDs with an open draft file view. */
+	templateIds?: string[];
 	topics?: string[];
 }
 
@@ -209,6 +211,7 @@ export class LiveClient {
 			environmentId: s.environmentId,
 			stackIds: norm(s.stackIds),
 			volumes: norm(s.volumes),
+			templateIds: norm(s.templateIds),
 			topics: s.topics ? norm(s.topics) : undefined
 		};
 		if (JSON.stringify(next) === JSON.stringify(this.#scopes)) return;
@@ -223,6 +226,7 @@ export class LiveClient {
 		if (s.environmentId) p.set('environmentId', s.environmentId);
 		if (s.stackIds?.length) p.set('stackId', s.stackIds.join(','));
 		if (s.volumes?.length) p.set('volume', s.volumes.join(','));
+		if (s.templateIds?.length) p.set('templateId', s.templateIds.join(','));
 		if (this.#cursor) p.set('cursor', this.#cursor);
 		const q = p.toString();
 		return q ? `${LIVE_URL}?${q}` : LIVE_URL;

@@ -59,8 +59,9 @@ describe('navigation filter (#17)', () => {
 		const ids = visibleNav(accessOf(perms({ owner: true }))).map((i) => i.id);
 		expect(ids).toContain('access');
 		expect(ids).toContain('registries');
+		expect(ids).toContain('templates');
 		expect(ids).toContain('schedules');
-		expect(ids).toHaveLength(16);
+		expect(ids).toHaveLength(17);
 	});
 
 	it('shows Schedules, after Jobs, to readers of scheduled policies only', () => {

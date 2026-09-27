@@ -1,8 +1,8 @@
-// The scoped file API (#15, docs/internal/api/files.md) for both roots through the
-// generated client: a stack's project directory (/stacks/{id}/files) and a
-// volume (/environments/{env}/volumes/{volume}/files) share every route
-// suffix, body and answer, so the file manager is written once against
-// FileScope. Query keys follow the live conventions (liveKeys.files), so a
+// The scoped file API (#15, docs/internal/api/files.md) for every root through
+// the generated client: a stack's project directory (/stacks/{id}/files), a
+// volume (/environments/{env}/volumes/{volume}/files) and a template's draft
+// (/templates/{id}/files, served by the manager) share every route suffix,
+// body and answer, so the file manager is written once against FileScope. Query keys follow the live conventions (liveKeys.files), so a
 // files.changed event refreshes listings and open files (#23).
 import { infiniteQueryOptions, queryOptions } from '@tanstack/svelte-query';
 import { api, unwrap, type ApiClient, type Schema } from '$lib/api/client';
@@ -18,20 +18,27 @@ export type FileJob = Schema<'Job'>;
 /** The root of a file manager. */
 export type FileScope =
 	| { kind: 'stack'; stackId: string; environmentId: string }
-	| { kind: 'volume'; environmentId: string; volume: string };
+	| { kind: 'volume'; environmentId: string; volume: string }
+	| { kind: 'template'; templateId: string };
 
 export function liveScopeOf(s: FileScope): FileScopeRef {
-	return s.kind === 'stack'
-		? { kind: 'stack', id: s.stackId }
-		: { kind: 'volume', id: `${s.environmentId}/${s.volume}` };
+	switch (s.kind) {
+		case 'stack':
+			return { kind: 'stack', id: s.stackId };
+		case 'volume':
+			return { kind: 'volume', id: `${s.environmentId}/${s.volume}` };
+		case 'template':
+			return { kind: 'template', id: s.templateId };
+	}
 }
 
 /** A stable identity of the scope (clipboard, drag data, tabs). */
 export function scopeKey(s: FileScope): string {
-	return s.kind === 'stack' ? `stack:${s.stackId}` : `volume:${s.environmentId}/${s.volume}`;
+	const r = liveScopeOf(s);
+	return `${r.kind}:${r.id}`;
 }
 
-/** The capability prefix of the root: stack.files. or volume.files. */
+/** The capability prefix of the root: stack.files., volume.files. or template.files. */
 export function filesCapability(s: FileScope, verb: FileVerb): string {
 	return `${s.kind}.files.${verb}`;
 }
@@ -51,9 +58,14 @@ export type FileVerb =
 /** The URL prefix of the root's file routes (downloads, uploads). */
 export function filesBase(s: FileScope): string {
 	const e = encodeURIComponent;
-	return s.kind === 'stack'
-		? `/api/v1/stacks/${e(s.stackId)}/files`
-		: `/api/v1/environments/${e(s.environmentId)}/volumes/${e(s.volume)}/files`;
+	switch (s.kind) {
+		case 'stack':
+			return `/api/v1/stacks/${e(s.stackId)}/files`;
+		case 'volume':
+			return `/api/v1/environments/${e(s.environmentId)}/volumes/${e(s.volume)}/files`;
+		case 'template':
+			return `/api/v1/templates/${e(s.templateId)}/files`;
+	}
 }
 
 export type ListSort =
@@ -99,6 +111,23 @@ export class FilesApi {
 		return { environmentId: s.environmentId, volumeId: s.volume };
 	}
 
+	private get templatePath() {
+		const s = this.scope as Extract<FileScope, { kind: 'template' }>;
+		return { templateId: s.templateId };
+	}
+
+	/** Runs the call of the scope's root (the routes differ only in path). */
+	private by<S, V, T>(calls: { stack: () => S; volume: () => V; template: () => T }): S | V | T {
+		switch (this.scope.kind) {
+			case 'stack':
+				return calls.stack();
+			case 'volume':
+				return calls.volume();
+			case 'template':
+				return calls.template();
+		}
+	}
+
 	list(dir: string, f: ListFilters, cursor?: string, signal?: AbortSignal): Promise<FileListing> {
 		const query = {
 			path: dir,
@@ -109,15 +138,26 @@ export class FilesApi {
 			cursor
 		};
 		return unwrap(
-			this.scope.kind === 'stack'
-				? this.client.GET('/api/v1/stacks/{stackId}/files', {
+			this.by({
+				stack: () =>
+					this.client.GET('/api/v1/stacks/{stackId}/files', {
 						params: { path: this.stackPath, query },
 						signal
-					})
-				: this.client.GET('/api/v1/environments/{environmentId}/volumes/{volumeId}/files', {
-						params: { path: this.volumePath, query },
+					}),
+				volume: () =>
+					this.client.GET(
+						'/api/v1/environments/{environmentId}/volumes/{volumeId}/files',
+						{
+							params: { path: this.volumePath, query },
+							signal
+						}
+					),
+				template: () =>
+					this.client.GET('/api/v1/templates/{templateId}/files', {
+						params: { path: this.templatePath, query },
 						signal
 					})
+			})
 		);
 	}
 
@@ -125,15 +165,23 @@ export class FilesApi {
 	read(path: string, signal?: AbortSignal): Promise<{ data: FileContent; etag: string | null }> {
 		const query = { path };
 		return withEtag(
-			this.scope.kind === 'stack'
-				? this.client.GET('/api/v1/stacks/{stackId}/files/content', {
+			this.by({
+				stack: () =>
+					this.client.GET('/api/v1/stacks/{stackId}/files/content', {
 						params: { path: this.stackPath, query },
 						signal
-					})
-				: this.client.GET(
+					}),
+				volume: () =>
+					this.client.GET(
 						'/api/v1/environments/{environmentId}/volumes/{volumeId}/files/content',
 						{ params: { path: this.volumePath, query }, signal }
-					)
+					),
+				template: () =>
+					this.client.GET('/api/v1/templates/{templateId}/files/content', {
+						params: { path: this.templatePath, query },
+						signal
+					})
+			})
 		);
 	}
 
@@ -150,30 +198,46 @@ export class FilesApi {
 			'ifMatch' in pre ? { 'If-Match': pre.ifMatch } : { 'If-None-Match': '*' as const };
 		const query = { path };
 		return withEtag(
-			this.scope.kind === 'stack'
-				? this.client.PUT('/api/v1/stacks/{stackId}/files/content', {
+			this.by({
+				stack: () =>
+					this.client.PUT('/api/v1/stacks/{stackId}/files/content', {
 						params: { path: this.stackPath, query, header },
 						body: { content }
-					})
-				: this.client.PUT(
+					}),
+				volume: () =>
+					this.client.PUT(
 						'/api/v1/environments/{environmentId}/volumes/{volumeId}/files/content',
 						{ params: { path: this.volumePath, query, header }, body: { content } }
-					)
+					),
+				template: () =>
+					this.client.PUT('/api/v1/templates/{templateId}/files/content', {
+						params: { path: this.templatePath, query, header },
+						body: { content }
+					})
+			})
 		);
 	}
 
 	createEntry(path: string, type: 'file' | 'dir', content?: string): Promise<FileEntry> {
 		const body = { path, type, content };
 		return unwrap(
-			this.scope.kind === 'stack'
-				? this.client.POST('/api/v1/stacks/{stackId}/files/entries', {
+			this.by({
+				stack: () =>
+					this.client.POST('/api/v1/stacks/{stackId}/files/entries', {
 						params: { path: this.stackPath },
 						body
-					})
-				: this.client.POST(
+					}),
+				volume: () =>
+					this.client.POST(
 						'/api/v1/environments/{environmentId}/volumes/{volumeId}/files/entries',
 						{ params: { path: this.volumePath }, body }
-					)
+					),
+				template: () =>
+					this.client.POST('/api/v1/templates/{templateId}/files/entries', {
+						params: { path: this.templatePath },
+						body
+					})
+			})
 		);
 	}
 
@@ -185,15 +249,23 @@ export class FilesApi {
 		recursive?: boolean;
 	}): Promise<FilePreview> {
 		return unwrap(
-			this.scope.kind === 'stack'
-				? this.client.POST('/api/v1/stacks/{stackId}/files/conflict-previews', {
+			this.by({
+				stack: () =>
+					this.client.POST('/api/v1/stacks/{stackId}/files/conflict-previews', {
 						params: { path: this.stackPath },
 						body
-					})
-				: this.client.POST(
+					}),
+				volume: () =>
+					this.client.POST(
 						'/api/v1/environments/{environmentId}/volumes/{volumeId}/files/conflict-previews',
 						{ params: { path: this.volumePath }, body }
-					)
+					),
+				template: () =>
+					this.client.POST('/api/v1/templates/{templateId}/files/conflict-previews', {
+						params: { path: this.templatePath },
+						body
+					})
+			})
 		);
 	}
 
@@ -205,15 +277,23 @@ export class FilesApi {
 		const body = { paths, destination, conflict };
 		const header = { 'Idempotency-Key': idempotencyKey() };
 		return unwrap(
-			this.scope.kind === 'stack'
-				? this.client.POST('/api/v1/stacks/{stackId}/files/copies', {
+			this.by({
+				stack: () =>
+					this.client.POST('/api/v1/stacks/{stackId}/files/copies', {
 						params: { path: this.stackPath, header },
 						body
-					})
-				: this.client.POST(
+					}),
+				volume: () =>
+					this.client.POST(
 						'/api/v1/environments/{environmentId}/volumes/{volumeId}/files/copies',
 						{ params: { path: this.volumePath, header }, body }
-					)
+					),
+				template: () =>
+					this.client.POST('/api/v1/templates/{templateId}/files/copies', {
+						params: { path: this.templatePath, header },
+						body
+					})
+			})
 		);
 	}
 
@@ -227,15 +307,23 @@ export class FilesApi {
 		const body = { paths, destination, conflict, name };
 		const header = { 'Idempotency-Key': idempotencyKey() };
 		return unwrap(
-			this.scope.kind === 'stack'
-				? this.client.POST('/api/v1/stacks/{stackId}/files/moves', {
+			this.by({
+				stack: () =>
+					this.client.POST('/api/v1/stacks/{stackId}/files/moves', {
 						params: { path: this.stackPath, header },
 						body
-					})
-				: this.client.POST(
+					}),
+				volume: () =>
+					this.client.POST(
 						'/api/v1/environments/{environmentId}/volumes/{volumeId}/files/moves',
 						{ params: { path: this.volumePath, header }, body }
-					)
+					),
+				template: () =>
+					this.client.POST('/api/v1/templates/{templateId}/files/moves', {
+						params: { path: this.templatePath, header },
+						body
+					})
+			})
 		);
 	}
 
@@ -243,15 +331,23 @@ export class FilesApi {
 		const body = { paths };
 		const header = { 'Idempotency-Key': idempotencyKey() };
 		return unwrap(
-			this.scope.kind === 'stack'
-				? this.client.POST('/api/v1/stacks/{stackId}/files/deletions', {
+			this.by({
+				stack: () =>
+					this.client.POST('/api/v1/stacks/{stackId}/files/deletions', {
 						params: { path: this.stackPath, header },
 						body
-					})
-				: this.client.POST(
+					}),
+				volume: () =>
+					this.client.POST(
 						'/api/v1/environments/{environmentId}/volumes/{volumeId}/files/deletions',
 						{ params: { path: this.volumePath, header }, body }
-					)
+					),
+				template: () =>
+					this.client.POST('/api/v1/templates/{templateId}/files/deletions', {
+						params: { path: this.templatePath, header },
+						body
+					})
+			})
 		);
 	}
 
@@ -264,15 +360,23 @@ export class FilesApi {
 		const body = { paths, destination, format, conflict };
 		const header = { 'Idempotency-Key': idempotencyKey() };
 		return unwrap(
-			this.scope.kind === 'stack'
-				? this.client.POST('/api/v1/stacks/{stackId}/files/archives', {
+			this.by({
+				stack: () =>
+					this.client.POST('/api/v1/stacks/{stackId}/files/archives', {
 						params: { path: this.stackPath, header },
 						body
-					})
-				: this.client.POST(
+					}),
+				volume: () =>
+					this.client.POST(
 						'/api/v1/environments/{environmentId}/volumes/{volumeId}/files/archives',
 						{ params: { path: this.volumePath, header }, body }
-					)
+					),
+				template: () =>
+					this.client.POST('/api/v1/templates/{templateId}/files/archives', {
+						params: { path: this.templatePath, header },
+						body
+					})
+			})
 		);
 	}
 
@@ -284,15 +388,23 @@ export class FilesApi {
 		const body = { path, destination, conflict };
 		const header = { 'Idempotency-Key': idempotencyKey() };
 		return unwrap(
-			this.scope.kind === 'stack'
-				? this.client.POST('/api/v1/stacks/{stackId}/files/extractions', {
+			this.by({
+				stack: () =>
+					this.client.POST('/api/v1/stacks/{stackId}/files/extractions', {
 						params: { path: this.stackPath, header },
 						body
-					})
-				: this.client.POST(
+					}),
+				volume: () =>
+					this.client.POST(
 						'/api/v1/environments/{environmentId}/volumes/{volumeId}/files/extractions',
 						{ params: { path: this.volumePath, header }, body }
-					)
+					),
+				template: () =>
+					this.client.POST('/api/v1/templates/{templateId}/files/extractions', {
+						params: { path: this.templatePath, header },
+						body
+					})
+			})
 		);
 	}
 
@@ -304,15 +416,23 @@ export class FilesApi {
 	}): Promise<FileJob> {
 		const header = { 'Idempotency-Key': idempotencyKey() };
 		return unwrap(
-			this.scope.kind === 'stack'
-				? this.client.PATCH('/api/v1/stacks/{stackId}/files/metadata', {
+			this.by({
+				stack: () =>
+					this.client.PATCH('/api/v1/stacks/{stackId}/files/metadata', {
 						params: { path: this.stackPath, header },
 						body
-					})
-				: this.client.PATCH(
+					}),
+				volume: () =>
+					this.client.PATCH(
 						'/api/v1/environments/{environmentId}/volumes/{volumeId}/files/metadata',
 						{ params: { path: this.volumePath, header }, body }
-					)
+					),
+				template: () =>
+					this.client.PATCH('/api/v1/templates/{templateId}/files/metadata', {
+						params: { path: this.templatePath, header },
+						body
+					})
+			})
 		);
 	}
 

@@ -196,8 +196,17 @@
 	// other sessions, containers or host tools refresh it.
 	onMount(() => {
 		const c = liveClient();
-		if (scope.kind === 'stack') c?.setScopes({ stackIds: [scope.stackId] });
-		else c?.setScopes({ volumes: [`${scope.environmentId}/${scope.volume}`] });
+		switch (scope.kind) {
+			case 'stack':
+				c?.setScopes({ stackIds: [scope.stackId] });
+				break;
+			case 'volume':
+				c?.setScopes({ volumes: [`${scope.environmentId}/${scope.volume}`] });
+				break;
+			case 'template':
+				c?.setScopes({ templateIds: [scope.templateId] });
+				break;
+		}
 	});
 	onDestroy(() => liveClient()?.setScopes({}));
 

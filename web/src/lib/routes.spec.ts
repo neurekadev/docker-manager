@@ -97,6 +97,12 @@ const calls: Record<keyof typeof routes, string[]> = {
 	buildDefinitions: [routes.buildDefinitions()],
 	newBuild: [routes.newBuild(), routes.newBuild('env-1', 'def-1')],
 	build: [routes.build('env-1', 'b-1')],
+	templates: [routes.templates(), routes.templates('web')],
+	newTemplate: [routes.newTemplate()],
+	template: [
+		routes.template('tp-1'),
+		...(['files', 'versions', 'settings'] as const).map((t) => routes.template('tp-1', t))
+	],
 	registries: [routes.registries()],
 	gitCredentials: [routes.gitCredentials()],
 	registryMatches: [routes.registryMatches()],

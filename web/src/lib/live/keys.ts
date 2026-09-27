@@ -65,8 +65,8 @@ export interface Invalidation {
 }
 
 export interface FileScopeRef {
-	kind: 'stack' | 'volume';
-	/** Stack ID, or `<environmentId>/<volume name>`. */
+	kind: 'stack' | 'volume' | 'template';
+	/** Stack ID, `<environmentId>/<volume name>` or template ID. */
 	id: string;
 }
 
@@ -96,6 +96,8 @@ export function fileScopeOf(e: LiveFilesChanged): FileScopeRef | null {
 			return { kind: 'stack', id: e.scope.id };
 		case 'volume':
 			return { kind: 'volume', id: `${e.scope.environmentId}/${e.scope.id}` };
+		case 'template':
+			return { kind: 'template', id: e.scope.id };
 	}
 	return null;
 }

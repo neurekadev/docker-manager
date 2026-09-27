@@ -1,0 +1,51 @@
+---
+title: Templates
+description: Save a complete Compose project once and create stacks from it again and again.
+---
+
+A template is a complete Compose project: the `compose.yaml`, an optional
+`.env` and every file next to them, such as a config file a service mounts.
+You keep editing a template's **draft** and **publish versions** of it.
+
+## Create a template
+
+1. **Templates → New template**: give it a name, a short description and
+   some tags (for example `cloud, files`).
+2. The template's **Files** tab opens with a starter `compose.yaml`. Edit
+   it, add a `.env` and upload or create the files your services need, the
+   same way as in a stack's **Files** tab.
+3. Press **Publish version**. Pick a version such as `1.0.0` and write what
+   changed. Publishing freezes the files as they are; you can keep editing
+   the draft afterwards and publish again.
+
+A template can hold up to 32 MB of files. Its Compose file must not set a
+top-level `name:`, because every stack you create from it gets its own
+name.
+
+## Icons and tags
+
+- **Settings → Icon** takes a PNG, JPEG, GIF, WebP or SVG image up to
+  256 KB. A square image with a little empty space around it looks best.
+- Tags help people find templates. On the **Templates** page, pick a tag
+  under **Browse by tag**, or search by name, description or tag.
+
+## Private and public templates
+
+New templates are **private**: only people on this Docker Manager with
+access to them can use them.
+
+**Settings → Make public** shares a template with other Docker Manager
+instances. Anyone who has your instance's registry address can then download
+**every file of every published version, including `.env`**. Before you
+make a template public:
+
+- remove passwords, keys and tokens from its files, and
+- publish a clean version.
+
+Docker Manager asks you to confirm this every time you make a template
+public or publish a version of a public template.
+
+## Versions
+
+The **Versions** tab lists every published version. Deleting a version
+does not affect stacks that were created from it.
