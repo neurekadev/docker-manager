@@ -114,3 +114,76 @@ export function templateVersionsQuery(id: string, client: ApiClient = api) {
 		enabled: !!id
 	});
 }
+
+// Registries and the catalog of every registry ----------------------------
+
+export type TemplateRegistryInfo = Schema<'TemplateRegistryInfo'>;
+export type TemplateCatalogItem = Schema<'TemplateCatalogItem'>;
+export type RegistryDefinition = Schema<'RegistryDefinition'>;
+
+export const catalogKeys = {
+	registries: () => liveKeys.list('templates', 'registries'),
+	catalog: () => liveKeys.list('templates', 'catalog'),
+	item: (instanceId: string, templateId: string) =>
+		liveKeys.item('templates', 'catalog', instanceId, templateId),
+	definition: (instanceId: string, templateId: string, version: number) =>
+		liveKeys.item('templates', 'catalog', instanceId, templateId, String(version))
+};
+
+/** This instance's registry (first) and the added registries. */
+export function templateRegistriesQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: catalogKeys.registries(),
+		queryFn: async ({ signal }) =>
+			(await unwrap(client.GET('/api/v1/template-registries', { signal }))).items,
+		staleTime: 10_000
+	});
+}
+
+/** Templates of every registry the caller may browse. */
+export function templateCatalogQuery(client: ApiClient = api) {
+	return queryOptions({
+		queryKey: catalogKeys.catalog(),
+		queryFn: async ({ signal }) =>
+			(await unwrap(client.GET('/api/v1/template-catalog', { signal }))).items,
+		staleTime: 10_000
+	});
+}
+
+/** One template of an added registry. */
+export function catalogItemQuery(instanceId: string, templateId: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: catalogKeys.item(instanceId, templateId),
+		queryFn: ({ signal }) =>
+			unwrap(
+				client.GET('/api/v1/template-catalog/{instanceId}/{templateId}', {
+					params: { path: { instanceId, templateId } },
+					signal
+				})
+			),
+		enabled: !!instanceId && !!templateId,
+		retry: false
+	});
+}
+
+/** A registry template version's Compose files (downloaded from its registry). */
+export function catalogDefinitionQuery(
+	instanceId: string,
+	templateId: string,
+	version: number,
+	client: ApiClient = api
+) {
+	return queryOptions({
+		queryKey: catalogKeys.definition(instanceId, templateId, version),
+		queryFn: ({ signal }) =>
+			unwrap(
+				client.GET(
+					'/api/v1/template-catalog/{instanceId}/{templateId}/versions/{version}/definition',
+					{ params: { path: { instanceId, templateId, version } }, signal }
+				)
+			),
+		enabled: !!instanceId && !!templateId && version > 0,
+		retry: false,
+		staleTime: Infinity
+	});
+}

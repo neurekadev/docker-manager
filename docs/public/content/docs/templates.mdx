@@ -75,6 +75,22 @@ also its **registry address**. The **Templates** page shows it under
 Only public templates with a published version are shared. Private
 templates and unpublished drafts never are.
 
+## Use templates from another Docker Manager
+
+1. On the other Docker Manager, copy the address shown under **Templates →
+   Registries → This instance's registry**.
+2. Here, open **Templates → Registries → Add registry** and paste it. Only
+   the owner of this Docker Manager can add registries.
+
+Its public templates now appear on the **Templates** page next to yours,
+with the registry's name. Filter by registry or tag, open one to see its
+versions, and press **Create stack**. The list is refreshed every 30
+minutes; **Sync now** refreshes it at once.
+
+If you remove a registry, its templates disappear from the list. Stacks
+you created from them keep working, but no longer show the template's
+icon. Add the registry again and the icons come back.
+
 ## Versions
 
 The **Versions** tab lists every published version. Deleting a version

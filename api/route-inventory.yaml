@@ -1750,6 +1750,77 @@ routes:
     status: implemented
     notes: "A public version's tar.gz; lower rate limit."
   - method: GET
+    path: "/api/v1/template-registries"
+    operationId: list-template-registries
+    capability: template.read
+    scope: instance
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "This instance first (not removable), then added registries."
+  - method: POST
+    path: "/api/v1/template-registries"
+    operationId: create-template-registry
+    capability: owner
+    scope: instance
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Adds another instance by URL; reads its index now."
+  - method: DELETE
+    path: "/api/v1/template-registries/{instanceId}"
+    operationId: delete-template-registry
+    capability: owner
+    scope: instance
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Drops cached templates and icons; stacks keep working."
+  - method: POST
+    path: "/api/v1/template-registries/{instanceId}/syncs"
+    operationId: create-template-registry-sync
+    capability: owner
+    scope: instance
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Syncs now."
+  - method: GET
+    path: "/api/v1/template-registries/{instanceId}/templates/{templateId}/icon"
+    operationId: get-template-registry-template-icon
+    capability: authenticated
+    scope: none
+    owner: 7
+    kind: stream
+    status: implemented
+    notes: "Cached icon of a registry template."
+  - method: GET
+    path: "/api/v1/template-catalog"
+    operationId: list-template-catalog
+    capability: template.read
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Own templates and the cached templates of every registry."
+  - method: GET
+    path: "/api/v1/template-catalog/{instanceId}/{templateId}"
+    operationId: get-template-catalog-item
+    capability: template.read
+    scope: instance
+    owner: 7
+    kind: json
+    status: implemented
+  - method: GET
+    path: "/api/v1/template-catalog/{instanceId}/{templateId}/versions/{version}/definition"
+    operationId: get-template-catalog-definition
+    capability: template.use
+    scope: instance
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Downloads the version from its registry."
+  - method: GET
     path: "/api/v1/templates/{templateId}/files"
     operationId: list-template-files
     capability: template.files.read

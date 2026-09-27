@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Create stack from template (template registry), a dialog over the
-	// stack list. Step one finds a template (search and tags, templates with
-	// a published version you may use); step two picks the version, the
+	// stack list. Step one finds a template of any registry (this instance's
+	// and the added ones; search and tags; templates with a published version
+	// you may use); step two picks the version, the
 	// environment and the name, and shows the version's .env to edit. The
 	// stack is created from the template's files; an edited .env is saved
 	// to the new stack right after (through its file routes), then it is
@@ -33,12 +34,12 @@
 		toast
 	} from '$lib/ui';
 	import { createStackFromTemplate } from './actions';
-	import { projectNameFor, tagCounts, templateSearch } from './model';
+	import { catalogHref, catalogSearch, projectNameFor, tagCounts } from './model';
 	import {
+		catalogDefinitionQuery,
+		templateCatalogQuery,
 		templateDefinitionQuery,
-		templateVersionsQuery,
-		templatesQuery,
-		type Template
+		type TemplateCatalogItem
 	} from './queries';
 	import TemplateCard from './TemplateCard.svelte';
 	import TemplateIcon from './TemplateIcon.svelte';
@@ -48,27 +49,32 @@
 		environmentId?: string | null;
 		/** Preselected template (from its page). */
 		templateId?: string | null;
+		/** The preselected template's registry (empty: this instance). */
+		registry?: string | null;
 	}
 
 	let {
 		open = $bindable(false),
 		environmentId: suggested = null,
-		templateId = null
+		templateId = null,
+		registry = null
 	}: Props = $props();
 
 	const queryClient = useQueryClient();
 	const envs = createQuery(() => environmentsQuery());
 	const perms = createQuery(() => myPermissionsQuery());
-	const templates = createQuery(() => ({ ...templatesQuery(), enabled: open }));
+	const templates = createQuery(() => ({ ...templateCatalogQuery(), enabled: open }));
 	const allowed = $derived(
 		(envs.data ?? []).filter((e) => canInEnvironment(perms.data, 'stack.create', e.id))
 	);
 	// Templates you can create stacks from: published and template.use.
 	const usable = $derived(
-		(templates.data ?? []).filter((t) => !!t.latest && t.actions.includes('template.use'))
+		(templates.data ?? []).filter(
+			(t) => t.versions.length > 0 && t.actions.includes('template.use')
+		)
 	);
 
-	let picked = $state<Template | null>(null);
+	let picked = $state<TemplateCatalogItem | null>(null);
 	let query = $state('');
 	let tag = $state('');
 	let version = $state('');
@@ -83,9 +89,20 @@
 	let failure = $state<unknown>(null);
 	let nameConflict = $state<string | null>(null);
 
-	const versions = createQuery(() => templateVersionsQuery(picked?.id ?? ''));
 	const versionNumber = $derived(Number(version) || 0);
-	const definition = createQuery(() => templateDefinitionQuery(picked?.id ?? '', versionNumber));
+	// This instance's versions are read locally; a registry's are downloaded
+	// from it (checked against its digest).
+	const ownDefinition = createQuery(() =>
+		templateDefinitionQuery(picked?.own ? picked.templateId : '', versionNumber)
+	);
+	const remoteDefinition = createQuery(() =>
+		catalogDefinitionQuery(
+			picked && !picked.own ? picked.instanceId : '',
+			picked?.templateId ?? '',
+			versionNumber
+		)
+	);
+	const definition = $derived(picked?.own ? ownDefinition : remoteDefinition);
 	const templateEnv = $derived(definition.data?.files.find((f) => f.path === '.env'));
 	const composeFile = $derived(
 		definition.data?.files.find((f) => f.path !== '.env' && !f.path.includes('override'))
@@ -98,9 +115,9 @@
 		release = null;
 	}
 
-	function pick(t: Template) {
+	function pick(t: TemplateCatalogItem) {
 		picked = t;
-		version = String(t.latest?.number ?? '');
+		version = String(t.versions[0]?.number ?? '');
 		name = projectNameFor(t.name);
 		displayName = t.name;
 		envTouched = touched = false;
@@ -121,7 +138,9 @@
 	});
 	$effect(() => {
 		if (!open || picked || !templateId) return;
-		const t = usable.find((x) => x.id === templateId);
+		const t = usable.find(
+			(x) => x.templateId === templateId && (registry ? x.instanceId === registry : x.own)
+		);
 		if (t) untrack(() => pick(t));
 	});
 	$effect(() => {
@@ -137,7 +156,7 @@
 		const q = query.trim().toLowerCase();
 		return usable
 			.filter((t) => !tag || (t.tags ?? []).includes(tag))
-			.filter((t) => !q || templateSearch(t).some((s) => s?.toLowerCase().includes(q)))
+			.filter((t) => !q || catalogSearch(t).some((s) => s?.toLowerCase().includes(q)))
 			.sort((a, b) => a.name.localeCompare(b.name));
 	});
 	const tags = $derived(tagCounts(usable).slice(0, 12));
@@ -157,7 +176,8 @@
 				environmentId,
 				name: name.trim(),
 				displayName: displayName.trim() || undefined,
-				templateId: picked.id,
+				instanceId: picked.own ? undefined : picked.instanceId,
+				templateId: picked.templateId,
 				version: versionNumber
 			});
 			const st = out.stack;
@@ -270,16 +290,16 @@
 				{/if}
 				{#if shown.length}
 					<ul class="grid" aria-label="Templates">
-						{#each shown as t (t.id)}
+						{#each shown as t (`${t.instanceId}/${t.templateId}`)}
 							<li class="pickable">
 								<TemplateCard
-									href={routes.template(t.id)}
+									href={catalogHref(t)}
 									name={t.name}
 									description={t.description}
 									tags={t.tags}
-									iconUrl={t.icon?.url}
-									latest={t.latest?.label}
-									source="This instance"
+									iconUrl={t.iconUrl}
+									latest={t.versions[0]?.label}
+									source={t.own ? 'This instance' : t.registryName}
 								/>
 								<Button size="sm" variant="primary" onclick={() => pick(t)}
 									>Use {t.name}</Button
@@ -296,10 +316,12 @@
 		<form id="create-from-template" class="layout" onsubmit={create}>
 			<div class="details">
 				<div class="chosen">
-					<TemplateIcon url={picked.icon?.url} />
+					<TemplateIcon url={picked.iconUrl} />
 					<div class="chosen-text">
 						<strong>{picked.name}</strong>
-						<span class="muted">This instance</span>
+						<span class="muted"
+							>{picked.own ? 'This instance' : picked.registryName}</span
+						>
 					</div>
 					{#if !templateId}
 						<Button
@@ -313,9 +335,9 @@
 				<Select
 					label="Version"
 					bind:value={version}
-					options={(versions.data ?? []).map((v) => ({
+					options={(picked?.versions ?? []).map((v, i) => ({
 						value: String(v.number),
-						label: v.number === picked?.latest?.number ? `${v.label} (latest)` : v.label
+						label: i === 0 ? `${v.label} (latest)` : v.label
 					}))}
 				/>
 				<Select

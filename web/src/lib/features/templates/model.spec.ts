@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { applyListFilters, emptyFilterState } from '$lib/features/resources/filters';
 import {
+	catalogFilters,
+	catalogHref,
+	catalogSearch,
 	nextVersionLabel,
 	parseTags,
 	projectNameFor,
@@ -9,7 +12,7 @@ import {
 	templateFilters,
 	templateSearch
 } from './model';
-import type { Template } from './queries';
+import type { Template, TemplateCatalogItem } from './queries';
 
 const tpl = (id: string, tags: string[], extra: Partial<Template> = {}): Template =>
 	({
@@ -70,5 +73,38 @@ describe('templates model', () => {
 		expect(projectNameFor('Nextcloud AIO')).toBe('nextcloud-aio');
 		expect(projectNameFor('  _Café & Bar!')).toBe('cafe-bar');
 		expect(projectNameFor('x'.repeat(80))).toHaveLength(63);
+	});
+
+	it('filters the catalog by registry, tag and publication', () => {
+		const item = (id: string, instanceId: string, extra: Partial<TemplateCatalogItem> = {}) =>
+			({
+				instanceId,
+				registryName: instanceId === 'self' ? 'Home' : 'Friend',
+				own: instanceId === 'self',
+				templateId: id,
+				name: `T ${id}`,
+				tags: [],
+				actions: [],
+				versions: [],
+				...extra
+			}) as TemplateCatalogItem;
+		const items = [
+			item('a', 'self', { tags: ['web'] }),
+			item('b', 'remote-1', {
+				tags: ['web'],
+				versions: [{ number: 1, label: '1', publishedAt: '', contentSize: 1 }]
+			})
+		];
+		const defs = catalogFilters(items);
+		const run = (values: Record<string, string>, q = '') =>
+			applyListFilters(items, defs, { ...emptyFilterState(), q, values }, catalogSearch).map(
+				(t) => t.templateId
+			);
+		expect(defs[0].options?.map((o) => o.label)).toEqual(['Friend', 'Home']);
+		expect(run({ registry: 'remote-1' })).toEqual(['b']);
+		expect(run({ published: 'no' })).toEqual(['a']);
+		expect(run({}, 'friend')).toEqual(['b']);
+		expect(catalogHref(items[0])).toBe('/templates/a');
+		expect(catalogHref(items[1])).toBe('/templates/remote/remote-1/b');
 	});
 });

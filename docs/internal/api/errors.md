@@ -151,6 +151,8 @@ same change.
 | `backup_repository_name_taken` | 409 | no | Another backup repository already uses this name. | #10 |
 | `template_name_taken` | 409 | no | Another template already uses this name. | #7 |
 | `template_version_label_taken` | 409 | no | Another version of the template already uses this label. | #7 |
+| `template_registry_is_self` | 409 | no | The address is this instance's own: its templates are listed already. | #7 |
+| `template_registry_exists` | 409 | no | The template registry is added already. | #7 |
 | `backup_policy_name_taken` | 409 | no | Another backup policy already uses this name. | #10 |
 | `backup_scope_overlap` | 409 | no | A backup policy already covers this environment. | #10 |
 | `backup_repository_in_use` | 409 | no | A backup policy uses the repository; change or delete the policy first. | #10 |
@@ -187,6 +189,7 @@ same change.
 | `invalid_definition` | 422 | no | The Compose definition does not validate (syntax, paths or unsupported features); `details` lists each finding. | #7 |
 | `definition_too_large` | 422 | no | The Compose definition exceeds its bounds (256 KiB per file, 512 KiB and 32 files in total). | #7 |
 | `template_public_ack_required` | 422 | no | Making a template public, or publishing a version of a public one, needs `acknowledgePublic`: every file of it, `.env` included, becomes readable by anyone with the registry URL. | #7 |
+| `template_registry_insecure` | 422 | no | Template registries are reached over HTTPS (plain HTTP only on the manager's own machine). | #7 |
 | `template_definition_invalid` | 422 | no | The template's draft cannot be published: no `compose.yaml` at its root, a Compose file that sets a top-level `name:`, or a device, socket, hard-linked file or symlink leaving the template; the message says which. | #7 |
 | `recovery_key_mismatch` | 422 | no | The re-entered Recovery Key is well-formed but is not the instance's (pending or current) key. | #10 |
 | `recovery_key_malformed` | 422 | no | The Recovery Key has a typo: its length or checksum is wrong (DYRK- followed by 13 groups of four characters). | #10 |
@@ -194,6 +197,8 @@ same change.
 | `precondition_required` | 428 | no | The edit requires an `If-Match` header with the resource's current `ETag`. | #4 |
 | `rate_limited` | 429 | yes | Too many requests; retry after the `Retry-After` delay. | #2 |
 | `internal` | 500 | no | Unexpected server error. The cause is logged under the request ID and never returned. | #2 |
+| `template_registry_unreachable` | 502 | yes | The template registry could not be reached (address, network, or it does not share templates); the message says which. | #7 |
+| `template_registry_invalid` | 502 | no | The template registry answered with something unusable (not a registry, an unknown format, a bad digest or icon); the message says which. | #7 |
 | `engine_error` | 502 | yes | The environment's Docker Engine failed the operation; the message carries its explanation. Retrying helps only when the cause was transient. | #6 |
 | `not_implemented` | 501 | no | The route is declared but this manager build does not implement it yet. | #2 |
 | `job_kind_unavailable` | 501 | no | The operation would start a job kind whose executor this manager or agent does not provide yet. | #26 |
