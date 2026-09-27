@@ -5,9 +5,14 @@
 	// never reused.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
+	import Copy from '@lucide/svelte/icons/copy';
 	import History from '@lucide/svelte/icons/history';
+	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import { deleteVersion } from '$lib/features/templates/actions';
+	import { myPermissionsQuery } from '$lib/api/queries';
+	import { canAnywhere } from '$lib/features/stacks/model';
+	import { deleteVersion, restoreDraft } from '$lib/features/templates/actions';
+	import DuplicateDialog from '$lib/features/templates/DuplicateDialog.svelte';
 	import {
 		templateKeys,
 		templateQuery,
@@ -37,6 +42,17 @@
 	const queryClient = useQueryClient();
 	const t = $derived(template.data);
 	const canPublish = $derived(!!t?.actions.includes('template.publish'));
+	const perms = createQuery(() => myPermissionsQuery());
+	const canRestore = $derived(
+		!!t?.actions.includes('template.files.write') &&
+			!!t?.actions.includes('template.files.delete')
+	);
+	const canDuplicate = $derived(
+		!!t?.actions.includes('template.use') && canAnywhere(perms.data, 'template.create')
+	);
+	let duplicating = $state(false);
+	let restoring = $state<TemplateVersion | null>(null);
+	let confirmRestore = $state(false);
 	let removing = $state<TemplateVersion | null>(null);
 	let confirming = $state(false);
 
@@ -75,9 +91,16 @@
 				width: '160px'
 			}
 		];
-		if (canPublish) cols.push({ id: 'actions', header: '', cell: actionsCell, width: '56px' });
+		if (canPublish || canRestore)
+			cols.push({ id: 'actions', header: '', cell: actionsCell, width: '96px' });
 		return cols;
 	});
+
+	async function restore() {
+		if (!t || !restoring) return;
+		await restoreDraft(t, restoring.number);
+		toast.success(`Restored the draft of ${t.name} to ${restoring.label}`);
+	}
 
 	async function remove() {
 		if (!t || !removing) return;
@@ -96,14 +119,28 @@
 	<span title={formatDateTime(v.publishedAt)}>{formatRelative(v.publishedAt)}</span>
 {/snippet}
 {#snippet actionsCell(v: TemplateVersion)}
-	<IconButton
-		icon={Trash2}
-		label="Delete version {v.label}"
-		onclick={() => {
-			removing = v;
-			confirming = true;
-		}}
-	/>
+	<span class="row-actions">
+		{#if canRestore}
+			<IconButton
+				icon={RotateCcw}
+				label="Restore the draft to {v.label}"
+				onclick={() => {
+					restoring = v;
+					confirmRestore = true;
+				}}
+			/>
+		{/if}
+		{#if canPublish}
+			<IconButton
+				icon={Trash2}
+				label="Delete version {v.label}"
+				onclick={() => {
+					removing = v;
+					confirming = true;
+				}}
+			/>
+		{/if}
+	</span>
 {/snippet}
 
 {#if versions.isError}
@@ -113,6 +150,11 @@
 		onretry={() => versions.refetch()}
 	/>
 {:else}
+	{#if canDuplicate && (versions.data ?? []).length}
+		<div class="toolbar">
+			<Button icon={Copy} onclick={() => (duplicating = true)}>Duplicate</Button>
+		</div>
+	{/if}
 	<Card padding="none" title="Published versions" id="versions">
 		{#if versions.isPending}
 			<div class="loading" aria-busy="true"><Skeleton lines={4} height="20px" /></div>
@@ -139,6 +181,27 @@
 	</Card>
 {/if}
 
+{#if restoring && t}
+	<ConfirmDialog
+		bind:open={confirmRestore}
+		title="Restore the draft to {restoring.label}?"
+		message="The draft's files are replaced by the files of this version."
+		consequences={[
+			'Changes to the draft since then are lost.',
+			'Published versions stay as they are.'
+		]}
+		confirmLabel="Restore draft"
+		onconfirm={restore}
+	/>
+{/if}
+
+{#if canDuplicate && t && versions.data?.length}
+	<DuplicateDialog
+		bind:open={duplicating}
+		source={{ templateId: t.id, name: t.name, versions: versions.data }}
+	/>
+{/if}
+
 {#if removing && t}
 	<ConfirmDialog
 		bind:open={confirming}
@@ -155,6 +218,17 @@
 {/if}
 
 <style>
+	.toolbar {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: var(--space-3);
+	}
+
+	.row-actions {
+		display: inline-flex;
+		gap: 4px;
+	}
+
 	.loading {
 		padding: var(--space-4) var(--space-5) var(--space-5);
 	}

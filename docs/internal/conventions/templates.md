@@ -78,6 +78,17 @@ store: `internal/manager/store/templates.go`.
   templates (`template.read` on the instance); creating a stack from a
   registry template needs `template.use` on the instance and downloads
   the version at that moment.
+- Drafts filled from archives (`imports.go`): duplicating a version,
+  restoring a draft to a version and saving a stack as a template extract
+  a tar.gz into `draft.next` (cleaned member names, only directories,
+  regular files and inside symlinks, permission bits only, the template
+  limits counted while writing), then swap it in (`draft` →
+  `draft.old` → removed; `sweep` restores an interrupted swap). A failed
+  fill never changes the draft; a new template whose fill fails is
+  deleted. Saving a stack reads its files with the agent's
+  `files.download` stream (tar.gz of the chosen entries) and needs
+  `stack.files.download` + `stack.definition.read`; replacing a draft needs
+  `template.files.write` + `template.files.delete`.
 - Capabilities: `template.read`, `template.use` (high: version files incl.
   `.env`), `template.create` (instance), `template.manage`,
   `template.publish` (high), `template.remove` (high) and the

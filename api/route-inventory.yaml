@@ -1820,6 +1820,33 @@ routes:
     kind: json
     status: implemented
     notes: "Downloads the version from its registry."
+  - method: POST
+    path: "/api/v1/templates/duplicates"
+    operationId: create-template-duplicate
+    capability: template.create
+    scope: instance
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "New private template from a version (also needs template.use on the source)."
+  - method: POST
+    path: "/api/v1/templates/{templateId}/draft-restores"
+    operationId: create-template-draft-restore
+    capability: template.files.write
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Replaces the draft with a version (also needs template.files.delete)."
+  - method: POST
+    path: "/api/v1/templates/stack-imports"
+    operationId: create-template-stack-import
+    capability: template.create
+    scope: instance
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "Saves a stack's files as a template or a template's draft (stack.files.download + stack.definition.read)."
   - method: GET
     path: "/api/v1/templates/{templateId}/files"
     operationId: list-template-files

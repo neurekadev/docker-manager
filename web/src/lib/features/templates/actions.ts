@@ -140,3 +140,35 @@ export function syncRegistry(instanceId: string, client: ApiClient = api) {
 		})
 	);
 }
+
+/** Saves a stack's files as a new template, or as an existing template's draft. */
+export function saveStackAsTemplate(
+	body: {
+		stackId: string;
+		paths?: string[];
+		templateId?: string;
+		name?: string;
+		description?: string;
+	},
+	client: ApiClient = api
+): Promise<Template> {
+	return unwrap(client.POST('/api/v1/templates/stack-imports', { body }));
+}
+
+/** Copies a published version into a new private template. */
+export function duplicateTemplate(
+	body: { name: string; instanceId?: string; templateId: string; version: number },
+	client: ApiClient = api
+): Promise<Template> {
+	return unwrap(client.POST('/api/v1/templates/duplicates', { body }));
+}
+
+/** Replaces a template's draft with one of its versions. */
+export function restoreDraft(t: Template, version: number, client: ApiClient = api) {
+	return unwrap(
+		client.POST('/api/v1/templates/{templateId}/draft-restores', {
+			params: { path: path(t) },
+			body: { version }
+		})
+	);
+}

@@ -5500,6 +5500,56 @@
         ],
         "type": "object"
       },
+      "DuplicateTemplateInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "instanceId": {
+            "description": "The source's registry (empty: this instance).",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "My Nextcloud"
+            ],
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "tags": {
+            "examples": [
+              [
+                "cloud"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "templateId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "templateId",
+          "version"
+        ],
+        "type": "object"
+      },
       "EffectivePermission": {
         "additionalProperties": false,
         "properties": {
@@ -12879,6 +12929,24 @@
         ],
         "type": "object"
       },
+      "RestoreDraftInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "description": "The version whose files replace the draft.",
+            "examples": [
+              3
+            ],
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
       "RestoreInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -14777,6 +14845,56 @@
           "eligible",
           "nonVersionTag",
           "update"
+        ],
+        "type": "object"
+      },
+      "StackImportInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the new template.",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "paths": {
+            "description": "Entries of the stack's directory to include (default: everything).",
+            "examples": [
+              [
+                "compose.yaml",
+                ".env",
+                "config"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "type": "array"
+          },
+          "stackId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "templateId": {
+            "description": "Replace this template's draft (default: create a new private template).",
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "stackId"
         ],
         "type": "object"
       },
@@ -68636,6 +68754,489 @@
         "x-docker-manager-scope": "instance"
       }
     },
+    "/api/v1/templates/duplicates": {
+      "post": {
+        "description": "Creates a private template whose draft holds every file of a published version: of this instance's templates (template.use on it) or of an added registry's (template.use on the instance; downloaded and checked now). Needs template.create.",
+        "operationId": "create-template-duplicate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "name": "My Nextcloud",
+                "tags": [
+                  "cloud"
+                ],
+                "templateId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                "version": 1
+              },
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateTemplateInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "actions": [
+                    "example"
+                  ],
+                  "createdAt": "2026-09-25T12:00:00Z",
+                  "description": "example",
+                  "icon": {
+                    "mediaType": "image/png",
+                    "sha256": "example",
+                    "size": 1,
+                    "updatedAt": "2026-09-25T12:00:00Z",
+                    "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                  },
+                  "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "latest": {
+                    "archiveSha256": "example",
+                    "archiveSize": 1,
+                    "contentSize": 1,
+                    "definition": [
+                      {
+                        "path": "compose.yaml",
+                        "size": 1
+                      }
+                    ],
+                    "entries": 1,
+                    "label": "1.2.0",
+                    "notes": "example",
+                    "number": 1,
+                    "publishedAt": "2026-09-25T12:00:00Z"
+                  },
+                  "name": "Nextcloud",
+                  "revision": 1,
+                  "tags": [
+                    "example"
+                  ],
+                  "updatedAt": "2026-09-25T12:00:00Z",
+                  "versions": 1,
+                  "view": "minimal",
+                  "visibility": "private"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error413"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Duplicate a template version",
+        "tags": [
+          "Templates"
+        ],
+        "x-docker-manager-audit": "template.create",
+        "x-docker-manager-capability": "template.create",
+        "x-docker-manager-scope": "instance"
+      }
+    },
+    "/api/v1/templates/stack-imports": {
+      "post": {
+        "description": "Copies the chosen entries of a stack's project directory (default: all of it) from its host into a new private template (template.create) or into an existing template's draft, replacing it (template.files.write and template.files.delete). Needs stack.files.download and stack.definition.read on the stack. Escaping symlinks, hard-linked and special files are left out; the template size limit applies (413 template_too_large: leave out data folders).",
+        "operationId": "create-template-stack-import",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "paths": [
+                  "compose.yaml",
+                  ".env",
+                  "config"
+                ],
+                "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/StackImportInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "actions": [
+                    "example"
+                  ],
+                  "createdAt": "2026-09-25T12:00:00Z",
+                  "description": "example",
+                  "icon": {
+                    "mediaType": "image/png",
+                    "sha256": "example",
+                    "size": 1,
+                    "updatedAt": "2026-09-25T12:00:00Z",
+                    "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                  },
+                  "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "latest": {
+                    "archiveSha256": "example",
+                    "archiveSize": 1,
+                    "contentSize": 1,
+                    "definition": [
+                      {
+                        "path": "compose.yaml",
+                        "size": 1
+                      }
+                    ],
+                    "entries": 1,
+                    "label": "1.2.0",
+                    "notes": "example",
+                    "number": 1,
+                    "publishedAt": "2026-09-25T12:00:00Z"
+                  },
+                  "name": "Nextcloud",
+                  "revision": 1,
+                  "tags": [
+                    "example"
+                  ],
+                  "updatedAt": "2026-09-25T12:00:00Z",
+                  "versions": 1,
+                  "view": "minimal",
+                  "visibility": "private"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error413"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error504"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Save a stack as a template",
+        "tags": [
+          "Templates"
+        ],
+        "x-docker-manager-audit": "template.create",
+        "x-docker-manager-capability": "template.create",
+        "x-docker-manager-scope": "instance"
+      }
+    },
     "/api/v1/templates/{templateId}": {
       "delete": {
         "description": "Deletes the template with its draft, icon and versions. Stacks created from it keep working with their own files. Requires If-Match.",
@@ -69191,6 +69792,248 @@
         ],
         "x-docker-manager-audit": "template.manage",
         "x-docker-manager-capability": "template.manage",
+        "x-docker-manager-scope": "resource"
+      }
+    },
+    "/api/v1/templates/{templateId}/draft-restores": {
+      "post": {
+        "description": "Replaces the template's draft with the files of one of its versions (the draft's current files are gone). Needs template.files.write and template.files.delete.",
+        "operationId": "create-template-draft-restore",
+        "parameters": [
+          {
+            "description": "Template ID.",
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "description": "Template ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "version": 3
+              },
+              "schema": {
+                "$ref": "#/components/schemas/RestoreDraftInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "actions": [
+                    "example"
+                  ],
+                  "createdAt": "2026-09-25T12:00:00Z",
+                  "description": "example",
+                  "icon": {
+                    "mediaType": "image/png",
+                    "sha256": "example",
+                    "size": 1,
+                    "updatedAt": "2026-09-25T12:00:00Z",
+                    "url": "/api/v1/templates/0190a6e0-.../icon?v=3f2a..."
+                  },
+                  "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "latest": {
+                    "archiveSha256": "example",
+                    "archiveSize": 1,
+                    "contentSize": 1,
+                    "definition": [
+                      {
+                        "path": "compose.yaml",
+                        "size": 1
+                      }
+                    ],
+                    "entries": 1,
+                    "label": "1.2.0",
+                    "notes": "example",
+                    "number": 1,
+                    "publishedAt": "2026-09-25T12:00:00Z"
+                  },
+                  "name": "Nextcloud",
+                  "revision": 1,
+                  "tags": [
+                    "example"
+                  ],
+                  "updatedAt": "2026-09-25T12:00:00Z",
+                  "versions": 1,
+                  "view": "minimal",
+                  "visibility": "private"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "description": "Strong entity tag of the returned revision; send it as If-Match when editing.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error413"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Restore a draft to a version",
+        "tags": [
+          "Templates"
+        ],
+        "x-docker-manager-audit": "template.files.write",
+        "x-docker-manager-capability": "template.files.write",
         "x-docker-manager-scope": "resource"
       }
     },

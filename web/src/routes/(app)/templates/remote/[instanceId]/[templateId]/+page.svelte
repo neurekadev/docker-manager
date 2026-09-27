@@ -7,7 +7,11 @@
 	import { page } from '$app/state';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import Plus from '@lucide/svelte/icons/plus';
+	import Copy from '@lucide/svelte/icons/copy';
 	import { ApiRequestError } from '$lib/api/client';
+	import { myPermissionsQuery } from '$lib/api/queries';
+	import { canAnywhere } from '$lib/features/stacks/model';
+	import DuplicateDialog from '$lib/features/templates/DuplicateDialog.svelte';
 	import TemplateIcon from '$lib/features/templates/TemplateIcon.svelte';
 	import { catalogItemQuery } from '$lib/features/templates/queries';
 	import { routes } from '$lib/routes';
@@ -28,6 +32,13 @@
 	const templateId = $derived(page.params.templateId ?? '');
 	const item = createQuery(() => catalogItemQuery(instanceId, templateId));
 	const t = $derived(item.data);
+	const perms = createQuery(() => myPermissionsQuery());
+	const canDuplicate = $derived(
+		!!t?.actions.includes('template.use') &&
+			!!t?.versions.length &&
+			canAnywhere(perms.data, 'template.create')
+	);
+	let duplicating = $state(false);
 
 	usePage(() => ({
 		title: t?.name ?? 'Template',
@@ -70,6 +81,9 @@
 						>{/each}
 				</div>
 			</div>
+			{#if canDuplicate}
+				<Button icon={Copy} onclick={() => (duplicating = true)}>Duplicate</Button>
+			{/if}
 			{#if t.actions.includes('template.use') && t.versions.length}
 				<Button
 					variant="primary"
@@ -99,6 +113,17 @@
 			</ol>
 		</Card>
 	</div>
+	{#if canDuplicate}
+		<DuplicateDialog
+			bind:open={duplicating}
+			source={{
+				instanceId: t.instanceId,
+				templateId: t.templateId,
+				name: t.name,
+				versions: t.versions
+			}}
+		/>
+	{/if}
 {/if}
 
 <style>

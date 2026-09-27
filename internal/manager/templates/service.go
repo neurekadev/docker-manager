@@ -167,6 +167,15 @@ func (s *Service) sweep(ctx context.Context) error {
 		}
 	}
 	for _, id := range ids {
+		// A draft swap interrupted between its renames (imports.go):
+		// the previous draft comes back.
+		old := filepath.Join(s.root(), id, "draft.old")
+		if _, err := os.Stat(s.draftDir(id)); os.IsNotExist(err) {
+			if _, err := os.Stat(old); err == nil {
+				_ = os.Rename(old, s.draftDir(id))
+			}
+		}
+		_ = os.RemoveAll(filepath.Join(s.root(), id, "draft.next"))
 		if err := os.MkdirAll(s.draftDir(id), 0o700); err != nil {
 			return fmt.Errorf("templates: create a draft directory: %w", err)
 		}
