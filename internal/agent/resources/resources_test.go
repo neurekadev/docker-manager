@@ -97,6 +97,15 @@ func TestRequestsReportInventory(t *testing.T) {
 		byName["legacy-app-1"].Stack == nil || byName["legacy-app-1"].Stack.Managed || byName["web"].Stack != nil || byName["web"].State != "running" {
 		t.Fatalf("containers %+v", list.Containers)
 	}
+	// Running containers carry their start time and addresses; stopped
+	// ones keep their networks without addresses and have no start time.
+	if db := byName["shop-db-1"]; db.StartedAt == nil || len(db.NetworkList) != 1 || db.NetworkList[0].Name != "shop_default" ||
+		db.NetworkList[0].IPAddress == "" || !slices.Equal(db.Networks, []string{"shop_default"}) {
+		t.Fatalf("running container %+v", db)
+	}
+	if legacy := byName["legacy-app-1"]; legacy.StartedAt != nil || len(legacy.NetworkList) != 1 || legacy.NetworkList[0].IPAddress != "" {
+		t.Fatalf("stopped container %+v", legacy)
+	}
 	if m := byName["web"].Mounts; len(m) != 1 || m[0].Source != "/srv/www" || !m[0].ReadOnly {
 		t.Fatalf("bind mount %+v", m)
 	}
@@ -125,6 +134,13 @@ func TestRequestsReportInventory(t *testing.T) {
 	vols := must[protocol.VolumeListOutput](t, s, protocol.ReqVolumeList, protocol.VolumeListInput{})
 	if len(vols.Volumes) != 1 || vols.Volumes[0].Stack == nil || !vols.Volumes[0].Stack.Managed || len(vols.Volumes[0].UsedBy) != 1 {
 		t.Fatalf("volumes %+v", vols)
+	}
+	fe.SetVolumeSize("shop_data", 4096)
+	fe.AddVolume("empty", nil)
+	usage := must[protocol.VolumeUsageOutput](t, s, protocol.ReqVolumeUsage, protocol.VolumeUsageInput{})
+	if len(usage.Volumes) != 2 || usage.Volumes[0] != (protocol.VolumeUsage{Name: "empty", Size: -1, RefCount: 0}) ||
+		usage.Volumes[1] != (protocol.VolumeUsage{Name: "shop_data", Size: 4096, RefCount: 1}) {
+		t.Fatalf("volume usage %+v", usage)
 	}
 	nets := must[protocol.NetworkListOutput](t, s, protocol.ReqNetworkList, protocol.NetworkListInput{})
 	builtin := 0

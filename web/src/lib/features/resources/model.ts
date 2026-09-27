@@ -182,6 +182,54 @@ export function compactDuration(ms: number | undefined): string {
 	return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
+/** A container's network endpoint as the API reports it. */
+export interface NetworkAddresses {
+	name: string;
+	ipAddress?: string;
+	ipv6Address?: string;
+}
+
+/** One address of a container on one network. */
+export interface ContainerAddress {
+	network: string;
+	address: string;
+}
+
+/**
+ * The addresses of one or more containers: IPv4 before IPv6 per network,
+ * in network order, without duplicates and without address-less networks
+ * (a stopped container, host networking).
+ */
+export function containerAddresses(
+	networks: readonly (readonly NetworkAddresses[] | undefined)[]
+): ContainerAddress[] {
+	const out: ContainerAddress[] = [];
+	const seen = new Set<string>();
+	for (const list of networks)
+		for (const n of list ?? [])
+			for (const address of [n.ipAddress, n.ipv6Address]) {
+				if (!address || seen.has(address)) continue;
+				seen.add(address);
+				out.push({ network: n.name, address });
+			}
+	return out;
+}
+
+/** Started while in these states: the uptime counts from startedAt. */
+const UP_STATES = new Set(['running', 'paused', 'restarting']);
+
+/** A container's live start time (for its uptime), or null when it is not up. */
+export function upSince(c: { state: string; startedAt?: string }): string | null {
+	return UP_STATES.has(c.state) && c.startedAt ? c.startedAt : null;
+}
+
+/** Sort key for an uptime column: longer uptimes sort after shorter ones. */
+export function uptimeSortValue(since: string | null | undefined): number | null {
+	if (!since) return null;
+	const t = Date.parse(since);
+	return Number.isFinite(t) ? -t : null;
+}
+
 /** The status a container shows: its health while running, else its state. */
 export function containerStatus(c: { state: string; health?: string }): string {
 	if (c.state === 'running' && (c.health === 'unhealthy' || c.health === 'starting'))

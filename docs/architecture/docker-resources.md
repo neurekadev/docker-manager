@@ -9,7 +9,7 @@ Moby adapter (#21). There is no Engine API passthrough.
 | Package | Role |
 | --- | --- |
 | `internal/protocol` (`docker.go`) | Wire types of the requests and job inputs, the create-form validation shared by manager and agent, Docker Manager's label keys. |
-| `internal/agent/resources` | Agent side: request handlers (`container.list`, `container.inspect`, `image.list`, `image.inspect`, `image.tag`, `volume.list`, `volume.inspect`, `network.list`, `network.inspect`) and job executors (`container.*`, `image.pull`, `image.remove`, `volume.*`, `network.*`). Wired by `internal/agent/runtime`. |
+| `internal/agent/resources` | Agent side: request handlers (`container.list`, `container.inspect`, `image.list`, `image.inspect`, `image.tag`, `volume.list`, `volume.inspect`, `volume.usage`, `network.list`, `network.inspect`) and job executors (`container.*`, `image.pull`, `image.remove`, `volume.*`, `network.*`). Wired by `internal/agent/runtime`. |
 | `internal/manager/resources` | Manager side: requests through the hub, job requests, input validation, stack/in-use refusals, recreate specifications, permission Locators, reconnect reconciliation, the #19/#7 hooks. |
 | `internal/manager/api` (`docker.go`, `containers.go`, `images.go`, `volumes.go`, `networks.go`) | The routes, DTOs, #17 shaping. |
 | `internal/agent/engine/enginefake` | In-memory `engine.Engine` for Docker-free tests (agent unit tests, API tests, app tests with real agent sessions). |
@@ -36,6 +36,26 @@ Moby adapter (#21). There is no Engine API passthrough.
   1.44 `409 unsupported_api_version`, an agent that predates a request
   `501 agent_unsupported`, other Engine failures `502 engine_error`,
   agent timeouts `504 timeout`.
+
+## Uptime, addresses and volume sizes
+
+- `container.list` reports each container's network endpoints with their
+  IPv4/IPv6 addresses (`networkList`; empty addresses while stopped) and,
+  for running, paused and restarting containers, `startedAt`: the Engine's
+  list has no start time, so the agent inspects those containers (at most
+  eight at a time; one that vanished meanwhile simply has none). The API
+  `Container` shows them as `startedAt` and `networks` (full view); stack
+  services (`compose.services`) carry the same `networks` per container.
+  Older agents omit the fields; the manager and the UI show "—".
+- `GET …/disk-usage/volumes` (`list-volume-usage`, `volume.read`) lists the
+  size of every volume the caller reads in full. The agent request
+  `volume.usage` asks the Engine's disk usage report, which walks every
+  local volume, so `resources.Service.VolumeUsage` keeps one answer per
+  environment for a minute (`VolumeUsageTTL`) and lets concurrent callers
+  share one computation (detached from the request, bounded to two
+  minutes; failures are not cached). An agent that does not advertise
+  `volume.usage` is never asked (`supported: false`); sizes the Engine does
+  not know (other drivers) are absent.
 
 ## Shaping (#17)
 

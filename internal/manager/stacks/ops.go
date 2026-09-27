@@ -31,9 +31,11 @@ var operationKinds = map[string]domain.JobKind{
 }
 
 // protectedActions are the stack kinds refused on Docker Manager's own Compose
-// project (#32).
+// project (#32): they would stop or delete Docker Manager. Deploys
+// (redeploys, pulls, digest updates) are allowed: the agent hands its own
+// container to a helper container (internal/agent/selfupdate).
 var protectedActions = map[domain.JobKind]protection.Action{
-	jobspec.StackDeploy: protection.Deploy, jobspec.StackStop: protection.Stop, jobspec.StackRestart: protection.Restart,
+	jobspec.StackStop: protection.Stop, jobspec.StackRestart: protection.Restart,
 	jobspec.StackDown: protection.Down, jobspec.StackRemove: protection.Down,
 }
 

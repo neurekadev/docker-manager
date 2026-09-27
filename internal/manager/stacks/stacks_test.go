@@ -584,13 +584,16 @@ func TestDockerManagerProjectIsProtected(t *testing.T) {
 			t.Errorf("%s: %v", what, err)
 		}
 	}
-	j, err := h.svc.Deploy(h.ctx, alice, own, domain.StackJobRequest{}, domain.StackDeployOptions{})
-	refused("deploy", j, err)
+	// Docker Manager redeploys itself (the agent hands its own container to
+	// a helper); it never stops or deletes itself.
+	if _, err := h.svc.Deploy(h.ctx, alice, own, domain.StackJobRequest{}, domain.StackDeployOptions{}); err != nil {
+		t.Errorf("deploy: %v", err)
+	}
 	for _, action := range []string{"stop", "restart", "down"} {
 		j, err := h.svc.Operate(h.ctx, alice, own, action, domain.StackJobRequest{})
 		refused(action, j, err)
 	}
-	j, err = h.svc.Delete(h.ctx, alice, own, domain.StackJobRequest{}, domain.StackRemoveOptions{})
+	j, err := h.svc.Delete(h.ctx, alice, own, domain.StackJobRequest{}, domain.StackRemoveOptions{})
 	refused("delete", j, err)
 	if _, err := h.svc.Operate(h.ctx, alice, own, "start", domain.StackJobRequest{}); err != nil {
 		t.Errorf("start: %v", err)

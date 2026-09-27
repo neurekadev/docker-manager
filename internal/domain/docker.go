@@ -19,6 +19,17 @@ type DockerError struct {
 
 func (e *DockerError) Error() string { return e.Code + ": " + e.Message }
 
+// VolumeUsageReport is the disk usage of an environment's volumes as the
+// Engine last computed it (cached briefly by the manager).
+type VolumeUsageReport struct {
+	// ComputedAt is when the agent answered (zero when Unsupported).
+	ComputedAt time.Time
+	// Unsupported: the environment's agent predates volume.usage.
+	Unsupported bool
+	// Sizes are bytes by volume name; -1 when the Engine does not know.
+	Sizes map[string]int64
+}
+
 // Docker operation error codes.
 const (
 	// DockerNotFound: the object does not exist on the environment's Engine.
@@ -63,6 +74,9 @@ const (
 	// DockerConfirmationRequired: restarting it interrupts Docker Manager; the
 	// caller must confirm (#32).
 	DockerConfirmationRequired = "confirmation_required"
+	// DockerCommandNotFound: none of a terminal shell's paths exists in the
+	// container (#8).
+	DockerCommandNotFound = "command_not_found"
 )
 
 // ManagedContainer is the saved recreate specification of a standalone

@@ -52,7 +52,9 @@ func TestCheckMatrix(t *testing.T) {
 		{proxy, Stop, false, CodeProtected},
 		{data, Remove, true, CodeProtected},
 		{data, Mount, false, CodeProtected},
-		{&protocol.Protection{Role: RoleProject, Reason: "project"}, Deploy, true, CodeProtected},
+		// Docker Manager redeploys and updates itself; it never takes itself down.
+		{&protocol.Protection{Role: RoleProject, Reason: "project"}, Deploy, false, ""},
+		{agent, Deploy, false, ""},
 		{&protocol.Protection{Role: RoleProject, Reason: "project"}, Down, false, CodeProtected},
 	} {
 		err := Check(c.p, c.action, c.confirmed)

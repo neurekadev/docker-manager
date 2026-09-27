@@ -212,6 +212,17 @@ host and per-filesystem series for a range: one value per step bucket.
 - `skewCorrected` and `incomplete` summarize the sample flags in the range;
   `online` tells the UI whether new samples are expected.
 
+`GET …/metrics/containers` (`list-latest-container-metrics`,
+`metrics.Store.LatestContainers`) is the newest raw sample of every
+container sampled within the last minute: CPU %, memory used and the
+memory limit, each absent when unknown (never zero). It lists only the
+containers the caller holds `container.metrics.read` on, resolved by name
+like the `metrics.sampled` events, and serves the live CPU and memory
+columns of the container and stack service tables (one request per
+environment instead of a range query per container; the web keys it with
+`liveKeys.metrics(envId, 'containers-latest')`, so metrics events refresh
+it about every 10 s).
+
 `GET …/capacity` is the latest sample (cores, memory, load, network with its
 scope, uptime, filesystems with free space). `GET /api/v1/overview` lists
 every active environment the caller may see with its connection state, its

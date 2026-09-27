@@ -1,14 +1,17 @@
 // Container terminal session (#8, docs/api/streams.md "Container exec"):
 //
-//   1. POST …/exec-sessions {command, tty, cols, rows} → {id, streamUrl,
-//      subprotocol, ticket}
+//   1. POST …/exec-sessions {shell, tty, cols, rows} → {id, streamUrl,
+//      subprotocol, ticket, command}; the agent finds the shell in the
+//      container (auto: Bash if present, else sh; 422 command_not_found
+//      when there is none) and command names what it started
 //   2. WebSocket to streamUrl offering the subprotocols docker-manager.exec.v1 and
 //      docker-manager.ticket.<ticket> (the one-use ticket never goes in the URL)
 //   3. binary frames: first byte 0 = stdin (client→server), 1/2 =
 //      stdout/stderr; text frames: {"type":"resize"} (client),
 //      {"type":"exit"} / {"type":"error"} (server)
 //   4. DELETE …/exec-sessions/{id} ends it; close codes explain the end
-//      (4422: the command does not exist in the image, e.g. no /bin/sh).
+//      (4422: the shell does not exist in the image, reported by older
+//      agents that cannot look it up first).
 //
 // The server closes idle sessions after 30 minutes; the terminal warns at 25.
 // An open terminal is critical work (#23): the PWA update prompt does not
@@ -34,6 +37,32 @@ export interface ExecSession {
 	subprotocol: string;
 	ticket: string;
 	expiresAt: string;
+	/** The argv the agent started (the resolved shell). */
+	command?: string[];
+}
+
+/** The shells a terminal can open (the API's `shell`). */
+export type Shell = 'auto' | 'bash' | 'sh' | 'zsh';
+
+export const SHELLS: readonly { value: Shell; label: string }[] = [
+	{ value: 'auto', label: 'Automatic' },
+	{ value: 'bash', label: 'Bash' },
+	{ value: 'sh', label: 'sh' },
+	{ value: 'zsh', label: 'Zsh' }
+];
+
+/** The shell's name in sentences ("This container has no Bash"). */
+export function shellName(shell: Shell): string {
+	switch (shell) {
+		case 'auto':
+			return 'Bash or sh';
+		case 'bash':
+			return 'Bash';
+		case 'zsh':
+			return 'Zsh';
+		default:
+			return 'sh';
+	}
 }
 
 /** The parts of WebSocket the session uses (fakeable in tests). */
@@ -52,7 +81,7 @@ export interface WebSocketLike {
 export interface TerminalDeps {
 	create(
 		t: ExecTarget,
-		body: { command: string[]; tty: boolean; cols: number; rows: number }
+		body: { shell: Shell; tty: boolean; cols: number; rows: number }
 	): Promise<ExecSession>;
 	remove(t: ExecTarget, sessionId: string): Promise<void>;
 	socket(url: string, protocols: string[]): WebSocketLike;
@@ -61,33 +90,10 @@ export interface TerminalDeps {
 	clearInterval?: (h: unknown) => void;
 }
 
-/** Splits a command line into argv (whitespace; '…' and "…" quote). */
-export function parseCommand(line: string): string[] {
-	const out: string[] = [];
-	let cur = '';
-	let quote: '"' | "'" | null = null;
-	let has = false;
-	for (const c of line.trim()) {
-		if (quote) {
-			if (c === quote) quote = null;
-			else cur += c;
-		} else if (c === '"' || c === "'") {
-			quote = c;
-			has = true;
-		} else if (/\s/.test(c)) {
-			if (cur || has) out.push(cur);
-			cur = '';
-			has = false;
-		} else cur += c;
-	}
-	if (cur || has) out.push(cur);
-	return out;
-}
-
 /** What a close code means for the user (docs/api/streams.md). */
 export function closeMessage(
 	code: number,
-	o: { exitCode?: number | null; command?: string } = {}
+	o: { exitCode?: number | null; shell?: Shell } = {}
 ): string {
 	switch (code) {
 		case 1000:
@@ -113,7 +119,9 @@ export function closeMessage(
 		case 4409:
 			return 'This terminal is already open in another tab or window.';
 		case 4422:
-			return `This image has no ${o.command || '/bin/sh'} — try another command.`;
+			return o.shell
+				? `This container has no ${shellName(o.shell)} — choose another shell.`
+				: 'This container has no such shell — choose another shell.';
 		case 4503:
 			return "The environment went offline. Connect again when it's back.";
 		default:
@@ -138,13 +146,15 @@ export class ExecTerminal {
 	idleWarning = $state(false);
 	/** Seconds until the idle close while warning. */
 	idleSecondsLeft = $state(0);
+	/** The command the session started ("/bin/bash"), once created. */
+	command = $state<string | null>(null);
 
 	/** Output bytes for the terminal (set by the view). */
 	onoutput: ((data: Uint8Array) => void) | null = null;
 
 	#deps: TerminalDeps;
 	#target: ExecTarget | null = null;
-	#command = '';
+	#shell: Shell = 'auto';
 	#ws: WebSocketLike | null = null;
 	#session: ExecSession | null = null;
 	#last = 0;
@@ -165,20 +175,21 @@ export class ExecTerminal {
 	}
 
 	/** Creates an exec session and attaches to it. */
-	async connect(t: ExecTarget, command: string[], size: { cols: number; rows: number }) {
+	async connect(t: ExecTarget, shell: Shell, size: { cols: number; rows: number }) {
 		if (this.state === 'creating' || this.state === 'connecting' || this.state === 'open')
 			return;
 		this.#target = t;
-		this.#command = command.join(' ');
+		this.#shell = shell;
 		this.#ended = false;
 		this.closeCode = null;
 		this.exitCode = null;
 		this.message = null;
+		this.command = null;
 		this.state = 'creating';
 		let s: ExecSession;
 		try {
 			s = await this.#deps.create(t, {
-				command,
+				shell,
 				tty: true,
 				cols: size.cols,
 				rows: size.rows
@@ -189,6 +200,7 @@ export class ExecTerminal {
 			throw e;
 		}
 		this.#session = s;
+		this.command = s.command?.length ? s.command.join(' ') : null;
 		this.state = 'connecting';
 		const url = socketUrl(s.streamUrl, globalThis.location?.href ?? 'http://localhost/');
 		const ws = this.#deps.socket(url, [
@@ -239,7 +251,7 @@ export class ExecTerminal {
 		this.#ws = null;
 		this.closeCode = code;
 		this.state = code === 1000 || code === 1001 ? 'closed' : 'failed';
-		this.message = closeMessage(code, { exitCode: this.exitCode, command: this.#command });
+		this.message = closeMessage(code, { exitCode: this.exitCode, shell: this.#shell });
 		this.#release?.();
 		this.#release = null;
 	}

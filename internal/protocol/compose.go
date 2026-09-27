@@ -192,7 +192,8 @@ func ValidateSources(files []SourceFile) error {
 // ComposeIssue is a validation finding.
 type ComposeIssue struct {
 	// Code is stable: invalid_project, unsupported_compose_feature,
-	// obsolete_version, bind_outside_project, or a storage_* code (#28).
+	// obsolete_version, bind_outside_project, agent_self_update, or a
+	// storage_* code (#28).
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Service string `json:"service,omitempty"`
@@ -205,6 +206,9 @@ const (
 	IssueObsoleteVersion     = "obsolete_version"
 	IssueBindOutsideProject  = "bind_outside_project"
 	IssueProjectNameMismatch = "project_name_mismatch"
+	// IssueAgentSelfUpdate (deploy warning, #32): the agent's own service
+	// is recreated by a helper container right after the job.
+	IssueAgentSelfUpdate = "agent_self_update"
 )
 
 // ComposeDependency is a depends_on entry.
@@ -379,6 +383,9 @@ type StackContainer struct {
 	ConfigHash string     `json:"configHash,omitempty"`
 	CreatedAt  time.Time  `json:"createdAt,omitzero"`
 	StartedAt  *time.Time `json:"startedAt,omitempty"`
+	// Networks are the container's endpoints with their addresses (name,
+	// network ID, IPv4 and IPv6 only; absent from older agents).
+	Networks []ContainerNetwork `json:"networks,omitempty"`
 }
 
 // ComposeServicesOutput is the output of compose.services.

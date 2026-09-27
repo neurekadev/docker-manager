@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
@@ -26,6 +27,7 @@ func (s *Service) Requests() map[string]session.RequestHandler {
 		protocol.ReqImageTag:         handle(s, s.tagImage),
 		protocol.ReqVolumeList:       handle(s, s.listVolumes),
 		protocol.ReqVolumeInspect:    handle(s, s.inspectVolume),
+		protocol.ReqVolumeUsage:      handle(s, s.volumeUsage),
 		protocol.ReqNetworkList:      handle(s, s.listNetworks),
 		protocol.ReqNetworkInspect:   handle(s, s.inspectNetwork),
 		protocol.ReqManagerIdentity:  s.guard.ManagerIdentityHandler(s.connected),
@@ -70,6 +72,15 @@ func (s *Service) containerSummary(c engine.Container) protocol.ContainerSummary
 		out.Ports = append(out.Ports, protocol.ContainerPort{ContainerPort: p.PrivatePort, HostPort: p.PublicPort, HostIP: p.HostIP, Protocol: p.Protocol})
 	}
 	out.Mounts = mountsOf(c.Mounts)
+	out.Networks = slices.Clone(c.Networks)
+	for _, n := range c.Networks {
+		ep, ok := c.Endpoints[n]
+		if !ok {
+			continue
+		}
+		out.NetworkList = append(out.NetworkList, protocol.ContainerNetwork{Name: n, NetworkID: ep.NetworkID, IPAddress: ep.IPAddress,
+			IPv6Address: ep.IPv6Address})
+	}
 	return out
 }
 
@@ -91,13 +102,45 @@ func (s *Service) listContainers(ctx context.Context, eng engine.Engine, _ proto
 		return protocol.ContainerListOutput{}, err
 	}
 	set := s.guard.Identify(ctx, eng, cs)
+	started := startTimes(ctx, eng, cs)
 	out := protocol.ContainerListOutput{Containers: make([]protocol.ContainerSummary, 0, len(cs))}
-	for _, c := range cs {
+	for i, c := range cs {
 		sum := s.containerSummary(c)
 		sum.Protection = set.Container(c.ID)
+		sum.StartedAt = started[i]
 		out.Containers = append(out.Containers, sum)
 	}
 	return out, nil
+}
+
+// startInspections bounds the concurrent inspections of one container.list.
+const startInspections = 8
+
+// startTimes returns the start time of each running container (the list
+// entry has only the Engine's "Up 3 hours" text): one inspection per
+// running container, at most startInspections at a time. A container that
+// vanished or could not be inspected meanwhile simply has none.
+func startTimes(ctx context.Context, eng engine.Engine, cs []engine.Container) []*time.Time {
+	out := make([]*time.Time, len(cs))
+	sem := make(chan struct{}, startInspections)
+	var wg sync.WaitGroup
+	for i, c := range cs {
+		if c.State != "running" && c.State != "paused" && c.State != "restarting" {
+			continue
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer func() { <-sem; wg.Done() }()
+			d, err := eng.InspectContainer(ctx, c.ID)
+			if err != nil || !d.State.Running {
+				return
+			}
+			out[i] = timePtr(d.State.StartedAt)
+		}()
+	}
+	wg.Wait()
+	return out
 }
 
 // containerDetails converts an inspected container.
@@ -110,7 +153,7 @@ func (s *Service) containerDetails(d engine.ContainerDetails) protocol.Container
 		Cmd: d.Cmd, Entrypoint: d.Entrypoint, WorkingDir: d.WorkingDir, User: d.User, Tty: d.Tty, Hostname: d.Hostname,
 		RestartPolicy: d.RestartPolicy, NetworkMode: d.NetworkMode, RestartCount: d.RestartCount, Platform: d.Platform,
 		Running: st.Running, Paused: st.Paused, OOMKilled: st.OOMKilled, ExitCode: st.ExitCode, Error: st.Error,
-		StartedAt: timePtr(st.StartedAt), FinishedAt: timePtr(st.FinishedAt),
+		FinishedAt: timePtr(st.FinishedAt),
 		Resources: protocol.ResourcesSpec{NanoCPUs: d.Resources.NanoCPUs, CPUShares: d.Resources.CPUShares, Memory: d.Resources.Memory,
 			MemorySwap: d.Resources.MemorySwap, PidsLimit: d.Resources.PidsLimit},
 	}
@@ -123,6 +166,7 @@ func (s *Service) containerDetails(d engine.ContainerDetails) protocol.Container
 	for _, p := range d.Ports {
 		out.Ports = append(out.Ports, protocol.ContainerPort{ContainerPort: p.PrivatePort, HostPort: p.PublicPort, HostIP: p.HostIP, Protocol: p.Protocol})
 	}
+	out.StartedAt = timePtr(st.StartedAt)
 	names := slices.Sorted(maps.Keys(d.Networks))
 	for _, n := range names {
 		ep := d.Networks[n]
@@ -289,6 +333,21 @@ func (s *Service) inspectVolume(ctx context.Context, eng engine.Engine, in proto
 		return protocol.VolumeInfo{}, err
 	}
 	return volumeInfo(v, usersByVolume(cs)[v.Name], s.managedProjects(cs), s.guard.Identify(ctx, eng, cs)), nil
+}
+
+// volumeUsage serves volume.usage: the Engine's per-volume disk usage
+// (sorted by name; -1 where the Engine does not know a size).
+func (s *Service) volumeUsage(ctx context.Context, eng engine.Engine, _ protocol.VolumeUsageInput) (protocol.VolumeUsageOutput, error) {
+	usage, err := eng.VolumeUsage(ctx)
+	if err != nil {
+		return protocol.VolumeUsageOutput{}, err
+	}
+	out := protocol.VolumeUsageOutput{Volumes: make([]protocol.VolumeUsage, 0, len(usage))}
+	for _, name := range slices.Sorted(maps.Keys(usage)) {
+		u := usage[name]
+		out.Volumes = append(out.Volumes, protocol.VolumeUsage{Name: name, Size: u.Size, RefCount: u.RefCount})
+	}
+	return out, nil
 }
 
 // networkInfo converts a network. Attached containers are only known for

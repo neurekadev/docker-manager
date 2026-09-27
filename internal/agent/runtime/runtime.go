@@ -47,6 +47,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/prune"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/resources"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/selfupdate"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/stacks"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/state"
@@ -201,6 +202,9 @@ type Agent struct {
 
 	// guard identifies Docker Manager's own resources (#32).
 	guard *protect.Guard
+	// self hands the agent's own Compose service to a helper container
+	// when Docker Manager redeploys or updates itself (#32).
+	self *selfupdate.Launcher
 
 	healthMu    sync.Mutex
 	store       *state.Store
@@ -211,6 +215,9 @@ type Agent struct {
 	sampler *observe.Sampler
 	// watcher watches the declared file scopes (#23); nil without Files.
 	watcher *watch.Watcher
+	// execShell: container.exec.create is served by containerio, which
+	// resolves terminal shells (#8, FeatureExecShell).
+	execShell bool
 }
 
 // Run runs the agent until ctx is canceled.
@@ -284,13 +291,16 @@ func New(opts Options) (*Agent, error) {
 	}
 	// Compose stacks (#7): the compose.* requests and stack.* executors run
 	// on the live Engine/Compose adapters and the verified storage roots.
-	st := stacks.New(stacks.Options{Deps: stackDeps{a}, Clock: opts.Clock, Logger: opts.Logger.With("component", "stacks"), Guard: a.guard})
+	a.self = selfupdate.New(selfupdate.Options{StateDir: opts.Config.StateDir, SelfContainerID: a.guard.SelfContainerID(),
+		Engine: a.Engine, DockerHost: opts.Config.DockerHost, Logger: opts.Logger})
+	st := stacks.New(stacks.Options{Deps: stackDeps{a}, Clock: opts.Clock, Logger: opts.Logger.With("component", "stacks"), Guard: a.guard,
+		Self: a.self})
 	own := map[domain.JobKind]bool{}
 	for _, x := range a.opts.Executors {
 		own[x.Kind] = true
 	}
-	// Docker Manager's own Compose project is never deployed, stopped or taken
-	// down through a stack job (#32).
+	// Docker Manager's own Compose project is never stopped or taken down
+	// through a stack job (#32); deploys hand the agent to a helper.
 	for _, x := range a.guard.GuardStacks(a.Engine, st.Executors()) {
 		if !own[x.Kind] {
 			a.opts.Executors = append(a.opts.Executors, x)
@@ -489,6 +499,7 @@ func (a *Agent) enableContainerIO() {
 		},
 		Clock: a.opts.Clock, Logger: a.opts.Logger,
 	})
+	a.execShell = a.opts.Requests[protocol.ReqContainerExecCreate] == nil
 	reqs := svc.Requests()
 	for k, v := range a.opts.Requests {
 		reqs[k] = v
@@ -646,6 +657,10 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	if slices.Contains(p.Commands, "backup.run") {
 		p.Features = append(p.Features, protocol.FeatureBackupActivity)
 	}
+	// Its container.exec.create resolves terminal shells (#8).
+	if a.execShell {
+		p.Features = append(p.Features, protocol.FeatureExecShell)
+	}
 	if c.EngineError != nil {
 		p.Diagnostics = append(p.Diagnostics, protocol.Diagnostic{
 			Area: protocol.DiagnosticEngine, Code: string(c.EngineError.Code), Message: bound(c.EngineError.Message),
@@ -755,8 +770,12 @@ func (a *Agent) Run(ctx context.Context) error {
 		Requests: a.opts.Requests, Streams: a.opts.Streams, Backoff: a.opts.Backoff, OnStatus: a.onSessionStatus,
 		Rescan: a.rescan(),
 	})
+	// A helper that recreated this agent (#32) left its result behind.
+	selfupdate.Collect(cfg.StateDir, log)
 	runner, err := agentjobs.New(ctx, agentjobs.Options{StateDir: cfg.StateDir, Clock: clk, Logger: log.With("component", "jobs"),
-		Sender: a.client, Executors: a.opts.Executors})
+		Sender: a.client, Executors: a.opts.Executors, OnFinished: func(ctx context.Context, st jobexec.State) {
+			a.self.JobFinished(ctx, st.JobID, st.Outcome.Outcome == jobexec.OutcomeSucceeded)
+		}})
 	if err != nil {
 		return err
 	}

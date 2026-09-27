@@ -338,10 +338,20 @@ no other capability (restart, metrics, logs, details) opens a terminal. The
 command runs inside the container through the Engine's exec API; Docker Manager
 never offers a shell on the host.
 
-1. `POST …/containers/{containerId}/exec-sessions` with `{command?: [argv…]
-   (default ["/bin/sh"]), tty?: true, cols?: 80, rows?: 24, workingDir?,
-   user?}` → `201 {id, streamUrl, subprotocol: "docker-manager.exec.v1", ticket,
-   expiresAt}`. The container must be running and not paused (`409` otherwise). Limits: 4 open sessions per principal, 8 per container
+1. `POST …/containers/{containerId}/exec-sessions` with `{shell?: "auto" |
+   "bash" | "sh" | "zsh", command?: [argv…], tty?: true, cols?: 80, rows?: 24,
+   workingDir?, user?}` → `201 {id, streamUrl, subprotocol: "docker-manager.exec.v1",
+   ticket, expiresAt, command}`. `shell` and `command` are mutually exclusive
+   (`422 validation_failed` on `body.shell`); without either the shell is
+   `auto`. For a shell the agent starts the first of its usual paths that
+   exists in the container: bash `/bin/bash`, `/usr/bin/bash`,
+   `/usr/local/bin/bash`; zsh `/bin/zsh`, `/usr/bin/zsh`,
+   `/usr/local/bin/zsh`; sh `/bin/sh`, `/usr/bin/sh`, `/busybox/sh`; `auto`
+   is Bash if present, else sh. None found → `422 command_not_found`
+   (choose another shell). Agents older than the shell lookup get the
+   shell's most common path (`/bin/bash`, `/bin/zsh`, else `/bin/sh`). The
+   response's `command` is the argv actually started. The container must be
+   running and not paused (`409` otherwise). Limits: 4 open sessions per principal, 8 per container
    (`429 rate_limited`). The session start is audited (`container.exec` with the session
    ID and whether a TTY was requested; never the command's output).
 2. `GET {streamUrl}` upgrades to a WebSocket. The client offers two
@@ -382,9 +392,11 @@ Messages:
   stream, which closes the process's stdin; the session end is audited
   (`container.exec.end` with session ID, reason, close code, duration and
   exit code).
-- A command that does not exist in the image (for example `/bin/sh` in a
-  distroless image) is reported as `error` `command_not_found` and close
-  `4422` ("the image may have no shell"); pick another command.
+- An explicit command (or a shell on an older agent) that does not exist in
+  the image (for example `/bin/sh` in a distroless image) is reported as
+  `error` `command_not_found` and close `4422` ("the image may have no
+  shell"); pick another shell or command. With the shell lookup the create
+  call already answers `422 command_not_found`.
 - Terminal input and output are never logged, audited or stored.
 
 Close codes:

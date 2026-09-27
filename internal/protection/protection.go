@@ -52,8 +52,11 @@ const (
 	Update Action = "update"
 	// Mount is mounting a volume into a new container.
 	Mount Action = "mount"
-	// Stack actions on Docker Manager's own Compose project (#7): deploy, down,
-	// stop.
+	// Stack actions on Docker Manager's own Compose project (#7). Deploy
+	// (import, redeploy, digest updates) is allowed: Docker Manager manages
+	// itself, and the agent hands its own container to a helper container
+	// (internal/agent/selfupdate). Down (and stack removal) is refused: it
+	// would delete Docker Manager.
 	Deploy Action = "deploy"
 	Down   Action = "down"
 )
@@ -88,12 +91,14 @@ func (r *Refusal) Recovery() string {
 // Check decides whether action may run on an object with protection p
 // (nil: not protected). confirmed is the caller's explicit confirmation of
 // a restart that interrupts Docker Manager (the co-located manager).
+// Starting and deploying are always allowed; everything that would stop,
+// disable or delete Docker Manager is refused.
 func Check(p *protocol.Protection, action Action, confirmed bool) error {
 	if p == nil {
 		return nil
 	}
 	switch action {
-	case Start, Unpause:
+	case Start, Unpause, Deploy:
 		return nil
 	case Restart:
 		if p.RestartAllowed {

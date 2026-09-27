@@ -170,6 +170,7 @@ same change.
 | `range_not_satisfiable` | 416 | no | The `Range` of a single-file download lies outside the file; `Content-Range` carries its size. | #15 |
 | `validation_failed` | 422 | no | One or more inputs are invalid; `details` lists each field. | #2 |
 | `recreate_required` | 422 | no | The requested container settings cannot change in place; create a new container (or use a Compose stack). `details` lists the fields. | #6 |
+| `command_not_found` | 422 | no | The container has none of the requested shell's usual paths (for example a distroless image without sh); choose another shell or command. | #8 |
 | `content_digest_mismatch` | 422 | no | The uploaded bytes do not match `X-Docker-Manager-Content-SHA256`; nothing was written. | #15 |
 | `backup_import_key_rejected` | 422 | no | The Recovery Key does not open the manager repository. Check it for typos; after a rotation also enter the previous key. A lost Recovery Key cannot be recovered: nobody can decrypt the backups. | #24 |
 | `backup_import_not_found` | 422 | no | No Docker Manager repository (or no such backup set) at the import destination; check endpoint, bucket, prefix or the mounted path. | #24 |

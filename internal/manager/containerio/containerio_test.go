@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -51,6 +53,14 @@ type loop struct {
 	offline bool
 	watched string
 	seen    chan struct{}
+	// features are the capabilities features the agent announced.
+	features map[string]bool
+}
+
+func (l *loop) EnvironmentHasFeature(env, feature string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return env == env1 && !l.offline && l.features[feature]
 }
 
 // watch makes the next request named name signal seen.
@@ -381,9 +391,10 @@ func (f *fixture) wsURL(path string) string {
 }
 
 type execSession struct {
-	ID        string `json:"id"`
-	StreamURL string `json:"streamUrl"`
-	Ticket    string `json:"ticket"`
+	ID        string   `json:"id"`
+	StreamURL string   `json:"streamUrl"`
+	Ticket    string   `json:"ticket"`
+	Command   []string `json:"command"`
 }
 
 func (f *fixture) create(user, token string, body any) execSession {
@@ -581,6 +592,70 @@ func TestExecExitAndMissingShell(t *testing.T) {
 	_, texts, code = readUntilClose(t, f.ctx, c)
 	if code != 4422 || len(texts) != 1 || !strings.Contains(texts[0], "command_not_found") {
 		t.Fatalf("missing shell: close %d texts %v", code, texts)
+	}
+}
+
+// TestExecShellSelection (#8): a shell is resolved by agents announcing
+// exec.shell (the first existing path; 422 command_not_found when none
+// does); older agents get the shell's most common path; shell and command
+// are mutually exclusive; the response names the argv started.
+func TestExecShellSelection(t *testing.T) {
+	f := newFixture(t)
+	lastCmd := func() []string {
+		t.Helper()
+		xs := f.eng.Execs()
+		return xs["exec-"+strconv.Itoa(len(xs))].Spec.Cmd
+	}
+
+	// An agent without the feature: the legacy path, no lookup.
+	s := f.create("alice", "", map[string]any{"shell": "bash"})
+	if got := lastCmd(); len(got) != 1 || got[0] != "/bin/bash" || !slices.Equal(s.Command, got) {
+		t.Fatalf("legacy bash: exec %v, response %v", got, s.Command)
+	}
+	s = f.create("alice", "", map[string]any{})
+	if got := lastCmd(); len(got) != 1 || got[0] != "/bin/sh" || !slices.Equal(s.Command, got) {
+		t.Fatalf("legacy default: exec %v, response %v", got, s.Command)
+	}
+	if n := len(f.eng.Stats()); n != 0 {
+		t.Fatalf("legacy agent looked up %d paths", n)
+	}
+	must(t, f.do("alice", "", http.MethodDelete, f.base+"/exec-sessions/"+s.ID, nil), 204)
+
+	// An agent resolving shells: auto picks Bash wherever it lives.
+	f.loop.mu.Lock()
+	f.loop.features = map[string]bool{protocol.FeatureExecShell: true}
+	f.loop.mu.Unlock()
+	f.eng.SetPaths("/usr/bin/bash", "/bin/sh")
+	s = f.create("alice", "", map[string]any{})
+	if got := lastCmd(); len(got) != 1 || got[0] != "/usr/bin/bash" || !slices.Equal(s.Command, got) {
+		t.Fatalf("auto: exec %v, response %v", got, s.Command)
+	}
+	must(t, f.do("alice", "", http.MethodDelete, f.base+"/exec-sessions/"+s.ID, nil), 204)
+	s = f.create("alice", "", map[string]any{"shell": "sh"})
+	if !slices.Equal(s.Command, []string{"/bin/sh"}) {
+		t.Fatalf("sh: response %v", s.Command)
+	}
+	must(t, f.do("alice", "", http.MethodDelete, f.base+"/exec-sessions/"+s.ID, nil), 204)
+
+	// No zsh in the container: 422 command_not_found, nothing created.
+	n := len(f.eng.Execs())
+	r := f.do("alice", "", http.MethodPost, f.base+"/exec-sessions", map[string]any{"shell": "zsh"})
+	if r.status != 422 || !strings.Contains(string(r.body), "command_not_found") {
+		t.Fatalf("missing zsh: %d %s", r.status, r.body)
+	}
+	if len(f.eng.Execs()) != n {
+		t.Fatal("a missing shell created an exec instance")
+	}
+
+	// shell and command together, or an unknown shell: 422 before the agent.
+	calls := f.loop.called(protocol.ReqContainerExecCreate)
+	r = f.do("alice", "", http.MethodPost, f.base+"/exec-sessions", map[string]any{"shell": "bash", "command": []string{"/bin/sh"}})
+	if r.status != 422 || !strings.Contains(string(r.body), "body.shell") {
+		t.Fatalf("shell and command: %d %s", r.status, r.body)
+	}
+	must(t, f.do("alice", "", http.MethodPost, f.base+"/exec-sessions", map[string]any{"shell": "fish"}), 422)
+	if f.loop.called(protocol.ReqContainerExecCreate) != calls {
+		t.Fatal("invalid bodies reached the agent")
 	}
 }
 

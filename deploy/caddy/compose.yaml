@@ -44,6 +44,11 @@ services:
       DOCKER_AGENT_ENROLLMENT_TOKEN: ${DOCKER_AGENT_ENROLLMENT_TOKEN:-}
       DOCKER_AGENT_ENVIRONMENT_NAME: ${DOCKER_AGENT_ENVIRONMENT_NAME:-}
       DOCKER_AGENT_LOG_LEVEL: ${DOCKER_AGENT_LOG_LEVEL:-info}
+      # Optional: import this deployment as a stack in place and redeploy or
+      # update Docker Manager from its own UI (#32). Keep this directory in a
+      # stack root, e.g. /opt/stacks/docker-manager, and uncomment this line
+      # and the matching bind mount below (docs/deployment.md).
+      # DOCKER_AGENT_STACK_ROOTS: /opt/stacks
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # Identical-path mount: stack and volume paths resolve the same inside
@@ -57,6 +62,7 @@ services:
       # identical-path mount above already exposes.
       - stacks:/var/lib/docker/volumes/docker-manager_stacks/_data
       - agent:/var/lib/docker-agent
+      # - /opt/stacks:/opt/stacks
     labels:
       dev.neureka.docker-manager.role: agent
     networks:

@@ -324,6 +324,14 @@ func (s *Service) updateRecreate(ctx context.Context, sc *jobexec.StepContext) e
 			wasRunning = append(wasRunning, st.Service)
 		}
 	}
+	// Docker Manager's own project (#32): the agent's own service is
+	// recreated by a helper container after the job.
+	var handoff []string
+	if len(changed) > 0 {
+		if changed, handoff, err = s.selfHandoff(ctx, p, in.Stack.ProjectName, changed, false); err != nil {
+			return err
+		}
+	}
 	out.Stage = protocol.UpdateStageRecreate
 	if err := sc.SetOutput(ctx, out); err != nil {
 		return err
@@ -334,7 +342,11 @@ func (s *Service) updateRecreate(ctx context.Context, sc *jobexec.StepContext) e
 			Services: services, StopTimeout: s.lifecycleOptions(ctx, sc, in).StopTimeout})
 	}
 	rt := lifecycle.EngineRuntime{Engine: eng, Project: in.Stack.ProjectName, Clock: s.opts.Clock}
-	rep, uerr := lifecycle.Update(ctx, g, rt, changed, wasRunning, recreate, s.lifecycleOptions(ctx, sc, in))
+	var rep lifecycle.UpdateReport
+	var uerr error
+	if len(changed) > 0 {
+		rep, uerr = lifecycle.Update(ctx, g, rt, changed, wasRunning, recreate, s.lifecycleOptions(ctx, sc, in))
+	}
 	for i := range out.Services {
 		r := &out.Services[i]
 		switch {
@@ -361,12 +373,26 @@ func (s *Service) updateRecreate(ctx context.Context, sc *jobexec.StepContext) e
 		}
 		return updateFailure(uerr, out)
 	}
+	for i := range out.Services {
+		if r := &out.Services[i]; slices.Contains(handoff, r.Service) {
+			r.Outcome, r.Message = protocol.UpdateUpdated, "recreated by a helper container right after this job (the agent restarts)"
+		}
+	}
+	if len(handoff) > 0 {
+		out.Warnings = append(out.Warnings, selfUpdateMessage(handoff))
+	}
 	for _, r := range out.Services {
 		if r.Outcome != protocol.UpdatePulled {
 			sc.Item(ctx, r.Service, itemStatus(r.Outcome), r.Outcome)
 		}
 	}
-	return sc.SetOutput(ctx, out)
+	if err := sc.SetOutput(ctx, out); err != nil {
+		return err
+	}
+	if len(handoff) > 0 {
+		s.scheduleSelf(sc, *in.Stack, dir, snap, handoff, false, in.TimeoutSeconds)
+	}
+	return nil
 }
 
 func itemStatus(outcome string) string {

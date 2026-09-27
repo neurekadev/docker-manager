@@ -118,6 +118,63 @@ func (h *dockerAPI) containerMetrics(ctx context.Context, in *containerMetricsIn
 		Incomplete: m.Incomplete, Online: m.Online}}, nil
 }
 
+// LatestContainerWindow is how old a container's newest sample may be to
+// be reported as its current usage (samples are 10 s apart; the collector
+// fetches them in batches).
+const LatestContainerWindow = time.Minute
+
+// LatestContainerMetric is one container's most recent sample.
+type LatestContainerMetric struct {
+	Container        string    `json:"container" doc:"Container name."`
+	At               time.Time `json:"at" doc:"When the sample was taken."`
+	CPUPercent       *float64  `json:"cpuPercent,omitempty" doc:"Share of the environment's cores, 0..100; absent when unknown."`
+	MemoryUsedBytes  *int64    `json:"memoryUsedBytes,omitempty" doc:"Absent when unknown."`
+	MemoryLimitBytes *int64    `json:"memoryLimitBytes,omitempty" doc:"The container's memory limit; absent when unlimited or unknown."`
+}
+
+// LatestContainerMetrics are the current usage of an environment's
+// containers.
+type LatestContainerMetrics struct {
+	EnvironmentID string                  `json:"environmentId"`
+	WindowSeconds int                     `json:"windowSeconds" doc:"Only containers sampled within this many seconds are listed."`
+	Items         []LatestContainerMetric `json:"items" doc:"Sorted by container name; containers without a recent sample (stopped, new) are absent."`
+}
+
+type latestContainerMetricsInput struct {
+	EnvironmentID string `path:"environmentId" maxLength:"64" doc:"Environment ID."`
+}
+
+type latestContainerMetricsOutput struct{ Body LatestContainerMetrics }
+
+// latestContainerMetrics lists the newest sample of every container the
+// caller may chart (container.metrics.read on the container, resolved by
+// name through the resource graph like the metrics.sampled events): one
+// request instead of a range query per container. Works while the
+// environment is offline (the samples stop, so the list empties).
+func (h *dockerAPI) latestContainerMetrics(ctx context.Context, in *latestContainerMetricsInput) (*latestContainerMetricsOutput, error) {
+	sc, err := h.environment(ctx, in.EnvironmentID, false)
+	if err != nil {
+		return nil, err
+	}
+	out := LatestContainerMetrics{EnvironmentID: sc.env.ID, WindowSeconds: int(LatestContainerWindow / time.Second), Items: []LatestContainerMetric{}}
+	if h.observe == nil {
+		return nil, Unavailable(CodeUnavailable, "the observation service is not available")
+	}
+	all, err := h.observe.LatestContainers(ctx, sc.env.ID, LatestContainerWindow)
+	if err != nil {
+		return nil, Internal(err)
+	}
+	for _, m := range all {
+		res := authz.Resource{Type: catalog.TypeContainer, ID: m.Values.Name, EnvironmentID: sc.env.ID}
+		if !sc.c.Can(string(CapContainerMetricsRead), res).Allowed {
+			continue
+		}
+		out.Items = append(out.Items, LatestContainerMetric{Container: m.Values.Name, At: m.At, CPUPercent: m.Values.CPUPercent,
+			MemoryUsedBytes: m.Values.MemoryBytes, MemoryLimitBytes: m.Values.MemoryLimitBytes})
+	}
+	return &latestContainerMetricsOutput{Body: out}, nil
+}
+
 func registerContainerMetrics(a huma.API, deps Deps) {
 	h := newDockerAPI(deps)
 	Register(a, Operation{
@@ -133,4 +190,18 @@ func registerContainerMetrics(a huma.API, deps Deps) {
 		},
 		Capability: CapContainerMetricsRead, Scope: ScopeResource,
 	}, h.containerMetrics)
+	Register(a, Operation{
+		Operation: huma.Operation{
+			OperationID: "list-latest-container-metrics", Method: http.MethodGet,
+			Path:    BasePath + "/environments/{environmentId}/metrics/containers",
+			Summary: "List the current usage of an environment's containers",
+			Description: "The newest CPU and memory sample (#5, 10 s resolution) of every container sampled within the last " +
+				"windowSeconds, for the containers the caller holds container.metrics.read on (others are absent). " +
+				"Tables poll it (or refresh on metrics.sampled) instead of one range query per container. " +
+				"Unknown values are absent, never zero.",
+			Tags: []string{tagContainers}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound,
+				http.StatusServiceUnavailable},
+		},
+		Capability: CapContainerMetricsRead, Scope: ScopeEnvironment,
+	}, h.latestContainerMetrics)
 }

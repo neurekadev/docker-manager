@@ -57,8 +57,14 @@ func (c *Client) ListContainers(ctx context.Context, f ContainerFilter) ([]Conta
 			ct.Mounts = append(ct.Mounts, mountFrom(m))
 		}
 		if s.NetworkSettings != nil {
-			for n := range s.NetworkSettings.Networks {
+			for n, ep := range s.NetworkSettings.Networks {
 				ct.Networks = append(ct.Networks, n)
+				if ep != nil {
+					if ct.Endpoints == nil {
+						ct.Endpoints = map[string]EndpointInfo{}
+					}
+					ct.Endpoints[n] = endpointFrom(ep)
+				}
 			}
 			sort.Strings(ct.Networks)
 		}

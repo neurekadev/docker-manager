@@ -1,10 +1,13 @@
 <script lang="ts">
 	// Services of a stack (#22 mockup table): hue tile + name + description,
-	// status, running/desired containers, image, published ports (links
-	// only with the environment's service address), restart policy, CPU,
-	// memory, and the row actions: open (only with a web port and an
-	// address), terminal (track B3's route with the service preselected) and
-	// a menu with the service's own start/stop/restart and logs.
+	// status, then the live figures (uptime ticking every second, CPU and
+	// memory from the newest 10 s samples), running/desired containers,
+	// addresses, published ports (links only with the environment's
+	// service address), image, image update, restart policy, and the row
+	// actions: open (only with a web port and an address), terminal (track
+	// B3's route with the service preselected) and a menu with the
+	// service's own start/stop/restart and logs. Restart and stop of Docker
+	// Manager's own project (#32) are shown disabled, not hidden.
 	import Box from '@lucide/svelte/icons/box';
 	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
@@ -23,13 +26,24 @@
 		Menu,
 		StatusBadge,
 		Table,
+		Uptime,
 		formatBytes,
 		formatPercent,
 		type Column,
 		type MenuEntry
 	} from '$lib/ui';
 	import type { StackOperation } from './actions';
-	import { openTarget, runningOf, servicePorts, serviceUsage, type StackUsage } from './model';
+	import AddressList from '$lib/features/resources/AddressList.svelte';
+	import { uptimeSortValue } from '$lib/features/resources/model';
+	import {
+		openTarget,
+		runningOf,
+		serviceAddresses,
+		servicePorts,
+		serviceUsage,
+		upSince,
+		type StackUsage
+	} from './model';
 	import type { Stack, StackServiceStatus } from './queries';
 	import type { StackImageStatus } from './queries';
 	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
@@ -74,6 +88,7 @@
 				items.push({
 					label: `Restart ${s.name}`,
 					icon: RotateCw,
+					disabled: !!stack.protection,
 					onSelect: () => onoperate(s.name, 'restart')
 				});
 			if (!running && can('stack.start'))
@@ -87,6 +102,7 @@
 					label: `Stop ${s.name}`,
 					icon: Square,
 					tone: 'danger',
+					disabled: !!stack.protection,
 					onSelect: () => onoperate(s.name, 'stop')
 				});
 		}
@@ -110,8 +126,13 @@
 		return items;
 	}
 
+	const since = (s: StackServiceStatus) => upSince([s]) ?? null;
+	const usageOf = (s: StackServiceStatus) =>
+		usage ? serviceUsage(s, usage) : { cpu: null, memory: null };
+
 	// Below the full desktop layout the restart policy column gives way
-	// (it stays in the stacked cards and in the container details).
+	// (it stays in the stacked cards and in the container details). The
+	// live figures come right after the status.
 	const wide = new MediaQuery('min-width: 1280px');
 	const allColumns: Column<StackServiceStatus>[] = [
 		{
@@ -131,17 +152,49 @@
 			width: '120px'
 		},
 		{
-			id: 'update',
-			header: 'Image update',
-			cell: updateCell,
-			sortValue: (s) => imageStatuses.find((i) => i.service === s.name)?.update ?? '',
-			width: '150px'
+			id: 'uptime',
+			header: 'Uptime',
+			cell: uptimeCell,
+			sortValue: (s) => uptimeSortValue(since(s)),
+			numeric: true,
+			width: '112px'
+		},
+		{
+			id: 'cpu',
+			header: 'CPU',
+			cell: cpuCell,
+			sortValue: (s) => usageOf(s).cpu,
+			numeric: true,
+			width: '72px'
+		},
+		{
+			id: 'memory',
+			header: 'Memory',
+			cell: memCell,
+			sortValue: (s) => usageOf(s).memory,
+			numeric: true,
+			width: '88px'
 		},
 		{
 			id: 'containers',
 			header: 'Containers',
 			cell: containersCell,
-			width: '96px'
+			sortValue: (s) => runningOf(s).running,
+			numeric: true,
+			width: '104px'
+		},
+		{
+			id: 'addresses',
+			header: 'IP addresses',
+			cell: addressesCell,
+			sortValue: (s) => serviceAddresses(s)[0]?.address,
+			width: '140px'
+		},
+		{
+			id: 'ports',
+			header: 'Ports',
+			cell: portsCell,
+			sortValue: (s) => servicePorts(s.containers)[0]?.label
 		},
 		{
 			id: 'image',
@@ -150,23 +203,19 @@
 			sortValue: (s) => s.image ?? '',
 			mono: true
 		},
-		{ id: 'ports', header: 'Ports', cell: portsCell },
-		{ id: 'restart', header: 'Restart policy', cell: restartCell, width: '130px' },
 		{
-			id: 'cpu',
-			header: 'CPU',
-			cell: cpuCell,
-			sortValue: (s) => (usage ? serviceUsage(s, usage).cpu : null),
-			numeric: true,
-			width: '72px'
+			id: 'update',
+			header: 'Image update',
+			cell: updateCell,
+			sortValue: (s) => imageStatuses.find((i) => i.service === s.name)?.update ?? '',
+			width: '150px'
 		},
 		{
-			id: 'memory',
-			header: 'Memory',
-			cell: memCell,
-			sortValue: (s) => (usage ? serviceUsage(s, usage).memory : null),
-			numeric: true,
-			width: '88px'
+			id: 'restart',
+			header: 'Restart policy',
+			cell: restartCell,
+			sortValue: (s) => s.containers.find((c) => c.restartPolicy)?.restartPolicy,
+			width: '130px'
 		},
 		{
 			id: 'actions',
@@ -194,6 +243,10 @@
 {#snippet updateCell(s: StackServiceStatus)}
 	<UpdateStatusBadge status={imageStatuses.find((i) => i.service === s.name)?.update} />
 {/snippet}
+{#snippet uptimeCell(s: StackServiceStatus)}<Uptime since={since(s)} />{/snippet}
+{#snippet addressesCell(s: StackServiceStatus)}<AddressList
+		addresses={serviceAddresses(s)}
+	/>{/snippet}
 {#snippet containersCell(s: StackServiceStatus)}
 	{@const r = runningOf(s)}
 	<span class="num" class:ok={r.total > 0 && r.running === r.total}>{r.running} / {r.total}</span>
@@ -223,10 +276,10 @@
 	<span class="nowrap">{s.containers.find((c) => c.restartPolicy)?.restartPolicy ?? '—'}</span>
 {/snippet}
 {#snippet cpuCell(s: StackServiceStatus)}
-	{formatPercent(usage ? serviceUsage(s, usage).cpu : null)}
+	{formatPercent(usageOf(s).cpu)}
 {/snippet}
 {#snippet memCell(s: StackServiceStatus)}
-	{formatBytes(usage ? serviceUsage(s, usage).memory : null)}
+	{formatBytes(usageOf(s).memory)}
 {/snippet}
 {#snippet actionsCell(s: StackServiceStatus)}
 	{@const target = openTarget(s.containers, serviceAddress)}

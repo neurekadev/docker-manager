@@ -215,12 +215,29 @@ and excludes them from file browsing, watching and backup
 ## Docker Manager's own containers (#32)
 
 Docker Manager protects itself: through its UI, API, API tokens, policies and
-jobs it never stops, pauses, updates or removes the connected agent, never
-stops or removes the manager (a restart needs an explicit confirmation),
-never removes the manager data, agent state or stacks volumes or the images
-Docker Manager runs, and leaves them out of prune, update, backup-shutdown and
-bulk selections. The instance owner cannot override this; use Docker on the
-host if you really must.
+jobs it never stops, pauses or removes the connected agent, never stops or
+removes the manager (a restart needs an explicit confirmation), never takes
+down or deletes its own Compose project, never removes the manager data,
+agent state or stacks volumes or the images Docker Manager runs, and leaves
+them out of prune, backup-shutdown and bulk selections. The instance owner
+cannot override this; use Docker on the host if you really must.
+
+It does manage itself: its own Compose project can be imported as a stack,
+redeployed (also with pull or force recreate) and updated by a digest update
+policy. The agent converges every other service itself and hands its own
+container to a short-lived helper container (`docker-agent self-update`,
+started from the agent's image with the agent's mounts) right after the job;
+the environment reconnects within a minute. In the UI the stack's Restart,
+Stop, Take down, Migrate and Delete stay visible but disabled.
+
+To import the deployment **in place** (so a redeploy uses the same
+`compose.yaml`, `.env` and relative files such as the `Caddyfile`), keep its
+directory inside a registered stack root: for example put it in
+`/opt/stacks/docker-manager`, set `DOCKER_AGENT_STACK_ROOTS=/opt/stacks` on
+the agent and bind-mount `/opt/stacks:/opt/stacks` (the commented lines in
+the co-located examples). Importing with pasted files instead copies only
+the Compose and env files into the stacks volume; relative bind sources
+would then be missing.
 
 The agent finds its own container by itself. The co-located manager is
 found by its container ID, which the manager reports to its agents; keep the

@@ -1,7 +1,9 @@
 <script lang="ts">
 	// Stack overview (#22 mockup): the KPI row and the services table.
 	// Everything refreshes live: stack events, container events (services)
-	// and metrics samples (#23 keys in $lib/features/stacks/queries).
+	// and metrics samples (#23 keys in $lib/features/stacks/queries); CPU
+	// and memory come from the newest 10 s samples, the CPU sparkline from
+	// the last hour, and uptimes tick every second.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { operateStack, type StackOperation } from '$lib/features/stacks/actions';
 	import { useStackPage } from '$lib/features/stacks/context';
@@ -14,6 +16,7 @@
 	} from '$lib/features/stacks/queries';
 	import ServicesTable from '$lib/features/stacks/ServicesTable.svelte';
 	import StackKpis from '$lib/features/stacks/StackKpis.svelte';
+	import { latestContainerMetricsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { Card, ConfirmDialog, ErrorState, Notice, Skeleton, formatRelative } from '$lib/ui';
 
@@ -32,7 +35,20 @@
 	);
 	const metrics = createQuery(() => stackMetricsQuery(stack.environmentId, containerNames));
 	const capacity = createQuery(() => ({ ...capacityQuery(stack.environmentId), enabled: full }));
-	const usage = $derived(metrics.data ? stackUsage(metrics.data) : null);
+	const latest = createQuery(() => ({
+		...latestContainerMetricsQuery(stack.environmentId),
+		enabled: full
+	}));
+	// The newest samples of this stack's containers (undefined until the
+	// first answer, or when it failed: the minute buckets are used then).
+	const stackLatest = $derived.by(() => {
+		const byName = latest.data;
+		if (!byName) return undefined;
+		return containerNames.flatMap((n) => (byName[n] ? [byName[n]] : []));
+	});
+	const usage = $derived(
+		metrics.data || stackLatest ? stackUsage(metrics.data ?? [], stackLatest) : null
+	);
 	const since = $derived(upSince(services.data?.services ?? []));
 	const readOnly = $derived(stack.readOnly || stack.environmentOnline === false);
 	// Services in the order of the definition (as the Compose file lists them).

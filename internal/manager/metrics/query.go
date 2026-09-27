@@ -350,6 +350,38 @@ func (s *Store) Latest(ctx context.Context, env string) (domain.LatestMetrics, b
 	return out, true, nil
 }
 
+// LatestContainers returns the most recent sample of each container of an
+// environment, of the containers sampled within window before now (a
+// stopped or removed container drops out once its last sample is older).
+// Values keep their gaps: a NULL column is nil, never zero. Sorted by name.
+func (s *Store) LatestContainers(ctx context.Context, env string, window time.Duration) ([]domain.LatestContainerMetrics, error) {
+	since := s.clk.Now().Add(-window).Unix()
+	rows, err := s.read.QueryContext(ctx, `SELECT s.name, r.ts, r.cpu, r.mem, r.mem_limit
+		FROM series s JOIN container_raw r ON r.series_id = s.id
+		WHERE s.environment_id = ? AND s.kind = ?
+			AND r.ts = (SELECT MAX(m.ts) FROM container_raw m WHERE m.series_id = s.id AND m.ts >= ?)
+		ORDER BY s.name`, env, domain.MetricContainer, since)
+	if err != nil {
+		return nil, fmt.Errorf("metrics: latest containers: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []domain.LatestContainerMetrics
+	for rows.Next() {
+		var name string
+		var ts int64
+		var cpu, mem, limit sql.NullInt64
+		if err := rows.Scan(&name, &ts, &cpu, &mem, &limit); err != nil {
+			return nil, fmt.Errorf("metrics: latest containers: %w", err)
+		}
+		out = append(out, domain.LatestContainerMetrics{At: time.Unix(ts, 0).UTC(), Values: domain.ContainerValues{Name: name,
+			CPUPercent: fscale(cpu, 0.01), MemoryBytes: iptr(mem), MemoryLimitBytes: iptr(limit)}})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("metrics: latest containers: %w", err)
+	}
+	return out, nil
+}
+
 func fscale(v sql.NullInt64, f float64) *float64 {
 	if !v.Valid {
 		return nil

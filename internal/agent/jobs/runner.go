@@ -51,6 +51,11 @@ type Options struct {
 	Logger    *slog.Logger
 	Sender    Sender
 	Executors []jobexec.Executor
+	// OnFinished, when set, is called after an attempt's outcome was
+	// journaled and its result sent (not for abandoned attempts). The
+	// self-update launcher (#32) starts its helper from here, once nothing
+	// of the job is left to lose.
+	OnFinished func(ctx context.Context, st jobexec.State)
 }
 
 // Runner executes job commands on the agent.
@@ -296,6 +301,12 @@ func (rp reporter) Progress(ctx context.Context, _ *jobexec.State, p protocol.Pr
 
 func (r *Runner) execute(exec jobexec.Executor, st jobexec.State, a *attempt) {
 	defer r.wg.Done()
+	// Runs after the result was sent and reportSeq released.
+	defer func() {
+		if r.opts.OnFinished != nil && st.Outcome != nil {
+			r.opts.OnFinished(r.ctx, st)
+		}
+	}()
 	ref := protocol.JobRef{JobID: st.JobID, Attempt: st.Attempt, FencingToken: st.FencingToken}
 	// Steps log with the job and, for API-initiated jobs, the manager's
 	// request ID (#34): logging.FromContext(ctx).

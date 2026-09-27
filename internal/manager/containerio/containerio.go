@@ -45,6 +45,12 @@ type Agents interface {
 	OpenStream(ctx context.Context, environmentID, kind string, input any, o streammux.OpenOptions) (*streammux.Stream, error)
 }
 
+// FeatureHub reports whether an environment's connected agent announced a
+// capabilities feature (implemented by *agents.Hub; optional on Agents).
+type FeatureHub interface {
+	EnvironmentHasFeature(environmentID, feature string) bool
+}
+
 // Limits of exec sessions (docs/api/streams.md).
 type Limits struct {
 	// AttachWindow: a session must be attached this soon (default 60 s).
@@ -187,6 +193,8 @@ func codeErr(code, msg string) error {
 		return &domain.DockerError{Code: domain.DockerBusy, Message: "the agent is busy; retry"}
 	case protocol.CodeDeadlineExceeded:
 		return &domain.DockerError{Code: domain.DockerTimeout, Message: "the Docker Engine did not answer in time"}
+	case protocol.CodeCommandNotFound:
+		return &domain.DockerError{Code: domain.DockerCommandNotFound, Message: msg}
 	}
 	return &domain.DockerError{Code: domain.DockerEngineError, Message: "the agent failed (" + code + ")"}
 }
@@ -378,7 +386,8 @@ func (s *Service) CreateExec(ctx context.Context, req api.ExecRequest) (api.Exec
 	if perPrincipal >= s.limits.PerPrincipal || perContainer >= s.limits.PerContainer {
 		return api.ExecSession{}, domain.ErrExecSessionLimit
 	}
-	raw, err := s.opts.Agents.RequestEnvironment(ctx, req.EnvironmentID, protocol.ReqContainerExecCreate, req.Input, s.opts.RequestTimeout)
+	in := s.execInput(req.EnvironmentID, req.Input)
+	raw, err := s.opts.Agents.RequestEnvironment(ctx, req.EnvironmentID, protocol.ReqContainerExecCreate, in, s.opts.RequestTimeout)
 	if err != nil {
 		return api.ExecSession{}, agentErr(err)
 	}
@@ -415,7 +424,27 @@ func (s *Service) CreateExec(ctx context.Context, req api.ExecRequest) (api.Exec
 			s.forget(x, true)
 		}
 	}()
-	return api.ExecSession{ID: x.id, Ticket: ticket, ExpiresAt: x.expires}, nil
+	cmd := out.Cmd
+	if len(cmd) == 0 {
+		cmd = in.Cmd // an agent without FeatureExecShell runs what it was sent
+	}
+	return api.ExecSession{ID: x.id, Ticket: ticket, ExpiresAt: x.expires, Command: cmd}, nil
+}
+
+// execInput adapts an exec input to the environment's agent: a shell goes
+// only to agents announcing FeatureExecShell (receivers reject unknown
+// fields); older ones get the shell's most common path as the command.
+func (s *Service) execInput(environmentID string, in protocol.ExecCreateInput) protocol.ExecCreateInput {
+	if in.Shell == "" {
+		return in
+	}
+	if fh, ok := s.opts.Agents.(FeatureHub); ok && fh.EnvironmentHasFeature(environmentID, protocol.FeatureExecShell) {
+		return in
+	}
+	if cmd, ok := protocol.LegacyShellCommand(in.Shell); ok {
+		in.Cmd, in.Shell = cmd, ""
+	}
+	return in
 }
 
 // forget removes a session; closeStdin also asks the agent to end the

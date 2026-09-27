@@ -22,7 +22,6 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
@@ -86,11 +85,6 @@ func (s *Service) planRun(ctx context.Context, p domain.UpdatePolicy, selection 
 			pl.sourceHash = st.Applied.Hash
 		}
 		pl.drift = st.Applied == nil || st.UndeployedChanges()
-		if s.opts.Resources != nil {
-			if pr, err := s.opts.Resources.ProjectProtection(ctx, st.EnvironmentID, st.Name); err == nil && protection.Excluded(pr) {
-				return nil, &domain.UpdateError{Code: domain.UpdateErrTargetIneligible, Message: "Docker Manager's own Compose project is never updated"}
-			}
-		}
 	case domain.UpdateTargetContainer:
 		if len(pl.items) == 0 {
 			return pl, nil

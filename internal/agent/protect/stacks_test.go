@@ -20,8 +20,8 @@ type journal struct{}
 
 func (journal) Save(context.Context, *jobexec.State) error { return nil }
 
-// TestGuardStacks (#32): the agent refuses stack jobs that would deploy,
-// stop, restart or take down Docker Manager's own Compose project, whatever the
+// TestGuardStacks (#32): the agent refuses stack jobs that would stop,
+// restart or take down Docker Manager's own Compose project, whatever the
 // manager sent; start and other projects run.
 func TestGuardStacks(t *testing.T) {
 	fe := enginefake.New("ENG")
@@ -68,10 +68,10 @@ func TestGuardStacks(t *testing.T) {
 	}
 }
 
-// TestGuardStacksRefusesUpdatesOfDockerManagerProject (#32 × #20): an
-// update.run the manager sent for Docker Manager's own Compose project is
-// refused by the agent before any step acts; other projects' updates run.
-func TestGuardStacksRefusesUpdatesOfDockerManagerProject(t *testing.T) {
+// TestGuardStacksLetsDockerManagerUpdateItself (#32 × #20): update.run and
+// stack.deploy of Docker Manager's own Compose project are not wrapped: the
+// stack executors hand the agent's own container to a helper container.
+func TestGuardStacksLetsDockerManagerUpdateItself(t *testing.T) {
 	fe := enginefake.New("ENG")
 	d := fe.Deploy(true)
 	g := New(Options{SelfContainerID: d.AgentID, StacksVolume: d.Stacks})
@@ -94,13 +94,10 @@ func TestGuardStacksRefusesUpdatesOfDockerManagerProject(t *testing.T) {
 		}
 		return res
 	}
-	if res := run("docker-manager"); res.Outcome != jobexec.OutcomeFailed || res.ErrorClass != protection.CodeProtected {
-		t.Fatalf("update of Docker Manager's project: %+v", res)
-	}
-	if len(ran) != 0 {
-		t.Fatalf("a step ran for Docker Manager's project: %v", ran)
-	}
-	if res := run("shop"); res.Outcome != jobexec.OutcomeSucceeded || len(ran) != len(spec.Steps) {
-		t.Fatalf("update of another project: %+v (steps %v)", res, ran)
+	for _, project := range []string{"docker-manager", "shop"} {
+		ran = nil
+		if res := run(project); res.Outcome != jobexec.OutcomeSucceeded || len(ran) != len(spec.Steps) {
+			t.Fatalf("update of %s: %+v (steps %v)", project, res, ran)
+		}
 	}
 }

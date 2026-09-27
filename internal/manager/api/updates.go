@@ -647,10 +647,10 @@ func (h *updatesAPI) containerImageStatus(ctx context.Context, in *ContainerPath
 	r := eligible.Check(eligible.Subject{Reference: out.Image})
 	out.Eligible, out.Reason, out.ReasonMessage, out.NonVersionTag = r.Eligible, r.Reason, r.Message, r.NonVersionTag
 	switch pr := d.Protection; {
-	case pr != nil:
-		out.Eligible, out.Reason, out.ReasonMessage = false, domain.UpdateReasonProtected, "Docker Manager's own containers are never updated by a policy: "+pr.Reason
 	case d.Stack != nil:
 		out.Eligible, out.Reason, out.ReasonMessage = false, domain.UpdateReasonStackManaged, "The container belongs to a Compose project; see its stack's image status."
+	case pr != nil:
+		out.Eligible, out.Reason, out.ReasonMessage = false, domain.UpdateReasonProtected, "Docker Manager's own containers are never updated by a policy: "+pr.Reason
 	case m == nil:
 		out.Eligible, out.Reason, out.ReasonMessage = false, domain.UpdateReasonNoRecreateSpec,
 			"Only containers created through Docker Manager have a complete saved recreate specification; others are never recreated automatically."

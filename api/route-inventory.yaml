@@ -875,6 +875,15 @@ routes:
     status: implemented
     notes: "#5 storage (metrics.Store.Query, kind container) behind #6's container identity routing; readable by name while the environment is offline."
   - method: GET
+    path: "/api/v1/environments/{environmentId}/metrics/containers"
+    operationId: list-latest-container-metrics
+    capability: container.metrics.read
+    scope: environment
+    owner: 5
+    kind: json
+    status: implemented
+    notes: "The newest sample of every container (metrics.Store.LatestContainers) filtered per container; the live CPU and memory columns of the container and stack service tables."
+  - method: GET
     path: "/api/v1/environments/{environmentId}/containers/{containerId}/logs"
     operationId: get-container-logs
     capability: container.logs.read
@@ -1074,6 +1083,15 @@ routes:
     kind: json
     status: implemented
     notes: 202 + job.
+  - method: GET
+    path: "/api/v1/environments/{environmentId}/disk-usage/volumes"
+    operationId: list-volume-usage
+    capability: volume.read
+    scope: environment
+    owner: 6
+    kind: json
+    status: implemented
+    notes: "Agent request volume.usage (/system/df), cached 60 s per environment and shared by concurrent callers (resources.Service.VolumeUsage)."
   - method: POST
     path: "/api/v1/environments/{environmentId}/volumes/{volumeId}/migration-previews"
     operationId: create-volume-migration-preview

@@ -121,6 +121,13 @@ type MetricResult struct {
 	Flags int
 }
 
+// LatestContainerMetrics is a container's most recent sample (Values.Name
+// is the container name; nil values are unknown, never zero).
+type LatestContainerMetrics struct {
+	At     time.Time
+	Values ContainerValues
+}
+
 // LatestMetrics is an environment's most recent host sample and disks.
 type LatestMetrics struct {
 	At    time.Time

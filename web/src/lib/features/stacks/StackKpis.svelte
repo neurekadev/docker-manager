@@ -13,10 +13,11 @@
 		KpiCard,
 		Meter,
 		Sparkline,
+		clock,
 		formatBytes,
-		formatDuration,
 		formatPercent,
 		formatRelative,
+		formatUptime,
 		statusInfo
 	} from '$lib/ui';
 	import { serviceCounts, shortHash, stackStatus, statusSummary, type StackUsage } from './model';
@@ -29,10 +30,13 @@
 		/** Oldest start of a running container. */
 		since?: string;
 		revisionsHref?: string;
+		/** Fixed time (tests); default the shared ticking clock. */
 		now?: Date;
 	}
 
-	let { stack, usage, capacity, since, revisionsHref, now = new Date() }: Props = $props();
+	let { stack, usage, capacity, since, revisionsHref, now: fixedNow }: Props = $props();
+	// Uptime and the last deploy follow the clock (once a second).
+	const now = $derived(fixedNow ?? new Date(clock.now));
 
 	const status = $derived(stackStatus(stack));
 	const formatDate = (iso: string) =>
@@ -115,7 +119,7 @@
 		{/if}
 		<KpiCard
 			label="Uptime"
-			value={since ? formatDuration((now.getTime() - Date.parse(since)) / 1000) : '—'}
+			value={since ? formatUptime((now.getTime() - Date.parse(since)) / 1000) : '—'}
 			icon={Clock}
 			color="green"
 			secondary={since ? `Since ${formatDate(since)}` : 'No container is running'}

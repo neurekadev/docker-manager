@@ -12,19 +12,18 @@ import (
 )
 
 // stackActions are the stack job kinds that must not touch Docker Manager's own
-// Compose project (#32): deploy, stop, restart, down and remove. Start is
-// harmless.
+// Compose project (#32): stop, restart, down and remove would stop or
+// delete Docker Manager. Start is harmless; deploys and digest updates
+// (stack.deploy, stack.update, update.run) run: the stack executors hand the
+// agent's own container to a helper container (internal/agent/selfupdate).
 var stackActions = map[domain.JobKind]protection.Action{
-	jobspec.StackDeploy: protection.Deploy, jobspec.StackUpdate: protection.Deploy, jobspec.StackStop: protection.Stop,
-	jobspec.StackRestart: protection.Restart, jobspec.StackDown: protection.Down, jobspec.StackRemove: protection.Down,
-	// Stack updates (#20); standalone container updates carry no stack and
-	// are checked by the executor itself.
-	jobspec.UpdateRun: protection.Deploy,
+	jobspec.StackStop: protection.Stop, jobspec.StackRestart: protection.Restart,
+	jobspec.StackDown: protection.Down, jobspec.StackRemove: protection.Down,
 }
 
 // GuardStacks wraps every step of the stack executors (#7) so the agent
-// refuses to deploy, stop, restart or take down Docker Manager's own Compose
-// project, whatever the manager sent. eng returns the connected Engine.
+// refuses to stop, restart or take down Docker Manager's own Compose project,
+// whatever the manager sent. eng returns the connected Engine.
 func (g *Guard) GuardStacks(eng func() engine.Engine, execs []jobexec.Executor) []jobexec.Executor {
 	out := make([]jobexec.Executor, 0, len(execs))
 	for _, x := range execs {

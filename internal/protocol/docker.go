@@ -99,6 +99,14 @@ type Protection struct {
 	RestartAllowed bool `json:"restartAllowed,omitempty"`
 }
 
+// VolumeUsage is a volume's size on disk and how many containers use it
+// (-1: unknown, e.g. volumes of other drivers).
+type VolumeUsage struct {
+	Name     string `json:"name"`
+	Size     int64  `json:"size"`
+	RefCount int64  `json:"refCount"`
+}
+
 // ContainerRef names a container using another object.
 type ContainerRef struct {
 	ID    string `json:"id"`
@@ -121,7 +129,15 @@ type ContainerSummary struct {
 	Ports   []ContainerPort   `json:"ports,omitempty"`
 	Mounts  []ContainerMount  `json:"mounts,omitempty"`
 	// Networks are the names of the networks the container is attached to.
-	Networks   []string    `json:"networks,omitempty"`
+	Networks []string `json:"networks,omitempty"`
+	// NetworkList are the container's endpoints with their addresses
+	// (empty addresses while it is stopped). Lists carry the name, network
+	// ID and addresses; container.inspect also the MAC address and aliases.
+	// Agents before this field omit it in lists.
+	NetworkList []ContainerNetwork `json:"networkList,omitempty"`
+	// StartedAt is the last start of the container (lists: running
+	// containers only; absent from older agents' lists).
+	StartedAt  *time.Time  `json:"startedAt,omitempty"`
 	Stack      *StackRef   `json:"stack,omitempty"`
 	Protection *Protection `json:"protection,omitempty"`
 }
@@ -140,26 +156,24 @@ type ContainerNetwork struct {
 // never included (they often hold secrets, #7).
 type ContainerDetails struct {
 	ContainerSummary
-	Cmd           []string           `json:"cmd,omitempty"`
-	Entrypoint    []string           `json:"entrypoint,omitempty"`
-	WorkingDir    string             `json:"workingDir,omitempty"`
-	User          string             `json:"user,omitempty"`
-	Tty           bool               `json:"tty,omitempty"`
-	Hostname      string             `json:"hostname,omitempty"`
-	RestartPolicy string             `json:"restartPolicy,omitempty"`
-	NetworkMode   string             `json:"networkMode,omitempty"`
-	NetworkList   []ContainerNetwork `json:"networkList,omitempty"`
-	RestartCount  int                `json:"restartCount"`
-	Platform      string             `json:"platform,omitempty"`
-	Running       bool               `json:"running"`
-	Paused        bool               `json:"paused"`
-	OOMKilled     bool               `json:"oomKilled,omitempty"`
-	ExitCode      int                `json:"exitCode"`
-	Error         string             `json:"error,omitempty"`
-	StartedAt     *time.Time         `json:"startedAt,omitempty"`
-	FinishedAt    *time.Time         `json:"finishedAt,omitempty"`
-	Resources     ResourcesSpec      `json:"resources"`
-	Healthcheck   *HealthcheckSpec   `json:"healthcheck,omitempty"`
+	Cmd           []string         `json:"cmd,omitempty"`
+	Entrypoint    []string         `json:"entrypoint,omitempty"`
+	WorkingDir    string           `json:"workingDir,omitempty"`
+	User          string           `json:"user,omitempty"`
+	Tty           bool             `json:"tty,omitempty"`
+	Hostname      string           `json:"hostname,omitempty"`
+	RestartPolicy string           `json:"restartPolicy,omitempty"`
+	NetworkMode   string           `json:"networkMode,omitempty"`
+	RestartCount  int              `json:"restartCount"`
+	Platform      string           `json:"platform,omitempty"`
+	Running       bool             `json:"running"`
+	Paused        bool             `json:"paused"`
+	OOMKilled     bool             `json:"oomKilled,omitempty"`
+	ExitCode      int              `json:"exitCode"`
+	Error         string           `json:"error,omitempty"`
+	FinishedAt    *time.Time       `json:"finishedAt,omitempty"`
+	Resources     ResourcesSpec    `json:"resources"`
+	Healthcheck   *HealthcheckSpec `json:"healthcheck,omitempty"`
 }
 
 // ImageSummary is an image list entry.
@@ -274,6 +288,13 @@ type (
 	// VolumeInspectInput names a volume.
 	VolumeInspectInput struct {
 		Name string `json:"name"`
+	}
+	// VolumeUsageInput asks for the disk usage of every volume.
+	VolumeUsageInput struct{}
+	// VolumeUsageOutput answers volume.usage (the Engine's disk usage
+	// report; computing it walks every local volume).
+	VolumeUsageOutput struct {
+		Volumes []VolumeUsage `json:"volumes"`
 	}
 	// NetworkListInput lists every network.
 	NetworkListInput struct{}

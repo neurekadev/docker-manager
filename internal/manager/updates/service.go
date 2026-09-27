@@ -433,16 +433,9 @@ func (s *Service) checkTarget(ctx context.Context, p *domain.UpdatePolicy) error
 		if errors.Is(err, domain.ErrStackNotFound) || (err == nil && st.EnvironmentID != p.EnvironmentID) {
 			return fieldErr("target.id", "no such stack in this environment")
 		}
-		if err != nil {
-			return err
-		}
-		if s.opts.Resources != nil {
-			pr, err := s.opts.Resources.ProjectProtection(ctx, st.EnvironmentID, st.Name)
-			if err == nil && pr != nil {
-				return &domain.UpdateError{Code: domain.UpdateErrTargetIneligible, Message: "Docker Manager's own Compose project is never updated by a policy: " + pr.Reason}
-			}
-		}
-		return nil
+		// Docker Manager's own Compose project may have a policy too (#32):
+		// the agent hands its own container to a helper container.
+		return err
 	case domain.UpdateTargetContainer:
 		if len(p.Services) > 0 || len(p.ExcludeServices) > 0 {
 			return fieldErr("services", "services apply to stack targets only")
@@ -470,12 +463,12 @@ func (s *Service) checkTarget(ctx context.Context, p *domain.UpdatePolicy) error
 // Docker Manager's own (#32), a stack member, or no saved recreate
 // specification (#6: unmanaged containers are never recreated).
 func (s *Service) containerIneligible(ctx context.Context, env string, d protocol.ContainerDetails) (reason, message string) {
-	if pr := s.opts.Resources.ContainerProtection(d.ContainerSummary); pr != nil {
-		return domain.UpdateReasonProtected, "Docker Manager's own containers are never updated by a policy: " + pr.Reason
-	}
 	if d.Stack != nil {
 		return domain.UpdateReasonStackManaged, "The container belongs to the Compose project " + d.Stack.Project +
 			": update it through its stack's policy."
+	}
+	if pr := s.opts.Resources.ContainerProtection(d.ContainerSummary); pr != nil {
+		return domain.UpdateReasonProtected, "Docker Manager's own containers are never updated by a policy: " + pr.Reason
 	}
 	m, _, err := s.opts.Resources.ManagedSpec(ctx, env, d.Labels)
 	if err != nil || m == nil {

@@ -29,6 +29,10 @@ type Engine struct {
 	execs     map[string]*Exec
 	resized   []uint
 	process   Process
+	// paths exist in the container's filesystem (SetPaths; default
+	// /bin/sh); stats are the paths PathExists was asked about.
+	paths map[string]bool
+	stats []string
 }
 
 // Exec is a created exec instance.
@@ -40,7 +44,8 @@ type Exec struct {
 // New returns an Engine with "web" running.
 func New() *Engine {
 	return &Engine{running: true, execs: map[string]*Exec{}, follow: make(chan engine.LogEntry, 1024), followEnd: make(chan struct{}),
-		process: func(stdin io.Reader, _, _ io.Writer) int { _, _ = io.Copy(io.Discard, stdin); return 0 }}
+		process: func(stdin io.Reader, _, _ io.Writer) int { _, _ = io.Copy(io.Discard, stdin); return 0 },
+		paths:   map[string]bool{"/bin/sh": true}}
 }
 
 // Entry builds a log entry sec seconds after base.
@@ -83,6 +88,23 @@ func (f *Engine) SetProcess(p Process) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.process = p
+}
+
+// SetPaths replaces the paths that exist in the container (PathExists).
+func (f *Engine) SetPaths(paths ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.paths = map[string]bool{}
+	for _, p := range paths {
+		f.paths[p] = true
+	}
+}
+
+// Stats returns the paths PathExists was asked about, in order.
+func (f *Engine) Stats() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.stats...)
 }
 
 // LogCalls returns the options of every Logs call.
@@ -160,6 +182,17 @@ func (f *Engine) Logs(ctx context.Context, id string, o engine.LogOptions, fn fu
 			}
 		}
 	}
+}
+
+// PathExists implements containerio.Engine.
+func (f *Engine) PathExists(_ context.Context, id, path string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.removed || id != "web" {
+		return false, &engine.Error{Code: engine.CodeNotFound, Message: "no such container"}
+	}
+	f.stats = append(f.stats, path)
+	return f.paths[path], nil
 }
 
 // CreateExec implements containerio.Engine.

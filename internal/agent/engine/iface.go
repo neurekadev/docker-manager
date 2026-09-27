@@ -64,6 +64,9 @@ type Engine interface {
 	AttachExec(ctx context.Context, execID string, stdio ExecIO) error
 	ResizeExec(ctx context.Context, execID string, height, width uint) error
 	InspectExec(ctx context.Context, execID string) (ExecStatus, error)
+	// PathExists reports whether a path exists in a container (#8: the
+	// shell of a terminal is looked up before the exec is created).
+	PathExists(ctx context.Context, containerID, path string) (bool, error)
 }
 
 var _ Engine = (*Client)(nil)

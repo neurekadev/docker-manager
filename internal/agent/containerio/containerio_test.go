@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -179,7 +180,7 @@ func TestExecSessionRelaysAndReportsExit(t *testing.T) {
 		t.Fatalf("exec spec %+v", spec)
 	}
 	p := pipe(t, s)
-	st, err := p.Open(ctx, protocol.StreamContainerExec, protocol.ExecStreamInput(out), streammux.OpenOptions{})
+	st, err := p.Open(ctx, protocol.StreamContainerExec, protocol.ExecStreamInput{ExecID: out.ExecID}, streammux.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,12 +226,12 @@ func TestExecSessionRelaysAndReportsExit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st, err = p.Open(ctx, protocol.StreamContainerExec, protocol.ExecStreamInput(out), streammux.OpenOptions{})
+	st, err = p.Open(ctx, protocol.StreamContainerExec, protocol.ExecStreamInput{ExecID: out.ExecID}, streammux.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	<-block
-	st2, err := p.Open(ctx, protocol.StreamContainerExec, protocol.ExecStreamInput(out), streammux.OpenOptions{})
+	st2, err := p.Open(ctx, protocol.StreamContainerExec, protocol.ExecStreamInput{ExecID: out.ExecID}, streammux.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +244,7 @@ func TestExecSessionRelaysAndReportsExit(t *testing.T) {
 	if r := f.Resized(); r[0] != 40 || r[1] != 120 {
 		t.Fatalf("resize %v", r)
 	}
-	if _, err := s.DeleteExec(ctx, protocol.ExecDeleteInput(out)); err != nil {
+	if _, err := s.DeleteExec(ctx, protocol.ExecDeleteInput{ExecID: out.ExecID}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := io.ReadAll(st); err != nil {
@@ -256,7 +257,7 @@ func TestExecSessionRelaysAndReportsExit(t *testing.T) {
 		return 127
 	})
 	out, _ = s.CreateExec(ctx, protocol.ExecCreateInput{ContainerID: "web", Cmd: []string{"/bin/sh"}, Tty: true})
-	st, _ = p.Open(ctx, protocol.StreamContainerExec, protocol.ExecStreamInput(out), streammux.OpenOptions{})
+	st, _ = p.Open(ctx, protocol.StreamContainerExec, protocol.ExecStreamInput{ExecID: out.ExecID}, streammux.OpenOptions{})
 	_ = st.CloseWrite()
 	if _, err := io.ReadAll(st); code(err) != protocol.CodeNotFound || !strings.Contains(err.Error(), "no shell") {
 		t.Fatalf("missing shell: %v", err)
@@ -293,5 +294,68 @@ func TestUnattachedExecsExpire(t *testing.T) {
 	clk.Advance(2 * time.Minute)
 	if _, err := s.CreateExec(ctx, protocol.ExecCreateInput{ContainerID: "web", Cmd: []string{"sh"}}); err != nil {
 		t.Fatalf("after expiry: %v", err)
+	}
+}
+
+// TestCreateExecResolvesShells (#8): a shell runs the first of its paths
+// that exists in the container (auto: Bash, else sh); none found is
+// command_not_found naming the paths tried; a shell with a command or an
+// unknown shell is refused before anything is created.
+func TestCreateExecResolvesShells(t *testing.T) {
+	f := ciotest.New()
+	s := newService(t, f, testutil.FakeClock())
+	ctx := testutil.Context(t)
+	run := func(shell string) ([]string, error) {
+		t.Helper()
+		out, err := s.CreateExec(ctx, protocol.ExecCreateInput{ContainerID: "web", Shell: shell, Tty: true})
+		if err != nil {
+			return nil, err
+		}
+		if spec := f.Execs()[out.ExecID].Spec; !slices.Equal(spec.Cmd, out.Cmd) {
+			t.Fatalf("%s: ran %v, reported %v", shell, spec.Cmd, out.Cmd)
+		}
+		return out.Cmd, nil
+	}
+
+	// Bash lives in /usr/bin only: auto and bash find it there.
+	f.SetPaths("/usr/bin/bash", "/bin/sh")
+	for _, shell := range []string{protocol.ShellAuto, protocol.ShellBash} {
+		if cmd, err := run(shell); err != nil || !slices.Equal(cmd, []string{"/usr/bin/bash"}) {
+			t.Fatalf("%s: %v %v", shell, cmd, err)
+		}
+	}
+	// No Bash: auto falls back to sh, busybox included.
+	f.SetPaths("/busybox/sh")
+	if cmd, err := run(protocol.ShellAuto); err != nil || !slices.Equal(cmd, []string{"/busybox/sh"}) {
+		t.Fatalf("auto without bash: %v %v", cmd, err)
+	}
+	if got, want := f.Stats(), []string{"/bin/bash", "/usr/bin/bash", "/usr/local/bin/bash", "/bin/sh", "/usr/bin/sh", "/busybox/sh"}; !slices.Equal(got[len(got)-len(want):], want) {
+		t.Fatalf("lookup order %v", got)
+	}
+	// Nothing found: command_not_found, no exec instance.
+	n := len(f.Execs())
+	f.SetPaths()
+	_, err := run(protocol.ShellZsh)
+	if code(err) != protocol.CodeCommandNotFound || !strings.Contains(err.Error(), "no zsh") || !strings.Contains(err.Error(), "/usr/local/bin/zsh") {
+		t.Fatalf("missing zsh: %v", err)
+	}
+	if _, err := run(protocol.ShellAuto); code(err) != protocol.CodeCommandNotFound || !strings.Contains(err.Error(), "bash or sh") {
+		t.Fatalf("missing shells: %v", err)
+	}
+	if len(f.Execs()) != n {
+		t.Fatal("a missing shell created an exec instance")
+	}
+	// Refusals.
+	if _, err := s.CreateExec(ctx, protocol.ExecCreateInput{ContainerID: "web", Shell: protocol.ShellSh, Cmd: []string{"/bin/sh"}}); code(err) != protocol.CodeInvalidFrame {
+		t.Fatalf("shell and command: %v", err)
+	}
+	if _, err := run("fish"); code(err) != protocol.CodeInvalidArgument {
+		t.Fatalf("unknown shell: %v", err)
+	}
+	// An explicit command is not looked up and is reported back.
+	stats := len(f.Stats())
+	out, err := s.CreateExec(ctx, protocol.ExecCreateInput{ContainerID: "web", Cmd: []string{"/bin/sh", "-l"}})
+	if err != nil || !slices.Equal(out.Cmd, []string{"/bin/sh", "-l"}) || len(f.Stats()) != stats {
+		t.Fatalf("explicit command: %+v %v", out, err)
 	}
 }

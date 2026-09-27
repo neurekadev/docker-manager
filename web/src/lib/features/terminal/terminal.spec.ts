@@ -1,6 +1,6 @@
-// Container terminal sessions (#8): the ticket travels in the subprotocol,
-// binary stdin/stdout framing, resize messages, close codes (4422), the idle
-// warning at 25 minutes, critical work while open.
+// Container terminal sessions (#8): the shell choice, the ticket travels in
+// the subprotocol, binary stdin/stdout framing, resize messages, close codes
+// (4422), the idle warning at 25 minutes, critical work while open.
 import { describe, expect, it } from 'vitest';
 import { criticalWork } from '$lib/live';
 import {
@@ -8,7 +8,8 @@ import {
 	closeMessage,
 	ExecTerminal,
 	IDLE_WARNING_MS,
-	parseCommand,
+	SHELLS,
+	shellName,
 	type WebSocketLike
 } from './session.svelte';
 import { socketUrl } from './url';
@@ -61,7 +62,8 @@ function setup() {
 				streamUrl: '/api/v1/environments/e1/containers/web/exec-sessions/s1/stream',
 				subprotocol: 'docker-manager.exec.v1',
 				ticket: 'tkt',
-				expiresAt: ''
+				expiresAt: '',
+				command: ['/usr/bin/bash']
 			};
 		},
 		remove: async (_target, id) => void removed.push(id),
@@ -90,25 +92,21 @@ function setup() {
 const target = { environmentId: 'e1', containerId: 'web', label: 'silo-web' };
 
 describe('terminal helpers', () => {
-	it('parses commands, builds the socket URL and explains close codes', () => {
-		expect(parseCommand('/bin/sh')).toEqual(['/bin/sh']);
-		expect(parseCommand(`  bash -lc "echo 'hi there'" x`)).toEqual([
-			'bash',
-			'-lc',
-			"echo 'hi there'",
-			'x'
-		]);
-		expect(parseCommand("printf ''")).toEqual(['printf', '']);
-		expect(parseCommand('   ')).toEqual([]);
+	it('names the shells, builds the socket URL and explains close codes', () => {
+		expect(SHELLS.map((s) => s.value)).toEqual(['auto', 'bash', 'sh', 'zsh']);
+		expect(SHELLS.map((s) => s.label)).toEqual(['Automatic', 'Bash', 'sh', 'Zsh']);
+		expect(shellName('auto')).toBe('Bash or sh');
+		expect(shellName('zsh')).toBe('Zsh');
 		expect(socketUrl('/api/v1/x/stream', 'https://docker.example/stacks/1')).toBe(
 			'wss://docker.example/api/v1/x/stream'
 		);
 		expect(socketUrl('/api/v1/x/stream', 'http://localhost:8080/')).toBe(
 			'ws://localhost:8080/api/v1/x/stream'
 		);
-		expect(closeMessage(4422, { command: '/bin/sh' })).toBe(
-			'This image has no /bin/sh — try another command.'
+		expect(closeMessage(4422, { shell: 'bash' })).toBe(
+			'This container has no Bash — choose another shell.'
 		);
+		expect(closeMessage(4422)).toBe('This container has no such shell — choose another shell.');
 		expect(closeMessage(1000, { exitCode: 3 })).toBe('The process exited with code 3.');
 		expect(closeMessage(4408)).toMatch(/30 minutes without activity/);
 		expect(closeMessage(4409)).toMatch(/already open/);
@@ -124,8 +122,10 @@ describe('ExecTerminal', () => {
 		const before = criticalWork.items.length;
 		const out: string[] = [];
 		t.onoutput = (b) => out.push(new TextDecoder().decode(b));
-		await t.connect(target, ['/bin/sh'], { cols: 100, rows: 30 });
-		expect(created).toEqual([{ command: ['/bin/sh'], tty: true, cols: 100, rows: 30 }]);
+		expect(t.command).toBeNull();
+		await t.connect(target, 'auto', { cols: 100, rows: 30 });
+		expect(created).toEqual([{ shell: 'auto', tty: true, cols: 100, rows: 30 }]);
+		expect(t.command).toBe('/usr/bin/bash');
 		const ws = sockets[0];
 		// Node has no page URL: the default base is http://localhost/.
 		expect(ws.url).toBe(
@@ -158,15 +158,15 @@ describe('ExecTerminal', () => {
 
 	it('reports a missing shell (4422) and ends sessions the user closes', async () => {
 		const { t, sockets, removed } = setup();
-		await t.connect(target, ['/bin/bash'], { cols: 80, rows: 24 });
+		await t.connect(target, 'zsh', { cols: 80, rows: 24 });
 		sockets[0].open();
 		sockets[0].message('{"type":"error","code":"command_not_found","message":"not found"}');
 		sockets[0].serverClose(4422);
 		expect(t.state).toBe('failed');
 		expect(t.closeCode).toBe(4422);
-		expect(t.message).toBe('This image has no /bin/bash — try another command.');
+		expect(t.message).toBe('This container has no Zsh — choose another shell.');
 
-		await t.connect(target, ['/bin/sh'], { cols: 80, rows: 24 });
+		await t.connect(target, 'sh', { cols: 80, rows: 24 });
 		sockets[1].open();
 		await t.disconnect();
 		expect(removed).toEqual(['s1']);
@@ -176,7 +176,7 @@ describe('ExecTerminal', () => {
 
 	it('warns at 25 idle minutes; activity clears the warning', async () => {
 		const { t, sockets, advance, hasTimer } = setup();
-		await t.connect(target, ['/bin/sh'], { cols: 80, rows: 24 });
+		await t.connect(target, 'auto', { cols: 80, rows: 24 });
 		sockets[0].open();
 		expect(hasTimer()).toBe(true);
 		advance(IDLE_WARNING_MS - 1000);
@@ -205,7 +205,7 @@ describe('ExecTerminal', () => {
 				throw new Error('must not connect');
 			}
 		});
-		await expect(t.connect(target, ['/bin/sh'], { cols: 80, rows: 24 })).rejects.toThrow(
+		await expect(t.connect(target, 'auto', { cols: 80, rows: 24 })).rejects.toThrow(
 			/isn't running/
 		);
 		expect(t.state).toBe('failed');

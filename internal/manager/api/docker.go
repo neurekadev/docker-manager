@@ -45,6 +45,8 @@ const (
 	CodeNetworkBuiltin        = "network_builtin"
 	CodeResourceNameTaken     = "resource_name_taken"
 	CodeRecreateRequired      = "recreate_required"
+	// Terminals (#8): none of a shell's paths exists in the container.
+	CodeCommandNotFound = "command_not_found"
 	// Self-protection (#32).
 	CodeProtected            = "protected"
 	CodeConfirmationRequired = "confirmation_required"
@@ -76,6 +78,8 @@ type DockerService interface {
 	InspectVolume(ctx context.Context, env, name string) (protocol.VolumeInfo, error)
 	CreateVolume(ctx context.Context, p authz.Principal, env string, in protocol.VolumeCreateInput, key string) (domain.Job, error)
 	RemoveVolume(ctx context.Context, p authz.Principal, env string, v protocol.VolumeInfo, key string) (domain.Job, error)
+	// VolumeUsage is the volumes' disk usage (cached briefly, shared).
+	VolumeUsage(ctx context.Context, env string) (domain.VolumeUsageReport, error)
 
 	ListNetworks(ctx context.Context, env string) ([]protocol.NetworkInfo, error)
 	InspectNetwork(ctx context.Context, env, ref string) (protocol.NetworkInfo, error)

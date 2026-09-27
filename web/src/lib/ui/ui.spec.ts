@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '$lib/api/client';
 import { errorView, fieldError } from './errors';
-import { formatBytes, formatDuration, formatPercent, formatRelative, shortId } from './format';
+import {
+	formatBytes,
+	formatDuration,
+	formatPercent,
+	formatRelative,
+	formatUptime,
+	secondsSince,
+	shortId
+} from './format';
 import { statusInfo } from './status';
 import {
 	compareValues,
@@ -103,6 +111,24 @@ describe('formatting', () => {
 		expect(formatDuration(3 * 3600)).toBe('3 hours');
 		expect(formatDuration(14 * 86400)).toBe('14 days');
 		expect(shortId('sha256:a1b2c3d4e5f6a7b8c9d0')).toBe('a1b2c3d4e5f6');
+	});
+
+	it('formats live uptimes compactly, with seconds below a day', () => {
+		expect(formatUptime(0)).toBe('0s');
+		expect(formatUptime(42.9)).toBe('42s');
+		expect(formatUptime(5 * 60 + 3)).toBe('5m 03s');
+		expect(formatUptime(3 * 3600 + 12 * 60 + 8)).toBe('3h 12m 08s');
+		expect(formatUptime(23 * 3600 + 59 * 60 + 59)).toBe('23h 59m 59s');
+		expect(formatUptime(4 * 86400 + 3 * 3600 + 12 * 60 + 8)).toBe('4d 3h 12m');
+		expect(formatUptime(-5)).toBe('0s');
+		expect(formatUptime(Number.NaN)).toBe('0s');
+	});
+
+	it('measures seconds since an ISO time, null when unknown', () => {
+		const now = Date.parse('2026-09-25T12:00:00Z');
+		expect(secondsSince('2026-09-25T11:59:30Z', now)).toBe(30);
+		expect(secondsSince(undefined, now)).toBeNull();
+		expect(secondsSince('not a date', now)).toBeNull();
 	});
 
 	it('formats relative times against an injected now', () => {

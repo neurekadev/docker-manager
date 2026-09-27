@@ -3,6 +3,7 @@
 // model.spec.ts.
 import type { MyPermissions, Schema } from '$lib/api/client';
 import { SERVICE_ICON_CATEGORY, type TileColor } from '$lib/design/hue';
+import { containerAddresses, type ContainerAddress } from '$lib/features/resources/model';
 import type {
 	ContainerMetrics,
 	Stack,
@@ -149,6 +150,11 @@ export function runningOf(svc: StackServiceStatus): { running: number; total: nu
 	};
 }
 
+/** The addresses of a service's containers (IPv4 first, per network). */
+export function serviceAddresses(svc: StackServiceStatus): ContainerAddress[] {
+	return containerAddresses(svc.containers.map((c) => c.networks));
+}
+
 /** The oldest start time of the running containers (stack uptime). */
 export function upSince(services: StackServiceStatus[]): string | undefined {
 	let min: number | undefined;
@@ -184,12 +190,22 @@ export interface StackUsage {
 	containers: Record<string, { cpu: number | null; memory: number | null }>;
 }
 
+/** A container's newest sample (GET …/metrics/containers). */
+export interface LatestSample {
+	container: string;
+	cpuPercent?: number;
+	memoryUsedBytes?: number;
+}
+
 /**
  * Sums the containers' CPU series per timestamp (a stack uses the sum of
  * its containers' share of the environment's cores, #5) and takes each
- * container's latest CPU and memory.
+ * container's latest CPU and memory. With `latest` (the newest 10 s
+ * samples of the stack's containers) the current values come from there
+ * instead of the last minute bucket; containers without a recent sample
+ * (stopped) then have no current value.
  */
-export function stackUsage(metrics: ContainerMetrics[]): StackUsage {
+export function stackUsage(metrics: ContainerMetrics[], latest?: LatestSample[]): StackUsage {
 	const byTime = new Map<string, number | null>();
 	const containers: StackUsage['containers'] = {};
 	for (const m of metrics) {
@@ -206,10 +222,21 @@ export function stackUsage(metrics: ContainerMetrics[]): StackUsage {
 	}
 	const times = [...byTime.keys()].sort();
 	const cpu = times.map((t) => byTime.get(t) ?? null);
+	let cpuNow = metrics.length ? lastValue(cpu) : null;
+	if (latest) {
+		for (const k of Object.keys(containers)) delete containers[k];
+		for (const m of latest)
+			containers[m.container] = {
+				cpu: m.cpuPercent ?? null,
+				memory: m.memoryUsedBytes ?? null
+			};
+		const cpus = latest.flatMap((m) => (m.cpuPercent === undefined ? [] : [m.cpuPercent]));
+		cpuNow = cpus.length ? cpus.reduce((n, v) => n + v, 0) : null;
+	}
 	const mem = Object.values(containers).map((c) => c.memory);
 	return {
 		cpu,
-		cpuNow: metrics.length ? lastValue(cpu) : null,
+		cpuNow,
 		memoryNow: mem.some((v) => v !== null)
 			? mem.reduce<number>((n, v) => n + (v ?? 0), 0)
 			: null,

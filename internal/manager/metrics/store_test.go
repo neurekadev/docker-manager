@@ -385,6 +385,37 @@ func TestLatestAndInventory(t *testing.T) {
 	}
 }
 
+func TestLatestContainersKeepsGapsAndDropsStaleOnes(t *testing.T) {
+	clk := testutil.FakeClock()
+	s := openTest(t, clk)
+	ctx := testutil.Context(t)
+	t0 := clk.Now().Truncate(10 * time.Second)
+	old := domain.MetricSample{At: t0.Add(-5 * time.Minute), Containers: []domain.ContainerValues{{Name: "gone", CPUPercent: f(1), MemoryBytes: i(1)}}}
+	first := domain.MetricSample{At: t0.Add(-20 * time.Second), Containers: []domain.ContainerValues{
+		{Name: "web", CPUPercent: f(5), MemoryBytes: i(100), MemoryLimitBytes: i(1000)}, {Name: "db", CPUPercent: f(2.5), MemoryBytes: i(50)}}}
+	last := domain.MetricSample{At: t0.Add(-10 * time.Second), Containers: []domain.ContainerValues{{Name: "web", CPUPercent: f(7.25), MemoryBytes: nil}}}
+	if _, err := s.Ingest(ctx, env, []domain.MetricSample{old, first, last}, nil); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.LatestContainers(ctx, env, time.Minute)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("%+v %v", got, err)
+	}
+	db, web := got[0], got[1]
+	if db.Values.Name != "db" || math.Abs(*db.Values.CPUPercent-2.5) > 1e-9 || *db.Values.MemoryBytes != 50 || db.Values.MemoryLimitBytes != nil ||
+		!db.At.Equal(first.At) {
+		t.Fatalf("db %+v", db)
+	}
+	// The newest sample wins, with its gap kept (no memory: nil, not the
+	// older value and not zero).
+	if web.Values.Name != "web" || math.Abs(*web.Values.CPUPercent-7.25) > 1e-9 || web.Values.MemoryBytes != nil || !web.At.Equal(last.At) {
+		t.Fatalf("web %+v", web)
+	}
+	if other, err := s.LatestContainers(ctx, "other-env", time.Minute); err != nil || len(other) != 0 {
+		t.Fatalf("other environment: %+v %v", other, err)
+	}
+}
+
 func TestReopenKeepsSeriesAndWatermarks(t *testing.T) {
 	clk := testutil.FakeClock()
 	path := filepath.Join(t.TempDir(), FileName)

@@ -140,6 +140,15 @@ type StackContainer struct {
 	PidsLimit     *int64
 	CreatedAt     time.Time
 	StartedAt     *time.Time
+	Networks      []ContainerAddress
+}
+
+// ContainerAddress is a container's addresses on one network (empty while
+// it is stopped).
+type ContainerAddress struct {
+	Network string
+	IPv4    string
+	IPv6    string
 }
 
 // StackServiceView is a service with its expected definition, display
