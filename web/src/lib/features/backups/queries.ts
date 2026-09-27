@@ -170,16 +170,23 @@ export function backupQuery(id: string, client: ApiClient = api) {
 	});
 }
 
+/**
+ * One directory of a backup. restic lists the directory itself too; it is
+ * dropped here as well as on the server, so no view can open a folder
+ * inside itself.
+ */
 export function backupContentsQuery(id: string, path: string, client: ApiClient = api) {
 	return queryOptions({
 		queryKey: backupKeys.contents(id, path),
-		queryFn: ({ signal }) =>
-			unwrap(
+		queryFn: async ({ signal }) => {
+			const c = await unwrap(
 				client.GET('/api/v1/backups/{backupId}/contents', {
 					params: { path: { backupId: id }, query: { path, limit: 500 } },
 					signal
 				})
-			),
+			);
+			return { ...c, entries: c.entries.filter((e) => e.path !== path) };
+		},
 		staleTime: 5 * 60_000,
 		retry: false
 	});

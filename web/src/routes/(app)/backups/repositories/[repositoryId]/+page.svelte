@@ -468,6 +468,7 @@
 				title="Remove backup repository {r.name}"
 				consequences={[
 					'Docker Manager stops using this destination and forgets its settings and S3 credentials.',
+					'Its backups leave the Backups lists: without the repository they can no longer be browsed or restored here.',
 					'The restic repositories and every backup at the destination are left untouched.',
 					'Policies must not use it: change them first.'
 				]}

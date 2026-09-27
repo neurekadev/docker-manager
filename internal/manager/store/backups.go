@@ -298,28 +298,45 @@ func BackupRepositorySecrets(ctx context.Context, db bun.IDB, id string) (Backup
 }
 
 // DeleteBackupRepository removes a repository (its locations cascade)
-// when the revision matches and no policy uses it.
-func DeleteBackupRepository(ctx context.Context, db bun.IDB, id string, expectRevision int64) error {
+// when the revision matches and no policy uses it, together with its part
+// of the backup index: its snapshots and the sets whose members were all
+// in it (sets spanning other repositories stay). Nothing at the
+// destination changes. It returns the removed snapshot IDs; call it in a
+// transaction.
+func DeleteBackupRepository(ctx context.Context, db bun.IDB, id string, expectRevision int64) (snapshotIDs []string, err error) {
 	var n int
-	var err error
 	if n, err = db.NewSelect().Model((*backupPolicyRow)(nil)).
 		Where("repository_id = ? OR environment_repos LIKE ?", id, "%\""+id+"\"%").Count(ctx); err != nil {
-		return fmt.Errorf("store: count policies: %w", err)
+		return nil, fmt.Errorf("store: count policies: %w", err)
 	}
 	if n > 0 {
-		return domain.ErrBackupRepositoryInUse
+		return nil, domain.ErrBackupRepositoryInUse
 	}
 	res, err := db.NewDelete().Model((*backupRepositoryRow)(nil)).Where("id = ?", id).Where("revision = ?", expectRevision).Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("store: delete backup repository: %w", err)
+		return nil, fmt.Errorf("store: delete backup repository: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n != 1 {
 		if _, gerr := GetBackupRepository(ctx, db, id); gerr != nil {
-			return gerr
+			return nil, gerr
 		}
-		return domain.ErrRevisionMismatch
+		return nil, domain.ErrRevisionMismatch
 	}
-	return nil
+	if err := db.NewSelect().Model((*backupSnapshotRow)(nil)).Column("id").Where("repository_id = ?", id).Order("id ASC").
+		Scan(ctx, &snapshotIDs); err != nil {
+		return nil, fmt.Errorf("store: list repository snapshots: %w", err)
+	}
+	if _, err := db.NewDelete().Model((*backupSnapshotRow)(nil)).Where("repository_id = ?", id).Exec(ctx); err != nil {
+		return nil, fmt.Errorf("store: delete repository snapshots: %w", err)
+	}
+	// Members are stored as domain.BackupSetMember JSON (untagged fields).
+	if _, err := db.NewDelete().Model((*backupSetRow)(nil)).
+		Where("EXISTS (SELECT 1 FROM json_each(members))").
+		Where("NOT EXISTS (SELECT 1 FROM json_each(members) WHERE json_extract(json_each.value, '$.RepositoryID') IS NOT ?)", id).
+		Exec(ctx); err != nil {
+		return nil, fmt.Errorf("store: delete repository sets: %w", err)
+	}
+	return snapshotIDs, nil
 }
 
 // --- locations ---

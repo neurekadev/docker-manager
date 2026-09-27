@@ -15,6 +15,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
 // Backups (#10): the snapshot index, contents, downloads and
@@ -225,12 +226,21 @@ func (h *backupsAPI) listContents(ctx context.Context, in *backupContentsInput) 
 	if err := h.requireContents(c, sn, v, CapBackupContentsRead); err != nil {
 		return nil, err
 	}
-	l, err := svc.Contents(ctx, sn, in.Path, in.Recursive, in.Limit)
+	// restic lists the directory itself first: ask for one more node and
+	// leave it out (a picker would show a folder inside itself).
+	l, err := svc.Contents(ctx, sn, in.Path, in.Recursive, min(in.Limit+1, restic.DefaultMaxNodes))
 	if err != nil {
 		return nil, backupError(err)
 	}
 	out := BackupContents{Path: in.Path, Entries: []BackupNode{}, Truncated: l.Truncated}
 	for _, n := range l.Nodes {
+		if in.Path != "" && n.Path == in.Path {
+			continue
+		}
+		if len(out.Entries) == in.Limit {
+			out.Truncated = true
+			break
+		}
 		out.Entries = append(out.Entries, BackupNode{Name: n.Name, Path: n.Path, Type: n.Type, Size: n.Size, Mode: n.Mode & 0o7777,
 			UID: n.UID, GID: n.GID, MTime: n.MTime})
 	}

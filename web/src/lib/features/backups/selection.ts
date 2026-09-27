@@ -56,9 +56,9 @@ export function toggle(
 	while (dir !== path) {
 		const entries = children(dir);
 		if (!entries) return [...selection];
-		const next = entries.find((e) => within(path, e));
+		const next = entries.find((e) => e !== dir && within(path, e));
 		if (!next) return [...selection];
-		added.push(...entries.filter((e) => e !== next));
+		added.push(...entries.filter((e) => e !== next && e !== dir));
 		dir = next;
 	}
 	return normalize([...selection.filter((s) => s !== ancestor), ...added]);
