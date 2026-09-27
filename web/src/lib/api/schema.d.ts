@@ -722,6 +722,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/backup-repositories/{repositoryId}/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a repository's restic snapshots
+         * @description Every restic snapshot of every location of the repository, read live from restic (snapshot files only): backups, set and host manifests, and snapshots Docker Manager did not write. Newest first, at most 1000 per location (200 from a local repository on an agent). A location that cannot be read reports errorClass; the others are listed. backupId links the Docker Manager backup when the caller may see it.
+         */
+        get: operations["list-backup-repository-snapshots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/backups": {
         parameters: {
             query?: never;
@@ -3286,7 +3306,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a stack
-         * @description Starts a stack.remove job (202): the stack is taken down (containers and networks removed; named volumes and the project directory are kept on the host) and, when that succeeds, removed from Docker Manager with its revisions and the permission rules naming it.
+         * @description Starts a stack.remove job (202): the stack is taken down (containers and networks removed; the project directory is kept on the host) and, when that succeeds, removed from Docker Manager with its revisions and the permission rules naming it. Volumes are kept unless removeVolumes=true, which also removes the volumes the stack owns (never external, other projects', in-use or protected ones; each is reported as a job item, kept ones with the reason). removeVolumes needs an up-to-date, connected agent (501 agent_unsupported).
          */
         delete: operations["delete-stack"];
         options?: never;
@@ -8482,6 +8502,50 @@ export interface components {
             environmentId?: string;
             id: string;
             type: string;
+        };
+        ResticLocationSnapshots: {
+            environmentId?: string;
+            /** @description Why the location could not be listed (agent_offline, repository_locked, storage_unreachable, ...). */
+            errorClass?: string;
+            resticRepositoryId?: string;
+            /** @example env:01a0 */
+            scope: string;
+            snapshots: components["schemas"]["ResticSnapshot"][];
+            /** @description Older snapshots exist beyond the listed ones (at most 1000 per location; 200 from a local repository on an agent). */
+            truncated: boolean;
+        };
+        ResticSnapshot: {
+            backupId?: string;
+            /** Format: int64 */
+            bytesProcessed?: number;
+            /**
+             * @description foreign: not written by Docker Manager.
+             * @enum {string}
+             */
+            class: "stack" | "volume" | "manager_state" | "set_manifest" | "host_manifest" | "foreign";
+            /** Format: int64 */
+            dataAdded?: number;
+            /** Format: int64 */
+            filesProcessed?: number;
+            /** @description The index marks it removed by retention (restic still lists it until then). */
+            forgotten?: boolean;
+            hostname?: string;
+            id: string;
+            /** @example volume/media */
+            item?: string;
+            /** @description The stack or volume name from the index (with BackupID). */
+            name?: string;
+            paths: string[];
+            policyId?: string;
+            setId?: string;
+            shortId: string;
+            tags: string[];
+            /** Format: date-time */
+            time: string;
+        };
+        ResticSnapshotList: {
+            locations: components["schemas"]["ResticLocationSnapshots"][];
+            repositoryId: string;
         };
         RestoreBody: {
             /** @description file scope: the file's absolute path inside the backup. */
@@ -15129,6 +15193,121 @@ export interface operations {
                      *     }
                      */
                     "application/json": components["schemas"]["RecoveryConfirmation"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "list-backup-repository-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Backup repository ID. */
+                repositoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "locations": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "errorClass": "example",
+                     *           "resticRepositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "scope": "env:01a0",
+                     *           "snapshots": [
+                     *             {
+                     *               "backupId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "bytesProcessed": 1,
+                     *               "class": "stack",
+                     *               "dataAdded": 1,
+                     *               "filesProcessed": 1,
+                     *               "forgotten": false,
+                     *               "hostname": "web",
+                     *               "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "item": "volume/media",
+                     *               "name": "web",
+                     *               "paths": [
+                     *                 "config/app.conf"
+                     *               ],
+                     *               "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "setId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "shortId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *               "tags": [
+                     *                 "example"
+                     *               ],
+                     *               "time": "2026-09-25T12:00:00Z"
+                     *             }
+                     *           ],
+                     *           "truncated": false
+                     *         }
+                     *       ],
+                     *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ResticSnapshotList"];
                 };
             };
             /** @description Unauthorized */
@@ -35568,7 +35747,10 @@ export interface operations {
     };
     "delete-stack": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Also remove the volumes the stack owns: named volumes its definition declares (not external) that Compose created for the project, and the anonymous volumes of its containers. External volumes, other projects' volumes, volumes other containers use and Docker Manager's own are kept. Default false: every volume is kept. */
+                removeVolumes?: boolean;
+            };
             header?: {
                 /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
                 "Idempotency-Key"?: string;

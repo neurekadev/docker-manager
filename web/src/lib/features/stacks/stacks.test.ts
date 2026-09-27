@@ -19,6 +19,7 @@ const setup = () => userEvent.setup({ pointerEventsCheck: 0 });
 interface Seen {
 	method: string;
 	path: string;
+	search: string;
 	body: unknown;
 }
 let seen: Seen[] = [];
@@ -34,6 +35,7 @@ beforeEach(() => {
 		seen.push({
 			method: req.method,
 			path: url.pathname,
+			search: url.search,
 			body: text ? JSON.parse(text) : undefined
 		});
 		const json = (status: number, body: unknown) =>
@@ -243,7 +245,30 @@ describe('StackHeader', () => {
 		expect(confirm).toBeEnabled();
 		await user.click(confirm);
 		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Delete Silo'));
-		expect(seen.find((s) => s.method === 'DELETE')?.path).toBe('/api/v1/stacks/st-1');
+		const del = seen.find((s) => s.method === 'DELETE');
+		expect(del?.path).toBe('/api/v1/stacks/st-1');
+		// Volumes are kept unless the box is ticked.
+		expect(del?.search).toBe('');
+	});
+
+	it('removes the stack’s own volumes only when the box is ticked', async () => {
+		const user = setup();
+		const tray = header(stack());
+		await user.click(screen.getByRole('button', { name: 'More stack actions' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+		const dialog = await screen.findByRole('alertdialog', { name: 'Delete Silo?' });
+		const box = within(dialog).getByRole('checkbox', {
+			name: /Also remove the stack’s volumes/
+		});
+		expect(box).not.toBeChecked();
+		await user.click(box);
+		expect(
+			within(dialog).getByText(/Removes the volumes the stack owns and all data in them/)
+		).toBeInTheDocument();
+		await user.type(within(dialog).getByRole('textbox'), 'silo');
+		await user.click(within(dialog).getByRole('button', { name: 'Delete stack and volumes' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Delete Silo'));
+		expect(seen.find((s) => s.method === 'DELETE')?.search).toBe('?removeVolumes=true');
 	});
 
 	it('deploys from the split button without a confirmation (the files on disk are the definition)', async () => {

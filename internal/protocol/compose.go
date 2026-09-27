@@ -417,7 +417,44 @@ type StackJobInput struct {
 	// credentials arrive with each dispatch in the command's secrets, never
 	// in the input.
 	RegistryConnections []string `json:"registryConnections,omitempty"`
+	// RemoveVolumes (stack.remove) also removes the volumes the stack
+	// owns: the named volumes its definition declares (not external) that
+	// Compose created for this project, and the anonymous volumes of its
+	// containers. A volume another container uses, a protected one (#32)
+	// or one in KeepVolumes stays. Sent only to agents announcing
+	// FeatureStackRemoveVolumes.
+	RemoveVolumes bool `json:"removeVolumes,omitempty"`
+	// KeepVolumes are volumes the manager holds (a migrated stack's
+	// retained source with the same project name, #35).
+	KeepVolumes []string `json:"keepVolumes,omitempty"`
 }
+
+// FeatureStackRemoveVolumes is the capabilities feature of agents whose
+// stack.remove honours StackJobInput.RemoveVolumes.
+const FeatureStackRemoveVolumes = "stack.remove_volumes"
+
+// ComposeVolumeLabel is the Compose key of a volume Compose created.
+const ComposeVolumeLabel = "com.docker.compose.volume"
+
+// StackVolume is a volume a stack.remove with RemoveVolumes found the
+// stack owns, and what became of it.
+type StackVolume struct {
+	Name string `json:"name"`
+	// Key is the Compose key of a declared volume ("" for an anonymous one).
+	Key       string `json:"key,omitempty"`
+	Anonymous bool   `json:"anonymous,omitempty"`
+	// Status is pending, removed or kept.
+	Status string `json:"status"`
+	// Reason tells why a volume was kept.
+	Reason string `json:"reason,omitempty"`
+}
+
+// Stack volume statuses.
+const (
+	StackVolumePending = "pending"
+	StackVolumeRemoved = "removed"
+	StackVolumeKept    = "kept"
+)
 
 // AppliedImage is the image a service runs after a deploy (#20 baseline).
 type AppliedImage struct {
@@ -459,4 +496,8 @@ type StackJobOutput struct {
 	// anything; After the state when it finished (also on failure).
 	Before []ServiceState `json:"before"`
 	After  []ServiceState `json:"after"`
+	// Volumes (stack.remove with RemoveVolumes) are the stack's own
+	// volumes, determined before anything was taken down.
+	Volumes        []StackVolume `json:"volumes,omitempty"`
+	VolumesPlanned bool          `json:"volumesPlanned,omitempty"`
 }

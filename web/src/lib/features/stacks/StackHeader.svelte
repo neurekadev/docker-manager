@@ -30,6 +30,7 @@
 	import {
 		Badge,
 		Button,
+		Checkbox,
 		ConfirmDialog,
 		DestructiveConfirm,
 		IconButton,
@@ -48,6 +49,7 @@
 		deleteStack,
 		deployStack,
 		operateStack,
+		volumeResults,
 		type DeployMode,
 		type StackOperation
 	} from './actions';
@@ -125,6 +127,11 @@
 		confirming = true;
 	}
 	let deleting = $state(false);
+	// Unchecked every time the dialog opens: volumes are kept by default.
+	let removeVolumes = $state(false);
+	$effect(() => {
+		if (!deleting) removeVolumes = false;
+	});
 	let editing = $state(false);
 	let updating = $state(false);
 	let starting = $state<string | null>(null);
@@ -205,7 +212,8 @@
 	}
 
 	async function remove() {
-		const job = await deleteStack(stack.id);
+		const withVolumes = removeVolumes;
+		const job = await deleteStack(stack.id, { removeVolumes: withVolumes });
 		const name = title;
 		// The stack page goes away when the stack does (a live event can
 		// arrive before the job's end), so a watcher of its own reports the
@@ -215,7 +223,18 @@
 				watcher.stop();
 				void queryClient.invalidateQueries({ queryKey: stackKeys.all });
 				if (j.state === 'succeeded') {
-					toast.success(`Deleted ${name}`);
+					const v = volumeResults(j.items);
+					toast.success(
+						withVolumes ? `Deleted ${name} and its volumes` : `Deleted ${name}`,
+						{
+							body: withVolumes
+								? `${v.removed} ${v.removed === 1 ? 'volume' : 'volumes'} removed` +
+									(v.kept
+										? `; ${v.kept} kept because another container uses them or they are not the stack's own. The job lists why.`
+										: '.')
+								: undefined
+						}
+					);
 					void goto(routes.stacks());
 				} else {
 					toast.error(`${name} was not deleted`, {
@@ -361,7 +380,9 @@
 	title="Delete {title}?"
 	consequences={[
 		`Takes ${title} down: removes ${containerWord(counts.containers)} and its networks.`,
-		'Keeps its volumes and the project directory on the host.',
+		removeVolumes
+			? 'Removes the volumes the stack owns and all data in them. Keeps external volumes, other stacks’ volumes and volumes other containers use, and the project directory.'
+			: 'Keeps its volumes and the project directory on the host.',
 		'Removes the stack from Docker Manager with its revision history and the permission rules naming it.'
 	]}
 	affected={(stack.engine?.services ?? []).map((s) => ({
@@ -369,9 +390,17 @@
 		detail: `${containerWord(s.containers)}`
 	}))}
 	confirmText={stack.name}
-	confirmLabel="Delete stack"
+	confirmLabel={removeVolumes ? 'Delete stack and volumes' : 'Delete stack'}
 	onconfirm={remove}
-/>
+>
+	{#snippet extra()}
+		<Checkbox
+			bind:checked={removeVolumes}
+			label="Also remove the stack’s volumes"
+			description="Only the volumes this stack created: the named volumes its Compose file declares (not external) and the anonymous volumes of its containers. Their data is deleted."
+		/>
+	{/snippet}
+</DestructiveConfirm>
 
 {#if editing}
 	<EditDetailsDialog {stack} onclose={() => (editing = false)} />

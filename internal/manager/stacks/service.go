@@ -103,12 +103,21 @@ type ProjectProtection interface {
 // after the stack service).
 func (s *Service) SetProtection(p ProjectProtection) { s.opts.Protection = p }
 
+// SetVolumeHolds installs the volumes a stack removal must keep although
+// they carry the project's labels (a migrated stack's retained source,
+// #35), by environment and Compose project.
+func (s *Service) SetVolumeHolds(f func(ctx context.Context, environmentID, project string) ([]string, error)) {
+	s.volumeHolds = f
+}
+
 // Service manages stacks.
 type Service struct {
 	opts Options
 	db   *bun.DB
 	clk  clock.Clock
 	log  *slog.Logger
+
+	volumeHolds func(ctx context.Context, environmentID, project string) ([]string, error)
 }
 
 // New creates the service and registers its job finish hooks.

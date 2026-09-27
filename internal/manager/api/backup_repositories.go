@@ -68,6 +68,7 @@ type BackupService interface {
 	DeleteRepository(ctx context.Context, id string, revision int64) error
 	ListLocations(ctx context.Context, repositoryID string) ([]domain.BackupLocation, error)
 	Activity(ctx context.Context) ([]backups.BackupActivity, error)
+	ResticSnapshots(ctx context.Context, repositoryID string) ([]backups.ResticLocation, error)
 	TestRepository(ctx context.Context, id string) (domain.BackupConnectionTest, error)
 	Health(ctx context.Context, id string) (backups.RepositoryHealth, error)
 	KeyState(ctx context.Context) (domain.BackupKeyState, error)

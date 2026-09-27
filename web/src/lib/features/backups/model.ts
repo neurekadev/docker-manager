@@ -24,6 +24,8 @@ export type PolicyInput = Schema<'PolicyInputBody'>;
 export type BackupActivity = Schema<'BackupActivity'>;
 export type ActivityItem = Schema<'BackupActivityItem'>;
 export type BackupStorage = Schema<'BackupStorage'>;
+export type ResticSnapshot = Schema<'ResticSnapshot'>;
+export type ResticLocation = Schema<'ResticLocationSnapshots'>;
 
 /**
  * The safety statement of the Recovery Key (#10, verbatim meaning): the
@@ -433,4 +435,82 @@ export function membersByEnvironment(s: BackupSet): [string, SetMember[]][] {
 	return [...groups.entries()].sort(([a], [b]) =>
 		a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)
 	);
+}
+
+// --- Snapshots tab (#10): restic's own snapshots ---
+
+export const SNAPSHOT_CLASS: Record<ResticSnapshot['class'], Presentation> = {
+	stack: { tone: 'info', label: 'Stack' },
+	volume: { tone: 'info', label: 'Volume' },
+	manager_state: { tone: 'info', label: 'Manager state' },
+	set_manifest: { tone: 'neutral', label: 'Set manifest' },
+	host_manifest: { tone: 'neutral', label: 'Host manifest' },
+	foreign: { tone: 'warn', label: 'Not from Docker Manager' }
+};
+
+/** What a snapshot holds: the backup's name, its item, or its class. */
+export function snapshotName(s: ResticSnapshot): string {
+	if (s.name) return s.name;
+	if (s.class === 'manager_state') return 'Manager state';
+	if (s.item?.startsWith('volume/')) return s.item.slice('volume/'.length);
+	if (s.item?.startsWith('stack/'))
+		return `Stack ${s.item.slice('stack/'.length, 'stack/'.length + 8)}`;
+	if (s.class === 'set_manifest' || s.class === 'host_manifest') return 'Manifest';
+	return s.paths.join(', ') || s.shortId;
+}
+
+/** One row of the Snapshots tab: a snapshot with its repository and location. */
+export interface SnapshotRow {
+	key: string;
+	repositoryId: string;
+	repositoryName: string;
+	scope: string;
+	environmentId?: string;
+	snapshot: ResticSnapshot;
+}
+
+/** A location that could not be listed completely. */
+export interface SnapshotProblem {
+	repositoryName: string;
+	scope: string;
+	environmentId?: string;
+	errorClass?: string;
+	truncated: boolean;
+}
+
+/**
+ * Flattens the listings of several repositories, newest first, keeping
+ * only the environment's locations when environmentId is set (the manager
+ * scope belongs to none).
+ */
+export function snapshotRows(
+	listings: { repository: { id: string; name: string }; locations: ResticLocation[] }[],
+	environmentId: string | null = null
+): { rows: SnapshotRow[]; problems: SnapshotProblem[] } {
+	const rows: SnapshotRow[] = [];
+	const problems: SnapshotProblem[] = [];
+	for (const { repository: r, locations } of listings) {
+		for (const l of locations) {
+			if (environmentId && l.environmentId !== environmentId) continue;
+			if (l.errorClass || l.truncated)
+				problems.push({
+					repositoryName: r.name,
+					scope: l.scope,
+					environmentId: l.environmentId,
+					errorClass: l.errorClass,
+					truncated: l.truncated
+				});
+			for (const s of l.snapshots)
+				rows.push({
+					key: `${r.id}/${l.scope}/${s.id}`,
+					repositoryId: r.id,
+					repositoryName: r.name,
+					scope: l.scope,
+					environmentId: l.environmentId,
+					snapshot: s
+				});
+		}
+	}
+	rows.sort((a, b) => b.snapshot.time.localeCompare(a.snapshot.time));
+	return { rows, problems };
 }

@@ -1,8 +1,8 @@
 <script lang="ts">
 	// Backups overview (#10): until backups run, the two setup steps (a
 	// repository with a confirmed Recovery Key, then a policy); afterwards
-	// how backups stand (KPIs), what runs now (progress and the file being
-	// read), the storage the repositories use, every policy on one line
+	// how backups stand (KPIs), the storage the repositories use, what
+	// runs now (progress and the file being read), every policy on one line
 	// and the recent sets on one line each (Details opens a drawer). All
 	// backups and repositories have their own tabs.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -247,6 +247,8 @@
 			/>
 		</KpiRow>
 
+		<StorageCard totals={storage} />
+
 		{#if running.length}
 			<Card
 				title="Running now"
@@ -255,8 +257,6 @@
 				<RunningBackups jobs={running} {policyName} environmentName={envName} />
 			</Card>
 		{/if}
-
-		<StorageCard totals={storage} />
 
 		<Card
 			title="Policies"
@@ -293,9 +293,7 @@
 			padding="none"
 		>
 			{#snippet actions()}
-				<Button size="sm" variant="ghost" href={routes.backupSnapshots()}
-					>All backups</Button
-				>
+				<Button size="sm" variant="ghost" href={routes.backupList()}>All backups</Button>
 			{/snippet}
 			<QueryView query={policies} errorTitle="The backup sets could not be loaded.">
 				{#if sets.length}

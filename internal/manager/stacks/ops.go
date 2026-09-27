@@ -174,11 +174,34 @@ func (s *Service) Operate(ctx context.Context, p authz.Principal, st domain.Stac
 	return s.enqueue(ctx, p, st, kind, r, protocol.StackJobInput{})
 }
 
-// Delete enqueues stack.remove: the stack is taken down (volumes and the
-// project directory are kept) and forgotten when the job succeeds.
-func (s *Service) Delete(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest) (domain.Job, error) {
+// Delete enqueues stack.remove: the stack is taken down and forgotten when
+// the job succeeds. The project directory is kept, and so are its volumes
+// unless o.Volumes asks to remove the ones the stack owns (the agent
+// decides which are; a migrated source's volumes of the same project are
+// held, #35).
+func (s *Service) Delete(ctx context.Context, p authz.Principal, st domain.Stack, r domain.StackJobRequest, o domain.StackRemoveOptions) (domain.Job, error) {
 	r.Services = nil
-	return s.enqueue(ctx, p, st, jobspec.StackRemove, r, protocol.StackJobInput{RemoveOrphans: true})
+	in := protocol.StackJobInput{RemoveOrphans: true}
+	if o.Volumes {
+		// Older agents ignore the field (lenient input): refuse rather
+		// than keep the volumes silently.
+		fh, ok := s.opts.Agents.(interface {
+			EnvironmentHasFeature(environmentID, feature string) bool
+		})
+		if !ok || !fh.EnvironmentHasFeature(st.EnvironmentID, protocol.FeatureStackRemoveVolumes) {
+			return domain.Job{}, &domain.StackError{Code: domain.StackErrEnvironmentUnsupported,
+				Message: "the environment's agent is offline or cannot remove a stack's volumes yet; upgrade it, or delete the stack without its volumes"}
+		}
+		in.RemoveVolumes = true
+		if s.volumeHolds != nil {
+			keep, err := s.volumeHolds(ctx, st.EnvironmentID, st.Name)
+			if err != nil {
+				return domain.Job{}, err
+			}
+			in.KeepVolumes = keep
+		}
+	}
+	return s.enqueue(ctx, p, st, jobspec.StackRemove, r, in)
 }
 
 // registryConnections selects the registry connection of every image the

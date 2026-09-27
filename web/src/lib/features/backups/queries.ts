@@ -10,7 +10,8 @@ import type {
 	BackupDetail,
 	BackupPolicy,
 	BackupRepository,
-	RepositoryHealth
+	RepositoryHealth,
+	ResticLocation
 } from './model';
 
 export interface BackupFilter {
@@ -205,6 +206,28 @@ export function backupActivityQuery(busy: () => boolean = () => false, client: A
 		queryFn: async ({ signal }): Promise<BackupActivity[]> =>
 			(await unwrap(client.GET('/api/v1/backup-activity', { signal }))).jobs,
 		refetchInterval: (q) => ((q.state.data?.length ?? 0) > 0 ? 1000 : busy() ? 3000 : false),
+		retry: false
+	});
+}
+
+/**
+ * A repository's restic snapshots, read live from restic (#10). Listing
+ * runs restic on every location, so it is cached for a minute and only
+ * the repository's own changes refresh it (the Refresh button refetches).
+ */
+export function resticSnapshotsQuery(repositoryId: string, client: ApiClient = api) {
+	return queryOptions({
+		queryKey: liveKeys.item('backups', repositoryId, 'restic-snapshots'),
+		queryFn: async ({ signal }): Promise<ResticLocation[]> =>
+			(
+				await unwrap(
+					client.GET('/api/v1/backup-repositories/{repositoryId}/snapshots', {
+						params: { path: { repositoryId } },
+						signal
+					})
+				)
+			).locations,
+		staleTime: 60_000,
 		retry: false
 	});
 }

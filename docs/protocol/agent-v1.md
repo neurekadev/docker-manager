@@ -388,7 +388,10 @@ the manager sets the envelope's `requestId` only on sessions whose agent
 announced it (#34). Likewise `backup.activity`
 (`protocol.FeatureBackupActivity`, #10): only those agents get
 `backup.run` inputs with `activity: true`, and only then send progress
-frames with `activity`. Upgrade procedure: `docs/operations/upgrades.md`.
+frames with `activity`. And `stack.remove_volumes`
+(`protocol.FeatureStackRemoveVolumes`): only those agents get
+`stack.remove` inputs with `removeVolumes` (and `keepVolumes`); the manager
+refuses the option for other agents (they would keep the volumes). Upgrade procedure: `docs/operations/upgrades.md`.
 
 ### command, ack, progress, result, job_report, cancel (jobs, #26)
 

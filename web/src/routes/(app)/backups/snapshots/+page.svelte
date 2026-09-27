@@ -1,17 +1,23 @@
 <script lang="ts">
-	// All backups (#10): every backup of a stack, volume or the manager
-	// state in the instance (or the selected environment), whoever
-	// configured the policy. Open one to browse its contents or restore it.
-	import { createQuery } from '@tanstack/svelte-query';
-	import Archive from '@lucide/svelte/icons/archive';
+	// Snapshots (#10): what restic itself holds, read live from every
+	// location of every repository the caller may read: the backups, the
+	// set and host manifests, and snapshots Docker Manager did not write.
+	// Linked rows open the backup; a location that cannot be read is named
+	// with the reason.
+	import { createQueries, createQuery, useQueryClient } from '@tanstack/svelte-query';
+	import Camera from '@lucide/svelte/icons/camera';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import { environmentsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
+		Button,
 		Card,
 		EmptyState,
+		Notice,
+		Skeleton,
 		Table,
 		TextField,
 		formatBytes,
@@ -19,160 +25,273 @@
 		type Column
 	} from '$lib/ui';
 	import { environmentName } from '$lib/features/common/data';
+	import { actionError } from '$lib/features/common/errors';
 	import NameCell from '$lib/features/common/NameCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
-	import QueryView from '$lib/features/common/QueryView.svelte';
 	import BackupsHeader from '$lib/features/backups/BackupsHeader.svelte';
 	import {
-		CONSISTENCY_LABEL,
-		KIND_LABEL,
-		itemName,
-		type Backup
+		SNAPSHOT_CLASS,
+		sentenceCase,
+		snapshotName,
+		snapshotRows,
+		type SnapshotRow
 	} from '$lib/features/backups/model';
-	import { backupPoliciesQuery, backupsQuery } from '$lib/features/backups/queries';
+	import { repositoriesQuery, resticSnapshotsQuery } from '$lib/features/backups/queries';
 
 	usePage({
-		title: 'All backups',
-		crumbs: [{ label: 'Backups', href: routes.backups() }, { label: 'All backups' }],
+		title: 'Snapshots',
+		crumbs: [{ label: 'Backups', href: routes.backups() }, { label: 'Snapshots' }],
 		environmentScoped: true
 	});
 
+	const qc = useQueryClient();
 	const envs = createQuery(() => environmentsQuery());
-	const policies = createQuery(() => backupPoliciesQuery());
-	const backups = createQuery(() =>
-		backupsQuery(environmentSelection.id ? { environmentId: environmentSelection.id } : {})
-	);
 	const envName = (id: string) => environmentName(envs.data, id);
-	const policyName = (id?: string) => policies.data?.find((p) => p.id === id)?.name;
+	const repos = createQuery(() => repositoriesQuery());
+	const readable = $derived(
+		(repos.data ?? []).filter(
+			(r) =>
+				r.state === 'ready' &&
+				r.view === 'full' &&
+				r.actions.includes('backup_repository.read')
+		)
+	);
+	const listings = createQueries(() => ({
+		queries: readable.map((r) => resticSnapshotsQuery(r.id))
+	}));
+	const loading = $derived(repos.isPending || listings.some((q) => q.isPending));
+	const failed = $derived(
+		readable
+			.map((r, i) => ({ r, q: listings[i] }))
+			.filter(({ q }) => q?.isError)
+			.map(({ r, q }) => ({ name: r.name, error: q.error }))
+	);
+	const data = $derived(
+		snapshotRows(
+			readable
+				.map((r, i) => ({ repository: r, locations: listings[i]?.data ?? [] }))
+				.filter((l) => l.locations.length),
+			environmentSelection.id
+		)
+	);
 
 	let filter = $state('');
 	const rows = $derived.by(() => {
 		const q = filter.trim().toLowerCase();
-		const all = backups.data ?? [];
-		if (!q) return all;
-		return all.filter((b) =>
+		if (!q) return data.rows;
+		return data.rows.filter((r) =>
 			[
-				itemName(b),
-				policyName(b.policyId) ?? '',
-				b.environmentId ? envName(b.environmentId) : ''
+				snapshotName(r.snapshot),
+				SNAPSHOT_CLASS[r.snapshot.class].label,
+				r.snapshot.shortId,
+				r.snapshot.hostname ?? '',
+				r.repositoryName,
+				r.environmentId ? envName(r.environmentId) : 'manager',
+				...r.snapshot.tags
 			]
 				.join(' ')
 				.toLowerCase()
 				.includes(q)
 		);
 	});
-	const totalBytes = $derived(rows.reduce((n, b) => n + (b.bytes ?? 0), 0));
 
-	const columns: Column<Backup>[] = [
-		{
-			id: 'item',
-			header: 'Backup',
-			cell: itemCell,
-			sortValue: (b) => itemName(b),
-			stack: 'title'
-		},
-		{ id: 'state', header: 'State', cell: stateCell, width: '130px', stack: 'status' },
+	let refreshing = $state(false);
+	async function refresh() {
+		refreshing = true;
+		await Promise.all(
+			readable.map((r) =>
+				qc.refetchQueries({ queryKey: resticSnapshotsQuery(r.id).queryKey })
+			)
+		);
+		refreshing = false;
+	}
+
+	const where = (r: SnapshotRow | { environmentId?: string }) =>
+		r.environmentId ? envName(r.environmentId) : 'Manager';
+
+	const columns: Column<SnapshotRow>[] = [
 		{
 			id: 'time',
 			header: 'Taken',
 			cell: timeCell,
-			sortValue: (b) => b.snapshotTime,
-			width: '190px'
+			sortValue: (r) => r.snapshot.time,
+			width: '190px',
+			stack: 'meta'
 		},
 		{
-			id: 'env',
-			header: 'Environment',
-			cell: envCell,
-			sortValue: (b) =>
-				b.kind === 'manager_state' || !b.environmentId ? '' : envName(b.environmentId),
-			width: '160px'
+			id: 'what',
+			header: 'Snapshot',
+			cell: whatCell,
+			sortValue: (r) => snapshotName(r.snapshot),
+			stack: 'title'
 		},
-		{ id: 'consistency', header: 'Consistency', cell: consistencyCell, width: '220px' },
+		{
+			id: 'class',
+			header: 'Kind',
+			cell: classCell,
+			sortValue: (r) => SNAPSHOT_CLASS[r.snapshot.class].label,
+			width: '190px',
+			stack: 'status'
+		},
+		{
+			id: 'where',
+			header: 'Repository',
+			cell: whereCell,
+			sortValue: (r) => `${r.repositoryName} ${where(r)}`,
+			width: '220px',
+			stack: 'meta'
+		},
 		{
 			id: 'size',
 			header: 'Size',
 			cell: sizeCell,
-			sortValue: (b) => b.bytes ?? null,
+			sortValue: (r) => r.snapshot.bytesProcessed ?? -1,
 			numeric: true,
-			width: '110px'
+			width: '100px',
+			stack: 'hidden'
+		},
+		{
+			id: 'added',
+			header: 'Added',
+			cell: addedCell,
+			sortValue: (r) => r.snapshot.dataAdded ?? -1,
+			numeric: true,
+			width: '100px',
+			stack: 'hidden'
 		}
 	];
 </script>
 
-{#snippet itemCell(b: Backup)}
+{#snippet timeCell(r: SnapshotRow)}<span class="num">{formatDateTime(r.snapshot.time)}</span
+	>{/snippet}
+{#snippet whatCell(r: SnapshotRow)}
 	<NameCell
-		name={itemName(b)}
-		href={routes.backup(b.id)}
-		sub={[
-			b.kind && b.kind !== 'manager_state' ? KIND_LABEL[b.kind] : undefined,
-			policyName(b.policyId)
-		]
-			.filter(Boolean)
-			.join(', ') || undefined}
+		name={snapshotName(r.snapshot)}
+		href={r.snapshot.backupId ? routes.backup(r.snapshot.backupId) : undefined}
+		sub="{r.snapshot.shortId}{r.snapshot.hostname ? ` · ${r.snapshot.hostname}` : ''}"
+		subMono
 	/>
 {/snippet}
-{#snippet stateCell(b: Backup)}
-	{#if b.state === 'complete'}<Badge tone="ok" dot>Complete</Badge>{:else}<Badge tone="warn" dot
-			>Partial</Badge
-		>{/if}
+{#snippet classCell(r: SnapshotRow)}
+	{@const c = SNAPSHOT_CLASS[r.snapshot.class]}
+	<span class="cell">
+		<Badge tone={c.tone} dot>{c.label}</Badge>
+		{#if r.snapshot.forgotten}<span class="muted">Forgotten</span>{/if}
+	</span>
 {/snippet}
-{#snippet timeCell(b: Backup)}<span class="num">{formatDateTime(b.snapshotTime)}</span>{/snippet}
-{#snippet envCell(b: Backup)}{b.kind === 'manager_state' || !b.environmentId
-		? 'Manager'
-		: envName(b.environmentId)}{/snippet}
-{#snippet consistencyCell(b: Backup)}
-	{b.consistency ? CONSISTENCY_LABEL[b.consistency] : '—'}
+{#snippet whereCell(r: SnapshotRow)}
+	<NameCell
+		name={r.repositoryName}
+		href={routes.backupRepository(r.repositoryId)}
+		sub={where(r)}
+	/>
 {/snippet}
-{#snippet sizeCell(b: Backup)}<span class="num">{formatBytes(b.bytes)}</span>{/snippet}
+{#snippet sizeCell(r: SnapshotRow)}<span class="num">{formatBytes(r.snapshot.bytesProcessed)}</span
+	>{/snippet}
+{#snippet addedCell(r: SnapshotRow)}<span class="num">{formatBytes(r.snapshot.dataAdded)}</span
+	>{/snippet}
 
 <Page>
 	<BackupsHeader />
+
+	{#each failed as f (f.name)}
+		<Notice tone="warn" title="The snapshots of {f.name} could not be listed.">
+			{actionError(f.error)}
+		</Notice>
+	{/each}
+	{#each data.problems as p (`${p.repositoryName}/${p.scope}`)}
+		<Notice
+			tone={p.errorClass ? 'warn' : 'info'}
+			title={p.errorClass
+				? `${p.repositoryName}, ${where(p)}: not listed (${sentenceCase(p.errorClass.replaceAll('_', ' '))}).`
+				: `${p.repositoryName}, ${where(p)}: only the newest snapshots are listed.`}
+			live="none"
+		>
+			{p.errorClass
+				? 'The other locations are listed. Check that the agent is connected and the repository is reachable, then refresh.'
+				: 'restic holds older snapshots at this location too.'}
+		</Notice>
+	{/each}
+
 	<Card
-		title="All backups"
-		subtitle={backups.data
-			? `${rows.length} ${rows.length === 1 ? 'backup' : 'backups'}, ${formatBytes(totalBytes)} backed up`
-			: undefined}
+		title="Snapshots"
+		subtitle={loading
+			? 'Reading the repositories…'
+			: `${rows.length} restic ${rows.length === 1 ? 'snapshot' : 'snapshots'}, read live from the repositories`}
 		padding="none"
 	>
 		{#snippet actions()}
-			<div class="filter">
-				<TextField
-					label="Filter backups"
-					hideLabel
-					placeholder="Filter by name, policy or environment"
-					bind:value={filter}
-				/>
+			<div class="tools">
+				<div class="filter">
+					<TextField
+						label="Filter snapshots"
+						hideLabel
+						placeholder="Filter by name, ID, tag or repository"
+						bind:value={filter}
+					/>
+				</div>
+				<Button
+					size="sm"
+					variant="ghost"
+					icon={RefreshCw}
+					loading={refreshing}
+					disabled={!readable.length}
+					onclick={refresh}>Refresh</Button
+				>
 			</div>
 		{/snippet}
-		<QueryView query={backups} errorTitle="The backups could not be loaded.">
+		{#if loading && !data.rows.length}
+			<div class="pad"><Skeleton lines={5} height="20px" /></div>
+		{:else}
 			<Table
-				label="All backups"
+				label="Restic snapshots"
 				{rows}
 				{columns}
-				rowKey={(b) => b.id}
+				rowKey={(r) => r.key}
 				sort={{ column: 'time', direction: 'desc' }}
 			>
 				{#snippet empty()}
 					<EmptyState
-						icon={Archive}
+						icon={Camera}
 						color="slate"
-						title={filter.trim() ? 'No backup matches the filter.' : 'No backups here.'}
+						title={filter.trim()
+							? 'No snapshot matches the filter.'
+							: readable.length
+								? 'No snapshots here.'
+								: 'No repository to read.'}
 						description={filter.trim()
-							? 'Clear the filter to see every backup.'
-							: environmentSelection.id
-								? 'Nothing from this environment is backed up yet.'
-								: 'Backups appear after a policy runs.'}
+							? 'Clear the filter to see every snapshot.'
+							: readable.length
+								? 'Snapshots appear after a policy runs.'
+								: 'Add a backup repository and confirm its Recovery Key first.'}
 						level={3}
 						compact
 					/>
 				{/snippet}
 			</Table>
-		</QueryView>
+		{/if}
 	</Card>
 </Page>
 
 <style>
+	.tools {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
 	.filter {
-		width: min(320px, 100%);
+		width: min(320px, 50vw);
+	}
+
+	.cell {
+		display: inline-flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.pad {
+		padding: var(--space-4);
 	}
 </style>

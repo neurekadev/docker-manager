@@ -9,11 +9,14 @@ import {
 	setBytes,
 	setDuration,
 	setSummary,
+	snapshotName,
+	snapshotRows,
 	storageTotals,
 	type Backup,
 	type BackupActivity,
 	type BackupRepository,
-	type BackupSet
+	type BackupSet,
+	type ResticSnapshot
 } from './model';
 
 const loc = (
@@ -210,5 +213,105 @@ describe('set summaries', () => {
 			['e2', 1],
 			['', 1]
 		]);
+	});
+});
+
+describe('restic snapshots', () => {
+	const snap = (
+		id: string,
+		time: string,
+		extra: Partial<ResticSnapshot> = {}
+	): ResticSnapshot => ({
+		id,
+		shortId: id.slice(0, 8),
+		time,
+		paths: ['/data'],
+		tags: [],
+		class: 'volume',
+		...extra
+	});
+	const listings = [
+		{
+			repository: { id: 'r1', name: 'Local' },
+			locations: [
+				{
+					scope: 'manager',
+					truncated: false,
+					snapshots: [snap('m1', '2026-09-27T01:00:00Z', { class: 'set_manifest' })]
+				},
+				{
+					scope: 'env:e1',
+					environmentId: 'e1',
+					truncated: true,
+					snapshots: [snap('v1', '2026-09-27T03:00:00Z', { item: 'volume/media' })]
+				}
+			]
+		},
+		{
+			repository: { id: 'r2', name: 'Offsite' },
+			locations: [
+				{
+					scope: 'env:e2',
+					environmentId: 'e2',
+					errorClass: 'agent_offline',
+					truncated: false,
+					snapshots: []
+				},
+				{
+					scope: 'env:e1',
+					environmentId: 'e1',
+					truncated: false,
+					snapshots: [snap('v2', '2026-09-27T02:00:00Z', { name: 'db', backupId: 'b1' })]
+				}
+			]
+		}
+	];
+
+	it('lists every location newest first and names what could not be read', () => {
+		const { rows, problems } = snapshotRows(listings);
+		expect(rows.map((r) => r.snapshot.id)).toEqual(['v1', 'v2', 'm1']);
+		expect(rows[1]).toMatchObject({
+			repositoryName: 'Offsite',
+			scope: 'env:e1',
+			environmentId: 'e1'
+		});
+		expect(problems).toEqual([
+			{
+				repositoryName: 'Local',
+				scope: 'env:e1',
+				environmentId: 'e1',
+				errorClass: undefined,
+				truncated: true
+			},
+			{
+				repositoryName: 'Offsite',
+				scope: 'env:e2',
+				environmentId: 'e2',
+				errorClass: 'agent_offline',
+				truncated: false
+			}
+		]);
+	});
+
+	it('keeps only the selected environment (the manager scope has none)', () => {
+		const { rows, problems } = snapshotRows(listings, 'e1');
+		expect(rows.map((r) => r.snapshot.id)).toEqual(['v1', 'v2']);
+		expect(problems.map((p) => p.repositoryName)).toEqual(['Local']);
+	});
+
+	it('names snapshots by what they hold', () => {
+		expect(snapshotName(snap('a', '', { name: 'db' }))).toBe('db');
+		expect(snapshotName(snap('a', '', { item: 'volume/media' }))).toBe('media');
+		expect(snapshotName(snap('a', '', { class: 'stack', item: 'stack/01a0e0da-c66c' }))).toBe(
+			'Stack 01a0e0da'
+		);
+		expect(snapshotName(snap('a', '', { class: 'manager_state' }))).toBe('Manager state');
+		expect(snapshotName(snap('a', '', { class: 'host_manifest' }))).toBe('Manifest');
+		expect(snapshotName(snap('abcdef123', '', { class: 'foreign', paths: [] }))).toBe(
+			'abcdef12'
+		);
+		expect(snapshotName(snap('a', '', { class: 'foreign', paths: ['/srv', '/etc'] }))).toBe(
+			'/srv, /etc'
+		);
 	});
 });

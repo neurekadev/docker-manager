@@ -13,7 +13,7 @@
 //   /registries[/git|/matches]          registry connections, Git credentials, match preview
 //   /jobs[/{jobId}], /schedules
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
-//   /backups[/{backupId}[/restore]|/snapshots|/policies[/{id}]|/repositories[/new|/{id}]]
+//   /backups[/{backupId}[/restore]|/all|/snapshots|/policies[/{id}]|/repositories[/new|/{id}]]
 //   /updates[/{policyId}], /maintenance[/{policyId}]
 //   Create and edit forms of stacks and policies are dialogs over their
 //   list or detail page, opened by a query parameter (?create=1, ?edit=1,
@@ -93,6 +93,7 @@ export const routes = {
 	backups: () => '/backups',
 	backup: (id: string) => `/backups/${e(id)}`,
 	backupRestore: (id: string) => `/backups/${e(id)}/restore`,
+	backupList: () => '/backups/all',
 	backupSnapshots: () => '/backups/snapshots',
 	backupPolicies: () => '/backups/policies',
 	backupPolicyNew: () => '/backups/policies?create=1',

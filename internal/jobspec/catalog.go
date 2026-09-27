@@ -204,7 +204,7 @@ func catalogSpecs() []Spec {
 		stackKind(StackDown, "Stop and remove a stack's containers and networks", deadlineInteractive, idem("down")),
 		// Deleting a stack takes it down (volumes and the project directory
 		// are kept) and then forgets it in the manager (finish hook, #7).
-		stackKind(StackRemove, "Take a stack down and remove it from Docker Manager (volumes and files are kept)", deadlineInteractive, idem("down")),
+		stackKind(StackRemove, "Take a stack down and remove it from Docker Manager (files are kept; volumes too unless the removal asks to remove the stack's own)", deadlineInteractive, idem("down")),
 		func() Spec {
 			s := stackKind(StackBuild, "Build a stack's images", deadlineLong, idem("fetch_sources"), idem("build_images"))
 			s.ConcurrencyClass = ClassBuild

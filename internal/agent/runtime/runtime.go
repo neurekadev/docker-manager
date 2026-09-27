@@ -638,6 +638,10 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	if slices.Contains(p.Commands, "restore.run") {
 		p.Features = append(p.Features, protocol.FeatureRestoreSelection)
 	}
+	// Its stack.remove also removes the stack's own volumes when asked.
+	if slices.Contains(p.Commands, "stack.remove") {
+		p.Features = append(p.Features, protocol.FeatureStackRemoveVolumes)
+	}
 	// Its backup.run reports live activity when asked (#10).
 	if slices.Contains(p.Commands, "backup.run") {
 		p.Features = append(p.Features, protocol.FeatureBackupActivity)
