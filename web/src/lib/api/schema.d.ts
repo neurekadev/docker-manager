@@ -4387,6 +4387,8 @@ export interface components {
             kind?: "manager_state" | "stack" | "volume";
             paths?: string[];
             policyId?: string;
+            /** @description Stack backups: the project directory's path inside the backup. */
+            projectPath?: string;
             repositoryId: string;
             /** @description manager or env:<environmentId>: which restic repository below the destination holds it. */
             scope?: string;
@@ -4408,6 +4410,10 @@ export interface components {
             /** @enum {string} */
             view: "minimal" | "full";
             volume?: string;
+            /** @description Each volume's data directory inside the backup. */
+            volumePaths?: {
+                [key: string]: string;
+            };
             volumes?: string[];
         };
         BackupConnectionTest: {
@@ -4465,6 +4471,8 @@ export interface components {
             kind?: "manager_state" | "stack" | "volume";
             paths?: string[];
             policyId?: string;
+            /** @description Stack backups: the project directory's path inside the backup. */
+            projectPath?: string;
             repositoryId: string;
             /** @description manager or env:<environmentId>: which restic repository below the destination holds it. */
             scope?: string;
@@ -4488,6 +4496,10 @@ export interface components {
             /** @enum {string} */
             view: "minimal" | "full";
             volume?: string;
+            /** @description Each volume's data directory inside the backup. */
+            volumePaths?: {
+                [key: string]: string;
+            };
             volumes?: string[];
         };
         BackupImportConnectionTest: {
@@ -14874,6 +14886,8 @@ export interface operations {
                 environmentId?: string;
                 stackId?: string;
                 kind?: "manager_state" | "stack" | "volume";
+                /** @description Backups of this volume: its volume backups and the stack backups that hold it (combine with environmentId). */
+                volume?: string;
                 includeForgotten?: boolean;
             };
             header?: never;
@@ -14908,6 +14922,7 @@ export interface operations {
                      *             "config/app.conf"
                      *           ],
                      *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "projectPath": "config/app.conf",
                      *           "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "scope": "example",
                      *           "setId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -14919,6 +14934,7 @@ export interface operations {
                      *           "verifiedAt": "2026-09-25T12:00:00Z",
                      *           "view": "minimal",
                      *           "volume": "example",
+                     *           "volumePaths": {},
                      *           "volumes": [
                      *             "example"
                      *           ]
@@ -14996,6 +15012,7 @@ export interface operations {
                      *         "config/app.conf"
                      *       ],
                      *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "projectPath": "config/app.conf",
                      *       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *       "scope": "example",
                      *       "set": {
@@ -15029,6 +15046,7 @@ export interface operations {
                      *       "verifiedAt": "2026-09-25T12:00:00Z",
                      *       "view": "minimal",
                      *       "volume": "example",
+                     *       "volumePaths": {},
                      *       "volumes": [
                      *         "example"
                      *       ]

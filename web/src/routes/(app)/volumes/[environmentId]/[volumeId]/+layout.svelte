@@ -2,7 +2,7 @@
 	// Volume detail (#6): header with usage and actions (migrate #35,
 	// remove with consequences), what Docker Manager refuses and why (#32, managed
 	// stacks, non-local drivers #28), and the tabs: Overview here, Files
-	// (#15 volume file manager) as a child route.
+	// (#15 volume file manager), Backups (#10) and Migrate as child routes.
 	import type { Snippet } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -16,7 +16,7 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import { ApiRequestError } from '$lib/api/client';
-	import { volumeQuery } from '$lib/api/queries';
+	import { myPermissionsQuery, volumeQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
@@ -42,6 +42,7 @@
 	import { can } from '$lib/features/resources/permissions';
 	import { protectionLabel, sentence } from '$lib/features/resources/refusals';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
+	import { canAnywhere } from '$lib/features/stacks/model';
 
 	let { children }: { children: Snippet } = $props();
 
@@ -68,10 +69,13 @@
 		!!v && access.local && !v.protection && can(v.actions, 'volume.files.read')
 	);
 	const migratable = $derived(!!v && !v.protection && can(v.actions, 'volume.migrate'));
+	const perms = createQuery(() => myPermissionsQuery());
+	const backedUp = $derived(!!v && !v.protection && canAnywhere(perms.data, 'backup.read'));
 
 	const tabs = $derived<TabLink[]>([
 		{ href: routes.volume(env, name), label: 'Overview' },
 		...(filesOpen ? [{ href: routes.volume(env, name, 'files'), label: 'Files' }] : []),
+		...(backedUp ? [{ href: routes.volume(env, name, 'backups'), label: 'Backups' }] : []),
 		...(migratable ? [{ href: routes.volume(env, name, 'migrate'), label: 'Migrate' }] : [])
 	]);
 	const meta = $derived<MetaItem[]>(

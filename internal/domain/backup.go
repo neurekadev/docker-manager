@@ -320,6 +320,8 @@ type BackupSnapshotFilter struct {
 	EnvironmentID string
 	StackID       string
 	Kind          string
+	// Volume: snapshots of this volume, and stack snapshots that hold it.
+	Volume string
 	// IncludeForgotten also lists snapshots removed by retention.
 	IncludeForgotten bool
 }

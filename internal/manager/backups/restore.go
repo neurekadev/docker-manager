@@ -51,8 +51,8 @@ type RestoreRequest struct {
 // snapshot: those use the owner's manager restore procedure.
 var ErrManagerStateRestore = errors.New("manager-state backups are restored with the manager restore procedure")
 
-// ErrRestoreAgentOutdated: the environment's agent predates full and paths
-// restores (or is offline, so it cannot say).
+// ErrRestoreAgentOutdated is returned when the environment's agent
+// predates full and paths restores (or is offline, so it cannot say).
 var ErrRestoreAgentOutdated = errors.New("the environment's agent cannot restore a whole backup or selected paths")
 
 // FeatureHub reports whether an environment's connected agent announced
@@ -226,7 +226,7 @@ func (s *Service) planRestore(ctx context.Context, sn domain.BackupSnapshot, req
 func (s *Service) pathTarget(sn domain.BackupSnapshot, st *domain.Stack, sp, env string) (domain.JobTarget, error) {
 	owner := ""
 	for v, vp := range sn.VolumePaths {
-		if strings.HasPrefix(sp, vp+"/") {
+		if sp == vp || strings.HasPrefix(sp, vp+"/") {
 			owner = v
 		}
 	}

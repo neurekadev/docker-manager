@@ -53,7 +53,8 @@
 	} from './actions';
 	import EditDetailsDialog from './EditDetailsDialog.svelte';
 	import { serviceCounts, stackIcon, stackStatus, stackTitle, updateAvailable } from './model';
-	import { stackImageStatusQuery, stackKeys, type Stack } from './queries';
+	import { stackImageStatusQuery, stackJobsQuery, stackKeys, type Stack } from './queries';
+	import { activeRestore } from '$lib/features/backups/restore';
 	import type { JobTray } from './tray.svelte';
 	import UpdateDrawer from './UpdateDrawer.svelte';
 
@@ -71,6 +72,10 @@
 	const can = (a: string) => stack.actions.includes(a);
 	const full = $derived(stack.view === 'full');
 	const offline = $derived(stack.readOnly || stack.environmentOnline === false);
+	// A restore of the stack's data starts what was running itself; the
+	// server refuses starts meanwhile (restore_in_progress), so hide them.
+	const jobs = createQuery(() => stackJobsQuery(stack.id));
+	const restoring = $derived(!!activeRestore(jobs.data));
 	const counts = $derived(serviceCounts(stack));
 	const icon = $derived(stackIcon(stack));
 	const envName = $derived(environment?.name ?? 'Unknown environment');
@@ -244,7 +249,7 @@
 
 	const overflow = $derived.by((): MenuEntry[] => {
 		const items: MenuEntry[] = [];
-		if (can('stack.start') && !stoppedLike && current !== 'running')
+		if (can('stack.start') && !stoppedLike && current !== 'running' && !restoring)
 			items.push({
 				label: 'Start',
 				icon: Play,
@@ -279,7 +284,7 @@
 		return items;
 	});
 
-	const canUpdate = $derived(full && can('update.check'));
+	const canUpdate = $derived(full && can('update.check') && !restoring);
 </script>
 
 <PageHeader
@@ -292,9 +297,10 @@
 	{#snippet status()}
 		<StatusBadge status={stackStatus(stack)} />
 		{#if offline}<Badge tone="offline" dot>Read-only while {envName} is offline</Badge>{/if}
+		{#if restoring}<Badge tone="warn" dot>Restoring from a backup</Badge>{/if}
 	{/snippet}
 	{#snippet actions()}
-		{#if can('stack.deploy')}
+		{#if can('stack.deploy') && !restoring}
 			<SplitButton
 				label="Deploy"
 				icon={Download}
@@ -305,12 +311,12 @@
 				items={deployItems}
 			/>
 		{/if}
-		{#if can('stack.restart') && !stoppedLike}
+		{#if can('stack.restart') && !stoppedLike && !restoring}
 			<Button icon={RotateCw} disabled={offline} onclick={() => ask('restart')}
 				>Restart</Button
 			>
 		{/if}
-		{#if current === 'stopped' && can('stack.start')}
+		{#if current === 'stopped' && can('stack.start') && !restoring}
 			<Button icon={Play} disabled={offline} onclick={() => ask('start')}>Start</Button>
 		{:else if can('stack.stop') && !stoppedLike}
 			<Button

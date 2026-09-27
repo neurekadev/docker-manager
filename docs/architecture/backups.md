@@ -257,6 +257,19 @@ target (stack, volumes, repository). Manager-state snapshots answer
 `manager_restore_required`: the manager state is restored by importing it
 into a fresh manager (below), never over a running one.
 
+**UI.** Stacks and volumes have a **Backups** tab (volumes: right before
+Migrate; `$lib/features/backups/BackupsTab.svelte`, listed with
+`GET /backups?stackId=` or `?environmentId=&volume=`, which also returns
+the stack backups holding the volume). *Restore all* restores the whole
+backup (a volume's page: only that volume); *Choose files* opens a lazily
+listed file tree (`FilePickerDialog`, one directory per request, at most
+500 entries each, tri-state ticks; `selection.ts` keeps no path inside a
+ticked one and splits a ticked folder when something inside is unticked).
+Every restore is previewed and confirmed with a danger button that says
+what is replaced (a full restore also needs the name typed); the stack
+header hides Deploy, Start, Restart and Update while a restore of the
+stack has not ended.
+
 ## Fresh-manager import (#24)
 
 The system restore is an **isolated recovery exercise**: a clean manager

@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Stack detail (#22 mockup, #7): header with the stack's actions, the
 	// state notices (offline environment, failed deploy), the route tabs
-	// (Overview · Files · Logs · Terminal · Revisions · Policies · Activity)
+	// (Overview · Files · Logs · Terminal · Revisions · Backups · Policies ·
+	// Activity)
 	// with the "Undeployed changes" chip, the jobs started here, then the
 	// tab. Files, Logs and Terminal are track B3's routes.
 	import { createQuery } from '@tanstack/svelte-query';
@@ -10,10 +11,10 @@
 	import { untrack } from 'svelte';
 	import Layers from '@lucide/svelte/icons/layers';
 	import { ApiRequestError } from '$lib/api/client';
-	import { environmentsQuery } from '$lib/api/queries';
+	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { provideStackPage } from '$lib/features/stacks/context';
 	import JobTrayView from '$lib/features/stacks/JobTrayView.svelte';
-	import { shortHash, stackTitle } from '$lib/features/stacks/model';
+	import { canAnywhere, shortHash, stackTitle } from '$lib/features/stacks/model';
 	import { stackQuery } from '$lib/features/stacks/queries';
 	import StackHeader from '$lib/features/stacks/StackHeader.svelte';
 	import { JobTray } from '$lib/features/stacks/tray.svelte';
@@ -36,6 +37,7 @@
 	const id = $derived(page.params.stackId ?? '');
 	const stack = createQuery(() => stackQuery(id));
 	const envs = createQuery(() => environmentsQuery());
+	const perms = createQuery(() => myPermissionsQuery());
 	const s = $derived(stack.data);
 	const environment = $derived(envs.data?.find((e) => e.id === s?.environmentId));
 	const title = $derived(s ? stackTitle(s) : 'Stack');
@@ -93,6 +95,8 @@
 			t.push({ href: routes.stack(id, 'terminal'), label: 'Terminal' });
 		if (can('stack.definition.read'))
 			t.push({ href: routes.stack(id, 'revisions'), label: 'Revisions' });
+		if (canAnywhere(perms.data, 'backup.read'))
+			t.push({ href: routes.stack(id, 'backups'), label: 'Backups' });
 		if (s.view === 'full') t.push({ href: routes.stack(id, 'policies'), label: 'Policies' });
 		t.push({ href: routes.stack(id, 'activity'), label: 'Activity' });
 		return t;

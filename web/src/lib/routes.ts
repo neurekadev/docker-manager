@@ -8,7 +8,7 @@
 //   /containers, /images, /volumes, /networks   lists (all or the selected environment)
 //   /containers/new, /containers/{env}/{name}[/logs|terminal]   create; detail tabs
 //   /images/{env}/{imageId}, /networks/{env}/{name}
-//   /volumes/{env}/{name}[/files|migrate]       volume detail, file manager, migration
+//   /volumes/{env}/{name}[/files|backups|migrate] volume detail, files, backups, migration
 //   /builds[/new|/definitions], /builds/{env}/{buildId}
 //   /registries[/git|/matches]          registry connections, Git credentials, match preview
 //   /jobs[/{jobId}], /schedules
@@ -42,7 +42,15 @@ export const routes = {
 	stacks: () => '/stacks',
 	stack: (
 		id: string,
-		tab?: 'files' | 'logs' | 'terminal' | 'revisions' | 'policies' | 'activity' | 'migrate'
+		tab?:
+			| 'files'
+			| 'logs'
+			| 'terminal'
+			| 'revisions'
+			| 'backups'
+			| 'policies'
+			| 'activity'
+			| 'migrate'
 	) => `/stacks/${e(id)}${tab ? `/${tab}` : ''}`,
 	/** The stack's terminal with a service container preselected (#8). */
 	stackTerminal: (id: string, container?: string) =>
@@ -65,7 +73,7 @@ export const routes = {
 	images: () => '/images',
 	image: (env: string, id: string) => `/images/${e(env)}/${e(id)}`,
 	volumes: () => '/volumes',
-	volume: (env: string, name: string, tab?: 'files' | 'migrate') =>
+	volume: (env: string, name: string, tab?: 'files' | 'backups' | 'migrate') =>
 		`/volumes/${e(env)}/${e(name)}${tab ? `/${tab}` : ''}`,
 	networks: () => '/networks',
 	network: (env: string, name: string) => `/networks/${e(env)}/${e(name)}`,

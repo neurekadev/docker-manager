@@ -947,6 +947,10 @@
           "policyId": {
             "type": "string"
           },
+          "projectPath": {
+            "description": "Stack backups: the project directory's path inside the backup.",
+            "type": "string"
+          },
           "repositoryId": {
             "type": "string"
           },
@@ -995,6 +999,13 @@
           },
           "volume": {
             "type": "string"
+          },
+          "volumePaths": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Each volume's data directory inside the backup.",
+            "type": "object"
           },
           "volumes": {
             "items": {
@@ -1168,6 +1179,10 @@
           "policyId": {
             "type": "string"
           },
+          "projectPath": {
+            "description": "Stack backups: the project directory's path inside the backup.",
+            "type": "string"
+          },
           "repositoryId": {
             "type": "string"
           },
@@ -1220,6 +1235,13 @@
           },
           "volume": {
             "type": "string"
+          },
+          "volumePaths": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Each volume's data directory inside the backup.",
+            "type": "object"
           },
           "volumes": {
             "items": {
@@ -23503,6 +23525,17 @@
             }
           },
           {
+            "description": "Backups of this volume: its volume backups and the stack backups that hold it (combine with environmentId).",
+            "explode": false,
+            "in": "query",
+            "name": "volume",
+            "schema": {
+              "description": "Backups of this volume: its volume backups and the stack backups that hold it (combine with environmentId).",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
             "explode": false,
             "in": "query",
             "name": "includeForgotten",
@@ -23534,6 +23567,7 @@
                         "config/app.conf"
                       ],
                       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "projectPath": "config/app.conf",
                       "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "scope": "example",
                       "setId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
@@ -23545,6 +23579,7 @@
                       "verifiedAt": "2026-09-25T12:00:00Z",
                       "view": "minimal",
                       "volume": "example",
+                      "volumePaths": {},
                       "volumes": [
                         "example"
                       ]
@@ -23660,6 +23695,7 @@
                     "config/app.conf"
                   ],
                   "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "projectPath": "config/app.conf",
                   "repositoryId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                   "scope": "example",
                   "set": {
@@ -23693,6 +23729,7 @@
                   "verifiedAt": "2026-09-25T12:00:00Z",
                   "view": "minimal",
                   "volume": "example",
+                  "volumePaths": {},
                   "volumes": [
                     "example"
                   ]

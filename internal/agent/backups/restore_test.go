@@ -372,6 +372,18 @@ func TestRestorePaths(t *testing.T) {
 			t.Errorf("left behind: %s", en.Name())
 		}
 	}
+	// A selected root is made identical to the backup in place.
+	write(t, filepath.Join(up, "a.jpg"), "changed again")
+	in.Paths = []string{snapPath(up)}
+	if res, _, _ := e.run(testutil.Context(t), jobspec.RestoreRun, in, e.credential(restoreKey), nil); res.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("root path: %+v", res)
+	}
+	if read(t, filepath.Join(up, "a.jpg")) != "jpeg" || read(t, filepath.Join(up, "new.txt")) != "<missing>" {
+		t.Error("the selected volume root is not identical to the backup")
+	}
+	if fi, err := os.Stat(up); err != nil || !fi.IsDir() {
+		t.Errorf("the volume's data directory is gone: %v", err)
+	}
 	// A path the backup does not hold is refused before anything stops.
 	e.eng.reset()
 	in.Paths = []string{snapPath(filepath.Join(up, "never"))}

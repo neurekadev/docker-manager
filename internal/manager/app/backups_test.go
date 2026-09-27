@@ -740,6 +740,23 @@ func TestRestoresThroughTheAPI(t *testing.T) {
 	for _, it := range page.Items {
 		ids[it.Kind] = it.ID
 	}
+	// A volume's backups: its own and the stack backups that hold it.
+	var byVolume struct {
+		Items []struct {
+			ID          string            `json:"id"`
+			ProjectPath string            `json:"projectPath"`
+			VolumePaths map[string]string `json:"volumePaths"`
+		} `json:"items"`
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backups?volume=app_dbdata", nil).json(t, &byVolume)
+	if len(byVolume.Items) != 1 || byVolume.Items[0].ID != ids["stack"] || byVolume.Items[0].ProjectPath == "" ||
+		byVolume.Items[0].VolumePaths["app_dbdata"] == "" {
+		t.Errorf("backups of app_dbdata %+v", byVolume.Items)
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backups?volume=uploads", nil).json(t, &byVolume)
+	if len(byVolume.Items) != 1 || byVolume.Items[0].ID != ids["volume"] {
+		t.Errorf("backups of uploads %+v", byVolume.Items)
+	}
 
 	// Damage the live data.
 	photo := filepath.Join(b.volumes, "uploads", "_data", "photo.jpg")

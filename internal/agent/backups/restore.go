@@ -238,12 +238,12 @@ func (s *Service) resolveFile(ctx context.Context, eng engine.Engine, in protoco
 	paths []string, projectDir, projectSource string) (restoreTarget, error) {
 	t := restoreTarget{RestoreTarget: protocol.RestoreTarget{Kind: "file", Source: file}}
 	switch {
-	case projectSource != "" && snapWithin(file, projectSource) && file != projectSource:
+	case projectSource != "" && snapWithin(file, projectSource) && (file != projectSource || anyType):
 		t.current = filepath.Join(projectDir, filepath.FromSlash(snapRel(file, projectSource)))
 		t.Name, t.root = in.Project.ProjectName, projectDir
 	default:
 		for _, p := range volumeSources(paths, in.Volumes) {
-			if !snapWithin(file, p) || file == p {
+			if !snapWithin(file, p) || (file == p && !anyType) {
 				continue
 			}
 			name := path.Base(path.Dir(p))
@@ -260,7 +260,14 @@ func (s *Service) resolveFile(ctx context.Context, eng engine.Engine, in protoco
 		return t, backup.Refuse("path_not_restorable", file+" lies outside the stack's project directory and its volumes",
 			"Download the file instead and put it in place yourself.")
 	}
-	// The parent must stay inside its root: no symlinked directories.
+	// The parent must stay inside its root: no symlinked directories. A
+	// selected root (the project directory or a volume) is swapped in
+	// place like a full restore of it.
+	if t.current == t.root {
+		_, err := os.Stat(t.current)
+		t.Kind, t.Exists, t.Path = "dir", err == nil, filepath.ToSlash(t.current)
+		return t, nil
+	}
 	if parent, exists, err := realPath(filepath.Dir(t.current)); err != nil || (exists && !inside(parent, rootReal(t.root))) {
 		return t, backup.Refuse("path_not_restorable", file+": its directory leads outside its root through a symlink", "Restore the whole directory.")
 	}
@@ -686,7 +693,7 @@ func (s *Service) stepRestoreData(ctx context.Context, sc *jobexec.StepContext) 
 	undo := func() {
 		for i := len(swapped) - 1; i >= 0; i-- {
 			d := swapped[i]
-			if d.t.Kind == "file" || d.t.selected {
+			if d.t.Kind == "file" || (d.t.selected && d.t.current != d.t.root) {
 				if !d.t.Exists {
 					_ = os.RemoveAll(d.t.current) // added by this restore
 				}
@@ -707,7 +714,7 @@ func (s *Service) stepRestoreData(ctx context.Context, sc *jobexec.StepContext) 
 		// Files and selected paths are replaced whole (a selected directory
 		// becomes identical to the snapshot); project and volume roots keep
 		// their directory and swap its entries.
-		whole := t.Kind == "file" || t.selected
+		whole := t.Kind == "file" || (t.selected && t.current != t.root)
 		parent := filepath.Dir(t.current)
 		staging := filepath.Join(parent, ".docker-manager-restore-"+tag)
 		rollback := filepath.Join(parent, ".docker-manager-rollback-"+tag)

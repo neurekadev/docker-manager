@@ -198,8 +198,9 @@ export function startServiceWorker(): () => void {
 	const reconnect = new ReconnectCheck(check);
 	const stopWatching = $effect.root(() => {
 		$effect(() => {
-			const s = liveStatus.state;
-			const lost = s === 'reconnecting' || s === 'polling' || !connectivity.managerReachable;
+			// Polling counts as connected: a manager with another live
+			// schema (an upgrade) is polled until the page reloads.
+			const lost = liveStatus.state === 'reconnecting' || !connectivity.managerReachable;
 			reconnect.observe(!lost);
 		});
 	});
