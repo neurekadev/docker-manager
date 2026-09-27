@@ -148,6 +148,7 @@ func TestRetriesEngineConnectionWithBackoff(t *testing.T) {
 	var attempts atomic.Int32
 	tried := make(chan int32, 8)
 	caps := make(chan Capabilities, 8)
+	writes := make(chan time.Time, 8)
 	ctx, cancel := context.WithCancel(testutil.Context(t))
 	defer cancel()
 	a, err := New(Options{
@@ -164,6 +165,12 @@ func TestRetriesEngineConnectionWithBackoff(t *testing.T) {
 			return engine.Connect(ctx, engine.Options{Host: cfg.DockerHost})
 		},
 		OnCapabilities: func(c Capabilities) { caps <- c },
+		afterHealthWrite: func(ts time.Time) {
+			select { // never block the agent on later writes
+			case writes <- ts:
+			default:
+			}
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -177,6 +184,7 @@ func TestRetriesEngineConnectionWithBackoff(t *testing.T) {
 	if err := clk.BlockUntilWaiters(ctx, 2); err != nil {
 		t.Fatal(err)
 	}
+	<-writes
 	if st := readHealth(t, stateDir); st.Engine != string(engine.CodeEngineUnavailable) {
 		t.Fatalf("health engine status %q", st.Engine)
 	}
