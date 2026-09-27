@@ -1,12 +1,15 @@
 package stacks
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
 )
 
 func ctr(svc, dir string) engine.Container {
@@ -46,5 +49,42 @@ func TestRelocated(t *testing.T) {
 	moved.Binds = append(moved.Binds, compose.Bind{Service: "web", Source: "/stacks/shared", Target: "/shared"})
 	if err := relocated(orig, moved, src, dst); err == nil || !strings.Contains(err.Error(), "relative path outside") {
 		t.Errorf("relative bind outside the project: %v", err)
+	}
+}
+
+func TestProjectDirTranslatesManagerPaths(t *testing.T) {
+	const projects = "/docker/engine/volumes/arcane_data/_data/projects"
+	tmp := t.TempDir()
+	for _, d := range []string{"beszel", "forgejo"} {
+		if err := os.Mkdir(filepath.Join(tmp, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res := &storage.Result{Containerized: true, Imports: []storage.ImportMount{{HostPath: projects, Path: filepath.ToSlash(tmp)}}}
+	// Arcane runs Compose in its own container, which mounts its data
+	// volume at /app/data: labels carry /app/data/projects/<name>.
+	arcane := engine.Container{Mounts: []engine.Mount{
+		{Type: "volume", Source: "/docker/engine/volumes/arcane_data/_data", Destination: "/app/data"},
+		{Type: "bind", Source: "/var/run/docker.sock", Destination: "/var/run/docker.sock"},
+	}}
+	all := []engine.Container{arcane}
+
+	host, local, err := ProjectDir(res, []string{"/app/data/projects/beszel"}, all)
+	if err != nil || host != projects+"/beszel" || local != filepath.Join(tmp, "beszel") {
+		t.Errorf("manager path: %q %q %v", host, local, err)
+	}
+	// Containers created from the host path and from the manager's path
+	// lead to the same directory.
+	host, _, err = ProjectDir(res, []string{projects + "/forgejo", "/app/data/projects/forgejo"}, all)
+	if err != nil || host != projects+"/forgejo" {
+		t.Errorf("mixed labels: %q %v", host, err)
+	}
+	// A directory no import mount exposes.
+	if _, _, err := ProjectDir(res, []string{"/docker/projects/arcane"}, all); err == nil || !strings.Contains(err.Error(), "/import") {
+		t.Errorf("unmounted directory: %v", err)
+	}
+	// Without the manager's container the path cannot be translated.
+	if _, _, err := ProjectDir(res, []string{"/app/data/projects/beszel"}, nil); err == nil {
+		t.Error("an untranslatable label was resolved")
 	}
 }

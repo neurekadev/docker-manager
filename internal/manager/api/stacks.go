@@ -1224,6 +1224,7 @@ type DiscoveredStack struct {
 	Services   []DiscoveredStackService `json:"services"`
 	Adoptable  bool                     `json:"adoptable" doc:"Can be imported in place from its real files."`
 	Copyable   bool                     `json:"copyable" doc:"Not adoptable in place, but the agent reads its directory through an import mount (below /import): it can be imported by copy (POST .../stacks/import-copies)."`
+	SourceDir  string                   `json:"sourceDir,omitempty" example:"/var/lib/docker/volumes/arcane_data/_data/projects/nextcloud" doc:"Where a copyable project's files are on the host: workingDir, or the path a Compose manager running in a container (Arcane, Dockge, ...) saw, translated through its mounts."`
 	Reason     string                   `json:"reason,omitempty" doc:"Why it cannot be adopted in place (import it by copy or with an explicit Compose source)."`
 	StackID    string                   `json:"stackId,omitempty" doc:"The Docker Manager stack already managing it."`
 }
@@ -1250,7 +1251,7 @@ func (h *stacksAPI) discovered(ctx context.Context, in *discoveredInput) (*disco
 	out.Body.Projects = []DiscoveredStack{}
 	for _, d := range list {
 		ds := DiscoveredStack{Name: d.Name, WorkingDir: d.WorkingDir, Services: []DiscoveredStackService{}, Adoptable: d.Adoptable,
-			Copyable: d.Copyable, Reason: d.Reason, StackID: d.StackID}
+			Copyable: d.Copyable, SourceDir: d.SourceDir, Reason: d.Reason, StackID: d.StackID}
 		if d.Root != "" {
 			ds.Location = &StackLocation{Root: d.Root, Dir: d.Dir}
 		}

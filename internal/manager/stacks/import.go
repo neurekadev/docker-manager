@@ -98,8 +98,12 @@ func (s *Service) ImportCopy(ctx context.Context, principal authz.Principal, r d
 	if err := s.tx(ctx, func(ctx context.Context, tx bun.Tx) error { return store.InsertStack(ctx, tx, &st) }); err != nil {
 		return domain.Stack{}, domain.Job{}, err
 	}
+	src := p.SourceDir
+	if src == "" {
+		src = p.WorkingDir
+	}
 	in := protocol.StackJobInput{StackID: st.ID, Stack: Ref(st), TimeoutSeconds: jr.TimeoutSeconds,
-		Import: &protocol.StackImportSource{WorkingDir: p.WorkingDir}}
+		Import: &protocol.StackImportSource{WorkingDir: src}}
 	j, _, err := s.opts.Jobs.Enqueue(ctx, jobs.Request{Kind: jobspec.StackImport, Principal: principal, EnvironmentID: st.EnvironmentID,
 		Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: st.ID}}, Input: in, IdempotencyKey: jr.IdempotencyKey})
 	if err != nil {

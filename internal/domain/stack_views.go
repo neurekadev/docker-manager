@@ -111,7 +111,10 @@ type DiscoveredStack struct {
 	// Copyable: it can be imported by copying its directory into the
 	// stacks volume (the agent reads it through an import mount).
 	Copyable bool
-	Reason   string
+	// SourceDir is where a copyable project's files are on the host (may
+	// differ from WorkingDir, a manager's internal path).
+	SourceDir string
+	Reason    string
 	// StackID is the Docker Manager stack managing the project, if any.
 	StackID string
 }

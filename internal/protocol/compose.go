@@ -342,6 +342,11 @@ type DiscoveredProject struct {
 	// a new directory <name> of the stacks volume. Absent from older
 	// agents.
 	Copyable bool `json:"copyable,omitempty"`
+	// SourceDir is the copyable project's directory on the host: WorkingDir,
+	// or the path a manager such as Arcane saw inside its own container
+	// translated through that container's mounts. The manager sends it as
+	// StackImportSource.WorkingDir (older agents: WorkingDir).
+	SourceDir string `json:"sourceDir,omitempty"`
 }
 
 // ComposeDiscoverOutput is the output of compose.discover (no input).

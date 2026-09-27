@@ -6033,6 +6033,11 @@ export interface components {
             /** @description Why it cannot be adopted in place (import it by copy or with an explicit Compose source). */
             reason?: string;
             services: components["schemas"]["DiscoveredStackService"][];
+            /**
+             * @description Where a copyable project's files are on the host: workingDir, or the path a Compose manager running in a container (Arcane, Dockge, ...) saw, translated through its mounts.
+             * @example /var/lib/docker/volumes/arcane_data/_data/projects/nextcloud
+             */
+            sourceDir?: string;
             /** @description The Docker Manager stack already managing it. */
             stackId?: string;
             /**
@@ -24214,6 +24219,7 @@ export interface operations {
                      *               "running": 1
                      *             }
                      *           ],
+                     *           "sourceDir": "/var/lib/docker/volumes/arcane_data/_data/projects/nextcloud",
                      *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "workingDir": "nextcloud"
                      *         }

@@ -120,6 +120,12 @@
 		return v.message;
 	}
 
+	/** The agent's reason as a sentence. */
+	function sentence(s: string): string {
+		const t = s.trim();
+		return t ? `${t[0].toUpperCase()}${t.slice(1)}${/[.!?]$/.test(t) ? '' : '.'}` : t;
+	}
+
 	function how(p: DiscoveredStack): string {
 		if (p.adoptable)
 			return 'Its files already lie in a stack root: they are adopted in place and nothing restarts.';
@@ -226,6 +232,12 @@
 						{#if p.workingDir}
 							<p class="dir mono">{p.workingDir}</p>
 						{/if}
+						{#if p.sourceDir && p.sourceDir !== p.workingDir}
+							<p class="dir">
+								<span class="muted">Files on the host</span>
+								<span class="mono">{p.sourceDir}</span>
+							</p>
+						{/if}
 						<p class="muted services">
 							{p.services.map((s) => s.name).join(', ')}
 						</p>
@@ -240,11 +252,10 @@
 								<p class="how">{how(p)}</p>
 							{:else}
 								<p class="muted">
-									{p.reason ??
-										'Docker Manager cannot read this project directory.'} To import
-									it, mount the directory (or one above it) into the agent below
-									<span class="mono">/import</span>, read-only is enough, and
-									refresh.
+									{sentence(
+										p.reason ??
+											'Docker Manager cannot read this project directory.'
+									)}
 								</p>
 							{/if}
 							{#if errors[k]}<p class="error" role="alert">{errors[k]}</p>{/if}

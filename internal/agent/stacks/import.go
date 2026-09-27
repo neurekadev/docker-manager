@@ -204,6 +204,74 @@ func (s *Service) importSource(in protocol.StackJobInput) (string, *storage.Resu
 	return local, res, nil
 }
 
+// ProjectDir resolves where a discovered project's files are on the host,
+// and where the agent reads them, from its containers' working directory
+// labels. A label is a host path when Compose ran on the host; a manager
+// that runs Compose inside its own container (Arcane, Dockge, Portainer,
+// ...) records its own path instead, e.g. /app/data/projects/<name>, which
+// is translated through the mount of the container covering it (the
+// manager's /app/data is a host directory or volume). Every label must
+// lead to the same directory, readable through an import mount.
+func ProjectDir(res *storage.Result, dirs []string, all []engine.Container) (host, local string, err error) {
+	if len(dirs) == 0 {
+		return "", "", errors.New("its containers carry no project directory label")
+	}
+	for _, d := range dirs {
+		h, l, err := hostDir(res, d, all)
+		if err != nil {
+			return "", "", err
+		}
+		if host != "" && h != host {
+			return "", "", fmt.Errorf("its containers were created from different directories (%s and %s)", host, h)
+		}
+		host, local = h, l
+	}
+	return host, local, nil
+}
+
+// hostDir resolves one working directory label (see ProjectDir).
+func hostDir(res *storage.Result, label string, all []engine.Container) (string, string, error) {
+	label = path.Clean(filepath.ToSlash(label))
+	if l, ok := visibleDir(res, label); ok {
+		return label, l, nil
+	}
+	var found, locals []string
+	for _, c := range all {
+		for _, m := range c.Mounts {
+			dst, src := path.Clean(filepath.ToSlash(m.Destination)), path.Clean(filepath.ToSlash(m.Source))
+			if m.Destination == "" || m.Source == "" || dst == "/" || !within(dst, label) {
+				continue
+			}
+			h := path.Join(src, strings.TrimPrefix(strings.TrimPrefix(label, dst), "/"))
+			if l, ok := visibleDir(res, h); ok && !slices.Contains(found, h) {
+				found, locals = append(found, h), append(locals, l)
+			}
+		}
+	}
+	switch len(found) {
+	case 1:
+		return found[0], locals[0], nil
+	case 0:
+		return "", "", fmt.Errorf("%s is not visible to the agent: mount it (or a directory above it) into the agent below %s "+
+			"(read-only is enough) to import it by copy", label, storage.ImportDir)
+	}
+	return "", "", fmt.Errorf("%s leads to several host directories (%s)", label, strings.Join(found, ", "))
+}
+
+// visibleDir returns where the agent reads a host directory through an
+// import mount, when it exists there.
+func visibleDir(res *storage.Result, host string) (string, bool) {
+	p, ok := res.ImportSource(host)
+	if !ok {
+		return "", false
+	}
+	local := filepath.FromSlash(p)
+	if fi, err := os.Stat(local); err != nil || !fi.IsDir() {
+		return "", false
+	}
+	return local, true
+}
+
 func errOr(err error, s string) string {
 	if err != nil {
 		return err.Error()
@@ -294,6 +362,9 @@ func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) er
 	if len(containers) == 0 {
 		return importRefusal(classImportSourceChanged, "project %s has no containers on this Engine any more", in.Stack.ProjectName)
 	}
+	if err := checkProjectDir(ctx, eng, res, in.Import.WorkingDir, containers); err != nil {
+		return err
+	}
 	defined := map[string]compose.ServiceInfo{}
 	for _, svc := range p.Services {
 		defined[svc.Name] = svc
@@ -301,9 +372,6 @@ func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) er
 	var wasRunning []string
 	checked := map[string]bool{}
 	for _, c := range containers {
-		if wd := c.Labels[labelWorkingDir]; wd != "" && path.Clean(filepath.ToSlash(wd)) != in.Import.WorkingDir {
-			return importRefusal(classImportSourceChanged, "container %s of the project runs from %s, not %s", containerName(c), wd, in.Import.WorkingDir)
-		}
 		svc := c.Labels[lifecycle.ComposeServiceLabel]
 		if isRunning(c) && !slices.Contains(wasRunning, svc) {
 			wasRunning = append(wasRunning, svc)
@@ -344,6 +412,45 @@ func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) er
 		o.Warnings = warns
 		r.WasRunning = wasRunning
 	})
+}
+
+// checkProjectDir makes sure the project's containers still come from
+// host (every working directory label resolves to it) and that none binds
+// data the copy would not hold: a bind below a label that is not the host
+// directory itself (a manager's internal path Compose resolved a relative
+// bind against, without translating it) lives elsewhere on the host.
+func checkProjectDir(ctx context.Context, eng engine.Engine, res *storage.Result, host string, containers []engine.Container) error {
+	all, err := eng.ListContainers(ctx, engine.ContainerFilter{All: true})
+	if err != nil {
+		return err
+	}
+	var dirs []string
+	for _, c := range containers {
+		if wd := c.Labels[labelWorkingDir]; wd != "" && !slices.Contains(dirs, path.Clean(filepath.ToSlash(wd))) {
+			dirs = append(dirs, path.Clean(filepath.ToSlash(wd)))
+		}
+	}
+	got, _, err := ProjectDir(res, dirs, all)
+	if err != nil {
+		return importRefusal(classImportSourceChanged, "the project's directory cannot be resolved any more: %v", err)
+	}
+	if got != host {
+		return importRefusal(classImportSourceChanged, "the project's containers now come from %s, not %s", got, host)
+	}
+	for _, c := range containers {
+		wd := path.Clean(filepath.ToSlash(c.Labels[labelWorkingDir]))
+		if c.Labels[labelWorkingDir] == "" || wd == host {
+			continue
+		}
+		for _, m := range c.Mounts {
+			if m.Type == "bind" && within(wd, m.Source) {
+				return importRefusal(classImportNotRelocatable, "container %s binds %s, a host path named after the directory its "+
+					"manager saw (%s), not the project's files at %s: that data would not be copied. Move it into the project "+
+					"directory and redeploy it from its manager first", containerName(c), m.Source, wd, host)
+			}
+		}
+	}
+	return nil
 }
 
 func appendOnce(list []protocol.ComposeIssue, i protocol.ComposeIssue) []protocol.ComposeIssue {

@@ -174,9 +174,19 @@ enough, e.g. `/opt/stacks:/import:ro`, or several mounts such as
 `/import/opt` and `/import/srv`). The mount is optional: without it
 everything else works and such projects are simply not copyable. The agent
 finds its import mounts in its own container's mounts at startup
-(`storage.Result.Imports`) and maps a project's working directory (a host
-path from its labels) to where it reads it (`ImportSource`); an agent
-running directly on the host reads the path itself.
+(`storage.Result.Imports`) and maps a project's directory on the host to
+where it reads it (`ImportSource`); an agent running directly on the host
+reads the path itself. The host directory comes from the working directory
+labels of the project's containers (`stacks.ProjectDir`): a label is a host
+path when Compose ran on the host, while a manager that runs Compose inside
+its own container (Arcane, Dockge, Portainer, ...) records its internal path
+(e.g. Arcane's `/app/data/projects/<name>`), which is translated through the
+mount of the container covering it (Arcane's data volume at `/app/data`).
+All of a project's containers must lead to the same directory (Arcane
+projects often mix both forms); discovery reports it as `sourceDir`. The
+import refuses a container that bind-mounts a path below such an internal
+directory (a manager that did not translate relative binds: that data is
+elsewhere on the host and would not be copied).
 
 `POST /environments/{id}/stacks/import-copies {projectName}` (`stack.import`,
 202 + job, stored Idempotency-Key) creates the stack at once (the job's
