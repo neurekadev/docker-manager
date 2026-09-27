@@ -187,8 +187,8 @@ var (
 	ErrTemplatePublicAckRequired = errors.New("acknowledge that every file of the template, .env included, becomes public")
 )
 
-// TemplateTooLargeError: the draft or an upload would exceed the template
-// size or entry limit.
+// TemplateTooLargeError refuses a change that would make the draft exceed
+// the template size or entry limit.
 type TemplateTooLargeError struct {
 	Message string
 }

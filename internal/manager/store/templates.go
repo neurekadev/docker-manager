@@ -204,7 +204,7 @@ func decorateTemplates(ctx context.Context, db bun.IDB, rows []templateRow) ([]d
 	}
 	var icons []templateIconRow
 	if err := db.NewSelect().Model(&icons).Column("template_id", "media_type", "sha256", "size", "updated_at").
-		Where("template_id IN (?)", bun.In(ids)).Scan(ctx); err != nil {
+		Where("template_id IN (?)", bun.List(ids)).Scan(ctx); err != nil {
 		return nil, fmt.Errorf("store: list template icons: %w", err)
 	}
 	iconOf := map[string]*domain.TemplateIcon{}
@@ -212,7 +212,7 @@ func decorateTemplates(ctx context.Context, db bun.IDB, rows []templateRow) ([]d
 		iconOf[i.TemplateID] = &domain.TemplateIcon{MediaType: i.MediaType, SHA256: i.SHA256, Size: i.Size, UpdatedAt: i.UpdatedAt.UTC()}
 	}
 	var versions []templateVersionRow
-	if err := db.NewSelect().Model(&versions).ExcludeColumn("archive").Where("template_id IN (?)", bun.In(ids)).
+	if err := db.NewSelect().Model(&versions).ExcludeColumn("archive").Where("template_id IN (?)", bun.List(ids)).
 		Order("number ASC").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("store: list template versions: %w", err)
 	}
