@@ -15942,6 +15942,197 @@
         ],
         "type": "object"
       },
+      "TemplateRegistryArchive": {
+        "additionalProperties": false,
+        "properties": {
+          "contentSize": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entries": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sha256": {
+            "description": "SHA-256 of the tar.gz: check it after downloading.",
+            "type": "string"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "url": {
+            "description": "Relative to the registry URL.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "size",
+          "contentSize",
+          "entries",
+          "url"
+        ],
+        "type": "object"
+      },
+      "TemplateRegistryEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "icon": {
+            "$ref": "#/components/schemas/TemplateRegistryIcon"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Nextcloud"
+            ],
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "versions": {
+            "description": "Newest first (at most 50).",
+            "items": {
+              "$ref": "#/components/schemas/TemplateRegistryVersion"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "tags",
+          "updatedAt",
+          "versions"
+        ],
+        "type": "object"
+      },
+      "TemplateRegistryIcon": {
+        "additionalProperties": false,
+        "properties": {
+          "mediaType": {
+            "examples": [
+              "image/svg+xml"
+            ],
+            "type": "string"
+          },
+          "sha256": {
+            "description": "Changes with the icon.",
+            "type": "string"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "url": {
+            "description": "Relative to the registry URL.",
+            "examples": [
+              "/api/v1/template-registry/templates/0190a6e0-.../icon?v=3f2a..."
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mediaType",
+          "sha256",
+          "size",
+          "url"
+        ],
+        "type": "object"
+      },
+      "TemplateRegistryIndex": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "enum": [
+              "docker-manager.template-registry/v1"
+            ],
+            "type": "string"
+          },
+          "instanceId": {
+            "description": "Identifies the registry: an instance added again under another URL is recognized.",
+            "type": "string"
+          },
+          "name": {
+            "description": "The instance's display name.",
+            "examples": [
+              "Homelab"
+            ],
+            "type": "string"
+          },
+          "templates": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateRegistryEntry"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "description": "The newest change of a listed template or version.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "url": {
+            "description": "The registry URL (DOCKER_MANAGER_PUBLIC_URL).",
+            "examples": [
+              "https://docker.example.com"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "format",
+          "instanceId",
+          "name",
+          "updatedAt",
+          "templates"
+        ],
+        "type": "object"
+      },
+      "TemplateRegistryVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "archive": {
+            "$ref": "#/components/schemas/TemplateRegistryArchive"
+          },
+          "label": {
+            "examples": [
+              "1.2.0"
+            ],
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "label",
+          "publishedAt",
+          "archive"
+        ],
+        "type": "object"
+      },
       "TemplateVersion": {
         "additionalProperties": false,
         "properties": {
@@ -66343,6 +66534,377 @@
           "Templates"
         ],
         "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
+      }
+    },
+    "/api/v1/template-registry": {
+      "get": {
+        "description": "The published versions of this instance's public templates (newest 50 per template), for other Docker Manager instances that added this instance's URL as a registry. Private templates, drafts and templates without a version never appear. Revalidate with If-None-Match (304). Public: no sign-in; rate limited per client address (429 with Retry-After). 404 when the instance does not share templates (DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED=false).",
+        "operationId": "get-template-registry",
+        "parameters": [
+          {
+            "description": "The ETag of a copy you have: 304 when it is current.",
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "description": "The ETag of a copy you have: 304 when it is current.",
+              "maxLength": 256,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "format": "docker-manager.template-registry/v1",
+                  "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "name": "Homelab",
+                  "templates": [
+                    {
+                      "description": "example",
+                      "icon": {
+                        "mediaType": "image/svg+xml",
+                        "sha256": "example",
+                        "size": 1,
+                        "url": "/api/v1/template-registry/templates/0190a6e0-.../icon?v=3f2a..."
+                      },
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "name": "Nextcloud",
+                      "tags": [
+                        "example"
+                      ],
+                      "updatedAt": "2026-09-25T12:00:00Z",
+                      "versions": [
+                        {
+                          "archive": {
+                            "contentSize": 1,
+                            "entries": 1,
+                            "sha256": "example",
+                            "size": 1,
+                            "url": "example"
+                          },
+                          "label": "1.2.0",
+                          "notes": "example",
+                          "number": 1,
+                          "publishedAt": "2026-09-25T12:00:00Z"
+                        }
+                      ]
+                    }
+                  ],
+                  "updatedAt": "2026-09-25T12:00:00Z",
+                  "url": "https://docker.example.com"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateRegistryIndex"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified: your copy (If-None-Match) is current."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error429"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Get this instance's public template registry",
+        "tags": [
+          "Templates"
+        ],
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
+      }
+    },
+    "/api/v1/template-registry/templates/{templateId}/icon": {
+      "get": {
+        "description": "Served sandboxed; cacheable forever with v set to its sha256. Public: no sign-in; rate limited per client address (429 with Retry-After). 404 when the instance does not share templates (DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED=false).",
+        "operationId": "get-template-registry-icon",
+        "parameters": [
+          {
+            "description": "Template ID.",
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "description": "Template ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "The icon's sha256: the response is then cacheable forever.",
+            "explode": false,
+            "in": "query",
+            "name": "v",
+            "schema": {
+              "description": "The icon's sha256: the response is then cacheable forever.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/*": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Icon bytes"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error429"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Get a public template's icon",
+        "tags": [
+          "Templates"
+        ],
+        "x-docker-manager-capability": "public",
+        "x-docker-manager-scope": "none"
+      }
+    },
+    "/api/v1/template-registry/templates/{templateId}/versions/{version}/archive": {
+      "get": {
+        "description": "The version's tar.gz (every file, .env included). Check its SHA-256 against the index. Archives have a lower rate limit than the index. Public: no sign-in; rate limited per client address (429 with Retry-After). 404 when the instance does not share templates (DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED=false).",
+        "operationId": "download-template-registry-archive",
+        "parameters": [
+          {
+            "description": "Template ID.",
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "description": "Template ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Version number.",
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "description": "Version number.",
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The version's tar.gz"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error429"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Download a public template version",
+        "tags": [
+          "Templates"
+        ],
+        "x-docker-manager-capability": "public",
         "x-docker-manager-scope": "none"
       }
     },

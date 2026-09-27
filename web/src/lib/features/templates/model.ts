@@ -8,7 +8,9 @@ import type { Template } from './queries';
 export const templateSearch = (t: Template) => [t.name, t.description, ...(t.tags ?? [])];
 
 /** Tags with the number of templates carrying each, most used first. */
-export function tagCounts(templates: readonly Template[]): { tag: string; count: number }[] {
+export function tagCounts(
+	templates: readonly { tags?: string[] }[]
+): { tag: string; count: number }[] {
 	const counts = new Map<string, number>();
 	for (const t of templates)
 		for (const tag of t.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);

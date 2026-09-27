@@ -53,6 +53,14 @@ store: `internal/manager/store/templates.go`.
   user) maps registry + template to the current icon URL; the web joins it
   to `stack.template` (`StackIcon.svelte`), so icon changes need no stack
   writes; a stack's own icon wins.
+- The public registry (`api/template_registry.go`): `public` routes that
+  never call `CheckerFor`; they only ever read templates that are public
+  and have a version (`registryAPI.public`), throttle per client address
+  (`auth/throttle`, archives lower), and answer 404 when disabled. The
+  index is deterministic (no request time in it) so its ETag
+  (`If-None-Match` → 304) lets other managers revalidate cheaply. The web
+  shows it at `/registry` (public page) and the registry URL is
+  `DOCKER_MANAGER_PUBLIC_URL`.
 - Capabilities: `template.read`, `template.use` (high: version files incl.
   `.env`), `template.create` (instance), `template.manage`,
   `template.publish` (high), `template.remove` (high) and the

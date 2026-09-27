@@ -12,6 +12,7 @@
 //   /builds[/new|/definitions], /builds/{env}/{buildId}
 //   /registries[/git|/matches]          registry connections, Git credentials, match preview
 //   /templates[?create=1], /templates/{id}[/files|versions|settings]   stack templates
+//   /registry                           this instance's public template registry (public)
 //   /jobs[/{jobId}], /schedules
 //   /environments/add[?reattach={id}]   enroll an agent (new environment or re-attach)
 //   /backups[/{backupId}[/restore]|/all|/snapshots|/policies[/{id}]|/repositories[/new|/{id}]]
@@ -96,6 +97,8 @@ export const routes = {
 		return `/builds/new${s ? `?${s}` : ''}`;
 	},
 	build: (env: string, id: string) => `/builds/${e(env)}/${e(id)}`,
+	/** This instance's public template registry page (no sign-in). */
+	registry: () => '/registry',
 	templates: (tag?: string) => `/templates${tag ? `?tag=${e(tag)}` : ''}`,
 	/** The templates page with the create dialog open. */
 	newTemplate: () => '/templates?create=1',

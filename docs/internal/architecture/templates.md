@@ -77,6 +77,18 @@ dialog reads the version's Compose files and `.env`
 is saved to the new stack with the stack file routes before an optional
 deploy, so secrets never travel in the creation request.
 
+## Public registry
+
+Every instance serves its public templates: `GET /api/v1/template-registry`
+(format `docker-manager.template-registry/v1`: instance ID and name, the
+registry URL, and per public template with at least one version its tags,
+icon and newest 50 versions with archive digests and sizes), plus the
+icons and the version archives under `/api/v1/template-registry/templates/`.
+No sign-in; per-address token buckets (60/s burst for the index and icons,
+20 then one per 3 s for archives); `If-None-Match` answers 304. The
+instance ID identifies a registry across URL changes. The web app's public
+page `/registry` renders the same index for people.
+
 ## Icons and live updates
 
 Icons are served by `GET /api/v1/templates/{id}/icon` to any signed-in

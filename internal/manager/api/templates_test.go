@@ -3,13 +3,16 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/auth/throttle"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
 	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
@@ -124,6 +127,11 @@ func (f *fakeTemplates) Publish(_ context.Context, id, label, _ string, _ bool, 
 }
 
 func (f *fakeTemplates) DeleteVersion(context.Context, string, int) error { return nil }
+
+func (f *fakeTemplates) Archive(ctx context.Context, id string, n int) (domain.TemplateVersion, []byte, error) {
+	v, err := f.Version(ctx, id, n)
+	return v, []byte("tar.gz-bytes"), err
+}
 
 func (f *fakeTemplates) Definition(ctx context.Context, id string, n int) (domain.TemplateVersion, []domain.TemplateFileContent, error) {
 	v, err := f.Version(ctx, id, n)
@@ -303,4 +311,82 @@ func TestStackFromTemplateRoutes(t *testing.T) {
 		t.Fatalf("icon map: %d %s", r.Status, r.Body)
 	}
 	authztest.AssertAbsent(t, "icon map", r.Body, "Template t-a", "secret-ish")
+}
+
+func registryHandler(t *testing.T, disabled bool) (http.Handler, *fakeTemplates) {
+	t.Helper()
+	f := newFakeTemplates()
+	pub := f.byID["t-a"]
+	pub.Visibility, pub.Latest = domain.TemplatePublic, &domain.TemplateVersion{Number: 1, Label: "1.0.0"}
+	f.byID["t-a"] = pub
+	mux := http.NewServeMux()
+	New(mux, Deps{Templates: f, InstanceID: "inst-self", Authorizer: authztest.New().Owner("olga"), Clock: testutil.FakeClock(),
+		Idempotency: &memIdempotency{}, Builds: emptyBuilds{}, TemplateRegistryDisabled: disabled,
+		Deployment: DeploymentInfo{PublicURL: "https://dm.example.com"}})
+	return authztest.Authenticate(withTestContext(t, mux, "")), f
+}
+
+// TestPublicRegistryListsOnlyPublishedPublicTemplates: without signing in,
+// the registry shows public templates with a version, never private ones,
+// and revalidates with If-None-Match.
+func TestPublicRegistryListsOnlyPublishedPublicTemplates(t *testing.T) {
+	h, _ := registryHandler(t, false)
+	r := authztest.Do(t, h, "", authztest.Call{Method: http.MethodGet, Path: "/api/v1/template-registry"})
+	var idx TemplateRegistryIndex
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &idx) != nil {
+		t.Fatalf("index: %d %s", r.Status, r.Body)
+	}
+	if idx.Format != TemplateRegistryFormat || idx.InstanceID != "inst-self" || idx.URL != "https://dm.example.com" ||
+		len(idx.Templates) != 1 || idx.Templates[0].ID != "t-a" || len(idx.Templates[0].Versions) != 1 {
+		t.Fatalf("index %+v", idx)
+	}
+	v := idx.Templates[0].Versions[0]
+	if v.Archive.URL != "/api/v1/template-registry/templates/t-a/versions/1/archive" || idx.Templates[0].Icon == nil {
+		t.Fatalf("version %+v icon %+v", v, idx.Templates[0].Icon)
+	}
+	authztest.AssertAbsent(t, "registry", r.Body, `"t-b"`)
+	etag := r.Header.Get("ETag")
+	if etag == "" {
+		t.Fatal("no ETag")
+	}
+	again := authztest.Do(t, h, "", authztest.Call{Method: http.MethodGet, Path: "/api/v1/template-registry",
+		Headers: map[string]string{"If-None-Match": etag}})
+	if again.Status != http.StatusNotModified || len(again.Body) != 0 {
+		t.Fatalf("revalidation: %d %s", again.Status, again.Body)
+	}
+
+	for path, want := range map[string]int{
+		"/api/v1/template-registry/templates/t-a/icon":                http.StatusOK,
+		"/api/v1/template-registry/templates/t-b/icon":                http.StatusNotFound,
+		"/api/v1/template-registry/templates/t-a/versions/1/archive":  http.StatusOK,
+		"/api/v1/template-registry/templates/t-b/versions/1/archive":  http.StatusNotFound,
+		"/api/v1/template-registry/templates/nope/versions/1/archive": http.StatusNotFound,
+	} {
+		if r := authztest.Do(t, h, "", authztest.Call{Method: http.MethodGet, Path: path}); r.Status != want {
+			t.Errorf("%s: %d, want %d", path, r.Status, want)
+		}
+	}
+	r = authztest.Do(t, h, "", authztest.Call{Method: http.MethodGet, Path: "/api/v1/template-registry/templates/t-a/versions/1/archive"})
+	if r.Header.Get("Content-Type") != "application/gzip" || string(r.Body) != "tar.gz-bytes" {
+		t.Errorf("archive: %v %q", r.Header, r.Body)
+	}
+
+	off, _ := registryHandler(t, true)
+	if r := authztest.Do(t, off, "", authztest.Call{Method: http.MethodGet, Path: "/api/v1/template-registry"}); r.Status != http.StatusNotFound {
+		t.Errorf("disabled registry: %d", r.Status)
+	}
+}
+
+func TestPublicRegistryIsRateLimited(t *testing.T) {
+	h := &registryAPI{svc: newFakeTemplates(), limit: throttle.New(throttle.Limit{Every: time.Hour, Burst: 2}, testutil.FakeClock(), 10)}
+	ctx := testutil.Context(t)
+	for i := range 2 {
+		if err := h.allow(ctx, h.limit); err != nil {
+			t.Fatalf("request %d: %v", i, err)
+		}
+	}
+	var e *Error
+	if err := h.allow(ctx, h.limit); !errors.As(err, &e) || e.GetStatus() != http.StatusTooManyRequests {
+		t.Fatalf("third request: %v", err)
+	}
 }

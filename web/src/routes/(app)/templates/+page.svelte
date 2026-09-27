@@ -15,6 +15,7 @@
 	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import { canAnywhere } from '$lib/features/stacks/model';
 	import CreateTemplateDialog from '$lib/features/templates/CreateTemplateDialog.svelte';
+	import OwnRegistryCard from '$lib/features/templates/OwnRegistryCard.svelte';
 	import TemplateCard from '$lib/features/templates/TemplateCard.svelte';
 	import { tagCounts, templateFilters, templateSearch } from '$lib/features/templates/model';
 	import { templatesQuery } from '$lib/features/templates/queries';
@@ -148,6 +149,8 @@
 			{/if}
 		</ListCard>
 	{/if}
+
+	{#if templates.data}<OwnRegistryCard templates={templates.data} />{/if}
 
 	<CreateTemplateDialog bind:open={createDialog.open} />
 </div>

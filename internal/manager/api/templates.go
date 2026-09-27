@@ -60,6 +60,8 @@ type TemplateService interface {
 	Publish(ctx context.Context, id, label, notes string, acknowledged bool, userID string) (domain.TemplateVersion, error)
 	DeleteVersion(ctx context.Context, id string, number int) error
 	Definition(ctx context.Context, id string, number int) (domain.TemplateVersion, []domain.TemplateFileContent, error)
+	// Archive returns a version's tar.gz (the public registry serves it).
+	Archive(ctx context.Context, id string, number int) (domain.TemplateVersion, []byte, error)
 }
 
 func templateResource(id string) authz.Resource {

@@ -8,7 +8,8 @@
 	import TemplateIcon from './TemplateIcon.svelte';
 
 	interface Props {
-		href: string;
+		/** The template's page (the public registry page has none). */
+		href?: string;
 		name: string;
 		description?: string;
 		tags?: string[];
@@ -36,7 +37,7 @@
 </script>
 
 <article class="card">
-	<a class="cover" {href} aria-label="Open template {name}"></a>
+	{#if href}<a class="cover" {href} aria-label="Open template {name}"></a>{/if}
 	<div class="head">
 		<TemplateIcon url={iconUrl} />
 		<div class="title">
