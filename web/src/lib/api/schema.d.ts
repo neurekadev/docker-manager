@@ -6852,10 +6852,10 @@ export interface components {
             displayName?: string;
             icon?: string;
             /**
-             * @description The discovered Compose project to import (copyable in the discovery list).
+             * @description Required: the discovered Compose project to import (copyable in the discovery list).
              * @example nextcloud
              */
-            projectName: string;
+            projectName?: string;
             /**
              * Format: int64
              * @description Stop grace period of the project's services (default: each service's own).

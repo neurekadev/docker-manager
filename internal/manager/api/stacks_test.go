@@ -246,12 +246,12 @@ func stackRoutesFor(t *testing.T, stackID string) []authztest.Call {
 			calls[i].Body = map[string]any{"action": "restart"}
 		case "create-stack-revision-restore":
 			calls[i].Body = map[string]any{"revisionId": "rev-3"}
-		case "create-stack-import":
+		case "create-stack-import", "create-stack-import-copy":
 			calls[i].Body = map[string]any{"projectName": "legacy"}
 		}
 	}
-	if len(calls) != 17 {
-		t.Fatalf("%d stack routes, want 17", len(calls))
+	if len(calls) != 18 {
+		t.Fatalf("%d stack routes, want 18", len(calls))
 	}
 	return calls
 }

@@ -1308,7 +1308,7 @@ type importCopyInput struct {
 	EnvironmentID string `path:"environmentId" maxLength:"64" doc:"Environment ID."`
 	IdempotencyKeyParam
 	Body struct {
-		ProjectName    string `json:"projectName" example:"nextcloud" minLength:"1" maxLength:"63" doc:"The discovered Compose project to import (copyable in the discovery list)."`
+		ProjectName    string `json:"projectName,omitempty" example:"nextcloud" maxLength:"63" doc:"Required: the discovered Compose project to import (copyable in the discovery list)."`
 		DisplayName    string `json:"displayName,omitempty" maxLength:"128"`
 		Description    string `json:"description,omitempty" maxLength:"1024"`
 		Icon           string `json:"icon,omitempty" maxLength:"64"`

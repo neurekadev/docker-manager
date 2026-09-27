@@ -7375,12 +7375,11 @@
             "type": "string"
           },
           "projectName": {
-            "description": "The discovered Compose project to import (copyable in the discovery list).",
+            "description": "Required: the discovered Compose project to import (copyable in the discovery list).",
             "examples": [
               "nextcloud"
             ],
             "maxLength": 63,
-            "minLength": 1,
             "type": "string"
           },
           "timeoutSeconds": {
@@ -7391,9 +7390,6 @@
             "type": "integer"
           }
         },
-        "required": [
-          "projectName"
-        ],
         "type": "object"
       },
       "ImportStackInputBody": {

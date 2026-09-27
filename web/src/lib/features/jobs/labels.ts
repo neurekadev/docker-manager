@@ -38,6 +38,7 @@ export const JOB_KIND_LABELS: Record<string, string> = {
 	'stack.build': 'Build stack images',
 	'stack.deploy': 'Deploy stack',
 	'stack.down': 'Take stack down',
+	'stack.import': 'Import project',
 	'stack.migrate': 'Migrate stack',
 	'stack.remove': 'Delete stack',
 	'stack.remove_source': 'Remove migrated stack',
