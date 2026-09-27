@@ -12,15 +12,15 @@ import (
 )
 
 // stackActions are the stack job kinds that must not touch Docker Manager's own
-// Compose project (#32): stop, restart, down, remove and an import by copy
-// (which stops the project while it copies it) would stop or delete Docker
-// Manager. Start is harmless; deploys and digest updates
+// Compose project (#32): stop, restart, down and remove would stop or delete
+// Docker Manager. Start is harmless; deploys and digest updates
 // (stack.deploy, stack.update, update.run) run: the stack executors hand the
 // agent's own container to a helper container (internal/agent/selfupdate).
+// An import by copy (stack.import) copies Docker Manager's own project while
+// it runs and never stops it (its stop step refuses on its own).
 var stackActions = map[domain.JobKind]protection.Action{
 	jobspec.StackStop: protection.Stop, jobspec.StackRestart: protection.Restart,
 	jobspec.StackDown: protection.Down, jobspec.StackRemove: protection.Down,
-	jobspec.StackImport: protection.Stop,
 }
 
 // GuardStacks wraps every step of the stack executors (#7) so the agent

@@ -347,6 +347,10 @@ type DiscoveredProject struct {
 	// translated through that container's mounts. The manager sends it as
 	// StackImportSource.WorkingDir (older agents: WorkingDir).
 	SourceDir string `json:"sourceDir,omitempty"`
+	// Protected: Docker Manager's own project (#32); an import by copy
+	// copies it while it runs (StackImportReport.Live). Absent from older
+	// agents.
+	Protected bool `json:"protected,omitempty"`
 }
 
 // ComposeDiscoverOutput is the output of compose.discover (no input).
@@ -491,6 +495,10 @@ type StackImportReport struct {
 	// WasRunning are the services that ran before the import (started
 	// again at the end).
 	WasRunning []string `json:"wasRunning,omitempty"`
+	// Live: Docker Manager's own project (#32), copied while it runs; its
+	// containers are neither stopped nor recreated (the stack's next
+	// deploy moves them onto the copy).
+	Live bool `json:"live,omitempty"`
 }
 
 // ComposeVolumeLabel is the Compose key of a volume Compose created.

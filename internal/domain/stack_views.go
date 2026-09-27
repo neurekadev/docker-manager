@@ -117,6 +117,9 @@ type DiscoveredStack struct {
 	Reason    string
 	// StackID is the Docker Manager stack managing the project, if any.
 	StackID string
+	// Protected: Docker Manager's own project (#32); an import by copy
+	// copies it while it runs, restarting nothing.
+	Protected bool
 }
 
 // PortMapping is a published container port.

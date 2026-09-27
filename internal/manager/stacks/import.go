@@ -14,7 +14,6 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/catalog"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
-	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
@@ -23,11 +22,13 @@ import (
 // everything next to them) from the agent's import mount into a new
 // directory <projectName> of the stacks volume: a stack.import job stops
 // the project, copies and verifies it, recreates its containers from the
-// copy and starts what ran before (#7). The stack record exists from the
-// request on (it is the job's target); the finish hook records the copy
-// as the applied revision, or forgets the stack when the import failed
-// before the project switched to the copy (nothing changed then). The
-// original directory is only read.
+// copy and starts what ran before (#7). Docker Manager's own project (#32)
+// is copied while it runs and nothing restarts (the agent decides and
+// never stops it; the stack's next deploy moves it onto the copy). The
+// stack record exists from the request on (it is the job's target); the
+// finish hook records the copy as the applied revision, or forgets the
+// stack when the import failed before the project switched to the copy
+// (nothing changed then). The original directory is only read.
 func (s *Service) ImportCopy(ctx context.Context, principal authz.Principal, r domain.StackImport, jr domain.StackJobRequest) (domain.Stack, domain.Job, error) {
 	if !protocol.ValidProjectName(r.ProjectName) {
 		return domain.Stack{}, domain.Job{}, &domain.InputError{Field: "projectName", Message: "must be a Compose project name"}
@@ -70,17 +71,6 @@ func (s *Service) ImportCopy(ctx context.Context, principal authz.Principal, r d
 			Message: "the project already lies in the stacks volume or a registered stack root: adopt it in place instead"}
 	case !p.Copyable:
 		return domain.Stack{}, domain.Job{}, &domain.StackError{Code: domain.StackErrNotCopyable, Message: p.Reason}
-	}
-	// The import stops the project while it copies it: never Docker
-	// Manager's own (#32; the agent refuses it too).
-	if s.opts.Protection != nil {
-		prot, err := s.opts.Protection.ProjectProtection(ctx, r.EnvironmentID, r.ProjectName)
-		if err != nil {
-			return domain.Stack{}, domain.Job{}, err
-		}
-		if err := protection.Check(prot, protection.Stop, false); err != nil {
-			return domain.Stack{}, domain.Job{}, &domain.DockerError{Code: domain.DockerProtected, Message: err.Error()}
-		}
 	}
 	now := s.now()
 	st := domain.Stack{ID: ids.New(), EnvironmentID: r.EnvironmentID, Name: r.ProjectName, DisplayName: r.DisplayName, Meta: r.Meta,

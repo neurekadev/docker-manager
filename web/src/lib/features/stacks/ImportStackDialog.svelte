@@ -6,9 +6,12 @@
 	// (nothing restarts); a project the agent reads through an import mount
 	// (below /import) is copied with its whole directory into the stacks
 	// volume by a job that stops it, copies and verifies the files,
-	// recreates it from the copy and starts what ran before. The job's
-	// progress shows in the row. Anything else explains how to make it
-	// importable. Nothing existing is ever overwritten.
+	// recreates it from the copy and starts what ran before; Docker
+	// Manager's own project (protected) is copied while it runs and moves
+	// onto the copy at its next deploy. The job's progress shows in the
+	// row. Anything else explains how to make it importable. Nothing
+	// existing is ever overwritten. Projects Docker Manager manages already
+	// are hidden unless the switch shows them.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import FolderSearch from '@lucide/svelte/icons/folder-search';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
@@ -26,11 +29,12 @@
 		Select,
 		Skeleton,
 		StatusBadge,
+		Switch,
 		errorView,
 		toast
 	} from '$lib/ui';
 	import { importStack, importStackByCopy } from './actions';
-	import { canInEnvironment } from './model';
+	import { canInEnvironment, importCandidates } from './model';
 	import { discoveredQuery, stackKeys, type DiscoveredStack } from './queries';
 
 	let {
@@ -57,18 +61,18 @@
 		...discoveredQuery(environmentId),
 		enabled: open && !!env && env.online
 	}));
-	const list = $derived(
-		[...(projects.data ?? [])].sort(
-			(a, b) => Number(!!a.stackId) - Number(!!b.stackId) || a.name.localeCompare(b.name)
-		)
-	);
-
 	// Per project (by environment and name): the running import job, the
-	// in-place request in flight, the last error.
+	// in-place request in flight, the last error, and whether an import
+	// started here (its row stays when managed projects are hidden).
 	let jobs = $state<Record<string, string>>({});
 	let busy = $state<Record<string, boolean>>({});
 	let errors = $state<Record<string, string>>({});
+	let started = $state<Record<string, boolean>>({});
 	const keyOf = (p: DiscoveredStack) => `${environmentId}/${p.name}`;
+	let hideManaged = $state(true);
+	const list = $derived(
+		importCandidates([...(projects.data ?? [])], hideManaged, (p) => !!started[keyOf(p)])
+	);
 	const running = (p: DiscoveredStack) => p.services.filter((s) => s.running > 0).length;
 	const containers = (p: DiscoveredStack) => p.services.reduce((n, s) => n + s.containers, 0);
 	const runningContainers = (p: DiscoveredStack) => p.services.reduce((n, s) => n + s.running, 0);
@@ -79,6 +83,7 @@
 
 	async function start(p: DiscoveredStack) {
 		const k = keyOf(p);
+		started = { ...started, [k]: true };
 		busy = { ...busy, [k]: true };
 		errors = { ...errors, [k]: '' };
 		try {
@@ -112,8 +117,6 @@
 			case 'stack_not_adoptable':
 			case 'stack_not_copyable':
 				return `${name} cannot be imported: ${v.message}`;
-			case 'protected':
-				return `${name} is Docker Manager's own project and is never stopped. Keep it in a stack root to import it in place.`;
 			case 'agent_unsupported':
 				return 'The agent of this environment cannot import projects by copy yet. Update the agent, then import again.';
 		}
@@ -129,11 +132,16 @@
 	function how(p: DiscoveredStack): string {
 		if (p.adoptable)
 			return 'Its files already lie in a stack root: they are adopted in place and nothing restarts.';
+		const check =
+			"It first checks that the running containers match the project's files and changes nothing if they do not. " +
+			'If you edited its files in another tool without redeploying, redeploy it there first.';
+		if (p.protected)
+			return `Docker Manager's own project: copies its whole directory into the stacks volume and checks the copy while it keeps running; nothing stops or restarts. Docker Manager moves onto the copy the next time you deploy the stack. The original directory is left untouched. ${check}`;
 		const n = running(p);
 		const move = n
 			? `Stops its ${n} running ${n === 1 ? 'service' : 'services'}, copies its whole directory (data folders included, owners and permissions kept) into the stacks volume, checks the copy and starts ${n === 1 ? 'it' : 'them'} again from there.`
 			: 'Copies its whole directory (data folders included, owners and permissions kept) into the stacks volume and recreates its containers from the copy; it stays stopped.';
-		return `${move} The original directory is left untouched. It first checks that the running containers match the project's files and changes nothing if they do not.`;
+		return `${move} The original directory is left untouched. ${check}`;
 	}
 </script>
 
@@ -145,6 +153,8 @@
 >
 	<div class="body">
 		<div class="tools">
+			<Switch bind:checked={hideManaged} label="Hide managed stacks" />
+			<span class="spacer"></span>
 			{#if allowed.length > 1}
 				<Select
 					label="Environment"
@@ -185,6 +195,15 @@
 				error={projects.error}
 				title="The projects on {env?.name} could not be listed."
 				onretry={() => projects.refetch()}
+			/>
+		{:else if list.length === 0 && (projects.data ?? []).length > 0}
+			<EmptyState
+				icon={FolderSearch}
+				color="blue"
+				title="Docker Manager already manages every Compose project on {env?.name}."
+				description="Turn off Hide managed stacks to see them."
+				level={3}
+				compact
 			/>
 		{:else if list.length === 0}
 			<EmptyState
@@ -242,25 +261,26 @@
 						<p class="muted services">
 							{p.services.map((s) => s.name).join(', ')}
 						</p>
-						{#if !p.stackId}
-							{#if jobs[k]}
-								<JobProgress
-									jobId={jobs[k]}
-									title="Import {p.name}"
-									onfinish={(j) => finished(p, j)}
-								/>
-							{:else if p.adoptable || p.copyable}
-								<p class="how">{how(p)}</p>
-							{:else}
-								<p class="muted">
-									{sentence(
-										p.reason ??
-											'Docker Manager cannot read this project directory.'
-									)}
-								</p>
-							{/if}
-							{#if errors[k]}<p class="error" role="alert">{errors[k]}</p>{/if}
+						{#if jobs[k]}
+							<JobProgress
+								jobId={jobs[k]}
+								title="Import {p.name}"
+								onfinish={(j) => finished(p, j)}
+							/>
+						{:else if p.stackId}
+							<!-- managed: nothing to explain -->
+						{:else if p.adoptable || p.copyable}
+							<p class="how">{how(p)}</p>
+						{:else}
+							<p class="muted">
+								{sentence(
+									p.reason ?? 'Docker Manager cannot read this project directory.'
+								)}
+							</p>
 						{/if}
+						{#if errors[k] && !p.stackId}<p class="error" role="alert">
+								{errors[k]}
+							</p>{/if}
 					</li>
 				{/each}
 			</ul>
@@ -280,8 +300,12 @@
 	.tools {
 		display: flex;
 		align-items: center;
-		justify-content: flex-end;
+		flex-wrap: wrap;
 		gap: var(--space-2);
+	}
+
+	.spacer {
+		flex: 1;
 	}
 
 	.list {

@@ -1227,6 +1227,7 @@ type DiscoveredStack struct {
 	SourceDir  string                   `json:"sourceDir,omitempty" example:"/var/lib/docker/volumes/arcane_data/_data/projects/nextcloud" doc:"Where a copyable project's files are on the host: workingDir, or the path a Compose manager running in a container (Arcane, Dockge, ...) saw, translated through its mounts."`
 	Reason     string                   `json:"reason,omitempty" doc:"Why it cannot be adopted in place (import it by copy or with an explicit Compose source)."`
 	StackID    string                   `json:"stackId,omitempty" doc:"The Docker Manager stack already managing it."`
+	Protected  bool                     `json:"protected,omitempty" doc:"Docker Manager's own Compose project (#32): an import by copy copies it while it runs and restarts nothing; its next deploy moves it onto the copy."`
 }
 
 type discoveredInput struct {
@@ -1251,7 +1252,7 @@ func (h *stacksAPI) discovered(ctx context.Context, in *discoveredInput) (*disco
 	out.Body.Projects = []DiscoveredStack{}
 	for _, d := range list {
 		ds := DiscoveredStack{Name: d.Name, WorkingDir: d.WorkingDir, Services: []DiscoveredStackService{}, Adoptable: d.Adoptable,
-			Copyable: d.Copyable, SourceDir: d.SourceDir, Reason: d.Reason, StackID: d.StackID}
+			Copyable: d.Copyable, SourceDir: d.SourceDir, Reason: d.Reason, StackID: d.StackID, Protected: d.Protected}
 		if d.Root != "" {
 			ds.Location = &StackLocation{Root: d.Root, Dir: d.Dir}
 		}
@@ -1508,10 +1509,11 @@ func registerStacks(a huma.API, deps Deps) {
 			"stops the project's running services, copies its whole directory (Compose files and everything next to them, with " +
 			"owners, permissions, times, links and extended attributes) into a new directory <projectName> of the stacks volume, " +
 			"verifies the copy, recreates the containers from it (anonymous volumes are kept) and starts the services that ran " +
-			"before. The original directory is only read. A failure before the containers are recreated changes nothing (the copy " +
-			"is removed, the services start again from the original and the stack is forgotten); after that the stack is failed on " +
-			"its copy and a deploy finishes it. 409 stack_not_copyable (no import mount, adoptable in place, or the directory " +
-			"exists), stack_name_taken, protected (Docker Manager's own project); 501 agent_unsupported for older agents.",
+			"before. Docker Manager's own project (protected in the discovery list) is copied while it runs: nothing stops or is " +
+			"recreated, and the stack's next deploy moves it onto the copy. The original directory is only read. A failure before " +
+			"the containers are recreated changes nothing (the copy is removed, the services start again from the original and the " +
+			"stack is forgotten); after that the stack is failed on its copy and a deploy finishes it. 409 stack_not_copyable (no " +
+			"import mount, adoptable in place, or the directory exists), stack_name_taken; 501 agent_unsupported for older agents.",
 		Tags: []string{tagStacks}, Errors: mutate,
 	}, Capability: CapStackImport, Scope: ScopeEnvironment, Idempotency: IdempotencyStored}, h.importCopy)
 }

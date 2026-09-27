@@ -23,6 +23,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protection"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
@@ -54,6 +55,18 @@ import (
 //  5. start_containers: exactly the services that ran before start again,
 //     dependencies first; a service whose containers still use the
 //     original directory is never started.
+//
+// Docker Manager's own project (#32) is never stopped: it is copied while
+// it runs (StackImportReport.Live) and nothing is recreated or started;
+// its containers keep running from the original directory until the
+// stack's next deploy recreates them from the copy (the agent's own
+// service through the self-update helper). prepare refuses it when a
+// service writes into the project directory (that data cannot be copied
+// consistently while it runs).
+//
+// A build-only service (build section, no image) keeps the image it runs:
+// the tool that built it may have named it otherwise than Compose does
+// (Arcane), so recreate tags that image with Compose's name first.
 //
 // The original directory is only ever read. Before the switch a failure
 // changes nothing (the copy is removed, what ran starts again from the
@@ -307,6 +320,22 @@ func isRunning(c engine.Container) bool {
 	return c.State == "running" || c.State == "restarting" || c.State == "paused"
 }
 
+// ownProject reports whether project is Docker Manager's own (#32).
+func (s *Service) ownProject(ctx context.Context, eng engine.Engine, project string) (bool, error) {
+	if s.opts.Guard == nil {
+		return false, nil
+	}
+	all, err := eng.ListContainers(ctx, engine.ContainerFilter{All: true})
+	if err != nil {
+		return false, err
+	}
+	return s.opts.Guard.Identify(ctx, eng, all).Project(project) != nil, nil
+}
+
+// errOwnStop refuses to stop Docker Manager's own project.
+var errOwnStop = &protection.Refusal{Code: protection.CodeProtected, Action: protection.Stop,
+	Reason: "refused to stop Docker Manager's own Compose project: it is imported while it runs"}
+
 // importPrepare checks everything that can be checked before the project
 // stops and records the services that run.
 func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) error {
@@ -355,6 +384,19 @@ func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) er
 				Message: fmt.Sprintf("service %s binds %s by its absolute path: it keeps using the original directory, not the copy", b.Service, b.Source)})
 		}
 	}
+	live, err := s.ownProject(ctx, eng, in.Stack.ProjectName)
+	if err != nil {
+		return err
+	}
+	if live {
+		for _, b := range p.Binds {
+			if within(src, b.Source) && !b.ReadOnly {
+				return importRefusal(classImportNotRelocatable, "service %s writes to %s inside the project directory: Docker Manager's "+
+					"own project is copied while it runs, and that data cannot be copied consistently. Move it into a named volume "+
+					"(or bind it read-only), redeploy, then import again", b.Service, b.Source)
+			}
+		}
+	}
 	containers, err := lifecycle.ProjectContainers(ctx, eng, in.Stack.ProjectName)
 	if err != nil {
 		return err
@@ -365,12 +407,12 @@ func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) er
 	if err := checkProjectDir(ctx, eng, res, in.Import.WorkingDir, containers); err != nil {
 		return err
 	}
-	diffs, err := driftOf(ctx, eng, p, src, in.Import.WorkingDir, containers)
+	diffs, created, err := driftOf(ctx, eng, p, src, in.Import.WorkingDir, containers)
 	if err != nil {
 		return err
 	}
 	if len(diffs) > 0 {
-		return driftRefusal(diffs)
+		return driftRefusal(diffs, editedAfter(p.DefinitionFiles, src, created))
 	}
 	defined := map[string]compose.ServiceInfo{}
 	for _, svc := range p.Services {
@@ -393,6 +435,15 @@ func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) er
 			continue
 		}
 		checked[svc] = true
+		if exp, _ := p.Expected(svc); exp.Built && c.ImageID != "" {
+			// A build-only service keeps the image it runs (recreate tags it).
+			if _, err := eng.InspectImage(ctx, c.ImageID); engine.IsCode(err, engine.CodeNotFound) {
+				return importRefusal(classImportImageMissing, "the image service %s runs is not on the host any more: build it first", svc)
+			} else if err != nil {
+				return err
+			}
+			continue
+		}
 		img, err := eng.InspectImage(ctx, def.Image)
 		if engine.IsCode(err, engine.CodeNotFound) {
 			return importRefusal(classImportImageMissing, "image %s of service %s is not on the host: pull or build it first", def.Image, svc)
@@ -418,6 +469,7 @@ func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) er
 		o.Before = before
 		o.Warnings = warns
 		r.WasRunning = wasRunning
+		r.Live = live
 	})
 }
 
@@ -540,6 +592,14 @@ func (s *Service) importStop(ctx context.Context, sc *jobexec.StepContext) error
 		return err
 	}
 	o := stackOutput(sc)
+	if o.Import.Live {
+		return nil // Docker Manager's own project is copied while it runs
+	}
+	if own, err := s.ownProject(ctx, eng, in.Stack.ProjectName); err != nil {
+		return err
+	} else if own {
+		return errOwnStop
+	}
 	if len(o.Import.WasRunning) > 0 {
 		if err := sc.AddCompensation(ctx, jobspec.CompStartContainers, importResume{Project: in.Stack.ProjectName,
 			WasRunning: o.Import.WasRunning, NewDir: filepath.ToSlash(dst)}); err != nil {
@@ -780,9 +840,12 @@ func (s *Service) importRecreate(ctx context.Context, sc *jobexec.StepContext) e
 	}
 	var services []string
 	for _, svc := range all.Services {
-		if had[svc.Name] {
+		if had[svc.Name] && !o.Import.Live {
 			services = append(services, svc.Name)
 		}
+	}
+	if err := keepBuiltImages(ctx, eng, all, in.Stack.ProjectName, services); err != nil {
+		return switchedFailure(err)
 	}
 	if len(services) > 0 {
 		sc.Progress(ctx, 80, "recreating "+strings.Join(services, ", ")+" from the copy")
@@ -812,6 +875,38 @@ func (s *Service) importRecreate(ctx context.Context, sc *jobexec.StepContext) e
 		o.Binds = bs
 		o.Warnings = append(o.Warnings, warnings(p, bs)...)
 	})
+}
+
+// keepBuiltImages tags the image each build-only service among services
+// runs with Compose's name for it, so the recreated containers run the
+// very same image (no rebuild; the tool that built it may have named it
+// otherwise).
+func keepBuiltImages(ctx context.Context, eng engine.Engine, p *compose.Project, project string, services []string) error {
+	list, err := lifecycle.ProjectContainers(ctx, eng, project)
+	if err != nil {
+		return err
+	}
+	for _, svc := range services {
+		exp, ok := p.Expected(svc)
+		if !ok || !exp.Built {
+			continue
+		}
+		i := slices.IndexFunc(list, func(c engine.Container) bool {
+			return c.Labels[lifecycle.ComposeServiceLabel] == svc && c.ImageID != ""
+		})
+		if i < 0 {
+			continue
+		}
+		if img, err := eng.InspectImage(ctx, exp.Image); err == nil && img.ID == list[i].ImageID {
+			continue
+		} else if err != nil && !engine.IsCode(err, engine.CodeNotFound) {
+			return err
+		}
+		if err := eng.TagImage(ctx, list[i].ImageID, exp.Image); err != nil {
+			return fmt.Errorf("tag the image service %s runs as %s: %w", svc, exp.Image, err)
+		}
+	}
+	return nil
 }
 
 // relocated checks that every bind source of the copy is the original's
@@ -885,6 +980,9 @@ func (s *Service) importStart(ctx context.Context, sc *jobexec.StepContext) erro
 		return err
 	}
 	o := stackOutput(sc)
+	if o.Import.Live {
+		return s.importLiveDone(ctx, sc, eng, in, o)
+	}
 	list, err := lifecycle.ProjectContainers(ctx, eng, in.Stack.ProjectName)
 	if err != nil {
 		return err
@@ -924,6 +1022,25 @@ func (s *Service) importStart(ctx context.Context, sc *jobexec.StepContext) erro
 		return aerr
 	}
 	return sc.ReleaseCompensation(ctx, jobspec.CompStartContainers)
+}
+
+// importLiveDone ends the import of Docker Manager's own project: nothing
+// stopped, so nothing starts; its containers keep running from the
+// original directory until the stack's next deploy.
+func (s *Service) importLiveDone(ctx context.Context, sc *jobexec.StepContext, eng engine.Engine, in protocol.StackJobInput,
+	o protocol.StackJobOutput) error {
+	for _, svc := range o.Import.WasRunning {
+		sc.Item(ctx, svc, domain.ItemSkipped, "kept running from the original directory until the next deploy")
+	}
+	after, err := serviceStates(ctx, eng, in.Stack.ProjectName)
+	if err != nil {
+		return err
+	}
+	return update(ctx, sc, func(o *protocol.StackJobOutput) {
+		o.After = after
+		o.Warnings = append(o.Warnings, protocol.ComposeIssue{Code: "kept_running",
+			Message: "Docker Manager's own project keeps running from its original directory; deploy the stack to move it onto the copy"})
+	})
 }
 
 // importCompStart starts what ran before the import again (compensation):

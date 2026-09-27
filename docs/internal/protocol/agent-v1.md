@@ -395,7 +395,10 @@ refuses the option for other agents (they would keep the volumes). And
 `stack.import_copy` (`protocol.FeatureStackImportCopy`, #7): only those
 agents execute `stack.import` (a `stack.*` input with `import`, the
 project's current directory) and report `copyable` in `compose.discover`;
-the manager refuses an import by copy for other agents. And
+the manager refuses an import by copy for other agents. Newer agents also
+report `protected` (Docker Manager's own project): their `stack.import`
+copies it while it runs, neither stopping nor recreating it (result output
+`import.live`); older agents refuse it with `protected`. And
 `exec.shell` (`protocol.FeatureExecShell`, #8): only those agents get
 `container.exec.create` inputs with `shell`; for other agents the manager
 sends the shell's most common path as `cmd` (`protocol.LegacyShellCommand`:

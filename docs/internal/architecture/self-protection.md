@@ -79,7 +79,9 @@ enqueued past the API is refused by the agent, `TestSelfProtectionOnTwoHosts`).
 ## Managing itself
 
 Docker Manager imports, redeploys and updates its own Compose project like any
-other stack. The agent cannot recreate the container it runs in (Compose
+other stack. An import by copy (`stack.import`) copies it while it runs and
+neither stops nor recreates it (`import.live`, see the stacks guide); the
+next deploy moves it onto the copy. The agent cannot recreate the container it runs in (Compose
 would stop it in the middle of the job), so `internal/agent/selfupdate`
 splits the work:
 

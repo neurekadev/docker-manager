@@ -194,8 +194,7 @@ target: origin `imported`, **the same project name** and a directory of
 that name in the stacks volume, so the project's named volumes, networks and
 containers keep their Compose names) and enqueues `stack.import`. The
 manager refuses projects that are adoptable in place or not copyable (`409
-stack_not_copyable` with the agent's reason), Docker Manager's own project
-(`409 protected`, it would be stopped) and agents without
+stack_not_copyable` with the agent's reason) and agents without
 `stack.import_copy` (`501 agent_unsupported`). The agent's steps
 (`internal/agent/stacks/import.go`):
 
@@ -214,13 +213,21 @@ stack_not_copyable` with the agent's reason), Docker Manager's own project
    image, environment (values compared in memory, only names reported;
    variables inherited unchanged from the image are fine), the labels the
    files set, command, entrypoint, user, working directory, published ports
-   and bind/volume mounts (bind sources translated to the host directory).
-   Any difference refuses the import (`import_config_drift`): the tool that
-   deployed the project supplied settings outside its files (Portainer,
-   Komodo or Coolify variables, a pass-through variable from its process
-   environment) or the files changed after its last deploy, and recreating
-   would silently change the service. Put the values into the files (usually
-   `.env`) or redeploy from that tool, then import again.
+   and bind/volume mounts (bind sources translated to the host directory;
+   a difference names both sources). Any difference refuses the import
+   (`import_config_drift`): the tool that deployed the project supplied
+   settings outside its files (Portainer, Komodo or Coolify variables, a
+   pass-through variable from its process environment) or the files changed
+   after its last deploy, and recreating would silently change the service.
+   When a definition file is newer than the oldest differing container
+   (`editedAfter`), the refusal names the file and both times and says to
+   redeploy from that tool first. Otherwise: put the values into the files
+   (usually `.env`) or redeploy from that tool, then import again.
+   The image of a build-only service (a `build` section and no `image`) is
+   not compared: the tool that built it named it (Arcane:
+   `arcane.local/<project>-<id>/<service>:latest`), and the import keeps the
+   image it runs (`recreate` tags it with Compose's name,
+   `<project>-<service>`, so nothing is rebuilt).
 2. `stop_containers`: journals the `start_containers` compensation, stops
    the running services in dependency order and refuses to continue while
    any container of the project still runs (`shutdown_failed`): the copy is
@@ -240,12 +247,25 @@ stack_not_copyable` with the agent's reason), Docker Manager's own project
    the switch, never a directory it did not create.
 4. `recreate`: loads the copy, checks every bind source moved with the
    directory or stayed the same absolute path, then **switches** (journaled
-   `import.switched`, copy compensation released) and recreates, with
-   Compose `create --force-recreate`, every service that had containers
-   (anonymous volumes inherited, nothing started, nothing pulled).
+   `import.switched`, copy compensation released), tags the images of
+   build-only services (`keepBuiltImages`) and recreates, with Compose
+   `create --force-recreate`, every service that had containers (anonymous
+   volumes inherited, nothing started, nothing pulled or built).
 5. `start_containers`: starts exactly the services that ran before,
    dependencies first (`lifecycle.Resume`); a service whose containers still
    use the original directory is never started (kept stopped, warned).
+
+Docker Manager's own project (#32; discovery reports it `protected`) is
+imported **while it runs** (`import.live`): `prepare` refuses it when a
+service binds a writable path inside the project directory (that data
+cannot be copied consistently while it runs), `stop_containers` stops
+nothing, `recreate` switches without recreating, and `start_containers`
+reports the services as kept running (warning `kept_running`). Its
+containers keep running from the original directory until the stack's next
+deploy recreates them from the copy (the agent's own service through the
+self-update helper, `internal/agent/selfupdate`). The stop step refuses
+Docker Manager's own project on its own whenever the import did not prepare
+it as live.
 
 The original directory is only ever read. A failure **before the switch**
 changes nothing: the copy is removed, the services that ran start again
@@ -261,7 +281,10 @@ The web UI's stack list has one **Import project** dialog
 (`ImportStackDialog`, `routes.importStack()`): the discovered projects of an
 environment, each with one Import button that adopts in place or imports by
 copy (with the job's progress in the row) and otherwise explains how to add
-an import mount. Imports with an explicit source remain an API feature.
+an import mount. A **Hide managed stacks** switch (on by default,
+`importCandidates`) leaves out projects Docker Manager already manages,
+except those imported from the open dialog. Imports with an explicit source
+remain an API feature.
 
 Nothing is overwritten silently: a project Docker Manager already manages →
 `409 stack_name_taken` (also enforced by unique indexes on

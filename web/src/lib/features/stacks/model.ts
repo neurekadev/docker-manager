@@ -512,6 +512,22 @@ export function dependencyOrder(
 	return out;
 }
 
+/**
+ * The projects the Import project dialog lists (#7): those to import
+ * first, then by name; hideManaged leaves out the ones Docker Manager
+ * manages already, except those keep holds (an import started in the
+ * dialog keeps showing its outcome).
+ */
+export function importCandidates<P extends { name: string; stackId?: string }>(
+	projects: P[],
+	hideManaged: boolean,
+	keep: (p: P) => boolean = () => false
+): P[] {
+	return projects
+		.filter((p) => !hideManaged || !p.stackId || keep(p))
+		.sort((a, b) => Number(!!a.stackId) - Number(!!b.stackId) || a.name.localeCompare(b.name));
+}
+
 /** The update states shown as "update available" on the stack (#20). */
 export function updateAvailable(images: Schema<'StackImageStatus'>[] | undefined): boolean {
 	return !!images?.some((i) => i.update === 'update_available');
