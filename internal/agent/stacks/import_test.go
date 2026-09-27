@@ -65,7 +65,7 @@ func TestProjectDirTranslatesManagerPaths(t *testing.T) {
 	// volume at /app/data: labels carry /app/data/projects/<name>.
 	arcane := engine.Container{Mounts: []engine.Mount{
 		{Type: "volume", Source: "/docker/engine/volumes/arcane_data/_data", Destination: "/app/data"},
-		{Type: "bind", Source: "/var/run/docker.sock", Destination: "/var/run/docker.sock"},
+		{Type: "bind", Source: "/etc/localtime", Destination: "/etc/localtime"},
 	}}
 	all := []engine.Container{arcane}
 

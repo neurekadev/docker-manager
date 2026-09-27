@@ -136,6 +136,35 @@ func (c *Client) InspectContainer(ctx context.Context, id string) (ContainerDeta
 	return d, nil
 }
 
+// CreatedConfig returns a container's environment, its image's
+// environment and its configured port bindings (see CreatedConfig).
+func (c *Client) CreatedConfig(ctx context.Context, id string) (CreatedConfig, error) {
+	ctx, cancel := c.bound(ctx)
+	defer cancel()
+	res, err := c.api.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
+	if err != nil {
+		return CreatedConfig{}, wrap("container.inspect", err)
+	}
+	r := res.Container
+	var out CreatedConfig
+	if r.Config != nil {
+		out.Env = r.Config.Env
+	}
+	if r.HostConfig != nil {
+		out.Ports = portsFrom(r.HostConfig.PortBindings)
+	}
+	if r.Image != "" {
+		img, err := c.api.ImageInspect(ctx, r.Image)
+		if err != nil {
+			return CreatedConfig{}, wrap("image.inspect", err)
+		}
+		if cfg := img.Config; cfg != nil {
+			out.ImageEnv = cfg.Env
+		}
+	}
+	return out, nil
+}
+
 // CreateContainer creates a container and returns its ID and any Engine
 // warnings.
 func (c *Client) CreateContainer(ctx context.Context, spec ContainerSpec) (string, []string, error) {

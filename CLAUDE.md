@@ -367,6 +367,9 @@ Guide: `docs/architecture/stacks.md`. Manager: `internal/manager/stacks`
   `migration.CopyTree`/`VerifyTree`/`CopyXattrs` into `<stacks>/<project>`
   (same project name, so volumes keep their names), recreated from the copy
   and resumed; before the journaled switch every failure rolls back.
+  `prepare` refuses when a container differs from what the files create
+  (`drift.go`: settings a previous tool injected); environment values stay
+  in memory (`engine.ConfigInspector`), only names are reported.
 - Revisions are immutable and sealed; record observed changes with
   `stacks.Service.RecordObserved` (#23) / `RecordFileSave` (#15); resolve a
   stack's files with `Root`; paths needing `stack.definition.*`:

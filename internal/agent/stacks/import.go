@@ -365,6 +365,13 @@ func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) er
 	if err := checkProjectDir(ctx, eng, res, in.Import.WorkingDir, containers); err != nil {
 		return err
 	}
+	diffs, err := driftOf(ctx, eng, p, src, in.Import.WorkingDir, containers)
+	if err != nil {
+		return err
+	}
+	if len(diffs) > 0 {
+		return driftRefusal(diffs)
+	}
 	defined := map[string]compose.ServiceInfo{}
 	for _, svc := range p.Services {
 		defined[svc.Name] = svc

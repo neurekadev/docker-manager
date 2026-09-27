@@ -209,6 +209,18 @@ stack_not_copyable` with the agent's reason), Docker Manager's own project
    (`stack_directory_exists`) or not enough free space
    (`insufficient_space`), and records the services that run. Absolute
    binds into the original directory are warned about: they keep using it.
+   Then it compares every container with what Compose would create from the
+   files (`driftOf`, `compose.Project.Expected`, `engine.ConfigInspector`):
+   image, environment (values compared in memory, only names reported;
+   variables inherited unchanged from the image are fine), the labels the
+   files set, command, entrypoint, user, working directory, published ports
+   and bind/volume mounts (bind sources translated to the host directory).
+   Any difference refuses the import (`import_config_drift`): the tool that
+   deployed the project supplied settings outside its files (Portainer,
+   Komodo or Coolify variables, a pass-through variable from its process
+   environment) or the files changed after its last deploy, and recreating
+   would silently change the service. Put the values into the files (usually
+   `.env`) or redeploy from that tool, then import again.
 2. `stop_containers`: journals the `start_containers` compensation, stops
    the running services in dependency order and refuses to continue while
    any container of the project still runs (`shutdown_failed`): the copy is

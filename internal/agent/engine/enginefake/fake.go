@@ -428,6 +428,23 @@ func matchLabels(have map[string]string, want []string) bool {
 	return true
 }
 
+// CreatedConfig reports the container's environment and port bindings
+// (the fake's images carry no environment).
+func (e *Engine) CreatedConfig(_ context.Context, id string) (engine.CreatedConfig, error) {
+	e.mu.Lock()
+	defer e.unlock()
+	if err := e.call("container.inspect"); err != nil {
+		return engine.CreatedConfig{}, err
+	}
+	c, ok := e.findContainer(id)
+	if !ok {
+		return engine.CreatedConfig{}, notFound("container.inspect", "container", id)
+	}
+	return engine.CreatedConfig{Env: slices.Clone(c.Env), Ports: slices.Clone(c.Details.Ports)}, nil
+}
+
+var _ engine.ConfigInspector = (*Engine)(nil)
+
 // InspectContainer implements engine.Engine.
 func (e *Engine) InspectContainer(_ context.Context, id string) (engine.ContainerDetails, error) {
 	e.mu.Lock()

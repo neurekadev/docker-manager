@@ -130,9 +130,10 @@
 		if (p.adoptable)
 			return 'Its files already lie in a stack root: they are adopted in place and nothing restarts.';
 		const n = running(p);
-		return n
-			? `Stops its ${n} running ${n === 1 ? 'service' : 'services'}, copies its whole directory (data folders included, owners and permissions kept) into the stacks volume, checks the copy and starts ${n === 1 ? 'it' : 'them'} again from there. The original directory is left untouched.`
-			: 'Copies its whole directory (data folders included, owners and permissions kept) into the stacks volume and recreates its containers from the copy; it stays stopped. The original directory is left untouched.';
+		const move = n
+			? `Stops its ${n} running ${n === 1 ? 'service' : 'services'}, copies its whole directory (data folders included, owners and permissions kept) into the stacks volume, checks the copy and starts ${n === 1 ? 'it' : 'them'} again from there.`
+			: 'Copies its whole directory (data folders included, owners and permissions kept) into the stacks volume and recreates its containers from the copy; it stays stopped.';
+		return `${move} The original directory is left untouched. It first checks that the running containers match the project's files and changes nothing if they do not.`;
 	}
 </script>
 

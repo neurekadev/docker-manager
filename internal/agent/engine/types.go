@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"time"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
@@ -191,6 +192,25 @@ type ContainerDetails struct {
 	// health check (nil: the image's or none).
 	Resources   Resources
 	Healthcheck *HealthcheckSpec
+}
+
+// CreatedConfig is what a container was created with beyond
+// ContainerDetails, for comparing it with its Compose definition inside the
+// agent (#7 import by copy). Env holds secret values: compare them in
+// memory only; never log, journal, return or send them.
+type CreatedConfig struct {
+	Env []string
+	// ImageEnv is the environment of the container's image (the Engine
+	// merges it into Env).
+	ImageEnv []string
+	// Ports are the configured port bindings (also while stopped).
+	Ports []Port
+}
+
+// ConfigInspector is implemented by Engines that report CreatedConfig
+// (the Moby adapter and the in-memory fake).
+type ConfigInspector interface {
+	CreatedConfig(ctx context.Context, id string) (CreatedConfig, error)
 }
 
 // EndpointInfo is a container's attachment to a network.
