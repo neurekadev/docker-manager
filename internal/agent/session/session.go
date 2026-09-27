@@ -124,16 +124,7 @@ type RequestHandler func(ctx context.Context, input json.RawMessage) (any, error
 type StreamHandler func(ctx context.Context, s *streammux.Stream) error
 
 // HandlerError is a request failure with a protocol error code.
-type HandlerError struct {
-	Code      string
-	Message   string
-	Retryable bool
-}
-
-func (e *HandlerError) Error() string { return e.Code + ": " + e.Message }
-
-// ProtocolCode returns the protocol error code.
-func (e *HandlerError) ProtocolCode() string { return e.Code }
+type HandlerError = protocol.Error
 
 // JobRunner is the agent job runner (internal/agent/jobs.Runner).
 type JobRunner interface {

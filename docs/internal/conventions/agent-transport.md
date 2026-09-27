@@ -17,7 +17,8 @@ handed-over tokens), `internal/agent/runtime` (control loop). Protocol:
   `protocol.RequestNames()` and advertised in the agent's capabilities.
 - **Serve a request on the agent:** add a `session.RequestHandler` to
   `runtime.Options.Requests` (keyed by request name); return output (JSON
-  encoded) or `&session.HandlerError{Code: protocol.CodeNotFound, ...}`.
+  encoded) or `&session.HandlerError{Code: protocol.CodeNotFound, ...}` (an alias of
+  `protocol.Error`, which shared packages such as `internal/fsroot` return).
   The handler's ctx ends at the request deadline; at most 16 run at once per
   session. The session advertises every registered name in the
   capabilities' `requests`.

@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/fsroot"
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/fscorpus"
@@ -192,7 +193,7 @@ func TestEscapeTreeIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256([]byte(et.Secret))
-	guess := computeETag(sum[:], secretInfo.Size(), secretInfo.ModTime())
+	guess := fsroot.ComputeETag(sum[:], secretInfo.Size(), secretInfo.ModTime())
 	if _, err := f.svc.Write(f.ctx, protocol.FilesWriteInput{Scope: scope, Path: "hardlink-secret", Data: []byte("x"), IfMatch: []string{guess}}); code(err) != protocol.CodeConflict {
 		t.Errorf("If-Match with the outside file's tag: %v, want conflict", err)
 	}
@@ -435,7 +436,7 @@ func TestDecompressionBombs(t *testing.T) {
 		if res.Outcome != "failed" || !stopped {
 			t.Errorf("%s: %+v, want failed too_large", name, res)
 		}
-		limit := max(f.svc.limits.ExtractRatioFloor, int64(len(data))*f.svc.limits.MaxExtractRatio)
+		limit := max(f.svc.Limits().ExtractRatioFloor, int64(len(data))*f.svc.Limits().MaxExtractRatio)
 		if n := dirSize(t, filepath.Join(f.root, "out-"+name)); n > limit {
 			t.Errorf("%s: %d bytes written, budget %d", name, n, limit)
 		}

@@ -503,6 +503,23 @@ type CodedError interface {
 	ProtocolMessage() string
 }
 
+// Error is a failure with a protocol error code: what agent handlers
+// return (session.HandlerError) and what shared services such as
+// internal/fsroot return on either side.
+type Error struct {
+	Code      string
+	Message   string
+	Retryable bool
+}
+
+func (e *Error) Error() string { return e.Code + ": " + e.Message }
+
+// ProtocolCode returns the protocol error code.
+func (e *Error) ProtocolCode() string { return e.Code }
+
+// ProtocolMessage returns the message.
+func (e *Error) ProtocolMessage() string { return e.Message }
+
 // Payload validation errors.
 var (
 	ErrUnsupportedRequest = errors.New("protocol: unsupported request")

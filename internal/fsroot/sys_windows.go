@@ -1,6 +1,6 @@
 //go:build windows
 
-package files
+package fsroot
 
 import (
 	"io/fs"

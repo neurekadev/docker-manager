@@ -9,7 +9,8 @@ directory or a Docker volume. The same routes exist under both roots:
 | volume | `/api/v1/environments/{environmentId}/volumes/{volumeId}/files` | `volume.files.*` |
 
 The manager authorizes (#17); the environment's agent confines every path to
-the root (`internal/agent/files`); nothing is ever served from outside it.
+the root (`internal/fsroot`, with the scope checks of `internal/agent/files`);
+nothing is ever served from outside it.
 Streams (downloads, uploads): [streams.md](streams.md#file-downloads-and-uploads-15).
 Agent side: [agent-v1.md](../protocol/agent-v1.md#scoped-files-15).
 

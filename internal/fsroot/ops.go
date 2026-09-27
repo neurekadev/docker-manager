@@ -1,4 +1,4 @@
-package files
+package fsroot
 
 import (
 	"bytes"
@@ -468,7 +468,7 @@ func (s *Service) entryWithSum(t *target, rel string, sum []byte) (protocol.File
 	}
 	e := entryOf(rel, fi)
 	if fi.Mode().IsRegular() && fi.Size() <= protocol.MaxETagSize {
-		e.ETag = computeETag(sum, fi.Size(), fi.ModTime())
+		e.ETag = ComputeETag(sum, fi.Size(), fi.ModTime())
 	}
 	return e, nil
 }
