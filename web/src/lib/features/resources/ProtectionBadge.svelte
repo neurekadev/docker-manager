@@ -1,5 +1,5 @@
 <script lang="ts">
-	// "Docker Manager system" (#32): marks Docker Manager's own containers, images,
+	// "Docker Manager" (#32): marks Docker Manager's own containers, images,
 	// volumes and networks. The reason is in the title and, for screen
 	// readers, in the text; detail pages show it in full.
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
@@ -15,5 +15,5 @@
 
 <Badge tone="accent" title="{protectionLabel(protection)}: {plain(protection.reason)}">
 	<ShieldCheck size={13} strokeWidth={1.75} aria-hidden="true" />
-	Docker Manager system<span class="sr-only">: {plain(protection.reason)}</span>
+	Docker Manager<span class="sr-only">: {plain(protection.reason)}</span>
 </Badge>

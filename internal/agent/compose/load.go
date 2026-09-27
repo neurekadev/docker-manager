@@ -132,6 +132,44 @@ type Dependency struct {
 	Restart   bool
 }
 
+// DeclaredName returns the project name the Compose files of spec set
+// with a top-level name: (interpolated like Compose does), or "" when none
+// sets one. spec.Name is ignored: a stack's project name overrides the
+// file's, so this is the only way to see it.
+func DeclaredName(ctx context.Context, spec ProjectSpec) (string, error) {
+	const op = "compose.load"
+	configs, err := configFiles(spec)
+	if err != nil {
+		return "", engine.WrapCode(op, engine.CodeInvalidProject, err)
+	}
+	named := false
+	for _, f := range configs {
+		var b []byte
+		if spec.Content != nil {
+			r, _ := filepath.Rel(spec.Dir, f)
+			b = spec.Content[filepath.ToSlash(r)]
+		} else if b, err = os.ReadFile(f); err != nil { //nolint:gosec // project file inside the validated project directory
+			return "", engine.WrapCode(op, engine.CodeInvalidProject, err)
+		}
+		var n struct {
+			Name string `yaml:"name,omitempty"`
+		}
+		if err := yaml.Unmarshal(b, &n); err != nil {
+			return "", engine.WrapCode(op, engine.CodeInvalidProject, fmt.Errorf("%s: %w", filepath.Base(f), err))
+		}
+		named = named || n.Name != ""
+	}
+	if !named {
+		return "", nil
+	}
+	spec.Name = ""
+	p, err := LoadProject(ctx, spec)
+	if err != nil {
+		return "", err
+	}
+	return p.Name, nil
+}
+
 // Load reads and validates a project. Unsupported features are rejected
 // with CodeUnsupportedFeature before anything touches the Engine.
 func (a *Adapter) Load(ctx context.Context, spec ProjectSpec) (*Project, error) {

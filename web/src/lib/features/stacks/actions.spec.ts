@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/svelte-query';
 import { createApiClient } from '$lib/api/client';
-import { deployStack, etag, operateStack, patchStack, restartSource, runUpdate } from './actions';
+import {
+	deployStack,
+	etag,
+	operateStack,
+	patchStack,
+	previewRename,
+	renameStack,
+	restartSource,
+	runUpdate
+} from './actions';
 import { stackKeys, stackMetricsQuery } from './queries';
 
 const base = 'http://localhost:8080';
@@ -114,6 +123,34 @@ describe('stack actions', () => {
 		await expect(patchStack({ id: 'st-1', revision: 1 }, {}, m.client)).rejects.toMatchObject({
 			status: 412
 		});
+	});
+
+	it('previews a rename, then renames with If-Match and an idempotency key', async () => {
+		const m = fakeManager({
+			'POST /api/v1/stacks/st-1/rename-previews': () => [
+				200,
+				{
+					from: 'shop',
+					to: 'store',
+					fromDir: 'shop',
+					toDir: 'store',
+					running: [],
+					volumes: [],
+					containers: [],
+					blockers: [],
+					warnings: []
+				}
+			],
+			'POST /api/v1/stacks/st-1/renames': () => [202, job('j4')]
+		});
+		const p = await previewRename('st-1', 'store', m.client);
+		expect(p.toDir).toBe('store');
+		expect(m.calls[0].headers.get('Idempotency-Key')).toBeNull();
+		const j = await renameStack({ id: 'st-1', revision: 7 }, 'store', m.client);
+		expect(j.id).toBe('j4');
+		expect(m.calls.map((c) => c.body)).toEqual([{ name: 'store' }, { name: 'store' }]);
+		expect(m.calls[1].headers.get('If-Match')).toBe('"7"');
+		expect(m.calls[1].headers.get('Idempotency-Key')).toBeTruthy();
 	});
 
 	it('runs exactly the previewed update', async () => {

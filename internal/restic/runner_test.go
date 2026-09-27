@@ -44,6 +44,8 @@ type fakeAnswer struct {
 	Exit   int    `json:"exit"`
 	// Hang blocks until the process is interrupted or killed.
 	Hang bool `json:"hang"`
+	// StaleLock answers "locked" (exit 11) until an unlock call ran.
+	StaleLock bool `json:"staleLock"`
 }
 
 // command returns the restic command name (the first argument that is not
@@ -105,9 +107,17 @@ func fakeRestic(repo string) int {
 	if raw, err := os.ReadFile(filepath.Join(repo, "scenario.json")); err == nil {
 		_ = json.Unmarshal(raw, &answers)
 	}
+	unlocked := filepath.Join(repo, "unlocked")
+	if command(c.Args) == "unlock" {
+		_ = os.WriteFile(unlocked, nil, 0o600)
+	}
 	a, ok := answers[command(c.Args)]
 	if !ok {
 		a = answers["*"]
+	}
+	if _, err := os.Stat(unlocked); a.StaleLock && err != nil {
+		fmt.Fprintln(os.Stderr, "Fatal: unable to create lock in backend: repository is already locked exclusively by PID 7 on old-host")
+		return 11
 	}
 	fmt.Fprint(os.Stdout, a.Stdout)
 	fmt.Fprint(os.Stderr, a.Stderr)
@@ -331,6 +341,44 @@ func TestRunnerClassifiesFailuresWithoutSecrets(t *testing.T) {
 			}
 			set.AssertClean(t, "error", err.Error())
 		})
+	}
+}
+
+func TestRunnerRemovesStaleLocksAndRetries(t *testing.T) {
+	f := newFake(t, map[string]fakeAnswer{"prune": {StaleLock: true}})
+	if err := f.r.Open(Location{Repository: f.dir}, "password-123456").Prune(testutil.Context(t)); err != nil {
+		t.Fatalf("prune = %v", err)
+	}
+	var cmds []string
+	for _, c := range f.calls() {
+		cmds = append(cmds, command(c.Args))
+	}
+	if want := []string{"prune", "unlock", "prune"}; !slices.Equal(cmds, want) {
+		t.Errorf("calls = %v, want %v", cmds, want)
+	}
+}
+
+func TestRunnerReportsALockThatUnlockCannotRemove(t *testing.T) {
+	locked := fakeAnswer{Stderr: "Fatal: unable to create lock in backend: repository is already locked\n", Exit: 11}
+	f := newFake(t, map[string]fakeAnswer{"prune": locked})
+	err := f.r.Open(Location{Repository: f.dir}, "password-123456").Prune(testutil.Context(t))
+	if !IsCode(err, CodeLocked) {
+		t.Fatalf("prune = %v, want %s", err, CodeLocked)
+	}
+	if n := len(f.calls()); n != 3 {
+		t.Errorf("calls = %d, want prune, unlock, prune", n)
+	}
+}
+
+func TestRunnerDoesNotRepeatStdinBackups(t *testing.T) {
+	f := newFake(t, map[string]fakeAnswer{"backup": {StaleLock: true}})
+	_, err := f.r.Open(Location{Repository: f.dir}, "password-123456").Backup(testutil.Context(t),
+		BackupRequest{Stdin: strings.NewReader("dump"), StdinFilename: "db.sql"})
+	if !IsCode(err, CodeLocked) {
+		t.Fatalf("backup = %v, want %s", err, CodeLocked)
+	}
+	if n := len(f.calls()); n != 1 {
+		t.Errorf("calls = %d, want 1", n)
 	}
 }
 

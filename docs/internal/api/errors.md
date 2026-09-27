@@ -136,6 +136,7 @@ same change.
 | `stack_not_copyable` | 409 | no | The discovered Compose project cannot be imported by copy: the agent does not see its directory through an import mount (below /import), its files are elsewhere, the stacks volume already has its directory, or it lies in a stack root already (adopt it in place). | #7 |
 | `stack_root_unavailable` | 409 | no | The agent refuses the stack's project directory: its storage layout is not verified, the root is not registered, or the directory is missing (#28). | #7 |
 | `revision_content_unavailable` | 409 | no | The revision was recorded by hash only (its definition was too large for a deploy result) and cannot be restored. | #7 |
+| `stack_rename_blocked` | 409 | no | The stack rename's preview has blockers (details lists them: the Compose files set a top-level name:, a target volume or directory exists, a moved volume is used by another project or held, Docker Manager's own project, ...); preview the rename, resolve them and retry. | #7 |
 | `migration_blocked` | 409 | no | The migration's preflight check has blockers (`details` lists them: platform, name or port conflicts, missing external networks, free space, offline agents, ...); preview the migration, resolve them and retry. | #35 |
 | `migration_not_completed` | 409 | no | The source of a stack migration can be removed only after the migration completed. | #35 |
 | `migration_source_removed` | 409 | no | The migration's source was already removed. | #35 |

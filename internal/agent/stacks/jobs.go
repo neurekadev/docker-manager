@@ -43,6 +43,8 @@ func (s *Service) Executors() []jobexec.Executor {
 		}},
 		s.updateExecutor(),
 		s.importExecutor(),
+		s.renameExecutor(),
+		{Kind: jobspec.StackPull, Steps: map[string]jobexec.StepFunc{"pull_images": classified(s.pullOnly)}},
 	}
 }
 
@@ -142,6 +144,9 @@ func (s *Service) resolveSources(ctx context.Context, sc *jobexec.StepContext) e
 	if err != nil {
 		return err
 	}
+	if err := checkDeclaredName(ctx, in.Stack, dir); err != nil {
+		return err
+	}
 	eng, err := s.engine()
 	if err != nil {
 		return err
@@ -182,6 +187,65 @@ func (s *Service) pullImages(ctx context.Context, sc *jobexec.StepContext) error
 	c, _ := s.composer()
 	sc.Progress(ctx, 15, "pulling images")
 	return c.Pull(ctx, p, compose.RunOptions{Events: s.progress(ctx, sc), Auth: creds})
+}
+
+// pullOnly (stack.pull) pulls every image of the stack and changes no
+// container: it reports the services whose reference now names another
+// image (a deploy runs it).
+func (s *Service) pullOnly(ctx context.Context, sc *jobexec.StepContext) error {
+	in, err := input(sc)
+	if err != nil {
+		return err
+	}
+	creds, err := auth(sc, in)
+	if err != nil {
+		return err
+	}
+	p, _, err := s.project(ctx, in)
+	if err != nil {
+		return err
+	}
+	eng, err := s.engine()
+	if err != nil {
+		return err
+	}
+	imageOf := func() map[string]string {
+		out := map[string]string{}
+		for _, svc := range p.Services {
+			if svc.Build || svc.Image == "" {
+				continue
+			}
+			if img, err := eng.InspectImage(ctx, svc.Image); err == nil {
+				out[svc.Name] = img.ID
+			}
+		}
+		return out
+	}
+	before := imageOf()
+	c, _ := s.composer()
+	sc.Progress(ctx, 10, "pulling images")
+	if err := c.Pull(ctx, p, compose.RunOptions{Events: s.progress(ctx, sc), Auth: creds}); err != nil {
+		return err
+	}
+	after := imageOf()
+	var pulled []string
+	for _, svc := range p.Services {
+		id, ok := after[svc.Name]
+		if !ok {
+			continue
+		}
+		if before[svc.Name] != id {
+			pulled = append(pulled, svc.Name)
+			sc.Item(ctx, svc.Name, domain.ItemSucceeded, "newer image pulled: deploy to run it")
+		} else {
+			sc.Item(ctx, svc.Name, domain.ItemSkipped, "image up to date")
+		}
+	}
+	images := appliedImages(ctx, eng, p)
+	return update(ctx, sc, func(o *protocol.StackJobOutput) {
+		o.Pulled = pulled
+		o.Images = images
+	})
 }
 
 // buildImages builds the deploy's images from build sections (#33): every
@@ -249,6 +313,10 @@ func (s *Service) apply(ctx context.Context, sc *jobexec.StepContext) error {
 	if err != nil {
 		return err
 	}
+	startsBefore, serr := containerStarts(ctx, eng, in.Stack.ProjectName)
+	if serr != nil {
+		return serr
+	}
 	var upErr error
 	if len(handoff) == 0 || len(services) > 0 {
 		upErr = c.Up(ctx, p, compose.UpOptions{RunOptions: compose.RunOptions{Events: s.progress(ctx, sc), Auth: creds},
@@ -258,9 +326,12 @@ func (s *Service) apply(ctx context.Context, sc *jobexec.StepContext) error {
 		return upErr // shutdown: the attempt is recovered from the journal
 	}
 	after, aerr := serviceStates(ctx, eng, in.Stack.ProjectName)
+	startsAfter, serr := containerStarts(ctx, eng, in.Stack.ProjectName)
+	unchanged := serr == nil && upErr == nil && len(handoff) == 0 && !startedAny(startsBefore, startsAfter)
 	images := appliedImages(ctx, eng, p)
 	bs := binds(p, dir)
 	if err := update(ctx, sc, func(o *protocol.StackJobOutput) {
+		o.Unchanged = unchanged
 		src := snap
 		if inlineSize(src) > protocol.MaxInlineSources {
 			for i := range src.Files {
@@ -287,6 +358,42 @@ func (s *Service) apply(ctx context.Context, sc *jobexec.StepContext) error {
 		s.scheduleSelf(sc, in.Stack, dir, snap, handoff, in.ForceRecreate, in.TimeoutSeconds)
 	}
 	return aerr
+}
+
+// containerStarts maps each container of the project to when it last
+// started (zero: never).
+func containerStarts(ctx context.Context, eng engine.Engine, project string) (map[string]time.Time, error) {
+	list, err := lifecycle.ProjectContainers(ctx, eng, project)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]time.Time, len(list))
+	for _, c := range list {
+		d, err := eng.InspectContainer(ctx, c.ID)
+		if engine.IsCode(err, engine.CodeNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		out[c.ID] = d.State.StartedAt
+	}
+	return out, nil
+}
+
+// startedAny reports whether a container started between the two
+// snapshots: a new one that runs, or one that started again (its uptime
+// reset).
+func startedAny(before, after map[string]time.Time) bool {
+	for id, t := range after {
+		if t.IsZero() {
+			continue
+		}
+		if b, ok := before[id]; !ok || !t.Equal(b) {
+			return true
+		}
+	}
+	return false
 }
 
 var errSourcesChanged = errors.New("the definition files changed while the deploy read them")

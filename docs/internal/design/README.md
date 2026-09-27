@@ -210,7 +210,7 @@ Import from `$lib/ui` (one barrel). Snippet props (`trigger`, `children`,
 | --- | --- | --- |
 | `Badge` | `tone: neutral \| accent \| ok \| warn \| danger \| info \| offline`, `dot`, `pulse` | |
 | `StatusBadge` | `status` (API state), `kind: resource \| job`, `label` | Dot **and** text; vocabulary in `status.ts` (`statusInfo`). Job `partial` reads "Partly failed". |
-| `Card` | `title`, `level`, `subtitle`, `actions`, `padding: none \| md`, `id` | Tables use `padding="none"`. |
+| `Card` | `title`, `level`, `subtitle`, `actions`, `padding: none \| md`, `id`, `stretchActions` | Tables use `padding="none"`. `stretchActions`: the actions take the free width of the header and wrap below the title when they do not fit (`ListCard`'s search and filters). |
 | `KpiCard` | `label`, `value`, `unit`, `secondary`, `icon`, `color`, `tone`, `sparkline` / `bar` snippets, `changed` | Row of KPI cards: `KpiRow` (`repeat(auto-fit, minmax(210px, 1fr))`, two per row below 768 px). The card is a size container: at 230 px or less it switches to the compact layout (36 px tile, 18 px value that may wrap, 12 px label), so the stack overview keeps the mockup's six cards in one row from about 1120 px of content (1440 px screens) and phones show two per row. |
 | `IconTile` | `icon`, `color: TileColor`, `size: sm \| md \| lg` | Decorative (the adjacent text names the thing). |
 | `Meter` | `value`, `max`, `label`, `valueText`, `warnAt`, `dangerAt` | `role="meter"`. |
@@ -250,7 +250,8 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 | --- | --- |
 | `Dialog` | `open` (bindable), `title`, `description`, `size`, `footer` snippet, `trigger` snippet, `dismissible`, `alert` (Bits UI AlertDialog: `role="alertdialog"`). Focus trapped, Escape closes, focus returns to the opener; full screen < 768 px. Sizes: `sm` 480 px (confirmations, one-field prompts), `md` 640 px (short forms), `lg` 880 px (forms in two columns, previews), `xl` 1160 px (policy and stack editors laid out in columns). |
 | `ConfirmDialog` | `message`, `consequences[]`, **`confirmLabel`** (the action, never "OK"), `tone`, async `onconfirm` (progress on the button, failures shown inline, stays open), `size` (`sm`; `md`/`lg` when it shows a preview). |
-| `DestructiveConfirm` | Type-to-confirm (`confirmText`, usually the resource name), `consequences[]`, `affected: AffectedResource[]`, optional `extra` snippet (e.g. the archive dialog's "migrate stacks first" offer). |
+| `DestructiveConfirm` | Type-to-confirm (`confirmText`, usually the resource name), `consequences[]`, `affected: AffectedResource[]`, optional `extra` snippet (e.g. the archive dialog's "migrate stacks first" offer, the stack rename's name field and preview), `canConfirm` (another condition besides the typed text, e.g. a preview without blockers) and `size`. The name to type is shown by `TypeToConfirm`. |
+| `TypeToConfirm` | The typed confirmation (`text`, bindable `value`): the exact text as a single-line code block (long names scroll, never wrap) with a "Copy name" button, then the input (accessible name "Type <text> to confirm"). Every dialog that asks for a typed name uses it (through `DestructiveConfirm` or directly, e.g. restores). |
 | `Drawer` | Side or bottom sheet (`side`, `size`, `hideTitle`); the narrow navigation, detail panes, the log drawer. |
 | `Popover` | Non-modal (`label`, `trigger` snippet): notices, environment switcher. |
 | `Tooltip` | `text`, `trigger` snippet `(props)`. Supplements names; never the only name. |
@@ -319,6 +320,17 @@ loading.
    yet: `EmptyState` with the action. Forbidden: hide the control (the
    server answers 403/404 anyway).
 4. Lists filter by `environmentSelection.id` (null = all environments).
+   A section list (containers, images, volumes, networks, stacks) is one
+   `ListCard` (`$lib/features/resources`): the card title "All
+   containers" with the count ("3 of 40 containers"), the search, then the
+   filters built into its header, and "Clear filters" while any is set;
+   no matches show `NoMatches` with the same action. Filters are
+   `ListFilter` definitions in a pure module (`filters.ts`, stacks:
+   `$lib/features/stacks/filters.ts`): one per attribute the list shows
+   (status, stack, environment while all are shown, Docker Manager
+   system, usage, driver, …), never counts, sizes or dates. Filters built
+   from the rows (drivers, projects) hide while they offer one choice. The
+   state is a `ListFilters` store kept per list and browser tab.
 5. Build the UI, run the manager and look at it at 1440×900 and 390×844
    ([Tests and screenshot review](#tests-and-screenshot-review)).
 
@@ -343,7 +355,9 @@ loading.
 - **Sessions:** any 401 while signed in drops every cached API response
   and goes to sign-in with the current path (`src/lib/auth/session.ts`);
   never persist API data in `localStorage` (the only stored values are the
-  selected environment ID per user and the sidebar rail preference).
+  selected environment ID per user and the sidebar rail preference). The
+  search and filters of each list are UI state kept in `sessionStorage`
+  (`docker-manager:list-filters:<list>`, per list and browser tab).
 
 ## Copy rules
 

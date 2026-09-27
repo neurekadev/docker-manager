@@ -46,7 +46,10 @@ revision, live Engine state — are separate fields of the API's `Stack`, and
 `GET /stacks/{id}/services` computes **drift** (a missing or stopped
 service of a deployed stack, a running service of a stopped stack, an
 unexpected service, a container running another image than the applied
-one).
+one). An unexpected service is usually an **orphan**: a service removed
+from the Compose file whose container is still on the host. A plain deploy
+keeps it; the UI's "Deploy and remove orphaned containers" (the deploy
+body's `removeOrphans`, off by default) removes it.
 
 ### Deploy
 
@@ -79,7 +82,11 @@ agent's steps:
 
 The manager's finish hook (`jobs.Engine.OnFinish`, in the job's finishing
 transaction) records a `deploy` revision from the reported sources and, on
-success, makes it the applied revision. **The agent never writes
+success, makes it the applied revision. The agent compares every container's
+start time before and after `up`: a deploy that started no container (none
+created, recreated or restarted) reports `unchanged`, and the manager then
+keeps the stack's last deploy time (the applied revision still moves).
+**The agent never writes
 definition files during a deploy**; only `compose.write` (stack creation
 and explicit restores) writes them.
 
@@ -93,6 +100,18 @@ is rolled back automatically (#25). A deploy that fails before applying
 Deploys (and all `stack.*` jobs) of one stack serialize through the job
 engine's exclusive `stack` lock; deploys of different stacks on the same
 environment run in parallel (shared `host` lock).
+
+### Pull
+
+`POST /stacks/{id}/pulls` (202 + job) enqueues `stack.pull` (capability `stack.update`) only downloads the stack's images
+(Compose pull with the registry credentials of the command, #19); it never
+creates, recreates, stops or starts a container. Its output lists the
+services whose tag now names another image (`pulled`); the next deploy runs
+them. `stack.update` (#20) is the pull that also recreates changed services.
+A pull does not hide an update from an update policy: `update.check`
+compares the registry with the **applied** digest (what runs), not with the
+tag on the host, and `update.run` recreates a service whose pulled image
+differs from the one its container runs.
 
 ### Restore
 
@@ -123,6 +142,67 @@ stack's retained source of the same project, #35). Kept volumes are skipped
 job items with the reason; the removal still succeeds. Never the Compose
 SDK's `down --volumes`. Agents announce `stack.remove_volumes`; the manager
 refuses the option (501 `agent_unsupported`) for other or offline agents.
+
+### Rename (`stack.rename`)
+
+`POST /stacks/{id}/rename-previews {name}` returns the agent's plan (outside
+containers the caller cannot see are counted, not named);
+`POST /stacks/{id}/renames {name}` (If-Match, stored idempotency) re-runs it
+and enqueues `stack.rename`: 409 `stack_rename_blocked` with the blockers,
+`stack_name_taken`, 501 `agent_unsupported` for agents without
+`stack.rename`. `stack.rename` alone never stops or replaces a container
+outside the stack: each one the rename would recreate needs the caller's
+`container.stop` and `container.remove` on it (`container_not_permitted`
+blocker, also in the preview).
+
+Renaming a stack changes its Compose project name (and its directory when
+that is named after the project: always in the stacks volume, in place in a
+registered root). Compose names volumes, networks and containers after the
+project, so the agent carries the data over (`internal/agent/stacks/rename.go`):
+
+1. `prepare`: `planRename` (also served as `compose.rename_preview`) decides
+   what moves and refuses with blockers, changing nothing: a top-level
+   `name:` in the Compose files pins the project name (equal to the current
+   name: refused, change `name:` instead; different: the only target is that
+   name), Docker Manager's own project (#32), an existing target directory,
+   volume or project, a volume another Compose project's container mounts
+   (its files name it), a protected or held volume, a volume whose data
+   cannot move (another driver, not in Docker's volume directory), an
+   outside container attached to one of the project's networks.
+2. `stop_containers`: the services that run stop (lifecycle), and the
+   containers outside any Compose project that mount a volume that moves.
+3. `move`: every named volume whose name follows the project gets its new
+   name: a plain local volume by renaming its `_data` directory into a new
+   volume (same disk, no copy), a volume with driver options by a new
+   volume with the same options. The new volume is created exactly as
+   Compose would (`compose.Project.VolumeSpec`: labels and config hash), so
+   Compose adopts it unchanged. Then the directory is renamed. Until the
+   switch, `undo_rename` moves everything back and `start_containers` starts
+   what ran under the old name.
+4. `recreate`: the switch (`rename.switched`, journaled): built images are
+   tagged with the new project's names, outside containers are recreated on
+   the new volume names with their complete configuration
+   (`engine.Cloner`), the old project is taken down, the project is
+   created (not started) from the current files under the new name, the
+   anonymous volumes' data moves into the new containers' anonymous volumes
+   (same service, replica and target) and the old volumes are removed.
+5. `start_containers`: what ran starts again under the new name.
+
+After the switch the stack lives under the new name even when the job
+fails; the manager's finish hook records the new name and directory (a new
+revision, so the ETag changes) and, like an import, the definition the
+rename created as a `deploy` revision; `stacks.Service.OnRenamed` hooks run
+in the same transaction (the resources service rewrites the moved volume
+names in saved specs of Docker Manager–managed standalone containers).
+Rules that follow the stack (stack and service scopes) keep applying;
+rules on individual containers name containers, whose names follow the
+project, so they must be granted again for the new names. Restores of
+snapshots taken before the rename write into the stack's current volumes
+(backups.md, "Restores").
+A deploy whose files set a top-level `name:` other than the stack's project
+name fails before changing anything (`stack_project_renamed`): it would start
+a second project with empty volumes next to the running one. Agents
+announce `stack.rename`.
 
 ### Offline environments
 
@@ -304,6 +384,8 @@ compose_project_exists`: import it instead).
 | `stack.manage` | display metadata (never written to Compose files) |
 | `stack.deploy`, `stack.start/stop/restart/down`, `stack.remove` | the jobs |
 | `stack.build` | `POST /stacks/{id}/builds` (rebuild the build sections without deploying, #33) |
+| `stack.update` | `POST /stacks/{id}/pulls` (pull the images without deploying) and image updates (#20) |
+| `stack.rename` | rename previews and renames (outside containers also need `container.stop` and `container.remove`) |
 
 Any other capability on a stack shows it minimally (id, name, environment,
 status, actions). Stacks are located by the stack Locator; stack-scoped

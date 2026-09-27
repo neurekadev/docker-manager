@@ -70,6 +70,11 @@ type StackJobRequest struct {
 	// Services narrows the operation (empty = the whole stack).
 	Services       []string
 	TimeoutSeconds int
+	// MayRecreate (stack.rename) reports whether the caller may stop and
+	// recreate a container outside the stack that mounts a moved volume
+	// (nil: not checked). A rename that would recreate one it may not is
+	// refused.
+	MayRecreate func(c StackRenameContainer) bool
 }
 
 // StackServiceInfo is a validated service with its label metadata.
@@ -202,6 +207,11 @@ type StackImageView struct {
 	// NonVersionTag: eligible, but the tag ("latest", "main") can change
 	// meaning.
 	NonVersionTag bool
+	// PulledImageID, PulledDigest and PulledAt: a newer image a pull
+	// without deploy left on the host (StackImage.PulledImageID).
+	PulledImageID string
+	PulledDigest  string
+	PulledAt      *time.Time
 }
 
 // StackRestore is the outcome of a revision restore.
@@ -219,4 +229,77 @@ type StackRemoveOptions struct {
 	// external, created by Compose for the project; anonymous volumes of
 	// its containers). Others are always kept.
 	Volumes bool
+}
+
+// StackRenamePlan is what renaming a stack's Compose project does (#7): the
+// stack stops, its named volumes move to the new project's names, the
+// containers outside the stack that mount them are recreated on the new
+// names, the project directory follows when it is named after the project
+// and the stack starts again.
+type StackRenamePlan struct {
+	From    string
+	To      string
+	FromDir string
+	ToDir   string
+	// DeclaredName is the top-level name: of the Compose files ("" none);
+	// such a stack is renamed by changing name: in its files.
+	DeclaredName string
+	// Running are the services that run (stopped and started again).
+	Running    []string
+	Volumes    []StackRenameVolume
+	Containers []StackRenameContainer
+	// Blockers refuse the rename (nothing changes); Warnings do not.
+	Blockers []StackIssue
+	Warnings []StackIssue
+}
+
+// Rename volume actions (StackRenameVolume.Action).
+const (
+	// RenameVolumeMove: the data moves to a volume with the new name.
+	RenameVolumeMove = "move"
+	// RenameVolumeRecreate: a volume with driver options is recreated with
+	// the same options under the new name (the data stays where they point).
+	RenameVolumeRecreate = "recreate"
+	// RenameVolumeAbsent: the volume does not exist yet.
+	RenameVolumeAbsent = "absent"
+)
+
+// StackRenameVolume is a volume a rename moves.
+type StackRenameVolume struct {
+	// Key is the Compose key of a named volume ("" for an anonymous one).
+	Key     string
+	Name    string
+	NewName string
+	// Service and Target locate an anonymous volume's mount.
+	Service string
+	Target  string
+	Action  string
+}
+
+// StackRenameContainer is a container outside the stack that mounts a
+// volume the rename moves: it is stopped and recreated on the new names.
+type StackRenameContainer struct {
+	ID      string
+	Name    string
+	Running bool
+	// Volumes are the moved volumes it mounts (current names).
+	Volumes []string
+	// NewID is the recreated container (StackRenamed only).
+	NewID string
+}
+
+// StackRenamed is a completed rename as the stack service reports it to
+// the services that keep Docker object names (in the finishing
+// transaction).
+type StackRenamed struct {
+	StackID       string
+	EnvironmentID string
+	From          string
+	To            string
+	FromDir       string
+	ToDir         string
+	// Volumes maps each moved volume's former name to its new one.
+	Volumes map[string]string
+	// Containers are the recreated containers outside the stack.
+	Containers []StackRenameContainer
 }

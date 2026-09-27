@@ -520,6 +520,8 @@ func (s *Service) registerHooks() {
 	}
 	s.opts.Jobs.OnFinish(jobspec.StackRemove, s.onRemoveFinished)
 	s.opts.Jobs.OnFinish(jobspec.StackImport, s.onImportFinished)
+	s.opts.Jobs.OnFinish(jobspec.StackRename, s.onRenameFinished)
+	s.opts.Jobs.OnFinish(jobspec.StackPull, s.onPullFinished)
 }
 
 func stackTarget(j domain.Job) string {
@@ -588,7 +590,12 @@ func (s *Service) onDeployFinished(ctx context.Context, db bun.IDB, j domain.Job
 	case j.State == domain.JobSucceeded:
 		st.Status = domain.StackDeployed
 		st.Failed = nil
-		st.AppliedAt = &now
+		// A deploy that started no container (the Engine already ran the
+		// definition) keeps the last deploy time; older agents never
+		// report it.
+		if !ok || !out.Unchanged {
+			st.AppliedAt = &now
+		}
 		st.Images = nil
 		if rev != nil {
 			st.Applied = rev.Ref()

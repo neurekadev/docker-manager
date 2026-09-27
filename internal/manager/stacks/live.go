@@ -197,7 +197,8 @@ func (s *Service) ImageStatus(st domain.Stack) []domain.StackImageView {
 	for _, i := range st.Images {
 		seen[i.Service] = true
 		out = append(out, imageView(domain.StackImageView{Service: i.Service, Image: i.Image, ImageID: i.ImageID, Digest: i.Digest,
-			Platform: i.Platform, Build: i.Build}, policy[i.Service]))
+			Platform: i.Platform, Build: i.Build, PulledImageID: i.PulledImageID, PulledDigest: i.PulledDigest, PulledAt: i.PulledAt},
+			policy[i.Service]))
 	}
 	for _, d := range st.Services {
 		if !seen[d.Name] {

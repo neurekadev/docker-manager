@@ -14,6 +14,7 @@
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { provideStackPage } from '$lib/features/stacks/context';
 	import JobTrayView from '$lib/features/stacks/JobTrayView.svelte';
+	import { RemoveOrphansRequest } from '$lib/features/stacks/deploy.svelte';
 	import { canAnywhere, shortHash, stackTitle } from '$lib/features/stacks/model';
 	import { stackQuery } from '$lib/features/stacks/queries';
 	import StackHeader from '$lib/features/stacks/StackHeader.svelte';
@@ -42,6 +43,7 @@
 	const environment = $derived(envs.data?.find((e) => e.id === s?.environmentId));
 	const title = $derived(s ? stackTitle(s) : 'Stack');
 	const tray = new JobTray();
+	const removeOrphans = new RemoveOrphansRequest();
 	// The layout stays mounted when another stack opens: start its tray empty.
 	let trayFor = '';
 	$effect(() => {
@@ -63,7 +65,8 @@
 		get environment() {
 			return environment;
 		},
-		tray
+		tray,
+		removeOrphans
 	});
 
 	// The migration wizard is a page of its own, without the tabs.
@@ -166,7 +169,7 @@
 	/>
 {:else if s}
 	<div class="page">
-		<StackHeader stack={s} {environment} {tray} />
+		<StackHeader stack={s} {environment} {tray} {removeOrphans} />
 
 		{#if offline}
 			<OfflineEnvironment

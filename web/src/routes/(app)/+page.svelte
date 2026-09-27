@@ -1,8 +1,8 @@
 <script lang="ts">
 	// Dashboard (#5, #22): every environment the user can reach, with status,
 	// Engine, CPU and memory (the last 30 minutes as sparklines), Docker
-	// counts, undeployed changes and available updates, plus recent jobs and
-	// failures. Everything is live: overview and charts are keyed with
+	// counts, undeployed changes and available updates, plus failed jobs of
+	// the last 24 hours. Everything is live: overview and charts are keyed with
 	// liveKeys, so connection, inventory and metrics events refresh them. A
 	// Restricted user sees the calm denied state (#17).
 	import { createQuery } from '@tanstack/svelte-query';
@@ -22,8 +22,7 @@
 	} from '$lib/api/queries';
 	import EnvironmentCard from '$lib/features/dashboard/EnvironmentCard.svelte';
 	import { dashboardTotals, perEnvironment } from '$lib/features/dashboard/totals';
-	import JobsTable from '$lib/features/jobs/JobsTable.svelte';
-	import { jobKindLabel, stackNames } from '$lib/features/jobs/labels';
+	import { jobKindLabel } from '$lib/features/jobs/labels';
 	import { routes } from '$lib/routes';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { accessOf, hasAny, isRestricted } from '$lib/shell/nav';
@@ -68,7 +67,6 @@
 		)
 	);
 	const since = $derived(new Map((envList.data ?? []).map((e) => [e.id, e.connectionChangedAt])));
-	const names = $derived(new Map((overview.data?.environments ?? []).map((e) => [e.id, e.name])));
 	const counts = $derived(perEnvironment(stacks.data, updates.data));
 	const recent = $derived(
 		(jobs.data?.items ?? []).filter(
@@ -232,43 +230,6 @@
 					</div>
 				{/if}
 			</section>
-
-			<Card title="Recent jobs" padding="none" id="recent-jobs">
-				{#snippet actions()}
-					<a href={routes.jobs()} class="more">View all jobs</a>
-				{/snippet}
-				{#if jobs.isPending}
-					<div class="table-skeleton" aria-busy="true">
-						<Skeleton lines={4} height="20px" />
-					</div>
-				{:else if jobs.isError}
-					<div class="table-skeleton">
-						<ErrorState
-							error={jobs.error}
-							title="Recent jobs could not be loaded."
-							onretry={() => jobs.refetch()}
-							compact
-						/>
-					</div>
-				{:else}
-					<JobsTable
-						jobs={recent.slice(0, 8)}
-						label="Recent jobs"
-						environments={names}
-						nameOf={stackNames(stacks.data)}
-						compact
-					>
-						{#snippet empty()}
-							<EmptyState
-								title="No jobs yet."
-								description="Deploys, updates, backups and prunes show up here while they run and after they finish."
-								level={3}
-								compact
-							/>
-						{/snippet}
-					</JobsTable>
-				{/if}
-			</Card>
 		{/if}
 	</div>
 {/if}
@@ -356,9 +317,5 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
-	}
-
-	.table-skeleton {
-		padding: var(--space-4) var(--space-5) var(--space-5);
 	}
 </style>

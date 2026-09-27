@@ -205,6 +205,7 @@ for overlap prevention.
 | `update_policy.manage` | create (in the environment), edit, delete |
 | `update.check` | checks and previews |
 | `update.run` | runs |
+| `stack.update` | `POST /stacks/{id}/pulls`: a `stack.pull` job pulls the stack's images on demand without recreating anything (agents announcing `stack.pull`; 501 `agent_unsupported` otherwise). Its finish hook (`stacks.Service`) marks each applied image whose reference now names another image ID (`StackImage.PulledImageID`, shown by `image-status` as `pulledImageId`) until the next deploy; nothing else about the stack changes. |
 
 Single-environment policy capabilities can be granted in that environment;
 an All Environments policy requires the owner-only

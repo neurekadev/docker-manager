@@ -237,46 +237,6 @@ export function containerStatus(c: { state: string; health?: string }): string {
 	return c.state;
 }
 
-export interface ContainerFilter {
-	q: string;
-	state: string;
-	/** '' all, '-' standalone only, else a Compose project. */
-	stack: string;
-	/** "key" or "key=value" (full view only). */
-	label: string;
-}
-
-/** Applies the list filters (#6: state, stack, label, name/image text). */
-export function filterContainers<
-	T extends {
-		name: string;
-		image?: string;
-		state: string;
-		stack?: { project: string };
-		labels?: Record<string, string>;
-	}
->(rows: readonly T[], f: ContainerFilter): T[] {
-	const q = f.q.trim().toLowerCase();
-	const [lk, lv] = f.label.includes('=')
-		? [
-				f.label.slice(0, f.label.indexOf('=')).trim(),
-				f.label.slice(f.label.indexOf('=') + 1).trim()
-			]
-		: [f.label.trim(), undefined];
-	return rows.filter((c) => {
-		if (q && !c.name.toLowerCase().includes(q) && !(c.image ?? '').toLowerCase().includes(q))
-			return false;
-		if (f.state && c.state !== f.state) return false;
-		if (f.stack === '-' && c.stack) return false;
-		if (f.stack && f.stack !== '-' && c.stack?.project !== f.stack) return false;
-		if (lk) {
-			const v = c.labels?.[lk];
-			if (v === undefined || (lv !== undefined && v !== lv)) return false;
-		}
-		return true;
-	});
-}
-
 /**
  * The short form Docker lists references in: "docker.io/library/nginx" →
  * "nginx", "docker.io/acme/app" → "acme/app", and ":latest" when no tag or

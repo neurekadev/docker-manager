@@ -20,10 +20,12 @@ roadmap and decisions.
 ## Local checks and CI
 
 Forgejo CI is the gate for `main`: its `Lint`, `Unit Tests` and `Build`
-jobs run on every push and images are published only when they pass. Before
-pushing, run the fast checks for what you changed (gofmt, Prettier, `go vet`
-and `go test` of the changed packages, the related web tests).
-`bash scripts/check.sh` mirrors the three CI jobs for a full local run; it
+jobs run on every push and images are published only when they pass. Tests
+run in CI, not locally: before pushing, run only the fast non-test checks
+for what you changed (gofmt, Prettier, `go build`/`go vet` of the changed
+packages, `bash scripts/generate.sh` for generated artifacts).
+`bash scripts/check.sh` mirrors the three CI jobs for an explicitly
+requested full local run; it
 fails fast with a summary. Run one or more classes with
 `bash scripts/check.sh lint|unit-tests|build`:
 

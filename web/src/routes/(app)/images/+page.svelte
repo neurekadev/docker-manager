@@ -1,8 +1,10 @@
 <script lang="ts">
 	// Images (#6): every image of the selected environment (or all), with
 	// its tags, size, and whether containers use it; untagged (dangling)
-	// images are marked. Pull (#19 registry connection preview), tag and
-	// remove (in-use check) from here; builds (#33) have their own page.
+	// images are marked. Searched by tag, ID or digest and filtered by
+	// usage, tags, Docker Manager and environment (ListCard). Pull
+	// (#19 registry connection preview), tag and remove (in-use check) from
+	// here; builds (#33) have their own page.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Box from '@lucide/svelte/icons/box';
 	import Download from '@lucide/svelte/icons/download';
@@ -14,17 +16,14 @@
 	import {
 		Badge,
 		Button,
-		Card,
 		DeniedState,
 		EmptyState,
 		ErrorState,
 		IconButton,
 		Menu,
 		PageHeader,
-		Select,
 		Skeleton,
 		Table,
-		TextField,
 		formatBytes,
 		formatRelative,
 		type Column,
@@ -33,11 +32,20 @@
 	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import ImageActionHost from '$lib/features/resources/ImageActionHost.svelte';
+	import ListCard from '$lib/features/resources/ListCard.svelte';
+	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
 	import PullImageDialog from '$lib/features/resources/PullImageDialog.svelte';
-	import Toolbar from '$lib/features/resources/Toolbar.svelte';
 	import { ChangeTracker } from '$lib/features/resources/changes.svelte';
+	import {
+		applyListFilters,
+		imageFilters,
+		imageSearch,
+		isFiltering,
+		listSummary
+	} from '$lib/features/resources/filters';
+	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import { shortDigest } from '$lib/features/resources/model';
 	import { can } from '$lib/features/resources/permissions';
 	import { useEnvironmentScope } from '$lib/features/resources/scope.svelte';
@@ -50,28 +58,14 @@
 		enabled: scope.ready && scope.targets.length > 0
 	}));
 
-	let q = $state('');
-	let show = $state('');
+	const filters = new ListFilters('images');
 	let pullOpen = $state(false);
 	let host = $state<ImageActionHost>();
 
 	const all = $derived(list.data?.items ?? []);
-	const rows = $derived(
-		all.filter((im) => {
-			const needle = q.trim().toLowerCase();
-			if (
-				needle &&
-				!im.repoTags.some((t) => t.toLowerCase().includes(needle)) &&
-				!im.id.includes(needle)
-			)
-				return false;
-			if (show === 'used' && !im.inUse) return false;
-			if (show === 'unused' && im.inUse) return false;
-			if (show === 'untagged' && im.repoTags.length > 0) return false;
-			return true;
-		})
-	);
-	const filtered = $derived(!!(q || show));
+	const defs = $derived(imageFilters({ envs: scope.single ? [] : scope.targets }));
+	const rows = $derived(applyListFilters(all, defs, filters.state, imageSearch));
+	const filtered = $derived(isFiltering(defs, filters.state));
 	const pullable = $derived(scope.creatable('image.pull'));
 	const totalSize = $derived(rows.reduce((n, im) => n + (im.size ?? 0), 0));
 	const key = (im: Image) => `${im.environmentId}/${im.id}`;
@@ -233,31 +227,6 @@
 			/>
 		{/if}
 
-		<Toolbar
-			label="Filter images"
-			summary={list.data
-				? `${filtered ? `${rows.length} of ${all.length}` : all.length} images, ${formatBytes(totalSize)}`
-				: undefined}
-		>
-			<TextField
-				label="Search images"
-				hideLabel
-				type="search"
-				placeholder="Search by tag or ID"
-				bind:value={q}
-			/>
-			<Select
-				label="Show"
-				bind:value={show}
-				options={[
-					{ value: '', label: 'All images' },
-					{ value: 'used', label: 'Used by containers' },
-					{ value: 'unused', label: 'Unused' },
-					{ value: 'untagged', label: 'Untagged (dangling)' }
-				]}
-			/>
-		</Toolbar>
-
 		{#if list.isError}
 			<ErrorState
 				error={list.error}
@@ -265,7 +234,18 @@
 				onretry={() => list.refetch()}
 			/>
 		{:else}
-			<Card padding="none">
+			<ListCard
+				title="All images"
+				id="images"
+				summary={list.data
+					? `${listSummary(rows.length, all.length, filtered, 'image', 'images')}, ${formatBytes(totalSize)}`
+					: undefined}
+				label="Filter images"
+				searchLabel="Search images"
+				placeholder="Search by tag or ID"
+				filters={defs}
+				store={filters}
+			>
 				{#if !list.data}
 					<div class="loading" aria-busy="true"><Skeleton lines={6} height="20px" /></div>
 				{:else}
@@ -279,21 +259,11 @@
 					>
 						{#snippet empty()}
 							{#if filtered}
-								<EmptyState
+								<NoMatches
+									what="images"
 									icon={Box}
-									color="slate"
-									title="No images match these filters."
-									level={2}
-									compact
-								>
-									{#snippet actions()}
-										<Button
-											variant="secondary"
-											onclick={() => ((q = ''), (show = ''))}
-											>Clear filters</Button
-										>
-									{/snippet}
-								</EmptyState>
+									onclear={() => filters.clear()}
+								/>
 							{:else}
 								<EmptyState
 									icon={Box}
@@ -302,7 +272,7 @@
 										? scope.targets[0]?.name
 										: 'your environments'} yet."
 									description="Pull an image from a registry, or build one from a Git repository."
-									level={2}
+									level={3}
 									compact
 								>
 									{#snippet actions()}
@@ -319,7 +289,7 @@
 						{/snippet}
 					</Table>
 				{/if}
-			</Card>
+			</ListCard>
 		{/if}
 	</Page>
 {/if}

@@ -1,9 +1,11 @@
 <script lang="ts">
 	// Containers (#6): every container of the selected environment (or of
-	// all visible ones), filtered by name/image, state, stack and label,
+	// all visible ones), searched by name/image and filtered by status,
+	// stack, image update, Docker Manager, label and environment
+	// (kept per list and browser tab, ListCard),
 	// with a live uptime (ticking every second), CPU and memory from the
 	// newest 10 s samples (#5, refreshed by metrics events) and addresses.
-	// Docker Manager's own containers carry the "Docker Manager system" badge (#32),
+	// Docker Manager's own containers carry the "Docker Manager" badge (#32),
 	// containers of a Compose project their stack. Row actions follow the
 	// container's state and granted actions (#17); refusals show the
 	// server's reason.
@@ -17,18 +19,15 @@
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Button,
-		Card,
 		DeniedState,
 		EmptyState,
 		ErrorState,
 		IconButton,
 		Menu,
 		PageHeader,
-		Select,
 		Skeleton,
 		StatusBadge,
 		Table,
-		TextField,
 		Uptime,
 		formatBytes,
 		formatPercent,
@@ -40,17 +39,25 @@
 	import ContainerActionHost from '$lib/features/resources/ContainerActionHost.svelte';
 	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
+	import ListCard from '$lib/features/resources/ListCard.svelte';
+	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
 	import StackBadge from '$lib/features/resources/StackBadge.svelte';
-	import Toolbar from '$lib/features/resources/Toolbar.svelte';
 	import { ChangeTracker } from '$lib/features/resources/changes.svelte';
 	import { containerActions } from '$lib/features/resources/container-actions';
 	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
 	import {
+		applyListFilters,
+		containerFilters,
+		containerSearch,
+		isFiltering,
+		listSummary
+	} from '$lib/features/resources/filters';
+	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
+	import {
 		containerAddresses,
 		containerStatus,
-		filterContainers,
 		portText,
 		uniquePorts,
 		upSince,
@@ -87,20 +94,13 @@
 		c.state === 'running' ? samples.get(`${c.environmentId}/${c.name}`) : undefined;
 	const addresses = (c: Container) => containerAddresses([c.networks]);
 
-	let q = $state('');
-	let stateFilter = $state('');
-	let stackFilter = $state('');
-	let labelFilter = $state('');
+	const filters = new ListFilters('containers');
 	let host = $state<ContainerActionHost>();
 
 	const all = $derived(list.data?.items ?? []);
-	const rows = $derived(
-		filterContainers(all, { q, state: stateFilter, stack: stackFilter, label: labelFilter })
-	);
-	const filtered = $derived(!!(q || stateFilter || stackFilter || labelFilter));
-	const projects = $derived(
-		[...new Set(all.flatMap((c) => (c.stack ? [c.stack.project] : [])))].sort()
-	);
+	const defs = $derived(containerFilters(all, { envs: scope.single ? [] : scope.targets }));
+	const rows = $derived(applyListFilters(all, defs, filters.state, containerSearch));
+	const filtered = $derived(isFiltering(defs, filters.state));
 	const creatable = $derived(scope.creatable('container.create'));
 	const key = (c: Container) => `${c.environmentId}/${c.name}`;
 
@@ -124,13 +124,6 @@
 				onSelect: () => host?.request(c, a.verb)
 			});
 		return entries;
-	}
-
-	function clearFilters() {
-		q = '';
-		stateFilter = '';
-		stackFilter = '';
-		labelFilter = '';
 	}
 
 	const columns: Column<Container>[] = $derived([
@@ -314,53 +307,6 @@
 			/>
 		{/if}
 
-		<Toolbar
-			label="Filter containers"
-			summary={list.data
-				? filtered
-					? `${rows.length} of ${all.length} containers`
-					: `${all.length} containers`
-				: undefined}
-		>
-			<TextField
-				label="Search containers"
-				hideLabel
-				type="search"
-				placeholder="Search by name or image"
-				bind:value={q}
-			/>
-			<Select
-				label="State"
-				bind:value={stateFilter}
-				options={[
-					{ value: '', label: 'All states' },
-					{ value: 'running', label: 'Running' },
-					{ value: 'paused', label: 'Paused' },
-					{ value: 'restarting', label: 'Restarting' },
-					{ value: 'exited', label: 'Exited' },
-					{ value: 'created', label: 'Created' },
-					{ value: 'dead', label: 'Dead' }
-				]}
-			/>
-			<Select
-				label="Stack"
-				bind:value={stackFilter}
-				options={[
-					{ value: '', label: 'All stacks' },
-					{ value: '-', label: 'Standalone only' },
-					...projects.map((p) => ({ value: p, label: p }))
-				]}
-			/>
-			<TextField
-				label="Label"
-				placeholder="key or key=value"
-				mono
-				bind:value={labelFilter}
-				autocomplete="off"
-				spellcheck="false"
-			/>
-		</Toolbar>
-
 		{#if list.isError}
 			<ErrorState
 				error={list.error}
@@ -368,7 +314,18 @@
 				onretry={() => list.refetch()}
 			/>
 		{:else}
-			<Card padding="none">
+			<ListCard
+				title="All containers"
+				id="containers"
+				summary={list.data
+					? listSummary(rows.length, all.length, filtered, 'container', 'containers')
+					: undefined}
+				label="Filter containers"
+				searchLabel="Search containers"
+				placeholder="Search by name or image"
+				filters={defs}
+				store={filters}
+			>
 				{#if !list.data && (list.isPending || !scope.ready)}
 					<div class="loading" aria-busy="true">
 						<Skeleton lines={6} height="20px" />
@@ -384,20 +341,11 @@
 					>
 						{#snippet empty()}
 							{#if filtered}
-								<EmptyState
+								<NoMatches
+									what="containers"
 									icon={ContainerIcon}
-									color="slate"
-									title="No containers match these filters."
-									description="Change the filters or clear them to see every container."
-									level={2}
-									compact
-								>
-									{#snippet actions()}
-										<Button variant="secondary" onclick={clearFilters}
-											>Clear filters</Button
-										>
-									{/snippet}
-								</EmptyState>
+									onclear={() => filters.clear()}
+								/>
 							{:else}
 								<EmptyState
 									icon={ContainerIcon}
@@ -406,7 +354,7 @@
 										? scope.targets[0]?.name
 										: 'your environments'} yet."
 									description="Create a container from an image, or deploy a Compose stack for anything with several services."
-									level={2}
+									level={3}
 									compact
 								>
 									{#snippet actions()}
@@ -430,7 +378,7 @@
 						{/snippet}
 					</Table>
 				{/if}
-			</Card>
+			</ListCard>
 		{/if}
 	</Page>
 {/if}

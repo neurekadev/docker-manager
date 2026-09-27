@@ -136,6 +136,17 @@ loading/denied/not-found/error states, `Facts`, `NameCell`, `Fields`,
 still follow `liveKeys` (a feature marker after `'list'` keeps cached
 shapes apart).
 
+The section lists (containers, images, volumes, networks, stacks) share
+`$lib/features/resources/ListCard.svelte`: the "All …" card with the
+search and filters in its header. Each page builds its `ListFilter`s
+from its rows (`filters.ts`; stacks: `$lib/features/stacks/filters.ts`),
+filters with `applyListFilters` and keeps the state in a `ListFilters`
+store (`list-filters.svelte.ts`): `sessionStorage` under
+`docker-manager:list-filters:<list>`, so each list keeps its own search
+and filters per browser tab when the user leaves and comes back. The
+stored value is parsed defensively (anything but short strings is
+dropped); without `sessionStorage` it lives in memory.
+
 The permission editor of #17 (the design's "PermissionTree") is
 `$lib/features/access/PermissionEditor.svelte`: a searchable resource tree
 (`ResourceTree`, categories in `tree.ts`) beside the actions of the chosen
@@ -144,6 +155,19 @@ scope (`ActionMatrix`), in three modes: `group` (No rule / Allow / Deny),
 `token` (grants limited to what the caller holds, #31). Rule logic
 (scope keys, diffs, inheritance precedence) is in `permissions.ts`;
 `RulesSaveBar` lists every change before the revisioned, step-up save.
+
+Stack actions that start jobs go through `$lib/features/stacks/deploy.svelte.ts`
+(`startDeploy`, `startPull`) and the page's `JobTray`: a tracked job's
+`successFor` computes the success toast once it ended, from data read
+again (a deploy whose `appliedRevision.at` did not move started no
+container: "Nothing to deploy"; a pull names the services whose
+image-status gained a `pulledImageId`). The Deploy split button deploys at
+once; its menu has "Build and deploy" and "Deploy and remove orphaned
+containers…", whose confirmation (`RemoveOrphansDialog`, opened through the
+stack page context's `removeOrphans` request) the overview's drift notice
+opens too. Pull (`stack.update`) only downloads images. Rename
+(`RenameStackDialog`, `stack.rename`) previews the new project name before
+the type-to-confirm.
 
 Changes the manager guards with recent authentication answer
 `403 step_up_required`; wrap the call in `withStepUp(() => …)` from

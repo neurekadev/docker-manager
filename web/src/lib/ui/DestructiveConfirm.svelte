@@ -9,10 +9,11 @@
 <script lang="ts">
 	// Type-to-confirm for high-impact actions (#22): lists what will happen
 	// and every affected resource, and enables the danger button only after
-	// the user typed `confirmText` (usually the resource name) exactly.
+	// the user typed `confirmText` (usually the resource name) exactly. The
+	// name is shown as a code block with a copy button (TypeToConfirm).
 	import type { Snippet } from 'svelte';
 	import ConfirmDialog from './ConfirmDialog.svelte';
-	import Field from './Field.svelte';
+	import TypeToConfirm from './TypeToConfirm.svelte';
 
 	interface Props {
 		open?: boolean;
@@ -25,6 +26,10 @@
 		onconfirm: () => unknown | Promise<unknown>;
 		/** Extra content before the affected list (e.g. a "migrate first" offer). */
 		extra?: Snippet;
+		/** Another condition besides the typed text (e.g. a preview without blockers). */
+		canConfirm?: boolean;
+		/** md or lg when extra shows a form or preview. */
+		size?: 'sm' | 'md' | 'lg';
 	}
 
 	let {
@@ -35,7 +40,9 @@
 		confirmText,
 		confirmLabel,
 		onconfirm,
-		extra
+		extra,
+		canConfirm = true,
+		size = 'sm'
 	}: Props = $props();
 
 	let typed = $state('');
@@ -52,7 +59,8 @@
 	{confirmLabel}
 	tone="danger"
 	{onconfirm}
-	canConfirm={matches}
+	{size}
+	canConfirm={matches && canConfirm}
 >
 	{#if extra}{@render extra()}{/if}
 	{#if affected.length}
@@ -70,19 +78,7 @@
 		</div>
 	{/if}
 	<div class="type">
-		<Field label="Type {confirmText} to confirm">
-			{#snippet children(c)}
-				<input
-					id={c.id}
-					class="dy-input mono"
-					bind:value={typed}
-					autocomplete="off"
-					spellcheck="false"
-					autocapitalize="off"
-					aria-describedby={c.describedBy}
-				/>
-			{/snippet}
-		</Field>
+		<TypeToConfirm text={confirmText} bind:value={typed} />
 	</div>
 </ConfirmDialog>
 

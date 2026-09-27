@@ -1,6 +1,8 @@
 <script lang="ts">
-	// Volumes (#6): every volume of the selected environment (or all), who
-	// uses it, its driver and whether Docker Manager can open its files (#28:
+	// Volumes (#6): every volume of the selected environment (or all),
+	// searched by name or stack and filtered by usage, stack, file access,
+	// driver, Docker Manager and environment (ListCard); who uses
+	// it, its driver and whether Docker Manager can open its files (#28:
 	// non-local drivers and NFS/CIFS-backed volumes are read-only, with the
 	// reason). Docker Manager's own volumes (#32) are marked and never removed.
 	// Sizes load separately (the Engine walks the volumes; the manager
@@ -15,17 +17,14 @@
 	import {
 		Badge,
 		Button,
-		Card,
 		DeniedState,
 		EmptyState,
 		ErrorState,
 		IconButton,
 		Menu,
 		PageHeader,
-		Select,
 		Skeleton,
 		Table,
-		TextField,
 		formatBytes,
 		formatRelative,
 		type Column,
@@ -35,10 +34,19 @@
 	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import ObjectRemoveHost from '$lib/features/resources/ObjectRemoveHost.svelte';
+	import ListCard from '$lib/features/resources/ListCard.svelte';
+	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
 	import StackBadge from '$lib/features/resources/StackBadge.svelte';
-	import Toolbar from '$lib/features/resources/Toolbar.svelte';
+	import {
+		applyListFilters,
+		isFiltering,
+		listSummary,
+		volumeFilters,
+		volumeSearch
+	} from '$lib/features/resources/filters';
+	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import { ChangeTracker } from '$lib/features/resources/changes.svelte';
 	import { volumeAccess } from '$lib/features/resources/model';
 	import { can } from '$lib/features/resources/permissions';
@@ -111,25 +119,14 @@
 		return s.state === 'known' ? s.bytes : null;
 	};
 
-	let q = $state('');
-	let use = $state('');
-	let access = $state('');
+	const filters = new ListFilters('volumes');
 	let createOpen = $state(false);
 	let remover = $state<ObjectRemoveHost>();
 
 	const all = $derived(list.data?.items ?? []);
-	const rows = $derived(
-		all.filter((v) => {
-			if (q.trim() && !v.name.toLowerCase().includes(q.trim().toLowerCase())) return false;
-			if (use === 'used' && !v.inUse) return false;
-			if (use === 'unused' && v.inUse) return false;
-			const local = volumeAccess(v).local;
-			if (access === 'local' && !local) return false;
-			if (access === 'readonly' && local) return false;
-			return true;
-		})
-	);
-	const filtered = $derived(!!(q || use || access));
+	const defs = $derived(volumeFilters(all, { envs: scope.single ? [] : scope.targets }));
+	const rows = $derived(applyListFilters(all, defs, filters.state, volumeSearch));
+	const filtered = $derived(isFiltering(defs, filters.state));
 	const creatable = $derived(scope.creatable('volume.create'));
 	const key = (v: Volume) => `${v.environmentId}/${v.name}`;
 	const tracker = new ChangeTracker<Volume>(key, (v) => `${v.inUse}/${v.usedBy?.length ?? 0}`);
@@ -326,41 +323,6 @@
 			/>
 		{/if}
 
-		<Toolbar
-			label="Filter volumes"
-			summary={list.data
-				? filtered
-					? `${rows.length} of ${all.length} volumes`
-					: `${all.length} volumes`
-				: undefined}
-		>
-			<TextField
-				label="Search volumes"
-				hideLabel
-				type="search"
-				placeholder="Search by name"
-				bind:value={q}
-			/>
-			<Select
-				label="Usage"
-				bind:value={use}
-				options={[
-					{ value: '', label: 'All volumes' },
-					{ value: 'used', label: 'Used by containers' },
-					{ value: 'unused', label: 'Unused' }
-				]}
-			/>
-			<Select
-				label="Files"
-				bind:value={access}
-				options={[
-					{ value: '', label: 'Local and read-only' },
-					{ value: 'local', label: 'Local only' },
-					{ value: 'readonly', label: 'Read-only only' }
-				]}
-			/>
-		</Toolbar>
-
 		{#if list.isError}
 			<ErrorState
 				error={list.error}
@@ -368,7 +330,18 @@
 				onretry={() => list.refetch()}
 			/>
 		{:else}
-			<Card padding="none">
+			<ListCard
+				title="All volumes"
+				id="volumes"
+				summary={list.data
+					? listSummary(rows.length, all.length, filtered, 'volume', 'volumes')
+					: undefined}
+				label="Filter volumes"
+				searchLabel="Search volumes"
+				placeholder="Search by name"
+				filters={defs}
+				store={filters}
+			>
 				{#if !list.data}
 					<div class="loading" aria-busy="true"><Skeleton lines={6} height="20px" /></div>
 				{:else}
@@ -382,21 +355,11 @@
 					>
 						{#snippet empty()}
 							{#if filtered}
-								<EmptyState
+								<NoMatches
+									what="volumes"
 									icon={HardDrive}
-									color="slate"
-									title="No volumes match these filters."
-									level={2}
-									compact
-								>
-									{#snippet actions()}
-										<Button
-											variant="secondary"
-											onclick={() => ((q = ''), (use = ''), (access = ''))}
-											>Clear filters</Button
-										>
-									{/snippet}
-								</EmptyState>
+									onclear={() => filters.clear()}
+								/>
 							{:else}
 								<EmptyState
 									icon={HardDrive}
@@ -405,7 +368,7 @@
 										? scope.targets[0]?.name
 										: 'your environments'} yet."
 									description="Create a volume for data that must outlive its containers, or let a stack create its own."
-									level={2}
+									level={3}
 									compact
 								>
 									{#snippet actions()}
@@ -423,7 +386,7 @@
 						{/snippet}
 					</Table>
 				{/if}
-			</Card>
+			</ListCard>
 		{/if}
 	</Page>
 {/if}

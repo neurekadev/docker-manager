@@ -21,9 +21,23 @@ export function deployStack(
 	mode: DeployMode,
 	client: ApiClient = api
 ): Promise<Job> {
+	return deployStackWith(stackId, { pull: mode === 'pull', build: mode === 'build' }, client);
+}
+
+/**
+ * POST /stacks/{id}/deployments with options: pull every image first,
+ * rebuild the build sections, and/or remove the containers of services no
+ * longer in the Compose file (orphans; a plain deploy keeps them).
+ */
+export function deployStackWith(
+	stackId: string,
+	options: { pull?: boolean; build?: boolean; removeOrphans?: boolean },
+	client: ApiClient = api
+): Promise<Job> {
 	const body: Schema<'DeployStackInputBody'> = {};
-	if (mode === 'pull') body.pull = 'always';
-	if (mode === 'build') body.build = true;
+	if (options.pull) body.pull = 'always';
+	if (options.build) body.build = true;
+	if (options.removeOrphans) body.removeOrphans = true;
 	return unwrap(
 		client.POST('/api/v1/stacks/{stackId}/deployments', {
 			params: { path: { stackId }, header: { 'Idempotency-Key': key() } },
@@ -64,6 +78,18 @@ export function deleteStack(
 				header: { 'Idempotency-Key': key() },
 				query: options.removeVolumes ? { removeVolumes: true } : undefined
 			}
+		})
+	);
+}
+
+/**
+ * POST /stacks/{id}/pulls: a stack.pull job downloads the stack's images
+ * without touching a container; the next deploy runs them.
+ */
+export function pullStack(stackId: string, client: ApiClient = api): Promise<Job> {
+	return unwrap(
+		client.POST('/api/v1/stacks/{stackId}/pulls', {
+			params: { path: { stackId }, header: { 'Idempotency-Key': key() } }
 		})
 	);
 }
@@ -149,6 +175,44 @@ export function importStackByCopy(
 		client.POST('/api/v1/environments/{environmentId}/stacks/import-copies', {
 			params: { path: { environmentId }, header: { 'Idempotency-Key': key() } },
 			body
+		})
+	);
+}
+
+/**
+ * POST /stacks/{id}/rename-previews: what renaming the stack's Compose
+ * project to `name` does (volumes, outside containers, blockers). Changes
+ * nothing.
+ */
+export function previewRename(
+	stackId: string,
+	name: string,
+	client: ApiClient = api
+): Promise<Schema<'StackRenamePreview'>> {
+	return unwrap(
+		client.POST('/api/v1/stacks/{stackId}/rename-previews', {
+			params: { path: { stackId } },
+			body: { name }
+		})
+	);
+}
+
+/**
+ * POST /stacks/{id}/renames: a stack.rename job moves the project, its
+ * volumes and directory to `name` (If-Match with the loaded revision).
+ */
+export function renameStack(
+	stack: Pick<Stack, 'id' | 'revision'>,
+	name: string,
+	client: ApiClient = api
+): Promise<Job> {
+	return unwrap(
+		client.POST('/api/v1/stacks/{stackId}/renames', {
+			params: {
+				path: { stackId: stack.id },
+				header: { 'If-Match': etag(stack.revision), 'Idempotency-Key': key() }
+			},
+			body: { name }
 		})
 	);
 }

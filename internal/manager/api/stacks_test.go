@@ -29,6 +29,9 @@ type fakeStacks struct {
 	online  bool
 	patches int
 	builds  []domain.StackBuildOptions
+	// renames are the requested new names; renamePlan the preview.
+	renames    []string
+	renamePlan domain.StackRenamePlan
 }
 
 const secretBind = "/srv/secret-bind-path"
@@ -184,6 +187,26 @@ func (f *fakeStacks) ImportCopy(_ context.Context, _ authz.Principal, r domain.S
 		Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: st.ID}}}, nil
 }
 
+func (f *fakeStacks) PreviewRename(_ context.Context, st domain.Stack, name string) (domain.StackRenamePlan, error) {
+	if f.err != nil {
+		return domain.StackRenamePlan{}, f.err
+	}
+	p := f.renamePlan
+	p.From, p.To, p.FromDir, p.ToDir = st.Name, name, st.Dir, name
+	return p, nil
+}
+
+func (f *fakeStacks) Pull(_ context.Context, _ authz.Principal, st domain.Stack, _ domain.StackJobRequest) (domain.Job, error) {
+	return f.job("stack.pull", st)
+}
+
+func (f *fakeStacks) Rename(_ context.Context, _ authz.Principal, st domain.Stack, name string, _ domain.StackJobRequest) (domain.Job, error) {
+	f.mu.Lock()
+	f.renames = append(f.renames, name)
+	f.mu.Unlock()
+	return f.job("stack.rename", st)
+}
+
 // fakeStacksRoot is the stacks volume's host path in the fake (#22 header).
 const fakeStacksRoot = "/var/lib/docker/volumes/docker-manager_stacks/_data"
 
@@ -248,10 +271,12 @@ func stackRoutesFor(t *testing.T, stackID string) []authztest.Call {
 			calls[i].Body = map[string]any{"revisionId": "rev-3"}
 		case "create-stack-import", "create-stack-import-copy":
 			calls[i].Body = map[string]any{"projectName": "legacy"}
+		case "create-stack-rename-preview", "create-stack-rename":
+			calls[i].Body = map[string]any{"name": "store"}
 		}
 	}
-	if len(calls) != 18 {
-		t.Fatalf("%d stack routes, want 18", len(calls))
+	if len(calls) != 21 {
+		t.Fatalf("%d stack routes, want 21", len(calls))
 	}
 	return calls
 }
@@ -393,6 +418,24 @@ func TestStackOperationSelectsCapability(t *testing.T) {
 	}
 }
 
+// TestStackPullNeedsStackUpdate: pulling without deploying is stack.update's
+// (stack.deploy does not open it) and starts a stack.pull job.
+func TestStackPullNeedsStackUpdate(t *testing.T) {
+	h, svc := stacksAPIFor(t, authztest.Only("up", "allow stack.update @stack:st-1"))
+	allowed, denied := authztest.Split(stackRoutes(t), "stack.update")
+	allowed, denied = authztest.Discoverable(allowed, denied, "list-stacks", "get-stack")
+	authztest.AssertOnly(t, h, "up", allowed, denied)
+	svc.jobs = nil
+	r := authztest.Do(t, h, "up", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/pulls"})
+	if r.Status != http.StatusAccepted || r.Header.Get("Location") != "/api/v1/jobs/job-1" || !slices.Equal(svc.jobs, []domain.JobKind{"stack.pull"}) {
+		t.Fatalf("pull %d %s %v", r.Status, r.Body, svc.jobs)
+	}
+	h, _ = stacksAPIFor(t, authztest.Only("dev", "allow stack.deploy @stack:st-1"))
+	if r := authztest.Do(t, h, "dev", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/pulls"}); r.Status != http.StatusForbidden {
+		t.Errorf("pull with stack.deploy: %d", r.Status)
+	}
+}
+
 func TestStackErrorMapping(t *testing.T) {
 	h, svc := stacksAPIFor(t, authztest.New().Owner("own"))
 	create := func() Response {
@@ -469,6 +512,101 @@ func TestStackErrorMapping(t *testing.T) {
 	rr = authztest.Do(t, h, "own", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1"})
 	if !strings.Contains(string(rr.Body), `"readOnly":true`) {
 		t.Errorf("offline get %s", rr.Body)
+	}
+}
+
+// TestStackRenameNeedsItsOwnCapability (#7): only stack.rename opens the
+// rename preview and the rename (stack.manage edits display settings);
+// the rename needs If-Match, enqueues stack.rename and outside containers
+// the caller cannot see are counted, never named.
+func TestStackRenameNeedsItsOwnCapability(t *testing.T) {
+	h, svc := stacksAPIFor(t, authztest.Only("ren", "allow stack.rename @stack:st-1"))
+	allowed, denied := authztest.Split(stackRoutes(t), "stack.rename")
+	allowed, denied = authztest.Discoverable(allowed, denied, "list-stacks", "get-stack")
+	authztest.AssertOnly(t, h, "ren", allowed, denied)
+	r := authztest.Do(t, h, "ren", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1"})
+	var st Stack
+	if json.Unmarshal(r.Body, &st) != nil || !slices.Contains(st.Actions, "stack.rename") {
+		t.Fatalf("actions %s", r.Body)
+	}
+	svc.jobs, svc.renames = nil, nil
+	svc.renamePlan = domain.StackRenamePlan{Running: []string{"web"},
+		Volumes:    []domain.StackRenameVolume{{Key: "data", Name: "shop_data", NewName: "store_data", Action: domain.RenameVolumeMove}},
+		Containers: []domain.StackRenameContainer{{ID: "c-backup", Name: "secret-backup", Running: true, Volumes: []string{"shop_data"}}}}
+	r = authztest.Do(t, h, "ren", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/rename-previews", Body: map[string]any{"name": "store"}})
+	var prev StackRenamePreview
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &prev) != nil {
+		t.Fatalf("preview %d %s", r.Status, r.Body)
+	}
+	if prev.From != "shop" || prev.To != "store" || len(prev.Volumes) != 1 || prev.Volumes[0].Action != "move" ||
+		len(prev.Containers) != 1 || !prev.Containers[0].Hidden || prev.Blockers == nil {
+		t.Errorf("preview %+v", prev)
+	}
+	authztest.AssertAbsent(t, "hidden outside container", r.Body, "secret-backup", "c-backup")
+	if len(svc.jobs) != 0 {
+		t.Errorf("the preview queued %v", svc.jobs)
+	}
+	// If-Match is required and must be current.
+	do := func(headers map[string]string) Response {
+		rr := authztest.Do(t, h, "ren", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/renames", Headers: headers,
+			Body: map[string]any{"name": "store"}})
+		var e Error
+		_ = json.Unmarshal(rr.Body, &e)
+		return Response{rr.Status, e.Code, e}
+	}
+	if r := do(nil); r.Status != http.StatusPreconditionRequired {
+		t.Errorf("without If-Match: %d", r.Status)
+	}
+	if r := do(map[string]string{"If-Match": `"3"`}); r.Status != http.StatusPreconditionFailed {
+		t.Errorf("stale If-Match: %d", r.Status)
+	}
+	if len(svc.renames) != 0 {
+		t.Fatalf("renamed without a current If-Match: %v", svc.renames)
+	}
+	if r := do(map[string]string{"If-Match": `"4"`}); r.Status != http.StatusAccepted || !slices.Equal(svc.renames, []string{"store"}) ||
+		!slices.Equal(svc.jobs, []domain.JobKind{"stack.rename"}) {
+		t.Errorf("rename %d %v %v", r.Status, svc.renames, svc.jobs)
+	}
+	// A caller who sees the container gets its name.
+	h, svc = stacksAPIFor(t, authztest.Only("ops", "allow stack.rename @stack:st-1", "allow container.metrics.read @env:env-1"))
+	svc.renamePlan = domain.StackRenamePlan{Containers: []domain.StackRenameContainer{{ID: "c-backup", Name: "secret-backup", Volumes: []string{"shop_data"}}}}
+	r = authztest.Do(t, h, "ops", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/rename-previews", Body: map[string]any{"name": "store"}})
+	if r.Status != http.StatusOK || !strings.Contains(string(r.Body), `"name":"secret-backup"`) {
+		t.Errorf("visible container %d %s", r.Status, r.Body)
+	}
+	// stack.manage does not open renames.
+	h, _ = stacksAPIFor(t, authztest.Only("ed", "allow stack.manage @stack:st-1"))
+	if r := authztest.Do(t, h, "ed", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/rename-previews", Body: map[string]any{"name": "store"}}); r.Status != http.StatusForbidden {
+		t.Errorf("preview with stack.manage: %d", r.Status)
+	}
+}
+
+func TestStackRenameErrors(t *testing.T) {
+	h, svc := stacksAPIFor(t, authztest.New().Owner("own"))
+	cases := []struct {
+		err    error
+		status int
+		code   string
+	}{
+		{domain.ErrStackNameTaken, 409, CodeStackNameTaken},
+		{&domain.InputError{Field: "name", Message: "must be a Compose project name"}, 422, CodeValidationFailed},
+		{&domain.StackError{Code: domain.StackErrEnvironmentUnsupported, Message: "upgrade"}, 501, CodeAgentUnsupported},
+		{&domain.StackError{Code: domain.StackErrOffline, Message: "offline"}, 503, CodeEnvironmentOffline},
+		{&domain.StackError{Code: domain.StackErrRenameBlocked, Message: "blocked",
+			Issues: []domain.StackIssue{{Code: "declared_name", Message: "the Compose file sets name: shop"}}}, 409, CodeStackRenameBlocked},
+		{&domain.DockerError{Code: domain.DockerProtected, Message: "own project"}, 409, "protected"},
+	}
+	for _, c := range cases {
+		svc.err = c.err
+		rr := authztest.Do(t, h, "own", authztest.Call{Method: http.MethodPost, Path: "/api/v1/stacks/st-1/rename-previews", Body: map[string]any{"name": "store"}})
+		var e Error
+		_ = json.Unmarshal(rr.Body, &e)
+		if rr.Status != c.status || e.Code != c.code {
+			t.Errorf("%v: %d %s, want %d %s", c.err, rr.Status, e.Code, c.status, c.code)
+		}
+		if c.code == CodeStackRenameBlocked && (len(e.Details) != 1 || e.Details[0].Field != "rename.declared_name") {
+			t.Errorf("blocker details %+v", e.Details)
+		}
 	}
 }
 

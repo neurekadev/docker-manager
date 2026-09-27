@@ -1,12 +1,17 @@
 package compose
 
 import (
+	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/compose/v5/pkg/api"
+	composesdk "github.com/docker/compose/v5/pkg/compose"
+
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
 )
 
 // Resources summarizes what a loaded project creates on an Engine, for
@@ -65,6 +70,36 @@ type ServiceResources struct {
 
 // maxPortRange bounds the ports expanded from one published range.
 const maxPortRange = 1024
+
+// VolumeSpec returns the volume Compose would create for the project's
+// volume key: its name, driver and options, and the labels Compose sets
+// (project, key, version and the configuration hash it compares on every
+// up). A volume created with it outside Compose (a stack rename moving
+// data to a new name) is one Compose treats as its own, unchanged.
+func (p *Project) VolumeSpec(key string) (engine.VolumeSpec, error) {
+	m := p.model
+	if m == nil {
+		return engine.VolumeSpec{}, fmt.Errorf("project %s is not loaded", p.Name)
+	}
+	v, ok := m.Volumes[key]
+	if !ok || bool(v.External) {
+		return engine.VolumeSpec{}, fmt.Errorf("project %s has no volume %q of its own", p.Name, key)
+	}
+	v.Name = volumeName(m.Name, key, v)
+	hash, err := composesdk.VolumeHash(v)
+	if err != nil {
+		return engine.VolumeSpec{}, err
+	}
+	labels := maps.Clone(map[string]string(v.Labels))
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	labels[api.VolumeLabel] = key
+	labels[api.ProjectLabel] = m.Name
+	labels[api.VersionLabel] = api.ComposeVersion
+	labels[api.ConfigHashLabel] = hash
+	return engine.VolumeSpec{Name: v.Name, Driver: driverOr(v.Driver), DriverOpts: maps.Clone(map[string]string(v.DriverOpts)), Labels: labels}, nil
+}
 
 // Resources returns the project's resource summary (sorted).
 func (p *Project) Resources() Resources {

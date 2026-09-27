@@ -3,7 +3,7 @@
 Docker Manager cannot disable or delete itself through its own UI, API, API
 tokens, policies or jobs, but it can import, redeploy and update its own
 Compose project (see "Managing itself" below). Its resources appear in the inventory as
-protected ("Docker Manager system") with a reason, and destructive operations on
+protected (badge "Docker Manager") with a reason, and destructive operations on
 them fail with `409 protected` — for everyone, the owner included (no
 override in v1; Docker on the host is the escape hatch).
 

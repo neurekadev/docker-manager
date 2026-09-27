@@ -398,7 +398,16 @@ project's current directory) and report `copyable` in `compose.discover`;
 the manager refuses an import by copy for other agents. Newer agents also
 report `protected` (Docker Manager's own project): their `stack.import`
 copies it while it runs, neither stopping nor recreating it (result output
-`import.live`); older agents refuse it with `protected`. And
+`import.live`); older agents refuse it with `protected`. And `stack.rename`
+(`protocol.FeatureStackRename`, #7): only those agents serve
+`compose.rename_preview` and execute `stack.rename` (a `stack.*` input with
+`rename`: the new project name and directory; result output `rename`, with
+`switched` once the stack lives under the new name); the manager refuses a
+rename for other agents. And `stack.pull` (`protocol.FeatureStackPull`):
+only those agents execute `stack.pull` (pull a stack's images, change no
+container; result output `pulled`: the services whose tag now names
+another image); the manager refuses a pull-only request for other agents.
+And
 `exec.shell` (`protocol.FeatureExecShell`, #8): only those agents get
 `container.exec.create` inputs with `shell`; for other agents the manager
 sends the shell's most common path as `cmd` (`protocol.LegacyShellCommand`:
@@ -840,7 +849,9 @@ enqueueing and again at dispatch for queued manual jobs.
 | `stack.down` | command | `stack.down` |
 | `stack.import` | command | `stack.import` |
 | `stack.remove` | command | `stack.remove` |
+| `stack.pull` | command | `stack.update` |
 | `stack.remove_source` | command | `stack.migrate` |
+| `stack.rename` | command | `stack.rename` |
 | `stack.restart` | command | `stack.restart` |
 | `stack.start` | command | `stack.start` |
 | `stack.stop` | command | `stack.stop` |
@@ -900,6 +911,7 @@ on a new session with a new frame ID.
 | `compose.read` | request | `stack.definition.read`, or the manager service (revision recording, #7) | no | #7 |
 | `compose.write` | request | `stack.create` / `stack.import` / `stack.definition.write` (create a project directory or restore a revision; expected hash) | yes | #7 |
 | `compose.services` | request | `stack.read` | no | #7 |
+| `compose.rename_preview` | request | `stack.rename` (plans a `stack.rename`: what moves, outside containers, blockers; changes nothing) | no | #7 |
 | `files.list` | request | `stack.files.read` / `volume.files.read` | no | #15 |
 | `files.stat` | request | `stack.files.read` / `volume.files.read` | no | #15 |
 | `files.read` | request | `stack.files.read` / `volume.files.read` (≤ 512 KiB; larger via `files.download`) | no | #15 |

@@ -1,6 +1,7 @@
 // Package stacks is the agent side of Compose stacks (#7): the compose.*
 // requests (validate, read, write, discover, services) and the executors of
-// the stack.* job kinds (deploy, start, stop, restart, down, remove, import).
+// the stack.* job kinds (deploy, start, stop, restart, down, remove, import,
+// rename).
 //
 // Projects are addressed by protocol.ProjectRef and resolved against the
 // verified stack roots of the #28 storage check; nothing outside them is
@@ -10,7 +11,8 @@
 // except through compose.write (stack creation and explicit revision
 // restores requested by the manager) and never writes into the stack roots
 // otherwise, except stack.import creating a new project directory as a
-// copy of one it reads through an import mount (import.go). Start, stop
+// copy of one it reads through an import mount (import.go) and stack.rename
+// renaming a project directory in place (rename.go). Start, stop
 // and restart go through
 // the shared dependency-aware lifecycle (internal/agent/lifecycle) on the
 // deployed containers; deploy and down through the Compose SDK.
@@ -103,6 +105,8 @@ func (s *Service) Requests() map[string]session.RequestHandler {
 		protocol.ReqComposeWrite:    s.write,
 		protocol.ReqComposeDiscover: s.discover,
 		protocol.ReqComposeServices: s.services,
+		// compose.rename_preview plans a stack.rename (rename.go).
+		protocol.ReqComposeRenamePreview: s.renamePreview,
 	}
 }
 

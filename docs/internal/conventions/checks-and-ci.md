@@ -6,14 +6,16 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
 
 Forgejo CI is the gate: it runs the full `lint`, `unit-tests` and `build`
 jobs on every push to `main`, and publishes `:edge` only when they pass.
-Before pushing, run only fast checks on what changed: gofmt, Prettier on
-the changed web files, and `go vet`/`go test` of the changed Go packages
-(plus the web tests touching changed web code). Do not run the full
-`bash scripts/check.sh`, golangci-lint over the repository or
-`scripts/policy-check.sh` locally unless asked (they take many minutes on
-the Windows workstation). When a CI run fails, fetch its log and fix
-forward. `scripts/check.sh` mirrors the CI jobs for anyone who wants the
-whole suite (`bash scripts/check.sh lint|unit-tests|build`):
+Tests run in CI only: never run `go test`, vitest, `npm --prefix web run
+check`, `bash scripts/check.sh`, golangci-lint or `scripts/policy-check.sh`
+locally unless the user explicitly asks for a local run (they take many
+minutes on the Windows workstation). Write and update the unit tests; CI
+runs them. Before pushing, run only fast non-test checks on what changed:
+gofmt, Prettier on the changed web files, `go build`/`go vet` of the
+changed Go packages and `bash scripts/generate.sh` when generated
+artifacts change. When a CI run fails, fetch its log and fix forward.
+`scripts/check.sh` mirrors the CI jobs for an explicitly requested local
+run (`bash scripts/check.sh lint|unit-tests|build`):
 
 - **lint:** gofmt, `npm --prefix web run format:check` (Prettier),
   golangci-lint v2.13.2 (also `GOOS=linux` on other hosts; govet runs

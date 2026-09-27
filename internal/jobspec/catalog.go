@@ -42,6 +42,12 @@ const (
 	// StackRemoveSource removes a migrated stack's source after the user
 	// confirmed the migration (#35).
 	StackRemoveSource domain.JobKind = "stack.remove_source"
+	// StackRename moves a stack's Compose project to a new project name:
+	// its volumes and project directory follow (#7).
+	StackRename domain.JobKind = "stack.rename"
+	// StackPull pulls a stack's images without recreating anything: the
+	// next deploy runs them (#20: tags move only on request).
+	StackPull domain.JobKind = "stack.pull"
 
 	VolumeCreate  domain.JobKind = "volume.create"
 	VolumeRemove  domain.JobKind = "volume.remove"
@@ -80,6 +86,9 @@ const (
 	// CompRemoveImportCopy removes the copy a stack.import made before the
 	// project switched to it.
 	CompRemoveImportCopy = "remove_import_copy"
+	// CompUndoRename moves the volumes and the project directory a
+	// stack.rename moved back to the old name, before the project switched.
+	CompUndoRename = "undo_rename"
 )
 
 // Default offline deadlines.
@@ -223,6 +232,14 @@ func catalogSpecs() []Spec {
 			s.StartsContainers = true
 			return s
 		}(),
+		// Pull only: the images are downloaded, no container changes; the
+		// capability is stack.update's (pulling is its first half).
+		func() Spec {
+			s := stackKind(StackPull, "Pull a stack's images without deploying them", deadlineLong, idem("pull_images"))
+			s.Capability = "stack.update"
+			s.ConcurrencyClass = ClassPull
+			return s
+		}(),
 		// Import by copy (#7): the project is stopped, its whole directory
 		// (Compose files and everything next to them) is copied from the
 		// agent's read-only import mount into a new directory of the
@@ -241,6 +258,23 @@ func catalogSpecs() []Spec {
 				step("start_containers", true, false, "")},
 			Compensations: []Compensation{compStartContainers, {Name: CompRemoveImportCopy,
 				Description: "remove the copy of the project directory from the stacks volume while the project does not use it yet"}},
+			StartsContainers: true,
+		},
+		// Rename (#7): the stack stops, its named volumes move to the new
+		// project's names (containers outside the stack that mount them
+		// stop and are recreated on the new names), its directory is
+		// renamed, the old project's containers are removed (the switch),
+		// the project is created under the new name and what ran starts
+		// again. Before the switch every failure is undone.
+		{
+			Kind: StackRename, Summary: "Rename a stack's Compose project, moving its volumes and project directory to the new name",
+			Capability: "stack.rename", Executor: domain.ExecutorAgent,
+			Locks:           []LockRule{hostShared(), target(domain.LockStack, exclusive, domain.TargetStack)},
+			OfflineDeadline: deadlineInteractive,
+			Steps: []Step{idem("prepare"), idem("stop_containers"), idem("move"), step("recreate", true, false, ""),
+				step("start_containers", true, false, "")},
+			Compensations: []Compensation{compStartContainers, {Name: CompUndoRename,
+				Description: "move the volumes and the project directory back to the old name while the project has not switched yet"}},
 			StartsContainers: true,
 		},
 		// Environment migration (#35): the manager relays the data between

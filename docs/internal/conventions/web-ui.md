@@ -57,6 +57,12 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   other refusals with the server's reason), `RemovalDialog` (the server's
   removal preview). Credential changes go through `withStepUp`
   (`$lib/auth/stepup.svelte`). `unwrap` resolves a 204 to `undefined`.
+  Section lists (containers, images, volumes, networks, stacks) are one
+  `ListCard` ("All containers", count, search and filters in the header,
+  "Clear filters", `NoMatches`); their filters are `ListFilter`s in pure,
+  spec-tested modules and their state a `ListFilters` store (per list and
+  browser tab in `sessionStorage`, UI state only). Offer a filter for
+  every attribute the list shows except counts, sizes and dates.
 - **Search:** `GET /api/v1/search` (`internal/manager/api/search.go`) feeds
   the ⌘K palette; new searchable resource types go there, filtered with the
   resource's own `ViewOf` and identity/status fields only.

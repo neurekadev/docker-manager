@@ -135,7 +135,11 @@ Containers Docker Manager creates carry `dev.neureka.docker-manager.managed=stan
 `dev.neureka.docker-manager.spec=<spec ID>`. The complete create form (including
 environment values) is saved sealed (`secrets.Keyring`,
 `managed_containers/<id>/spec`) in `managed_containers`, updated with
-in-place changes, and dropped when the container is removed through Docker Manager
+in-place changes and when a stack rename (#7) moved a volume it mounts
+(`resources.Service.StackRenamed`, a `stacks.Service.OnRenamed` hook in the
+rename's finishing transaction, rewrites the mount sources to the new
+volume names; the agent recreated the container with the same name and
+labels), and dropped when the container is removed through Docker Manager
 or when a reconnect shows the container gone after its create job ended.
 Automatic updates (#20) recreate a managed standalone container from
 `resources.Service.ManagedSpec` with its unchanged tagged reference.

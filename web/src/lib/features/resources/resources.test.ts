@@ -158,10 +158,10 @@ describe('RemovalDialog (#6 deletion consequences)', () => {
 });
 
 describe('marks and notices', () => {
-	it('marks Docker Manager system resources with the reason for assistive technology', () => {
+	it('marks Docker Manager resources with the reason for assistive technology', () => {
 		render(ProtectionBadge, { props: { protection: agentProtection } });
-		expect(screen.getByText(/Docker Manager system/)).toHaveTextContent(
-			'Docker Manager system: the Docker Agent connected to this environment'
+		expect(screen.getByText(/^Docker Manager/)).toHaveTextContent(
+			'Docker Manager: the Docker Agent connected to this environment'
 		);
 	});
 

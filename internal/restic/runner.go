@@ -86,7 +86,26 @@ func (p *repo) secrets() []string {
 	return append([]string{p.password}, p.loc.Secrets()...)
 }
 
+// run executes c. restic never removes a lock by itself, so one left by a
+// process that was killed (a manager or agent restart during a backup)
+// blocks every later run until someone runs unlock. When c finds the
+// repository locked after --retry-lock, run removes stale locks and tries
+// once more. unlock removes only locks restic considers stale (not
+// refreshed for 30 minutes, or whose process is gone on this host), so a
+// live run keeps its lock. A call reading stdin is not repeated: its input
+// may be consumed.
 func (p *repo) run(ctx context.Context, c call) (result, error) {
+	res, err := p.runOnce(ctx, c)
+	if c.op == "unlock" || c.stdin != nil || !IsCode(err, CodeLocked) || ctx.Err() != nil {
+		return res, err
+	}
+	if _, uerr := p.runOnce(ctx, call{op: "unlock", args: []string{"unlock"}}); uerr != nil {
+		return res, err
+	}
+	return p.runOnce(ctx, c)
+}
+
+func (p *repo) runOnce(ctx context.Context, c call) (result, error) {
 	r := p.r
 	bin := r.Binary
 	if bin == "" {

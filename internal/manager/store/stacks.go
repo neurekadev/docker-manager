@@ -83,12 +83,15 @@ type serviceDefJSON struct {
 }
 
 type imageJSON struct {
-	Service  string `json:"service"`
-	Image    string `json:"image"`
-	ImageID  string `json:"imageId,omitempty"`
-	Digest   string `json:"digest,omitempty"`
-	Platform string `json:"platform,omitempty"`
-	Build    bool   `json:"build,omitempty"`
+	Service       string     `json:"service"`
+	Image         string     `json:"image"`
+	ImageID       string     `json:"imageId,omitempty"`
+	Digest        string     `json:"digest,omitempty"`
+	Platform      string     `json:"platform,omitempty"`
+	Build         bool       `json:"build,omitempty"`
+	PulledImageID string     `json:"pulledImageId,omitempty"`
+	PulledDigest  string     `json:"pulledDigest,omitempty"`
+	PulledAt      *time.Time `json:"pulledAt,omitempty"`
 }
 
 type bindJSON struct {

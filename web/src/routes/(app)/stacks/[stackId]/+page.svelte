@@ -4,10 +4,11 @@
 	// and metrics samples (#23 keys in $lib/features/stacks/queries); CPU
 	// and memory come from the newest 10 s samples, the CPU sparkline from
 	// the last hour, and uptimes tick every second.
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { operateStack, type StackOperation } from '$lib/features/stacks/actions';
 	import { useStackPage } from '$lib/features/stacks/context';
-	import { stackUsage, stackTitle, upSince } from '$lib/features/stacks/model';
+	import { startDeploy } from '$lib/features/stacks/deploy.svelte';
+	import { driftNotes, stackUsage, stackTitle, upSince } from '$lib/features/stacks/model';
 	import {
 		capacityQuery,
 		stackMetricsQuery,
@@ -18,7 +19,17 @@
 	import StackKpis from '$lib/features/stacks/StackKpis.svelte';
 	import { latestContainerMetricsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
-	import { Card, ConfirmDialog, ErrorState, Notice, Skeleton, formatRelative } from '$lib/ui';
+	import {
+		Button,
+		Card,
+		ConfirmDialog,
+		ErrorState,
+		Notice,
+		Skeleton,
+		errorMessage,
+		formatRelative,
+		toast
+	} from '$lib/ui';
 
 	const ctx = useStackPage();
 	const stack = $derived(ctx.stack!);
@@ -61,14 +72,25 @@
 		);
 	});
 
-	const DRIFT: Record<string, string> = {
-		missing: 'has no container',
-		not_running: 'is not running',
-		running_while_stopped: 'runs although the stack was stopped',
-		unexpected_service: 'is not in the deployed definition',
-		image_changed: 'runs another image than deployed'
-	};
-	const drifted = $derived((services.data?.services ?? []).filter((s) => s.drift.length > 0));
+	// Drift, one sentence per finding with its remedy. Orphans (services
+	// removed from the Compose file whose containers are still there) are
+	// not repaired by a plain deploy: offer the deploy that removes them.
+	const notes = $derived(driftNotes(services.data?.services));
+	const onlyOrphans = $derived(notes.length > 0 && notes.every((n) => n.orphan));
+	const hasOrphans = $derived(notes.some((n) => n.orphan));
+	const canDeploy = $derived(stack.actions.includes('stack.deploy') && !readOnly);
+	const queryClient = useQueryClient();
+	let deploying = $state(false);
+	async function deployNow() {
+		deploying = true;
+		try {
+			await startDeploy(stack, {}, ctx.tray, queryClient);
+		} catch (e) {
+			toast.error(`${title} was not deployed`, { body: errorMessage(e) });
+		} finally {
+			deploying = false;
+		}
+	}
 
 	// One service's start/stop/restart, confirmed first.
 	let op = $state<{ service: string; action: StackOperation } | null>(null);
@@ -131,17 +153,29 @@
 			: undefined}
 	/>
 
-	{#if drifted.length}
-		<Notice tone="warn" title="The Engine differs from what Docker Manager deployed.">
+	{#if notes.length}
+		<Notice
+			tone="warn"
+			title={onlyOrphans
+				? 'Containers of removed services are still on the host.'
+				: 'Some services differ from the last deploy.'}
+		>
 			<ul class="drift">
-				{#each drifted as s (s.name)}
-					<li>
-						<span class="mono">{s.name}</span>
-						{s.drift.map((d) => DRIFT[d] ?? d.replaceAll('_', ' ')).join(', ')}.
-					</li>
-				{/each}
+				{#each notes as n, i (i)}<li>{n.text}</li>{/each}
 			</ul>
-			Deploy the stack to bring it back to its definition.
+			{#snippet actions()}
+				{#if canDeploy && hasOrphans}
+					<Button
+						size="sm"
+						variant="danger-soft"
+						onclick={() => ctx.removeOrphans.request()}
+						>Deploy and remove orphaned containers…</Button
+					>
+				{/if}
+				{#if canDeploy && !onlyOrphans}
+					<Button size="sm" loading={deploying} onclick={deployNow}>Deploy</Button>
+				{/if}
+			{/snippet}
 		</Notice>
 	{/if}
 

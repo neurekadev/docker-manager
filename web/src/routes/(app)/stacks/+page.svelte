@@ -2,8 +2,10 @@
 	// Stacks (#22, #7): the Compose stacks of the selected environment, or
 	// of every visible one with an environment column. Status is the live
 	// Engine state Docker Manager last observed; "Undeployed changes" and the
-	// update dot say what needs attention. Create and import are shown only
-	// with stack.create / stack.import (the server still decides).
+	// update dot say what needs attention. Searched by name or description
+	// and filtered by status, changes and environment (ListCard, kept per
+	// list and browser tab). Create and import are shown only with
+	// stack.create / stack.import (the server still decides).
 	import { createQuery } from '@tanstack/svelte-query';
 	import FolderSearch from '@lucide/svelte/icons/folder-search';
 	import Layers from '@lucide/svelte/icons/layers';
@@ -19,6 +21,11 @@
 		stackTitle
 	} from '$lib/features/stacks/model';
 	import { stacksQuery, updatePoliciesQuery, type Stack } from '$lib/features/stacks/queries';
+	import { stackFilters, stackSearch } from '$lib/features/stacks/filters';
+	import ListCard from '$lib/features/resources/ListCard.svelte';
+	import NoMatches from '$lib/features/resources/NoMatches.svelte';
+	import { applyListFilters, isFiltering, listSummary } from '$lib/features/resources/filters';
+	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import CreateStackDialog from '$lib/features/stacks/CreateStackDialog.svelte';
 	import ImportStackDialog from '$lib/features/stacks/ImportStackDialog.svelte';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
@@ -29,14 +36,12 @@
 	import {
 		Badge,
 		Button,
-		Card,
 		EmptyState,
 		ErrorState,
 		IconTile,
 		Skeleton,
 		StatusBadge,
 		Table,
-		TextField,
 		formatRelative,
 		type Column
 	} from '$lib/ui';
@@ -83,18 +88,21 @@
 			: canAnywhere(perms.data, 'stack.import')
 	);
 
-	let filter = $state('');
-	const rows = $derived(
-		(stacks.data ?? []).filter((s) => {
-			const q = filter.trim().toLowerCase();
-			return (
-				!q ||
-				s.name.toLowerCase().includes(q) ||
-				(s.displayName ?? '').toLowerCase().includes(q) ||
-				(s.description ?? '').toLowerCase().includes(q)
-			);
+	const filters = new ListFilters('stacks');
+	const all = $derived(stacks.data ?? []);
+	const defs = $derived(
+		stackFilters({
+			envs: envId
+				? []
+				: [...new Set(all.map((s) => s.environmentId))].map((id) => ({
+						id,
+						name: envById.get(id)?.name ?? id
+					})),
+			updates: updateStates
 		})
 	);
+	const rows = $derived(applyListFilters(all, defs, filters.state, stackSearch));
+	const filtered = $derived(isFiltering(defs, filters.state));
 
 	const columns = $derived.by((): Column<Stack>[] => {
 		const cols: Column<Stack>[] = [
@@ -216,24 +224,18 @@
 			onretry={() => stacks.refetch()}
 		/>
 	{:else}
-		<Card
-			padding="none"
+		<ListCard
 			title="All stacks"
 			id="stacks"
-			subtitle={stacks.data
-				? `${stacks.data.length} ${stacks.data.length === 1 ? 'stack' : 'stacks'}`
+			summary={stacks.data
+				? listSummary(rows.length, all.length, filtered, 'stack', 'stacks')
 				: undefined}
+			label="Filter stacks"
+			searchLabel="Search stacks"
+			placeholder="Search by name or description"
+			filters={defs}
+			store={filters}
 		>
-			{#snippet actions()}
-				<div class="filter">
-					<TextField
-						label="Filter stacks"
-						hideLabel
-						placeholder="Filter by name"
-						bind:value={filter}
-					/>
-				</div>
-			{/snippet}
 			{#if stacks.isPending}
 				<div class="loading" aria-busy="true"><Skeleton lines={5} height="20px" /></div>
 			{:else}
@@ -245,14 +247,11 @@
 					sort={{ column: 'name', direction: 'asc' }}
 				>
 					{#snippet empty()}
-						{#if filter.trim()}
-							<EmptyState
+						{#if filtered}
+							<NoMatches
+								what="stacks"
 								icon={Layers}
-								color="blue"
-								title="No stack matches “{filter.trim()}”."
-								description="Clear the filter to see every stack."
-								level={3}
-								compact
+								onclear={() => filters.clear()}
 							/>
 						{:else}
 							<EmptyState
@@ -281,7 +280,7 @@
 					{/snippet}
 				</Table>
 			{/if}
-		</Card>
+		</ListCard>
 	{/if}
 
 	<CreateStackDialog
@@ -324,10 +323,6 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-2);
-	}
-
-	.filter {
-		width: 220px;
 	}
 
 	.loading {
@@ -378,11 +373,5 @@
 	.chip {
 		display: inline-flex;
 		text-decoration: none;
-	}
-
-	@media (max-width: 767px) {
-		.filter {
-			width: 150px;
-		}
 	}
 </style>

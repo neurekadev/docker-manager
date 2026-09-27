@@ -15,7 +15,7 @@
 		Notice,
 		Skeleton,
 		Switch,
-		TextField,
+		TypeToConfirm,
 		formatDateTime,
 		toast
 	} from '$lib/ui';
@@ -198,12 +198,7 @@
 			<RestorePreviewView preview={preview.data} />
 		{/if}
 		{#if full}
-			<TextField
-				label="Type {subject} to confirm"
-				bind:value={typed}
-				autocomplete="off"
-				spellcheck="false"
-			/>
+			<TypeToConfirm text={subject} bind:value={typed} />
 		{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
 	{:else}

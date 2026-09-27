@@ -590,6 +590,10 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	// Stack deploy/stop/restart/down/remove refuse Docker Manager's own Compose
 	// project (#32).
 	m.stacks.SetProtection(m.resources)
+	// A stack rename moves the stack's volumes to new names: the saved
+	// recreate specifications of standalone containers mounting them follow
+	// (#6), in the transaction that finishes the rename.
+	m.stacks.OnRenamed(m.resources.StackRenamed)
 	// Prune runs protect what saved container specifications reference (#14).
 	m.maint.SetSpecs(m.resources)
 	// The stopped source of a migrated stack is no longer a Docker Manager stack:

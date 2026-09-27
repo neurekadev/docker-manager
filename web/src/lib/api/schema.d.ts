@@ -3782,6 +3782,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stacks/{stackId}/pulls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pull a stack's images
+         * @description Starts a stack.pull job (202): the agent pulls the images of the stack's definition on disk (with the registry connections a deploy would use; build-only services are skipped) and changes no container. Services whose reference now names another image than the one they run show it in image-status (pulledImageId) until the next deploy runs it. Needs stack.update and an up-to-date, connected agent (501 agent_unsupported, 503 environment_offline).
+         */
+        post: operations["create-stack-pull"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/rename-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a stack rename
+         * @description Computes what renaming the stack's Compose project to name does, before anything changes: the services that stop and start again, each volume and its new name (move: the data moves; recreate: a volume with driver options is recreated with the same options; absent: created on the first start), the containers outside the stack that mount a moved volume (stopped and recreated on the new names; hidden when the caller cannot see them; blocked unless the caller may stop and remove them), the project directory's new name and blockers: the Compose files set a top-level name: (rename such a stack by changing name:; declaredName is the only allowed target when it differs from the current name), Docker Manager's own project, a target volume or directory that exists, a moved volume another Compose project uses or Docker Manager holds, an outside container on one of the project's networks. 409 stack_name_taken when another stack has the name or directory, 422 for an invalid or unchanged name, 501 agent_unsupported for older agents, 503 environment_offline. Changes nothing.
+         */
+        post: operations["create-stack-rename-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/renames": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rename a stack's Compose project
+         * @description Re-runs the preview (409 stack_rename_blocked with the blockers in details) and starts a stack.rename job (202). The stack stops, its named volumes move to the new project's names (their data follows), containers outside the stack that mount them are stopped and recreated on the new names, the project directory is renamed when it is named after the project, the old project's containers are removed, the project is created under the new name from the files on disk (undeployed changes are applied) and the services that ran start again. A failure before the old containers are removed undoes everything; after that the stack has its new name and is failed until a deploy finishes it. The stack keeps its ID, revisions, policies and permission rules. Requires If-Match (the stack's ETag). Idempotency-Key replays the first answer (the rename changes what the request is checked against). 409 protected for Docker Manager's own project.
+         */
+        post: operations["create-stack-rename"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stacks/{stackId}/revision-restores": {
         parameters: {
             query?: never;
@@ -5965,7 +6025,7 @@ export interface components {
              * @enum {string}
              */
             pull?: "missing" | "always";
-            /** @description Remove containers of services no longer in the definition. */
+            /** @description Also remove the containers of services that are no longer in the Compose file (orphans, reported as drift unexpected_service). A deploy without it keeps them. */
             removeOrphans?: boolean;
             /**
              * @description Deploy only these services (and their dependencies).
@@ -8600,6 +8660,18 @@ export interface components {
             /** @example Backup script */
             name: string;
         };
+        RenameStackInputBody: {
+            /**
+             * @description Required: the new Compose project name (lower-case letters, digits, '-' and '_', starting with a letter or digit).
+             * @example store
+             */
+            name?: string;
+            /**
+             * Format: int64
+             * @description Stop grace period of the stack's services and the recreated containers (default: each one's own).
+             */
+            timeoutSeconds?: number;
+        };
         ReplaceDocumentBody: {
             /** @description The complete new rule list. Duplicate rules for the same capability and scope are rejected. */
             rules: components["schemas"]["PermissionRule"][];
@@ -9343,6 +9415,15 @@ export interface components {
             imageId?: string;
             /** @example linux/amd64 */
             platform?: string;
+            /**
+             * Format: date-time
+             * @description When the pull found it.
+             */
+            pulledAt?: string;
+            /** @description Repository digest of pulledImageId. */
+            pulledDigest?: string;
+            /** @description A newer image for the reference that a pull without deploy put on the host; the next deploy runs it (absent after a deploy). */
+            pulledImageId?: string;
             service: string;
         };
         StackImageStatus: {
@@ -9363,6 +9444,11 @@ export interface components {
             platform?: string;
             /** @description The stack's update policy. */
             policyId?: string;
+            /** Format: date-time */
+            pulledAt?: string;
+            pulledDigest?: string;
+            /** @description A newer image for the service's reference is on the host (POST /stacks/{id}/pulls); deploy the stack to run it. */
+            pulledImageId?: string;
             /** @enum {string} */
             reason?: "build_only" | "digest_pinned" | "untagged" | "pull_policy_conflict" | "invalid_reference";
             reasonMessage?: string;
@@ -9431,6 +9517,83 @@ export interface components {
             /** Format: int32 */
             publicPort?: number;
         };
+        StackRenameBody: {
+            /**
+             * @description Required: the new Compose project name (lower-case letters, digits, '-' and '_', starting with a letter or digit).
+             * @example store
+             */
+            name?: string;
+        };
+        StackRenameContainer: {
+            /** @description The caller cannot see this container; the rename is blocked unless the caller may stop and remove it (container.stop, container.remove). */
+            hidden?: boolean;
+            id?: string;
+            /** @description Absent when the caller cannot see the container (hidden is true). */
+            name?: string;
+            /** @description It runs now: it is stopped, recreated on the new volume names and started again. */
+            running: boolean;
+            /** @description The moved volumes it mounts (current names). */
+            volumes: string[];
+        };
+        StackRenamePreview: {
+            /** @description Reasons the rename is refused (nothing changes); empty when it can run. */
+            blockers: components["schemas"]["StackIssue"][];
+            /** @description Containers outside the stack that mount a moved volume: stopped and recreated on the new names with their full configuration. */
+            containers: components["schemas"]["StackRenameContainer"][];
+            /** @description The top-level name: the Compose files set. Such a stack is renamed by changing name: in its files (a blocker unless it is the requested name). */
+            declaredName?: string;
+            /**
+             * @description Current Compose project name.
+             * @example shop
+             */
+            from: string;
+            /**
+             * @description Current project directory (relative to its root).
+             * @example shop
+             */
+            fromDir: string;
+            /** @description Services that run now: they stop and start again under the new name. */
+            running: string[];
+            /**
+             * @description New Compose project name.
+             * @example store
+             */
+            to: string;
+            /**
+             * @description Project directory after the rename: renamed in place when it is named after the project, else unchanged.
+             * @example store
+             */
+            toDir: string;
+            /** @description Volumes of the stack and what happens to each. */
+            volumes: components["schemas"]["StackRenameVolume"][];
+            warnings: components["schemas"]["StackIssue"][];
+        };
+        StackRenameVolume: {
+            /**
+             * @description move: the data moves to a volume with the new name (same disk, nothing is copied); recreate: a volume with driver options (host path, NFS, ...) is recreated with the same options under the new name, the data stays where they point; absent: the volume does not exist yet and is created on the first start.
+             * @enum {string}
+             */
+            action: "move" | "recreate" | "absent";
+            /**
+             * @description Compose key of a named volume (absent for an anonymous volume).
+             * @example data
+             */
+            key?: string;
+            /**
+             * @description Current volume name.
+             * @example shop_data
+             */
+            name: string;
+            /**
+             * @description Name after the rename (an anonymous volume's is only known once its container is recreated).
+             * @example store_data
+             */
+            newName?: string;
+            /** @description Service of an anonymous volume's mount. */
+            service?: string;
+            /** @description Mount path of an anonymous volume. */
+            target?: string;
+        };
         StackRestoreResult: {
             /** @description The restored definition differs from the applied revision: offer a deploy (never started automatically). */
             deployOffered: boolean;
@@ -9481,7 +9644,7 @@ export interface components {
         StackRevisionRef: {
             /**
              * Format: date-time
-             * @description When it was applied (appliedRevision) or last seen on disk (sourceRevision).
+             * @description appliedRevision: when a deploy last created, recreated or started a container (a deploy that found everything running as defined keeps the earlier time; absent when none did). sourceRevision: when it was last seen on disk.
              */
             at?: string;
             /** @description SHA-256 of the definition (files and their hashes). */
@@ -9527,7 +9690,7 @@ export interface components {
             containers: components["schemas"]["StackContainer"][];
             dependsOn: components["schemas"]["StackDependency"][];
             description?: string;
-            /** @description missing, not_running, running_while_stopped, unexpected_service, image_changed. */
+            /** @description missing (no container), not_running (stopped or exited, not a finished one-shot), running_while_stopped (runs although the stack was stopped or taken down), unexpected_service (an orphan: the service is no longer in the deployed definition but its containers are still on the host; a deploy with removeOrphans removes them), image_changed (runs another image than the last deploy applied). */
             drift: string[];
             icon?: string;
             /** @description Image of the definition. */
@@ -24574,6 +24737,9 @@ export interface operations {
                      *           "image": "nginx:1.27",
                      *           "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "platform": "linux/amd64",
+                     *           "pulledAt": "2026-09-25T12:00:00Z",
+                     *           "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "service": "example"
                      *         }
                      *       ],
@@ -35635,6 +35801,9 @@ export interface operations {
                      *               "image": "nginx:1.27",
                      *               "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *               "platform": "linux/amd64",
+                     *               "pulledAt": "2026-09-25T12:00:00Z",
+                     *               "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *               "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *               "service": "example"
                      *             }
                      *           ],
@@ -35813,6 +35982,9 @@ export interface operations {
                      *             "image": "nginx:1.27",
                      *             "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "platform": "linux/amd64",
+                     *             "pulledAt": "2026-09-25T12:00:00Z",
+                     *             "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "service": "example"
                      *           }
                      *         ],
@@ -36235,6 +36407,9 @@ export interface operations {
                      *           "image": "nginx:1.27",
                      *           "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "platform": "linux/amd64",
+                     *           "pulledAt": "2026-09-25T12:00:00Z",
+                     *           "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "service": "example"
                      *         }
                      *       ],
@@ -36564,6 +36739,9 @@ export interface operations {
                      *           "image": "nginx:1.27",
                      *           "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "platform": "linux/amd64",
+                     *           "pulledAt": "2026-09-25T12:00:00Z",
+                     *           "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "service": "example"
                      *         }
                      *       ],
@@ -39231,6 +39409,9 @@ export interface operations {
                      *           "nonVersionTag": false,
                      *           "platform": "example",
                      *           "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "pulledAt": "2026-09-25T12:00:00Z",
+                     *           "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *           "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "reason": "build_only",
                      *           "reasonMessage": "example",
                      *           "service": "web",
@@ -39990,6 +40171,536 @@ export interface operations {
             };
         };
     };
+    "create-stack-pull": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-rename-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "store"
+                 *     }
+                 */
+                "application/json": components["schemas"]["StackRenameBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "blockers": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "services.web.ports: invalid port \"80a\"",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "containers": [
+                     *         {
+                     *           "hidden": false,
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "name": "web",
+                     *           "running": false,
+                     *           "volumes": [
+                     *             "example"
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "declaredName": "web",
+                     *       "from": "shop",
+                     *       "fromDir": "shop",
+                     *       "running": [
+                     *         "example"
+                     *       ],
+                     *       "to": "store",
+                     *       "toDir": "store",
+                     *       "volumes": [
+                     *         {
+                     *           "action": "move",
+                     *           "key": "data",
+                     *           "name": "shop_data",
+                     *           "newName": "store_data",
+                     *           "service": "example",
+                     *           "target": "example"
+                     *         }
+                     *       ],
+                     *       "warnings": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "services.web.ports: invalid port \"80a\"",
+                     *           "service": "example"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["StackRenamePreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-rename": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of the revision being edited (from the resource's ETag header). Required: edits without it fail with 428 precondition_required; a stale value fails with 412 precondition_failed and the current ETag. */
+                "If-Match"?: string;
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "store"
+                 *     }
+                 */
+                "application/json": components["schemas"]["RenameStackInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "create-stack-revision-restore": {
         parameters: {
             query?: never;
@@ -40096,6 +40807,9 @@ export interface operations {
                      *             "image": "nginx:1.27",
                      *             "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "platform": "linux/amd64",
+                     *             "pulledAt": "2026-09-25T12:00:00Z",
+                     *             "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "service": "example"
                      *           }
                      *         ],
@@ -40470,6 +41184,9 @@ export interface operations {
                      *             "image": "nginx:1.27",
                      *             "imageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "platform": "linux/amd64",
+                     *             "pulledAt": "2026-09-25T12:00:00Z",
+                     *             "pulledDigest": "sha256:3f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+                     *             "pulledImageId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "service": "example"
                      *           },
                      *           "build": false,

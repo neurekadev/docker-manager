@@ -1290,6 +1290,15 @@ routes:
     kind: stream
     status: implemented
   - method: POST
+    path: "/api/v1/stacks/{stackId}/pulls"
+    operationId: create-stack-pull
+    capability: stack.update
+    scope: resource
+    owner: 20
+    kind: json
+    status: implemented
+    notes: "202 + job; pulls the stack's images without deploying them."
+  - method: POST
     path: "/api/v1/stacks/{stackId}/builds"
     operationId: create-stack-build
     capability: stack.build
@@ -1298,6 +1307,24 @@ routes:
     kind: json
     status: implemented
     notes: 202 + job.
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/rename-previews"
+    operationId: create-stack-rename-preview
+    capability: stack.rename
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "What renaming the Compose project does (volumes, outside containers, blockers); no side effects."
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/renames"
+    operationId: create-stack-rename
+    capability: stack.rename
+    scope: resource
+    owner: 7
+    kind: json
+    status: implemented
+    notes: "202 + job; If-Match; Idempotency-Key replays the first answer."
   - method: POST
     path: "/api/v1/stacks/{stackId}/migration-previews"
     operationId: create-stack-migration-preview
