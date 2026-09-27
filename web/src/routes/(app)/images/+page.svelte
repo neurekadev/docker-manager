@@ -2,7 +2,7 @@
 	// Images (#6): every image of the selected environment (or all), with
 	// its tags, size, and whether containers use it; untagged (dangling)
 	// images are marked. Searched by tag, ID or digest and filtered by
-	// usage, tags, Docker Manager system and environment (ListCard). Pull
+	// usage, tags, Docker Manager and environment (ListCard). Pull
 	// (#19 registry connection preview), tag and remove (in-use check) from
 	// here; builds (#33) have their own page.
 	import { createQuery } from '@tanstack/svelte-query';

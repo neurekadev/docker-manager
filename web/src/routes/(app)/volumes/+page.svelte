@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Volumes (#6): every volume of the selected environment (or all),
 	// searched by name or stack and filtered by usage, stack, file access,
-	// driver, Docker Manager system and environment (ListCard); who uses
+	// driver, Docker Manager and environment (ListCard); who uses
 	// it, its driver and whether Docker Manager can open its files (#28:
 	// non-local drivers and NFS/CIFS-backed volumes are read-only, with the
 	// reason). Docker Manager's own volumes (#32) are marked and never removed.

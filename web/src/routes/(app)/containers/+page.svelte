@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Containers (#6): every container of the selected environment (or of
 	// all visible ones), searched by name/image and filtered by status,
-	// stack, image update, Docker Manager system, label and environment
+	// stack, image update, Docker Manager, label and environment
 	// (kept per list and browser tab, ListCard),
 	// with a live uptime (ticking every second), CPU and memory from the
 	// newest 10 s samples (#5, refreshed by metrics events) and addresses.

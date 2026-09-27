@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Networks (#6): every network of the selected environment (or all),
 	// searched by name or subnet and filtered by stack, driver, access,
-	// scope, predefined, Docker Manager system and environment (ListCard);
+	// scope, predefined, Docker Manager and environment (ListCard);
 	// its driver, subnets and flags; predefined networks (bridge, host,
 	// none) and Docker Manager's own (#32) are marked, and their removal is
 	// refused by the server with the reason.

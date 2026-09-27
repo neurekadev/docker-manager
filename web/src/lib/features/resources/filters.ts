@@ -184,11 +184,11 @@ export function stackFilter<T extends { stack?: { project: string } }>(
 export function systemFilter<T extends { protection?: unknown }>(plural: string): ListFilter<T> {
 	return {
 		id: 'system',
-		label: 'Docker Manager system',
-		all: `Show system ${plural}`,
+		label: 'Docker Manager',
+		all: `Show Docker Manager's ${plural}`,
 		options: [
-			{ value: 'only', label: `Only system ${plural}` },
-			{ value: 'hide', label: `Hide system ${plural}` }
+			{ value: 'only', label: `Only Docker Manager's ${plural}` },
+			{ value: 'hide', label: `Hide Docker Manager's ${plural}` }
 		],
 		match: (r, v) => (v === 'only') === !!r.protection
 	};
