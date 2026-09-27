@@ -19,6 +19,8 @@ export interface BackupFilter {
 	environmentId?: string;
 	stackId?: string;
 	kind?: 'manager_state' | 'stack' | 'volume';
+	/** Backups of a volume: its own and the stack backups that hold it. */
+	volume?: string;
 }
 
 export const backupKeys = {

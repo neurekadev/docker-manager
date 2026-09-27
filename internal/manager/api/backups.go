@@ -34,30 +34,32 @@ func backupResource(sn domain.BackupSnapshot) authz.Resource {
 // Shaping (#17): backup.read shows it in full; any other capability on it
 // only id, time, repository and state.
 type Backup struct {
-	ID            string     `json:"id"`
-	SnapshotTime  time.Time  `json:"snapshotTime"`
-	RepositoryID  string     `json:"repositoryId"`
-	State         string     `json:"state" enum:"complete,partial" doc:"partial: some files could not be read."`
-	View          string     `json:"view" enum:"minimal,full"`
-	Actions       []string   `json:"actions"`
-	Kind          string     `json:"kind,omitempty" enum:"manager_state,stack,volume"`
-	Item          string     `json:"item,omitempty"`
-	Scope         string     `json:"scope,omitempty" doc:"manager or env:<environmentId>: which restic repository below the destination holds it."`
-	EnvironmentID string     `json:"environmentId,omitempty"`
-	StackID       string     `json:"stackId,omitempty"`
-	StackName     string     `json:"stackName,omitempty" example:"web"`
-	Volume        string     `json:"volume,omitempty"`
-	SnapshotID    string     `json:"snapshotId,omitempty" doc:"restic snapshot ID."`
-	Paths         []string   `json:"paths,omitempty"`
-	Volumes       []string   `json:"volumes,omitempty"`
-	Consistency   string     `json:"consistency,omitempty" enum:"live,shutdown,snapshot" doc:"live: taken while containers ran (crash-consistent); shutdown: with the affected containers stopped; snapshot: consistent database snapshot."`
-	ErrorClass    string     `json:"errorClass,omitempty"`
-	Bytes         int64      `json:"bytes,omitempty"`
-	SetID         string     `json:"setId,omitempty"`
-	PolicyID      string     `json:"policyId,omitempty"`
-	JobID         string     `json:"jobId,omitempty"`
-	VerifiedAt    *time.Time `json:"verifiedAt,omitempty"`
-	ForgottenAt   *time.Time `json:"forgottenAt,omitempty" doc:"Removed by retention (listed only with includeForgotten)."`
+	ID            string            `json:"id"`
+	SnapshotTime  time.Time         `json:"snapshotTime"`
+	RepositoryID  string            `json:"repositoryId"`
+	State         string            `json:"state" enum:"complete,partial" doc:"partial: some files could not be read."`
+	View          string            `json:"view" enum:"minimal,full"`
+	Actions       []string          `json:"actions"`
+	Kind          string            `json:"kind,omitempty" enum:"manager_state,stack,volume"`
+	Item          string            `json:"item,omitempty"`
+	Scope         string            `json:"scope,omitempty" doc:"manager or env:<environmentId>: which restic repository below the destination holds it."`
+	EnvironmentID string            `json:"environmentId,omitempty"`
+	StackID       string            `json:"stackId,omitempty"`
+	StackName     string            `json:"stackName,omitempty" example:"web"`
+	Volume        string            `json:"volume,omitempty"`
+	SnapshotID    string            `json:"snapshotId,omitempty" doc:"restic snapshot ID."`
+	Paths         []string          `json:"paths,omitempty"`
+	Volumes       []string          `json:"volumes,omitempty"`
+	ProjectPath   string            `json:"projectPath,omitempty" doc:"Stack backups: the project directory's path inside the backup."`
+	VolumePaths   map[string]string `json:"volumePaths,omitempty" doc:"Each volume's data directory inside the backup."`
+	Consistency   string            `json:"consistency,omitempty" enum:"live,shutdown,snapshot" doc:"live: taken while containers ran (crash-consistent); shutdown: with the affected containers stopped; snapshot: consistent database snapshot."`
+	ErrorClass    string            `json:"errorClass,omitempty"`
+	Bytes         int64             `json:"bytes,omitempty"`
+	SetID         string            `json:"setId,omitempty"`
+	PolicyID      string            `json:"policyId,omitempty"`
+	JobID         string            `json:"jobId,omitempty"`
+	VerifiedAt    *time.Time        `json:"verifiedAt,omitempty"`
+	ForgottenAt   *time.Time        `json:"forgottenAt,omitempty" doc:"Removed by retention (listed only with includeForgotten)."`
 }
 
 func newBackup(sn domain.BackupSnapshot, v authz.View) Backup {
@@ -71,6 +73,7 @@ func newBackup(sn domain.BackupSnapshot, v authz.View) Backup {
 	out.Paths, out.Volumes, out.Consistency, out.ErrorClass = sn.Paths, sn.Volumes, sn.Consistency, sn.ErrorClass
 	out.Bytes, out.SetID, out.PolicyID, out.JobID = sn.BytesTotal, sn.SetID, sn.PolicyID, sn.JobID
 	out.VerifiedAt, out.ForgottenAt = sn.VerifiedAt, sn.ForgottenAt
+	out.ProjectPath, out.VolumePaths = sn.ProjectPath, sn.VolumePaths
 	return out
 }
 
@@ -82,6 +85,7 @@ type listBackupsInput struct {
 	EnvironmentID    string `query:"environmentId" maxLength:"64"`
 	StackID          string `query:"stackId" maxLength:"64"`
 	Kind             string `query:"kind" enum:"manager_state,stack,volume"`
+	Volume           string `query:"volume" maxLength:"255" doc:"Backups of this volume: its volume backups and the stack backups that hold it (combine with environmentId)."`
 	IncludeForgotten bool   `query:"includeForgotten"`
 }
 
@@ -92,7 +96,7 @@ func (h *backupsAPI) listBackups(ctx context.Context, in *listBackupsInput) (*ba
 	if err != nil {
 		return nil, err
 	}
-	fp := QueryFingerprint("backups", in.RepositoryID, in.PolicyID, in.SetID, in.EnvironmentID, in.StackID, in.Kind,
+	fp := QueryFingerprint("backups", in.RepositoryID, in.PolicyID, in.SetID, in.EnvironmentID, in.StackID, in.Kind, in.Volume,
 		strconv.FormatBool(in.IncludeForgotten))
 	var after agentCursor
 	if in.Cursor != "" {
@@ -105,7 +109,7 @@ func (h *backupsAPI) listBackups(ctx context.Context, in *listBackupsInput) (*ba
 		Fetch: func(ctx context.Context, afterID string, n int) ([]domain.BackupSnapshot, error) {
 			return svc.ListSnapshots(ctx, domain.BackupSnapshotFilter{AfterID: afterID, Limit: n, RepositoryID: in.RepositoryID,
 				PolicyID: in.PolicyID, SetID: in.SetID, EnvironmentID: in.EnvironmentID, StackID: in.StackID, Kind: in.Kind,
-				IncludeForgotten: in.IncludeForgotten})
+				Volume: in.Volume, IncludeForgotten: in.IncludeForgotten})
 		},
 		Position: func(sn domain.BackupSnapshot) string { return sn.ID },
 		Visible:  func(sn domain.BackupSnapshot) bool { return authz.ViewOf(c, backupResource(sn)).Visible() },
@@ -297,9 +301,11 @@ func (h *backupsAPI) verifyBackup(ctx context.Context, in *verifyBackupInput) (*
 // --- restores ---
 
 type restoreBody struct {
-	Scope    string   `json:"scope" example:"volume" enum:"stack,volume,file" doc:"stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place."`
+	Scope    string   `json:"scope" example:"full" enum:"full,paths,stack,volume,file" doc:"full: everything the backup holds (a stack backup: its project directory and every volume in it; a volume backup: the volume). paths: the files and directories in paths, in place; a directory is made identical to the backup (files it did not hold are removed). stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place. full and paths need an up-to-date agent (501 agent_unsupported)."`
 	Volumes  []string `json:"volumes,omitempty" example:"web_data" maxItems:"64" doc:"volume scope: which volumes of a stack backup (default: all of them)."`
 	Path     string   `json:"path,omitempty" maxLength:"4096" doc:"file scope: the file's absolute path inside the backup."`
+	Paths    []string `json:"paths,omitempty" maxItems:"1000" example:"/var/lib/docker/volumes/web_data/_data/uploads" doc:"paths scope: absolute paths of files and directories inside the backup (none inside another)."`
+	Redeploy bool     `json:"redeploy,omitempty" doc:"full scope of a stack backup: deploy the stack from the restored definition afterwards, with the services that were running before (needs stack.deploy)."`
 	Shutdown *bool    `json:"shutdown,omitempty" doc:"Stop the containers using the data while it is restored and start the previously running ones afterwards (default true; with false a restore under running containers is refused)."`
 }
 
@@ -308,7 +314,7 @@ func (b restoreBody) request() backups.RestoreRequest {
 	if b.Shutdown != nil {
 		shutdown = *b.Shutdown
 	}
-	return backups.RestoreRequest{Scope: b.Scope, Volumes: b.Volumes, File: b.Path, Shutdown: shutdown}
+	return backups.RestoreRequest{Scope: b.Scope, Volumes: b.Volumes, File: b.Path, Paths: b.Paths, Redeploy: b.Redeploy, Shutdown: shutdown}
 }
 
 type restorePreviewInput struct {
@@ -354,6 +360,9 @@ func (h *backupsAPI) authorizeRestore(ctx context.Context, svc BackupService, c 
 		if !c.Can(string(CapBackupRestore), res).Allowed {
 			return Forbidden("not permitted: backup.restore on " + string(t.Type) + " " + t.ID)
 		}
+		if req.Redeploy && t.Type == domain.TargetStack && !c.Can("stack.deploy", res).Allowed {
+			return Forbidden("not permitted: stack.deploy on stack " + t.ID + " (restore without redeploying)")
+		}
 	}
 	return nil
 }
@@ -386,9 +395,11 @@ type restoreInput struct {
 	BackupID string `path:"backupId" maxLength:"64" doc:"Backup ID."`
 	IdempotencyKeyParam
 	Body struct {
-		Scope    string   `json:"scope" example:"volume" enum:"stack,volume,file" doc:"As in restore previews."`
+		Scope    string   `json:"scope" example:"full" enum:"full,paths,stack,volume,file" doc:"As in restore previews."`
 		Volumes  []string `json:"volumes,omitempty" maxItems:"64"`
 		Path     string   `json:"path,omitempty" maxLength:"4096"`
+		Paths    []string `json:"paths,omitempty" maxItems:"1000"`
+		Redeploy bool     `json:"redeploy,omitempty"`
 		Shutdown *bool    `json:"shutdown,omitempty"`
 		Confirm  bool     `json:"confirm" example:"true" doc:"Must be true: a restore overwrites the current data (preview it first)."`
 	}
@@ -396,7 +407,7 @@ type restoreInput struct {
 
 func (in *restoreInput) body() restoreBody {
 	b := in.Body
-	return restoreBody{Scope: b.Scope, Volumes: b.Volumes, Path: b.Path, Shutdown: b.Shutdown}
+	return restoreBody{Scope: b.Scope, Volumes: b.Volumes, Path: b.Path, Paths: b.Paths, Redeploy: b.Redeploy, Shutdown: b.Shutdown}
 }
 
 func (h *backupsAPI) restore(ctx context.Context, in *restoreInput) (*JobAccepted, error) {

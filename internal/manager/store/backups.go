@@ -790,6 +790,9 @@ func ListBackupSnapshots(ctx context.Context, db bun.IDB, f domain.BackupSnapsho
 			q = q.Where("? = ?", bun.Ident(col), v)
 		}
 	}
+	if f.Volume != "" {
+		q = q.Where("(volume = ? OR EXISTS (SELECT 1 FROM json_each(volumes) WHERE json_each.value = ?))", f.Volume, f.Volume)
+	}
 	if !f.IncludeForgotten {
 		q = q.Where("forgotten_at IS NULL")
 	}

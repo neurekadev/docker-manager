@@ -60,7 +60,16 @@ const calls: Record<keyof typeof routes, string[]> = {
 	stack: [
 		routes.stack('st-1'),
 		...(
-			['files', 'logs', 'terminal', 'revisions', 'policies', 'activity', 'migrate'] as const
+			[
+				'files',
+				'logs',
+				'terminal',
+				'revisions',
+				'backups',
+				'policies',
+				'activity',
+				'migrate'
+			] as const
 		).map((t) => routes.stack('st-1', t))
 	],
 	stackTerminal: [routes.stackTerminal('st-1'), routes.stackTerminal('st-1', 'silo-web-1')],
@@ -79,6 +88,7 @@ const calls: Record<keyof typeof routes, string[]> = {
 	volume: [
 		routes.volume('env-1', 'data'),
 		routes.volume('env-1', 'data', 'files'),
+		routes.volume('env-1', 'data', 'backups'),
 		routes.volume('env-1', 'data', 'migrate')
 	],
 	networks: [routes.networks()],

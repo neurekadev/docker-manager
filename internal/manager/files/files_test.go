@@ -164,6 +164,19 @@ type observer struct {
 	mu      sync.Mutex
 	changes [][]string
 	signal  chan struct{} // closed and replaced on every call
+	// invalid: content the definition validator refuses.
+	invalid string
+}
+
+// ValidateSourceSave refuses the invalid content for definition files.
+func (o *observer) ValidateSourceSave(_ context.Context, _ string, path string, content []byte) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.invalid != "" && string(content) == o.invalid && api.IsDefinitionFile(path) {
+		return &domain.StackError{Code: domain.StackErrInvalidDefinition, Message: "the Compose definition is invalid",
+			Issues: []domain.StackIssue{{Code: "invalid_project", Message: "yaml: line 1: did not find expected node content"}}}
+	}
+	return nil
 }
 
 func (o *observer) StackSourcesChanged(_ context.Context, id string, paths []string) {
@@ -682,6 +695,22 @@ func TestStackFilesDefinitionGatingAndRevisionHook(t *testing.T) {
 		"allow stack.definition.write "+files, "allow stack.files.delete "+files)
 	r := e.do("dev", http.MethodGet, e.stkURL+"/content?path=compose.yaml", nil)
 	must(t, r, 200)
+	// A save that would break the definition is refused before the agent
+	// writes anything (#7).
+	e.obs.mu.Lock()
+	e.obs.invalid = "services: ["
+	e.obs.mu.Unlock()
+	bad := e.do("dev", http.MethodPut, e.stkURL+"/content?path=compose.yaml", map[string]string{"content": "services: ["},
+		"If-Match", r.header.Get("ETag"))
+	must(t, bad, 422)
+	if !strings.Contains(string(bad.body), `"invalid_definition"`) || !strings.Contains(string(bad.body), "did not find expected node") {
+		t.Errorf("refusal body %s", bad.body)
+	}
+	must(t, e.do("dev", http.MethodPost, e.stkURL+"/entries", map[string]any{"path": "compose.override.yaml", "type": "file",
+		"content": "services: ["}), 422)
+	if b, _ := os.ReadFile(filepath.Join(e.stack, "compose.yaml")); string(b) != "services: {}\n" {
+		t.Errorf("refused save was written: %q", b)
+	}
 	must(t, e.do("dev", http.MethodPut, e.stkURL+"/content?path=compose.yaml", map[string]string{"content": "services:\n  web: {}\n"},
 		"If-Match", r.header.Get("ETag")), 200)
 	must(t, e.do("dev", http.MethodPost, e.stkURL+"/uploads?name=compose.override.yaml", []byte("services: {}\n"), "If-None-Match", "*"), 201)

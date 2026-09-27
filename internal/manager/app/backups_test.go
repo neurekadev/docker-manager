@@ -29,6 +29,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/backup"
 	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/backups/s3probe/s3probetest"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
@@ -237,6 +238,7 @@ func (b *backupEnv) enrollHost(ctx context.Context, o hostOpts, fe *enginefake.E
 			}
 			return protocol.CapabilitiesPayload{AgentVersion: buildinfo.Get().Version, Protocols: []string{protocol.Version}, OS: "linux",
 				Arch: "amd64", Engine: info, Commands: cmds, Requests: []string{protocol.ReqVolumeList, protocol.ReqContainerList}, Streams: []string{},
+				Features:  []string{protocol.FeatureRestoreSelection},
 				Transport: protocol.TransportInfo{ManagerURL: e.srv.URL, PlainHTTP: true}}, true
 		},
 		Requests: requests, Streams: svc.Streams(),
@@ -738,6 +740,23 @@ func TestRestoresThroughTheAPI(t *testing.T) {
 	for _, it := range page.Items {
 		ids[it.Kind] = it.ID
 	}
+	// A volume's backups: its own and the stack backups that hold it.
+	var byVolume struct {
+		Items []struct {
+			ID          string            `json:"id"`
+			ProjectPath string            `json:"projectPath"`
+			VolumePaths map[string]string `json:"volumePaths"`
+		} `json:"items"`
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backups?volume=app_dbdata", nil).json(t, &byVolume)
+	if len(byVolume.Items) != 1 || byVolume.Items[0].ID != ids["stack"] || byVolume.Items[0].ProjectPath == "" ||
+		byVolume.Items[0].VolumePaths["app_dbdata"] == "" {
+		t.Errorf("backups of app_dbdata %+v", byVolume.Items)
+	}
+	owner.must(http.StatusOK, http.MethodGet, "/api/v1/backups?volume=uploads", nil).json(t, &byVolume)
+	if len(byVolume.Items) != 1 || byVolume.Items[0].ID != ids["volume"] {
+		t.Errorf("backups of uploads %+v", byVolume.Items)
+	}
 
 	// Damage the live data.
 	photo := filepath.Join(b.volumes, "uploads", "_data", "photo.jpg")
@@ -834,6 +853,89 @@ func TestRestoresThroughTheAPI(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(index); string(got) != "<h1>backup me</h1>" {
 		t.Errorf("file after restore %q", got)
+	}
+
+	// Selected paths (#10): a file of the project directory and one of the
+	// stack's volume, in place, in one job.
+	var snapDB string
+	for _, en := range contents.Entries {
+		if strings.HasSuffix(en.Path, "/app_dbdata/_data/PG_VERSION") {
+			snapDB = en.Path
+		}
+	}
+	writeFile(t, index, "<h1>paths</h1>")
+	writeFile(t, dbfile, "77")
+	j = jobOf(t, owner.must(http.StatusAccepted, http.MethodPost, "/api/v1/backups/"+ids["stack"]+"/restores",
+		map[string]any{"scope": "paths", "paths": []string{snapIndex, snapDB}, "confirm": true}))
+	if got := b.runJob(j); got.State != domain.JobSucceeded {
+		t.Fatalf("paths restore: %s %s", got.State, got.ErrorMessage)
+	}
+	if got, _ := os.ReadFile(index); string(got) != "<h1>backup me</h1>" {
+		t.Errorf("index after the paths restore %q", got)
+	}
+	if got, _ := os.ReadFile(dbfile); string(got) != "16" {
+		t.Errorf("database file after the paths restore %q", got)
+	}
+	owner.fail(http.StatusConflict, "restore_refused", http.MethodPost, "/api/v1/backups/"+ids["stack"]+"/restore-previews",
+		map[string]any{"scope": "paths", "paths": []string{"/nowhere/at/all"}})
+	owner.fail(http.StatusUnprocessableEntity, "validation_failed", http.MethodPost, "/api/v1/backups/"+ids["stack"]+"/restore-previews",
+		map[string]any{"scope": "stack", "redeploy": true})
+
+	// A full restore puts the definition and the volumes back in one job;
+	// until it ended, nothing starts the stack's containers; afterwards
+	// the stack is deployed with the services that were running.
+	deployed := make(chan struct{}, 1)
+	b.m.Jobs().OnChange(func([]string) {
+		select {
+		case deployed <- struct{}{}:
+		default:
+		}
+	})
+	writeFile(t, index, "<h1>full</h1>")
+	writeFile(t, dbfile, "42")
+	var fpv struct {
+		Targets []struct {
+			Kind string `json:"kind"`
+		} `json:"targets"`
+		CanRestore bool `json:"canRestore"`
+	}
+	owner.must(http.StatusOK, http.MethodPost, "/api/v1/backups/"+ids["stack"]+"/restore-previews",
+		map[string]any{"scope": "full", "redeploy": true}).json(t, &fpv)
+	if !fpv.CanRestore || len(fpv.Targets) != 2 {
+		t.Fatalf("full preview %+v", fpv)
+	}
+	j = jobOf(t, owner.must(http.StatusAccepted, http.MethodPost, "/api/v1/backups/"+ids["stack"]+"/restores",
+		map[string]any{"scope": "full", "redeploy": true, "confirm": true}))
+	owner.fail(http.StatusConflict, "restore_in_progress", http.MethodPost, "/api/v1/stacks/"+b.stackID+"/operations",
+		map[string]any{"action": "start"})
+	if got := b.runJob(j); got.State != domain.JobSucceeded {
+		t.Fatalf("full restore: %s %s", got.State, got.ErrorMessage)
+	}
+	if got, _ := os.ReadFile(index); string(got) != "<h1>backup me</h1>" {
+		t.Errorf("index after the full restore %q", got)
+	}
+	if got, _ := os.ReadFile(dbfile); string(got) != "16" {
+		t.Errorf("database file after the full restore %q", got)
+	}
+	ctx := testutil.Context(t)
+	for {
+		list, err := b.m.Jobs().List(ctx, domain.JobFilter{Kinds: []domain.JobKind{jobspec.StackDeploy}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list) > 0 {
+			var in protocol.StackJobInput
+			if err := json.Unmarshal(list[0].Input, &in); err != nil || !slices.Equal(in.Services, []string{"db", "web"}) ||
+				list[0].InitiatorUserID == "" {
+				t.Errorf("redeploy %+v (%s) %v", in, list[0].Origin, err)
+			}
+			break
+		}
+		select {
+		case <-deployed:
+		case <-ctx.Done():
+			t.Fatal("the full restore did not deploy the stack")
+		}
 	}
 
 	// Manager state: the owner procedure, not a host restore.

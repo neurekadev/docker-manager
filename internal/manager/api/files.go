@@ -608,9 +608,26 @@ func touchesDefinition(paths ...string) bool {
 // error is about; conflict412 turns a revision conflict into 412.
 func fileErr(err error, field string, conflict412 bool) error {
 	var fe *domain.FileError
+	var se *domain.StackError
 	switch {
 	case err == nil:
 		return nil
+	case errors.As(err, &se):
+		// A save of a definition file that would leave the stack's
+		// Compose definition invalid (#7).
+		if se.Code == domain.StackErrInvalidDefinition {
+			details := make([]ErrorDetail, 0, len(se.Issues))
+			for _, i := range se.Issues {
+				msg := i.Message
+				if i.Service != "" {
+					msg = "service " + i.Service + ": " + msg
+				}
+				details = append(details, Field("body.content", i.Code+": "+msg))
+			}
+			return NewError(http.StatusUnprocessableEntity, CodeInvalidDefinition,
+				"not saved: the Compose definition would be invalid", details...)
+		}
+		return stackCodeErr(se)
 	case errors.Is(err, domain.ErrFileScopeNotFound):
 		return NotFound("not found")
 	case errors.Is(err, domain.ErrFileAgentOffline):

@@ -51,7 +51,7 @@ func (s *Service) CreatePolicy(ctx context.Context, p domain.BackupPolicy) (doma
 		}
 	}
 	if p.Cron == "" {
-		p.Cron, p.TimeZone = "0 2 * * *", "UTC"
+		p.Cron, p.TimeZone = "0 * * * *", "UTC"
 	}
 	now := s.now()
 	p.ID, p.Revision, p.CreatedAt, p.UpdatedAt = ids.New(), 1, now, now
@@ -610,7 +610,7 @@ func (s *Service) PreviewScope(ctx context.Context, id string, draft *domain.Bac
 	if draft != nil {
 		p = *draft
 		if p.Cron == "" {
-			p.Cron, p.TimeZone = "0 2 * * *", "UTC"
+			p.Cron, p.TimeZone = "0 * * * *", "UTC"
 		}
 		if err := s.validatePolicy(ctx, s.db, &p); err != nil {
 			return ScopePreview{}, err

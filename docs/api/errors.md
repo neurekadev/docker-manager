@@ -156,6 +156,8 @@ same change.
 | `backup_repository_error` | 409 | no | The backup repository could not be read (missing, Recovery Key rejected, storage refused access, locked or damaged); the message names the class and what to do. | #10 |
 | `backup_not_a_file` | 409 | no | Only regular files can be downloaded from a backup (not directories, links or special files). | #10 |
 | `manager_restore_required` | 409 | no | Manager-state backups are not restored like stack or volume data: import them into a fresh manager (first-run setup, backup import), which replaces the whole manager state. | #10 |
+| `restore_in_progress` | 409 | no | A restore is running on the stack's or container's data: starting, restarting, deploying or updating it is refused until the restore ends, which starts the containers that were running before. | #10 |
+| `restore_refused` | 409 | no | The agent refused the restore as requested: a path is not in the backup, lies outside the stack's project directory and its volumes, or cannot be restored in place; the message names it. | #10 |
 | `backup_import_schema_incompatible` | 409 | no | The backup set was written by a newer Docker Manager whose database this build cannot run; install at least that version and import again. | #24 |
 | `backup_import_state_missing` | 409 | no | The backup set has no readable manager state (missing manager repository or snapshot, damaged secret-key bundle or database); choose another set. Host-only recovery is documented. | #24 |
 | `backup_import_in_progress` | 409 | no | A backup import is already running on this manager; follow it in the setup status. | #24 |

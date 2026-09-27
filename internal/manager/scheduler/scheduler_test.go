@@ -705,7 +705,7 @@ func TestValidateSpecAndKinds(t *testing.T) {
 	for _, k := range h.s.Kinds() {
 		keys = append(keys, k.Key+"="+k.Suggested+"/"+string(k.CatchUp))
 	}
-	mustEqual(t, "kinds", keys, []string{"backup=0 2 * * */once", "update_check=0 3 * * */once", "update_run=0 4 * * */skip",
+	mustEqual(t, "kinds", keys, []string{"backup=0 * * * */once", "update_check=0 3 * * */once", "update_run=0 4 * * */skip",
 		"prune=0 3 * * 0/skip", "backup_verification=0 5 * * 0/once"})
 }
 
@@ -717,7 +717,7 @@ func TestScheduleDefaults(t *testing.T) {
 	if err != nil || d.TimeZone != "UTC" || d.Revision != 1 || len(d.Kinds) != 5 {
 		t.Fatalf("%+v %v", d, err)
 	}
-	if b, _ := d.Default(KindBackup); b.Cron != "0 2 * * *" || b.Suggested != "0 2 * * *" {
+	if b, _ := d.Default(KindBackup); b.Cron != "0 * * * *" || b.Suggested != "0 * * * *" {
 		t.Fatalf("%+v", b)
 	}
 	h.policy(KindPrune, testPolicy{PolicySchedule: PolicySchedule{PolicyID: "pr", Cron: "0 3 * * 0", Enabled: true}})

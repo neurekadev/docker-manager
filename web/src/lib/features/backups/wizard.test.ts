@@ -35,7 +35,7 @@ const policy: BackupPolicy = {
 	volumes: [],
 	shutdown: false,
 	schedule: { cron: '0 2 * * *', timeZone: 'UTC', enabled: false },
-	retention: { daily: 7 },
+	retention: { daily: 7, minKeep: 1 },
 	revision: 3
 };
 
@@ -149,7 +149,16 @@ describe('PolicyWizard (#10)', () => {
 				repositoryId: 'r1',
 				anonymousVolumes: true,
 				schedule: { enabled: false },
-				retention: { daily: 7, weekly: 4, monthly: 6, minKeep: 3 }
+				retention: {
+					last: 168,
+					hourly: 0,
+					daily: 0,
+					weekly: 0,
+					monthly: 0,
+					yearly: 0,
+					withinDays: 0,
+					minKeep: 1
+				}
 			}
 		});
 	});

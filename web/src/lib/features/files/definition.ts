@@ -1,7 +1,10 @@
 // Compose sources of a stack (#7, #15, #25 Q1): saving one of them records
 // a new stack revision and marks undeployed changes; nothing is deployed.
+// A save that would leave the definition invalid is refused
+// (invalid_definition) and nothing is written.
 // Mirrors stacks.IsDefinitionFile on the manager (the manager decides; this
 // only chooses what the editor tells the user).
+import { errorView } from '$lib/ui/errors';
 
 export const DEFINITION_NAMES = [
 	'compose.yaml',
@@ -18,4 +21,18 @@ export const DEFINITION_NAMES = [
 /** Whether `path` (root-relative) is a Compose source of the stack. */
 export function isDefinitionFile(path: string, configFiles: readonly string[] = []): boolean {
 	return DEFINITION_NAMES.includes(path) || configFiles.includes(path);
+}
+
+/**
+ * The toast body of a save refused because the Compose definition would
+ * be invalid (422 invalid_definition), or null for any other error.
+ */
+export function definitionRefusal(e: unknown): string | null {
+	const v = errorView(e);
+	if (v.code !== 'invalid_definition') return null;
+	const findings = v.fields.map((f) => f.message).slice(0, 3);
+	const more = v.fields.length > 3 ? ` (and ${v.fields.length - 3} more)` : '';
+	return `Nothing was written: the Compose definition would be invalid${
+		findings.length ? `: ${findings.join('; ')}${more}` : ''
+	}. Your edits are kept; fix them and save again.`;
 }

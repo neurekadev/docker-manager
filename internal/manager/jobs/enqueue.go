@@ -116,6 +116,11 @@ func (e *Engine) Enqueue(ctx context.Context, req Request) (job domain.Job, crea
 				return nil
 			}
 		}
+		if spec.StartsContainers {
+			if err := restoreInProgress(ctx, tx, locks); err != nil {
+				return err
+			}
+		}
 		if err := store.InsertJob(ctx, tx, &j); err != nil {
 			if errors.Is(err, store.ErrIdempotencyKeyTaken) {
 				return domain.ErrJobIdempotencyConflict
@@ -140,6 +145,23 @@ func (e *Engine) Enqueue(ctx context.Context, req Request) (job domain.Job, crea
 		e.Wake()
 	}
 	return job, created, nil
+}
+
+// restoreInProgress refuses a kind that starts containers while a restore
+// that has not ended holds or waits for a lock conflicting with locks
+// (#10): the restore starts the previously running containers itself.
+func restoreInProgress(ctx context.Context, db bun.IDB, locks []domain.JobLock) error {
+	active, err := store.ListJobs(ctx, db, domain.JobFilter{Kinds: []domain.JobKind{jobspec.RestoreRun},
+		States: []domain.JobState{domain.JobQueued, domain.JobBlocked, domain.JobDispatched, domain.JobRunning, domain.JobCancelling}})
+	if err != nil {
+		return err
+	}
+	for _, r := range active {
+		if _, _, ok := jobspec.FirstConflict(locks, r.Locks); ok {
+			return fmt.Errorf("%w (job %s)", domain.ErrRestoreInProgress, r.ID)
+		}
+	}
+	return nil
 }
 
 func originOf(p authz.Principal) domain.JobOrigin {

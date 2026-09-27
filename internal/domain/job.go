@@ -380,4 +380,7 @@ var (
 	ErrJobUnknownKind         = errors.New("unknown job kind")
 	ErrJobInvalid             = errors.New("invalid job request")
 	ErrJobKindUnavailable     = errors.New("job kind has no executor on this manager")
+	// ErrRestoreInProgress refuses starting containers a restore stopped
+	// (jobspec.Spec.StartsContainers) until the restore ended (#10).
+	ErrRestoreInProgress = errors.New("a restore is in progress on the target")
 )

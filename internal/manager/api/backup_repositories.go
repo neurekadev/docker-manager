@@ -54,6 +54,8 @@ const (
 	CodeBackupNotAFile            = "backup_not_a_file"
 	CodeBackupFileTooLarge        = "backup_file_too_large"
 	CodeManagerRestoreRequired    = "manager_restore_required"
+	CodeRestoreInProgress         = "restore_in_progress"
+	CodeRestoreRefused            = "restore_refused"
 )
 
 // BackupService is the backup service as seen by the API (implemented by
@@ -110,6 +112,7 @@ func backupError(err error) error {
 	var ae *backups.AgentError
 	var ref *backup.Refusal
 	var classed jobexec.ClassedError
+	var refusal *backups.RestoreRefusal
 	switch {
 	case err == nil:
 		return nil
@@ -145,6 +148,11 @@ func backupError(err error) error {
 		return Conflict(CodeBackupNotAFile, "only regular files can be downloaded from a backup")
 	case errors.Is(err, backups.ErrFileTooLarge):
 		return NewError(http.StatusRequestEntityTooLarge, CodeBackupFileTooLarge, "the file is larger than the download limit")
+	case errors.Is(err, backups.ErrRestoreAgentOutdated):
+		return NewError(http.StatusNotImplemented, CodeAgentUnsupported,
+			"the environment's agent cannot restore a whole backup or selected paths (it is offline or older than the manager); upgrade it, or restore the definition, volumes or one file")
+	case errors.As(err, &refusal):
+		return Conflict(CodeRestoreRefused, refusal.Message)
 	case errors.Is(err, backups.ErrManagerStateRestore):
 		return Conflict(CodeManagerRestoreRequired, "manager-state backups are restored by importing them into a fresh manager (first-run setup, backup import)")
 	case errors.Is(err, backups.ErrContentUnavailable):

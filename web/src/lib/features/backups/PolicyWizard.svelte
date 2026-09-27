@@ -43,6 +43,8 @@
 	import ScopePreviewView from './ScopePreviewView.svelte';
 	import VolumeCoverage from './VolumeCoverage.svelte';
 	import {
+		DEFAULT_RETENTION,
+		hasRetentionRules,
 		repositoryLocation,
 		type BackupPolicy,
 		type BackupRetention,
@@ -86,9 +88,7 @@
 	let enabled = $state(p0?.schedule?.enabled ?? false);
 	let cron = $state(p0?.schedule?.cron ?? '');
 	let zone = $state(p0?.schedule?.timeZone ?? '');
-	let retention = $state<BackupRetention>(
-		p0?.retention ?? { daily: 7, weekly: 4, monthly: 6, minKeep: 3 }
-	);
+	let retention = $state<BackupRetention>(p0?.retention ?? { ...DEFAULT_RETENTION });
 	let current = $state(0);
 	let touched = $state(false);
 	let error = $state<unknown>(null);
@@ -302,11 +302,7 @@
 				: current === 3
 					? !!cron.trim()
 					: current === 4
-						? !(
-								retention.minKeep !== undefined &&
-								retention.minKeep < 1 &&
-								Object.keys(retention).length > 1
-							)
+						? !(hasRetentionRules(retention) && (retention.minKeep ?? 0) < 1)
 						: true
 	);
 

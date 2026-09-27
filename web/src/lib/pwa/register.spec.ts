@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	PwaState,
+	ReconnectCheck,
 	SW_URL,
 	type ContainerLike,
 	type RegistrationLike,
@@ -192,5 +193,24 @@ describe('service worker registration', () => {
 		expect(await state.register(container, reload)).toBeNull();
 		expect(state.error).toContain('insecure origin');
 		expect(state.registered).toBe(false);
+	});
+});
+
+describe('ReconnectCheck', () => {
+	it('checks for a new build only when the connection comes back', () => {
+		let checks = 0;
+		const r = new ReconnectCheck(() => checks++);
+		r.observe(true);
+		expect(checks).toBe(0);
+		r.observe(false);
+		r.observe(false);
+		expect(checks).toBe(0);
+		r.observe(true);
+		expect(checks).toBe(1);
+		r.observe(true);
+		expect(checks).toBe(1);
+		r.observe(false);
+		r.observe(true);
+		expect(checks).toBe(2);
 	});
 });

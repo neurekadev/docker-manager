@@ -634,6 +634,10 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 		}
 	}
 	slices.Sort(p.Commands)
+	// This agent's restore.run serves the full and paths scopes (#10).
+	if slices.Contains(p.Commands, "restore.run") {
+		p.Features = append(p.Features, protocol.FeatureRestoreSelection)
+	}
 	if c.EngineError != nil {
 		p.Diagnostics = append(p.Diagnostics, protocol.Diagnostic{
 			Area: protocol.DiagnosticEngine, Code: string(c.EngineError.Code), Message: bound(c.EngineError.Message),

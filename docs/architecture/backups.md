@@ -222,6 +222,8 @@ the repository is S3):
 | `stack` | the project directory: Compose files, `.env`, workspace and relative bind data | volumes; redeploying (the output suggests a deploy; the definition is recorded as an observed revision) |
 | `volume` | named volumes (a volume snapshot, or some or all volumes of a stack snapshot); a missing volume is created (with Compose's labels for a stack volume) | the stack definition |
 | `file` | one file in place (below the project directory or a volume) | anything outside the stack and its volumes (download it instead) |
+| `full` | everything the backup holds: a stack backup's project directory **and** every volume in it (one job); a volume backup's volume. With `redeploy` (stack backups, needs `stack.deploy`) the stack is deployed from the restored definition afterwards with the services that were running before | — |
+| `paths` | up to 1000 selected files and directories in place, each below the project directory or one of the backup's volumes. A selected directory is made **identical** to the backup (entries it did not hold are removed); nothing outside the selection changes; a missing path is created | paths outside the stack and its volumes, paths the backup does not hold (409 `restore_refused`) |
 
 The snapshot records where the project directory and each volume were
 (`projectPath`, `volumePaths`), and `restore.run` maps them to their current
@@ -235,12 +237,38 @@ journaling the restart compensation, restores into a staging directory next
 to each target (same filesystem), then swaps: the target's entries move to
 a rollback directory and the staged entries into place; any failure moves
 the original entries back. Only the previously running containers start
-again, dependencies first. A crash mid-swap leaves
+again, dependencies first. `full` and `paths` reach only agents announcing
+`restore.selection` (`protocol.FeatureRestoreSelection`; otherwise 501
+`agent_unsupported`).
+
+While a restore has not ended (queued included), every job kind that
+starts containers (`jobspec.Spec.StartsContainers`: stack start, restart,
+deploy and update, container start, restart and unpause, update runs) is
+**refused** on its data with 409 `restore_in_progress` instead of waiting
+behind it: the restore starts exactly the previously running containers
+itself. The restore locks its stacks, volumes and (lock-only targets) the
+containers outside the restored stack that mount a restored volume. A
+full restore's redeploy is a `stack.deploy` job the finish hook queues for
+the restore's initiator (idempotency key `restore-redeploy:<jobId>`);
+nothing is deployed when no service of the stack was running. A crash mid-swap leaves
 `.docker-manager-rollback-<job>` next to the target (the job's recovery guidance
 says so). Authorization: `backup.restore` on the backup **and** on every
 target (stack, volumes, repository). Manager-state snapshots answer
 `manager_restore_required`: the manager state is restored by importing it
 into a fresh manager (below), never over a running one.
+
+**UI.** Stacks and volumes have a **Backups** tab (volumes: right before
+Migrate; `$lib/features/backups/BackupsTab.svelte`, listed with
+`GET /backups?stackId=` or `?environmentId=&volume=`, which also returns
+the stack backups holding the volume). *Restore all* restores the whole
+backup (a volume's page: only that volume); *Choose files* opens a lazily
+listed file tree (`FilePickerDialog`, one directory per request, at most
+500 entries each, tri-state ticks; `selection.ts` keeps no path inside a
+ticked one and splits a ticked folder when something inside is unticked).
+Every restore is previewed and confirmed with a danger button that says
+what is replaced (a full restore also needs the name typed); the stack
+header hides Deploy, Start, Restart and Update while a restore of the
+stack has not ended.
 
 ## Fresh-manager import (#24)
 

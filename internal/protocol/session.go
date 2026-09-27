@@ -208,6 +208,12 @@ const (
 	CodeResticFailed           = "restic_failed"
 	CodePathNotAllowed         = "path_not_allowed"
 	CodeRepositoryInsideSource = "repository_inside_source"
+	// Restore refusals (#10): the request names a path the backup does not
+	// hold, a path that cannot be restored in place, or a volume missing
+	// on the host.
+	CodeSnapshotPathUnknown = "snapshot_path_unknown"
+	CodePathNotRestorable   = "path_not_restorable"
+	CodeTargetMissing       = "target_missing"
 )
 
 var errorCodes = []string{
@@ -218,7 +224,7 @@ var errorCodes = []string{
 	CodeAlreadyExists, CodeNotDirectory, CodeIsDirectory, CodeUnsupportedFile, CodeUnsupportedVolume, CodeDigestMismatch,
 	CodeRepositoryNotFound, CodeRecoveryKeyRejected, CodeRepositoryLocked, CodeRepositoryDamaged, CodeStorageAccessDenied,
 	CodeStorageUnreachable, CodeSnapshotNotFound, CodeResticUnavailable, CodeResticFailed, CodePathNotAllowed,
-	CodeRepositoryInsideSource,
+	CodeRepositoryInsideSource, CodeSnapshotPathUnknown, CodePathNotRestorable, CodeTargetMissing,
 }
 
 // ErrorCodes returns every error frame code.

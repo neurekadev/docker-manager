@@ -27,9 +27,10 @@
 		{ key: 'withinDays', label: 'Everything from the last', hint: 'Days' }
 	];
 
+	// 0 turns a rule off; an emptied field counts as 0.
 	function num(key: keyof BackupRetention, v: string) {
-		const n = v.trim() === '' ? undefined : Math.max(0, Math.floor(Number(v)));
-		value = { ...value, [key]: n !== undefined && Number.isFinite(n) ? n : undefined };
+		const n = Math.max(0, Math.floor(Number(v.trim() || '0')));
+		value = { ...value, [key]: Number.isFinite(n) ? n : 0 };
 		onchange?.();
 	}
 
@@ -43,7 +44,7 @@
 <div class="retention">
 	<FieldGroup
 		legend="Keep"
-		hint="Empty keeps every snapshot. Rules combine: a snapshot kept by any rule stays."
+		hint="0 turns a rule off; with every rule at 0 every snapshot is kept. Rules combine: a snapshot kept by any rule stays."
 	>
 		<div class="grid">
 			{#each RULES as r (r.key)}
@@ -52,7 +53,7 @@
 					type="number"
 					min="0"
 					description={r.hint}
-					value={value[r.key] === undefined ? '' : String(value[r.key])}
+					value={String(value[r.key] ?? 0)}
 					onchange={(e) => num(r.key, e.currentTarget.value)}
 				/>
 			{/each}
@@ -63,7 +64,7 @@
 		type="number"
 		min="0"
 		description="Always keep at least this many of the newest snapshots of each stack and volume, whatever the rules say."
-		value={value.minKeep === undefined ? '' : String(value.minKeep)}
+		value={String(value.minKeep ?? 0)}
 		error={floorError}
 		onchange={(e) => num('minKeep', e.currentTarget.value)}
 	/>

@@ -224,7 +224,7 @@ func TestScheduleDefaultsRoutes(t *testing.T) {
 	if r.Status != http.StatusOK || r.Header.Get("ETag") != `"2"` || json.Unmarshal(r.Body, &d) != nil || d.TimeZone != "Europe/Berlin" {
 		t.Fatalf("patch: %d %s", r.Status, r.Body)
 	}
-	if d.Kinds[0].Kind != "backup" || d.Kinds[0].Cron != "15 1 * * *" || d.Kinds[0].Suggested != "0 2 * * *" {
+	if d.Kinds[0].Kind != "backup" || d.Kinds[0].Cron != "15 1 * * *" || d.Kinds[0].Suggested != "0 * * * *" {
 		t.Fatalf("%+v", d.Kinds[0])
 	}
 	if r := patch(`"1"`, map[string]any{"timeZone": "UTC"}); r.Status != http.StatusPreconditionFailed || r.Header.Get("ETag") != `"2"` {
