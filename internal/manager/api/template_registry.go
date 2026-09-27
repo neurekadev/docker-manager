@@ -190,7 +190,7 @@ func (h *registryAPI) index(ctx context.Context, in *templateRegistryInput) (*te
 	}
 	sum := sha256.Sum256(b)
 	etag := ETag("r1-" + hex.EncodeToString(sum[:16]))
-	out := &templateRegistryOutput{ETag: etag, CacheControl: "no-cache"}
+	out := &templateRegistryOutput{Status: http.StatusOK, ETag: etag, CacheControl: "no-cache"}
 	if in.IfNoneMatch != "" && slices.Contains(strings.Split(strings.ReplaceAll(in.IfNoneMatch, " ", ""), ","), etag) {
 		out.Status = http.StatusNotModified
 		return out, nil
