@@ -19,8 +19,13 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   (same project name, so volumes keep their names), recreated from the copy
   and resumed; before the journaled switch every failure rolls back.
   `prepare` refuses when a container differs from what the files create
-  (`drift.go`: settings a previous tool injected); environment values stay
-  in memory (`engine.ConfigInspector`), only names are reported.
+  (`drift.go`: settings a previous tool injected, or files edited after the
+  last deploy, named by `editedAfter`); environment values stay in memory
+  (`engine.ConfigInspector`), only names are reported. Build-only services
+  keep the image they run (tagged with Compose's name before the
+  recreate). Docker Manager's own project is copied while it runs
+  (`import.live`): never stopped nor recreated; its next deploy moves it
+  onto the copy.
 - Revisions are immutable and sealed; record observed changes with
   `stacks.Service.RecordObserved` (#23) / `RecordFileSave` (#15); resolve a
   stack's files with `Root`; paths needing `stack.definition.*`:

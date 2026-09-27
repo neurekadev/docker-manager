@@ -285,7 +285,14 @@ func (s *Service) discover(ctx context.Context, input json.RawMessage) (any, err
 	if s.opts.Deps != nil {
 		res = s.opts.Deps.Storage()
 	}
-	return discoverProjects(list, res), nil
+	out := discoverProjects(list, res)
+	if s.opts.Guard != nil {
+		own := s.opts.Guard.Identify(ctx, eng, list)
+		for i := range out.Projects {
+			out.Projects[i].Protected = own.Project(out.Projects[i].Name) != nil
+		}
+	}
+	return out, nil
 }
 
 func discoverProjects(list []engine.Container, res *storage.Result) protocol.ComposeDiscoverOutput {

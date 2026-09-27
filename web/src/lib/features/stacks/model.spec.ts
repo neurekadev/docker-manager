@@ -9,6 +9,7 @@ import {
 	dependencyOrder,
 	downtimeText,
 	findingTitle,
+	importCandidates,
 	jobKindLabel,
 	nameError,
 	openTarget,
@@ -375,5 +376,34 @@ describe('migration, updates and jobs', () => {
 		expect(auditActionLabel('stack.definition.read')).toBe('Opened the definition');
 		expect(auditActionLabel('stack.restart')).toBe('Restart');
 		expect(auditActionLabel('stack.files.write')).toBe('Stack files write');
+	});
+});
+
+describe('importCandidates', () => {
+	const projects = [
+		{ name: 'zerobyte' },
+		{ name: 'docker-manager', stackId: 's1' },
+		{ name: 'garage' }
+	];
+
+	it('hides managed projects', () => {
+		expect(importCandidates(projects, true).map((p) => p.name)).toEqual(['garage', 'zerobyte']);
+	});
+
+	it('keeps a managed project whose import the dialog started', () => {
+		const keep = (p: { name: string }) => p.name === 'docker-manager';
+		expect(importCandidates(projects, true, keep).map((p) => p.name)).toEqual([
+			'garage',
+			'zerobyte',
+			'docker-manager'
+		]);
+	});
+
+	it('lists managed projects last when shown', () => {
+		expect(importCandidates(projects, false).map((p) => p.name)).toEqual([
+			'garage',
+			'zerobyte',
+			'docker-manager'
+		]);
 	});
 });

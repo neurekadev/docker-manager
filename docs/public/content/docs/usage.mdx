@@ -24,6 +24,12 @@ that Docker Manager does not manage yet. Press **Import** on one:
   folder (the Compose file and every folder next to it, such as database
   data, with owners and permissions kept), checks the copy, and starts the
   project again from the copy. Its name and volumes stay the same.
+- Docker Manager's own project is copied while it keeps running: nothing
+  stops. Docker Manager moves onto the copy the next time you deploy that
+  stack.
+
+Projects Docker Manager already manages are hidden. Turn off **Hide managed
+stacks** to see them.
 
 To import projects that live elsewhere on the host, the agent needs to read
 their folder. Add a read-only mount below `/import` to the agent in your
@@ -46,9 +52,13 @@ Good to know:
   the copy is removed and the project keeps running from its original
   folder.
 - An import is refused, with the reason, when the running containers use
-  settings that are not in the project's files (for example variables the
-  other tool keeps in its own database). Put them into the project's `.env`
-  and try again.
+  settings that are not in the project's files. Most often the files were
+  edited in the other tool but the project was not redeployed: redeploy it
+  there first, then import again. If the other tool keeps variables in its
+  own database, put them into the project's `.env` and try again.
+- In the project's files, write full paths instead of `~` (for example
+  `/root/.config/rclone`, not `~/.config/rclone`): `~` means a different
+  folder for each tool.
 - Your original folder is never changed. Delete it yourself once the stack
   runs well, and stop the old tool from managing that project so it does not
   redeploy or remove it.

@@ -8,8 +8,14 @@ import (
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine/enginefake"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobexec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
 )
 
 func ctr(svc, dir string) engine.Container {
@@ -49,6 +55,75 @@ func TestRelocated(t *testing.T) {
 	moved.Binds = append(moved.Binds, compose.Bind{Service: "web", Source: "/stacks/shared", Target: "/shared"})
 	if err := relocated(orig, moved, src, dst); err == nil || !strings.Contains(err.Error(), "relative path outside") {
 		t.Errorf("relative bind outside the project: %v", err)
+	}
+}
+
+// TestImportKeepsBuiltImages: a build-only service's running image (named
+// by another tool) is tagged with Compose's name before the recreate;
+// services with an image of their own are left alone.
+func TestImportKeepsBuiltImages(t *testing.T) {
+	ctx := testutil.Context(t)
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{"compose.yaml": "services:\n  ui:\n    build: .\n  web:\n    image: nginx:1.27\n",
+		"Dockerfile": "FROM scratch\n"})
+	p, err := compose.LoadProject(ctx, compose.ProjectSpec{Name: "garage", Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eng := enginefake.New("engine-1")
+	built := eng.AddImage("arcane.local/garage-ce2b0484/ui:latest")
+	eng.AddImage("nginx:1.27")
+	for svc, img := range map[string]string{"ui": "arcane.local/garage-ce2b0484/ui:latest", "web": "nginx:1.27"} {
+		eng.AddContainer(engine.ContainerSpec{Name: "garage-" + svc, Image: img,
+			Labels: map[string]string{lifecycle.ComposeProjectLabel: "garage", lifecycle.ComposeServiceLabel: svc}}, false)
+	}
+	if err := keepBuiltImages(ctx, eng, p, "garage", []string{"ui", "web"}); err != nil {
+		t.Fatal(err)
+	}
+	if img, err := eng.InspectImage(ctx, "garage-ui"); err != nil || img.ID != built {
+		t.Errorf("garage-ui = %+v %v, want the running image %s", img, err, built)
+	}
+	// Idempotent: a retried recreate finds the tag in place.
+	if err := keepBuiltImages(ctx, eng, p, "garage", []string{"ui"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestImportOwnProjectWhileItRuns (#32): Docker Manager's own project is
+// copied while it runs; nothing is stopped, recreated or started.
+func TestImportOwnProjectWhileItRuns(t *testing.T) {
+	const hostProjects = "/projects"
+	stacks, imports := t.TempDir(), t.TempDir()
+	writeTree(t, filepath.Join(imports, "docker-manager"), map[string]string{
+		"compose.yaml": "services:\n  agent:\n    image: docker-agent:edge\n", ".env": ""})
+	res := &storage.Result{Containerized: true, StacksDir: filepath.ToSlash(stacks),
+		Roots:   []storage.Root{{Kind: storage.KindStacks, Path: filepath.ToSlash(stacks), OK: true}},
+		Imports: []storage.ImportMount{{HostPath: hostProjects, Path: filepath.ToSlash(imports)}}}
+	eng := enginefake.New("engine-1")
+	eng.AddImage("docker-agent:edge")
+	self := eng.AddContainer(engine.ContainerSpec{Name: "docker-agent", Image: "docker-agent:edge",
+		Labels: map[string]string{lifecycle.ComposeProjectLabel: "docker-manager", lifecycle.ComposeServiceLabel: "agent",
+			labelWorkingDir: hostProjects + "/docker-manager"}}, true)
+	c := &fakeComposer{}
+	svc := New(Options{Deps: fakeDeps{c: c, eng: eng, st: res}, Clock: testutil.FakeClock(), Logger: testutil.Logger(t),
+		Guard: protect.New(protect.Options{SelfContainerID: self})})
+
+	res2, out := run(t, svc, jobspec.StackImport, protocol.StackJobInput{Stack: ref("docker-manager"),
+		Import: &protocol.StackImportSource{WorkingDir: hostProjects + "/docker-manager"}})
+	if res2.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("import: %+v", res2)
+	}
+	if out.Import == nil || !out.Import.Live || !out.Import.Switched || strings.Join(out.Import.WasRunning, ",") != "agent" {
+		t.Errorf("report %+v", out.Import)
+	}
+	if len(c.calls) != 0 {
+		t.Errorf("Compose recreated Docker Manager: %v", c.calls)
+	}
+	if d, err := eng.InspectContainer(testutil.Context(t), self); err != nil || !d.State.Running {
+		t.Errorf("Docker Manager's agent was stopped: %+v %v", d.State, err)
+	}
+	if _, err := os.Stat(filepath.Join(stacks, "docker-manager", "compose.yaml")); err != nil {
+		t.Errorf("no copy: %v", err)
 	}
 }
 

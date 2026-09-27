@@ -16,6 +16,11 @@ import (
 // never log, journal or send them.
 type Expectation struct {
 	Image string
+	// Built is set for a service with a build section and no image: Image
+	// is then only Compose's default name for the built image, and a tool
+	// that built it may have named it otherwise (Arcane:
+	// arcane.local/<project>-<id>/<service>:latest).
+	Built bool
 	// Env are the service's variables that have a value.
 	Env map[string]string
 	// Labels are the labels the definition sets (not Compose's own).
@@ -58,7 +63,8 @@ func (p *Project) Expected(service string) (Expectation, bool) {
 	if !ok {
 		return Expectation{}, false
 	}
-	e := Expectation{Image: api.GetImageNameOrDefault(s, p.model.Name), Env: map[string]string{}, Labels: maps.Clone(map[string]string(s.Labels)),
+	e := Expectation{Image: api.GetImageNameOrDefault(s, p.model.Name), Built: s.Build != nil && s.Image == "",
+		Env: map[string]string{}, Labels: maps.Clone(map[string]string(s.Labels)),
 		Command: s.Command, Entrypoint: s.Entrypoint, User: s.User, WorkingDir: s.WorkingDir, Mounts: map[string]ExpectedMount{}}
 	if e.Labels == nil {
 		e.Labels = map[string]string{}

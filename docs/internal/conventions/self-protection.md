@@ -14,7 +14,9 @@ images, volumes, networks and Compose project are protected for everyone
   (`protection.Refusal` is a `jobexec.ClassedError`).
 - Bulk features (prune #14, updates #20, backup/restore shutdown plans #10,
   bulk selections and migrations #35) drop protected objects with
-  `protection.Filter` and show the reason; stack deploy/down/stop (#7)
-  refuse Docker Manager's own project.
+  `protection.Filter` and show the reason; stack down/stop/restart/remove
+  (#7) refuse Docker Manager's own project (deploys hand the agent's own
+  service to the self-update helper; an import by copy copies the project
+  while it runs and never stops it).
 - No override flag: only the co-located manager's restart takes
   `confirm: true`.

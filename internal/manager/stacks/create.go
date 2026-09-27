@@ -242,7 +242,7 @@ func (s *Service) Discovered(ctx context.Context, environmentID string) ([]domai
 	list := make([]domain.DiscoveredStack, 0, len(out.Projects))
 	for _, p := range out.Projects {
 		d := domain.DiscoveredStack{Name: p.Name, WorkingDir: p.WorkingDir, ConfigFiles: p.ConfigFiles, Root: p.Root, Dir: p.Dir,
-			Adoptable: p.Adoptable, Copyable: p.Copyable && !p.Adoptable, SourceDir: p.SourceDir, Reason: p.Reason}
+			Adoptable: p.Adoptable, Copyable: p.Copyable && !p.Adoptable, SourceDir: p.SourceDir, Reason: p.Reason, Protected: p.Protected}
 		for _, sv := range p.Services {
 			d.Services = append(d.Services, domain.DiscoveredService{Name: sv.Name, Image: sv.Image, Containers: sv.Containers, Running: sv.Running})
 		}
