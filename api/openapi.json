@@ -11735,15 +11735,34 @@
             "maxLength": 4096,
             "type": "string"
           },
+          "paths": {
+            "description": "paths scope: absolute paths of files and directories inside the backup (none inside another).",
+            "examples": [
+              [
+                "/var/lib/docker/volumes/web_data/_data/uploads"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          },
+          "redeploy": {
+            "description": "full scope of a stack backup: deploy the stack from the restored definition afterwards, with the services that were running before (needs stack.deploy).",
+            "type": "boolean"
+          },
           "scope": {
-            "description": "stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place.",
+            "description": "full: everything the backup holds (a stack backup: its project directory and every volume in it; a volume backup: the volume). paths: the files and directories in paths, in place; a directory is made identical to the backup (files it did not hold are removed). stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place. full and paths need an up-to-date agent (501 agent_unsupported).",
             "enum": [
+              "full",
+              "paths",
               "stack",
               "volume",
               "file"
             ],
             "examples": [
-              "volume"
+              "full"
             ],
             "type": "string"
           },
@@ -11784,15 +11803,27 @@
             "maxLength": 4096,
             "type": "string"
           },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          },
+          "redeploy": {
+            "type": "boolean"
+          },
           "scope": {
             "description": "As in restore previews.",
             "enum": [
+              "full",
+              "paths",
               "stack",
               "volume",
               "file"
             ],
             "examples": [
-              "volume"
+              "full"
             ],
             "type": "string"
           },
@@ -24148,7 +24179,10 @@
           "content": {
             "application/json": {
               "example": {
-                "scope": "volume",
+                "paths": [
+                  "/var/lib/docker/volumes/web_data/_data/uploads"
+                ],
+                "scope": "full",
                 "volumes": [
                   "web_data"
                 ]
@@ -24371,7 +24405,7 @@
             "application/json": {
               "example": {
                 "confirm": true,
-                "scope": "volume"
+                "scope": "full"
               },
               "schema": {
                 "$ref": "#/components/schemas/RestoreInputBody"

@@ -966,6 +966,9 @@ Codes of `error` frames and of `stream_close {reason: error}`:
 | `restic_failed` | restic failed for another reason |
 | `path_not_allowed` | a local backup location is outside `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` |
 | `repository_inside_source` | a local backup location lies inside a backup source |
+| `snapshot_path_unknown` | a restore names a path the backup does not hold (#10) |
+| `path_not_restorable` | a restore names a path outside the stack's project directory and its volumes, or one that cannot be replaced in place |
+| `target_missing` | a restore of a volume's file names a volume missing on the host |
 
 The manager maps them to public errors: `not_found` → 404,
 `conflict` → 409/412, `deadline_exceeded` → 504 `timeout`,

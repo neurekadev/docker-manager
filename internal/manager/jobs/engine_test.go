@@ -605,3 +605,39 @@ func TestOnChangeObservesEveryJobChange(t *testing.T) {
 		t.Fatalf("completion not observed: %d", count())
 	}
 }
+
+// TestRestoreRefusesStarts (#10): while a restore has not ended, kinds that
+// start containers are refused on its data instead of waiting behind it;
+// other kinds (a stop) and unrelated targets queue as usual.
+func TestRestoreRefusesStarts(t *testing.T) {
+	h := newHarness(t)
+	h.disp.Connect("e1")
+	container := func(id string) domain.JobTarget { return domain.JobTarget{Type: domain.TargetContainer, ID: id} }
+	r := h.enqueue(jobs.Request{Kind: jobspec.RestoreRun, EnvironmentID: "e1",
+		Targets: []domain.JobTarget{stack("web"), volume("web_data"), container("worker"), repo("r1")}})
+	refused := func(kind domain.JobKind, targets ...domain.JobTarget) {
+		t.Helper()
+		_, _, err := h.eng.Enqueue(h.ctx, jobs.Request{Kind: kind, Principal: user("alice"), EnvironmentID: "e1", Targets: targets})
+		if !errors.Is(err, domain.ErrRestoreInProgress) {
+			t.Errorf("%s %v while restoring: %v", kind, targets, err)
+		}
+	}
+	// Queued, not dispatched yet: already refused.
+	refused(jobspec.StackStart, stack("web"))
+	h.dispatch()
+	refused(jobspec.StackDeploy, stack("web"))
+	refused(jobspec.StackRestart, stack("web"))
+	refused(jobspec.ContainerStart, container("web-1"), stack("web"))
+	refused(jobspec.ContainerStart, container("worker"))
+	refused(jobspec.UpdateRun, stack("web"))
+	h.enqueue(jobs.Request{Kind: jobspec.StackStop, EnvironmentID: "e1", Targets: []domain.JobTarget{stack("web")}})
+	h.enqueue(jobs.Request{Kind: jobspec.StackStart, EnvironmentID: "e1", Targets: []domain.JobTarget{stack("other")}})
+	cmd := h.commands("e1")[0]
+	if cmd.Ref().JobID != r.ID {
+		t.Fatalf("first command %+v", cmd)
+	}
+	h.ack("e1", cmd, protocol.AckPayload{Accepted: true})
+	h.result("e1", cmd, protocol.ResultPayload{Outcome: "succeeded"})
+	h.wantState(r.ID, domain.JobSucceeded)
+	h.enqueue(jobs.Request{Kind: jobspec.StackStart, EnvironmentID: "e1", Targets: []domain.JobTarget{stack("web")}})
+}

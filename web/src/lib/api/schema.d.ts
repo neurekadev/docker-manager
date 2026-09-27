@@ -8336,11 +8336,20 @@ export interface components {
             /** @description file scope: the file's absolute path inside the backup. */
             path?: string;
             /**
-             * @description stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place.
-             * @example volume
+             * @description paths scope: absolute paths of files and directories inside the backup (none inside another).
+             * @example [
+             *       "/var/lib/docker/volumes/web_data/_data/uploads"
+             *     ]
+             */
+            paths?: string[];
+            /** @description full scope of a stack backup: deploy the stack from the restored definition afterwards, with the services that were running before (needs stack.deploy). */
+            redeploy?: boolean;
+            /**
+             * @description full: everything the backup holds (a stack backup: its project directory and every volume in it; a volume backup: the volume). paths: the files and directories in paths, in place; a directory is made identical to the backup (files it did not hold are removed). stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place. full and paths need an up-to-date agent (501 agent_unsupported).
+             * @example full
              * @enum {string}
              */
-            scope: "stack" | "volume" | "file";
+            scope: "full" | "paths" | "stack" | "volume" | "file";
             /** @description Stop the containers using the data while it is restored and start the previously running ones afterwards (default true; with false a restore under running containers is refused). */
             shutdown?: boolean;
             /**
@@ -8358,12 +8367,14 @@ export interface components {
              */
             confirm: boolean;
             path?: string;
+            paths?: string[];
+            redeploy?: boolean;
             /**
              * @description As in restore previews.
-             * @example volume
+             * @example full
              * @enum {string}
              */
-            scope: "stack" | "volume" | "file";
+            scope: "full" | "paths" | "stack" | "volume" | "file";
             shutdown?: boolean;
             volumes?: string[];
         };
@@ -15285,7 +15296,10 @@ export interface operations {
             content: {
                 /**
                  * @example {
-                 *       "scope": "volume",
+                 *       "paths": [
+                 *         "/var/lib/docker/volumes/web_data/_data/uploads"
+                 *       ],
+                 *       "scope": "full",
                  *       "volumes": [
                  *         "web_data"
                  *       ]
@@ -15432,7 +15446,7 @@ export interface operations {
                 /**
                  * @example {
                  *       "confirm": true,
-                 *       "scope": "volume"
+                 *       "scope": "full"
                  *     }
                  */
                 "application/json": components["schemas"]["RestoreInputBody"];

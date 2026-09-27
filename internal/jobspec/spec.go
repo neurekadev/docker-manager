@@ -135,6 +135,12 @@ type Spec struct {
 	// targets must still be in the job's environment when it is dispatched
 	// (class target_moved otherwise).
 	FormerStackLocation bool
+	// StartsContainers: the kind starts, restarts or recreates containers.
+	// While a restore holds or waits for a conflicting lock it is refused
+	// (domain.ErrRestoreInProgress), not queued behind it: the restore
+	// stops the containers using its data and starts exactly the
+	// previously running ones itself (#10).
+	StartsContainers bool
 }
 
 // LockOnlyRule selects lock-only targets.

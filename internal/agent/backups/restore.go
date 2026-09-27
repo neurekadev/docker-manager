@@ -44,7 +44,10 @@ import (
 //	start_containers restart only what was running, dependencies first.
 //
 // A stack restore never touches volumes; a volume restore never touches
-// the stack's definition. Nothing is redeployed implicitly.
+// the stack's definition; a full restore does both in one job. A paths
+// restore puts selected files and directories back in place (a directory
+// is made identical to the snapshot). Nothing is redeployed here: a full
+// restore's redeploy is a stack.deploy the manager queues afterwards.
 
 // Bounds of preview walks.
 const (
@@ -58,6 +61,12 @@ type restoreTarget struct {
 	// the file itself.
 	current string
 	volume  *protocol.RestoreVolume
+	// root is the directory the target lies in now (the project
+	// directory or the volume's data directory; file and dir targets).
+	root string
+	// selected: a path of a paths restore (a file, directory or symlink;
+	// replaced as a whole).
+	selected bool
 }
 
 type restorePlan struct {
@@ -119,17 +128,18 @@ func (s *Service) resolveRestore(ctx context.Context, in protocol.RestoreRunInpu
 			}
 		}
 	}
-	switch in.Scope {
-	case protocol.RestoreScopeStack:
+	addProject := func() error {
 		if projectSource == "" {
-			return nil, backup.Refuse("snapshot_path_unknown", "the snapshot has no project directory for this stack",
+			return backup.Refuse("snapshot_path_unknown", "the snapshot has no project directory for this stack",
 				"Choose a snapshot of this stack.")
 		}
 		_, err := os.Stat(projectDir)
 		p.targets = append(p.targets, restoreTarget{RestoreTarget: protocol.RestoreTarget{Kind: "project", Name: in.Project.ProjectName,
 			Path: filepath.ToSlash(projectDir), Source: projectSource, Exists: err == nil, Create: errors.Is(err, fs.ErrNotExist)}, current: projectDir})
 		p.involveProject(all, in.Project.ProjectName, prot)
-	case protocol.RestoreScopeVolume:
+		return nil
+	}
+	addVolumes := func() error {
 		for i := range in.Volumes {
 			v := in.Volumes[i]
 			src := v.Source
@@ -137,7 +147,7 @@ func (s *Service) resolveRestore(ctx context.Context, in protocol.RestoreRunInpu
 				src = deriveVolumeSource(paths, v.Name)
 			}
 			if src == "" {
-				return nil, backup.Refuse("snapshot_path_unknown", "the snapshot does not contain volume "+v.Name, "Choose a snapshot that contains it.")
+				return backup.Refuse("snapshot_path_unknown", "the snapshot does not contain volume "+v.Name, "Choose a snapshot that contains it.")
 			}
 			t := restoreTarget{RestoreTarget: protocol.RestoreTarget{Kind: "volume", Name: v.Name, Source: src}, volume: &v}
 			vol, err := eng.InspectVolume(ctx, v.Name)
@@ -146,7 +156,7 @@ func (s *Service) resolveRestore(ctx context.Context, in protocol.RestoreRunInpu
 				t.Create = true
 				t.current = filepath.Join(filepath.FromSlash(res.VolumesDir), v.Name, "_data")
 			case err != nil:
-				return nil, classed(err)
+				return classed(err)
 			default:
 				if acc := res.AccessFor(vol); !acc.Supported {
 					p.blocked = append(p.blocked, "volume "+v.Name+": "+acc.Reason)
@@ -157,17 +167,42 @@ func (s *Service) resolveRestore(ctx context.Context, in protocol.RestoreRunInpu
 			p.targets = append(p.targets, t)
 			p.involveVolume(all, v.Name, prot)
 		}
-	case protocol.RestoreScopeFile:
-		t, err := s.resolveFile(ctx, eng, in, paths, projectDir, projectSource)
+		return nil
+	}
+	addPath := func(file string, anyType bool) error {
+		t, err := s.resolveFile(ctx, eng, in, file, anyType, paths, projectDir, projectSource)
 		if err != nil {
-			return nil, err
+			return err
 		}
+		t.selected = anyType
 		p.targets = append(p.targets, t)
 		if t.volume != nil {
 			p.involveVolume(all, t.volume.Name, prot)
 		} else if in.Project != nil {
 			p.involveProject(all, in.Project.ProjectName, prot)
 		}
+		return nil
+	}
+	switch in.Scope {
+	case protocol.RestoreScopeStack:
+		err = addProject()
+	case protocol.RestoreScopeVolume:
+		err = addVolumes()
+	case protocol.RestoreScopeFull:
+		if err = addProject(); err == nil {
+			err = addVolumes()
+		}
+	case protocol.RestoreScopeFile:
+		err = addPath(in.File, false)
+	case protocol.RestoreScopePaths:
+		for _, sp := range in.Paths {
+			if err = addPath(sp, true); err != nil {
+				break
+			}
+		}
+	}
+	if err != nil {
+		return nil, err
 	}
 	if !in.Shutdown && (len(p.projects) > 0 || len(p.standalone) > 0) {
 		p.blocked = append(p.blocked, "containers using the data are running: restore with shutdown to stop them first (they are started again afterwards)")
@@ -196,16 +231,19 @@ func deriveVolumeSource(paths []string, name string) string {
 }
 
 // resolveFile finds the root a file belongs to (the stack's project
-// directory or one of the snapshot's volumes) and its current place.
-func (s *Service) resolveFile(ctx context.Context, eng engine.Engine, in protocol.RestoreRunInput, paths []string, projectDir, projectSource string) (restoreTarget, error) {
-	t := restoreTarget{RestoreTarget: protocol.RestoreTarget{Kind: "file", Source: in.File}}
+// directory or one of the snapshot's volumes) and its current place. With
+// anyType (paths restores) it may also be a directory or a symlink: its
+// kind (file or dir) comes from the snapshot listing (count).
+func (s *Service) resolveFile(ctx context.Context, eng engine.Engine, in protocol.RestoreRunInput, file string, anyType bool,
+	paths []string, projectDir, projectSource string) (restoreTarget, error) {
+	t := restoreTarget{RestoreTarget: protocol.RestoreTarget{Kind: "file", Source: file}}
 	switch {
-	case projectSource != "" && snapWithin(in.File, projectSource) && in.File != projectSource:
-		t.current = filepath.Join(projectDir, filepath.FromSlash(snapRel(in.File, projectSource)))
-		t.Name = in.Project.ProjectName
+	case projectSource != "" && snapWithin(file, projectSource) && file != projectSource:
+		t.current = filepath.Join(projectDir, filepath.FromSlash(snapRel(file, projectSource)))
+		t.Name, t.root = in.Project.ProjectName, projectDir
 	default:
-		for _, p := range paths {
-			if !strings.HasSuffix(p, "/_data") || !snapWithin(in.File, p) || in.File == p {
+		for _, p := range volumeSources(paths, in.Volumes) {
+			if !snapWithin(file, p) || file == p {
 				continue
 			}
 			name := path.Base(path.Dir(p))
@@ -213,35 +251,47 @@ func (s *Service) resolveFile(ctx context.Context, eng engine.Engine, in protoco
 			if err != nil {
 				return t, backup.Refuse("target_missing", "volume "+name+" does not exist on this host", "Restore the whole volume instead.")
 			}
-			t.current = filepath.Join(osPath(vol.Mountpoint), filepath.FromSlash(snapRel(in.File, p)))
-			t.Name, t.volume = name, &protocol.RestoreVolume{Name: name, Source: p}
+			t.current = filepath.Join(osPath(vol.Mountpoint), filepath.FromSlash(snapRel(file, p)))
+			t.Name, t.volume, t.root = name, &protocol.RestoreVolume{Name: name, Source: p}, osPath(vol.Mountpoint)
 			break
 		}
 	}
 	if t.current == "" {
-		return t, backup.Refuse("path_not_restorable", "the file lies outside the stack's project directory and its volumes",
+		return t, backup.Refuse("path_not_restorable", file+" lies outside the stack's project directory and its volumes",
 			"Download the file instead and put it in place yourself.")
 	}
 	// The parent must stay inside its root: no symlinked directories.
-	root := projectDir
-	if t.volume != nil {
-		root = filepath.Dir(filepath.Dir(t.current))
-		if v, err := eng.InspectVolume(ctx, t.volume.Name); err == nil {
-			root = osPath(v.Mountpoint)
-		}
-	}
-	if parent, exists, err := realPath(filepath.Dir(t.current)); err != nil || (exists && !inside(parent, rootReal(root))) {
-		return t, backup.Refuse("path_not_restorable", "the file's directory leads outside its root through a symlink", "Restore the whole directory.")
+	if parent, exists, err := realPath(filepath.Dir(t.current)); err != nil || (exists && !inside(parent, rootReal(t.root))) {
+		return t, backup.Refuse("path_not_restorable", file+": its directory leads outside its root through a symlink", "Restore the whole directory.")
 	}
 	fi, err := os.Lstat(t.current)
 	switch {
-	case err == nil && !fi.Mode().IsRegular():
+	case err == nil && anyType && !fi.Mode().IsRegular() && !fi.IsDir() && fi.Mode()&fs.ModeSymlink == 0:
+		return t, backup.Refuse("path_not_restorable", file+" exists and is not a file, directory or symlink", "Deselect it and restore again.")
+	case err == nil && !anyType && !fi.Mode().IsRegular():
 		return t, backup.Refuse("path_not_restorable", "the path exists and is not a regular file", "Restore the directory instead.")
 	case err == nil:
 		t.Exists = true
 	}
 	t.Path = filepath.ToSlash(t.current)
 	return t, nil
+}
+
+// volumeSources are the volume data directories a snapshot holds: the
+// input's volume sources, then the snapshot paths ending in /_data.
+func volumeSources(paths []string, vols []protocol.RestoreVolume) []string {
+	var out []string
+	for _, v := range vols {
+		if v.Source != "" {
+			out = append(out, v.Source)
+		}
+	}
+	for _, p := range paths {
+		if strings.HasSuffix(p, "/_data") && !slices.Contains(out, p) {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func rootReal(p string) string {
@@ -307,18 +357,29 @@ func (p *restorePlan) involve(c engine.Container, prot map[string]string) {
 // count fills a target's counts from the snapshot and the current tree.
 func (s *Service) count(ctx context.Context, repo restic.Repo, snapshotID string, t *restoreTarget) error {
 	l, err := repo.Ls(ctx, snapshotID, t.Source, true, restoreListLimit)
+	var re *restic.Error
+	if t.selected && errors.As(err, &re) && re.Code == restic.CodeSnapshotNotFound {
+		return backup.Refuse("snapshot_path_unknown", t.Source+" is not in the backup", "Choose paths from the backup's contents.")
+	}
 	if err != nil {
 		return err
 	}
 	t.Complete = !l.Truncated
 	inSnap := map[string]bool{}
 	owners := map[string]bool{}
+	found := false
 	for _, n := range l.Nodes {
 		if !snapWithin(n.Path, t.Source) {
 			continue
 		}
+		found = true
 		rel := snapRel(n.Path, t.Source)
 		inSnap[rel] = true
+		// A selected path (paths restore) that is a directory in the
+		// snapshot replaces the directory as a whole.
+		if t.selected && t.Kind == "file" && (rel != "." || n.Type == "dir") {
+			t.Kind = "dir"
+		}
 		if n.Type == "file" {
 			t.Files++
 			t.Bytes += n.Size
@@ -331,6 +392,19 @@ func (s *Service) count(ctx context.Context, repo restic.Repo, snapshotID string
 		t.Owners = append(t.Owners, o)
 	}
 	sort.Strings(t.Owners)
+	if t.selected && !found {
+		return backup.Refuse("snapshot_path_unknown", t.Source+" is not in the backup", "Choose paths from the backup's contents.")
+	}
+	if t.Kind == "dir" && t.Exists {
+		if fi, err := os.Lstat(t.current); err == nil && !fi.IsDir() {
+			// A file (or link) now where the snapshot has a directory:
+			// it is replaced whole.
+			t.Overwritten = 1
+			t.Added = t.Files
+			t.FreeBytes = freeBytes(filepath.Dir(t.current))
+			return nil
+		}
+	}
 	if t.Kind == "file" {
 		if t.Exists {
 			t.Overwritten = 1
@@ -413,9 +487,13 @@ func (s *Service) restorePreview(ctx context.Context, input json.RawMessage) (an
 		}
 		out.Targets = append(out.Targets, t.RestoreTarget)
 	}
-	if in.Input.Scope == protocol.RestoreScopeStack {
+	switch {
+	case in.Input.Scope == protocol.RestoreScopeStack:
 		out.Warnings = append(out.Warnings, "The stack's volumes are not restored (restore them with scope volume); "+
 			"deploy the stack afterwards to apply the restored definition.")
+	case in.Input.Redeploy:
+		out.Warnings = append(out.Warnings, "Afterwards the stack is deployed from the restored definition "+
+			"(the services that were running before).")
 	}
 	return out, nil
 }
@@ -608,7 +686,10 @@ func (s *Service) stepRestoreData(ctx context.Context, sc *jobexec.StepContext) 
 	undo := func() {
 		for i := len(swapped) - 1; i >= 0; i-- {
 			d := swapped[i]
-			if d.t.Kind == "file" {
+			if d.t.Kind == "file" || d.t.selected {
+				if !d.t.Exists {
+					_ = os.RemoveAll(d.t.current) // added by this restore
+				}
 				_ = rollbackFile(d.t.current, d.rollback)
 				continue
 			}
@@ -623,10 +704,14 @@ func (s *Service) stepRestoreData(ctx context.Context, sc *jobexec.StepContext) 
 				t.current = osPath(v.Mountpoint)
 			}
 		}
+		// Files and selected paths are replaced whole (a selected directory
+		// becomes identical to the snapshot); project and volume roots keep
+		// their directory and swap its entries.
+		whole := t.Kind == "file" || t.selected
 		parent := filepath.Dir(t.current)
 		staging := filepath.Join(parent, ".docker-manager-restore-"+tag)
 		rollback := filepath.Join(parent, ".docker-manager-rollback-"+tag)
-		if t.Kind == "file" {
+		if whole {
 			rollback = filepath.Join(parent, ".docker-manager-rollback-"+tag+"-"+filepath.Base(t.current))
 		}
 		_ = os.RemoveAll(staging)
@@ -639,7 +724,7 @@ func (s *Service) stepRestoreData(ctx context.Context, sc *jobexec.StepContext) 
 			return err
 		}
 		staged := stagedPath(staging, t.Source)
-		if t.Kind == "file" {
+		if whole {
 			err = swapFile(t.current, staged, rollback)
 		} else {
 			err = swapDir(t.current, staged, rollback)
@@ -651,18 +736,16 @@ func (s *Service) stepRestoreData(ctx context.Context, sc *jobexec.StepContext) 
 				"The original data was moved back. Check the target's filesystem and restore again.")
 		}
 		swapped = append(swapped, done{t: t, rollback: rollback})
-		for j := range out.Targets {
-			if out.Targets[j].Path == t.Path || (out.Targets[j].Kind == t.Kind && out.Targets[j].Name == t.Name) {
-				out.Targets[j].FilesChanged = sum.FilesRestored
-				out.Targets[j].Path = filepath.ToSlash(t.current)
-			}
+		if len(out.Targets) == len(p.targets) {
+			out.Targets[i].FilesChanged = sum.FilesRestored
+			out.Targets[i].Path = filepath.ToSlash(t.current)
 		}
 	}
 	// Everything is in place: drop the rollback copies.
 	for _, d := range swapped {
 		_ = os.RemoveAll(d.rollback)
 	}
-	out.RedeploySuggested = in.Scope == protocol.RestoreScopeStack
+	out.RedeploySuggested = in.Scope == protocol.RestoreScopeStack || (in.Scope == protocol.RestoreScopeFull && !in.Redeploy)
 	return sc.SetOutput(ctx, out)
 }
 
@@ -754,7 +837,7 @@ func rollbackFile(target, rollback string) error {
 	if _, err := os.Lstat(rollback); err != nil {
 		return nil
 	}
-	_ = os.Remove(target)
+	_ = os.RemoveAll(target)
 	return os.Rename(rollback, target)
 }
 

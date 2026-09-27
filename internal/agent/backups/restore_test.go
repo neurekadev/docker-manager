@@ -265,3 +265,126 @@ func (r *recEngine) containerRunning(name string) bool {
 	c, ok := r.Container(name)
 	return ok && c.Details.State.Running
 }
+
+// TestRestoreFullStack (#10): a full restore puts back the project
+// directory and every volume of the stack backup in one job, stops and
+// restarts exactly what ran, and suggests a deploy unless the manager
+// redeploys.
+func TestRestoreFullStack(t *testing.T) {
+	e := newEnv(t)
+	members := backedUp(t, e)
+	m := members[backup.StackItem("st-app")]
+	write(t, filepath.Join(e.project, "compose.yaml"), "services: {}\n")
+	dbdata := filepath.Join(e.volumes, "app_dbdata", "_data", "PG_VERSION")
+	write(t, dbdata, "17")
+
+	in := e.restoreInput(m, protocol.RestoreScopeStack)
+	in.Scope = protocol.RestoreScopeFull
+	for _, v := range m.Volumes {
+		in.Volumes = append(in.Volumes, protocol.RestoreVolume{Name: v, Source: m.VolumePaths[v]})
+	}
+	if len(in.Volumes) == 0 {
+		t.Fatal("the stack backup holds no volume")
+	}
+	raw, _ := json.Marshal(protocol.RestorePreviewInput{Input: in, Credential: &e.credential(restoreKey).Repositories[0]})
+	pvAny, err := e.svc.restorePreview(testutil.Context(t), raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pv := pvAny.(protocol.RestorePreviewOutput)
+	kinds := []string{}
+	for _, tg := range pv.Targets {
+		kinds = append(kinds, tg.Kind)
+	}
+	if !slices.Contains(kinds, "project") || !slices.Contains(kinds, "volume") {
+		t.Fatalf("preview targets %v", kinds)
+	}
+	res, _, err := e.run(testutil.Context(t), jobspec.RestoreRun, in, e.credential(restoreKey), nil)
+	if err != nil || res.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("restore: %+v %v", res, err)
+	}
+	if !strings.Contains(read(t, filepath.Join(e.project, "compose.yaml")), "postgres:16") || read(t, dbdata) != "16" {
+		t.Errorf("not restored: compose %q, PG_VERSION %q", read(t, filepath.Join(e.project, "compose.yaml")), read(t, dbdata))
+	}
+	out := restoreOutputOf(t, res)
+	if !out.RedeploySuggested || len(out.Targets) != len(pv.Targets) {
+		t.Errorf("output %+v", out)
+	}
+	if e.eng.running("worker") || !e.eng.containerRunning("reporting") {
+		t.Error("the restart did not restore the previous states")
+	}
+	in.Redeploy = true
+	res, _, _ = e.run(testutil.Context(t), jobspec.RestoreRun, in, e.credential(restoreKey), nil)
+	if res.Outcome != jobexec.OutcomeSucceeded || restoreOutputOf(t, res).RedeploySuggested {
+		t.Errorf("redeploy restore: %+v", res)
+	}
+}
+
+// TestRestorePaths (#10): selected files and directories are put back in
+// place; a selected directory becomes identical to the backup, everything
+// outside the selection stays as it is.
+func TestRestorePaths(t *testing.T) {
+	e := newEnv(t)
+	members := backedUp(t, e)
+	vm := members[backup.VolumeItem("uploads")]
+	up := filepath.Join(e.volumes, "uploads", "_data")
+	write(t, filepath.Join(up, "a.jpg"), "changed")
+	write(t, filepath.Join(up, "thumbs", "a.png"), "changed")
+	write(t, filepath.Join(up, "thumbs", "extra.png"), "added after the backup")
+	write(t, filepath.Join(up, "new.txt"), "outside the selection")
+	in := protocol.RestoreRunInput{Repository: e.repoRef(), SnapshotID: vm.SnapshotID, Scope: protocol.RestoreScopePaths,
+		SnapshotPaths: vm.Paths, Shutdown: true, Paths: []string{snapPath(filepath.Join(up, "thumbs"))}}
+	raw, _ := json.Marshal(protocol.RestorePreviewInput{Input: in, Credential: &e.credential(restoreKey).Repositories[0]})
+	pvAny, err := e.svc.restorePreview(testutil.Context(t), raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pv := pvAny.(protocol.RestorePreviewOutput)
+	if len(pv.Targets) != 1 || pv.Targets[0].Kind != "dir" || pv.Targets[0].Overwritten != 1 || pv.Targets[0].Removed != 1 {
+		t.Fatalf("preview %+v", pv.Targets)
+	}
+	res, _, err := e.run(testutil.Context(t), jobspec.RestoreRun, in, e.credential(restoreKey), nil)
+	if err != nil || res.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("restore: %+v %v", res, err)
+	}
+	if read(t, filepath.Join(up, "thumbs", "a.png")) != "png" || read(t, filepath.Join(up, "thumbs", "extra.png")) != "<missing>" {
+		t.Error("the selected directory is not identical to the backup")
+	}
+	if read(t, filepath.Join(up, "a.jpg")) != "changed" || read(t, filepath.Join(up, "new.txt")) != "outside the selection" {
+		t.Error("a path outside the selection changed")
+	}
+	// Several paths across the stack's project directory; a missing one is
+	// created.
+	sm := members[backup.StackItem("st-app")]
+	_ = os.RemoveAll(filepath.Join(e.project, "html"))
+	write(t, filepath.Join(e.project, ".env"), "SECRET=changed\n")
+	sin := e.restoreInput(sm, protocol.RestoreScopeStack)
+	sin.Scope, sin.Paths = protocol.RestoreScopePaths, []string{snapPath(filepath.Join(e.project, "html")), snapPath(filepath.Join(e.project, ".env"))}
+	if res, _, _ := e.run(testutil.Context(t), jobspec.RestoreRun, sin, e.credential(restoreKey), nil); res.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("stack paths: %+v", res)
+	}
+	if read(t, filepath.Join(e.project, "html", "index.html")) != "<h1>hi</h1>" || read(t, filepath.Join(e.project, ".env")) != "SECRET=value\n" {
+		t.Error("the stack paths were not restored")
+	}
+	entries, _ := os.ReadDir(e.project)
+	for _, en := range entries {
+		if strings.HasPrefix(en.Name(), ".docker-manager-") {
+			t.Errorf("left behind: %s", en.Name())
+		}
+	}
+	// A path the backup does not hold is refused before anything stops.
+	e.eng.reset()
+	in.Paths = []string{snapPath(filepath.Join(up, "never"))}
+	if res, _, _ := e.run(testutil.Context(t), jobspec.RestoreRun, in, e.credential(restoreKey), nil); res.ErrorClass != "snapshot_path_unknown" {
+		t.Errorf("unknown path: %+v", res)
+	}
+	if len(e.eng.log()) != 0 {
+		t.Errorf("containers touched by a refused restore: %v", e.eng.log())
+	}
+}
+
+func (r *recEngine) reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.events = nil
+}

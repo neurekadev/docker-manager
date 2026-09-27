@@ -297,9 +297,11 @@ func (h *backupsAPI) verifyBackup(ctx context.Context, in *verifyBackupInput) (*
 // --- restores ---
 
 type restoreBody struct {
-	Scope    string   `json:"scope" example:"volume" enum:"stack,volume,file" doc:"stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place."`
+	Scope    string   `json:"scope" example:"full" enum:"full,paths,stack,volume,file" doc:"full: everything the backup holds (a stack backup: its project directory and every volume in it; a volume backup: the volume). paths: the files and directories in paths, in place; a directory is made identical to the backup (files it did not hold are removed). stack: the Compose definition, .env, workspace and relative bind data (never volumes; deploy afterwards to apply it). volume: named volumes (stack definitions unchanged). file: one file, in place. full and paths need an up-to-date agent (501 agent_unsupported)."`
 	Volumes  []string `json:"volumes,omitempty" example:"web_data" maxItems:"64" doc:"volume scope: which volumes of a stack backup (default: all of them)."`
 	Path     string   `json:"path,omitempty" maxLength:"4096" doc:"file scope: the file's absolute path inside the backup."`
+	Paths    []string `json:"paths,omitempty" maxItems:"1000" example:"/var/lib/docker/volumes/web_data/_data/uploads" doc:"paths scope: absolute paths of files and directories inside the backup (none inside another)."`
+	Redeploy bool     `json:"redeploy,omitempty" doc:"full scope of a stack backup: deploy the stack from the restored definition afterwards, with the services that were running before (needs stack.deploy)."`
 	Shutdown *bool    `json:"shutdown,omitempty" doc:"Stop the containers using the data while it is restored and start the previously running ones afterwards (default true; with false a restore under running containers is refused)."`
 }
 
@@ -308,7 +310,7 @@ func (b restoreBody) request() backups.RestoreRequest {
 	if b.Shutdown != nil {
 		shutdown = *b.Shutdown
 	}
-	return backups.RestoreRequest{Scope: b.Scope, Volumes: b.Volumes, File: b.Path, Shutdown: shutdown}
+	return backups.RestoreRequest{Scope: b.Scope, Volumes: b.Volumes, File: b.Path, Paths: b.Paths, Redeploy: b.Redeploy, Shutdown: shutdown}
 }
 
 type restorePreviewInput struct {
@@ -354,6 +356,9 @@ func (h *backupsAPI) authorizeRestore(ctx context.Context, svc BackupService, c 
 		if !c.Can(string(CapBackupRestore), res).Allowed {
 			return Forbidden("not permitted: backup.restore on " + string(t.Type) + " " + t.ID)
 		}
+		if req.Redeploy && t.Type == domain.TargetStack && !c.Can("stack.deploy", res).Allowed {
+			return Forbidden("not permitted: stack.deploy on stack " + t.ID + " (restore without redeploying)")
+		}
 	}
 	return nil
 }
@@ -386,9 +391,11 @@ type restoreInput struct {
 	BackupID string `path:"backupId" maxLength:"64" doc:"Backup ID."`
 	IdempotencyKeyParam
 	Body struct {
-		Scope    string   `json:"scope" example:"volume" enum:"stack,volume,file" doc:"As in restore previews."`
+		Scope    string   `json:"scope" example:"full" enum:"full,paths,stack,volume,file" doc:"As in restore previews."`
 		Volumes  []string `json:"volumes,omitempty" maxItems:"64"`
 		Path     string   `json:"path,omitempty" maxLength:"4096"`
+		Paths    []string `json:"paths,omitempty" maxItems:"1000"`
+		Redeploy bool     `json:"redeploy,omitempty"`
 		Shutdown *bool    `json:"shutdown,omitempty"`
 		Confirm  bool     `json:"confirm" example:"true" doc:"Must be true: a restore overwrites the current data (preview it first)."`
 	}
@@ -396,7 +403,7 @@ type restoreInput struct {
 
 func (in *restoreInput) body() restoreBody {
 	b := in.Body
-	return restoreBody{Scope: b.Scope, Volumes: b.Volumes, Path: b.Path, Shutdown: b.Shutdown}
+	return restoreBody{Scope: b.Scope, Volumes: b.Volumes, Path: b.Path, Paths: b.Paths, Redeploy: b.Redeploy, Shutdown: b.Shutdown}
 }
 
 func (h *backupsAPI) restore(ctx context.Context, in *restoreInput) (*JobAccepted, error) {

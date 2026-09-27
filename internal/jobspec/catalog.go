@@ -125,6 +125,9 @@ func containerKind(kind domain.JobKind, verb, summary string) Spec {
 	}
 }
 
+// starts marks a kind that starts containers (Spec.StartsContainers).
+func starts(s Spec) Spec { s.StartsContainers = true; return s }
+
 // stackKind builds the spec of a stack operation exclusive on the stack.
 func stackKind(kind domain.JobKind, summary string, deadline time.Duration, steps ...Step) Spec {
 	return Spec{
@@ -184,20 +187,20 @@ func catalogSpecs() []Spec {
 				"The container may or may not have been created. Check the environment's container list for it before creating it again."),
 				step("connect_networks", true, false, ""), step("start", true, false, "")},
 		},
-		containerKind(ContainerStart, "start", "Start a container"),
+		starts(containerKind(ContainerStart, "start", "Start a container")),
 		containerKind(ContainerStop, "stop", "Stop a container"),
-		containerKind(ContainerRestart, "restart", "Restart a container"),
+		starts(containerKind(ContainerRestart, "restart", "Restart a container")),
 		containerKind(ContainerPause, "pause", "Pause a container"),
-		containerKind(ContainerUnpause, "unpause", "Unpause a container"),
+		starts(containerKind(ContainerUnpause, "unpause", "Unpause a container")),
 		containerKind(ContainerRemove, "remove", "Remove a container"),
 		containerKind(ContainerUpdate, "update", "Update a container's resources or restart policy"),
 
 		// Stacks.
-		stackKind(StackDeploy, "Deploy a stack from its on-disk Compose sources", deadlineLong,
-			idem("resolve_sources"), idem("pull_images"), idem("build_images"), idem("apply")),
-		stackKind(StackStart, "Start a stack", deadlineInteractive, idem("start")),
+		starts(stackKind(StackDeploy, "Deploy a stack from its on-disk Compose sources", deadlineLong,
+			idem("resolve_sources"), idem("pull_images"), idem("build_images"), idem("apply"))),
+		starts(stackKind(StackStart, "Start a stack", deadlineInteractive, idem("start"))),
 		stackKind(StackStop, "Stop a stack", deadlineInteractive, idem("stop")),
-		stackKind(StackRestart, "Restart a stack", deadlineInteractive, idem("restart")),
+		starts(stackKind(StackRestart, "Restart a stack", deadlineInteractive, idem("restart"))),
 		stackKind(StackDown, "Stop and remove a stack's containers and networks", deadlineInteractive, idem("down")),
 		// Deleting a stack takes it down (volumes and the project directory
 		// are kept) and then forgets it in the manager (finish hook, #7).
@@ -211,6 +214,7 @@ func catalogSpecs() []Spec {
 			s := stackKind(StackUpdate, "Pull a stack's images and recreate changed services", deadlineLong,
 				idem("pull_images"), idem("apply"))
 			s.ConcurrencyClass = ClassPull
+			s.StartsContainers = true
 			return s
 		}(),
 		// Environment migration (#35): the manager relays the data between
@@ -300,7 +304,8 @@ func catalogSpecs() []Spec {
 				optional(target(domain.LockStack, exclusive, domain.TargetStack)),
 				optional(target(domain.LockContainer, exclusive, domain.TargetContainer))},
 			OfflineDeadline: deadlineScheduled, ConcurrencyClass: ClassPull,
-			Steps: []Step{idem("pull_images"), idem("recreate"), step("wait_healthy", true, false, "")},
+			Steps:            []Step{idem("pull_images"), idem("recreate"), step("wait_healthy", true, false, "")},
+			StartsContainers: true,
 		},
 
 		// Maintenance.
@@ -341,11 +346,17 @@ func catalogSpecs() []Spec {
 		{
 			Kind: RestoreRun, Summary: "Restore stacks, volumes or paths from a snapshot",
 			Capability: "backup.restore", Executor: domain.ExecutorAgent,
+			// Containers outside the restored stacks that use the data (a
+			// standalone container mounting a restored volume) are
+			// lock-only targets: the restore stops them, and nothing starts
+			// them until it ends (Spec.StartsContainers).
 			Locks: []LockRule{hostShared(),
 				optional(target(domain.LockStack, exclusive, domain.TargetStack)),
+				optional(target(domain.LockContainer, exclusive, domain.TargetContainer)),
 				optional(target(domain.LockVolume, exclusive, domain.TargetVolume)),
 				optional(target(domain.LockFilePath, exclusive, domain.TargetDestinationPath)),
 				target(domain.LockRepository, shared, domain.TargetRepository)},
+			LockOnly:        LockOnlyRule{Types: []domain.TargetType{domain.TargetContainer}},
 			OfflineDeadline: deadlineScheduled,
 			Steps: []Step{idem("prepare"), idem("stop_containers"),
 				step("restore_data", false, true,

@@ -438,7 +438,25 @@ const (
 	RestoreScopeVolume = "volume"
 	// RestoreScopeFile restores one file in place.
 	RestoreScopeFile = "file"
+	// RestoreScopeFull restores everything a stack snapshot holds: the
+	// project directory and the volumes in Volumes, in one job (#10).
+	RestoreScopeFull = "full"
+	// RestoreScopePaths restores the files and directories in Paths in
+	// place, each below the project directory or one of the snapshot's
+	// volumes. A directory is made identical to the snapshot (entries the
+	// snapshot does not hold are removed); nothing else changes (#10).
+	RestoreScopePaths = "paths"
 )
+
+// FeatureRestoreSelection is the capabilities feature of agents that serve
+// the full and paths restore scopes and the paths and redeploy fields
+// (#10). The manager sends them only to agents announcing it (receivers
+// reject unknown fields).
+const FeatureRestoreSelection = "restore.selection"
+
+// MaxRestorePaths bounds the paths of one paths restore (select a
+// directory instead of more files).
+const MaxRestorePaths = 1000
 
 // RestoreVolume is a volume to restore.
 type RestoreVolume struct {
@@ -468,6 +486,13 @@ type RestoreRunInput struct {
 	// File: the path inside the snapshot, restored at its current place
 	// (the project directory or volume it belongs to).
 	File string `json:"file,omitempty"`
+	// Paths: the files and directories inside the snapshot a paths
+	// restore puts back (clean, absolute, none below another).
+	Paths []string `json:"paths,omitempty"`
+	// Redeploy (full scope): the manager deploys the stack once the
+	// restore succeeded, with the services that were running before; the
+	// agent still starts them again itself first.
+	Redeploy bool `json:"redeploy,omitempty"`
 	// Shutdown stops the affected containers during the restore and
 	// restarts the previously running ones (default on: overwriting live
 	// data under running containers is refused unless disabled).
@@ -483,24 +508,25 @@ func (in RestoreRunInput) Validate() error {
 		return errors.New("restore: invalid snapshot ID")
 	}
 	switch in.Scope {
-	case RestoreScopeStack:
+	case RestoreScopeStack, RestoreScopeFull:
 		if in.Project == nil || in.StackID == "" {
 			return errors.New("restore: a stack restore needs the stack's project")
 		}
 		if err := in.Project.Validate(); err != nil {
 			return err
 		}
-		if len(in.Volumes) > 0 || in.File != "" {
+		if in.File != "" || len(in.Paths) > 0 {
+			return errors.New("restore: a stack restore takes no file or paths")
+		}
+		if in.Scope == RestoreScopeStack && len(in.Volumes) > 0 {
 			return errors.New("restore: a stack restore never overwrites volumes (restore them with scope volume)")
 		}
-	case RestoreScopeVolume:
-		if len(in.Volumes) == 0 || len(in.Volumes) > MaxBackupItems {
-			return fmt.Errorf("restore: 1 to %d volumes", MaxBackupItems)
+		if err := validRestoreVolumes(in.Volumes, 0); err != nil {
+			return err
 		}
-		for _, v := range in.Volumes {
-			if !ValidVolumeName(v.Name) || (v.Source != "" && !ValidSnapshotPath(v.Source)) {
-				return fmt.Errorf("restore: invalid volume %q", v.Name)
-			}
+	case RestoreScopeVolume:
+		if err := validRestoreVolumes(in.Volumes, 1); err != nil {
+			return err
 		}
 	case RestoreScopeFile:
 		if !ValidSnapshotPath(in.File) || in.File == "/" {
@@ -511,8 +537,23 @@ func (in RestoreRunInput) Validate() error {
 				return err
 			}
 		}
+	case RestoreScopePaths:
+		if err := ValidRestorePaths(in.Paths); err != nil {
+			return err
+		}
+		if in.Project != nil {
+			if err := in.Project.Validate(); err != nil {
+				return err
+			}
+		}
+		if err := validRestoreVolumes(in.Volumes, 0); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("restore: unknown scope %q", in.Scope)
+	}
+	if in.Redeploy && in.Scope != RestoreScopeFull {
+		return errors.New("restore: only a full stack restore redeploys")
 	}
 	for _, p := range append(slices.Clone(in.SnapshotPaths), in.ProjectSource) {
 		if p != "" && !ValidSnapshotPath(p) {
@@ -522,9 +563,49 @@ func (in RestoreRunInput) Validate() error {
 	return nil
 }
 
+func validRestoreVolumes(vols []RestoreVolume, minimum int) error {
+	if len(vols) < minimum || len(vols) > MaxBackupItems {
+		return fmt.Errorf("restore: %d to %d volumes", minimum, MaxBackupItems)
+	}
+	for _, v := range vols {
+		if !ValidVolumeName(v.Name) || (v.Source != "" && !ValidSnapshotPath(v.Source)) {
+			return fmt.Errorf("restore: invalid volume %q", v.Name)
+		}
+	}
+	return nil
+}
+
+// ValidRestorePaths checks the paths of a paths restore: 1 to
+// MaxRestorePaths clean absolute snapshot paths, never the snapshot root,
+// no duplicates and none below another (the directory covers it).
+func ValidRestorePaths(paths []string) error {
+	if len(paths) == 0 || len(paths) > MaxRestorePaths {
+		return fmt.Errorf("restore: 1 to %d paths", MaxRestorePaths)
+	}
+	seen := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		if !ValidSnapshotPath(p) || p == "/" {
+			return fmt.Errorf("restore: invalid path %q", p)
+		}
+		if seen[p] {
+			return fmt.Errorf("restore: duplicate path %q", p)
+		}
+		seen[p] = true
+	}
+	for _, p := range paths {
+		for d := path.Dir(p); d != "/"; d = path.Dir(d) {
+			if seen[d] {
+				return fmt.Errorf("restore: %q is inside %q", p, d)
+			}
+		}
+	}
+	return nil
+}
+
 // RestoreTarget is one place a restore writes.
 type RestoreTarget struct {
-	// Kind is project, volume or file.
+	// Kind is project, volume, file or dir (a directory of a paths
+	// restore).
 	Kind   string `json:"kind"`
 	Name   string `json:"name,omitempty"`
 	Path   string `json:"path"`
