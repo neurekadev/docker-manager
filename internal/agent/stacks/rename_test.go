@@ -222,8 +222,8 @@ func TestRenameUndoesBeforeTheSwitch(t *testing.T) {
 		t.Fatal(err)
 	}
 	// data moves (sorted first), creating logs' new volume fails.
-	e.eng.Engine.Fail("volume.create", nil)
-	e.eng.Engine.Fail("volume.create", errors.New("disk full"))
+	e.eng.Fail("volume.create", nil)
+	e.eng.Fail("volume.create", errors.New("disk full"))
 
 	res, out := run(t, e.svc, jobspec.StackRename, renameTo("shop"))
 	if res.Outcome == jobexec.OutcomeSucceeded || res.ErrorClass != classRenameRefused {

@@ -623,7 +623,7 @@ func (s *Service) moveNamedVolume(ctx context.Context, eng engine.Engine, next *
 // Docker filled from the image). A repeated call finds it done.
 func moveVolumeData(volumesDir, from, to string, replace bool) error {
 	if volumesDir == "" {
-		return errors.New("Docker's volume directory is not known")
+		return errors.New("the Docker volume directory is not known")
 	}
 	for _, n := range []string{from, to} {
 		if !protocol.ValidRelativePath(n) || strings.Contains(n, "/") || n == "." {
