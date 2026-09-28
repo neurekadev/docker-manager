@@ -303,7 +303,7 @@
 					tone={last
 						? last.state === 'complete'
 							? 'ok'
-							: last.state === 'pending'
+							: last.state === 'pending' || last.state === 'skipped'
 								? undefined
 								: 'warn'
 						: undefined}

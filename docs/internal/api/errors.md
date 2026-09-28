@@ -159,7 +159,7 @@ same change.
 | `backup_repository_in_use` | 409 | no | A backup policy uses the repository; change or delete the policy first. | #10 |
 | `recovery_key_not_confirmed` | 409 | no | The Recovery Key has not been confirmed (re-entered) for the repository yet; confirm it before policies can use or enable it. | #10 |
 | `key_rotation_in_progress` | 409 | no | A Recovery Key rotation is still moving repository locations to the new key; wait until no location is pending. | #10 |
-| `nothing_to_retry` | 409 | no | Every member of the backup set completed; there is nothing to retry. | #10 |
+| `nothing_to_retry` | 409 | no | Every member of the backup set completed or was skipped; there is nothing to retry. | #10 |
 | `backup_run_active` | 409 | no | A backup of the policy is still queued or running; follow that job instead of starting another run. | #10 |
 | `backup_repository_error` | 409 | no | The backup repository could not be read (missing, Recovery Key rejected, storage refused access, locked or damaged); the message names the class and what to do. | #10 |
 | `backup_not_a_file` | 409 | no | Only regular files can be downloaded from a backup (not directories, links or special files). | #10 |

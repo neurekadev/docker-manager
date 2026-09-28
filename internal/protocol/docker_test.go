@@ -58,6 +58,42 @@ func TestBackupAndMaintenanceExcluded(t *testing.T) {
 	}
 }
 
+// TestIsHelperContainer: Docker Manager's set-aside containers (update,
+// rename), Compose's temporary replacement (label and temporary name) and
+// the self-update helper are temporary; look-alikes are not.
+func TestIsHelperContainer(t *testing.T) {
+	replace := map[string]string{ComposeReplaceLabel: "0123456789abcdef"}
+	for _, tc := range []struct {
+		name   string
+		labels map[string]string
+		want   bool
+	}{
+		{"web-docker-manager-update-0123456789ab", nil, true},
+		{"/web-docker-manager-update-0123456789ab", nil, true},
+		{"app-db-1-docker-manager-rename-abcdef012345", map[string]string{ComposeProjectLabel: "old"}, true},
+		{"0123456789ab_app-db-1", replace, true},
+		{"/0123456789ab_app-db-1", replace, true},
+		{"helper", map[string]string{LabelRole: RoleSelfUpdate}, true},
+		// Look-alikes.
+		{"web-docker-manager-update-0123456789AB", nil, false},   // upper case
+		{"web-docker-manager-update-0123456789a", nil, false},    // 11 digits
+		{"web-docker-manager-update-0123456789abc", nil, false},  // 13 digits
+		{"web-docker-manager-update-0123456789ab-x", nil, false}, // not at the end
+		{"-docker-manager-update-0123456789ab", nil, false},      // no original name
+		{"web-docker-manager-backup-0123456789ab", nil, false},
+		{"app-db-1", replace, false},              // Compose keeps the label after the rename
+		{"0123456789ab_app-db-1", nil, false},     // the name alone
+		{"0123456789xy_app-db-1", replace, false}, // not hex
+		{"0123456789ab_", replace, false},         // nothing after the ID
+		{"agent", map[string]string{LabelRole: "agent"}, false},
+		{"", nil, false},
+	} {
+		if got := IsHelperContainer(tc.name, tc.labels); got != tc.want {
+			t.Errorf("IsHelperContainer(%q, %v) = %t, want %t", tc.name, tc.labels, got, tc.want)
+		}
+	}
+}
+
 // TestContainerSpecValidation: the v1 create form accepts the common
 // options and refuses reserved labels, the Docker socket, malformed ports,
 // mounts, networks and environment entries (without echoing values).

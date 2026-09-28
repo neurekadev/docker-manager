@@ -5,7 +5,7 @@
 	// environment took it. Members link to the backup they took (backupId).
 	import { Badge, formatDateTime } from '$lib/ui';
 	import { routes } from '$lib/routes';
-	import { itemName, memberState, sentenceCase, type SetMember } from './model';
+	import { itemName, memberReason, memberState, type SetMember } from './model';
 
 	let {
 		members,
@@ -31,6 +31,7 @@
 	<tbody>
 		{#each members as m, i (`${m.scope}-${m.item}-${i}`)}
 			{@const s = memberState(m.state)}
+			{@const why = memberReason(m)}
 			{@const b = m.backupId}
 			<tr>
 				<td class="name">
@@ -46,8 +47,8 @@
 					{#if m.environmentId && environmentName}<span class="muted sub"
 							>{environmentName(m.environmentId)}</span
 						>{/if}
-					{#if m.errorClass}<span class="err sub"
-							>{sentenceCase(m.errorClass.replaceAll('_', ' '))}</span
+					{#if why}<span class="sub" class:err={why.error} class:muted={!why.error}
+							>{why.text}</span
 						>{/if}
 				</td>
 				<td><Badge tone={s.tone} dot>{s.label}</Badge></td>

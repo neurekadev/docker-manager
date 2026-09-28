@@ -604,8 +604,11 @@ func TestBackupRunRecoversAfterAgentCrash(t *testing.T) {
 
 func TestBackupRunPartialWhenAnItemFails(t *testing.T) {
 	e := newEnv(t)
+	// The Engine knows the volume, but its data directory is missing (a
+	// volume the Engine does not know is skipped, see skipped_test.go).
+	e.eng.AddVolume("broken-volume", nil)
 	res, _, err := e.run(testutil.Context(t), jobspec.BackupRun, e.runInput(false, stackItem(protocol.BackupRules{}),
-		protocol.BackupItem{Kind: backup.MemberVolume, Volume: "missing-volume"}), e.credential("DYRK-TEST"), nil)
+		protocol.BackupItem{Kind: backup.MemberVolume, Volume: "broken-volume"}), e.credential("DYRK-TEST"), nil)
 	if err != nil || res.Outcome != jobexec.OutcomePartial {
 		t.Fatalf("outcome %+v, %v", res, err)
 	}
@@ -614,7 +617,7 @@ func TestBackupRunPartialWhenAnItemFails(t *testing.T) {
 	for _, m := range out.Members {
 		states[m.Item] = m.State
 	}
-	if states[backup.StackItem("st-app")] != backup.StateComplete || states[backup.VolumeItem("missing-volume")] != backup.StateFailed {
+	if states[backup.StackItem("st-app")] != backup.StateComplete || states[backup.VolumeItem("broken-volume")] != backup.StateFailed {
 		t.Errorf("members = %v", states)
 	}
 	if len(e.eng.log()) != 0 {

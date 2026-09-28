@@ -23,6 +23,21 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   it) and buildx builder volumes by default; change the rule in
   `standaloneVolumes`, `planStackVolumes` and the UI's `coveredVolumes`
   together.
+- Docker Manager's temporary objects never get into backups: temporary
+  containers are recognized only by `protocol.IsHelperContainer` (UI:
+  `isHelperContainer`, same patterns) and never count as users of a
+  volume; a new kind of temporary container gets its pattern there (its
+  name built from the `protocol` constants). A standalone volume carrying
+  `protocol.LabelMigration` is selected only when that migration
+  succeeded (`migrationSucceeded`). Prune's backup references
+  (`VolumeReferences`) do not apply these two rules.
+- An item that no longer exists when its turn comes (Engine Not Found for
+  a volume; a deleted project directory whose parent is there) is
+  **skipped** (`backup.StateSkipped`, `backup.ClassItemGone`), never
+  failed; every other error fails the member. Skipped members count
+  neither for nor against a set (`backup.Completeness`), are never
+  retried and hold no snapshot; a set of skipped members only is
+  `skipped`.
 - Stop/restart containers for backups/restores only through
   `internal/agent/lifecycle`, registering the `start_containers`
   compensation before stopping anything.

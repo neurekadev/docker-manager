@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -76,6 +77,29 @@ func refuse(class, format string, args ...any) error {
 	return &backup.Refusal{Class: class, Message: fmt.Sprintf(format, args...), Guidance: "Adjust the policy's selection and run the backup again."}
 }
 
+// gone is the error of an item removed after the run was planned: its
+// member is skipped, not failed (backup.ClassItemGone).
+func gone(format string, args ...any) error {
+	return &backup.Refusal{Class: backup.ClassItemGone, Message: fmt.Sprintf(format, args...),
+		Guidance: "Nothing to do: it was removed after the backup was planned."}
+}
+
+// isGone reports whether a plan failed only because its item no longer
+// exists.
+func isGone(err error) bool { return err != nil && errorClass(err) == backup.ClassItemGone }
+
+// projectGone reports whether a stack's project directory was deleted:
+// the directory itself is missing while its parent directory is there. A
+// directory that cannot be read, or whose parent is missing too (an
+// unmounted root), is not "deleted": its backup still fails.
+func projectGone(dir string) bool {
+	if _, err := os.Lstat(dir); !errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	fi, err := os.Stat(filepath.Dir(dir))
+	return err == nil && fi.IsDir()
+}
+
 // forbiddenExternal are host paths never backed up as external binds.
 var forbiddenExternal = []string{"/", "/proc", "/sys", "/dev", "/run", "/var/run", "/boot"}
 
@@ -137,6 +161,14 @@ func (s *Service) planStack(ctx context.Context, eng engine.Engine, p *itemPlan,
 	dir, err := stacks.ResolveProjectDir(s.storage(), *it.Project)
 	if err != nil {
 		p.err = err
+		return
+	}
+	if projectGone(dir) {
+		name := it.StackName
+		if name == "" {
+			name = it.Project.ProjectName
+		}
+		p.err = gone("the project directory of stack %s was removed before its turn", name)
 		return
 	}
 	var loader Loader
@@ -271,9 +303,20 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 		named = append(named, vol{v.Key, v.Name, v.Service})
 	}
 	// Anonymous volumes and the exclude label only exist on containers.
-	containers, listErr := lifecycle.ProjectContainers(ctx, eng, p.project)
+	// Temporary containers (Compose's replacement during a recreate, a
+	// container set aside by Docker Manager) never count as users of a
+	// volume: an anonymous volume only they mount is left out.
+	all, listErr := lifecycle.ProjectContainers(ctx, eng, p.project)
 	if listErr != nil {
 		p.warnings = append(p.warnings, "the project's containers could not be listed: "+listErr.Error())
+	}
+	var containers, helpers []engine.Container
+	for _, c := range all {
+		if protocol.IsHelperContainer(firstName(c), c.Labels) {
+			helpers = append(helpers, c)
+		} else {
+			containers = append(containers, c)
+		}
 	}
 	labeled := map[string]bool{}
 	for _, c := range containers {
@@ -324,21 +367,35 @@ func (s *Service) planStackVolumes(ctx context.Context, eng engine.Engine, p *it
 			p.sources = append(p.sources, ss)
 		}
 	}
+	for _, c := range helpers {
+		for _, m := range c.Mounts {
+			if m.Type != "volume" || m.Name == "" || seen[m.Name] {
+				continue
+			}
+			seen[m.Name] = true
+			p.sources = append(p.sources, protocol.ScopeSource{Kind: protocol.SourceAnonymous, Name: m.Name,
+				Service: c.Labels[lifecycle.ComposeServiceLabel], State: protocol.SourceExcluded, Reason: helperOnlyReason})
+		}
+	}
 }
 
 // Reasons of volumes left out by the backup exclude label.
 const (
 	labeledContainerReason = "a container using it has the label " + protocol.LabelBackupExclude + "=true"
 	labeledVolumeReason    = "the volume has the label " + protocol.LabelBackupExclude + "=true"
+	// helperOnlyReason: only temporary containers of Docker Manager or
+	// Compose mount the volume (protocol.IsHelperContainer).
+	helperOnlyReason = "only a temporary container of Docker Manager or Compose uses it"
 )
 
 // includeVolume adds a volume's data directory when it is supported and
-// not Docker Manager's own.
-func (s *Service) includeVolume(ctx context.Context, eng engine.Engine, p *itemPlan, ss *protocol.ScopeSource, name string) {
+// not Docker Manager's own. missing reports that the Engine does not know
+// the volume (not found; any other failure is not "missing").
+func (s *Service) includeVolume(ctx context.Context, eng engine.Engine, p *itemPlan, ss *protocol.ScopeSource, name string) (missing bool) {
 	v, err := eng.InspectVolume(ctx, name)
 	if engine.IsCode(err, engine.CodeNotFound) {
 		ss.State, ss.Reason = protocol.SourceExcluded, "the volume does not exist (not created yet)"
-		return
+		return true
 	}
 	if err != nil {
 		ss.State, ss.Reason = protocol.SourceBlocked, "the volume could not be inspected"
@@ -379,13 +436,23 @@ func (s *Service) includeVolume(ctx context.Context, eng engine.Engine, p *itemP
 		p.volumePaths = map[string]string{}
 	}
 	p.volumePaths[v.Name] = snapPath(rp)
+	return false
 }
 
 func (s *Service) planVolume(ctx context.Context, eng engine.Engine, p *itemPlan) {
 	it := p.item
 	ss := protocol.ScopeSource{Kind: protocol.SourceVolume, Name: it.Volume}
-	s.includeVolume(ctx, eng, p, &ss, it.Volume)
+	missing := s.includeVolume(ctx, eng, p, &ss, it.Volume)
+	if missing {
+		// Removed after the run was planned (e.g. a CI job's temporary
+		// volume): the member is skipped, not failed.
+		ss.Reason = "the volume was removed before its turn"
+	}
 	p.sources = append(p.sources, ss)
+	if missing {
+		p.err = gone("volume %s was removed before its turn", it.Volume)
+		return
+	}
 	if ss.State != protocol.SourceIncluded {
 		p.err = refuse("volume_unavailable", "volume %s cannot be backed up: %s", it.Volume, ss.Reason)
 		return

@@ -212,7 +212,7 @@ func (g *Guard) Identify(ctx context.Context, eng engine.Engine, cs []engine.Con
 			p = prot(protection.RoleAgent, fmt.Sprintf("Docker Agent container %s", name(c)), false)
 		case c.Labels[protocol.LabelRole] == "manager":
 			p = prot(protection.RoleManager, fmt.Sprintf("Docker Manager container %s (%s=manager)", name(c), protocol.LabelRole), false)
-		case c.Labels[protocol.LabelRole] == "self-update":
+		case c.Labels[protocol.LabelRole] == protocol.RoleSelfUpdate:
 			p = prot(protection.RoleAgent, fmt.Sprintf("Docker Agent self-update helper %s: it is recreating the agent", name(c)), false)
 		}
 		if p != nil {

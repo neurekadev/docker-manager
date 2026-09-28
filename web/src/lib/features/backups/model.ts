@@ -49,7 +49,9 @@ const SET_STATE: Record<BackupSet['state'], Presentation> = {
 	pending: { tone: 'info', label: 'Running' },
 	complete: { tone: 'ok', label: 'Complete' },
 	partial: { tone: 'warn', label: 'Partial' },
-	failed: { tone: 'danger', label: 'Failed' }
+	failed: { tone: 'danger', label: 'Failed' },
+	// Every item was removed before its turn: nothing to back up, nothing failed.
+	skipped: { tone: 'neutral', label: 'Skipped' }
 };
 
 export function setState(s: BackupSet['state']): Presentation {
@@ -61,11 +63,32 @@ const MEMBER_STATE: Record<SetMember['state'], Presentation> = {
 	complete: { tone: 'ok', label: 'Complete' },
 	partial: { tone: 'warn', label: 'Some files unreadable' },
 	failed: { tone: 'danger', label: 'Failed' },
-	missing: { tone: 'danger', label: 'Missing' }
+	missing: { tone: 'danger', label: 'Missing' },
+	// Removed before its turn (a temporary volume, a deleted stack): not a failure.
+	skipped: { tone: 'neutral', label: 'Skipped' }
 };
 
 export function memberState(s: SetMember['state']): Presentation {
 	return MEMBER_STATE[s] ?? { tone: 'neutral', label: s };
+}
+
+/**
+ * Why a member has no (complete) backup, in words: an error for failed
+ * members, a plain note for skipped ones (removed before their turn).
+ */
+export function memberReason(
+	m: Pick<SetMember, 'state' | 'errorClass'>
+): { text: string; error: boolean } | undefined {
+	if (m.state === 'skipped')
+		return {
+			text:
+				m.errorClass && m.errorClass !== 'item_gone'
+					? sentenceCase(m.errorClass.replaceAll('_', ' '))
+					: 'Removed before its turn',
+			error: false
+		};
+	if (!m.errorClass) return undefined;
+	return { text: sentenceCase(m.errorClass.replaceAll('_', ' ')), error: true };
 }
 
 export const KIND_LABEL: Record<NonNullable<Backup['kind']>, string> = {
@@ -263,9 +286,12 @@ export function recentSets(
 	return out.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
 
-/** Members of a set that did not complete (a retry re-runs only these). */
+/**
+ * Members of a set that did not complete (a retry re-runs only these):
+ * skipped members were removed before their turn and are not retried.
+ */
 export function incompleteMembers(s: BackupSet): SetMember[] {
-	return s.members.filter((m) => m.state !== 'complete');
+	return s.members.filter((m) => m.state !== 'complete' && m.state !== 'skipped');
 }
 
 export const SOURCE_STATE: Record<string, Presentation> = {
@@ -329,6 +355,26 @@ function backupExcluded(labels: Record<string, string> | undefined): boolean {
 	return (labels?.[BACKUP_EXCLUDE_LABEL] ?? '').toLowerCase() === 'true';
 }
 
+const HELPER_ASIDE_NAME = /.-docker-manager-(update|rename)-[0-9a-f]{12}$/;
+const COMPOSE_TEMP_NAME = /^[0-9a-f]{12}_./;
+
+/**
+ * A temporary container of Docker Manager or Compose (the manager's rule,
+ * protocol.IsHelperContainer): a container set aside during an image update
+ * or a stack rename, Compose's replacement during a recreate (its label
+ * stays after the rename, so only the temporary name counts), or the
+ * agent's self-update helper. It never counts as a user of a volume.
+ */
+export function isHelperContainer(
+	name: string | undefined,
+	labels: Record<string, string> | undefined
+): boolean {
+	const n = (name ?? '').replace(/^\//, '');
+	if (labels?.['dev.neureka.docker-manager.role'] === 'self-update') return true;
+	if (HELPER_ASIDE_NAME.test(n)) return true;
+	return labels?.['com.docker.compose.replace'] !== undefined && COMPOSE_TEMP_NAME.test(n);
+}
+
 export interface CoveredVolume {
 	name: string;
 	anonymous: boolean;
@@ -336,6 +382,8 @@ export interface CoveredVolume {
 	buildx: boolean;
 	/** Left out by the backup exclude label (on the volume or a container using it). */
 	labelled: boolean;
+	/** Used only by temporary containers of Docker Manager or Compose: left out. */
+	temporary: boolean;
 	/** The managed stack the volume belongs to; undefined: standalone. */
 	stackId?: string;
 }
@@ -346,7 +394,11 @@ export interface CoveredVolume {
  * that are no managed stack (the manager backs up neither); a volume
  * belongs to a managed stack by its membership, its Compose project label
  * or a stack container using it (the manager's rule); anonymous volumes
- * carry the Engine's label.
+ * carry the Engine's label. Temporary containers (isHelperContainer) never
+ * count as users: a standalone volume only they use is marked temporary.
+ * The manager also leaves out volumes of unfinished environment
+ * migrations, which this list cannot tell (it does not know how the
+ * migrations ended).
  */
 export function coveredVolumes(
 	volumes: {
@@ -357,12 +409,17 @@ export function coveredVolumes(
 		usedBy?: { id: string }[];
 	}[],
 	stacks: { id: string; name: string }[],
-	containers: { id: string; labels?: Record<string, string> }[]
+	containers: { id: string; name?: string; labels?: Record<string, string> }[]
 ): CoveredVolume[] {
 	const stackByName = new Map(stacks.map((s) => [s.name, s.id]));
 	const stackOfContainer = new Map<string, string>();
 	const labelledContainers = new Set<string>();
+	const helpers = new Set<string>();
 	for (const c of containers) {
+		if (isHelperContainer(c.name, c.labels)) {
+			helpers.add(c.id);
+			continue;
+		}
 		const id = stackByName.get(c.labels?.[COMPOSE_PROJECT_LABEL] ?? '');
 		if (id) stackOfContainer.set(c.id, id);
 		if (backupExcluded(c.labels)) labelledContainers.add(c.id);
@@ -384,6 +441,10 @@ export function coveredVolumes(
 			labelled:
 				backupExcluded(v.labels) ||
 				(v.usedBy ?? []).some((c) => labelledContainers.has(c.id)),
+			temporary:
+				!stackId &&
+				(v.usedBy ?? []).length > 0 &&
+				(v.usedBy ?? []).every((c) => helpers.has(c.id)),
 			stackId
 		});
 	}
@@ -504,18 +565,28 @@ export function middleTruncate(s: string, max = 72): string {
 	return `${s.slice(0, keep - tail)}…${s.slice(s.length - tail)}`;
 }
 
-/** "11 of 12 complete", plus the environments of a multi-host set. */
+/**
+ * "11 of 12 complete", plus the skipped members (removed before their
+ * turn, not counted as backups) and the environments of a multi-host set.
+ */
 export function setSummary(s: BackupSet): string {
-	const done = s.members.filter((m) => m.state === 'complete').length;
+	const skipped = s.members.filter((m) => m.state === 'skipped').length;
+	const counted = s.members.filter((m) => m.state !== 'skipped');
+	const done = counted.filter((m) => m.state === 'complete').length;
 	const envs = new Set(s.members.map((m) => m.environmentId).filter(Boolean)).size;
-	const total = s.members.length;
-	const base =
-		total === 0
+	const total = counted.length;
+	const parts = [
+		s.members.length === 0
 			? 'Nothing selected'
-			: done === total
-				? `${total} ${total === 1 ? 'backup' : 'backups'}`
-				: `${done} of ${total} complete`;
-	return envs > 1 ? `${base} · ${envs} environments` : base;
+			: total === 0
+				? ''
+				: done === total
+					? `${total} ${total === 1 ? 'backup' : 'backups'}`
+					: `${done} of ${total} complete`,
+		skipped ? `${skipped} skipped` : '',
+		envs > 1 ? `${envs} environments` : ''
+	];
+	return parts.filter(Boolean).join(' · ');
 }
 
 /** Seconds a set ran (undefined while it runs). */
@@ -666,6 +737,8 @@ export function policySentence(
 	if (o.running || s?.state === 'pending') return `${what} A backup is running now.`;
 	if (!s) return `${what} It has not run yet.`;
 	const ago = formatRelative(s.finishedAt ?? s.startedAt, o.now);
+	if (s.state === 'skipped')
+		return `${what} Last run ${ago} had nothing to back up: everything was removed before its turn.`;
 	const how =
 		s.state === 'complete' ? 'completed' : s.state === 'partial' ? 'partly failed' : 'failed';
 	return `${what} Last run ${how} ${ago}.`;

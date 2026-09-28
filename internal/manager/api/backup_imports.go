@@ -141,7 +141,7 @@ type BackupImportMember struct {
 	Volume          string    `json:"volume,omitempty"`
 	SnapshotID      string    `json:"snapshotId,omitempty"`
 	SnapshotTime    time.Time `json:"snapshotTime,omitzero"`
-	State           string    `json:"state" enum:"complete,partial,failed,pending,missing"`
+	State           string    `json:"state" enum:"complete,partial,failed,pending,missing,skipped"`
 	ErrorClass      string    `json:"errorClass,omitempty"`
 	Located         string    `json:"located" enum:"found,missing,unverified,not_backed_up" doc:"found: listed in its repository; missing: its repository was read and the snapshot is not there; unverified: its repository is not reachable from this manager yet; not_backed_up: no snapshot was written."`
 }
@@ -153,7 +153,7 @@ type BackupImportSet struct {
 	InstanceID          string               `json:"instanceId,omitempty"`
 	CreatedAt           time.Time            `json:"createdAt,omitzero"`
 	AppVersion          string               `json:"appVersion,omitempty"`
-	Completeness        string               `json:"completeness,omitempty" enum:"complete,partial,failed,pending"`
+	Completeness        string               `json:"completeness,omitempty" enum:"complete,partial,failed,pending,skipped"`
 	SchemaLatest        string               `json:"schemaLatest,omitempty" doc:"Newest migration of the set's manager database."`
 	SchemaCompatible    bool                 `json:"schemaCompatible"`
 	ManagerSnapshotID   string               `json:"managerSnapshotId,omitempty"`

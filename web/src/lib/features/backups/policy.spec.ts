@@ -151,6 +151,14 @@ describe('policy pages', () => {
 			'Backs up prod and the manager state daily at 03:00. Last run partly failed 17 hours ago.'
 		);
 		expect(
+			policySentence(
+				{ ...p, recentSets: [set({ state: 'skipped' })] },
+				{ repository: 'B2', environmentName: envName, now }
+			)
+		).toBe(
+			'Backs up all environments to B2 daily at 03:00. Last run 17 hours ago had nothing to back up: everything was removed before its turn.'
+		);
+		expect(
 			policySentence({ ...p, schedule: { ...p.schedule!, enabled: false }, recentSets: [] })
 		).toBe('Backs up all environments when you start it. It has not run yet.');
 		expect(policySentence(p, { running: true })).toBe(

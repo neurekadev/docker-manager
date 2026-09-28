@@ -120,7 +120,7 @@ func ErrorCodes() []ErrorCode {
 		{CodeBackupRepositoryInUse, http.StatusConflict, false, "A backup policy uses the repository; change or delete the policy first.", 10},
 		{CodeRecoveryKeyNotConfirmed, http.StatusConflict, false, "The Recovery Key has not been confirmed (re-entered) for the repository yet; confirm it before policies can use or enable it.", 10},
 		{CodeKeyRotationInProgress, http.StatusConflict, false, "A Recovery Key rotation is still moving repository locations to the new key; wait until no location is pending.", 10},
-		{CodeNothingToRetry, http.StatusConflict, false, "Every member of the backup set completed; there is nothing to retry.", 10},
+		{CodeNothingToRetry, http.StatusConflict, false, "Every member of the backup set completed or was skipped; there is nothing to retry.", 10},
 		{CodeBackupRunActive, http.StatusConflict, false, "A backup of the policy is still queued or running; follow that job instead of starting another run.", 10},
 		{CodeBackupRepositoryError, http.StatusConflict, false, "The backup repository could not be read (missing, Recovery Key rejected, storage refused access, locked or damaged); the message names the class and what to do.", 10},
 		{CodeBackupNotAFile, http.StatusConflict, false, "Only regular files can be downloaded from a backup (not directories, links or special files).", 10},

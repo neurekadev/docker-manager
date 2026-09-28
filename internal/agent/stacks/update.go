@@ -530,7 +530,7 @@ func asideName(c *protocol.UpdateContainer) string {
 	if len(id) > 12 {
 		id = id[:12]
 	}
-	return c.Name + "-docker-manager-update-" + id
+	return c.Name + protocol.UpdateAsideInfix + id
 }
 
 // containerRecreate replaces the container: the old one is stopped and

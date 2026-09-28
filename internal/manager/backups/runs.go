@@ -29,7 +29,10 @@ import (
 // manager.backup job queued last (the manager-state snapshot and the set
 // manifest). Multi-host sets are not atomic: each member records its own
 // snapshot time, a set with failed members is partial, never complete,
-// and a retry re-runs only the members that did not complete.
+// and a retry re-runs only the members that did not complete. A member
+// whose stack or volume was removed before its turn is skipped: it counts
+// neither for nor against the set, and a set of skipped members only is
+// skipped.
 
 // managerBackupInput is the input of manager.backup.
 type managerBackupInput struct {
@@ -72,8 +75,9 @@ type RunResult struct {
 	Jobs []domain.Job
 }
 
-// ErrNothingToRetry is returned when every member of the set completed.
-var ErrNothingToRetry = errors.New("every member of the backup set completed; nothing to retry")
+// ErrNothingToRetry is returned when every member of the set completed
+// (or was skipped: removed before its turn).
+var ErrNothingToRetry = errors.New("every member of the backup set completed or was skipped; nothing to retry")
 
 // RunPolicy starts a manual run of a policy (or retries a set's missing
 // members). The caller authorized backup.run on the policy and its
@@ -116,12 +120,7 @@ func (s *Service) RunPolicy(ctx context.Context, policyID string, o RunOptions) 
 		if prev.PolicyID != policyID {
 			return RunResult{}, domain.ErrBackupSetNotFound
 		}
-		only = map[string]bool{}
-		for _, m := range prev.Members {
-			if m.State != backup.StateComplete && m.State != backup.StatePending {
-				only[m.Scope+"\x00"+m.Item] = true
-			}
-		}
+		only = retryItems(prev.Members)
 		if len(only) == 0 {
 			return RunResult{}, ErrNothingToRetry
 		}
@@ -166,6 +165,19 @@ func (s *Service) RunPolicy(ctx context.Context, policyID string, o RunOptions) 
 	audit.SetDetail(ctx, "jobs", len(out.Jobs))
 	audit.SetDetail(ctx, "retry", o.RetrySetID != "")
 	return out, nil
+}
+
+// retryItems are the scope/item keys a retry of a set re-runs: the
+// members that did not complete, except skipped ones (removed before their
+// turn: nothing to retry).
+func retryItems(members []domain.BackupSetMember) map[string]bool {
+	only := map[string]bool{}
+	for _, m := range members {
+		if m.State != backup.StateComplete && m.State != backup.StatePending && m.State != backup.StateSkipped {
+			only[m.Scope+"\x00"+m.Item] = true
+		}
+	}
+	return only
 }
 
 func originOf(p authz.Principal) domain.JobOrigin {
@@ -373,10 +385,12 @@ func (s *Service) settle(set *domain.BackupSet) {
 
 // flagRetention marks a set that has just finished for its policy's
 // retention after the backup (RunFollowUps queues it): once per set, only
-// after every member settled, never for a failed set. Retention therefore
-// runs once per backup run and location, never per stack or volume.
+// after every member settled, never for a failed set or a skipped one (it
+// wrote no snapshot). Retention therefore runs once per backup run and
+// location, never per stack or volume.
 func (s *Service) flagRetention(ctx context.Context, db bun.IDB, set *domain.BackupSet, wasPending bool) {
-	if !wasPending || set.State == backup.StatePending || set.State == backup.StateFailed || set.FollowUp != "" || set.PolicyID == "" {
+	if !wasPending || set.State == backup.StatePending || set.State == backup.StateFailed || set.State == backup.StateSkipped ||
+		set.FollowUp != "" || set.PolicyID == "" {
 		return
 	}
 	if p, err := store.GetBackupPolicy(ctx, db, set.PolicyID); err == nil && p.Retention.AfterBackup && retentionActive(p.Retention) {

@@ -1656,7 +1656,8 @@
               "partial",
               "failed",
               "pending",
-              "missing"
+              "missing",
+              "skipped"
             ],
             "type": "string"
           },
@@ -1726,7 +1727,8 @@
               "complete",
               "partial",
               "failed",
-              "pending"
+              "pending",
+              "skipped"
             ],
             "type": "string"
           },
@@ -2577,12 +2579,14 @@
             "type": "string"
           },
           "state": {
+            "description": "skipped: the stack or volume was removed before its turn (errorClass item_gone); not a failure.",
             "enum": [
               "pending",
               "complete",
               "partial",
               "failed",
-              "missing"
+              "missing",
+              "skipped"
             ],
             "type": "string"
           },
@@ -2627,12 +2631,13 @@
             "type": "string"
           },
           "state": {
-            "description": "A set with failed or missing members is partial, never complete.",
+            "description": "A set with failed or missing members is partial, never complete. Skipped members (removed before their turn) count neither way; skipped: every member was skipped, nothing was backed up.",
             "enum": [
               "pending",
               "complete",
               "partial",
-              "failed"
+              "failed",
+              "skipped"
             ],
             "type": "string"
           }

@@ -50,7 +50,11 @@ relay"):
   `<stacks>/.docker-manager-migrations/<migrationId>/project` (moved into place
   by `migration.commit`, which never replaces a directory) and into volumes
   it creates itself labeled `dev.neureka.docker-manager.migration=<migrationId>`
-  (with the source volume's Compose labels, so Compose adopts them).
+  (with the source volume's Compose labels, so Compose adopts them). The
+  label stays after a successful migration; backup policies (#10) select
+  such a standalone volume only when its migration succeeded
+  (`backups.Service.migrationSucceeded`), so a failed migration's partial
+  copy is never backed up.
   Extraction refuses escaping names, members below symlinks or files, hard
   links to anything but earlier files, device nodes, and data beyond the
   destination's free space.

@@ -52,8 +52,31 @@ only production process execution in Docker Manager.
   on the volume itself, or on a container that mounts it. The manager
   applies it to standalone volumes (`standaloneVolumes`), the agent to a
   stack's named and anonymous volumes (`planStackVolumes`, source reason
-  names the label); a stack's project directory is always backed up. The
-  UI's `coveredVolumes` repeats these rules. The policy also configures manager state
+  names the label); a stack's project directory is always backed up.
+  Docker Manager's temporary objects never get into a backup:
+  **temporary containers** (`protocol.IsHelperContainer`: a container set
+  aside during a standalone image update or a stack rename,
+  `<name>-docker-manager-update-<12 hex>` / `<name>-docker-manager-rename-<12 hex>`
+  (`protocol.UpdateAsideInfix`, `RenameAsideInfix`), normally removed within
+  seconds and left behind only when removing it failed; Compose's
+  temporary replacement during a recreate, `<12 hex>_<name>` with
+  `com.docker.compose.replace` (Compose keeps the label after renaming the
+  replacement, so the name decides); the agent's self-update helper,
+  `dev.neureka.docker-manager.role=self-update`) never count as users of a
+  volume: `standaloneVolumes` ignores them for the managed-stack and label
+  checks and leaves out a volume only they use, `planStackVolumes`
+  discovers anonymous volumes only on the other containers (one only a
+  temporary container mounts is listed as excluded, "only a temporary
+  container of Docker Manager or Compose uses it"). And a standalone volume
+  an **environment migration** created (`dev.neureka.docker-manager.migration=<migration ID>`,
+  #35) is selected only when that migration succeeded (`completed` or
+  `source_removed` in the manager's migration record); a failed, cancelled,
+  interrupted, still running or unknown one left a partial copy the next
+  migration of the stack removes. Docker maintenance keeps protecting these
+  volumes as before (`VolumeReferences` uses the selection without these
+  two rules). The UI's `coveredVolumes` repeats these rules, except the
+  migration one (it cannot see how a migration ended: such a volume is
+  listed and left out at run time). The policy also configures manager state
   (owner only), container shutdown (off by default), a schedule (#13,
   starts disabled), and retention. A migrated stack is covered by the
   destination environment's policy. Existing snapshots retain their source
@@ -66,7 +89,23 @@ only production process execution in Docker Manager.
   last. Each member (stack, volume, manager state) is its own snapshot with
   its own time; multi-host sets are not atomic. A set with failed or
   missing members is `partial`, never `complete`; `retrySetId` re-runs only
-  the members that did not complete. One run per policy at a time: a
+  the members that did not complete. A member whose item no longer exists
+  when its turn comes (a standalone volume the Engine answers Not Found
+  for, e.g. a CI job's temporary volume removed after the run was planned;
+  a stack whose project directory was deleted while its parent directory is
+  there) is **skipped** (`backup.StateSkipped`, error class
+  `item_gone`): no snapshot, the job item says so ("skipped: volume x was
+  removed before its turn") and it is recorded in the host manifest and
+  the set. Any other error (an unreadable or unmounted directory, an
+  inspection failure) still fails the member. `backup.Completeness` and
+  `settle` leave skipped members out: a set whose other members completed
+  is `complete`; a set whose members were **all** skipped is `skipped`
+  (nothing was backed up and nothing failed: neither `complete`, which
+  would claim a backup, nor `failed`); it gets no retention follow-up, and
+  a retry never re-runs skipped members (`nothing_to_retry` when only they
+  remain). A `backup.run` whose items were all skipped succeeds; one with
+  failed and skipped items only still fails (`empty_scope`). An older agent
+  keeps failing such members (`volume_unavailable`), as before. One run per policy at a time: a
   scheduled run is skipped while a `backup.run` or `manager.backup` job of
   the policy is not finished (scheduler overlap), and a new manual run is
   refused with 409 `backup_run_active` (a retry and an idempotent replay
@@ -571,10 +610,13 @@ repository, so its manifest usually carries their results.
   (secrets never in arguments, environment or logs, JSON parsing, exit
   classes, cancellation).
 - `internal/backup`: manifest round trip, corruption/truncation,
-  completeness and merge, retention rules, deleted-item expiry and time zones.
+  completeness (skipped members) and merge, retention rules, deleted-item
+  expiry and time zones.
 - `internal/agent/backups`: the scope corpus (relative binds, opt-ins,
   allowlist, anonymous volumes, exclusions, symlink escapes, nested
-  repositories, Docker Manager's volumes), shutdown order, restart after failure,
+  repositories, Docker Manager's volumes, temporary containers), items
+  removed before their turn (skipped, Not Found only), shutdown order,
+  restart after failure,
   cancellation and agent crash, key rotation per location, damage
   detection, retention scope.
 - `internal/manager/app/backups_test.go`: the API end to end with a real

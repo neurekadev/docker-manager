@@ -28,14 +28,16 @@ import (
 //	prepare          validate, open (or initialize) the environment's
 //	                 repository — finishing a key rotation on it — and
 //	                 resolve every item's scope; items that cannot be
-//	                 backed up fail individually.
+//	                 backed up fail individually, items removed since the
+//	                 run was planned are skipped (ClassItemGone).
 //	stop_containers  with shutdown on: record every affected service's
 //	                 state and register the restart compensation (the
 //	                 agent-side recovery record, journaled before anything
 //	                 stops), then stop the running services of each stack in
 //	                 reverse dependency order. A failed stop aborts the job
 //	                 and the compensation restarts what was running.
-//	snapshot         one restic snapshot per item (not idempotent).
+//	snapshot         one restic snapshot per item (not idempotent); an item
+//	                 removed before its turn is skipped, not failed.
 //	start_containers restart only the previously running services, in
 //	                 dependency order; a dependency conflict is reported,
 //	                 never forced.
@@ -114,14 +116,18 @@ func (s *Service) stepPrepare(ctx context.Context, sc *jobexec.StepContext) erro
 	if o.Migrated || o.PreviousRemoved {
 		out.Warnings = append(out.Warnings, "the repository was moved to the current Recovery Key")
 	}
-	usable := 0
+	usable, skipped := 0, 0
 	for _, it := range in.Items {
 		p := s.plan(ctx, it, &in.Repository, false)
 		m := memberOf(in, it)
-		if p.err != nil {
+		switch {
+		case isGone(p.err):
+			skipped++
+			skip(ctx, sc, &m, p.err)
+		case p.err != nil:
 			m.State, m.ErrorClass = backup.StateFailed, errorClass(p.err)
 			sc.Item(ctx, it.Key(), domain.ItemFailed, p.err.Error())
-		} else {
+		default:
 			usable++
 			m.Paths = snapPaths(p.paths)
 			m.Volumes = p.volumes
@@ -131,10 +137,27 @@ func (s *Service) stepPrepare(ctx context.Context, sc *jobexec.StepContext) erro
 	if err := sc.SetOutput(ctx, out); err != nil {
 		return err
 	}
-	if usable == 0 {
+	// Nothing left to back up because everything was removed is not a
+	// failure: the job goes on and records the skipped members.
+	if usable == 0 && skipped < len(in.Items) {
 		return backup.Refuse("empty_scope", "no item of this backup can be backed up", "Check the items' errors and the policy's selection.")
 	}
 	return nil
+}
+
+// skip marks a member whose item was removed before its turn (err is the
+// plan's ClassItemGone error): skipped, never failed, and said so in the
+// job's items and progress.
+func skip(ctx context.Context, sc *jobexec.StepContext, m *backup.Member, err error) {
+	m.State, m.ErrorClass = backup.StateSkipped, backup.ClassItemGone
+	m.Paths, m.Volumes = nil, nil
+	sc.Item(ctx, m.Item, domain.ItemSkipped, err.Error())
+	sc.Progress(ctx, -1, "skipped: "+err.Error())
+}
+
+// memberDone reports whether a member needs no snapshot (any more).
+func memberDone(m backup.Member) bool {
+	return m.State == backup.StateFailed || m.State == backup.StateSkipped || m.SnapshotID != ""
 }
 
 func memberOf(in protocol.BackupRunInput, it protocol.BackupItem) backup.Member {
@@ -165,7 +188,7 @@ func (s *Service) stepStopContainers(ctx context.Context, sc *jobexec.StepContex
 	out := s.output(sc)
 	failed := map[string]bool{}
 	for _, m := range out.Members {
-		if m.State == backup.StateFailed {
+		if m.State == backup.StateFailed || m.State == backup.StateSkipped {
 			failed[m.Item] = true
 		}
 	}
@@ -254,7 +277,8 @@ func (s *Service) stepStopContainers(ctx context.Context, sc *jobexec.StepContex
 		}
 	}
 	for i := range out.Members {
-		if out.Members[i].Kind == backup.MemberStack && out.Members[i].State != backup.StateFailed && !live[out.Members[i].Item] {
+		if out.Members[i].Kind == backup.MemberStack && out.Members[i].State != backup.StateFailed &&
+			out.Members[i].State != backup.StateSkipped && !live[out.Members[i].Item] {
 			out.Members[i].Consistency = backup.ConsistencyShutdown
 		}
 	}
@@ -286,10 +310,15 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 			idx = len(out.Members) - 1
 		}
 		m := &out.Members[idx]
-		if m.State == backup.StateFailed || m.SnapshotID != "" {
+		if memberDone(*m) {
 			continue
 		}
 		p := s.plan(ctx, it, &in.Repository, false)
+		if isGone(p.err) {
+			skip(ctx, sc, m, p.err)
+			_ = sc.SetOutput(ctx, out)
+			continue
+		}
 		if p.err != nil {
 			m.State, m.ErrorClass = backup.StateFailed, errorClass(p.err)
 			sc.Item(ctx, it.Key(), domain.ItemFailed, p.err.Error())
@@ -317,6 +346,13 @@ func (s *Service) stepSnapshot(ctx context.Context, sc *jobexec.StepContext) err
 		if err != nil {
 			if ctx.Err() != nil {
 				return err
+			}
+			// Removed while restic read it: nothing was stored, and the
+			// item no longer exists (only a Not Found counts).
+			if again := s.plan(ctx, it, &in.Repository, false); isGone(again.err) {
+				skip(ctx, sc, m, again.err)
+				_ = sc.SetOutput(ctx, out)
+				continue
 			}
 			m.State, m.ErrorClass = backup.StateFailed, restic.CodeOf(err)
 			if m.ErrorClass == "" {

@@ -903,7 +903,14 @@ journaled. The `backup.snapshots`, `backup.contents` requests and the
 `credential` field for that call only. The agent refuses local
 destinations outside `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` and any repository
 nested inside a backup source; external bind paths need both the policy's
-opt-in and `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST`.
+opt-in and `DOCKER_AGENT_BACKUP_EXTERNAL_ALLOWLIST`. A `backup.run` member
+whose volume the Engine no longer knows (Not Found), or whose stack
+project directory was deleted, when its turn comes has `state: skipped`
+and `errorClass: item_gone` in the output and the host manifest (job item
+status `skipped`); it is not a failure, and a run whose items were all
+skipped succeeds. Older agents fail such members (`volume_unavailable`).
+Anonymous volumes only temporary containers mount
+(`protocol.IsHelperContainer`) are not discovered as a stack's volumes.
 Registry credentials needed by a pull, build, deploy or update travel only
 inside that command's input for that operation and are never persisted on
 the agent (#19).

@@ -5584,7 +5584,7 @@ export interface components {
             stackId?: string;
             stackName?: string;
             /** @enum {string} */
-            state: "complete" | "partial" | "failed" | "pending" | "missing";
+            state: "complete" | "partial" | "failed" | "pending" | "missing" | "skipped";
             volume?: string;
         };
         BackupImportPreview: {
@@ -5600,7 +5600,7 @@ export interface components {
             /** @description The error code an import of this set answers. */
             blockerCode?: string;
             /** @enum {string} */
-            completeness?: "complete" | "partial" | "failed" | "pending";
+            completeness?: "complete" | "partial" | "failed" | "pending" | "skipped";
             /** Format: date-time */
             createdAt?: string;
             /** @description Known only from host repositories (no manager-state manifest). */
@@ -5900,8 +5900,11 @@ export interface components {
             snapshotTime?: string;
             stackId?: string;
             stackName?: string;
-            /** @enum {string} */
-            state: "pending" | "complete" | "partial" | "failed" | "missing";
+            /**
+             * @description skipped: the stack or volume was removed before its turn (errorClass item_gone); not a failure.
+             * @enum {string}
+             */
+            state: "pending" | "complete" | "partial" | "failed" | "missing" | "skipped";
             volume?: string;
         };
         BackupSetSummary: {
@@ -5914,10 +5917,10 @@ export interface components {
             /** Format: date-time */
             startedAt: string;
             /**
-             * @description A set with failed or missing members is partial, never complete.
+             * @description A set with failed or missing members is partial, never complete. Skipped members (removed before their turn) count neither way; skipped: every member was skipped, nothing was backed up.
              * @enum {string}
              */
-            state: "pending" | "complete" | "partial" | "failed";
+            state: "pending" | "complete" | "partial" | "failed" | "skipped";
         };
         BackupStackSelection: {
             /** @description Also back up anonymous volumes (default off). */

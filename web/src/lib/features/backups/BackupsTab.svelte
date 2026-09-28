@@ -30,11 +30,11 @@
 	import RestoreDialog from './RestoreDialog.svelte';
 	import {
 		CONSISTENCY_LABEL,
+		memberReason,
 		memberRuns,
 		memberState,
 		policyCovers,
 		scheduleWords,
-		sentenceCase,
 		type Backup,
 		type CoverageTarget,
 		type MemberRun
@@ -191,11 +191,10 @@
 {/snippet}
 {#snippet runStateCell(r: MemberRun)}
 	{@const s = memberState(r.member.state)}
+	{@const why = memberReason(r.member)}
 	<span class="result">
 		<Badge tone={s.tone} dot>{s.label}</Badge>
-		{#if r.member.errorClass}<span class="ago"
-				>{sentenceCase(r.member.errorClass.replaceAll('_', ' '))}</span
-			>{/if}
+		{#if why}<span class="ago">{why.text}</span>{/if}
 	</span>
 {/snippet}
 {#snippet runJobCell(r: MemberRun)}

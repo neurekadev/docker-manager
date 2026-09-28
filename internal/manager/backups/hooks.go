@@ -167,6 +167,9 @@ func (s *Service) recordMembers(ctx context.Context, db bun.IDB, j domain.Job, s
 			}
 			t := r.SnapshotTime
 			m.SnapshotTime = &t
+		case ok && r.State == backup.StateSkipped:
+			// Removed before its turn: no snapshot, and not a failure.
+			m.State, m.ErrorClass = backup.StateSkipped, backup.ClassItemGone
 		case ok:
 			m.State, m.ErrorClass = backup.StateFailed, r.ErrorClass
 			if m.ErrorClass == "" {

@@ -423,7 +423,20 @@ func excludedVolumes(p domain.BackupPolicy, environmentID string) []string {
 // a stack container using it), not excluded (by the policy, or by the
 // backup exclude label on the volume or on a container using it), and
 // anonymous and buildx builder volumes only when the policy includes them.
+// Docker Manager's temporary objects are left out too: temporary
+// containers (protocol.IsHelperContainer) never count as users, so a
+// volume only they use is not selected, and neither is a volume an
+// environment migration created (protocol.LabelMigration) unless that
+// migration succeeded.
 func (s *Service) standaloneVolumes(ctx context.Context, p domain.BackupPolicy, environmentID string, stacks []domain.Stack) ([]string, error) {
+	return s.selectVolumes(ctx, p, environmentID, stacks, true)
+}
+
+// selectVolumes is standaloneVolumes; without skipTemporary it keeps the
+// volumes of temporary containers and unfinished migrations (the prune
+// protection of VolumeReferences, unchanged by that rule).
+func (s *Service) selectVolumes(ctx context.Context, p domain.BackupPolicy, environmentID string, stacks []domain.Stack,
+	skipTemporary bool) ([]string, error) {
 	if s.volumes == nil {
 		return nil, nil
 	}
@@ -439,8 +452,12 @@ func (s *Service) standaloneVolumes(ctx context.Context, p domain.BackupPolicy, 
 	for _, stack := range stacks {
 		stackNames[stack.Name] = true
 	}
-	managedContainer, labeled := map[string]bool{}, map[string]bool{}
+	managedContainer, labeled, helper := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for _, container := range containers {
+		if skipTemporary && protocol.IsHelperContainer(container.Name, container.Labels) {
+			helper[container.ID] = true
+			continue
+		}
 		if stackNames[container.Labels[protocol.ComposeProjectLabel]] {
 			managedContainer[container.ID] = true
 		}
@@ -449,6 +466,7 @@ func (s *Service) standaloneVolumes(ctx context.Context, p domain.BackupPolicy, 
 		}
 	}
 	excluded := excludedVolumes(p, environmentID)
+	migrations := map[string]bool{}
 	var out []string
 	for _, volume := range volumes {
 		_, anonymous := volume.Labels[protocol.AnonymousVolumeLabel]
@@ -459,9 +477,43 @@ func (s *Service) standaloneVolumes(ctx context.Context, p domain.BackupPolicy, 
 			slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return labeled[ref.ID] }) {
 			continue
 		}
+		if skipTemporary {
+			// Used, but only by temporary containers.
+			if len(volume.UsedBy) > 0 && !slices.ContainsFunc(volume.UsedBy, func(ref protocol.ContainerRef) bool { return !helper[ref.ID] }) {
+				continue
+			}
+			if id := volume.Labels[protocol.LabelMigration]; id != "" {
+				ok, known := migrations[id]
+				if !known {
+					if ok, err = s.migrationSucceeded(ctx, id); err != nil {
+						return nil, err
+					}
+					migrations[id] = ok
+				}
+				if !ok {
+					continue
+				}
+			}
+		}
 		out = append(out, volume.Name)
 	}
 	return out, nil
+}
+
+// migrationSucceeded reports whether the environment migration that
+// created a volume (its protocol.LabelMigration value, the migration's job
+// ID) succeeded. A failed, cancelled, interrupted or still running one
+// left a partial copy the next migration removes; an unknown one is
+// treated the same.
+func (s *Service) migrationSucceeded(ctx context.Context, id string) (bool, error) {
+	m, err := store.GetMigration(ctx, s.db, id)
+	if errors.Is(err, domain.ErrMigrationNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return m.State == domain.MigrationCompleted || m.State == domain.MigrationSourceRemoved, nil
 }
 
 // VolumeReference is a standalone volume a backup policy selects.
@@ -484,7 +536,10 @@ func (s *Service) VolumeReferences(ctx context.Context, environmentID string) ([
 			if err != nil {
 				return nil, err
 			}
-			names, err := s.standaloneVolumes(ctx, p, environmentID, stacks)
+			// Prune keeps protecting the volumes of temporary containers
+			// and unfinished migrations as before, although backups leave
+			// them out.
+			names, err := s.selectVolumes(ctx, p, environmentID, stacks, false)
 			if err != nil {
 				return nil, err
 			}

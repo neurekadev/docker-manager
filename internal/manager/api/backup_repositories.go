@@ -149,7 +149,7 @@ func backupError(err error) error {
 	case errors.Is(err, domain.ErrKeyRotationInProgress):
 		return Conflict(CodeKeyRotationInProgress, "a Recovery Key rotation is still moving repositories to the new key; let it finish first")
 	case errors.Is(err, backups.ErrNothingToRetry):
-		return Conflict(CodeNothingToRetry, "every member of the backup set completed; nothing to retry")
+		return Conflict(CodeNothingToRetry, "every member of the backup set completed or was skipped; nothing to retry")
 	case errors.As(err, &active):
 		return Conflict(CodeBackupRunActive, active.Error()+"; follow it with GET /api/v1/jobs/"+active.JobID)
 	case errors.Is(err, backups.ErrNotAFile):

@@ -14,6 +14,9 @@ import {
 	hasRetentionRules,
 	incompleteMembers,
 	isBuildxVolume,
+	isHelperContainer,
+	memberReason,
+	memberState,
 	looksLikeRecoveryKey,
 	modeText,
 	normalizeRecoveryKey,
@@ -23,9 +26,11 @@ import {
 	repositoryLocation,
 	retentionText,
 	scopeText,
+	setState,
 	volumeKey,
 	type BackupPolicy,
-	type BackupRepository
+	type BackupRepository,
+	type BackupSet
 } from './model';
 
 const KEY = 'DYRK-4RN4-LUDA-QCP3-RQ2S-RV4J-OYB7-3PZF-CXUB-5YG2-MY7Z-O5A2-HZ4D-FGLA';
@@ -135,7 +140,7 @@ describe('backup sets', () => {
 			[{ id: 's1', name: 'shop' }],
 			[{ id: 'c1', labels: { 'com.docker.compose.project': 'shop' } }]
 		);
-		const plain = { buildx: false, labelled: false };
+		const plain = { buildx: false, labelled: false, temporary: false };
 		expect(out).toEqual([
 			{ name: '3f2a', anonymous: true, stackId: 's1', ...plain },
 			{ name: '9c1b', anonymous: true, stackId: undefined, ...plain },
@@ -166,6 +171,89 @@ describe('backup sets', () => {
 			['media', false, false]
 		]);
 		expect(isBuildxVolume('buildx_buildkit__state')).toBe(false);
+	});
+
+	it('recognizes temporary containers of Docker Manager and Compose like the manager', () => {
+		const replace = { 'com.docker.compose.replace': 'app-db-1' };
+		expect(isHelperContainer('web-docker-manager-update-0123456789ab', {})).toBe(true);
+		expect(isHelperContainer('/db-docker-manager-rename-abcdef012345', undefined)).toBe(true);
+		expect(isHelperContainer('0123456789ab_app-db-1', replace)).toBe(true);
+		expect(
+			isHelperContainer('helper', { 'dev.neureka.docker-manager.role': 'self-update' })
+		).toBe(true);
+		// Compose keeps the label on the renamed replacement: not temporary.
+		expect(isHelperContainer('app-db-1', replace)).toBe(false);
+		expect(isHelperContainer('0123456789ab_app-db-1', {})).toBe(false);
+		expect(isHelperContainer('web-docker-manager-update-0123456789AB', {})).toBe(false);
+		expect(isHelperContainer('web-docker-manager-update-0123456789a', {})).toBe(false);
+		expect(isHelperContainer('-docker-manager-update-0123456789ab', {})).toBe(false);
+		expect(isHelperContainer('web', { 'dev.neureka.docker-manager.role': 'agent' })).toBe(
+			false
+		);
+	});
+
+	it('marks standalone volumes only temporary containers use', () => {
+		const out = coveredVolumes(
+			[
+				{ name: 'aside-only', usedBy: [{ id: 'aside' }] },
+				{ name: 'media', usedBy: [{ id: 'aside' }, { id: 'web' }] },
+				{ name: 'replace-only', usedBy: [{ id: 'tmp' }] },
+				{ name: 'unused' }
+			],
+			[],
+			[
+				{ id: 'aside', name: 'web-docker-manager-update-0123456789ab' },
+				{ id: 'web', name: 'web' },
+				{
+					id: 'tmp',
+					name: '0123456789ab_app-db-1',
+					labels: { 'com.docker.compose.replace': 'app-db-1' }
+				}
+			]
+		);
+		expect(out.map((v) => [v.name, v.temporary])).toEqual([
+			['aside-only', true],
+			['media', false],
+			['replace-only', true],
+			['unused', false]
+		]);
+	});
+});
+
+describe('skipped backups', () => {
+	it('shows skipped sets and members as neutral, never as errors', () => {
+		expect(setState('skipped')).toEqual({ tone: 'neutral', label: 'Skipped' });
+		expect(memberState('skipped')).toEqual({ tone: 'neutral', label: 'Skipped' });
+		expect(memberReason({ state: 'skipped', errorClass: 'item_gone' })).toEqual({
+			text: 'Removed before its turn',
+			error: false
+		});
+		expect(memberReason({ state: 'failed', errorClass: 'volume_unavailable' })).toEqual({
+			text: 'Volume unavailable',
+			error: true
+		});
+		expect(memberReason({ state: 'complete' })).toBeUndefined();
+	});
+
+	it('never retries skipped members', () => {
+		const set = {
+			id: 'set',
+			state: 'partial',
+			origin: 'manual',
+			startedAt: '2026-09-27T01:00:00Z',
+			members: [
+				{ item: 'a', kind: 'volume', scope: 's', state: 'complete' },
+				{
+					item: 'gone',
+					kind: 'volume',
+					scope: 's',
+					state: 'skipped',
+					errorClass: 'item_gone'
+				},
+				{ item: 'broken', kind: 'volume', scope: 's', state: 'failed' }
+			]
+		} as BackupSet;
+		expect(incompleteMembers(set).map((m) => m.item)).toEqual(['broken']);
 	});
 });
 

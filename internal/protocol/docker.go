@@ -52,7 +52,42 @@ const (
 	ComposeServiceLabel    = "com.docker.compose.service"
 	ComposeWorkingDirLabel = "com.docker.compose.project.working_dir"
 	ComposeOneoffLabel     = "com.docker.compose.oneoff"
+	// ComposeReplaceLabel marks a container Compose created to replace
+	// another one during a recreate. Compose keeps it after renaming the
+	// replacement to its final name, so only the temporary name
+	// (<12 hex digits of the old ID>_<name>) makes it a temporary one.
+	ComposeReplaceLabel = "com.docker.compose.replace"
+
+	// RoleSelfUpdate is the LabelRole value of the Docker Agent's
+	// self-update helper container.
+	RoleSelfUpdate = "self-update"
+	// UpdateAsideInfix and RenameAsideInfix name a container Docker Manager
+	// sets aside while it replaces it (standalone image update, stack
+	// rename): <name><infix><first 12 hex digits of its ID>.
+	UpdateAsideInfix = "-docker-manager-update-"
+	RenameAsideInfix = "-docker-manager-rename-"
 )
+
+var (
+	asideNameRE       = regexp.MustCompile(`.(` + regexp.QuoteMeta(UpdateAsideInfix) + `|` + regexp.QuoteMeta(RenameAsideInfix) + `)[0-9a-f]{12}$`)
+	composeTempNameRE = regexp.MustCompile(`^[0-9a-f]{12}_.`)
+)
+
+// IsHelperContainer reports whether a container is a temporary one of
+// Docker Manager or Compose: a container set aside during a standalone
+// image update or a stack rename (normally removed within seconds, left
+// behind only when its removal failed), Compose's temporary replacement
+// during a recreate, or the agent's self-update helper. They never count
+// as users of a volume when backups decide what to include. name may carry
+// the Engine's leading slash.
+func IsHelperContainer(name string, labels map[string]string) bool {
+	name = strings.TrimPrefix(name, "/")
+	if labels[LabelRole] == RoleSelfUpdate || asideNameRE.MatchString(name) {
+		return true
+	}
+	_, replacing := labels[ComposeReplaceLabel]
+	return replacing && composeTempNameRE.MatchString(name)
+}
 
 // UpdateExcluded reports whether a container has opted out of automatic updates.
 func UpdateExcluded(labels map[string]string) bool {

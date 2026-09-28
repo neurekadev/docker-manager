@@ -664,7 +664,11 @@ func (s *Service) previewImport(ctx context.Context, src ImportSource, setID str
 				set.Problems = append(set.Problems, "The snapshot of "+memberLabel(im)+" is missing from its repository.")
 			}
 		}
-		if completeness != backup.StateComplete {
+		switch completeness {
+		case backup.StateComplete:
+		case backup.StateSkipped:
+			set.Problems = append(set.Problems, "Nothing was backed up in this set: every item was removed before its turn.")
+		default:
 			set.Problems = append(set.Problems, "The set is "+completeness+": some members have no snapshot.")
 		}
 		set.Importable = set.BlockerClass == ""

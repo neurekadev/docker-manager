@@ -3,9 +3,11 @@
 	// volumes of the included stacks and the standalone ones, all included
 	// until unchecked (unchecking adds the volume to the policy's
 	// exclusions). Anonymous and buildx builder volumes appear only when the
-	// policy backs them up; volumes left out by the backup exclude label are
-	// counted, never offered. Docker Manager's own volumes are never offered
-	// (#32).
+	// policy backs them up; volumes left out by the backup exclude label and
+	// standalone volumes only temporary containers of Docker Manager or
+	// Compose use are counted, never offered. Docker Manager's own volumes
+	// are never offered (#32). Volumes of unfinished environment migrations
+	// cannot be told apart here (the manager leaves them out at run time).
 	import { createQuery } from '@tanstack/svelte-query';
 	import { Skeleton } from '$lib/ui';
 	import CoverageList from '$lib/features/common/CoverageList.svelte';
@@ -43,7 +45,8 @@
 		coveredVolumes(volumes.data ?? [], stacks.data ?? [], containers.data ?? [])
 	);
 	const labelled = $derived(list.filter((v) => v.labelled).length);
-	const unlabelled = $derived(list.filter((v) => !v.labelled));
+	const temporary = $derived(list.filter((v) => !v.labelled && v.temporary).length);
+	const unlabelled = $derived(list.filter((v) => !v.labelled && !v.temporary));
 	const hiddenAnonymous = $derived(anonymous ? 0 : unlabelled.filter((v) => v.anonymous).length);
 	const hiddenBuildx = $derived(buildx ? 0 : unlabelled.filter((v) => v.buildx).length);
 	const shown = $derived(
@@ -113,6 +116,13 @@
 				{hiddenBuildx}
 				{hiddenBuildx === 1 ? 'buildx builder volume is' : 'buildx builder volumes are'} not backed
 				up (turn on buildx builder volumes to include them).
+			</p>
+		{/if}
+		{#if temporary}
+			<p class="muted small">
+				{temporary}
+				{temporary === 1 ? 'volume is' : 'volumes are'} not backed up: only temporary containers
+				of Docker Manager or Compose use {temporary === 1 ? 'it' : 'them'}.
 			</p>
 		{/if}
 		{#if labelled}

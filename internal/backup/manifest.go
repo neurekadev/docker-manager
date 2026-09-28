@@ -56,7 +56,16 @@ const (
 	StateFailed   = "failed"
 	StatePending  = "pending"
 	StateMissing  = "missing"
+	// StateSkipped: a member whose stack or volume no longer existed when
+	// its turn came (removed after the run was planned, ClassItemGone). It
+	// has no snapshot and is not a failure; a set whose members were all
+	// skipped is skipped (nothing was left to back up).
+	StateSkipped = "skipped"
 )
+
+// ClassItemGone is the error class of a skipped member: its volume or
+// its stack's project directory was removed before its turn.
+const ClassItemGone = "item_gone"
 
 // Member kinds.
 const (
@@ -187,14 +196,27 @@ func (m *Manifest) Normalize() {
 	})
 }
 
-// Completeness derives the state of a set of members: complete when every
-// member is complete; pending while the others are complete and some are
-// still pending; failed when no member has a snapshot; partial otherwise
-// (a partial set is never reported as complete).
+// Completeness derives the state of a set of members. Skipped members
+// (removed before their turn) are left out of the judgement: complete when
+// every other member is complete; pending while the others are complete
+// and some are still pending; failed when no member has a snapshot;
+// partial otherwise (a partial set is never reported as complete); skipped
+// when every member was skipped (nothing was backed up, and nothing
+// failed).
 func Completeness(members []Member) string {
 	if len(members) == 0 {
 		return StateFailed
 	}
+	counted := make([]Member, 0, len(members))
+	for _, m := range members {
+		if m.State != StateSkipped {
+			counted = append(counted, m)
+		}
+	}
+	if len(counted) == 0 {
+		return StateSkipped
+	}
+	members = counted
 	complete, withSnapshot, pending := 0, 0, 0
 	for _, m := range members {
 		switch m.State {

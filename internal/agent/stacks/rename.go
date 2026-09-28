@@ -820,7 +820,7 @@ func (s *Service) recreateOutside(ctx context.Context, eng engine.Engine, oc pro
 		}
 		return cur.ID, nil
 	}
-	aside := oc.Name + "-docker-manager-rename-" + shortID(oc.ID)
+	aside := oc.Name + protocol.RenameAsideInfix + shortID(oc.ID)
 	if err := eng.RenameContainer(ctx, oc.ID, aside); err != nil && !engine.IsCode(err, engine.CodeNotModified) {
 		return "", err
 	}

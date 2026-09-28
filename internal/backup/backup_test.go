@@ -120,6 +120,13 @@ func TestCompletenessAndMerge(t *testing.T) {
 		{[]string{StateComplete, StatePending}, []string{"a", ""}, StatePending},
 		{[]string{StatePartial}, []string{"a"}, StatePartial},
 		{nil, nil, StateFailed},
+		// Skipped members (removed before their turn) count neither way.
+		{[]string{StateComplete, StateSkipped}, []string{"a", ""}, StateComplete},
+		{[]string{StateSkipped, StateFailed}, []string{"", ""}, StateFailed},
+		{[]string{StateComplete, StateSkipped, StateFailed}, []string{"a", "", ""}, StatePartial},
+		{[]string{StatePending, StateSkipped}, []string{"", ""}, StatePending},
+		// Only skipped members: nothing was backed up, nothing failed.
+		{[]string{StateSkipped, StateSkipped}, []string{"", ""}, StateSkipped},
 	} {
 		var ms []Member
 		for i, s := range tc.states {

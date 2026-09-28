@@ -68,7 +68,7 @@ type BackupSchedule struct {
 // BackupSetSummary is a policy's recent run.
 type BackupSetSummary struct {
 	ID         string            `json:"id"`
-	State      string            `json:"state" enum:"pending,complete,partial,failed" doc:"A set with failed or missing members is partial, never complete."`
+	State      string            `json:"state" enum:"pending,complete,partial,failed,skipped" doc:"A set with failed or missing members is partial, never complete. Skipped members (removed before their turn) count neither way; skipped: every member was skipped, nothing was backed up."`
 	Origin     string            `json:"origin" enum:"manual,scheduled,api_token"`
 	StartedAt  time.Time         `json:"startedAt"`
 	FinishedAt *time.Time        `json:"finishedAt,omitempty"`
@@ -84,7 +84,7 @@ type BackupSetMember struct {
 	StackID       string     `json:"stackId,omitempty"`
 	StackName     string     `json:"stackName,omitempty"`
 	Volume        string     `json:"volume,omitempty"`
-	State         string     `json:"state" enum:"pending,complete,partial,failed,missing"`
+	State         string     `json:"state" enum:"pending,complete,partial,failed,missing,skipped" doc:"skipped: the stack or volume was removed before its turn (errorClass item_gone); not a failure."`
 	ErrorClass    string     `json:"errorClass,omitempty"`
 	SnapshotTime  *time.Time `json:"snapshotTime,omitempty" doc:"Per-host snapshot time: multi-host sets are not atomic."`
 	JobID         string     `json:"jobId,omitempty"`

@@ -39,7 +39,7 @@ const (
 	// Subcommand is the docker-agent command the helper container runs.
 	Subcommand = "self-update"
 	// RoleHelper is the protocol.LabelRole value of helper containers.
-	RoleHelper = "self-update"
+	RoleHelper = protocol.RoleSelfUpdate
 	// DefaultGrace is how long the helper waits before replacing the agent,
 	// so the finished job's result reaches the manager first (the journal
 	// replays it after the restart otherwise).

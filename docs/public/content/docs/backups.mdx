@@ -108,6 +108,10 @@ Each server can be covered by only one backup policy.
 - A policy runs one backup at a time. A scheduled time that comes around
   meanwhile is skipped, and the schedule's history says so.
 - **Retry missing** on a run backs up only what failed.
+- A volume or stack folder that was deleted after the run started, before
+  its turn came (for example a temporary volume of a CI job), is shown as
+  **Skipped**, not as failed. A run where everything was skipped shows
+  **Skipped**. **Retry missing** does not run skipped ones again.
 
 The **Overview** tab shows your policies with their last and next run.
 The **Backups** tab lists every backup. A stack's or volume's **Backups**
@@ -132,6 +136,15 @@ changes after each backup and each time retention removes old backups.
   volume a container with that label uses.
 - Docker Manager's metrics history, unless you turn on **Include the
   metrics database**.
+- Volumes that only temporary containers use. While Docker Manager updates
+  or renames a container, it sets the old one aside for a few seconds
+  (named `<name>-docker-manager-update-…` or `<name>-docker-manager-rename-…`),
+  and Compose briefly creates a replacement named `<id>_<name>`. If such a
+  container is left behind, a volume only it uses is not backed up.
+- Volumes left on a server by a move to another server that did not
+  finish (or is still running). The next move of the same stack or volume
+  to that server removes them. A volume from a move that finished is
+  backed up like any other.
 
 To leave a volume out from your Compose file, add the label to the volume,
 or to the service to skip all of its volumes. The stack's own folder with

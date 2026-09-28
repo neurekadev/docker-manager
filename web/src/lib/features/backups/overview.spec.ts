@@ -188,6 +188,16 @@ describe('set summaries', () => {
 		expect(setSummary(set([]))).toBe('Nothing selected');
 	});
 
+	it('counts skipped members apart, not as missing backups', () => {
+		expect(setSummary(set([member('complete', 'e1'), member('skipped', 'e1')]))).toBe(
+			'1 backup · 1 skipped'
+		);
+		expect(setSummary(set([member('complete'), member('failed'), member('skipped')]))).toBe(
+			'1 of 2 complete · 1 skipped'
+		);
+		expect(setSummary(set([member('skipped'), member('skipped')]))).toBe('2 skipped');
+	});
+
 	it('measures duration once finished', () => {
 		expect(setDuration(set([], '2026-09-27T01:02:30Z'))).toBe(150);
 		expect(setDuration(set([]))).toBeUndefined();
