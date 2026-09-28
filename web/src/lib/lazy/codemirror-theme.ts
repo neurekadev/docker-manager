@@ -1,6 +1,10 @@
 // Docker Manager's CodeMirror theme (#22): the mockup's editor colours (keys in
 // blue, strings amber, URLs red, muted punctuation, JetBrains Mono) on the
 // panel surface. Loaded only through import() from ./index.ts.
+//
+// Text you type into (the document, the search fields) uses the
+// --text-input tokens: 16 px on touch screens, because iOS zooms the page
+// into any editable text smaller than that when it gets the cursor.
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { EditorView } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
@@ -11,12 +15,12 @@ const theme = EditorView.theme(
 		'&': {
 			color: c.text,
 			backgroundColor: c.background,
-			fontSize: '13px',
+			fontSize: 'var(--text-input-mono)',
 			height: '100%'
 		},
 		'.cm-scroller': {
 			fontFamily: c.fontMono,
-			lineHeight: '20px'
+			lineHeight: 'var(--leading-input-mono)'
 		},
 		'.cm-content': { caretColor: c.caret, padding: '8px 0' },
 		'.cm-cursor, .cm-dropCursor': { borderLeftColor: c.caret, borderLeftWidth: '2px' },
@@ -58,7 +62,7 @@ const theme = EditorView.theme(
 			borderRadius: '6px',
 			color: c.text,
 			padding: '3px 6px',
-			fontSize: '12px'
+			fontSize: 'var(--text-input-small)'
 		},
 		'.cm-textfield:focus': { outline: `2px solid ${c.caret}`, outlineOffset: '0' },
 		'.cm-button': {
