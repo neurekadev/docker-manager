@@ -40,7 +40,7 @@
 	import { definitionRefusal, isDefinitionFile, type StackFiles } from './definition';
 	import { isDirty, SaveBlockedError, type EditorSession, type EditorTab } from './editor.svelte';
 	import EditorDocument from './EditorDocument.svelte';
-	import { formattable, LANGUAGE_LABELS, minifiable, minifyUnavailable } from './language';
+	import { formattable, LANGUAGE_LABELS, minifiable } from './language';
 	import NameDialog from './NameDialog.svelte';
 	import { basename, join, parent } from './paths';
 
@@ -202,7 +202,6 @@
 					{
 						label: 'Minify',
 						disabled: !minifiable(tab.language),
-						description: minifyUnavailable(tab.language) ?? undefined,
 						onSelect: () => void reformat('minify')
 					},
 					{ label: 'Beautify', onSelect: () => void reformat('beautify') }

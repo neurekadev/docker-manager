@@ -600,11 +600,7 @@
 				variant="secondary"
 				onclick={() => toast.success('Formatted compose.yaml')}
 				items={[
-					{
-						label: 'Minify',
-						disabled: true,
-						description: "YAML depends on its indentation, so it can't be minified."
-					},
+					{ label: 'Minify', disabled: true },
 					{
 						label: 'Beautify',
 						onSelect: () => toast.success('Beautified compose.yaml')

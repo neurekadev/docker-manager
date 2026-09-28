@@ -113,7 +113,7 @@ describe('EditorPane Format', () => {
 		await waitFor(() => expect(session.current?.buffer).toBe('{\n  "a": 1\n}\n'));
 	});
 
-	it('keeps Minify off for YAML and says why', async () => {
+	it('keeps Minify off for YAML, without an explanation', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		const session = await openFile(
 			'compose.yaml',
@@ -123,9 +123,7 @@ describe('EditorPane Format', () => {
 		await user.click(screen.getByRole('button', { name: 'More format options' }));
 		const minify = await screen.findByRole('menuitem', { name: 'Minify' });
 		expect(minify).toHaveAttribute('aria-disabled', 'true');
-		expect(minify).toHaveAccessibleDescription(
-			"YAML depends on its indentation, so it can't be minified."
-		);
+		expect(minify).not.toHaveAccessibleDescription();
 		await user.click(minify);
 		expect(session.current?.buffer).toBe('services:\n    web:\n        image: nginx\n');
 

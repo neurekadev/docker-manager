@@ -420,8 +420,8 @@ only wire resources to it:
   `EditorSession` keeps buffers, ETags and conflicts (never replacing
   unsaved text); selection, keyboard and conflict grouping are pure modules
   with Node tests. The editor's Format (YAML, JSON) is a `SplitButton`:
-  Minify (JSON only, `minifiable`/`minifyUnavailable` in `language.ts`,
-  `minifyJson` in `$lib/lazy`) and Beautify (the same as Format); the
+  Minify (JSON only, `minifiable` in `language.ts`, `minifyJson` in
+  `$lib/lazy`; simply disabled for YAML) and Beautify (the same as Format); the
   result replaces the text through the editor handle (one undo step,
   the tab turns unsaved), text that does not parse keeps the document
   and shows an error toast. A click that opens a file does not select it;
