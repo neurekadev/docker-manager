@@ -51,23 +51,36 @@ what is wrong and leaves your text as it is.
 - If the file changed on the server while you edited it, Docker Manager
   keeps your edits and lets you **Compare**, **Reload from disk**, **Save
   as** another file or **Overwrite**.
-- Files larger than 512 KB open as a read-only preview (your
-  administrator can change this size, see [Limits](#limits)). Images are
+- Files larger than 512 KB open as a read-only preview. Raise the size
+  with `DOCKER_MANAGER_FILES_MAX_EDIT_KB` (see [Limits](#limits)). Images are
   previewed; other binary files can be downloaded.
 
 ## Limits
 
-- Files up to 512 KB open in the editor.
-- One upload can be up to 2 GB per file. Your reverse proxy must allow
-  uploads that large too.
-- A download, or an archive you create, can be up to 10 GB.
-- Extracting an archive writes at most 10 GB, and at most 100 times the
-  archive's size. An archive can hold at most 100,000 files and folders.
-- Docker Manager's own volumes can't be opened in the file manager.
+Each limit has a setting, listed next to it below. Add it under
+`environment:` of the `docker-manager` service in your `compose.yaml`, then
+run `docker compose up -d` (see
+[Configuration](/docs/configuration#change-a-setting)). The settings apply
+to all your servers. For example, to edit files up to 2 MB:
 
-You can raise or lower these limits with settings on the manager, such as
-`DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` (see
-[Configuration](/docs/configuration#manager-settings)). They apply to all
-your servers. Until you [upgrade](/docs/upgrade) a server's agent, that
-server keeps the default limits for downloads and archives, and its
-uploads stay at 2 GB at most.
+```yaml title="compose.yaml"
+services:
+  docker-manager:
+    environment:
+      # ...keep the existing lines...
+      DOCKER_MANAGER_FILES_MAX_EDIT_KB: 2048
+```
+
+| Limit | Default | Setting |
+| --- | --- | --- |
+| Largest file you can edit in the editor (larger files open read-only) | 512 KB | `DOCKER_MANAGER_FILES_MAX_EDIT_KB` |
+| Largest upload, per file (your reverse proxy must allow it too) | 2 GB | `DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` |
+| Largest download, or archive you create | 10 GB | `DOCKER_MANAGER_FILES_MAX_DOWNLOAD_MB` |
+| Most an extracted archive may write | 10 GB | `DOCKER_MANAGER_FILES_MAX_EXTRACT_MB` |
+| Most an archive may grow when extracted | 100 times its size | `DOCKER_MANAGER_FILES_MAX_EXTRACT_RATIO` |
+| Most files and folders in one archive | 100,000 | `DOCKER_MANAGER_FILES_MAX_ARCHIVE_ENTRIES` |
+
+**Settings → Overview** shows the limits in effect. Until you
+[upgrade](/docs/upgrade) a server's agent, that server keeps the default
+limits for downloads and archives, and its uploads stay at 2 GB at most.
+Docker Manager's own volumes can't be opened in the file manager.
