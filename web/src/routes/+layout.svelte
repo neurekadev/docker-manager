@@ -19,10 +19,15 @@
 	import UpdatePrompt from '$lib/pwa/UpdatePrompt.svelte';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { notices } from '$lib/shell/notices.svelte';
+	import { preventFocusZoom } from '$lib/shell/viewport';
 	import Toaster from '$lib/ui/Toaster.svelte';
 	import TooltipLayer from '$lib/ui/TooltipLayer.svelte';
 
 	let { children } = $props();
+
+	// iOS zooms into focused fields with text under 16 px; stop that on iOS
+	// only, keeping the fields' size and pinch zoom ($lib/shell/viewport).
+	preventFocusZoom(document, navigator);
 
 	// Svelte Query assumes "online" until the first online/offline event; seed
 	// it from the browser so an offline start pauses queries instead of
