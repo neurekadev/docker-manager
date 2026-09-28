@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CHART_COLORS, EDITOR_COLORS, TERMINAL_THEME } from '$lib/lazy/palette';
 import { dockerManagerEchartsTheme } from '$lib/lazy/echarts-theme';
-import { fnv1a, serviceHue, serviceSeriesColor, TILE_COLORS, TILE_HEX, tileStyle } from './hue';
+import { SERVICE_COLOR, SERVICE_HEX, TILE_COLORS, TILE_HEX, tileStyle } from './hue';
 
 const tokensCss = readFileSync(new URL('./tokens.css', import.meta.url), 'utf8');
 
@@ -96,27 +96,12 @@ describe('design tokens (#22 brief)', () => {
 	});
 });
 
-describe('service hues (logs and chart series)', () => {
-	it('is stable and deterministic', () => {
-		expect(fnv1a('')).toBe(0x811c9dc5);
-		expect(fnv1a('a')).toBe(0xe40c292c);
-		const a = serviceHue('stack-1', 'silo-db');
-		for (let i = 0; i < 5; i++) expect(serviceHue('stack-1', 'silo-db')).toBe(a);
-		expect(TILE_COLORS).toContain(a);
-		expect(serviceSeriesColor('stack-1', 'silo-db')).toBe(TILE_HEX[a].fg);
+describe('service colour (logs, chips and chart series)', () => {
+	it('is one colour for every service, never one per item', () => {
+		expect(TILE_COLORS).toContain(SERVICE_COLOR);
+		expect(SERVICE_HEX).toBe(TILE_HEX[SERVICE_COLOR].fg);
 		expect(tileStyle('rose')).toBe(
 			'--tile-bg: var(--tile-rose-bg); --tile-fg: var(--tile-rose-fg);'
 		);
-	});
-
-	it('spreads services over the palette', () => {
-		const seen = new Set<string>();
-		for (let i = 0; i < 64; i++) seen.add(serviceHue('stack-x', `svc-${i}`));
-		expect(seen.size).toBe(TILE_COLORS.length);
-		// The stack takes part: the same service name differs across stacks.
-		const differs = ['a', 'b', 'c', 'd', 'e', 'f'].some(
-			(s) => serviceHue(`stack-${s}`, 'web') !== serviceHue('stack-a', 'web')
-		);
-		expect(differs).toBe(true);
 	});
 });

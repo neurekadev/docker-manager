@@ -23,7 +23,7 @@ web/src/
                               password-reset (centred layout, AuthHeader and the
                               submit checks of $lib/features/auth)
   routes/design/              the design system gallery (public, sample data)
-  lib/design/                 tokens.css, global.css, tile colours and service hues, demo data
+  lib/design/                 tokens.css, global.css, tile colours and the service colour, demo data
   lib/ui/                     the component library ($lib/ui barrel)
   lib/features/<area>/        feature-local components and logic (resources: Docker
                               objects, refusals, job follow-up; builds; registries;
@@ -442,8 +442,8 @@ only wire resources to it:
   by time. Over HTTP/1.1 the browser allows six connections per host for all
   tabs, so a viewer streams one container and polls the others
   (`GET …/logs?since=`, every 3 s); over HTTP/2 or HTTP/3 it streams up to
-  twelve. Service colours come from `serviceHue` (stable per stack and
-  service; the services table's tiles are all the same). The service chips, "Errors only" (standard error) and
+  twelve. Every service has the same colour (`SERVICE_COLOR`); the prefix
+  and the chips name the service. The service chips, "Errors only" (standard error) and
   "Matching lines only" filter the buffered lines (`filterLines` in
   `logs/format.ts`); wrapped lines are rendered without the fixed-height
   window.

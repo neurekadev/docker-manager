@@ -10,7 +10,7 @@ only).
 
 - [Principles](#principles)
 - [Tokens](#tokens)
-- [Service hues](#service-hues)
+- [Service colour](#service-colour)
 - [Type](#type)
 - [Layout and responsive rules](#layout-and-responsive-rules)
 - [Components](#components)
@@ -27,8 +27,8 @@ only).
   their consequences listed.
 - **Quiet chrome, one memorable thing.** Cool blue-black surfaces separated
   by 1 px borders and surface steps (no shadows on cards), blue for primary
-  actions, green/red/amber only for status. The single expressive system is
-  the service hue in merged logs and charts (below).
+  actions, green/red/amber only for status. Colours belong to types, never
+  to single items (see [Service colour](#service-colour)).
 - **Tokens, not values.** Components read CSS custom properties from
   `tokens.css`; a new value used twice becomes a token first. A light theme
   would be a second `:root` block, never a component change.
@@ -83,7 +83,7 @@ layout). `design.spec.ts` pins the sampled values and checks contrast.
 `green`, `violet`, `teal`, `rose` and `slate`: the colour of each resource
 type's tile (`RESOURCE_ICONS`, [Row icons](#row-icons)), of KPI cards
 (`cyan` CPU, `indigo` memory, `green` uptime, `violet` deploys) and the
-service hues. `TILE_HEX` in `hue.ts` mirrors them for canvases.
+service colour. `TILE_HEX` in `hue.ts` mirrors them for canvases.
 
 ### Shape, spacing, elevation, motion, focus
 
@@ -108,26 +108,25 @@ ECharts.
 keys in its `changed` prop). `prefers-reduced-motion` turns it into a static
 marker and zeroes all durations.
 
-## Service hues
+## Service colour
 
-Every service has the **same tile** (`RESOURCE_ICONS.service`, blue): in
-the services table, the ⌘K hits and anywhere else a service shows an icon.
-Services (and stacks) have no icon or colour of their own. Where the output
-of several services is interleaved, **each service keeps one stable colour**
-so its lines can be told apart: its name in the stack's merged logs, its
-chart series and its filter chip.
+Every service has the **same tile and the same colour**
+(`RESOURCE_ICONS.service`, `SERVICE_COLOR`, blue): in the services table,
+the ⌘K hits, and also where the output of several services is interleaved
+(the stack's merged logs, chart series, filter chips). There the service's
+name tells them apart, never a colour. Services (and stacks) have no icon
+or colour of their own.
 
 ```ts
-import { serviceHue, serviceSeriesColor, TILE_HEX } from '$lib/design/hue';
+import { SERVICE_HEX } from '$lib/design/hue';
 
-<IconTile {...resourceIcon('service')} size="sm" />                 // services table
-<span style="color: {TILE_HEX[serviceHue(stackId, 'silo-db')].fg}">silo-db</span> // log prefix
-series.color = serviceSeriesColor(stackId, 'silo-db');              // ECharts
+<IconTile {...resourceIcon('service')} size="sm" />          // services table
+<span style="color: {SERVICE_HEX}">silo-db</span>            // log prefix
+series.color = SERVICE_HEX;                                  // ECharts
 ```
 
-- The hue is FNV-1a of `stackId/serviceName` onto the eight tile colours:
-  stable across sessions and browsers.
-- Never colour a service's tile with its hue: tiles are the type's.
+- No hashed or per-item colours anywhere: a colour always stands for a
+  type or a status.
 
 ## Type
 
@@ -232,7 +231,7 @@ disabled item uses it to say why it is off (only its label and icon dim).
 | component | key props | notes |
 | --- | --- | --- |
 | `Badge` | `tone: neutral \| accent \| ok \| warn \| danger \| info \| offline`, `dot`, `pulse` | |
-| `Chip` | `label`, `selected` (toggle: `aria-pressed`), `onclick`, `href`, `count`, `size: sm \| md`, `icon`, `hue`, `title`, `disabled` | A pill (`--radius-full`) for tags and filters: a link with `href`, a (toggle) button with `onclick` or `selected`, else a static tag. `hue` adds a swatch in the service's colour (`serviceSeriesColor`), a ring while the toggle is off. 40 px tall on coarse pointers. |
+| `Chip` | `label`, `selected` (toggle: `aria-pressed`), `onclick`, `href`, `count`, `size: sm \| md`, `icon`, `hue`, `title`, `disabled` | A pill (`--radius-full`) for tags and filters: a link with `href`, a (toggle) button with `onclick` or `selected`, else a static tag. `hue` adds a colour swatch (e.g. `SERVICE_HEX`), a ring while the toggle is off. 40 px tall on coarse pointers. |
 | `StatusBadge` | `status` (API state), `kind: resource \| job`, `label` | Dot **and** text; vocabulary in `status.ts` (`statusInfo`). Job `partial` reads "Partly failed". |
 | `Card` | `title`, `level`, `subtitle`, `actions`, `padding: none \| md`, `id`, `stretchActions` | Tables use `padding="none"`. The header always wraps: actions that do not fit go below the title. `stretchActions`: the actions take the free width of the header (`ListCard`'s search and filters). Body padding is 16 px below 768 px. The title stays 16 px at either `level`; headings inside use `.subsection-title`. |
 | `KpiCard` | `label`, `value`, `unit`, `secondary`, `icon`, `color`, `tone`, `sparkline` / `bar` snippets, `changed`, `href`, `onclick` | Every figure links to its list: with `href` the label is a link whose hit area covers the card (`onclick` runs first, e.g. to preset the list's filters; links in a snippet `secondary` stay clickable). Row of KPI cards: `KpiRow` (`$lib/features/common`; `repeat(auto-fit, minmax(210px, 1fr))`, equal heights, two per row below 768 px with an odd last card spanning the row, so five cards never leave an orphan). Label, value and a text `secondary` stay on one line each (ellipsis, the full text as tooltip). `tone` dots share one style (colour plus its soft ring). The card is a size container: at 230 px or less it switches to the compact layout (36 px tile, 18 px value, 12 px label), so the stack overview's five cards (status, CPU, memory, uptime, last deploy) fit one row on 1440 px screens and phones show two per row. |
@@ -350,7 +349,7 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 nulls as gaps), `TerminalView` (xterm.js + `TERMINAL_THEME`). They mount the
 libraries through `$lib/lazy` only (checked by `verify-build.mjs`).
 `mountLineChart(el, name, points, unit)` returns `{ update(series), resize() }`
-for charts; series colours come from `serviceSeriesColor`.
+for charts; series colours come from `TILE_HEX` or `SERVICE_HEX`.
 
 `TimeSeriesChart` (`title`, `timestamps`, `lines: ChartLine[]`, `unit`:
 `percent | bytes | bytes_per_second | load | count`, `from`/`to`, `yMax`,

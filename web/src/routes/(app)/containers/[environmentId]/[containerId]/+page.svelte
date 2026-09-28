@@ -21,7 +21,7 @@
 		type Container
 	} from '$lib/api/queries';
 	import { pollWhileDown } from '$lib/live';
-	import { serviceSeriesColor, TILE_HEX } from '$lib/design/hue';
+	import { TILE_HEX } from '$lib/design/hue';
 	import { routes } from '$lib/routes';
 	import {
 		Card,
@@ -104,7 +104,7 @@
 			null
 	);
 	const cpuColor = $derived(TILE_HEX.cyan.fg);
-	const memColor = $derived(c ? serviceSeriesColor(env, c.name) : TILE_HEX.indigo.fg);
+	const memColor = TILE_HEX.indigo.fg;
 	const serviceAddress = $derived(scope.environment(env)?.serviceAddress);
 	const hostName = $derived(scope.environment(env)?.name ?? 'the host');
 

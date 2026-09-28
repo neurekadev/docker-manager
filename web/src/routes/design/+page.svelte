@@ -29,7 +29,6 @@
 	import { ApiRequestError } from '$lib/api/client';
 	import { JobWatcher } from '$lib/api/jobs.svelte';
 	import {
-		DEMO_STACK_ID,
 		ScriptedEventSource,
 		demoCpuSeries,
 		demoJob,
@@ -38,7 +37,7 @@
 		playDemoJob,
 		type DemoService
 	} from '$lib/design/demo';
-	import { serviceHue, TILE_COLORS, TILE_HEX } from '$lib/design/hue';
+	import { SERVICE_COLOR, TILE_COLORS, TILE_HEX } from '$lib/design/hue';
 	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import { mountLineChart, mountTerminal, mountYamlEditor, type Mounted } from '$lib/lazy';
@@ -193,7 +192,6 @@
 		['silo-api', '[info] GET /health 200 2ms'],
 		['silo-web', '192.168.1.23 - - "GET / HTTP/1.1" 200 1532']
 	];
-	const hueOf = (name: string) => serviceHue(DEMO_STACK_ID, name);
 
 	const rowMenu = (s: DemoService): MenuEntry[] => [
 		{
@@ -543,15 +541,15 @@
 	</section>
 
 	<section aria-labelledby="hue-title" class="section">
-		<h2 id="hue-title">Service hues</h2>
+		<h2 id="hue-title">Service colour</h2>
 		<p class="muted">
-			Every service has the same tile. Where the output of several services is interleaved,
-			each keeps one stable colour: its log prefix, its chart series and its filter chip.
+			Every service has the same tile and the same colour, also where the output of several
+			services is interleaved: the log prefix, chart series and filter chip name the service.
 		</p>
 		<Card>
 			<div class="hues">
 				{#each demoServices as s (s.name)}
-					{@const hue = hueOf(s.name)}
+					{@const hue = SERVICE_COLOR}
 					<span class="chip" style="--c: {TILE_HEX[hue].fg}; --b: {TILE_HEX[hue].bg}">
 						{s.name}
 					</span>
@@ -559,7 +557,8 @@
 			</div>
 			<pre class="logs" aria-label="Log sample">{#each logLines as [svc, line], i (i)}<span
 						class="ts">2026-09-25 10:14:{22 + i}</span
-					>  <span style="color: {TILE_HEX[hueOf(svc)].fg}">{svc.padEnd(11)}</span> {line}
+					>  <span style="color: {TILE_HEX[SERVICE_COLOR].fg}">{svc.padEnd(11)}</span
+					> {line}
 				{/each}</pre>
 		</Card>
 	</section>

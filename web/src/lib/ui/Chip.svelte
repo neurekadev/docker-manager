@@ -2,8 +2,8 @@
 	// Chip (#22): a small pill for a tag or a filter. With `href` it is a
 	// link, with `onclick` or `selected` a button (`selected` makes it a
 	// toggle: aria-pressed), otherwise a static tag. `count` adds a number
-	// after the label; `hue` a colour swatch (the service hue from
-	// $lib/design/hue, so a service keeps its colour in filter chips).
+	// after the label; `hue` a colour swatch (e.g. the service colour from
+	// $lib/design/hue).
 	import type { IconComponent } from '$lib/design/icons';
 
 	interface Props {
@@ -15,7 +15,7 @@
 		count?: number;
 		size?: 'sm' | 'md';
 		icon?: IconComponent;
-		/** Swatch colour, e.g. serviceSeriesColor(stackId, service). */
+		/** Swatch colour, e.g. SERVICE_HEX. */
 		hue?: string;
 		title?: string;
 		disabled?: boolean;

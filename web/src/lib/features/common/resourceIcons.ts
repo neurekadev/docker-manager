@@ -27,7 +27,7 @@ import User from '@lucide/svelte/icons/user';
 import UsersRound from '@lucide/svelte/icons/users-round';
 import Workflow from '@lucide/svelte/icons/workflow';
 import Wrench from '@lucide/svelte/icons/wrench';
-import type { TileColor } from '$lib/design/hue';
+import { SERVICE_COLOR, type TileColor } from '$lib/design/hue';
 import type { IconComponent } from '$lib/design/icons';
 
 export interface ResourceIcon {
@@ -38,7 +38,7 @@ export interface ResourceIcon {
 export const RESOURCE_ICONS = {
 	environment: { icon: Server, color: 'blue' },
 	stack: { icon: Layers, color: 'blue' },
-	service: { icon: Workflow, color: 'blue' },
+	service: { icon: Workflow, color: SERVICE_COLOR },
 	container: { icon: Container, color: 'blue' },
 	image: { icon: Box, color: 'blue' },
 	volume: { icon: HardDrive, color: 'teal' },

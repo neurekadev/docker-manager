@@ -15,7 +15,7 @@
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import ScrollText from '@lucide/svelte/icons/scroll-text';
 	import type { Snippet } from 'svelte';
-	import { serviceSeriesColor, TILE_HEX } from '$lib/design/hue';
+	import { SERVICE_HEX, TILE_HEX } from '$lib/design/hue';
 	import {
 		Button,
 		Chip,
@@ -109,11 +109,10 @@
 	const matches = $derived(countMatches(visible, q));
 	const shown = $derived(matchingOnly && q ? filterLines(visible, { query: q }) : visible);
 
-	/** The service's colour: its tile colour, else the stable hue (#22). */
+	/** A service's colour: its source's tile colour, else the one service colour (#22). */
 	function hueOf(svc: string): string {
 		const color = feed.sources.find((s) => (s.service ?? s.label) === svc)?.color;
-		if (color) return TILE_HEX[color].fg;
-		return stackId ? serviceSeriesColor(stackId, svc) : TILE_HEX.blue.fg;
+		return color ? TILE_HEX[color].fg : SERVICE_HEX;
 	}
 
 	function toggleService(svc: string) {

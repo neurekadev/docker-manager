@@ -11,7 +11,7 @@ export interface LogSource {
 	/** Compose service (stack logs). */
 	service?: string;
 	label: string;
-	/** The service's hue (serviceHue): its log prefix and chart series colour. */
+	/** The service's colour (SERVICE_COLOR): its log prefix and chart series colour. */
 	color?: TileColor;
 }
 

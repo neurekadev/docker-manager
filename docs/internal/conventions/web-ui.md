@@ -19,9 +19,10 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   with the cron expression as tooltip; long names, images and paths in
   tables use `Column.maxWidth` + `truncate`, wide lists pin their actions
   column (`pin: 'end'`); headings inside a card are
-  `h3.subsection-title`. Service colours (only where several services'
-  output is interleaved: merged logs, chart series, filter chips):
-  `serviceHue`/`serviceSeriesColor` (`$lib/design/hue`), never on a tile.
+  `h3.subsection-title`. Colours belong to types, never to single items:
+  every service uses `SERVICE_COLOR`/`SERVICE_HEX` (`$lib/design/hue`),
+  also in merged logs, chart series and filter chips (they name the
+  service); no hashed or per-item colours.
   Heavy libraries only through `$lib/lazy` or `CodeEditor`/`Sparkline`/`TerminalView`.
 - **Resource icons:** one icon and tile colour per resource type in
   `RESOURCE_ICONS` (`$lib/features/common/resourceIcons.ts`); the object's

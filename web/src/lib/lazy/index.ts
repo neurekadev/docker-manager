@@ -222,7 +222,7 @@ export interface SeriesPoint {
 export interface Series {
 	name: string;
 	points: SeriesPoint[];
-	/** Line colour, e.g. a service hue (serviceSeriesColor). */
+	/** Line colour, e.g. SERVICE_HEX or a TILE_HEX colour. */
 	color?: string;
 }
 
