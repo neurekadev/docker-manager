@@ -11,6 +11,11 @@ export interface MenuItem {
 	/** danger: destructive actions (red text); they still confirm in a dialog. */
 	tone?: 'default' | 'danger';
 	disabled?: boolean;
+	/**
+	 * A short line under the label (the item's accessible description),
+	 * e.g. why a disabled item is off.
+	 */
+	description?: string;
 	/** A keyboard shortcut hint, e.g. "⌘K". */
 	shortcut?: string;
 }

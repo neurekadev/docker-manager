@@ -96,3 +96,15 @@ func TestProjectRefValidate(t *testing.T) {
 		t.Error("project name length bound")
 	}
 }
+
+func TestAnonymousVolumeName(t *testing.T) {
+	id := strings.Repeat("0123456789abcdef", 4)
+	if !AnonymousVolumeName(id) {
+		t.Errorf("%s is the form of an anonymous volume", id)
+	}
+	for _, name := range []string{"shop_db-data", strings.ToUpper(id), id[:63], id + "0", strings.Repeat("g", 64), ""} {
+		if AnonymousVolumeName(name) {
+			t.Errorf("%q is not an anonymous volume name", name)
+		}
+	}
+}

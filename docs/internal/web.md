@@ -167,7 +167,14 @@ in its tooltip; with a policy the user may check it starts that policy's
 ends; the containers list finds the policy with `policiesByTarget` /
 `containerPolicy`, the services table from the image status's
 `policyId`), and the networks are `$lib/features/resources/NetworkList.svelte`
-(each network linked to its page with the addresses on it). The networks
+(each network linked to its page with the addresses on it). The services
+table links each image to its page by ID (`serviceImageId`: a running
+container's image, else any container's, else the last deploy's; plain
+text when none is known) and lists the volumes after it
+(`serviceVolumes`: each volume of the service's containers once, named
+before anonymous ones, which read "Anonymous" with their mount path;
+linked to the volume page; two lines at most, the second "+N more" with
+the rest in its tooltip; bind mounts are not volumes). The networks
 list counts attachments from the containers list (network lists do not
 report them), which also drives its "Unused" switch.
 
@@ -412,7 +419,12 @@ only wire resources to it:
   root; listings and contents are keyed `liveKeys.files(...)`; the
   `EditorSession` keeps buffers, ETags and conflicts (never replacing
   unsaved text); selection, keyboard and conflict grouping are pure modules
-  with Node tests. A click that opens a file does not select it;
+  with Node tests. The editor's Format (YAML, JSON) is a `SplitButton`:
+  Minify (JSON only, `minifiable`/`minifyUnavailable` in `language.ts`,
+  `minifyJson` in `$lib/lazy`) and Beautify (the same as Format); the
+  result replaces the text through the editor handle (one undo step,
+  the tab turns unsaved), text that does not parse keeps the document
+  and shows an error toast. A click that opens a file does not select it;
   permissions and owners are a details view (off by default); below
   1024 px list and editor are `Tabs`. In a stack, saving a Compose source
   validates the definition on disk in the stack's own project directory

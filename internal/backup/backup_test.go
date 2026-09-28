@@ -133,7 +133,7 @@ func TestCompletenessAndMerge(t *testing.T) {
 
 func day(d int, h int) time.Time { return time.Date(2026, 3, d, h, 0, 0, 0, time.UTC) }
 
-func TestRetentionRulesAndFloor(t *testing.T) {
+func TestRetentionRules(t *testing.T) {
 	var snaps []RetentionSnapshot
 	for d := 1; d <= 20; d++ {
 		snaps = append(snaps, RetentionSnapshot{ID: "a" + time.Date(2026, 3, d, 0, 0, 0, 0, time.UTC).Format("0102") + "-02", Time: day(d, 2), Item: "stack/a"})
@@ -141,7 +141,7 @@ func TestRetentionRulesAndFloor(t *testing.T) {
 	}
 	snaps = append(snaps, RetentionSnapshot{ID: "b-only", Time: day(1, 3), Item: "volume/b"})
 
-	p := Plan(RetentionRules{Daily: 7, Weekly: 2, MinKeep: 3}, snaps, time.UTC)
+	p := Plan(RetentionRules{Daily: 7, Weekly: 2, Last: 3}, snaps, time.UTC)
 	kept := map[string][]string{}
 	for _, d := range p.Decisions {
 		if d.Keep {
@@ -155,9 +155,9 @@ func TestRetentionRulesAndFloor(t *testing.T) {
 			t.Errorf("daily snapshot %s removed", id)
 		}
 	}
-	// The floor keeps the three newest, including the 02:00 run of day 20.
-	if r := kept["a0320-02"]; !slices.Contains(r, "floor") {
-		t.Errorf("a0320-02 reasons = %v, want floor", r)
+	// Last keeps the three newest, including the 02:00 run of day 20.
+	if r := kept["a0320-02"]; !slices.Contains(r, "last") {
+		t.Errorf("a0320-02 reasons = %v, want last", r)
 	}
 	if r := kept["a0320-14"]; !slices.Contains(r, "newest") {
 		t.Errorf("newest reasons = %v", r)
@@ -174,10 +174,10 @@ func TestRetentionRulesAndFloor(t *testing.T) {
 	}
 }
 
-func TestRetentionFloorAlwaysWins(t *testing.T) {
+func TestRetentionLastWithinAndNoRules(t *testing.T) {
 	snaps := []RetentionSnapshot{{ID: "1", Time: day(1, 1), Item: "x"}, {ID: "2", Time: day(1, 2), Item: "x"}, {ID: "3", Time: day(1, 3), Item: "x"}}
-	// last=1 would keep one; the floor keeps two.
-	p := Plan(RetentionRules{Last: 1, MinKeep: 2}, snaps, time.UTC)
+	// Last keeps the newest N whatever the other rules say.
+	p := Plan(RetentionRules{Last: 2, Yearly: 1}, snaps, time.UTC)
 	if got := p.Remove(); !slices.Equal(got, []string{"1"}) {
 		t.Errorf("remove = %v", got)
 	}
@@ -186,34 +186,33 @@ func TestRetentionFloorAlwaysWins(t *testing.T) {
 		t.Errorf("empty rules removed %v", got)
 	}
 	// Within keeps everything newer than N days before the newest.
-	p = Plan(RetentionRules{WithinDays: 1, MinKeep: 1}, []RetentionSnapshot{
+	p = Plan(RetentionRules{WithinDays: 1}, []RetentionSnapshot{
 		{ID: "old", Time: day(1, 0), Item: "x"}, {ID: "mid", Time: day(9, 12), Item: "x"}, {ID: "new", Time: day(10, 6), Item: "x"}}, time.UTC)
 	if got := p.Remove(); !slices.Equal(got, []string{"old"}) {
 		t.Errorf("within remove = %v", got)
 	}
-	// The floor is optional: without it the rules alone decide, and they
-	// still keep an item's newest snapshot.
+	// The rules always keep an item's newest snapshot.
 	if errs := (RetentionRules{Daily: 3}).Validate(); len(errs) != 0 {
-		t.Errorf("rules without a floor refused: %v", errs)
+		t.Errorf("valid rules refused: %v", errs)
 	}
-	if got := Plan(RetentionRules{Last: 1}, snaps, time.UTC).Remove(); !slices.Equal(got, []string{"2", "1"}) {
-		t.Errorf("last 1 without a floor removed %v", got)
+	if got := Plan(RetentionRules{Yearly: 1}, snaps, time.UTC).Remove(); !slices.Equal(got, []string{"2", "1"}) {
+		t.Errorf("yearly 1 removed %v", got)
 	}
-	if errs := (RetentionRules{Daily: -1, MinKeep: 1}).Validate(); errs["daily"] == "" {
+	if errs := (RetentionRules{Daily: -1}).Validate(); errs["daily"] == "" {
 		t.Error("negative rule accepted")
 	}
 }
 
 // TestRetentionExpiresDeletedItems: the rules alone would keep a deleted
 // item's last snapshots forever (they judge it by its own snapshots);
-// Expire removes all of them, floor included, and leaves other items to
+// Expire removes all of them, whatever the rules keep, and leaves other items to
 // the rules.
 func TestRetentionExpiresDeletedItems(t *testing.T) {
 	snaps := []RetentionSnapshot{
 		{ID: "g1", Time: day(1, 1), Item: "volume/gone"}, {ID: "g2", Time: day(2, 1), Item: "volume/gone"},
 		{ID: "k1", Time: day(1, 1), Item: "volume/kept"}, {ID: "k2", Time: day(2, 1), Item: "volume/kept"},
 	}
-	rules := RetentionRules{Last: 5, MinKeep: 2}
+	rules := RetentionRules{Last: 5}
 	if got := Plan(rules, snaps, time.UTC).Remove(); len(got) != 0 {
 		t.Fatalf("the rules removed %v", got)
 	}
@@ -240,10 +239,10 @@ func TestRetentionUsesPolicyTimeZone(t *testing.T) {
 	// 23:30 UTC on March 1 is March 2 in Berlin: two different local days.
 	snaps := []RetentionSnapshot{{ID: "a", Time: time.Date(2026, 3, 1, 22, 30, 0, 0, time.UTC), Item: "x"},
 		{ID: "b", Time: time.Date(2026, 3, 1, 23, 30, 0, 0, time.UTC), Item: "x"}}
-	if got := Plan(RetentionRules{Daily: 2, MinKeep: 1}, snaps, berlin).Remove(); len(got) != 0 {
+	if got := Plan(RetentionRules{Daily: 2}, snaps, berlin).Remove(); len(got) != 0 {
 		t.Errorf("berlin days: removed %v", got)
 	}
-	if got := Plan(RetentionRules{Daily: 2, MinKeep: 1}, snaps, time.UTC).Remove(); !slices.Equal(got, []string{"a"}) {
+	if got := Plan(RetentionRules{Daily: 2}, snaps, time.UTC).Remove(); !slices.Equal(got, []string{"a"}) {
 		t.Errorf("utc days: removed %v", got)
 	}
 }

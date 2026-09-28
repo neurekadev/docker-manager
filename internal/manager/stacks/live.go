@@ -229,6 +229,9 @@ func containersOf(in []protocol.StackContainer) []domain.StackContainer {
 		for _, n := range c.Networks {
 			dc.Networks = append(dc.Networks, domain.ContainerAddress{Network: n.Name, IPv4: n.IPAddress, IPv6: n.IPv6Address})
 		}
+		for _, v := range c.Volumes {
+			dc.Volumes = append(dc.Volumes, domain.ContainerVolume(v))
+		}
 		out = append(out, dc)
 	}
 	return out

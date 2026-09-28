@@ -5819,7 +5819,8 @@ export interface components {
             last?: number;
             /**
              * Format: int64
-             * @description Optional minimum recovery floor: the newest N snapshots of each stack/volume are always kept on top of the rules (0 = off, the default).
+             * @deprecated
+             * @description Deprecated, never returned: the former minimum recovery floor, which did what last does. When rules are set, last is raised to it.
              */
             minKeep?: number;
             /** Format: int64 */
@@ -9879,7 +9880,7 @@ export interface components {
         RetentionDecision: {
             item: string;
             keep: boolean;
-            /** @description Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, floor, newest; or deleted for a snapshot removed because its stack or volume was deleted. */
+            /** @description Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, newest; or deleted for a snapshot removed because its stack or volume was deleted. */
             reasons?: string[];
             snapshotId: string;
             /** Format: date-time */
@@ -10393,6 +10394,8 @@ export interface components {
             state: "created" | "running" | "paused" | "restarting" | "removing" | "exited" | "dead";
             /** @enum {string} */
             view: "minimal" | "full";
+            /** @description The volumes the container mounts, by destination (never bind mounts; absent from older agents). Full view. */
+            volumes?: components["schemas"]["StackVolumeMount"][];
         };
         StackDefinitionBody: {
             /** @description Required: compose.yaml content. */
@@ -10773,6 +10776,21 @@ export interface components {
             valid: boolean;
             /** @description Non-fatal findings: obsolete keys (top-level version), bind sources outside the project directory (#10). */
             warnings: components["schemas"]["StackIssue"][];
+        };
+        StackVolumeMount: {
+            /** @description A volume the Engine created for an anonymous mount (its name is a random ID). */
+            anonymous?: boolean;
+            /**
+             * @description Path inside the container.
+             * @example /var/lib/postgresql/data
+             */
+            destination: string;
+            /**
+             * @description Volume name.
+             * @example shop_db-data
+             */
+            name: string;
+            readOnly?: boolean;
         };
         StepUpInputBody: {
             /** @description A passkey assertion (PublicKeyCredential JSON) for options requested with purpose step_up. */
@@ -43194,7 +43212,15 @@ export interface operations {
                      *               "restartPolicy": "example",
                      *               "startedAt": "2026-09-25T12:00:00Z",
                      *               "state": "created",
-                     *               "view": "minimal"
+                     *               "view": "minimal",
+                     *               "volumes": [
+                     *                 {
+                     *                   "anonymous": false,
+                     *                   "destination": "/var/lib/postgresql/data",
+                     *                   "name": "shop_db-data",
+                     *                   "readOnly": false
+                     *                 }
+                     *               ]
                      *             }
                      *           ],
                      *           "dependsOn": [

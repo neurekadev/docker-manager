@@ -167,6 +167,17 @@ type StackContainer struct {
 	CreatedAt     time.Time
 	StartedAt     *time.Time
 	Networks      []ContainerAddress
+	// Volumes are its volume mounts (never bind mounts).
+	Volumes []ContainerVolume
+}
+
+// ContainerVolume is a volume a container mounts.
+type ContainerVolume struct {
+	Name        string
+	Destination string
+	ReadOnly    bool
+	// Anonymous: the Engine created it for an anonymous mount.
+	Anonymous bool
 }
 
 // ContainerAddress is a container's addresses on one network (empty while

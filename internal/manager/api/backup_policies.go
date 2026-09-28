@@ -49,7 +49,9 @@ type BackupRetention struct {
 	Monthly    int `json:"monthly,omitempty" minimum:"0" maximum:"10000"`
 	Yearly     int `json:"yearly,omitempty" minimum:"0" maximum:"10000"`
 	WithinDays int `json:"withinDays,omitempty" minimum:"0" maximum:"10000" doc:"Keep every snapshot of the newest N days."`
-	MinKeep    int `json:"minKeep,omitempty" minimum:"0" maximum:"10000" doc:"Optional minimum recovery floor: the newest N snapshots of each stack/volume are always kept on top of the rules (0 = off, the default)."`
+	// MinKeep is the former minimum recovery floor: accepted (deprecated),
+	// folded into Last, never returned.
+	MinKeep int `json:"minKeep,omitempty" minimum:"0" maximum:"10000" deprecated:"true" doc:"Deprecated, never returned: the former minimum recovery floor, which did what last does. When rules are set, last is raised to it."`
 	// ExpireDeletedDays removes the backups of deleted items.
 	ExpireDeletedDays int  `json:"expireDeletedDays,omitempty" minimum:"0" maximum:"3650" doc:"Remove every backup of a stack Docker Manager no longer has or a standalone volume its environment no longer has once its newest backup is N days old (0 = off, the default). Nothing counts as deleted while the environment is offline or archived."`
 	AfterBackup       bool `json:"afterBackup,omitempty" doc:"Apply retention automatically after every finished backup run of the policy."`
@@ -203,7 +205,7 @@ func newBackupPolicy(p domain.BackupPolicy, v authz.View) BackupPolicy {
 	out.Schedule = &BackupSchedule{Cron: p.Cron, TimeZone: p.TimeZone, Enabled: p.Enabled}
 	r := p.Retention
 	out.Retention = &BackupRetention{Last: r.Last, Hourly: r.Hourly, Daily: r.Daily, Weekly: r.Weekly, Monthly: r.Monthly, Yearly: r.Yearly,
-		WithinDays: r.WithinDays, MinKeep: r.MinKeep, ExpireDeletedDays: r.ExpireDeletedDays, AfterBackup: r.AfterBackup}
+		WithinDays: r.WithinDays, ExpireDeletedDays: r.ExpireDeletedDays, AfterBackup: r.AfterBackup}
 	out.Revision, out.CreatedAt, out.UpdatedAt = p.Revision, p.CreatedAt, p.UpdatedAt
 	return out
 }
@@ -229,8 +231,15 @@ func toRetention(r *BackupRetention) domain.BackupRetention {
 	if r == nil {
 		return domain.BackupRetention{}
 	}
-	return domain.BackupRetention{Last: r.Last, Hourly: r.Hourly, Daily: r.Daily, Weekly: r.Weekly, Monthly: r.Monthly, Yearly: r.Yearly,
-		WithinDays: r.WithinDays, MinKeep: r.MinKeep, ExpireDeletedDays: r.ExpireDeletedDays, AfterBackup: r.AfterBackup}
+	out := domain.BackupRetention{Last: r.Last, Hourly: r.Hourly, Daily: r.Daily, Weekly: r.Weekly, Monthly: r.Monthly, Yearly: r.Yearly,
+		WithinDays: r.WithinDays, ExpireDeletedDays: r.ExpireDeletedDays, AfterBackup: r.AfterBackup}
+	// The deprecated floor kept the newest N of each item on top of the
+	// rules, which "last" does; without rules everything is kept anyway.
+	rules := out.Last+out.Hourly+out.Daily+out.Weekly+out.Monthly+out.Yearly+out.WithinDays > 0
+	if rules && r.MinKeep > out.Last {
+		out.Last = r.MinKeep
+	}
+	return out
 }
 
 // policyInputBody is the editable part of a policy.
@@ -671,7 +680,7 @@ type RetentionDecision struct {
 	Time       time.Time `json:"time"`
 	Item       string    `json:"item"`
 	Keep       bool      `json:"keep"`
-	Reasons    []string  `json:"reasons,omitempty" doc:"Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, floor, newest; or deleted for a snapshot removed because its stack or volume was deleted."`
+	Reasons    []string  `json:"reasons,omitempty" doc:"Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, newest; or deleted for a snapshot removed because its stack or volume was deleted."`
 }
 
 // RetentionLocationPreview is the preview of one repository location.
@@ -714,7 +723,7 @@ func (h *backupsAPI) previewRetention(ctx context.Context, in *retentionPreviewI
 	}
 	r := pol.Retention
 	out := RetentionPreview{Retention: BackupRetention{Last: r.Last, Hourly: r.Hourly, Daily: r.Daily, Weekly: r.Weekly, Monthly: r.Monthly,
-		Yearly: r.Yearly, WithinDays: r.WithinDays, MinKeep: r.MinKeep, ExpireDeletedDays: r.ExpireDeletedDays, AfterBackup: r.AfterBackup}, Locations: []RetentionLocationPreview{}}
+		Yearly: r.Yearly, WithinDays: r.WithinDays, ExpireDeletedDays: r.ExpireDeletedDays, AfterBackup: r.AfterBackup}, Locations: []RetentionLocationPreview{}}
 	for _, l := range locs {
 		lp := RetentionLocationPreview{RepositoryID: l.RepositoryID, Scope: l.Scope, Decisions: []RetentionDecision{}}
 		for _, d := range l.Decisions {

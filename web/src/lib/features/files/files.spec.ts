@@ -9,7 +9,13 @@ import { diffLines, diffRows } from './diff';
 import { directoriesOf } from './dropped';
 import { modeString, ownerText, ownerTitle } from './icons';
 import { commandFor, isTypingTarget } from './keyboard';
-import { archiveFormat, detectLanguage, formattable } from './language';
+import {
+	archiveFormat,
+	detectLanguage,
+	formattable,
+	minifiable,
+	minifyUnavailable
+} from './language';
 import { parseInline, parseMarkdown, safeHref } from './markdown';
 import * as p from './paths';
 import * as sel from './selection';
@@ -310,6 +316,12 @@ describe('languages, Compose sources, modes, folders', () => {
 		expect(detectLanguage('LICENSE')).toBe('text');
 		expect(formattable('yaml')).toBe(true);
 		expect(formattable('shell')).toBe(false);
+		expect(minifiable('json')).toBe(true);
+		expect(minifiable('yaml')).toBe(false);
+		expect(minifyUnavailable('json')).toBeNull();
+		expect(minifyUnavailable('yaml')).toBe(
+			"YAML depends on its indentation, so it can't be minified."
+		);
 		expect(archiveFormat('backup.TGZ')).toBe('tar.gz');
 		expect(archiveFormat('site.zip')).toBe('zip');
 		expect(archiveFormat('notes.gz')).toBeNull();

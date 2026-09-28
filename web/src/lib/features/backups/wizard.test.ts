@@ -38,7 +38,7 @@ const policy: BackupPolicy = {
 	volumes: [],
 	shutdown: false,
 	schedule: { cron: '0 2 * * *', timeZone: 'UTC', enabled: false },
-	retention: { daily: 7, minKeep: 1 },
+	retention: { daily: 7 },
 	revision: 3
 };
 
@@ -201,8 +201,7 @@ describe('PolicyWizard (#10)', () => {
 					weekly: 0,
 					monthly: 0,
 					yearly: 0,
-					withinDays: 0,
-					minKeep: 0
+					withinDays: 0
 				}
 			}
 		});

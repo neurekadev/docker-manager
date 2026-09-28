@@ -164,6 +164,65 @@ export function serviceNetworks(svc: StackServiceStatus): NetworkEntry[] {
 	return networkEntries(svc.containers.map((c) => c.networks));
 }
 
+export interface VolumeEntry {
+	name: string;
+	/** Created by the Engine for an anonymous mount (the name is a random ID). */
+	anonymous: boolean;
+	/** Where the service's containers mount it. */
+	destinations: string[];
+	/** Every mount of it is read-only. */
+	readOnly: boolean;
+}
+
+/**
+ * The volumes of a service's containers, each once (replicas share named
+ * volumes): named volumes first, then anonymous ones, each in mount order.
+ * Bind mounts are not volumes and never listed.
+ */
+export function serviceVolumes(svc: StackServiceStatus): VolumeEntry[] {
+	const byName = new Map<string, VolumeEntry>();
+	for (const c of svc.containers)
+		for (const v of c.volumes ?? []) {
+			if (!v.name) continue;
+			let e = byName.get(v.name);
+			if (!e)
+				byName.set(
+					v.name,
+					(e = {
+						name: v.name,
+						anonymous: !!v.anonymous,
+						destinations: [],
+						readOnly: true
+					})
+				);
+			if (v.destination && !e.destinations.includes(v.destination))
+				e.destinations.push(v.destination);
+			if (!v.readOnly) e.readOnly = false;
+		}
+	const all = [...byName.values()];
+	return [...all.filter((v) => !v.anonymous), ...all.filter((v) => v.anonymous)];
+}
+
+/** A volume in words, for tooltips: "shop_data at /data (read-only)". */
+export function volumeText(v: VolumeEntry): string {
+	const name = v.anonymous ? `Anonymous volume ${v.name}` : v.name;
+	const at = v.destinations.length ? ` at ${v.destinations.join(', ')}` : '';
+	return `${name}${at}${v.readOnly ? ' (read-only)' : ''}`;
+}
+
+/**
+ * The image ID of a service for a link to its page: the image a running
+ * container runs, else any container's, else the one the last deploy
+ * applied (undefined when none is known).
+ */
+export function serviceImageId(svc: StackServiceStatus): string | undefined {
+	const running = svc.containers.find((c) => c.state === 'running' && c.imageId);
+	if (running) return running.imageId;
+	const any = svc.containers.find((c) => c.imageId);
+	if (any) return any.imageId;
+	return svc.applied?.imageId || undefined;
+}
+
 /** The oldest start time of the running containers (stack uptime). */
 export function upSince(services: StackServiceStatus[]): string | undefined {
 	let min: number | undefined;

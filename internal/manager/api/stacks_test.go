@@ -186,7 +186,8 @@ func (f *fakeStacks) Services(context.Context, domain.Stack) (domain.StackServic
 	return domain.StackServicesView{Live: true, Services: []domain.StackServiceView{{Name: "web", Status: "running",
 		Containers: []domain.StackContainer{{ID: "c1", Name: "shop-web-1", Service: "web", Image: "nginx:1.27", ImageID: "sha256:img",
 			State: "running", RestartPolicy: "unless-stopped", Memory: 1 << 30, StartedAt: &started,
-			Ports: []domain.PortMapping{{PrivatePort: 80, PublicPort: 8080, Protocol: "tcp"}}}}}}}, nil
+			Ports:   []domain.PortMapping{{PrivatePort: 80, PublicPort: 8080, Protocol: "tcp"}},
+			Volumes: []domain.ContainerVolume{{Name: "shop_web-data", Destination: "/srv/data"}}}}}}}, nil
 }
 
 func (f *fakeStacks) ImageStatus(st domain.Stack) []domain.StackImageView {
@@ -343,7 +344,7 @@ func TestStackReadDoesNotOpenTheDefinition(t *testing.T) {
 	if r.Status != http.StatusOK || !strings.Contains(string(r.Body), `"state":"running"`) {
 		t.Fatalf("services %d %s", r.Status, r.Body)
 	}
-	authztest.AssertAbsent(t, "minimal containers", r.Body, "sha256:img", "8080", "unless-stopped")
+	authztest.AssertAbsent(t, "minimal containers", r.Body, "sha256:img", "8080", "unless-stopped", "shop_web-data")
 }
 
 func TestDefinitionReadOpensRevisionsAndBinds(t *testing.T) {
@@ -372,7 +373,8 @@ func TestDefinitionReadOpensRevisionsAndBinds(t *testing.T) {
 	}
 	// With container.details.read on the stack the containers are full.
 	r = authztest.Do(t, h, "dana", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1/services"})
-	if !strings.Contains(string(r.Body), `"publicPort":8080`) || !strings.Contains(string(r.Body), `"memory":1073741824`) {
+	if !strings.Contains(string(r.Body), `"publicPort":8080`) || !strings.Contains(string(r.Body), `"memory":1073741824`) ||
+		!strings.Contains(string(r.Body), `"volumes":[{"name":"shop_web-data","destination":"/srv/data"}]`) {
 		t.Errorf("full containers %s", r.Body)
 	}
 }

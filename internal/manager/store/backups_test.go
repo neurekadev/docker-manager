@@ -345,3 +345,60 @@ func TestBackupRepositoryCompressionRoundTrip(t *testing.T) {
 		t.Error("stored an unknown compression mode")
 	}
 }
+
+// TestMigrationFoldsRetentionFloorIntoLast: the removed minimum recovery
+// floor did what "last" does. A policy with rules and a floor above its
+// "last" keeps the same backups with last raised to the floor (and a new
+// revision); a policy without rules keeps everything and stays so.
+func TestMigrationFoldsRetentionFloorIntoLast(t *testing.T) {
+	const fold = "20260928174844"
+	ctx := testutil.Context(t)
+	db, dir := openTemp(t)
+	before := migrate.NewMigrations()
+	for _, m := range migrations.Migrations.Sorted() {
+		if m.Name < fold {
+			before.Add(m)
+		}
+	}
+	if _, err := Migrate(ctx, db, migrateOpts(t, dir, before)); err != nil {
+		t.Fatal(err)
+	}
+	r := testRepository("r1")
+	if err := InsertBackupRepository(ctx, db, &r, BackupRepositorySealed{}); err != nil {
+		t.Fatal(err)
+	}
+	stored := map[string]string{
+		"raised":   `{"Last":1,"Daily":7,"MinKeep":3}`,
+		"kept":     `{"Last":10,"MinKeep":3}`,
+		"no-rules": `{"MinKeep":3}`,
+	}
+	for id, retention := range stored {
+		p := domain.BackupPolicy{ID: id, Name: id, EnvironmentID: "env-" + id, RepositoryID: "r1", Cron: "0 3 * * *", TimeZone: "UTC",
+			Revision: 1, CreatedAt: testutil.Epoch, UpdatedAt: testutil.Epoch}
+		if err := InsertBackupPolicy(ctx, db, &p); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, "UPDATE backup_policies SET retention = ? WHERE id = ?", retention, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := Migrate(ctx, db, migrateOpts(t, dir, migrations.Migrations)); err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]struct {
+		last     int
+		revision int64
+	}{"raised": {3, 2}, "kept": {10, 1}, "no-rules": {0, 1}} {
+		p, err := GetBackupPolicy(ctx, db, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Retention.Last != want.last || p.Revision != want.revision {
+			t.Errorf("%s: last %d revision %d, want %d and %d", id, p.Retention.Last, p.Revision, want.last, want.revision)
+		}
+		var left int
+		if err := db.NewRaw("SELECT COUNT(*) FROM backup_policies WHERE id = ? AND json_type(retention, '$.MinKeep') IS NOT NULL", id).Scan(ctx, &left); err != nil || left != 0 {
+			t.Errorf("%s still stores the floor (%d, %v)", id, left, err)
+		}
+	}
+}

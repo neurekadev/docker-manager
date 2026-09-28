@@ -54,7 +54,11 @@ unexpected service, a container running another image than the applied
 one). An unexpected service is usually an **orphan**: a service removed
 from the Compose file whose container is still on the host. A plain deploy
 keeps it; the UI's "Deploy and remove orphaned containers" (the deploy
-body's `removeOrphans`, off by default) removes it.
+body's `removeOrphans`, off by default) removes it. Its containers carry
+their image ID, networks and volume mounts (`volumes`: name, destination,
+read-only, anonymous; bind mounts are the stack's `binds`) in the full
+view (`container.details.read` on the container); the services table
+links each image and volume to its page from them.
 
 ### Validation
 

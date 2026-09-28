@@ -221,13 +221,15 @@ Import from `$lib/ui` (one barrel). Snippet props (`trigger`, `children`,
 | --- | --- | --- |
 | `Button` | `variant: primary \| secondary \| ghost \| danger \| danger-soft`, `size: sm \| md`, `icon`, `iconEnd`, `loading`, `href`, `block`, `ref` | Labels name the result ("Deploy", "Save changes"). `loading` keeps the label, sets `aria-busy`, disables. `href` renders a link. |
 | `IconButton` | **`label` (required)**, `icon`, `variant: ghost \| secondary \| danger-soft`, `size`, `pressed`, `badge`, `tooltip`, `tooltipSide`, `href`, `external` | `label` is the accessible name and the tooltip; spread menu/popover trigger props onto it. No tooltip while its popup is open. With `href` it renders a link with the button's look (row actions such as "Open silo-web"; `external` opens a new tab with `noopener`). |
-| `SplitButton` | `label`, `icon`, `onclick`, `items: MenuEntry[]`, **`menuLabel`**, `variant`, `loading` | The stack header's Deploy. |
+| `SplitButton` | `label`, `icon`, `onclick`, `items: MenuEntry[]`, **`menuLabel`**, `variant: primary \| secondary`, `size: sm \| md`, `loading`, `disabled` | The stack header's Deploy; the file editor's Format (`sm`, `secondary`, "More format options"). |
 | `Menu` | `items: MenuEntry[]`, `trigger` snippet `(props)`, `label`, `align`, `side`, `open` | Bits UI DropdownMenu: keyboard, typeahead, focus return. |
 | `ContextMenu` | `items`, `label`, `children` snippet `(props)` | Right-click / long-press; always duplicate its items in a visible Menu. |
 | `CopyButton` | `value`, `what` ("request ID"), `text` | Announces "Copied …". |
 
-`MenuEntry` = `{ label, icon?, onSelect?, href?, tone?: 'danger', disabled?, shortcut? }`
-\| `{ separator: true }` \| `{ heading }`.
+`MenuEntry` = `{ label, icon?, onSelect?, href?, tone?: 'danger', disabled?, description?, shortcut? }`
+\| `{ separator: true }` \| `{ heading }`. `description` is a muted line under the
+label and the item's accessible description (the label stays its name); a
+disabled item uses it to say why it is off (only its label and icon dim).
 
 ### Display
 

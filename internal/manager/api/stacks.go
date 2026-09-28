@@ -1043,6 +1043,15 @@ type StackContainer struct {
 	PidsLimit     *int64             `json:"pidsLimit,omitempty"`
 	StartedAt     *time.Time         `json:"startedAt,omitempty"`
 	Networks      []ContainerNetwork `json:"networks,omitempty" doc:"The container's addresses per network (empty while it is stopped). Full view."`
+	Volumes       []StackVolumeMount `json:"volumes,omitempty" doc:"The volumes the container mounts, by destination (never bind mounts; absent from older agents). Full view."`
+}
+
+// StackVolumeMount is a volume a stack container mounts.
+type StackVolumeMount struct {
+	Name        string `json:"name" example:"shop_db-data" doc:"Volume name."`
+	Destination string `json:"destination" example:"/var/lib/postgresql/data" doc:"Path inside the container."`
+	ReadOnly    bool   `json:"readOnly,omitempty"`
+	Anonymous   bool   `json:"anonymous,omitempty" doc:"A volume the Engine created for an anonymous mount (its name is a random ID)."`
 }
 
 // StackServiceStatus is a service with its containers and drift.
@@ -1120,6 +1129,9 @@ func shapeContainer(c authz.Checker, st domain.Stack, service string, ct domain.
 	}
 	for _, n := range ct.Networks {
 		out.Networks = append(out.Networks, ContainerNetwork{Name: n.Network, IPAddress: n.IPv4, IPv6Address: n.IPv6})
+	}
+	for _, v := range ct.Volumes {
+		out.Volumes = append(out.Volumes, StackVolumeMount(v))
 	}
 	return out
 }

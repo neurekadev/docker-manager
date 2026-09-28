@@ -19,11 +19,13 @@ import {
 	revisionLabel,
 	revisionSource,
 	runningOf,
+	serviceImageId,
 	serviceNetworks,
 	serviceCounts,
 	servicePorts,
 	serviceUrl,
 	serviceUsage,
+	serviceVolumes,
 	shortDigest,
 	shortHash,
 	showStackIcon,
@@ -34,7 +36,8 @@ import {
 	stackUsage,
 	statusSummary,
 	upSince,
-	updateAvailable
+	updateAvailable,
+	volumeText
 } from './model';
 import type { ContainerMetrics, Stack, StackContainer, StackServiceStatus } from './queries';
 
@@ -241,6 +244,59 @@ describe('service networks', () => {
 		expect(serviceNetworks(s)).toEqual([
 			{ name: 'shop_default', addresses: ['172.18.0.2', '172.18.0.3', 'fd00::3'] }
 		]);
+	});
+});
+
+describe('service volumes and image', () => {
+	const anon = 'ab12'.repeat(16);
+
+	it('lists each volume once, named before anonymous ones, with its mount paths', () => {
+		const s = svc('web', [
+			ctr({
+				name: 'a',
+				volumes: [
+					{ name: anon, destination: '/cache', anonymous: true },
+					{ name: 'shop_data', destination: '/data', readOnly: true }
+				]
+			}),
+			ctr({
+				name: 'b',
+				volumes: [
+					{ name: 'shop_data', destination: '/data' },
+					{ name: 'shop_conf', destination: '/etc/app', readOnly: true }
+				]
+			}),
+			ctr({ name: 'c' })
+		]);
+		const vols = serviceVolumes(s);
+		expect(vols).toEqual([
+			{ name: 'shop_data', anonymous: false, destinations: ['/data'], readOnly: false },
+			{ name: 'shop_conf', anonymous: false, destinations: ['/etc/app'], readOnly: true },
+			{ name: anon, anonymous: true, destinations: ['/cache'], readOnly: true }
+		]);
+		expect(vols.map(volumeText)).toEqual([
+			'shop_data at /data',
+			'shop_conf at /etc/app (read-only)',
+			`Anonymous volume ${anon} at /cache (read-only)`
+		]);
+		expect(serviceVolumes(svc('db', [ctr({ view: 'minimal' })]))).toEqual([]);
+	});
+
+	it('links the image a container runs, else the one the last deploy applied', () => {
+		const applied = { service: 'web', image: 'nginx:1', imageId: 'sha256:old', build: false };
+		const s = svc('web', [
+			ctr({ name: 'a', state: 'exited', imageId: 'sha256:stopped' }),
+			ctr({ name: 'b', imageId: 'sha256:run' })
+		]);
+		expect(serviceImageId({ ...s, applied })).toBe('sha256:run');
+		expect(
+			serviceImageId(svc('web', [ctr({ state: 'exited', imageId: 'sha256:stopped' })]))
+		).toBe('sha256:stopped');
+		// Minimal containers carry no image ID: the applied one.
+		expect(serviceImageId({ ...svc('web', [ctr({ view: 'minimal' })]), applied })).toBe(
+			'sha256:old'
+		);
+		expect(serviceImageId(svc('web', []))).toBeUndefined();
 	});
 });
 

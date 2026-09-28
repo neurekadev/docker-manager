@@ -1,6 +1,7 @@
 <script lang="ts">
 	// The file editor (#15, the mockup's editor card): tabs of open files,
-	// language select, Format (YAML/JSON), line wrap, Search, a Markdown
+	// language select, Format (YAML/JSON; its menu: Minify for JSON,
+	// Beautify), line wrap, Search, a Markdown
 	// preview toggle and Save. Saving a Compose source of a stack records a
 	// new revision and deploys nothing (#7, #25 Q1): the definition is then
 	// validated (findings shown above the text), the saved toast offers
@@ -19,7 +20,7 @@
 	import TextWrap from '@lucide/svelte/icons/text-wrap';
 	import X from '@lucide/svelte/icons/x';
 	import type { Schema } from '$lib/api/client';
-	import { EDITOR_LANGUAGES, formatDocument, type CodeEditorHandle } from '$lib/lazy';
+	import { EDITOR_LANGUAGES, formatDocument, minifyJson, type CodeEditorHandle } from '$lib/lazy';
 	import { liveKeys } from '$lib/live/keys';
 	import {
 		Button,
@@ -27,9 +28,11 @@
 		IconButton,
 		Notice,
 		Select,
+		SplitButton,
 		errorMessage,
 		formatDateTime,
-		toast
+		toast,
+		type MenuEntry
 	} from '$lib/ui';
 	import ValidationResult from '$lib/features/stacks/ValidationResult.svelte';
 	import { liveScopeOf, type FilesApi } from './api';
@@ -37,7 +40,7 @@
 	import { definitionRefusal, isDefinitionFile, type StackFiles } from './definition';
 	import { isDirty, SaveBlockedError, type EditorSession, type EditorTab } from './editor.svelte';
 	import EditorDocument from './EditorDocument.svelte';
-	import { formattable, LANGUAGE_LABELS } from './language';
+	import { formattable, LANGUAGE_LABELS, minifiable, minifyUnavailable } from './language';
 	import NameDialog from './NameDialog.svelte';
 	import { basename, join, parent } from './paths';
 
@@ -165,18 +168,47 @@
 		}
 	}
 
-	async function format() {
+	// Format and Beautify pretty-print (the same result), Minify compacts
+	// JSON. The new text replaces the document through the editor, so one
+	// undo step brings the old text back and the tab turns unsaved.
+	type Reformat = 'format' | 'beautify' | 'minify';
+	const REFORMAT_VERBS: Record<Reformat, [done: string, again: string]> = {
+		format: ['formatted', 'format'],
+		beautify: ['beautified', 'beautify'],
+		minify: ['minified', 'minify']
+	};
+
+	async function reformat(how: Reformat) {
 		const t = tab;
-		if (!t || !handle || !formattable(t.language)) return;
+		const h = handle;
+		if (!t || !h || !formattable(t.language)) return;
+		if (how === 'minify' && !minifiable(t.language)) return;
 		try {
-			const out = await formatDocument(handle.text(), t.language);
-			if (out !== handle.text()) handle.setText(out);
+			const text = h.text();
+			const out =
+				how === 'minify' ? minifyJson(text) : await formatDocument(text, t.language);
+			if (out !== h.text()) h.setText(out);
 		} catch (e) {
-			toast.error(`${basename(t.path)} could not be formatted`, {
-				body: `${e instanceof Error ? e.message : String(e)} Fix it and format again.`
+			const [done, again] = REFORMAT_VERBS[how];
+			toast.error(`${basename(t.path)} could not be ${done}`, {
+				body: `${e instanceof Error ? e.message : String(e)} Fix it and ${again} again.`
 			});
 		}
 	}
+
+	const formatItems = $derived<MenuEntry[]>(
+		tab
+			? [
+					{
+						label: 'Minify',
+						disabled: !minifiable(tab.language),
+						description: minifyUnavailable(tab.language) ?? undefined,
+						onSelect: () => void reformat('minify')
+					},
+					{ label: 'Beautify', onSelect: () => void reformat('beautify') }
+				]
+			: []
+	);
 
 	// Closing a tab with unsaved edits asks first.
 	let closing = $state<EditorTab | null>(null);
@@ -300,9 +332,15 @@
 					>
 				{/if}
 				{#if formattable(tab.language) && canWrite && !tab.truncated}
-					<Button size="sm" variant="secondary" onclick={format} disabled={!handle}
-						>Format</Button
-					>
+					<SplitButton
+						label="Format"
+						menuLabel="More format options"
+						size="sm"
+						variant="secondary"
+						items={formatItems}
+						disabled={!handle}
+						onclick={() => void reformat('format')}
+					/>
 				{/if}
 				<IconButton
 					icon={TextWrap}

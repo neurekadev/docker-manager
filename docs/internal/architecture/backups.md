@@ -260,9 +260,11 @@ one call per location), then prunes, **only when it forgot something** (a
 prune downloads and rewrites pack data; a retention that removed nothing
 skips it). Like restic's, the rules judge each stack/volume by its own
 snapshots, so an item's newest snapshot always stays and failing backups
-never shrink it. An optional **minimum recovery floor** (`minKeep`, 0 = off,
-the default) keeps the newest N snapshots of each item on top of the rules.
-Only the policy's snapshots of that location are considered; manifests of
+never shrink it; `last` keeps an item's newest N whatever the other rules
+say. (The former minimum recovery floor did exactly that; it was removed:
+migration `backup_retention_floor_into_last` raised `last` to it for
+policies with rules, and the API still accepts `minKeep` as a deprecated
+member folded into `last`, never returned.) Only the policy's snapshots of that location are considered; manifests of
 sets without remaining data there go too.
 
 Because the rules keep a **deleted** item's last snapshots forever, a policy
@@ -543,7 +545,7 @@ repository, so its manifest usually carries their results.
   (secrets never in arguments, environment or logs, JSON parsing, exit
   classes, cancellation).
 - `internal/backup`: manifest round trip, corruption/truncation,
-  completeness and merge, retention rules, floor and time zones.
+  completeness and merge, retention rules, deleted-item expiry and time zones.
 - `internal/agent/backups`: the scope corpus (relative binds, opt-ins,
   allowlist, anonymous volumes, exclusions, symlink escapes, nested
   repositories, Docker Manager's volumes), shutdown order, restart after failure,

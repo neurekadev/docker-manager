@@ -521,5 +521,24 @@ func stackContainer(c engine.Container, d engine.ContainerDetails) protocol.Stac
 		ep := d.Networks[n]
 		sc.Networks = append(sc.Networks, protocol.ContainerNetwork{Name: n, NetworkID: ep.NetworkID, IPAddress: ep.IPAddress, IPv6Address: ep.IPv6Address})
 	}
+	sc.Volumes = containerVolumes(d.Mounts)
+	if len(d.Mounts) == 0 {
+		sc.Volumes = containerVolumes(c.Mounts)
+	}
 	return sc
+}
+
+// containerVolumes are the volume mounts among a container's mounts,
+// sorted by destination (bind mounts, tmpfs and others are left out).
+func containerVolumes(mounts []engine.Mount) []protocol.StackContainerVolume {
+	var out []protocol.StackContainerVolume
+	for _, m := range mounts {
+		if m.Type != "volume" || m.Name == "" {
+			continue
+		}
+		out = append(out, protocol.StackContainerVolume{Name: m.Name, Destination: m.Destination, ReadOnly: !m.ReadWrite,
+			Anonymous: protocol.AnonymousVolumeName(m.Name)})
+	}
+	slices.SortFunc(out, func(a, b protocol.StackContainerVolume) int { return strings.Compare(a.Destination, b.Destination) })
+	return out
 }

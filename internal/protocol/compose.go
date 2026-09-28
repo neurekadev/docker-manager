@@ -401,6 +401,34 @@ type StackContainer struct {
 	// Networks are the container's endpoints with their addresses (name,
 	// network ID, IPv4 and IPv6 only; absent from older agents).
 	Networks []ContainerNetwork `json:"networks,omitempty"`
+	// Volumes are the container's volume mounts, sorted by destination
+	// (bind mounts and tmpfs are not volumes; absent from older agents).
+	Volumes []StackContainerVolume `json:"volumes,omitempty"`
+}
+
+// StackContainerVolume is a volume a stack container mounts.
+type StackContainerVolume struct {
+	Name        string `json:"name"`
+	Destination string `json:"destination"`
+	ReadOnly    bool   `json:"readOnly,omitempty"`
+	// Anonymous: a volume the Engine created for an anonymous mount (its
+	// name is a random 64-digit hex ID).
+	Anonymous bool `json:"anonymous,omitempty"`
+}
+
+// AnonymousVolumeName reports whether name has the form the Engine gives
+// anonymous volumes (64 lowercase hex digits). Compose names its volumes
+// <project>_<key>, which never has that form.
+func AnonymousVolumeName(name string) bool {
+	if len(name) != 64 {
+		return false
+	}
+	for _, r := range name {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // ComposeServicesOutput is the output of compose.services.

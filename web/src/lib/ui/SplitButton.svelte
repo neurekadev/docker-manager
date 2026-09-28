@@ -1,10 +1,10 @@
 <script lang="ts">
-	// Split button (#22: the stack header's Deploy): the main part runs the
-	// default action; the attached chevron opens a menu of variants
-	// (Deploy, Deploy with pull, Build and deploy).
+	// Split button (#22: the stack header's Deploy, the file editor's
+	// Format): the main part runs the default action; the attached chevron
+	// opens a menu of variants (Deploy, Deploy with pull, Build and deploy).
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import type { IconComponent } from '$lib/design/icons';
-	import Button, { type ButtonVariant } from './Button.svelte';
+	import Button, { type ButtonSize, type ButtonVariant } from './Button.svelte';
 	import Menu from './Menu.svelte';
 	import type { MenuEntry } from './menu';
 
@@ -16,6 +16,7 @@
 		menuLabel: string;
 		onclick?: () => void;
 		variant?: Extract<ButtonVariant, 'primary' | 'secondary'>;
+		size?: ButtonSize;
 		loading?: boolean;
 		disabled?: boolean;
 	}
@@ -27,13 +28,14 @@
 		menuLabel,
 		onclick,
 		variant = 'primary',
+		size = 'md',
 		loading = false,
 		disabled = false
 	}: Props = $props();
 </script>
 
-<div class="split {variant}" role="group" aria-label={label}>
-	<Button {variant} {icon} {loading} {disabled} {onclick} class="main">{label}</Button>
+<div class="split {variant} {size}" role="group" aria-label={label}>
+	<Button {variant} {size} {icon} {loading} {disabled} {onclick} class="main">{label}</Button>
 	<Menu {items} label={menuLabel}>
 		{#snippet trigger(props)}
 			<button
@@ -87,8 +89,15 @@
 		border-color: var(--border-strong);
 		color: var(--text-strong);
 	}
-	.secondary .chevron:hover:not(:disabled) {
+	.secondary .chevron:hover:not(:disabled),
+	.secondary .chevron[data-state='open'] {
 		background: var(--surface-hover);
+	}
+
+	.sm .chevron {
+		width: 26px;
+		height: var(--control-height-sm);
+		border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 	}
 
 	.chevron:disabled {
@@ -96,7 +105,8 @@
 	}
 
 	@media (pointer: coarse) {
-		.chevron {
+		.chevron,
+		.sm .chevron {
 			min-height: var(--touch-target);
 			width: var(--touch-target);
 		}

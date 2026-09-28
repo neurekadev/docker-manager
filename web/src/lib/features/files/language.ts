@@ -53,9 +53,25 @@ export function detectLanguage(path: string): EditorLanguage {
 	return BY_EXTENSION[extension(name)] ?? 'text';
 }
 
-/** Languages the Format button can reformat. */
+/** Languages the Format button (and its Beautify entry) can reformat. */
 export function formattable(l: EditorLanguage): l is 'yaml' | 'json' {
 	return l === 'yaml' || l === 'json';
+}
+
+/**
+ * Languages the Format menu's Minify entry can compact without changing
+ * what the file means: JSON only (YAML, and so Compose files, depend on
+ * their indentation and line breaks).
+ */
+export function minifiable(l: EditorLanguage): l is 'json' {
+	return l === 'json';
+}
+
+/** Why Minify is off for a formattable language (shown under the entry). */
+export function minifyUnavailable(l: EditorLanguage): string | null {
+	if (minifiable(l)) return null;
+	if (l === 'yaml') return "YAML depends on its indentation, so it can't be minified.";
+	return `${LANGUAGE_LABELS[l]} can't be minified.`;
 }
 
 /** Image types previewed instead of edited (bounded, #15). */

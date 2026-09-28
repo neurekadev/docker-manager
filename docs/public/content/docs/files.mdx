@@ -35,6 +35,18 @@ Click a file to open it in the editor. It highlights the syntax, can
 **Format** YAML and JSON, and has **Search and replace**. Press **Save** or
 <kbd>Ctrl</kbd> <kbd>S</kbd>.
 
+The arrow next to **Format** has two more choices:
+
+- **Minify** puts a JSON file on one line without spaces. YAML files,
+  such as `compose.yaml`, can't be minified: their indentation is part of
+  what they mean.
+- **Beautify** lays the file out again with clear indentation, like
+  **Format**.
+
+Nothing is saved until you press **Save**, and <kbd>Ctrl</kbd> <kbd>Z</kbd>
+brings the old text back. If the file has a mistake, the editor tells you
+what is wrong and leaves your text as it is.
+
 - In a stack, saving `compose.yaml` or `.env` does not deploy. See
   [Stacks](/docs/stacks#edit-the-files).
 - If the file changed on the server while you edited it, Docker Manager

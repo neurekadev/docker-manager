@@ -698,7 +698,7 @@ func TestRetentionKeepsFloorAndForgetsOnlyThePolicy(t *testing.T) {
 	if res, _, _ := e.run(ctx, jobspec.BackupRun, other, e.credential("DYRK-K"), nil); res.Outcome != jobexec.OutcomeSucceeded {
 		t.Fatalf("other policy: %+v", res)
 	}
-	in := protocol.BackupRetentionInput{Repository: e.repoRef(), PolicyID: "pol-1", Rules: backup.RetentionRules{Last: 1, MinKeep: 2}, TimeZone: "UTC"}
+	in := protocol.BackupRetentionInput{Repository: e.repoRef(), PolicyID: "pol-1", Rules: backup.RetentionRules{Last: 2}, TimeZone: "UTC"}
 	res, _, err := e.run(ctx, jobspec.BackupRetention, in, e.credential("DYRK-K"), nil)
 	if err != nil || res.Outcome != jobexec.OutcomeSucceeded {
 		t.Fatalf("retention: %+v %v", res, err)
@@ -720,7 +720,7 @@ func TestRetentionKeepsFloorAndForgetsOnlyThePolicy(t *testing.T) {
 			data++
 		}
 	}
-	// 5 data snapshots of pol-1 -> floor of 2; the other policy is untouched.
+	// 5 data snapshots of pol-1 -> the last 2; the other policy is untouched.
 	if data != 2 || other1 != 1 {
 		t.Errorf("after retention: %d pol-1 data, %d other", data, other1)
 	}

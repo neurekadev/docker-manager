@@ -933,7 +933,7 @@ on a new session with a new frame ID.
 | `compose.validate` | request | `stack.create` / `stack.manage` | no | #7 |
 | `compose.read` | request | `stack.definition.read`, or the manager service (revision recording, #7) | no | #7 |
 | `compose.write` | request | `stack.create` / `stack.import` / `stack.definition.write` (create a project directory or restore a revision; expected hash) | yes | #7 |
-| `compose.services` | request | `stack.read` | no | #7 |
+| `compose.services` | request | `stack.read` (each container with its state, ports, `networks` and `volumes`: volume mounts only, `anonymous` marked) | no | #7 |
 | `compose.rename_preview` | request | `stack.rename` (plans a `stack.rename`: what moves, outside containers, blockers; changes nothing) | no | #7 |
 | `files.list` | request | `stack.files.read` / `volume.files.read` | no | #15 |
 | `files.stat` | request | `stack.files.read` / `volume.files.read` | no | #15 |

@@ -226,7 +226,6 @@ type BackupRetention struct {
 	Monthly    int
 	Yearly     int
 	WithinDays int
-	MinKeep    int
 	// ExpireDeletedDays removes every backup of a deleted stack or volume
 	// once its newest backup is this many days old (0 = off, the default).
 	ExpireDeletedDays int

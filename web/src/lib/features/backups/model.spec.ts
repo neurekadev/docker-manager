@@ -47,16 +47,14 @@ describe('Recovery Key', () => {
 });
 
 describe('retention', () => {
-	it('describes the rules and the recovery floor', () => {
+	it('describes the rules', () => {
 		expect(retentionText(undefined)).toBe('Keep every backup');
-		expect(retentionText({ minKeep: 3 })).toBe('Keep every backup');
-		expect(retentionText({ daily: 7, weekly: 4, minKeep: 3 })).toBe(
-			'Keep 7 daily, 4 weekly; always keeps the newest 3 of each'
-		);
+		expect(retentionText({ afterBackup: true })).toBe('Keep every backup');
+		expect(retentionText({ daily: 7, weekly: 4 })).toBe('Keep 7 daily, 4 weekly');
 		expect(retentionText({ last: 2, withinDays: 10 })).toBe(
 			'Keep last 2, everything from the last 10 days'
 		);
-		expect(hasRetentionRules({ minKeep: 3, afterBackup: true })).toBe(false);
+		expect(hasRetentionRules({ afterBackup: true })).toBe(false);
 		expect(hasRetentionRules({ monthly: 1 })).toBe(true);
 	});
 });

@@ -78,26 +78,19 @@ describe('retention presets', () => {
 
 	it('maps a saved retention to the preset it matches', () => {
 		expect(retentionPreset(undefined)).toBe('everything');
-		expect(retentionPreset({ minKeep: 3 })).toBe('everything');
-		expect(retentionPreset({ daily: 7, weekly: 4, monthly: 12, minKeep: 1 })).toBe(
-			'recommended'
-		);
-		expect(retentionPreset({ last: 30, hourly: 0, minKeep: 1, afterBackup: true })).toBe(
-			'last30'
-		);
-		// No floor matches too (a floor of 1 keeps the same).
-		expect(retentionPreset({ last: 30, minKeep: 0 })).toBe('last30');
-		// Another rule, or a higher floor, is Custom.
-		expect(retentionPreset({ last: 30, daily: 1, minKeep: 1 })).toBe('custom');
-		expect(retentionPreset({ daily: 7, weekly: 4, monthly: 12, minKeep: 3 })).toBe('custom');
-		expect(retentionPreset({ last: 168, minKeep: 1 })).toBe('custom');
+		expect(retentionPreset({ afterBackup: true })).toBe('everything');
+		expect(retentionPreset({ daily: 7, weekly: 4, monthly: 12 })).toBe('recommended');
+		expect(retentionPreset({ last: 30, hourly: 0, afterBackup: true })).toBe('last30');
+		// Another rule is Custom.
+		expect(retentionPreset({ last: 30, daily: 1 })).toBe('custom');
+		expect(retentionPreset({ daily: 7, weekly: 4, monthly: 12, last: 3 })).toBe('custom');
+		expect(retentionPreset({ last: 168 })).toBe('custom');
 	});
 
-	it('sets a preset’s rules, turns the others off, drops the floor and keeps "after every backup" and the expiry', () => {
+	it('sets a preset’s rules, turns the others off and keeps "after every backup" and the expiry', () => {
 		const custom = {
 			last: 5,
 			hourly: 24,
-			minKeep: 2,
 			afterBackup: true,
 			expireDeletedDays: 30
 		};
@@ -109,29 +102,24 @@ describe('retention presets', () => {
 			monthly: 12,
 			yearly: 0,
 			withinDays: 0,
-			minKeep: 0,
 			afterBackup: true,
 			expireDeletedDays: 30
 		});
 		expect(applyRetentionPreset('last30', custom)).toMatchObject({ last: 30, hourly: 0 });
-		expect(applyRetentionPreset('everything', custom)).toMatchObject({
-			last: 0,
-			hourly: 0,
-			minKeep: 0
-		});
+		expect(applyRetentionPreset('everything', custom)).toMatchObject({ last: 0, hourly: 0 });
 		expect(applyRetentionPreset('custom', custom)).toBe(custom);
 	});
 
 	it('says retention in a few words', () => {
 		expect(retentionShort(undefined)).toBe('Keep everything');
-		expect(retentionShort({ minKeep: 1 })).toBe('Keep everything');
+		expect(retentionShort({ afterBackup: true })).toBe('Keep everything');
 		expect(retentionShort(DEFAULT_RETENTION)).toBe('7 daily, 4 weekly, 12 monthly');
 		expect(retentionShort({ last: 30 })).toBe('Last 30');
 	});
 
 	it('counts the expiry of deleted items as retention', () => {
 		expect(retentionActive({ expireDeletedDays: 30 })).toBe(true);
-		expect(retentionActive({ minKeep: 3 })).toBe(false);
+		expect(retentionActive({ afterBackup: true })).toBe(false);
 		expect(retentionActive(DEFAULT_RETENTION)).toBe(true);
 		expect(retentionText({ expireDeletedDays: 30 })).toBe(
 			'Keep every backup; backups of deleted stacks and volumes go after 30 days'

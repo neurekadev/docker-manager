@@ -119,15 +119,14 @@ function retentionParts(r: BackupRetention): string[] {
 	return parts;
 }
 
-/** Plain-language retention, e.g. "7 daily, 4 weekly; always keeps 3 of each". */
+/** Plain-language retention, e.g. "Keep 7 daily, 4 weekly". */
 export function retentionText(r: BackupRetention | undefined): string {
 	const expiry = r?.expireDeletedDays
 		? `; backups of deleted stacks and volumes go after ${r.expireDeletedDays} ${r.expireDeletedDays === 1 ? 'day' : 'days'}`
 		: '';
 	const parts = r ? retentionParts(r) : [];
 	if (!parts.length) return `Keep every backup${expiry}`;
-	const floor = r?.minKeep ? `; always keeps the newest ${r.minKeep} of each` : '';
-	return `Keep ${parts.join(', ')}${floor}${expiry}`;
+	return `Keep ${parts.join(', ')}${expiry}`;
 }
 
 /** Retention in a few words for tables and KPIs: "7 daily, 4 weekly", "Keep everything". */
@@ -177,13 +176,10 @@ const PRESET_RULES: Record<Exclude<RetentionPreset, 'custom'>, Partial<BackupRet
 
 /**
  * The preset a policy's retention matches (editing opens on it): no rules
- * is "Keep everything"; a preset's rules with no floor (or 1, which keeps
- * the same: the rules always keep an item's newest backup) match it;
- * anything else, a higher floor included, is Custom.
+ * is "Keep everything"; a preset's rules match it; anything else is Custom.
  */
 export function retentionPreset(r: BackupRetention | undefined): RetentionPreset {
 	if (!r || !hasRetentionRules(r)) return 'everything';
-	if ((r.minKeep ?? 0) > 1) return 'custom';
 	for (const k of ['recommended', 'last30'] as const) {
 		const want: BackupRetention = { ...NO_RULES, ...PRESET_RULES[k] };
 		if (RULE_KEYS.every((key) => (r[key] ?? 0) === want[key])) return k;
@@ -192,13 +188,13 @@ export function retentionPreset(r: BackupRetention | undefined): RetentionPreset
 }
 
 /**
- * The retention a preset sets: its rules (every other rule off) and no
- * floor; "after every backup" and the expiry of deleted items are kept.
- * Custom changes nothing.
+ * The retention a preset sets: its rules (every other rule off); "after
+ * every backup" and the expiry of deleted items are kept. Custom changes
+ * nothing.
  */
 export function applyRetentionPreset(preset: RetentionPreset, r: BackupRetention): BackupRetention {
 	if (preset === 'custom') return r;
-	return { ...r, ...NO_RULES, ...PRESET_RULES[preset], minKeep: 0 };
+	return { ...r, ...NO_RULES, ...PRESET_RULES[preset] };
 }
 
 /** Retention of a new policy: the recommended preset (7 daily, 4 weekly, 12 monthly). */
@@ -206,8 +202,7 @@ export const DEFAULT_RETENTION: BackupRetention = {
 	...NO_RULES,
 	daily: 7,
 	weekly: 4,
-	monthly: 12,
-	minKeep: 0
+	monthly: 12
 };
 
 /** Days a deleted stack's or volume's backups are kept when the expiry is turned on. */

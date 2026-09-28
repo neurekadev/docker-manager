@@ -162,21 +162,23 @@ export async function mountCodeEditor(
 	};
 }
 
+function parseJson(text: string): unknown {
+	try {
+		return JSON.parse(text) as unknown;
+	} catch (e) {
+		throw new Error(`This isn't valid JSON: ${e instanceof Error ? e.message : e}`, {
+			cause: e
+		});
+	}
+}
+
 /**
  * Reformats YAML (comments kept, 2-space indentation) or JSON (2 spaces)
- * for the editor's Format button. Throws an Error naming the line when the
- * text does not parse.
+ * for the editor's Format button and its Beautify entry. Throws an Error
+ * naming the line when the text does not parse.
  */
 export async function formatDocument(text: string, language: 'yaml' | 'json'): Promise<string> {
-	if (language === 'json') {
-		try {
-			return JSON.stringify(JSON.parse(text), null, 2) + '\n';
-		} catch (e) {
-			throw new Error(`This isn't valid JSON: ${e instanceof Error ? e.message : e}`, {
-				cause: e
-			});
-		}
-	}
+	if (language === 'json') return JSON.stringify(parseJson(text), null, 2) + '\n';
 	const { parseAllDocuments } = await import('yaml');
 	const docs = parseAllDocuments(text, { prettyErrors: true });
 	const list = Array.isArray(docs) ? docs : [docs];
@@ -190,6 +192,16 @@ export async function formatDocument(text: string, language: 'yaml' | 'json'): P
 		}
 	}
 	return list.map((d) => d.toString({ indent: 2, lineWidth: 0 })).join('');
+}
+
+/**
+ * Compacts JSON to one line (no spaces, a final newline) for the editor's
+ * Minify entry. Only JSON: whitespace carries no meaning there, while YAML
+ * depends on its indentation. Throws like formatDocument when the text
+ * does not parse (the same "This isn't valid JSON: …" message).
+ */
+export function minifyJson(text: string): string {
+	return JSON.stringify(parseJson(text)) + '\n';
 }
 
 /**

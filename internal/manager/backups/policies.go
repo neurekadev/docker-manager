@@ -603,7 +603,7 @@ func (s *Service) environmentVolumes(ctx context.Context, envID string) map[stri
 
 func retentionRules(r domain.BackupRetention) backup.RetentionRules {
 	return backup.RetentionRules{Last: r.Last, Hourly: r.Hourly, Daily: r.Daily, Weekly: r.Weekly, Monthly: r.Monthly, Yearly: r.Yearly,
-		WithinDays: r.WithinDays, MinKeep: r.MinKeep}
+		WithinDays: r.WithinDays}
 }
 
 // envPlan is one environment's part of a run.

@@ -1,8 +1,12 @@
 package stacks_test
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/stacks"
@@ -47,4 +51,34 @@ func TestLiveServicesPublishOnlyChanges(t *testing.T) {
 	if got := h.get(st.ID); got.EngineState != domain.EngineStateMissing {
 		t.Errorf("engine state %s", got.EngineState)
 	}
+}
+
+// TestLiveServicesCarryVolumeMounts: each container reports its volume
+// mounts (anonymous ones marked), never its bind mounts.
+func TestLiveServicesCarryVolumeMounts(t *testing.T) {
+	h := newHarness(t)
+	st := h.create("shop", shopYAML, shopEnv)
+	anon := strings.Repeat("0f", 32)
+	h.engine.setProject("shop", []engine.Container{{ID: "x", Names: []string{"/shop-web-1"}, ImageID: "sha256:web", State: "running",
+		Labels: map[string]string{lifecycle.ComposeProjectLabel: "shop", lifecycle.ComposeServiceLabel: "web"},
+		Mounts: []engine.Mount{
+			{Type: "volume", Name: "shop_data", Destination: "/data", ReadWrite: true},
+			{Type: "bind", Source: "/srv/shop", Destination: "/srv"},
+			{Type: "volume", Name: anon, Destination: "/cache"},
+		}}})
+	v, err := h.svc.Services(h.ctx, st)
+	if err != nil || !v.Live {
+		t.Fatalf("services %+v %v", v, err)
+	}
+	want := []domain.ContainerVolume{{Name: anon, Destination: "/cache", ReadOnly: true, Anonymous: true}, {Name: "shop_data", Destination: "/data"}}
+	for _, sv := range v.Services {
+		if sv.Name != "web" {
+			continue
+		}
+		if len(sv.Containers) != 1 || !slices.Equal(sv.Containers[0].Volumes, want) {
+			t.Errorf("web containers %+v, want volumes %+v", sv.Containers, want)
+		}
+		return
+	}
+	t.Errorf("no web service in %+v", v.Services)
 }

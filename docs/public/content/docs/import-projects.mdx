@@ -9,8 +9,11 @@ Docker Manager can take them over, with their names, volumes and data.
 ## Import a project
 
 1. Open **Stacks** and press **Import project**.
-2. Pick the server. The list shows the Compose projects running there that
-   Docker Manager does not manage yet.
+2. Pick the server. The list shows the Compose projects on it that Docker
+   Manager does not manage yet, running or stopped. A project needs at
+   least one container: a project you took down with `docker compose down`
+   doesn't appear. Start it once, or paste its Compose file into
+   **Stacks → Create stack** instead.
 3. Press **Import** next to a project.
 
 What happens next depends on where the project's files are:

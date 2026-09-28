@@ -499,10 +499,18 @@ describe('ServicesTable', () => {
 		const headers = screen.getAllByRole('columnheader').map((h) => h.textContent ?? '');
 		const at = (name: string) => headers.findIndex((h) => h.includes(name));
 		expect(
-			['Status', 'Containers', 'CPU', 'Memory', 'Uptime', 'Image', 'Networks', 'Ports'].map(
-				at
-			)
-		).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+			[
+				'Status',
+				'Containers',
+				'CPU',
+				'Memory',
+				'Uptime',
+				'Image',
+				'Volumes',
+				'Networks',
+				'Ports'
+			].map(at)
+		).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 		expect(at('Restart policy')).toBe(-1);
 		expect(at('Image update')).toBe(-1);
 		expect(screen.getByText('2d 1h 0m')).toBeInTheDocument();
@@ -516,6 +524,97 @@ describe('ServicesTable', () => {
 		// One network per row (rows keep one height); the rest in the tooltip.
 		expect(screen.queryByRole('link', { name: 'edge' })).not.toBeInTheDocument();
 		expect(screen.getByText('+1 more')).toHaveAttribute('title', 'edge: 10.0.0.5');
+	});
+
+	it('links images and volumes to their pages, anonymous volumes marked', () => {
+		const anon = 'ab12'.repeat(16);
+		const [web, worker] = services;
+		const live = [
+			{
+				...web,
+				applied: {
+					service: 'web',
+					image: 'nginx:1.27',
+					imageId: 'sha256:old',
+					build: false
+				},
+				containers: [
+					{
+						...web.containers[0],
+						imageId: 'sha256:run',
+						volumes: [
+							{ name: 'silo_data', destination: '/data' },
+							{ name: 'silo_conf', destination: '/etc/app', readOnly: true }
+						]
+					}
+				]
+			},
+			{
+				...worker,
+				containers: [
+					{
+						...worker.containers[0],
+						volumes: [
+							{ name: 'silo_data', destination: '/data' },
+							{ name: anon, destination: '/cache', anonymous: true },
+							{ name: 'silo_spool', destination: '/spool' }
+						]
+					}
+				]
+			}
+		] as StackServiceStatus[];
+		render(ServicesTable, { props: { stack: stack(), services: live, usage: null } });
+		// The image the container runs, not the one the last deploy applied.
+		expect(screen.getByRole('link', { name: 'nginx:1.27' })).toHaveAttribute(
+			'href',
+			routes.image('env-1', 'sha256:run')
+		);
+		// Without a known image ID the reference is plain text.
+		expect(screen.queryByRole('link', { name: 'worker:1' })).not.toBeInTheDocument();
+		expect(screen.getByText('worker:1')).toBeInTheDocument();
+		const rows = screen.getAllByRole('row');
+		const webRow = rows.find((r) => within(r).queryByText('Web frontend'))!;
+		expect(within(webRow).getByRole('link', { name: 'silo_data' })).toHaveAttribute(
+			'href',
+			routes.volume('env-1', 'silo_data')
+		);
+		expect(within(webRow).getByRole('link', { name: 'silo_conf' })).toHaveAttribute(
+			'href',
+			routes.volume('env-1', 'silo_conf')
+		);
+		// Past two volumes the second line says how many more (named first,
+		// then anonymous ones).
+		const workerRow = rows.find((r) => within(r).queryByText('worker:1'))!;
+		expect(within(workerRow).getByRole('link', { name: 'silo_data' })).toBeInTheDocument();
+		expect(
+			within(workerRow).queryByRole('link', { name: 'silo_spool' })
+		).not.toBeInTheDocument();
+		expect(within(workerRow).getByText('+2 more')).toHaveAttribute(
+			'title',
+			`silo_spool at /spool\nAnonymous volume ${anon} at /cache`
+		);
+	});
+
+	it('shows an anonymous volume by its mount path and links it', () => {
+		const anon = 'cd34'.repeat(16);
+		const [web] = services;
+		const live = [
+			{
+				...web,
+				containers: [
+					{
+						...web.containers[0],
+						volumes: [{ name: anon, destination: '/cache', anonymous: true }]
+					}
+				]
+			}
+		] as StackServiceStatus[];
+		render(ServicesTable, { props: { stack: stack(), services: live, usage: null } });
+		expect(screen.getByRole('link', { name: `Anonymous volume ${anon}` })).toHaveAttribute(
+			'href',
+			routes.volume('env-1', anon)
+		);
+		expect(screen.getByText('/cache')).toBeInTheDocument();
 	});
 
 	it('links a single-container service to its container and its logs to the service', async () => {

@@ -250,7 +250,9 @@ manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
   need type-to-confirm. Jobs show `JobProgress` with per-item results and
   Cancel.
 - **Editor:** tabs, CodeMirror languages by name (select to change),
-  search/replace, line wrap, Format (YAML with comments, JSON), Save with
+  search/replace, line wrap, Format (YAML with comments, JSON; a split
+  button whose menu offers Minify, JSON only and off for YAML with the
+  reason, and Beautify, the same as Format), Save with
   `If-Match` (Ctrl/Cmd+S), Markdown preview (a safe subset; no HTML from
   files). Saving a Compose source of a stack records a revision and
   deploys nothing: the editor then validates the definition on disk

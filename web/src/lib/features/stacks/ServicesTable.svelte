@@ -3,17 +3,19 @@
 	// order: hue tile + name + description (linked to its container when the
 	// service has exactly one), status, running/desired containers, the live
 	// figures (CPU and memory from the newest samples, uptime ticking every
-	// second), the image with its update state as an icon that checks the
-	// stack's images again (#20), the networks (linked, with the addresses
-	// on them; one line, the rest in a tooltip), published ports (links only
-	// with the environment's service address; one line) and the row actions,
-	// pinned to the right edge while the table scrolls sideways: open (only
-	// with a web port and an address), terminal (track B3's route with the
-	// service preselected) and a menu with the service's own
-	// start/stop/restart, its logs (the Logs tab filtered to the service)
-	// and its containers. Restart and stop of Docker Manager's own project
-	// (#32) are shown disabled, not hidden. Names, images and networks are
-	// capped so every row keeps one height.
+	// second), the image (linked to its page when its ID is known) with its
+	// update state as an icon that checks the stack's images again (#20),
+	// the volumes (linked; anonymous ones marked with their mount path; at
+	// most two lines, the rest in a tooltip), the networks (linked, with
+	// the addresses on them; one line, the rest in a tooltip), published
+	// ports (links only with the environment's service address; one line)
+	// and the row actions, pinned to the right edge while the table scrolls
+	// sideways: open (only with a web port and an address), terminal (track
+	// B3's route with the service preselected) and a menu with the service's
+	// own start/stop/restart, its logs (the Logs tab filtered to the
+	// service) and its containers. Restart and stop of Docker Manager's own project
+	// (#32) are shown disabled, not hidden. Names, images, volumes and
+	// networks are capped so every row keeps one height.
 	import Box from '@lucide/svelte/icons/box';
 	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
@@ -47,11 +49,15 @@
 	import {
 		openTarget,
 		runningOf,
+		serviceImageId,
 		serviceNetworks,
 		servicePorts,
 		serviceUsage,
+		serviceVolumes,
 		upSince,
-		type StackUsage
+		volumeText,
+		type StackUsage,
+		type VolumeEntry
 	} from './model';
 	import type { Stack, StackServiceStatus } from './queries';
 	import type { StackImageStatus } from './queries';
@@ -86,6 +92,14 @@
 
 	/** Ports shown in the cell; the rest are in its tooltip. */
 	const PORTS_SHOWN = 2;
+	/** Lines of the volumes cell; past them, "+N more" takes the last line. */
+	const VOLUME_LINES = 2;
+
+	/** The volumes shown in the cell and the rest (in the "+N more" tooltip). */
+	function volumeLines(vols: VolumeEntry[]): { shown: VolumeEntry[]; rest: VolumeEntry[] } {
+		const n = vols.length <= VOLUME_LINES ? vols.length : VOLUME_LINES - 1;
+		return { shown: vols.slice(0, n), rest: vols.slice(n) };
+	}
 
 	function statusOf(s: StackServiceStatus): string {
 		if (s.containers.some((c) => c.health === 'unhealthy')) return 'unhealthy';
@@ -214,6 +228,13 @@
 			title: (s) => s.image || undefined
 		},
 		{
+			id: 'volumes',
+			header: 'Volumes',
+			cell: volumesCell,
+			sortValue: (s) => serviceVolumes(s)[0]?.name,
+			maxWidth: '200px'
+		},
+		{
 			id: 'networks',
 			header: 'Networks',
 			cell: networksCell,
@@ -266,10 +287,17 @@
 {/snippet}
 {#snippet imageCell(s: StackServiceStatus)}
 	{@const st = imageOf(s)}
+	{@const id = s.image ? serviceImageId(s) : undefined}
 	<span class="image-cell">
-		<span class="image mono"
-			>{s.image || '—'}{#if s.build}<span class="muted"> (built)</span>{/if}</span
-		>
+		{#if id}
+			<a class="image mono link" href={routes.image(stack.environmentId, id)}
+				>{s.image}{#if s.build}<span class="muted"> (built)</span>{/if}</a
+			>
+		{:else}
+			<span class="image mono"
+				>{s.image || '—'}{#if s.build}<span class="muted"> (built)</span>{/if}</span
+			>
+		{/if}
 		<ImageUpdateBadge
 			status={st?.update}
 			image={s.image}
@@ -277,6 +305,37 @@
 			canCheck={can('update.check') && !readOnly}
 		/>
 	</span>
+{/snippet}
+{#snippet volumesCell(s: StackServiceStatus)}
+	{@const vols = serviceVolumes(s)}
+	{@const lines = volumeLines(vols)}
+	{#if vols.length}
+		<span class="volumes">
+			{#each lines.shown as v (v.name)}
+				<span class="vol" title={volumeText(v)}>
+					{#if v.anonymous}
+						<a class="vol-name link" href={routes.volume(stack.environmentId, v.name)}
+							>Anonymous<span class="sr-only"> volume {v.name}</span></a
+						>
+						{#if v.destinations.length}<span class="vol-path mono"
+								>{v.destinations[0]}</span
+							>{/if}
+					{:else}
+						<a class="vol-name link" href={routes.volume(stack.environmentId, v.name)}
+							>{v.name}</a
+						>
+					{/if}
+				</span>
+			{/each}
+			{#if lines.rest.length}
+				<span class="muted" title={lines.rest.map(volumeText).join('\n')}
+					>+{lines.rest.length} more<span class="sr-only"
+						>: {lines.rest.map(volumeText).join('; ')}</span
+					></span
+				>
+			{/if}
+		</span>
+	{:else}<span class="muted">—</span>{/if}
 {/snippet}
 {#snippet portsCell(s: StackServiceStatus)}
 	{@const ports = servicePorts(s.containers, serviceAddress)}
@@ -432,6 +491,45 @@
 		font-size: var(--text-caption);
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.image.link {
+		color: var(--text-default);
+	}
+
+	.image.link:hover {
+		color: var(--accent-text);
+	}
+
+	/* position: relative keeps the hidden .sr-only texts inside the cell. */
+	.volumes {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+		font-size: var(--text-caption);
+		line-height: var(--leading-caption);
+	}
+
+	.vol {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-2);
+		min-width: 0;
+		white-space: nowrap;
+	}
+
+	.vol-name {
+		overflow: hidden;
+		color: var(--text-default);
+		text-overflow: ellipsis;
+	}
+
+	.vol-path {
+		overflow: hidden;
+		color: var(--text-muted);
+		text-overflow: ellipsis;
 	}
 
 	.ports {

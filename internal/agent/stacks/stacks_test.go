@@ -135,7 +135,7 @@ func (f *fakeEngine) InspectContainer(_ context.Context, id string) (engine.Cont
 			}
 			return engine.ContainerDetails{ID: c.ID, Name: strings.TrimPrefix(c.Names[0], "/"), Image: c.Image, ImageID: c.ImageID,
 				State: st, RestartPolicy: "unless-stopped", Resources: engine.Resources{Memory: 256 << 20},
-				Ports: []engine.Port{{PrivatePort: 80, PublicPort: 8080, Protocol: "tcp"}}}, nil
+				Ports: []engine.Port{{PrivatePort: 80, PublicPort: 8080, Protocol: "tcp"}}, Mounts: c.Mounts}, nil
 		}
 	}
 	return engine.ContainerDetails{}, engine.Errorf("container.inspect", engine.CodeNotFound, "no such container")
@@ -510,7 +510,13 @@ func TestServicesReportsLiveState(t *testing.T) {
 	e := newEnv(t)
 	e.eng.containers = []engine.Container{
 		{ID: "w1", Names: []string{"/shop-web-1"}, Image: "nginx:1", ImageID: "sha256:img", State: "running", Health: "healthy",
-			Labels: map[string]string{lifecycle.ComposeProjectLabel: "shop", lifecycle.ComposeServiceLabel: "web"}},
+			Labels: map[string]string{lifecycle.ComposeProjectLabel: "shop", lifecycle.ComposeServiceLabel: "web"},
+			Mounts: []engine.Mount{
+				{Type: "volume", Name: "shop_web-data", Destination: "/srv/data", ReadWrite: true},
+				{Type: "bind", Source: "/srv/shop/conf", Destination: "/etc/nginx/conf.d"},
+				{Type: "volume", Name: anonVolume, Destination: "/cache", ReadWrite: false},
+				{Type: "tmpfs", Destination: "/run"},
+			}},
 	}
 	out, err := call[protocol.ComposeServicesOutput](t, e.svc.Requests()[protocol.ReqComposeServices], protocol.ComposeServicesInput{ProjectName: "shop"})
 	if err != nil {
@@ -524,7 +530,18 @@ func TestServicesReportsLiveState(t *testing.T) {
 		len(c.Ports) != 1 || c.Ports[0].PublicPort != 8080 {
 		t.Errorf("container %+v", c)
 	}
+	// Only volume mounts, sorted by destination; bind mounts are not volumes.
+	want := []protocol.StackContainerVolume{
+		{Name: anonVolume, Destination: "/cache", ReadOnly: true, Anonymous: true},
+		{Name: "shop_web-data", Destination: "/srv/data"},
+	}
+	if !slices.Equal(c.Volumes, want) {
+		t.Errorf("volumes %+v, want %+v", c.Volumes, want)
+	}
 }
+
+// anonVolume is the name the Engine gives an anonymous volume.
+var anonVolume = strings.Repeat("ab12", 16)
 
 // memJournal keeps journal entries in memory.
 type memJournal struct{ saves int }

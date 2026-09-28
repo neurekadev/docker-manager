@@ -612,6 +612,24 @@
 			<Button variant="danger-soft" icon={Square}>Stop</Button>
 			<Button loading>Deploying</Button>
 			<Button size="sm">Small</Button>
+			<SplitButton
+				label="Format"
+				menuLabel="More format options"
+				size="sm"
+				variant="secondary"
+				onclick={() => toast.success('Formatted compose.yaml')}
+				items={[
+					{
+						label: 'Minify',
+						disabled: true,
+						description: "YAML depends on its indentation, so it can't be minified."
+					},
+					{
+						label: 'Beautify',
+						onSelect: () => toast.success('Beautified compose.yaml')
+					}
+				]}
+			/>
 			<IconButton label="Open a terminal" icon={SquareTerminal} variant="secondary" />
 			<Tooltip text="Tooltips name controls; they never replace the name.">
 				{#snippet trigger(props)}<Button {...props}>Hover or focus me</Button>{/snippet}

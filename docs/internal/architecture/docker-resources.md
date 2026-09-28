@@ -45,7 +45,12 @@ Moby adapter (#21). There is no Engine API passthrough.
   list has no start time, so the agent inspects those containers (at most
   eight at a time; one that vanished meanwhile simply has none). The API
   `Container` shows them as `startedAt` and `networks` (full view); stack
-  services (`compose.services`) carry the same `networks` per container.
+  services (`compose.services`) carry the same `networks` per container,
+  and its `volumes`: the volume mounts (name, destination, read-only;
+  never bind mounts or tmpfs), `anonymous` when the name has the form the
+  Engine gives anonymous volumes (64 hex digits,
+  `protocol.AnonymousVolumeName`; no volume inspect per request). The API
+  `StackContainer` shows them as `volumes` (full view, like `networks`).
   Older agents omit the fields; the manager and the UI show "—".
 - `container.inspect` reports the on-failure restart policy's maximum
   retry count (`restartMaxRetries`; absent when unlimited or for other

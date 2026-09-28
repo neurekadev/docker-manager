@@ -2411,7 +2411,8 @@
             "type": "integer"
           },
           "minKeep": {
-            "description": "Optional minimum recovery floor: the newest N snapshots of each stack/volume are always kept on top of the rules (0 = off, the default).",
+            "deprecated": true,
+            "description": "Deprecated, never returned: the former minimum recovery floor, which did what last does. When rules are set, last is raised to it.",
             "format": "int64",
             "maximum": 10000,
             "minimum": 0,
@@ -13226,7 +13227,7 @@
             "type": "boolean"
           },
           "reasons": {
-            "description": "Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, floor, newest; or deleted for a snapshot removed because its stack or volume was deleted.",
+            "description": "Rules keeping it: last, hourly, daily, weekly, monthly, yearly, within, newest; or deleted for a snapshot removed because its stack or volume was deleted.",
             "items": {
               "type": "string"
             },
@@ -14644,6 +14645,13 @@
               "full"
             ],
             "type": "string"
+          },
+          "volumes": {
+            "description": "The volumes the container mounts, by destination (never bind mounts; absent from older agents). Full view.",
+            "items": {
+              "$ref": "#/components/schemas/StackVolumeMount"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -15717,6 +15725,37 @@
           "warnings",
           "services",
           "binds"
+        ],
+        "type": "object"
+      },
+      "StackVolumeMount": {
+        "additionalProperties": false,
+        "properties": {
+          "anonymous": {
+            "description": "A volume the Engine created for an anonymous mount (its name is a random ID).",
+            "type": "boolean"
+          },
+          "destination": {
+            "description": "Path inside the container.",
+            "examples": [
+              "/var/lib/postgresql/data"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Volume name.",
+            "examples": [
+              "shop_db-data"
+            ],
+            "type": "string"
+          },
+          "readOnly": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "destination"
         ],
         "type": "object"
       },
@@ -66968,7 +67007,15 @@
                           "restartPolicy": "example",
                           "startedAt": "2026-09-25T12:00:00Z",
                           "state": "created",
-                          "view": "minimal"
+                          "view": "minimal",
+                          "volumes": [
+                            {
+                              "anonymous": false,
+                              "destination": "/var/lib/postgresql/data",
+                              "name": "shop_db-data",
+                              "readOnly": false
+                            }
+                          ]
                         }
                       ],
                       "dependsOn": [

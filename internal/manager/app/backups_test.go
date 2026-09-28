@@ -613,7 +613,7 @@ func TestBackupsThroughTheAPI(t *testing.T) {
 	}
 	b.assertSetManifest(key, env)
 
-	// Retention preview keeps the floor.
+	// Retention preview: last 2 (the deprecated floor, folded) keeps both.
 	var rp struct {
 		Locations []struct {
 			Keep   int `json:"keep"`

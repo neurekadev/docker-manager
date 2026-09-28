@@ -1,10 +1,35 @@
 <script lang="ts">
 	// Renders menu entries inside a Bits UI menu content (Menu, ContextMenu).
+	// An item's description shows as a muted line under its label and is
+	// its accessible description (the label alone stays its name).
 	import { DropdownMenu } from 'bits-ui';
-	import { isHeading, isSeparator, type MenuEntry } from './menu';
+	import { isHeading, isSeparator, type MenuEntry, type MenuItem } from './menu';
 
 	let { items }: { items: MenuEntry[] } = $props();
+	const uid = $props.id();
+
+	function described(entry: MenuItem, i: number): Record<string, string> {
+		if (!entry.description) return {};
+		return {
+			'aria-labelledby': `${uid}-${i}-label`,
+			'aria-describedby': `${uid}-${i}-description`
+		};
+	}
 </script>
+
+{#snippet content(entry: MenuItem, i: number)}
+	{@const Icon = entry.icon}
+	{#if Icon}<Icon size={16} strokeWidth={1.75} aria-hidden="true" />{/if}
+	{#if entry.description}
+		<span class="dy-menu-text">
+			<span class="dy-menu-label" id="{uid}-{i}-label">{entry.label}</span>
+			<span class="dy-menu-description" id="{uid}-{i}-description">{entry.description}</span>
+		</span>
+	{:else}
+		<span class="dy-menu-label">{entry.label}</span>
+	{/if}
+	{#if entry.shortcut}<kbd class="dy-menu-shortcut">{entry.shortcut}</kbd>{/if}
+{/snippet}
 
 {#each items as entry, i (i)}
 	{#if isSeparator(entry)}
@@ -12,27 +37,22 @@
 	{:else if isHeading(entry)}
 		<div class="dy-menu-heading" role="presentation">{entry.heading}</div>
 	{:else}
-		{@const Icon = entry.icon}
 		<DropdownMenu.Item
-			class="dy-menu-item {entry.tone === 'danger' ? 'danger' : ''}"
+			class="dy-menu-item {entry.tone === 'danger' ? 'danger' : ''} {entry.description
+				? 'described'
+				: ''}"
 			disabled={entry.disabled}
 			textValue={entry.label}
 			onSelect={() => entry.onSelect?.()}
 		>
 			{#snippet child({ props })}
 				{#if entry.href && !entry.disabled}
-					<a {...props} href={entry.href}>
-						{#if Icon}<Icon size={16} strokeWidth={1.75} aria-hidden="true" />{/if}
-						<span class="dy-menu-label">{entry.label}</span>
-						{#if entry.shortcut}<kbd class="dy-menu-shortcut">{entry.shortcut}</kbd
-							>{/if}
+					<a {...props} {...described(entry, i)} href={entry.href}>
+						{@render content(entry, i)}
 					</a>
 				{:else}
-					<div {...props}>
-						{#if Icon}<Icon size={16} strokeWidth={1.75} aria-hidden="true" />{/if}
-						<span class="dy-menu-label">{entry.label}</span>
-						{#if entry.shortcut}<kbd class="dy-menu-shortcut">{entry.shortcut}</kbd
-							>{/if}
+					<div {...props} {...described(entry, i)}>
+						{@render content(entry, i)}
 					</div>
 				{/if}
 			{/snippet}
@@ -108,6 +128,36 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	/* A described item: label over its description; when disabled only the
+	   label and icon dim, so the reason stays readable. */
+	:global(.dy-menu-item.described) {
+		align-items: flex-start;
+	}
+	:global(.dy-menu-item.described > svg) {
+		margin-top: 2px;
+	}
+	:global(.dy-menu-item.described[data-disabled]) {
+		opacity: 1;
+	}
+	:global(.dy-menu-item.described[data-disabled] .dy-menu-label),
+	:global(.dy-menu-item.described[data-disabled] > svg) {
+		opacity: 0.45;
+	}
+
+	:global(.dy-menu-text) {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		min-width: 0;
+	}
+
+	:global(.dy-menu-description) {
+		color: var(--text-muted);
+		font-size: var(--text-caption);
+		line-height: var(--leading-caption);
+		white-space: normal;
 	}
 
 	:global(.dy-menu-shortcut) {

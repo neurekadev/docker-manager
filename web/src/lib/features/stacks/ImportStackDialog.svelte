@@ -147,7 +147,7 @@
 <Dialog
 	bind:open
 	title="Import project"
-	description="Compose projects running on the environment that Docker Manager does not manage yet."
+	description="Compose projects on the environment, running or stopped, that Docker Manager does not manage yet."
 	size="lg"
 >
 	<div class="body">

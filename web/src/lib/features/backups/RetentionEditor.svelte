@@ -1,14 +1,13 @@
 <script lang="ts">
 	// Retention of a backup policy (#10): a preset ("7 daily, 4 weekly, 12
 	// monthly", the last 30, everything) or Custom, which reveals restic-like
-	// keep rules; the optional minimum recovery floor per stack/volume waits
-	// under Advanced. Removing the backups of deleted stacks and volumes is
+	// keep rules ("Last" keeps the newest N of each stack and volume whatever
+	// the others say). Removing the backups of deleted stacks and volumes is
 	// a separate switch (off by default). The rule reads as a live
 	// sentence, and a saved policy previews exactly which snapshots would go.
 	// Docker Manager computes the decision, so the preview and the run agree.
 	import { untrack } from 'svelte';
 	import { RadioGroup, Switch, TextField } from '$lib/ui';
-	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import FieldGroup from '$lib/features/common/FieldGroup.svelte';
 	import RetentionPreviewPanel from './RetentionPreviewPanel.svelte';
 	import {
@@ -80,16 +79,6 @@
 				{/each}
 			</div>
 		</FieldGroup>
-		<Disclosure summary="Advanced" open={!!value.minKeep}>
-			<TextField
-				label="Minimum recovery floor"
-				type="number"
-				min="0"
-				description="Optional: always keep at least this many of the newest backups of each stack and volume, on top of the rules. 0 turns it off; the rules always keep the newest backup anyway."
-				value={String(value.minKeep ?? 0)}
-				onchange={(e) => num('minKeep', e.currentTarget.value)}
-			/>
-		</Disclosure>
 	{/if}
 	<Switch
 		label="Remove backups of deleted stacks and volumes"

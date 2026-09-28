@@ -114,7 +114,7 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   yes/no narrowing ("Unused", "Managed", "Updates"). Column order follows
   what people scan: identity (name with its image), status, grouping
   (stack, environment), live figures (CPU, memory, uptime), wiring
-  (networks, ports), then sizes and dates. An image's update state is the
+  (volumes, networks, ports), then sizes and dates. An image's update state is the
   `ImageUpdateBadge` icon next to the image (it checks the covering
   policy again, spinning while the job runs), never its own column;
   networks show with `NetworkList` (linked, with their addresses).
