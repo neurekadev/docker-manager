@@ -22,7 +22,7 @@ export default function Home() {
           className="flex items-center justify-center gap-2 rounded-xl bg-fd-primary px-6 py-3 font-medium text-fd-primary-foreground transition-opacity hover:opacity-90"
         >
           <BookOpen className="size-5" aria-hidden />
-          Docs
+          Documentation
         </Link>
         <Link
           href="/screenshots"

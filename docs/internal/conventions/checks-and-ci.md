@@ -47,7 +47,7 @@ Docker, containers, browsers, real registries or restic.
 
 `docs/public` is the user documentation (Fumadocs, static Next.js export,
 dark only, local search). The landing page (`app/page.tsx`, logo with
-**Docs** and **Screenshots** links) is at `/`, the Screenshots page at
+**Documentation** and **Screenshots** links) is at `/`, the Screenshots page at
 `/screenshots` (coming soon), and the docs at `/docs`: pages in
 `docs/public/content/docs/*.mdx`, order and sidebar sections in
 `meta.json`. `.github/workflows/Docs.yaml` builds `docs/public/Dockerfile`
