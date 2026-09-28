@@ -42,10 +42,13 @@
 		...environmentSystemQuery(env.id),
 		enabled: canSystem
 	}));
+	// The raw 10 s samples (180 points): the sparklines move with every new
+	// sample; the figures beside them are the live values (overview usage,
+	// about every second while the stream is open).
 	const metrics = createQuery(() => ({
 		...environmentMetricsQuery(env.id, 1800, {
 			series: ['cpu.percent', 'memory.used_bytes'],
-			stepSeconds: 60
+			stepSeconds: 10
 		}),
 		enabled: canMetrics
 	}));

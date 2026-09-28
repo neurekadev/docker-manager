@@ -1,10 +1,13 @@
 <script lang="ts">
 	// Containers (#6): every container of the selected environment (or of
-	// all visible ones), searched by name/image and filtered by status,
-	// stack, image update, Docker Manager, label and environment
-	// (kept per list and browser tab, ListCard),
-	// with a live uptime (ticking every second), CPU and memory from the
-	// newest 10 s samples (#5, refreshed by metrics events) and addresses.
+	// all visible ones), searched by name, image, digest, label, network
+	// and address, and filtered by status, stack, available updates and
+	// environment (kept per list and browser tab, ListCard). Columns follow
+	// what people scan for: the container and its image (with the image's
+	// update state as an icon that checks again, #20), status, stack, the
+	// live figures (CPU and memory from the newest samples, #5, refreshed by
+	// metrics events; uptime ticking every second), its networks (linked,
+	// with its addresses) and published ports.
 	// Docker Manager's own containers carry the "Docker Manager" badge (#32),
 	// containers of a Compose project their stack. Row actions follow the
 	// container's state and granted actions (#17); refusals show the
@@ -31,22 +34,23 @@
 		Uptime,
 		formatBytes,
 		formatPercent,
-		formatRelative,
 		type Column,
 		type MenuEntry
 	} from '$lib/ui';
-	import AddressList from '$lib/features/resources/AddressList.svelte';
 	import ContainerActionHost from '$lib/features/resources/ContainerActionHost.svelte';
 	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
+	import NetworkList from '$lib/features/resources/NetworkList.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
 	import StackBadge from '$lib/features/resources/StackBadge.svelte';
 	import { ChangeTracker } from '$lib/features/resources/changes.svelte';
 	import { containerActions } from '$lib/features/resources/container-actions';
-	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
+	import ImageUpdateBadge from '$lib/features/updates/ImageUpdateBadge.svelte';
+	import { containerPolicy, policiesByTarget } from '$lib/features/updates/model';
+	import { updatePoliciesQuery } from '$lib/features/updates/queries';
 	import {
 		applyListFilters,
 		containerFilters,
@@ -56,8 +60,8 @@
 	} from '$lib/features/resources/filters';
 	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import {
-		containerAddresses,
 		containerStatus,
+		networkEntries,
 		portText,
 		uniquePorts,
 		upSince,
@@ -92,7 +96,14 @@
 	/** The newest sample of a running container (none while stopped). */
 	const sample = (c: Container) =>
 		c.state === 'running' ? samples.get(`${c.environmentId}/${c.name}`) : undefined;
-	const addresses = (c: Container) => containerAddresses([c.networks]);
+	const networks = (c: Container) => networkEntries([c.networks]);
+
+	// The update policies behind the image update icons (checks need one).
+	const policies = createQuery(() => ({
+		...updatePoliciesQuery(scope.single ? (scope.targets[0]?.id ?? null) : null),
+		enabled: scope.ready && scope.hasAny('update_policy.read')
+	}));
+	const policyIndex = $derived(policiesByTarget(policies.data ?? []));
 
 	const filters = new ListFilters('containers');
 	let host = $state<ContainerActionHost>();
@@ -142,14 +153,17 @@
 			width: '140px',
 			stack: 'status'
 		},
-		{
-			id: 'uptime',
-			header: 'Uptime',
-			cell: uptimeCell,
-			sortValue: (c) => uptimeSortValue(upSince(c)),
-			numeric: true,
-			width: '112px'
-		},
+		{ id: 'stack', header: 'Stack', cell: stackCell, sortValue: (c) => c.stack?.project ?? '' },
+		...(scope.single
+			? []
+			: [
+					{
+						id: 'env',
+						header: 'Environment',
+						cell: envCell,
+						sortValue: (c: Container) => envName(c.environmentId)
+					} satisfies Column<Container>
+				]),
 		{
 			id: 'cpu',
 			header: 'CPU',
@@ -166,43 +180,25 @@
 			numeric: true,
 			width: '88px'
 		},
-		{ id: 'stack', header: 'Stack', cell: stackCell, sortValue: (c) => c.stack?.project ?? '' },
-		...(scope.single
-			? []
-			: [
-					{
-						id: 'env',
-						header: 'Environment',
-						cell: envCell,
-						sortValue: (c: Container) => envName(c.environmentId)
-					} satisfies Column<Container>
-				]),
 		{
-			id: 'addresses',
-			header: 'IP addresses',
-			cell: addressesCell,
-			sortValue: (c) => addresses(c)[0]?.address,
-			width: '140px'
+			id: 'uptime',
+			header: 'Uptime',
+			cell: uptimeCell,
+			sortValue: (c) => uptimeSortValue(upSince(c)),
+			numeric: true,
+			width: '112px'
+		},
+		{
+			id: 'networks',
+			header: 'Networks',
+			cell: networksCell,
+			sortValue: (c) => networks(c)[0]?.name
 		},
 		{
 			id: 'ports',
 			header: 'Ports',
 			cell: portsCell,
 			sortValue: (c) => uniquePorts(c.ports).find((p) => p.hostPort)?.hostPort
-		},
-		{
-			id: 'update',
-			header: 'Image update',
-			cell: updateCell,
-			sortValue: (c) => c.update ?? '',
-			width: '150px'
-		},
-		{
-			id: 'created',
-			header: 'Created',
-			cell: createdCell,
-			sortValue: (c) => c.createdAt ?? '',
-			width: '130px'
 		},
 		{
 			id: 'actions',
@@ -217,9 +213,20 @@
 </script>
 
 {#snippet nameCell(c: Container)}
+	{@const policy = containerPolicy(policyIndex, c)}
 	<div class="name-cell">
 		<a class="name" href={routes.container(c.environmentId, c.name)}>{c.name}</a>
-		{#if c.image}<span class="sub mono" title={c.image}>{c.image}</span>{/if}
+		{#if c.image}
+			<span class="image">
+				<span class="sub mono" title={c.image}>{c.image}</span>
+				<ImageUpdateBadge
+					status={c.update}
+					image={c.image}
+					policyId={policy?.id}
+					canCheck={policy?.canCheck}
+				/>
+			</span>
+		{/if}
 		{#if c.protection}<span class="tag"><ProtectionBadge protection={c.protection} /></span
 			>{/if}
 	</div>
@@ -227,7 +234,6 @@
 {#snippet statusCell(c: Container)}
 	<StatusBadge status={containerStatus(c)} />
 {/snippet}
-{#snippet updateCell(c: Container)}<UpdateStatusBadge status={c.update} />{/snippet}
 {#snippet uptimeCell(c: Container)}<Uptime since={upSince(c)} />{/snippet}
 {#snippet cpuCell(c: Container)}{formatPercent(sample(c)?.cpuPercent)}{/snippet}
 {#snippet memoryCell(c: Container)}
@@ -238,7 +244,9 @@
 			: undefined}>{formatBytes(m?.memoryUsedBytes)}</span
 	>
 {/snippet}
-{#snippet addressesCell(c: Container)}<AddressList addresses={addresses(c)} />{/snippet}
+{#snippet networksCell(c: Container)}
+	<NetworkList environmentId={c.environmentId} networks={networks(c)} />
+{/snippet}
 {#snippet stackCell(c: Container)}
 	{#if c.stack}<StackBadge stack={c.stack} />{:else}<span class="muted">Standalone</span>{/if}
 {/snippet}
@@ -254,11 +262,6 @@
 				>{/if}</span
 		>
 	{:else}<span class="muted">—</span>{/if}
-{/snippet}
-{#snippet createdCell(c: Container)}
-	{#if c.createdAt}<span class="muted nowrap" title={c.createdAt}
-			>{formatRelative(c.createdAt)}</span
-		>{:else}<span class="muted">—</span>{/if}
 {/snippet}
 {#snippet actionsCell(c: Container)}
 	<Menu items={menu(c)} label="Actions for {c.name}" align="end">
@@ -322,7 +325,7 @@
 					: undefined}
 				label="Filter containers"
 				searchLabel="Search containers"
-				placeholder="Search by name or image"
+				placeholder="Search by name, image, label or address"
 				filters={defs}
 				store={filters}
 			>
@@ -401,6 +404,13 @@
 		color: var(--accent-text);
 	}
 
+	.image {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		min-width: 0;
+	}
+
 	.sub {
 		max-width: 60ch;
 		color: var(--text-muted);
@@ -416,10 +426,6 @@
 
 	.ports {
 		font-size: var(--text-caption);
-	}
-
-	.nowrap {
-		white-space: nowrap;
 	}
 
 	.loading {

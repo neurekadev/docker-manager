@@ -1,10 +1,12 @@
 <script lang="ts">
 	// Volumes (#6): every volume of the selected environment (or all),
-	// searched by name or stack and filtered by usage, stack, file access,
-	// driver, Docker Manager and environment (ListCard); who uses
-	// it, its driver and whether Docker Manager can open its files (#28:
-	// non-local drivers and NFS/CIFS-backed volumes are read-only, with the
-	// reason). Docker Manager's own volumes (#32) are marked and never removed.
+	// searched by name, stack, driver, container or label and filtered by
+	// driver, stack and environment, with "Unused" and "Managed" (Docker
+	// Manager's stacks and its own) switches (ListCard); who uses it, its
+	// driver, size and age. Volumes whose files Docker Manager cannot open
+	// carry a "Read-only" tag with the reason (#28: non-local drivers and
+	// NFS/CIFS-backed volumes). Docker Manager's own volumes (#32) are marked
+	// and never removed.
 	// Sizes load separately (the Engine walks the volumes; the manager
 	// reuses the answer for a minute), so the list never waits for them.
 	import { createQueries, createQuery } from '@tanstack/svelte-query';
@@ -180,28 +182,6 @@
 			width: '170px',
 			stack: 'status'
 		},
-		{
-			id: 'size',
-			header: 'Size',
-			cell: sizeCell,
-			sortValue: bytesOf,
-			numeric: true,
-			width: '96px'
-		},
-		{
-			id: 'access',
-			header: 'Files',
-			cell: accessCell,
-			sortValue: (v) => (volumeAccess(v).local ? 0 : 1),
-			width: '150px'
-		},
-		{
-			id: 'driver',
-			header: 'Driver',
-			cell: driverCell,
-			sortValue: (v) => v.driver ?? '',
-			width: '110px'
-		},
 		...(scope.single
 			? []
 			: [
@@ -212,6 +192,21 @@
 						sortValue: (v: Volume) => scope.name(v.environmentId)
 					} satisfies Column<Volume>
 				]),
+		{
+			id: 'driver',
+			header: 'Driver',
+			cell: driverCell,
+			sortValue: (v) => v.driver ?? '',
+			width: '110px'
+		},
+		{
+			id: 'size',
+			header: 'Size',
+			cell: sizeCell,
+			sortValue: bytesOf,
+			numeric: true,
+			width: '96px'
+		},
 		{
 			id: 'created',
 			header: 'Created',
@@ -232,12 +227,18 @@
 </script>
 
 {#snippet nameCell(v: Volume)}
+	{@const access = volumeAccess(v)}
 	<div class="name-cell">
 		<a class="name mono" href={routes.volume(v.environmentId, v.name)}>{v.name}</a>
-		{#if v.protection || v.stack}
+		{#if v.protection || v.stack || !access.local}
 			<span class="tags">
 				{#if v.protection}<ProtectionBadge protection={v.protection} />{/if}
 				{#if v.stack}<StackBadge stack={v.stack} />{/if}
+				{#if !access.local}<span title={access.reason}
+						><Badge tone="warn">Read-only</Badge><span class="sr-only"
+							>: {access.reason}</span
+						></span
+					>{/if}
 			</span>
 		{/if}
 	</div>
@@ -259,13 +260,6 @@
 			>…<span class="sr-only">Computing the size</span></span
 		>
 	{:else}<span class="muted" title={s.reason}>—</span>{/if}
-{/snippet}
-{#snippet accessCell(v: Volume)}
-	{@const a = volumeAccess(v)}
-	{#if a.local}<span class="muted">Local</span>
-	{:else}<span title={a.reason}
-			><Badge tone="warn">Read-only</Badge><span class="sr-only">: {a.reason}</span></span
-		>{/if}
 {/snippet}
 {#snippet driverCell(v: Volume)}<span class="mono">{v.driver ?? '—'}</span>{/snippet}
 {#snippet envCell(v: Volume)}{scope.name(v.environmentId)}{/snippet}
@@ -338,7 +332,7 @@
 					: undefined}
 				label="Filter volumes"
 				searchLabel="Search volumes"
-				placeholder="Search by name"
+				placeholder="Search by name, stack or driver"
 				filters={defs}
 				store={filters}
 			>

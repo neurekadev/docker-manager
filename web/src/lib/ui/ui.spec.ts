@@ -11,6 +11,7 @@ import {
 	shortId
 } from './format';
 import { statusInfo } from './status';
+import { placeTooltip } from './tooltip';
 import {
 	compareValues,
 	nextSort,
@@ -188,5 +189,27 @@ describe('error views', () => {
 		expect(v.message).toMatch(/could not reach the manager/);
 		expect(errorView(new Error('boom')).message).toBe('Boom.');
 		expect(errorView(new ApiRequestError('x', 503)).retryable).toBe(true);
+	});
+});
+
+describe('tooltip placement', () => {
+	const viewport = { width: 1000, height: 800 };
+	const size = { width: 100, height: 30 };
+
+	it('centres the tooltip above its anchor', () => {
+		expect(
+			placeTooltip({ top: 200, left: 400, width: 40, height: 20 }, size, viewport)
+		).toEqual({ top: 164, left: 370, side: 'top' });
+	});
+
+	it('flips below an anchor near the top and keeps it inside the viewport', () => {
+		expect(placeTooltip({ top: 10, left: 2, width: 20, height: 20 }, size, viewport)).toEqual({
+			top: 36,
+			left: 8,
+			side: 'bottom'
+		});
+		expect(
+			placeTooltip({ top: 400, left: 990, width: 10, height: 20 }, size, viewport).left
+		).toBe(892);
 	});
 });

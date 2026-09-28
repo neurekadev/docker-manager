@@ -1,9 +1,10 @@
 <script lang="ts">
 	// Stack overview (#22 mockup): the KPI row and the services table.
 	// Everything refreshes live: stack events, container events (services)
-	// and metrics samples (#23 keys in $lib/features/stacks/queries); CPU
-	// and memory come from the newest 10 s samples, the CPU sparkline from
-	// the last hour, and uptimes tick every second.
+	// and metrics (#23 keys in $lib/features/stacks/queries); CPU and memory
+	// are the live values (about every second while the stream is open, else
+	// the newest 10 s samples), the CPU sparkline the last hour, and uptimes
+	// tick every second.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { operateStack, type StackOperation } from '$lib/features/stacks/actions';
 	import { useStackPage } from '$lib/features/stacks/context';

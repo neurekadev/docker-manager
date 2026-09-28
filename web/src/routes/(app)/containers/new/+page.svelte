@@ -27,6 +27,7 @@
 		Notice,
 		PageHeader,
 		Select,
+		SuggestField,
 		Switch,
 		TextArea,
 		TextField,
@@ -488,15 +489,20 @@
 									{ value: 'tmpfs', label: 'Memory (tmpfs)' }
 								]}
 							/>
-							{#if m.type !== 'tmpfs'}
-								<TextField
-									label={m.type === 'bind' ? 'Host path' : 'Volume'}
+							{#if m.type === 'volume'}
+								<SuggestField
+									label="Volume"
 									mono
 									bind:value={m.source}
-									list={m.type === 'volume' ? 'volume-names' : undefined}
-									placeholder={m.type === 'bind'
-										? '/srv/data'
-										: 'new or existing volume'}
+									suggestions={volumeNames}
+									placeholder="new or existing volume"
+								/>
+							{:else if m.type === 'bind'}
+								<TextField
+									label="Host path"
+									mono
+									bind:value={m.source}
+									placeholder="/srv/data"
 								/>
 							{/if}
 							<TextField
@@ -514,9 +520,6 @@
 							/>
 						</div>
 					{/each}
-					<datalist id="volume-names">
-						{#each volumeNames as v (v)}<option value={v}></option>{/each}
-					</datalist>
 					{#if errors.mounts}<p class="err" role="alert">{errors.mounts}</p>{/if}
 					<p class="hint">
 						Docker Manager's own volumes and the Docker socket cannot be mounted. A

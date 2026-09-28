@@ -35,6 +35,17 @@ type fakeAgent struct {
 	started  chan struct{}
 	inv      *protocol.EngineInventory
 	invCalls int
+	// live answers metrics.live (unsupported when nil); noLive: the agent
+	// does not advertise metrics.live.
+	live      *protocol.LiveMetricsOutput
+	liveCalls int
+	noLive    bool
+}
+
+func (a *fakeAgent) EnvironmentServes(envID, name string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return envID == env && (name != protocol.ReqMetricsLive || !a.noLive)
 }
 
 var errOffline = errors.New("agent offline")
@@ -70,6 +81,12 @@ func (a *fakeAgent) RequestEnvironment(ctx context.Context, envID, name string, 
 			return nil, unsupported{}
 		}
 		return json.Marshal(a.inv)
+	case protocol.ReqMetricsLive:
+		a.liveCalls++
+		if a.live == nil {
+			return nil, unsupported{}
+		}
+		return json.Marshal(a.live)
 	case protocol.ReqHostMetrics:
 	default:
 		return nil, unsupported{}
@@ -322,6 +339,23 @@ func TestCollectPagesAndRejectsInvalidOutput(t *testing.T) {
 	f.agent.mu.Unlock()
 	if _, err := f.svc.Collect(ctx, env); !errors.Is(err, protocol.ErrInvalidFrame) {
 		t.Fatalf("invalid output accepted: %v", err)
+	}
+}
+
+// TestCollectorRoundsFollowTheSlots: the collector fetches 2 s after each
+// 10 s sampling slot, when the agents' batches are ready.
+func TestCollectorRoundsFollowTheSlots(t *testing.T) {
+	base := testutil.Epoch.Truncate(time.Minute)
+	for _, tc := range []struct{ now, want time.Duration }{
+		{0, 2 * time.Second},
+		{time.Second, 2 * time.Second},
+		{2 * time.Second, 12 * time.Second},
+		{9 * time.Second, 12 * time.Second},
+		{12*time.Second + time.Millisecond, 22 * time.Second},
+	} {
+		if got := nextRound(base.Add(tc.now), DefaultInterval); !got.Equal(base.Add(tc.want)) {
+			t.Errorf("after %v: %v, want %v", tc.now, got.Sub(base), tc.want)
+		}
 	}
 }
 

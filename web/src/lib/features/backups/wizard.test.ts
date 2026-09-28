@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
+import { choose } from '../../../test/select';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { ComponentProps } from 'svelte';
 import QueryHarness from '../../../test/QueryHarness.svelte';
@@ -125,10 +126,7 @@ describe('PolicyWizard (#10)', () => {
 		renderWizard({ owner: false, ondone });
 		await heading('Destination');
 		await user.type(screen.getByRole('textbox', { name: /^Name/ }), 'Nightly');
-		await user.selectOptions(
-			await screen.findByRole('combobox', { name: /^Repository/ }),
-			'r1'
-		);
+		await choose(user, await screen.findByRole('combobox', { name: /^Repository/ }), /^Local/);
 		await user.click(screen.getByRole('button', { name: 'Next' }));
 		expect(await heading('What to back up')).toBeInTheDocument();
 		await user.click(screen.getByRole('switch', { name: /Back up anonymous volumes/ }));
@@ -171,10 +169,7 @@ describe('PolicyWizard (#10)', () => {
 		renderWizard({ owner: false, ondone: vi.fn() });
 		await heading('Destination');
 		await user.type(screen.getByRole('textbox', { name: /^Name/ }), 'Nightly');
-		await user.selectOptions(
-			await screen.findByRole('combobox', { name: /^Repository/ }),
-			'r1'
-		);
+		await choose(user, await screen.findByRole('combobox', { name: /^Repository/ }), /^Local/);
 		// The existing policies load with the page; Next stays on this step.
 		await screen.findByRole('button', { name: 'Next' });
 		await vi.waitFor(async () => {

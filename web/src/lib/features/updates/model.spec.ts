@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
 	candidateStatus,
+	containerPolicy,
 	daysText,
 	isClock,
+	policiesByTarget,
 	reasonLabel,
 	recoveryText,
 	runnable,
@@ -167,5 +169,32 @@ describe('target summaries', () => {
 			unchecked: 2,
 			lastCheckAt: at
 		});
+	});
+});
+
+describe('update badges (#20)', () => {
+	const index = policiesByTarget([
+		{
+			id: 'p1',
+			environmentId: 'e1',
+			target: { type: 'stack', id: 's1' },
+			actions: ['update.check']
+		},
+		{ id: 'p2', environmentId: 'e1', target: { type: 'container', id: 'pihole' }, actions: [] }
+	]);
+
+	it("finds a container's policy through its stack or its own name", () => {
+		expect(
+			containerPolicy(index, { environmentId: 'e1', name: 'web', stack: { stackId: 's1' } })
+		).toEqual({ id: 'p1', canCheck: true });
+		expect(containerPolicy(index, { environmentId: 'e1', name: 'pihole' })).toEqual({
+			id: 'p2',
+			canCheck: false
+		});
+		expect(containerPolicy(index, { environmentId: 'e2', name: 'pihole' })).toBeUndefined();
+		// A Compose project Docker Manager does not manage has no stack ID: no policy.
+		expect(containerPolicy(index, { environmentId: 'e1', name: 'pihole', stack: {} })).toBe(
+			undefined
+		);
 	});
 });

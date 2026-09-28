@@ -1,13 +1,15 @@
 <script lang="ts">
-	// Services of a stack (#22 mockup table): hue tile + name + description,
-	// status, then the live figures (uptime ticking every second, CPU and
-	// memory from the newest 10 s samples), running/desired containers,
-	// addresses, published ports (links only with the environment's
-	// service address), image, image update, restart policy, and the row
-	// actions: open (only with a web port and an address), terminal (track
-	// B3's route with the service preselected) and a menu with the
-	// service's own start/stop/restart and logs. Restart and stop of Docker
-	// Manager's own project (#32) are shown disabled, not hidden.
+	// Services of a stack (#22 mockup table), in the containers list's
+	// order: hue tile + name + description, status, running/desired
+	// containers, the live figures (CPU and memory from the newest samples,
+	// uptime ticking every second), the image with its update state as an
+	// icon that checks the stack's images again (#20), the networks (linked,
+	// with the addresses on them), published ports (links only with the
+	// environment's service address), and the row actions: open (only with
+	// a web port and an address), terminal (track B3's route with the
+	// service preselected) and a menu with the service's own
+	// start/stop/restart and logs. Restart and stop of Docker Manager's own
+	// project (#32) are shown disabled, not hidden.
 	import Box from '@lucide/svelte/icons/box';
 	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
@@ -16,7 +18,6 @@
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Square from '@lucide/svelte/icons/square';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
-	import { MediaQuery } from 'svelte/reactivity';
 	import { serviceIdentity } from '$lib/design/hue';
 	import { serviceIcon } from '$lib/design/icons';
 	import { routes } from '$lib/routes';
@@ -33,12 +34,12 @@
 		type MenuEntry
 	} from '$lib/ui';
 	import type { StackOperation } from './actions';
-	import AddressList from '$lib/features/resources/AddressList.svelte';
+	import NetworkList from '$lib/features/resources/NetworkList.svelte';
 	import { uptimeSortValue } from '$lib/features/resources/model';
 	import {
 		openTarget,
 		runningOf,
-		serviceAddresses,
+		serviceNetworks,
 		servicePorts,
 		serviceUsage,
 		upSince,
@@ -46,7 +47,7 @@
 	} from './model';
 	import type { Stack, StackServiceStatus } from './queries';
 	import type { StackImageStatus } from './queries';
-	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
+	import ImageUpdateBadge from '$lib/features/updates/ImageUpdateBadge.svelte';
 
 	interface Props {
 		stack: Stack;
@@ -127,14 +128,11 @@
 	}
 
 	const since = (s: StackServiceStatus) => upSince([s]) ?? null;
+	const imageOf = (s: StackServiceStatus) => imageStatuses.find((i) => i.service === s.name);
 	const usageOf = (s: StackServiceStatus) =>
 		usage ? serviceUsage(s, usage) : { cpu: null, memory: null };
 
-	// Below the full desktop layout the restart policy column gives way
-	// (it stays in the stacked cards and in the container details). The
-	// live figures come right after the status.
-	const wide = new MediaQuery('min-width: 1280px');
-	const allColumns: Column<StackServiceStatus>[] = [
+	const columns: Column<StackServiceStatus>[] = [
 		{
 			id: 'name',
 			header: 'Name',
@@ -152,12 +150,12 @@
 			width: '120px'
 		},
 		{
-			id: 'uptime',
-			header: 'Uptime',
-			cell: uptimeCell,
-			sortValue: (s) => uptimeSortValue(since(s)),
+			id: 'containers',
+			header: 'Containers',
+			cell: containersCell,
+			sortValue: (s) => runningOf(s).running,
 			numeric: true,
-			width: '112px'
+			width: '104px'
 		},
 		{
 			id: 'cpu',
@@ -176,46 +174,30 @@
 			width: '88px'
 		},
 		{
-			id: 'containers',
-			header: 'Containers',
-			cell: containersCell,
-			sortValue: (s) => runningOf(s).running,
+			id: 'uptime',
+			header: 'Uptime',
+			cell: uptimeCell,
+			sortValue: (s) => uptimeSortValue(since(s)),
 			numeric: true,
-			width: '104px'
+			width: '112px'
 		},
 		{
-			id: 'addresses',
-			header: 'IP addresses',
-			cell: addressesCell,
-			sortValue: (s) => serviceAddresses(s)[0]?.address,
-			width: '140px'
+			id: 'image',
+			header: 'Image',
+			cell: imageCell,
+			sortValue: (s) => s.image ?? ''
+		},
+		{
+			id: 'networks',
+			header: 'Networks',
+			cell: networksCell,
+			sortValue: (s) => serviceNetworks(s)[0]?.name
 		},
 		{
 			id: 'ports',
 			header: 'Ports',
 			cell: portsCell,
 			sortValue: (s) => servicePorts(s.containers)[0]?.label
-		},
-		{
-			id: 'image',
-			header: 'Image',
-			cell: imageCell,
-			sortValue: (s) => s.image ?? '',
-			mono: true
-		},
-		{
-			id: 'update',
-			header: 'Image update',
-			cell: updateCell,
-			sortValue: (s) => imageStatuses.find((i) => i.service === s.name)?.update ?? '',
-			width: '150px'
-		},
-		{
-			id: 'restart',
-			header: 'Restart policy',
-			cell: restartCell,
-			sortValue: (s) => s.containers.find((c) => c.restartPolicy)?.restartPolicy,
-			width: '130px'
 		},
 		{
 			id: 'actions',
@@ -226,7 +208,6 @@
 			width: '116px'
 		}
 	];
-	const columns = $derived(allColumns.filter((c) => wide.current || c.id !== 'restart'));
 </script>
 
 {#snippet nameCell(s: StackServiceStatus)}
@@ -240,21 +221,27 @@
 	</span>
 {/snippet}
 {#snippet statusCell(s: StackServiceStatus)}<StatusBadge status={statusOf(s)} />{/snippet}
-{#snippet updateCell(s: StackServiceStatus)}
-	<UpdateStatusBadge status={imageStatuses.find((i) => i.service === s.name)?.update} />
-{/snippet}
 {#snippet uptimeCell(s: StackServiceStatus)}<Uptime since={since(s)} />{/snippet}
-{#snippet addressesCell(s: StackServiceStatus)}<AddressList
-		addresses={serviceAddresses(s)}
-	/>{/snippet}
+{#snippet networksCell(s: StackServiceStatus)}
+	<NetworkList environmentId={stack.environmentId} networks={serviceNetworks(s)} />
+{/snippet}
 {#snippet containersCell(s: StackServiceStatus)}
 	{@const r = runningOf(s)}
 	<span class="num" class:ok={r.total > 0 && r.running === r.total}>{r.running} / {r.total}</span>
 {/snippet}
 {#snippet imageCell(s: StackServiceStatus)}
-	<span class="image" title={s.image}
-		>{s.image || '—'}{#if s.build}<span class="muted"> (built)</span>{/if}</span
-	>
+	{@const st = imageOf(s)}
+	<span class="image-cell">
+		<span class="image mono" title={s.image}
+			>{s.image || '—'}{#if s.build}<span class="muted"> (built)</span>{/if}</span
+		>
+		<ImageUpdateBadge
+			status={st?.update}
+			image={s.image}
+			policyId={st?.policyId}
+			canCheck={can('update.check') && !readOnly}
+		/>
+	</span>
 {/snippet}
 {#snippet portsCell(s: StackServiceStatus)}
 	{@const ports = servicePorts(s.containers, serviceAddress)}
@@ -271,9 +258,6 @@
 			{/each}
 		</span>
 	{:else}<span class="muted">—</span>{/if}
-{/snippet}
-{#snippet restartCell(s: StackServiceStatus)}
-	<span class="nowrap">{s.containers.find((c) => c.restartPolicy)?.restartPolicy ?? '—'}</span>
 {/snippet}
 {#snippet cpuCell(s: StackServiceStatus)}
 	{formatPercent(usageOf(s).cpu)}
@@ -362,13 +346,17 @@
 		color: var(--ok);
 	}
 
-	.nowrap {
-		white-space: nowrap;
+	.image-cell {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		min-width: 0;
 	}
 
 	.image {
 		display: block;
-		max-width: clamp(180px, 22vw, 440px);
+		max-width: clamp(160px, 20vw, 400px);
+		font-size: var(--text-caption);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;

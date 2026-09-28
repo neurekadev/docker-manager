@@ -16,7 +16,7 @@ import {
 import { backupPoliciesQuery, repositoriesQuery } from '$lib/features/backups/queries';
 import { maintenancePoliciesQuery } from '$lib/features/maintenance/queries';
 import { updatePoliciesQuery } from '$lib/features/updates/queries';
-import type { Rule, Scope, ScopeNode } from './permissions';
+import { scopeKey, type Rule, type Scope, type ScopeNode } from './permissions';
 
 /** A category lists its resources as tree nodes. */
 export interface Category {
@@ -27,7 +27,21 @@ export interface Category {
 	nodes: (environmentId: string) => ReturnType<typeof nodeQuery>;
 }
 
-function node(
+/**
+ * Types whose resources are named per environment (Docker names): their
+ * scopes carry the environment; every other type has a global ID and the
+ * manager rejects a scope naming an environment. Mirrors the catalog's
+ * namedPerEnvironment (internal/manager/authz/catalog/entries.go).
+ */
+export const NAMED_PER_ENVIRONMENT: ReadonlySet<string> = new Set([
+	'container',
+	'image',
+	'volume',
+	'network'
+]);
+
+/** A resource as a tree node, listed under environmentId if given. */
+export function resourceNode(
 	type: string,
 	id: string,
 	environmentId: string | undefined,
@@ -35,8 +49,8 @@ function node(
 	detail?: string
 ): ScopeNode {
 	const scope: Scope = { kind: 'resource', resourceType: type, resourceId: id };
-	if (environmentId) scope.environmentId = environmentId;
-	return { key: `res:${type}:${environmentId ?? ''}:${id}`, label, scope, type, detail };
+	if (environmentId && NAMED_PER_ENVIRONMENT.has(type)) scope.environmentId = environmentId;
+	return { key: scopeKey(scope), label, scope, type, detail, environmentId };
 }
 
 /** Wraps a list query so the tree gets nodes; its own key keeps shapes apart. */
@@ -81,7 +95,7 @@ export const CATEGORIES: Category[] = [
 					displayName?: string;
 					services?: { name: string }[];
 				}) => ({
-					...node('stack', s.id, env, s.displayName || s.name),
+					...resourceNode('stack', s.id, env, s.displayName || s.name),
 					children: serviceNodes(s.id, s.services ?? [], env)
 				})
 			)
@@ -92,7 +106,7 @@ export const CATEGORIES: Category[] = [
 		perEnvironment: true,
 		nodes: (env) =>
 			nodeQuery(containersQuery(env), (c: { name: string; image?: string }) =>
-				node('container', c.name, env, c.name, c.image)
+				resourceNode('container', c.name, env, c.name, c.image)
 			)
 	},
 	{
@@ -101,7 +115,7 @@ export const CATEGORIES: Category[] = [
 		perEnvironment: true,
 		nodes: (env) =>
 			nodeQuery(volumesQuery(env), (v: { name: string }) =>
-				node('volume', v.name, env, v.name)
+				resourceNode('volume', v.name, env, v.name)
 			)
 	},
 	{
@@ -119,7 +133,7 @@ export const CATEGORIES: Category[] = [
 					)
 				),
 				(i: { id: string; repoTags: string[] }) =>
-					node(
+					resourceNode(
 						'image',
 						i.id,
 						env,
@@ -141,7 +155,7 @@ export const CATEGORIES: Category[] = [
 						})
 					)
 				),
-				(n: Named) => node('network', n.name, env, n.name)
+				(n: Named) => resourceNode('network', n.name, env, n.name)
 			)
 	},
 	{
@@ -159,7 +173,7 @@ export const CATEGORIES: Category[] = [
 					)
 				),
 				(a: { id: string; hostname?: string }) =>
-					node('agent', a.id, env, a.hostname || a.id.slice(0, 8))
+					resourceNode('agent', a.id, env, a.hostname || a.id.slice(0, 8))
 			)
 	},
 	{
@@ -168,7 +182,7 @@ export const CATEGORIES: Category[] = [
 		perEnvironment: true,
 		nodes: (env) =>
 			nodeQuery(updatePoliciesQuery(env), (p: Named) =>
-				node('update_policy', p.id, env, p.name)
+				resourceNode('update_policy', p.id, env, p.name)
 			)
 	},
 	{
@@ -177,7 +191,7 @@ export const CATEGORIES: Category[] = [
 		perEnvironment: true,
 		nodes: (env) =>
 			nodeQuery(maintenancePoliciesQuery(env), (p: Named) =>
-				node('maintenance_policy', p.id, env, p.name)
+				resourceNode('maintenance_policy', p.id, env, p.name)
 			)
 	},
 	{
@@ -186,7 +200,7 @@ export const CATEGORIES: Category[] = [
 		perEnvironment: false,
 		nodes: () =>
 			nodeQuery(repositoriesQuery(), (r: Named) =>
-				node('backup_repository', r.id, undefined, r.name)
+				resourceNode('backup_repository', r.id, undefined, r.name)
 			)
 	},
 	{
@@ -195,7 +209,7 @@ export const CATEGORIES: Category[] = [
 		perEnvironment: false,
 		nodes: () =>
 			nodeQuery(backupPoliciesQuery(), (p: Named) =>
-				node('backup_policy', p.id, undefined, p.name)
+				resourceNode('backup_policy', p.id, undefined, p.name)
 			)
 	},
 	{
@@ -212,7 +226,7 @@ export const CATEGORIES: Category[] = [
 						})
 					)
 				),
-				(r: Named) => node('registry', r.id, undefined, r.name)
+				(r: Named) => resourceNode('registry', r.id, undefined, r.name)
 			)
 	},
 	{
@@ -229,29 +243,39 @@ export const CATEGORIES: Category[] = [
 						})
 					)
 				),
-				(r: Named) => node('git_credential', r.id, undefined, r.name)
+				(r: Named) => resourceNode('git_credential', r.id, undefined, r.name)
 			)
 	}
 ];
 
-/** Nodes named by rules that the lists did not return (deleted, offline). */
+/**
+ * Nodes named by rules that the lists did not return (deleted, offline).
+ * A rule on a type with a global ID names no environment: it shows under
+ * the environment `homeOf` knows for its resource (a stack's, from the
+ * stack list), or in every environment that does not list it when that
+ * is unknown (deleted).
+ */
 export function nodesFromRules(
 	rules: Rule[],
 	type: string,
 	environmentId: string | undefined,
-	known: ReadonlySet<string>
+	known: ReadonlySet<string>,
+	homeOf?: (type: string, id: string) => string | undefined
 ): ScopeNode[] {
+	const perEnvironment = NAMED_PER_ENVIRONMENT.has(type);
 	const out: ScopeNode[] = [];
 	for (const r of rules) {
 		const s = r.scope;
 		if (s.kind !== 'resource' || s.resourceType !== type) continue;
-		if ((s.environmentId || undefined) !== environmentId) continue;
-		const n = node(
+		if (perEnvironment && (s.environmentId || undefined) !== environmentId) continue;
+		const home = perEnvironment ? undefined : homeOf?.(type, s.resourceId ?? '');
+		if (home && environmentId && home !== environmentId) continue;
+		const n = resourceNode(
 			type,
 			s.resourceId ?? '',
-			environmentId,
+			perEnvironment ? environmentId : undefined,
 			s.resourceId ?? '',
-			'Not listed now'
+			perEnvironment ? 'Not listed now' : 'Not listed here'
 		);
 		if (known.has(n.key) || out.some((o) => o.key === n.key)) continue;
 		out.push(n);
@@ -265,7 +289,7 @@ export function serviceNodes(
 	services: { name: string }[],
 	env: string
 ): ScopeNode[] {
-	return services.map((s) => node('service', `${stackId}/${s.name}`, env, s.name));
+	return services.map((s) => resourceNode('service', `${stackId}/${s.name}`, env, s.name));
 }
 
 export function instanceNode(): ScopeNode {

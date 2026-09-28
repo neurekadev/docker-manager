@@ -146,10 +146,11 @@ type latestContainerMetricsInput struct {
 
 type latestContainerMetricsOutput struct{ Body LatestContainerMetrics }
 
-// latestContainerMetrics lists the newest sample of every container the
+// latestContainerMetrics lists the current usage of every container the
 // caller may chart (container.metrics.read on the container, resolved by
-// name through the resource graph like the metrics.sampled events): one
-// request instead of a range query per container. Works while the
+// name through the resource graph like the metrics events): the fresh live
+// values or the newest stored sample (observe.Service.LatestContainers),
+// one request instead of a range query per container. Works while the
 // environment is offline (the samples stop, so the list empties).
 func (h *dockerAPI) latestContainerMetrics(ctx context.Context, in *latestContainerMetricsInput) (*latestContainerMetricsOutput, error) {
 	sc, err := h.environment(ctx, in.EnvironmentID, false)
@@ -195,9 +196,10 @@ func registerContainerMetrics(a huma.API, deps Deps) {
 			OperationID: "list-latest-container-metrics", Method: http.MethodGet,
 			Path:    BasePath + "/environments/{environmentId}/metrics/containers",
 			Summary: "List the current usage of an environment's containers",
-			Description: "The newest CPU and memory sample (#5, 10 s resolution) of every container sampled within the last " +
-				"windowSeconds, for the containers the caller holds container.metrics.read on (others are absent). " +
-				"Tables poll it (or refresh on metrics.sampled) instead of one range query per container. " +
+			Description: "The current CPU and memory (#5) of every container sampled within the last windowSeconds, for the " +
+				"containers the caller holds container.metrics.read on (others are absent): the live values (read about once a " +
+				"second while a browser live stream is open, never stored) while they are fresh, else the newest stored 10 s sample. " +
+				"Tables refresh it on metrics invalidations of the live stream instead of one range query per container. " +
 				"Unknown values are absent, never zero.",
 			Tags: []string{tagContainers}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound,
 				http.StatusServiceUnavailable},

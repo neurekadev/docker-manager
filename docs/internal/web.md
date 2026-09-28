@@ -137,23 +137,55 @@ loading/denied/not-found/error states, `Facts`, `NameCell`, `Fields`,
 still follow `liveKeys` (a feature marker after `'list'` keeps cached
 shapes apart).
 
-The section lists (containers, images, volumes, networks, stacks) share
-`$lib/features/resources/ListCard.svelte`: the "All …" card with the
-search and filters in its header. Each page builds its `ListFilter`s
-from its rows (`filters.ts`; stacks: `$lib/features/stacks/filters.ts`),
-filters with `applyListFilters` and keeps the state in a `ListFilters`
-store (`list-filters.svelte.ts`): `sessionStorage` under
-`docker-manager:list-filters:<list>`, so each list keeps its own search
-and filters per browser tab when the user leaves and comes back. The
-stored value is parsed defensively (anything but short strings is
-dropped); without `sessionStorage` it lives in memory.
+The section lists (containers, images, volumes, networks, stacks, jobs,
+schedules) share `$lib/features/resources/ListCard.svelte`: the "All …"
+card with the search, the select filters and the switches (`kind:
+'switch'`, stored as `"on"`) in its header. Each page builds its
+`ListFilter`s from its rows (`filters.ts`; stacks, jobs and schedules:
+`filters.ts` of their feature), filters with `applyListFilters` and keeps
+the state in a `ListFilters` store (`list-filters.svelte.ts`):
+`sessionStorage` under `docker-manager:list-filters:<list>`, so each list
+keeps its own search and filters per browser tab when the user leaves and
+comes back. The stored value is parsed defensively (anything but short
+strings is dropped); without `sessionStorage` it lives in memory. The
+jobs list is paged by the server: its state, kind and environment
+filters become the `GET /jobs` query (`jobQuery`), the search runs over
+the loaded jobs, and `?environment=` from an environment page sets the
+environment filter once.
+
+The containers list and a stack's services table share their column
+order and cells: the image's update state is
+`$lib/features/updates/ImageUpdateBadge.svelte` (an icon with the state
+in its tooltip; with a policy the user may check it starts that policy's
+`update.check` job through `check.svelte.ts` and spins until the job
+ends; the containers list finds the policy with `policiesByTarget` /
+`containerPolicy`, the services table from the image status's
+`policyId`), and the networks are `$lib/features/resources/NetworkList.svelte`
+(each network linked to its page with the addresses on it). The networks
+list counts attachments from the containers list (network lists do not
+report them), which also drives its "Unused" switch.
+
+Dropdowns are `$lib/ui/Select.svelte` (Bits UI Select: a themed
+listbox with typeahead; `onchange` receives the value) and `Combobox`;
+there is no native `<select>`. Tooltips: `$lib/ui/TooltipLayer.svelte`,
+mounted once in the root layout, shows every `title` attribute as a
+themed tooltip (on hover after 400 ms and on keyboard focus; the title
+moves to `data-dy-title` while shown so the native one never appears,
+and the element is described by the tooltip). `Tooltip.svelte` stays for
+controls that want an explicit trigger (`IconButton`).
 
 The permission editor of #17 (the design's "PermissionTree") is
 `$lib/features/access/PermissionEditor.svelte`: a searchable resource tree
 (`ResourceTree`, categories in `tree.ts`) beside the actions of the chosen
 scope (`ActionMatrix`), in three modes: `group` (No rule / Allow / Deny),
 `user` (Inherit / Allow / Deny with the inherited decision explained) and
-`token` (grants limited to what the caller holds, #31). Rule logic
+`token` (grants limited to what the caller holds, #31). Scopes carry
+`environmentId` only for the types named per environment (container,
+image, volume, network; `NAMED_PER_ENVIRONMENT` in `tree.ts`, mirroring
+the catalog); stacks, services, agents and policies have global IDs, so
+their nodes keep the environment on `ScopeNode.environmentId` for display
+only, and a rule on an unlisted stack or service shows under its stack's
+environment (from the stack list). Rule logic
 (scope keys, diffs, inheritance precedence) is in `permissions.ts`;
 `RulesSaveBar` lists every change before the revisioned, step-up save.
 
@@ -261,10 +293,11 @@ anything themselves; they only have to
 
    | data | key |
    | --- | --- |
-   | a list of a topic | `liveKeys.list('stacks', filters)` → `['stacks', 'list', filters]` (refreshed at most every second) |
+   | a list of a topic | `liveKeys.list('stacks', filters)` → `['stacks', 'list', filters]` (refreshed at most twice a second) |
    | an instance-wide resource | `liveKeys.item('stacks', stackId, 'revisions')` → `['stacks', 'item', id, …]` (stacks, jobs, environments, agents, policies, backups, registries, settings, permissions) |
    | a Docker object | `liveKeys.item('containers', envId, name, 'logs')` (containers, images, volumes, networks are named per environment) |
-   | charts | `liveKeys.metrics(envId, …)` (at most every 10 s; the same `metrics` event also refreshes `['overview']`, the dashboard's latest usage) |
+   | charts | `liveKeys.metrics(envId, …)` (new stored samples, every 10 s; the same `metrics` event also refreshes `['overview']`, the dashboard's latest usage; at most every second) |
+   | current CPU and memory | `liveKeys.metrics(envId, 'containers-latest')` (`latestContainerMetricsQuery`), `liveKeys.metrics(envId, 'capacity')` and `['overview']`: also refreshed by `live_metrics` events, about every second while the stream is open (the manager asks the agents only then); read current figures from these, never from a chart's last point |
    | a stack's containers | `liveKeys.stackServices(stackId)` (refreshed on container events) |
    | scoped files | `liveKeys.files({kind: 'stack', id: stackId}, 'list' \| 'stat' \| 'content', path)`; volumes use `id: '<envId>/<volume>'` |
    | the caller's permissions | `liveKeys.myPermissions` |
@@ -290,7 +323,10 @@ session_expired` stops until `liveClient()?.reconnectNow()` (after signing
 in); the browser's `offline` event drops the stream at once and `online`
 reconnects from the cursor; three failed connections within a minute switch
 to polling (details every 10 s, lists and metrics every 30 s) until the
-stream is back.
+stream is back. Queries the stream keeps current (the current CPU and
+memory, the overview, charts) poll on their own only while it is not live:
+`refetchInterval: pollWhileDown(ms)` (`$lib/live`) rather than a fixed
+interval.
 
 **`liveStatus`** (`src/lib/live/status.svelte.ts`) is the interface for the
 shell (#22): reactive `state` (`idle`, `connecting`, `live`,

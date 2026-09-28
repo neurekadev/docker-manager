@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Schedule } from '$lib/api/client';
+import { applyListFilters } from '$lib/features/resources/filters';
+import { scheduleFilters, scheduleSearch } from './filters';
 import { dstLabel, formatRunTime, policyHref, runReason, runStatus, scheduleState } from './model';
 
 type Run = Schedule['recentRuns'][number];
@@ -62,5 +64,65 @@ describe('schedules model (#13)', () => {
 			status: 'failed',
 			label: 'Invalid'
 		});
+	});
+});
+
+describe('schedule filters (#13)', () => {
+	const sched = (x: Partial<Schedule> & { id: string }): Schedule =>
+		({
+			policyName: x.id,
+			kind: 'backup',
+			kindLabel: 'Backup',
+			cron: '0 3 * * *',
+			timeZone: 'UTC',
+			enabled: true,
+			recentRuns: [],
+			...x
+		}) as Schedule;
+	const rows = [
+		sched({ id: 'nightly', environmentId: 'e1' }),
+		sched({
+			id: 'weekly prune',
+			kind: 'prune',
+			kindLabel: 'Prune',
+			enabled: false,
+			environmentId: 'e2',
+			timeZone: 'Europe/Berlin'
+		}),
+		sched({ id: 'manager state', invalidReason: 'bad cron' })
+	];
+	const envs = [
+		{ id: 'e2', name: 'nas' },
+		{ id: 'e1', name: 'homelab' }
+	];
+	const names = new Map(envs.map((e) => [e.id, e.name]));
+	const run = (values: Record<string, string>, q = '', all = false) =>
+		applyListFilters(
+			rows,
+			scheduleFilters(rows, { envs: all ? envs : [] }),
+			{ q, values },
+			scheduleSearch((id) => names.get(id))
+		).map((s) => s.id);
+
+	it('filters by kind and state; the environment only while all are shown', () => {
+		expect(run({ kind: 'prune' })).toEqual(['weekly prune']);
+		expect(run({ state: 'enabled' })).toEqual(['nightly']);
+		expect(run({ state: 'disabled' })).toEqual(['weekly prune']);
+		expect(run({ state: 'invalid' })).toEqual(['manager state']);
+		expect(scheduleFilters(rows, { envs: [] }).map((f) => f.id)).toEqual(['kind', 'state']);
+		expect(run({ environment: 'e2' }, '', true)).toEqual(['weekly prune']);
+		expect(run({ environment: '-' }, '', true)).toEqual(['manager state']);
+		expect(
+			scheduleFilters(rows, { envs })
+				.find((f) => f.id === 'environment')
+				?.options?.map((o) => o.label)
+		).toEqual(['Docker Manager', 'homelab', 'nas']);
+	});
+
+	it('searches the policy, kind, time zone and environment', () => {
+		expect(run({}, 'NIGHTLY')).toEqual(['nightly']);
+		expect(run({}, 'berlin')).toEqual(['weekly prune']);
+		expect(run({}, 'homelab')).toEqual(['nightly']);
+		expect(run({}, 'docker manager')).toEqual(['manager state']);
 	});
 });

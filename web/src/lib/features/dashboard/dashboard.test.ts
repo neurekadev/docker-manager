@@ -130,7 +130,7 @@ describe('EnvironmentCard (#5 dashboard)', () => {
 		);
 		const q = new URLSearchParams(urls.find((u) => u.includes('/metrics'))!.split('?')[1]);
 		expect(q.get('series')).toBe('cpu.percent,memory.used_bytes');
-		expect(q.get('stepSeconds')).toBe('60');
+		expect(q.get('stepSeconds')).toBe('10');
 	});
 
 	it('asks only for what the user may read', () => {

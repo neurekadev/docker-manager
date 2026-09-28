@@ -9,15 +9,19 @@
 // permissions: events.ResourceChanged). It
 //
 //   - coalesces repeated events of one resource (same type, resource and
-//     environment) within a window (250 ms; metrics 10 s per environment):
-//     the first is sent at once, the rest are merged (file paths united,
-//     beyond protocol.MaxPaths as overflow) and sent once when the window
-//     ends, so a resource is announced at most 4 times a second;
+//     environment) within a window (250 ms; stored and live metrics 1 s
+//     per environment): the first is sent at once, the rest are merged
+//     (file paths united, beyond protocol.MaxPaths as overflow) and sent
+//     once when the window ends, so a resource is announced at most 4
+//     times a second;
 //   - numbers every record with a strictly increasing sequence and keeps a
 //     bounded replay log (the newest 10 000 records or 15 minutes) so a
 //     reconnecting stream resumes from its cursor (`<epoch>.<seq>`; a
 //     cursor of another manager process or older than the log gets a
-//     reset);
+//     reset). Live metrics (metrics.live, about one per environment and
+//     second) are sent but not retained: a resumed stream refetches the
+//     current values with its next one instead of pushing the replay
+//     window out;
 //   - turns losses into reset records: the Hub's own bus subscription
 //     overflowing (reset gap for everyone) and environment resyncs (agent
 //     reconnect or event gap: reset gap scoped to that environment);
@@ -54,7 +58,7 @@ const (
 	DefaultReplaySize      = 10_000
 	DefaultReplayAge       = 15 * time.Minute
 	DefaultCoalesce        = 250 * time.Millisecond
-	DefaultMetricsCoalesce = 10 * time.Second
+	DefaultMetricsCoalesce = time.Second
 	DefaultQueue           = 512
 	// MaxStreamsPerPrincipal bounds open live streams per user or token.
 	MaxStreamsPerPrincipal = 8
@@ -92,7 +96,7 @@ type Options struct {
 	ReplaySize int
 	ReplayAge  time.Duration
 	// Coalesce is the per-resource window; MetricsCoalesce the window of
-	// metrics.sampled per environment.
+	// metrics.sampled and metrics.live per environment (at least Coalesce).
 	Coalesce        time.Duration
 	MetricsCoalesce time.Duration
 	// Queue bounds each subscriber's pending records.
@@ -115,9 +119,12 @@ type Hub struct {
 	clk   clock.Clock
 	epoch string
 
-	mu     sync.Mutex
-	recs   []Record
-	last   uint64
+	mu   sync.Mutex
+	recs []Record
+	last uint64
+	// lost is the newest sequence dropped from the replay log: a cursor
+	// below it cannot be resumed.
+	lost   uint64
 	subs   map[*Subscriber]struct{}
 	counts map[string]int
 
@@ -204,7 +211,7 @@ func (h *Hub) Offer(e events.Event) {
 	}
 	now := h.clk.Now()
 	window := h.opts.Coalesce
-	if e.Type == events.MetricsSampled {
+	if isMetrics(e.Type) {
 		window = h.opts.MetricsCoalesce
 	}
 	k := coalesceKey(e)
@@ -250,7 +257,7 @@ func merge(old, e events.Event) events.Event {
 		slices.Sort(members)
 		out.Members = slices.Compact(members)
 	}
-	if old.Attributes["host"] == "true" && out.Type == events.MetricsSampled {
+	if old.Attributes["host"] == "true" && isMetrics(out.Type) {
 		attrs := map[string]string{}
 		for k, v := range out.Attributes {
 			attrs[k] = v
@@ -279,11 +286,11 @@ func (h *Hub) Flush() time.Duration {
 			if h.nextDue.IsZero() || s.due.Before(h.nextDue) {
 				h.nextDue = s.due
 			}
-		case now.Sub(s.lastEmit) > h.opts.MetricsCoalesce:
+		case now.Sub(s.lastEmit) > h.idle():
 			delete(h.slots, k)
 		}
 	}
-	h.nextGC = now.Add(h.opts.MetricsCoalesce)
+	h.nextGC = now.Add(h.idle())
 	return untilEarliest(now, h.nextDue, h.nextGC)
 }
 
@@ -295,7 +302,18 @@ func untilEarliest(now, due, gc time.Time) time.Duration {
 	return max(next.Sub(now), time.Millisecond)
 }
 
-// append sequences, retains and fans out one record.
+// isMetrics reports the event types coalesced per environment over
+// MetricsCoalesce.
+func isMetrics(eventType string) bool {
+	return eventType == events.MetricsSampled || eventType == events.MetricsLive
+}
+
+// idle is how long a slot without pending events is kept (the longest
+// window, so it still throttles the next event).
+func (h *Hub) idle() time.Duration { return max(h.opts.Coalesce, h.opts.MetricsCoalesce) }
+
+// append sequences, retains and fans out one record. Live metrics are not
+// retained for replay (see the package comment).
 func (h *Hub) append(r Record) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -304,13 +322,16 @@ func (h *Hub) append(r Record) {
 	if r.Event.At.IsZero() {
 		r.Event.At = h.clk.Now().UTC()
 	}
-	h.recs = append(h.recs, r)
+	if r.Event.Type != events.MetricsLive || r.Reset != "" {
+		h.recs = append(h.recs, r)
+	}
 	cutoff := h.clk.Now().Add(-h.opts.ReplayAge)
 	drop := max(len(h.recs)-h.opts.ReplaySize, 0)
 	for drop < len(h.recs)-1 && h.recs[drop].Event.At.Before(cutoff) {
 		drop++
 	}
 	if drop > 0 {
+		h.lost = h.recs[drop-1].Seq
 		h.recs = append(h.recs[:0:0], h.recs[drop:]...)
 	}
 	for s := range h.subs {
@@ -358,14 +379,10 @@ func (h *Hub) Subscribe(principal, lastEventID string) (Subscription, error) {
 	}
 	epoch, seqText, ok := strings.Cut(lastEventID, ".")
 	seq, err := strconv.ParseUint(seqText, 10, 64)
-	first := h.last + 1
-	if len(h.recs) > 0 {
-		first = h.recs[0].Seq
-	}
 	switch {
 	case !ok || err != nil || epoch != h.epoch:
 		sub.Reset = ResetServerRestart
-	case seq > h.last || seq+1 < first:
+	case seq > h.last || seq < h.lost:
 		sub.Reset = ResetCursorExpired
 	default:
 		sub.Resumed = true

@@ -19,6 +19,15 @@ cache, event journal) and `internal/manager/metrics` (separate
   internal: filter per member with `authz.ContainerMetricsVisible`) and
   `inventory.updated` on the bus; `stream-environment-events` relays them
   through the per-environment `observe.Journal` (cursor replay, resets).
+- **Current CPU and memory** (`metrics.live`, `observe/live.go` on both
+  sides): read the current values only through `Service.Latest` /
+  `Service.LatestContainers` (fresh live values over the stored sample,
+  per field); never store live values or send them to the journal. The
+  manager asks only while `LiveDemand` holds (a browser live stream is
+  open) and only agents that serve `metrics.live`; the `metrics.live` bus
+  event carries IDs like `metrics.sampled`, never values. Container CPU is
+  always a delta of the cumulative counters of two one-shot stats reads
+  (`cpuShare`), never an Engine-side prior sample.
 - Sample keys are `(series, 10 s slot)`: ingestion is idempotent; never add
   a path that writes samples without going through `Store.Ingest`.
 - `metrics.db` is expendable and excluded from manager-state backups (#10).

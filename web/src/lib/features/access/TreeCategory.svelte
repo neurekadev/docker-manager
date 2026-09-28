@@ -1,12 +1,14 @@
 <script lang="ts">
 	// A category of the resource tree (Stacks, Containers, …) of one
 	// environment or of the instance: lists its resources when opened (or
-	// while searching), plus resources named by rules that no longer list.
+	// while searching), plus resources named by rules that no longer list
+	// (stack and service rules only under their stack's environment).
 	import { createQuery } from '@tanstack/svelte-query';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { stacksSummaryQuery } from '$lib/api/queries';
 	import TreeNodeButton from './TreeNodeButton.svelte';
 	import { nodesFromRules, type Category } from './tree';
-	import type { Rule, ScopeNode } from './permissions';
+	import { scopeKey, type Rule, type ScopeNode } from './permissions';
 
 	interface Props {
 		category: Category;
@@ -27,24 +29,38 @@
 	const q = $derived(search.trim().toLowerCase());
 	const active = $derived(open || !!q);
 	const nodes = createQuery(() => ({ ...category.nodes(environmentId ?? ''), enabled: active }));
+	// Where each stack lives (stack and service rules name no environment).
+	const stacks = createQuery(() => ({
+		...stacksSummaryQuery(),
+		enabled: active && category.type === 'stack' && !!environmentId
+	}));
+	const stackHome = $derived(new Map((stacks.data ?? []).map((s) => [s.id, s.environmentId])));
+	const homeOf = (type: string, id: string) =>
+		type === 'stack'
+			? stackHome.get(id)
+			: type === 'service'
+				? stackHome.get(id.split('/')[0])
+				: undefined;
 
+	// Keys of the nodes and their children (a stack's services).
+	const keysOf = (list: ScopeNode[]) =>
+		new Set(list.flatMap((n) => [n.key, ...(n.children ?? []).map((c) => c.key)]));
 	const all = $derived.by(() => {
 		const listed = nodes.data ?? [];
-		const known = new Set(listed.map((n) => n.key));
-		return [...listed, ...nodesFromRules(rules, category.type, environmentId, known)];
+		const known = keysOf(listed);
+		const types = category.type === 'stack' ? ['stack', 'service'] : [category.type];
+		return [
+			...listed,
+			...types.flatMap((t) => nodesFromRules(rules, t, environmentId, known, homeOf))
+		];
 	});
 	const matches = (n: ScopeNode) =>
 		!q || n.label.toLowerCase().includes(q) || (n.detail ?? '').toLowerCase().includes(q);
 	const shown = $derived(all.filter((n) => matches(n) || (n.children ?? []).some(matches)));
-	const ruleCount = $derived(
-		rules.filter(
-			(r) =>
-				r.scope.kind === 'resource' &&
-				(r.scope.resourceType === category.type ||
-					(category.type === 'stack' && r.scope.resourceType === 'service')) &&
-				(r.scope.environmentId || undefined) === environmentId
-		).length
-	);
+	const ruleCount = $derived.by(() => {
+		const keys = keysOf(all);
+		return rules.filter((r) => keys.has(scopeKey(r.scope))).length;
+	});
 	const header = $derived<ScopeNode>({
 		key: `cat:${environmentId ?? ''}:${category.type}`,
 		label: category.label,

@@ -583,7 +583,9 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 				}
 			}
 			return ids
-		}})
+		},
+		// Live CPU and memory (metrics.live) only while a browser watches.
+		LiveDemand: func() bool { return m.live.Subscribers() > 0 }})
 	if err := m.observe.Load(ctx); err != nil {
 		_ = m.metrics.Close()
 		m.jobs.Close()

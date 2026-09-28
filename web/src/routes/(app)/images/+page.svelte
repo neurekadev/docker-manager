@@ -1,10 +1,10 @@
 <script lang="ts">
 	// Images (#6): every image of the selected environment (or all), with
-	// its tags, size, and whether containers use it; untagged (dangling)
-	// images are marked. Searched by tag, ID or digest and filtered by
-	// usage, tags, Docker Manager and environment (ListCard). Pull
-	// (#19 registry connection preview), tag and remove (in-use check) from
-	// here; builds (#33) have their own page.
+	// its tags and short ID, whether containers use it, its size and age;
+	// untagged (dangling) images are marked. Searched by tag, ID, digest or
+	// label; an "Unused" switch and the environment filter the list
+	// (ListCard). Pull (#19 registry connection preview), tag and remove
+	// (in-use check) from here; builds (#33) have their own page.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Box from '@lucide/svelte/icons/box';
 	import Download from '@lucide/svelte/icons/download';
@@ -102,7 +102,6 @@
 			width: '150px',
 			stack: 'status'
 		},
-		{ id: 'id', header: 'ID', cell: idCell, width: '140px' },
 		...(scope.single
 			? []
 			: [
@@ -145,8 +144,14 @@
 		<a class="name mono" href={routes.image(im.environmentId, im.id)}
 			>{im.repoTags[0] ?? shortDigest(im.id)}</a
 		>
-		{#if im.repoTags.length > 1}<span class="sub">+{im.repoTags.length - 1} more tags</span
-			>{/if}
+		{#if im.repoTags.length}
+			<span class="sub"
+				><span class="mono" title={im.id}>{shortDigest(im.id)}</span
+				>{#if im.repoTags.length > 1}<span title={im.repoTags.slice(1).join('\n')}>
+						· +{im.repoTags.length - 1} more tags</span
+					>{/if}</span
+			>
+		{/if}
 		{#if im.repoTags.length === 0 || im.protection}
 			<span class="tags">
 				{#if im.repoTags.length === 0}<Badge tone="warn">Untagged</Badge>{/if}
@@ -161,8 +166,6 @@
 	{:else if im.inUse}<Badge tone="ok" dot>In use</Badge>
 	{:else}<Badge>Unused</Badge>{/if}
 {/snippet}
-{#snippet idCell(im: Image)}<span class="mono muted" title={im.id}>{shortDigest(im.id)}</span
-	>{/snippet}
 {#snippet envCell(im: Image)}{scope.name(im.environmentId)}{/snippet}
 {#snippet sizeCell(im: Image)}<span class="num">{im.size ? formatBytes(im.size) : '—'}</span
 	>{/snippet}
@@ -242,7 +245,7 @@
 					: undefined}
 				label="Filter images"
 				searchLabel="Search images"
-				placeholder="Search by tag or ID"
+				placeholder="Search by tag, ID, digest or label"
 				filters={defs}
 				store={filters}
 			>

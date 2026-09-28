@@ -20,13 +20,18 @@ export interface ScopeNode {
 	type: string;
 	/** Secondary text (environment name, image, …). */
 	detail?: string;
+	/**
+	 * The environment the node is listed under. Resources with a global ID
+	 * (stacks, services, agents, policies) keep it here, not in the scope.
+	 */
+	environmentId?: string;
 	/** Child scopes (a stack's services). */
 	children?: ScopeNode[];
 }
 
 export const INSTANCE: Scope = { kind: 'instance' };
 
-/** Stable key of a scope (resource IDs are unique per type and environment). */
+/** Stable key of a scope (IDs are unique per type, Docker names per type and environment). */
 export function scopeKey(s: Scope): string {
 	if (s.kind === 'instance') return 'instance';
 	if (s.kind === 'environment') return `env:${s.environmentId ?? ''}`;
@@ -195,19 +200,22 @@ export function capabilityLabel(catalog: Catalog | undefined, key: string): stri
 /**
  * The group decision a user inherits at a scope when they have no override
  * (#17 precedence: the most specific group rule wins: resource, then its
- * environment, then instance; no rule means deny).
+ * environment, then instance; no rule means deny). A resource with a global
+ * ID names no environment in its scope: pass the node's environment.
  */
 export function inheritedDecision(
 	groupRules: Rule[],
 	capability: string,
-	scope: Scope
+	scope: Scope,
+	environmentId?: string
 ): { effect: Effect; at: 'resource' | 'environment' | 'instance' | 'none' } {
 	const exact = effectAt(groupRules, capability, scope);
 	if (scope.kind === 'resource' && exact) return { effect: exact, at: 'resource' };
-	if (scope.kind !== 'instance' && scope.environmentId) {
+	const envId = scope.environmentId ?? environmentId;
+	if (scope.kind !== 'instance' && envId) {
 		const env = effectAt(groupRules, capability, {
 			kind: 'environment',
-			environmentId: scope.environmentId
+			environmentId: envId
 		});
 		if (scope.kind === 'environment' && exact) return { effect: exact, at: 'environment' };
 		if (env) return { effect: env, at: 'environment' };

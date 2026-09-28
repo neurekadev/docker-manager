@@ -6,8 +6,8 @@ the manager API that serves charts and live invalidations.
 
 | Piece | Package | Protocol / API |
 | --- | --- | --- |
-| Host sampler, container stats, sample ring, Engine inventory, Docker event relay | `internal/agent/observe` | `engine.info`, `host.metrics`, `event` frames ([agent-v1.md](../protocol/agent-v1.md)) |
-| Collector, inventory cache, event journal | `internal/manager/observe` | — |
+| Host sampler, container stats, sample ring, live reads, Engine inventory, Docker event relay | `internal/agent/observe` | `engine.info`, `host.metrics`, `metrics.live`, `event` frames ([agent-v1.md](../protocol/agent-v1.md)) |
+| Collector, live metrics, inventory cache, event journal | `internal/manager/observe` | — |
 | Metrics database | `internal/manager/metrics`, `internal/db/metricsmigrations` | — |
 | Routes | `internal/manager/api/observe.go`, `environments.go` | `get-environment-system`, `get-environment-metrics`, `get-environment-capacity`, `get-overview`, `stream-environment-events` ([streams.md](../api/streams.md)) |
 
@@ -25,8 +25,8 @@ The manager refreshes it
 - after every reconnect, as a session reconciler (#3) that runs before the
   environment is reported online (a failure is logged and never blocks the
   environment);
-- 5 s after a change (Docker event, capabilities update, `environment.resync`;
-  debounced per environment);
+- 1 s after a change (Docker event, capabilities update, `environment.resync`;
+  debounced per environment: a burst of events is one refresh);
 - every 5 minutes for online environments.
 
 The last inventory per environment is stored in `metrics.db` (`inventory`
@@ -79,13 +79,18 @@ zero. Each problem is logged once until it clears.
 ## Container metrics
 
 Every 10 s the sampler lists the running containers and reads one stats
-sample each through the Engine adapter (`Stats`, not streaming; the Engine
-supplies the previous CPU sample), at most 8 at a time and within 80% of the
-interval.
+sample each through the Engine adapter (`Stats`, not streaming, one-shot:
+the Engine answers at once instead of waiting a second for a prior
+sample), at most 8 at a time and within 80% of the interval; a tick
+normally takes milliseconds per container.
 
-- **CPU:** percent of the environment's total cores, 0–100 (the Engine's
-  share of one core times online cores, divided by the Engine's `NCPU`). A
-  container using two full cores on an 8-core host is 25%.
+- **CPU:** percent of the environment's total cores, 0–100, from the
+  cumulative counters of this and the previous tick (`cpuShare`): the
+  container's CPU time delta over the host's CPU time delta (Docker's
+  `system_cpu_usage`, all cores) times the online cores is the share of one
+  core (as `docker stats`), divided by the Engine's `NCPU`. A container
+  using two full cores on an 8-core host is 25%. The first sample of a
+  container (and after a restart, when its counters reset) has no CPU.
 - **Memory:** usage without inactive page cache (like `docker stats`), and
   the limit only when one is set below the host memory; charts compare usage
   with the limit when present, otherwise with the environment total.
@@ -97,7 +102,8 @@ interval.
   A timeout or Engine error flags the batch `containers incomplete`; the next
   tick starts with the containers that were not reached (round robin by
   name), so on a host with more containers than one interval can sample,
-  each is still sampled regularly. At most 1 000 containers per batch.
+  each is still sampled regularly; they keep their previous counters, so
+  their next sample has CPU and rates. At most 1 000 containers per batch.
 - Without an Engine the batch holds host values only and is flagged
   `engine unavailable`.
 
@@ -114,8 +120,10 @@ process). `host.metrics {epoch, afterSeq}` returns the batches after the
 manager's cursor, at most 60 batches or 768 KiB per answer (`more: true`
 asks for the next page); another epoch returns the whole ring.
 
-The manager's collector asks every online environment every 10 s, at most 8
-environments at once, 8 s per request, 40 pages per round. An environment
+The manager's collector asks every online environment every 10 s, 2 s
+after each 10 s slot (the agents sample on the slot boundaries, so a new
+sample is stored about 2 s after it was taken), at most 8 environments at
+once, 8 s per request, 40 pages per round. An environment
 whose previous fetch is still running, or for which no worker is free, is
 skipped for that round; its agent keeps buffering and the next round
 catches up. An agent that does not serve `host.metrics` is skipped for 5
@@ -137,6 +145,51 @@ are used as sent; beyond it every timestamp is shifted by the offset (flag
 the system route). A timestamp still in the future of the manager's receive
 time is clamped to it (flag `clamped`). Timestamps are then aligned to the
 10 s slot, so a corrected sample can never collide with a later one.
+
+## Live metrics
+
+The stored samples are 10 s apart; the current CPU and memory the UI shows
+(dashboard, container list and detail, stack KPIs and services) refresh
+about every second while someone is looking, without storing anything.
+
+- **Demand:** the manager asks only while at least one browser live stream
+  (`GET /live/stream`) is open (`observe.Options.LiveDemand`: the live
+  hub's subscriber count). Without one it stops asking and forgets the
+  values; nothing is sent to the agents to stop (no lease to release).
+- **Request:** every second (`protocol.LiveMetricsInterval`) the manager
+  sends `metrics.live` to every online environment whose agent advertises
+  it (`Hub.EnvironmentServes`; older agents are never asked), one request
+  per environment at a time, at most 8 at once, 2 s timeout; an environment
+  whose previous request still runs is skipped for that second. An agent
+  answering `unsupported_request` is skipped for 5 minutes.
+- **Agent (`observe/live.go`):** reads procfs (host CPU and memory as the
+  sampler does) and one one-shot stats sample per running container (at
+  most 8 at a time, within 800 ms; containers not reached are flagged,
+  keep their counters and are read first next time). CPU is the delta
+  against the previous `metrics.live` read, kept separately from the 10 s
+  sampler's counters; a previous read older than 5 s is dropped, so the
+  first answer after a pause has memory but no CPU. A request costs the
+  host a `/proc/stat` and `/proc/meminfo` read and one Engine stats call per
+  running container.
+- **Manager (`observe/live.go`):** keeps the newest answer per environment
+  in memory (stamped with the manager's receive time, forgotten after a
+  minute). `Service.Latest` and `Service.LatestContainers` prefer values
+  younger than 3 s (`LiveFresh`) over the newest stored sample, field by
+  field (an answer without CPU keeps the stored CPU); a container only the
+  live answer knows (just started) is added, and one missing from a
+  complete live answer (stopped since) is dropped. Charts, rollups and the
+  history never see live values.
+- **Invalidation:** each answer publishes `metrics.live` on the bus (IDs
+  only: `host` and the container names, filtered per reader like
+  `metrics.sampled`); the live stream relays it as `invalidate` kind
+  `live_metrics`, coalesced to one per environment per second and not kept
+  for replay, and the browser refetches only the current-value queries
+  (`…/metrics/containers`, `…/capacity`, `/overview`), never the charts.
+  The per-environment event journal does not record it.
+
+Tests: `TestLiveMetricsDeltasAndBaseline`, `TestCPUShare` (agent),
+`TestLiveValuesServedWhileFresh`, `TestLiveRoundsFollowDemand` (manager),
+`TestLiveMetricsAreNotReplayed` (live hub).
 
 ## Storage
 
@@ -213,21 +266,24 @@ host and per-filesystem series for a range: one value per step bucket.
   `online` tells the UI whether new samples are expected.
 
 `GET …/metrics/containers` (`list-latest-container-metrics`,
-`metrics.Store.LatestContainers`) is the newest raw sample of every
-container sampled within the last minute: CPU %, memory used and the
-memory limit, each absent when unknown (never zero). It lists only the
-containers the caller holds `container.metrics.read` on, resolved by name
-like the `metrics.sampled` events, and serves the live CPU and memory
-columns of the container and stack service tables (one request per
-environment instead of a range query per container; the web keys it with
-`liveKeys.metrics(envId, 'containers-latest')`, so metrics events refresh
-it about every 10 s).
+`observe.Service.LatestContainers`) is the current usage of every
+container sampled within the last minute: the fresh live values
+([Live metrics](#live-metrics)) or else the newest raw sample, CPU %,
+memory used and the memory limit, each absent when unknown (never zero).
+It lists only the containers the caller holds `container.metrics.read` on,
+resolved by name like the `metrics.sampled` events, and serves the CPU and
+memory columns of the container and stack service tables and the KPIs of
+the container and stack pages (one request per environment instead of a
+range query per container; the web keys it with
+`liveKeys.metrics(envId, 'containers-latest')`, so live metrics refresh it
+about every second).
 
 `GET …/capacity` is the latest sample (cores, memory, load, network with its
 scope, uptime, filesystems with free space). `GET /api/v1/overview` lists
 every active environment the caller may see with its connection state, its
 latest usage (with `environment.metrics.read`) and Docker counts (with
-`environment.system.read`); totals count only what the caller may see.
+`environment.system.read`); totals count only what the caller may see. The
+CPU and memory of both are live while fresh (`observe.Service.Latest`).
 
 **Live updates.** Each collected page publishes `metrics.sampled` on the
 internal bus (normally one per environment per 10 s, more while a backfill
@@ -311,3 +367,13 @@ every 10 minutes deletes per series in index ranges (250 series per
 transaction). Collection is bounded by 8 concurrent fetches and skips
 environments still in flight, so a slow or loaded manager falls behind
 gracefully (agents buffer 30 minutes) instead of queueing work.
+
+**Live metrics** (not covered by the historical numbers above) add, only
+while a browser live stream is open, one small request per online
+environment and second (the full budget: 25 requests/s, answers of about
+100 bytes per running container), one Engine stats call per running
+container and second on each host, and per open tab at most one refetch
+per second of the current-value queries (`/overview`, and
+`…/metrics/containers` / `…/capacity` of the environments it shows), each
+a read of the in-memory values plus one indexed `metrics.db` lookup per
+environment.

@@ -277,9 +277,10 @@ func New(opts Options) (*Agent, error) {
 	if opts.Observe {
 		a.sampler = observe.New(observe.Options{Clock: opts.Clock, Logger: opts.Logger, ProcRoot: opts.Config.HostProc,
 			Engine: a.observedEngine, Roots: a.observedRoots})
-		reqs := make(map[string]session.RequestHandler, len(opts.Requests)+2)
+		reqs := make(map[string]session.RequestHandler, len(opts.Requests)+3)
 		reqs[protocol.ReqEngineInfo] = a.sampler.EngineInfo
 		reqs[protocol.ReqHostMetrics] = a.sampler.HostMetrics
+		reqs[protocol.ReqMetricsLive] = a.sampler.LiveMetrics
 		for k, v := range opts.Requests {
 			reqs[k] = v
 		}

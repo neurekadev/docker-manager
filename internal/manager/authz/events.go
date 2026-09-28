@@ -73,7 +73,7 @@ func metricsVisible(c Checker, e events.Event) bool {
 }
 
 // ContainerMetricsVisible returns the first container of a metrics.sampled
-// event whose metrics c may read ("" for none).
+// or metrics.live event whose metrics c may read ("" for none).
 func ContainerMetricsVisible(c Checker, e events.Event) string {
 	for _, name := range e.Members {
 		if c.Can("container.metrics.read", Resource{Type: catalog.TypeContainer, ID: name, EnvironmentID: e.EnvironmentID}).Allowed {
@@ -144,6 +144,7 @@ var eventRules = map[string]eventRule{
 	events.DockerEvent:             dockerVisible,
 	events.FilesInvalidated:        filesVisible,
 	events.MetricsSampled:          metricsVisible,
+	events.MetricsLive:             metricsVisible,
 	events.InventoryUpdated:        inventoryVisible,
 	events.StackCreated:            stackVisible,
 	events.StackUpdated:            stackVisible,

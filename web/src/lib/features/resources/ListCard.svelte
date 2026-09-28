@@ -1,14 +1,16 @@
 <script lang="ts" generics="T">
 	// The card of a list page (#22; containers, images, volumes, networks,
-	// stacks): "All containers" and the count as its header, the search and
-	// the filters built into the header (wrapping below the title when they
-	// do not fit), and "Clear filters" while any of them is set. The state
-	// lives in a ListFilters store (kept per list and browser tab); the
-	// page filters its rows with the same filters (applyListFilters).
+	// stacks, jobs, schedules): "All containers" and the count as its
+	// header, the search, the select filters and the switches built into
+	// the header (wrapping below the title when they do not fit), and
+	// "Clear filters" while any of them is set. The state lives in a
+	// ListFilters store (kept per list and browser tab); the page filters
+	// its rows with the same filters (applyListFilters).
 	import X from '@lucide/svelte/icons/x';
 	import type { Snippet } from 'svelte';
-	import { Button, Card, Select, TextField } from '$lib/ui';
+	import { Button, Card, Select, Switch, TextField } from '$lib/ui';
 	import {
+		SWITCH_ON,
 		activeValue,
 		isFiltering,
 		selectOptions,
@@ -38,6 +40,8 @@
 
 	let search = $state<HTMLInputElement | null>(null);
 	const shown = $derived(visibleFilters(filters, store.state));
+	const selects = $derived(shown.filter((f) => f.kind !== 'switch'));
+	const switches = $derived(shown.filter((f) => f.kind === 'switch'));
 	const filtering = $derived(isFiltering(filters, store.state));
 
 	function clear() {
@@ -60,7 +64,7 @@
 					autocomplete="off"
 				/>
 			</div>
-			{#each shown as f (f.id)}
+			{#each selects as f (f.id)}
 				<div class="control">
 					{#if f.kind === 'text'}
 						<TextField
@@ -84,6 +88,15 @@
 							}
 						/>
 					{/if}
+				</div>
+			{/each}
+			{#each switches as f (f.id)}
+				<div class="toggle" title={f.all}>
+					<Switch
+						label={f.label}
+						checked={activeValue(f, store.get(f.id)) === SWITCH_ON}
+						onchange={(on) => store.set(f.id, on ? SWITCH_ON : '')}
+					/>
 				</div>
 			{/each}
 			{#if filtering}
@@ -113,6 +126,14 @@
 
 	.control.search {
 		flex: 0 1 240px;
+	}
+
+	.toggle {
+		display: inline-flex;
+		align-items: center;
+		min-height: var(--control-height);
+		padding: 0 var(--space-1);
+		white-space: nowrap;
 	}
 
 	@media (max-width: 767px) {

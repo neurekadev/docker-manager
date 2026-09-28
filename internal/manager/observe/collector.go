@@ -25,19 +25,34 @@ type requestError interface {
 	AgentCode() string
 }
 
+// nextRound is the collector's next round after now: a fifth of the
+// interval after each interval boundary, when the agents' batches of that
+// slot are ready (agents sample on the boundaries; a tick reads one-shot
+// stats and takes well under a second), so new samples are stored within
+// about 2 s instead of up to a whole interval later.
+func nextRound(now time.Time, iv time.Duration) time.Time {
+	next := now.Truncate(iv).Add(iv / 5)
+	if !next.After(now) {
+		next = next.Add(iv)
+	}
+	return next
+}
+
 func (s *Service) runCollector(ctx context.Context) {
-	t := s.opts.Clock.NewTicker(s.opts.Interval)
-	defer t.Stop()
+	clk := s.opts.Clock
 	sem := make(chan struct{}, s.opts.Concurrency)
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	for {
+		now := clk.Now()
+		t := clk.NewTimer(nextRound(now, s.opts.Interval).Sub(now))
 		select {
 		case <-ctx.Done():
+			t.Stop()
 			return
 		case <-t.C():
 		}
-		now := s.opts.Clock.Now()
+		now = clk.Now()
 		for _, env := range s.environments() {
 			s.mu.Lock()
 			busy := s.inflight[env] || now.Before(s.skipUntil[env])

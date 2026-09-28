@@ -83,16 +83,21 @@
 	onMount(() => {
 		if (!el) return;
 		const target = el;
-		void mountTimeSeries(target, options()).then((c) => {
-			if (destroyed) return c.destroy();
-			chart = c;
-			// Data that arrived while ECharts was loading.
-			c.update(options());
-			if (typeof ResizeObserver !== 'undefined') {
-				observer = new ResizeObserver(() => chart?.resize());
-				observer.observe(target);
-			}
-		});
+		mountTimeSeries(target, options())
+			.then((c) => {
+				if (destroyed) return c.destroy();
+				chart = c;
+				// Data that arrived while ECharts was loading.
+				c.update(options());
+				if (typeof ResizeObserver !== 'undefined') {
+					observer = new ResizeObserver(() => chart?.resize());
+					observer.observe(target);
+				}
+			})
+			.catch(() => {
+				// The chart chunk failed to load: the caption, latest value
+				// and gap list still describe the data.
+			});
 	});
 	$effect(() => {
 		const o = options();

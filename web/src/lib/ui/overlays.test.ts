@@ -5,6 +5,8 @@ import DialogHarness from '../../test/DialogHarness.svelte';
 import StackedDialogsHarness from '../../test/StackedDialogsHarness.svelte';
 import ConfirmDialog from './ConfirmDialog.svelte';
 import DestructiveConfirm from './DestructiveConfirm.svelte';
+import TooltipLayer from './TooltipLayer.svelte';
+import { tooltipAnchor } from './tooltip';
 import { ApiRequestError } from '$lib/api/client';
 
 describe('Dialog', () => {
@@ -150,5 +152,36 @@ describe('DestructiveConfirm', () => {
 		await user.click(screen.getByLabelText(`Type ${name} to confirm`));
 		await user.paste(name);
 		expect(screen.getByRole('button', { name: 'Remove container' })).toBeEnabled();
+	});
+});
+
+describe('TooltipLayer', () => {
+	it('finds the nearest element with a title, never an SVG one', () => {
+		document.body.innerHTML =
+			'<span id="a" title="Up to date"><b id="b">x</b></span><svg title="no"><g id="g"></g></svg><i id="c" title=" "></i>';
+		expect(tooltipAnchor(document.getElementById('b'))?.id).toBe('a');
+		expect(tooltipAnchor(document.getElementById('g'))).toBeNull();
+		expect(tooltipAnchor(document.getElementById('c'))).toBeNull();
+		expect(tooltipAnchor(null)).toBeNull();
+		document.body.innerHTML = '';
+	});
+
+	it('shows a title as a themed tooltip on keyboard focus and puts the title back', async () => {
+		render(TooltipLayer);
+		const button = document.createElement('button');
+		button.title = 'Check for updates';
+		button.textContent = 'Check';
+		document.body.append(button);
+		button.matches = ((q: string) => q === ':focus-visible') as typeof button.matches;
+		button.focus();
+		const tip = await screen.findByRole('tooltip');
+		expect(tip).toHaveTextContent('Check for updates');
+		expect(button).not.toHaveAttribute('title');
+		expect(button).toHaveAccessibleDescription('Check for updates');
+		button.blur();
+		await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
+		expect(button).toHaveAttribute('title', 'Check for updates');
+		expect(button).not.toHaveAttribute('aria-describedby');
+		button.remove();
 	});
 });

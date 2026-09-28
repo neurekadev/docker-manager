@@ -5,11 +5,13 @@ import Checkbox from './Checkbox.svelte';
 import PasswordField from './PasswordField.svelte';
 import RadioGroup from './RadioGroup.svelte';
 import Select from './Select.svelte';
+import SuggestField from './SuggestField.svelte';
 import Switch from './Switch.svelte';
 import Tabs from './Tabs.svelte';
 import TextField from './TextField.svelte';
 import TriState from './TriState.svelte';
 import { createRawSnippet } from 'svelte';
+import { choose } from '../../test/select';
 
 const setup = () => userEvent.setup({ pointerEventsCheck: 0 });
 
@@ -48,21 +50,62 @@ describe('fields', () => {
 		expect(input.type).toBe('password');
 	});
 
-	it('uses a native select with its options', async () => {
+	it('select: a themed listbox that shows the choice and reports it', async () => {
 		const user = setup();
+		const change = vi.fn();
 		render(Select, {
 			props: {
 				label: 'Pull policy',
 				value: 'missing',
+				onchange: change,
 				options: [
 					{ value: 'missing', label: 'Pull missing images' },
 					{ value: 'always', label: 'Always pull' }
 				]
 			}
 		});
-		const select = screen.getByLabelText('Pull policy') as HTMLSelectElement;
-		await user.selectOptions(select, 'always');
-		expect(select.value).toBe('always');
+		const trigger = screen.getByRole('combobox', { name: 'Pull policy' });
+		expect(trigger).toHaveTextContent('Pull missing images');
+		expect(document.querySelector('select')).toBeNull();
+		await choose(user, trigger, 'Always pull');
+		expect(change).toHaveBeenCalledWith('always');
+		expect(trigger).toHaveTextContent('Always pull');
+	});
+
+	it('suggest field: any text, with matching suggestions to pick by keyboard or pointer', async () => {
+		const user = setup();
+		render(SuggestField, {
+			props: { label: 'Volume', suggestions: ['silo_data', 'silo_media', 'pihole'] }
+		});
+		const input = screen.getByRole('combobox', { name: 'Volume' });
+		await user.type(input, 'silo');
+		expect(screen.getAllByRole('option').map((o) => o.textContent?.trim())).toEqual([
+			'silo_data',
+			'silo_media'
+		]);
+		await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+		expect(input).toHaveValue('silo_media');
+		expect(screen.queryByRole('listbox')).toBeNull();
+		await user.clear(input);
+		await user.type(input, 'brand_new');
+		expect(input).toHaveValue('brand_new');
+		await user.clear(input);
+		await user.type(input, 'pi');
+		await user.pointer({ keys: '[MouseLeft>]', target: screen.getByRole('option') });
+		expect(input).toHaveValue('pihole');
+	});
+
+	it('select: shows the placeholder until something is chosen', () => {
+		render(Select, {
+			props: {
+				label: 'Environment',
+				placeholder: 'Choose an environment',
+				options: [{ value: 'e1', label: 'prod' }]
+			}
+		});
+		expect(screen.getByRole('combobox', { name: 'Environment' })).toHaveTextContent(
+			'Choose an environment'
+		);
 	});
 });
 

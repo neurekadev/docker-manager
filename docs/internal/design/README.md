@@ -235,7 +235,8 @@ gets `id`, `aria-describedby`, `aria-invalid`). Required controls carry
 | --- | --- |
 | `TextField` | `mono` for identifiers and paths; `bind:value`. |
 | `PasswordField` | Reveal toggle ("Show password"/"Hide password", `aria-pressed`); `autocomplete: current-password \| new-password`. |
-| `TextArea`, `Select` (native), `Combobox` (Bits UI, filtered, `options: SelectOption[]`) | |
+| `TextArea`, `Select` (Bits UI listbox in the input's look: chevron trigger, check on the chosen option, typeahead; `onchange(value)`), `Combobox` (Bits UI, filtered, `options: SelectOption[]`) | No native `<select>` anywhere. |
+| `SuggestField` | Free text with a themed suggestion listbox (`suggestions: string[]`, combobox pattern: arrows, Enter, Escape, pointer); for values that may be new (a volume name). No `<datalist>`. |
 | `Checkbox` | Native; `indeterminate`; `hideLabel` for row selection. |
 | `Switch` | `role="switch"`; for settings that apply immediately. |
 | `RadioGroup` | Native radios in a fieldset. |
@@ -255,6 +256,7 @@ Map server validation errors with `fieldError(err, 'body.name')`.
 | `Drawer` | Side or bottom sheet (`side`, `size`, `hideTitle`); the narrow navigation, detail panes, the log drawer. |
 | `Popover` | Non-modal (`label`, `trigger` snippet): notices, environment switcher. |
 | `Tooltip` | `text`, `trigger` snippet `(props)`. Supplements names; never the only name. |
+| `TooltipLayer` | Mounted once in the root layout: every `title` attribute shows as the same themed tooltip (`.dy-tooltip`, `global.css`) after 400 ms of hover or on keyboard focus, above the element (below when there is no room), multi-line titles keep their lines. Use plain `title` for hints; never a native tooltip. |
 
 ### Feedback and states
 

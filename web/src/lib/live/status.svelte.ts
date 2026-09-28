@@ -34,3 +34,14 @@ export class LiveStatus {
 }
 
 export const liveStatus = new LiveStatus();
+
+/**
+ * A `refetchInterval` for queries the live stream keeps current: no
+ * polling while the stream is live, every `ms` while it is not (connecting,
+ * reconnecting, polling). Svelte Query re-evaluates it after every fetch,
+ * and the client's own fallback refreshes open views while the stream is
+ * down, so a query picks polling up again when it is needed.
+ */
+export function pollWhileDown(ms: number, status: LiveStatus = liveStatus): () => number | false {
+	return () => (status.state === 'live' ? false : ms);
+}

@@ -3,7 +3,7 @@
 // model.spec.ts.
 import type { MyPermissions, Schema } from '$lib/api/client';
 import { SERVICE_ICON_CATEGORY, type TileColor } from '$lib/design/hue';
-import { containerAddresses, type ContainerAddress } from '$lib/features/resources/model';
+import { networkEntries, type NetworkEntry } from '$lib/features/resources/model';
 import type {
 	ContainerMetrics,
 	Stack,
@@ -150,9 +150,9 @@ export function runningOf(svc: StackServiceStatus): { running: number; total: nu
 	};
 }
 
-/** The addresses of a service's containers (IPv4 first, per network). */
-export function serviceAddresses(svc: StackServiceStatus): ContainerAddress[] {
-	return containerAddresses(svc.containers.map((c) => c.networks));
+/** The networks of a service's containers, each with their addresses (IPv4 first). */
+export function serviceNetworks(svc: StackServiceStatus): NetworkEntry[] {
+	return networkEntries(svc.containers.map((c) => c.networks));
 }
 
 /** The oldest start time of the running containers (stack uptime). */
@@ -200,8 +200,8 @@ export interface LatestSample {
 /**
  * Sums the containers' CPU series per timestamp (a stack uses the sum of
  * its containers' share of the environment's cores, #5) and takes each
- * container's latest CPU and memory. With `latest` (the newest 10 s
- * samples of the stack's containers) the current values come from there
+ * container's latest CPU and memory. With `latest` (the current values of
+ * the stack's containers: live, or the newest 10 s samples) they come from there
  * instead of the last minute bucket; containers without a recent sample
  * (stopped) then have no current value.
  */

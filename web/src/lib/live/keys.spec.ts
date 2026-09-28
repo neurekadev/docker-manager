@@ -80,6 +80,13 @@ describe('invalidation map', () => {
 				at: ''
 			}).map((i) => i.class)
 		).toEqual(['metrics', 'metrics']);
+		// Live values (about every second) refresh only the current CPU and
+		// memory, never the charts.
+		expect(inv('metrics', 'live_metrics', 'e1', 'e1')).toEqual([
+			['metrics', 'item', 'e1', 'containers-latest'],
+			['metrics', 'item', 'e1', 'capacity'],
+			['overview']
+		]);
 		expect(inv('environments', 'inventory', 'e1', 'e1')).toContainEqual([
 			'environments',
 			'item',

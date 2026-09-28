@@ -555,7 +555,8 @@ func registerObserve(a huma.API, deps Deps) {
 		Operation: huma.Operation{
 			OperationID: "get-environment-capacity", Method: http.MethodGet, Path: BasePath + "/environments/{environmentId}/capacity",
 			Summary: "Get an environment's capacity and current usage",
-			Description: "Cores, memory, filesystems (by role, never host paths) and the latest sample's usage. Values of an offline " +
+			Description: "Cores, memory, filesystems (by role, never host paths) and the latest sample's usage; CPU and memory are the " +
+				"live values while a browser live stream keeps them fresh (about every second). Values of an offline " +
 				"environment are the last known ones (see sampledAt and online).",
 			Tags: []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound},
 		},
@@ -567,7 +568,8 @@ func registerObserve(a huma.API, deps Deps) {
 			OperationID: "get-overview", Method: http.MethodGet, Path: BasePath + "/overview",
 			Summary: "Get the cross-environment overview",
 			Description: "Every active environment the caller may see with its connection state; the latest host usage where the caller " +
-				"holds environment.metrics.read and Docker counts where it holds environment.system.read. Totals count only those.",
+				"holds environment.metrics.read (CPU and memory live, about every second, while a browser live stream is open) and " +
+				"Docker counts where it holds environment.system.read. Totals count only those.",
 			Tags: []string{tagEnvironments}, Errors: []int{http.StatusUnauthorized},
 		},
 		Capability: CapabilityAuthenticated, Scope: ScopeNone,

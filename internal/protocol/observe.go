@@ -6,9 +6,9 @@ import (
 	"unicode/utf8"
 )
 
-// Observation requests (#5): the input and output of engine.info and
-// host.metrics. docs/internal/architecture/metrics.md describes units, sampling,
-// buffering and how the manager ingests them.
+// Observation requests (#5): the input and output of engine.info,
+// host.metrics and metrics.live. docs/internal/architecture/metrics.md
+// describes units, sampling, buffering and how the manager ingests them.
 
 // Sampling constants shared by the agent and the manager.
 const (
@@ -29,7 +29,71 @@ const (
 	MaxMetricsResponseBytes = 768 << 10
 	// MaxMetricsBatchesPerResponse bounds the batches of one response.
 	MaxMetricsBatchesPerResponse = 60
+
+	// LiveMetricsInterval is how often the manager asks an agent for live
+	// metrics (metrics.live) while a browser is watching.
+	LiveMetricsInterval = time.Second
+	// LiveMetricsBaselineAge bounds the age of the previous metrics.live
+	// read the agent computes CPU against: after a longer pause (nobody
+	// watching) the next answer starts a new baseline and has no CPU.
+	LiveMetricsBaselineAge = 5 * time.Second
+	// LiveMetricsBudget bounds the sampling of one metrics.live answer;
+	// containers not read in time are left out (flag
+	// BatchContainersTruncated) and read first by the next request.
+	LiveMetricsBudget = 800 * time.Millisecond
 )
+
+// LiveMetricsOutput answers metrics.live: the current CPU and memory of
+// the host and of every running container, read when asked (never
+// buffered or stored). CPU is the change since the agent's previous
+// metrics.live read (at most LiveMetricsBaselineAge old); the first
+// answer after a pause has none. Absent values are unknown.
+type LiveMetricsOutput struct {
+	// At is the agent clock when the values were read.
+	At time.Time `json:"at"`
+	// Flags: BatchContainersTruncated, BatchEngineUnavailable.
+	Flags      int             `json:"flags,omitempty"`
+	Host       LiveHostSample  `json:"host"`
+	Containers []LiveContainer `json:"containers,omitempty"`
+}
+
+// LiveHostSample is the host part of a metrics.live answer (units as in
+// HostSample).
+type LiveHostSample struct {
+	CPUPercent       *float64 `json:"cpuPercent,omitempty"`
+	CPUs             int      `json:"cpus,omitempty"`
+	MemoryUsedBytes  *int64   `json:"memoryUsedBytes,omitempty"`
+	MemoryTotalBytes *int64   `json:"memoryTotalBytes,omitempty"`
+}
+
+// LiveContainer is one running container's current CPU and memory (units
+// as in ContainerSample).
+type LiveContainer struct {
+	Name             string   `json:"name"`
+	ID               string   `json:"id"`
+	CPUPercent       *float64 `json:"cpuPercent,omitempty"`
+	MemoryBytes      *int64   `json:"memoryBytes,omitempty"`
+	MemoryLimitBytes *int64   `json:"memoryLimitBytes,omitempty"`
+}
+
+// Validate bounds a metrics.live answer (the manager calls it before
+// keeping anything).
+func (o LiveMetricsOutput) Validate() error {
+	h := o.Host
+	if o.At.IsZero() || !finite(h.CPUPercent, 0, 100) || h.CPUs < 0 || !nonNegative(h.MemoryUsedBytes, h.MemoryTotalBytes) {
+		return invalid("metrics.live output needs a timestamp and host values in range")
+	}
+	if len(o.Containers) > MaxContainerSamples {
+		return invalid("metrics.live lists too many containers")
+	}
+	for _, c := range o.Containers {
+		if c.Name == "" || len(c.Name) > 255 || len(c.ID) > 128 || !utf8.ValidString(c.Name) || !finite(c.CPUPercent, 0, 100) ||
+			!nonNegative(c.MemoryBytes, c.MemoryLimitBytes) {
+			return invalid("live container sample out of range")
+		}
+	}
+	return nil
+}
 
 // HostMetricsInput asks for the buffered sample batches after a cursor.
 type HostMetricsInput struct {

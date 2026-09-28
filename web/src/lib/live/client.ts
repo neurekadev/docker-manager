@@ -22,8 +22,9 @@
 //   - Three failed connections within 60 s: bounded polling of the open
 //     views (details every 10 s, lists and metrics every 30 s) until the
 //     stream is back.
-//   - Lists refresh at most every second and metrics every 10 s however
-//     many events arrive; details immediately.
+//   - Lists refresh at most twice a second and metrics (charts, current
+//     CPU and memory) once a second however many events arrive; details
+//     immediately. The first event of a quiet key refreshes at once.
 //
 // It feeds liveStatus (status.svelte.ts) for the shell.
 import {
@@ -46,7 +47,7 @@ export const LIVE_URL = '/api/v1/live/stream';
 export const LIVE_VERSION = 'docker-manager.live/v1';
 
 /** Minimum time between two refreshes of one key, per refresh class. */
-export const REFRESH_MS = { detail: 0, list: 1_000, metrics: 10_000 } as const;
+export const REFRESH_MS = { detail: 0, list: 500, metrics: 1_000 } as const;
 export const POLL_DETAIL_MS = 10_000;
 /** Lists and metrics are polled every third detail poll (30 s). */
 export const POLL_LIST_EVERY = 3;

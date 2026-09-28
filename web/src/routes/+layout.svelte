@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Root layout: global design styles (#22), Svelte Query with the session
 	// expiry hook, service worker (#11), live synchronization (#23),
-	// connection and update notices, and the toast region. Page chrome lives
+	// connection and update notices, the toast region and the app-wide
+	// tooltips (every title attribute, TooltipLayer). Page chrome lives
 	// in (app)/+layout.svelte (the shell) and (auth)/+layout.svelte (sign-in
 	// and onboarding).
 	import '$lib/design/global.css';
@@ -19,6 +20,7 @@
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { notices } from '$lib/shell/notices.svelte';
 	import Toaster from '$lib/ui/Toaster.svelte';
+	import TooltipLayer from '$lib/ui/TooltipLayer.svelte';
 
 	let { children } = $props();
 
@@ -60,6 +62,7 @@
 		<UpdatePrompt />
 	</div>
 	<Toaster />
+	<TooltipLayer />
 </QueryClientProvider>
 
 <style>

@@ -1156,7 +1156,7 @@ export interface paths {
         };
         /**
          * Get an environment's capacity and current usage
-         * @description Cores, memory, filesystems (by role, never host paths) and the latest sample's usage. Values of an offline environment are the last known ones (see sampledAt and online).
+         * @description Cores, memory, filesystems (by role, never host paths) and the latest sample's usage; CPU and memory are the live values while a browser live stream keeps them fresh (about every second). Values of an offline environment are the last known ones (see sampledAt and online).
          */
         get: operations["get-environment-capacity"];
         put?: never;
@@ -1672,7 +1672,7 @@ export interface paths {
         };
         /**
          * List the current usage of an environment's containers
-         * @description The newest CPU and memory sample (#5, 10 s resolution) of every container sampled within the last windowSeconds, for the containers the caller holds container.metrics.read on (others are absent). Tables poll it (or refresh on metrics.sampled) instead of one range query per container. Unknown values are absent, never zero.
+         * @description The current CPU and memory (#5) of every container sampled within the last windowSeconds, for the containers the caller holds container.metrics.read on (others are absent): the live values (read about once a second while a browser live stream is open, never stored) while they are fresh, else the newest stored 10 s sample. Tables refresh it on metrics invalidations of the live stream instead of one range query per container. Unknown values are absent, never zero.
          */
         get: operations["list-latest-container-metrics"];
         put?: never;
@@ -2911,7 +2911,7 @@ export interface paths {
         };
         /**
          * Get the cross-environment overview
-         * @description Every active environment the caller may see with its connection state; the latest host usage where the caller holds environment.metrics.read and Docker counts where it holds environment.system.read. Totals count only those.
+         * @description Every active environment the caller may see with its connection state; the latest host usage where the caller holds environment.metrics.read (CPU and memory live, about every second, while a browser live stream is open) and Docker counts where it holds environment.system.read. Totals count only those.
          */
         get: operations["get-overview"];
         put?: never;
@@ -8046,7 +8046,7 @@ export interface components {
             at: string;
             environmentId?: string;
             /**
-             * @description Resource type (for example container, stack, backup_policy, inventory, metrics).
+             * @description Resource type (for example container, stack, backup_policy, inventory, metrics). On the metrics topic: metrics (new stored samples: charts and current values) or live_metrics (new current CPU and memory, about once a second while a stream is open: only the current values).
              * @example container
              */
             kind: string;

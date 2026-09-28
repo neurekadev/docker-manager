@@ -61,6 +61,11 @@ const (
 	// (#5). Attributes["host"] is "true" when host values arrived; Members
 	// lists the containers with new samples.
 	MetricsSampled = "metrics.sampled"
+	// MetricsLive: new live CPU and memory values of an environment are
+	// in memory (#5, metrics.live, about once a second while a browser is
+	// watching; never stored). Attributes and Members as MetricsSampled;
+	// it carries no values.
+	MetricsLive = "metrics.live"
 	// InventoryUpdated: an environment's Engine inventory (identity,
 	// capacity, Docker counts) was refreshed (#5).
 	InventoryUpdated = "inventory.updated"

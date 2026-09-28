@@ -236,12 +236,7 @@
 						hideLabel
 						options={languageOptions}
 						value={tab.language}
-						onchange={(e) =>
-							session.setLanguage(
-								tab.path,
-								(e.currentTarget as HTMLSelectElement)
-									.value as EditorTab['language']
-							)}
+						onchange={(v) => session.setLanguage(tab.path, v as EditorTab['language'])}
 					/>
 				</div>
 				{#if isMarkdown}

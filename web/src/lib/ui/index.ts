@@ -52,6 +52,7 @@ export { default as TextArea } from './TextArea.svelte';
 export { default as Select } from './Select.svelte';
 export type { SelectOption } from './Select.svelte';
 export { default as Combobox } from './Combobox.svelte';
+export { default as SuggestField } from './SuggestField.svelte';
 export { default as Checkbox } from './Checkbox.svelte';
 export { default as Switch } from './Switch.svelte';
 export { default as RadioGroup } from './RadioGroup.svelte';
@@ -69,6 +70,8 @@ export { default as TypeToConfirm } from './TypeToConfirm.svelte';
 export { default as Drawer } from './Drawer.svelte';
 export { default as Popover } from './Popover.svelte';
 export { default as Tooltip } from './Tooltip.svelte';
+export { default as TooltipLayer } from './TooltipLayer.svelte';
+export { placeTooltip, tooltipAnchor, type Placement } from './tooltip';
 
 // Feedback and states
 export { default as Toaster } from './Toaster.svelte';
