@@ -7,8 +7,11 @@ export const EDITOR_COLORS = {
 	text: '#c8d3e2', // --text-default
 	muted: '#8392a8', // --text-muted
 	caret: '#52a3f7', // --accent-text
-	selection: '#1d3561', // --code-selection
+	selection: '#264f78', // --code-selection
 	activeLine: '#16202b', // --code-active-line
+	// The editor's current line is translucent (no token): CodeMirror draws
+	// the selection below the lines, so an opaque line would hide it.
+	activeLineOverlay: 'rgba(200, 211, 226, 0.04)',
 	gutter: '#596476', // --code-gutter
 	gutterActive: '#c8d3e2', // --code-gutter-active
 	key: '#52a3f7', // --code-key
@@ -53,7 +56,7 @@ export const TERMINAL_THEME = {
 	foreground: '#c8d3e2',
 	cursor: '#52a3f7',
 	cursorAccent: '#0f161f',
-	selectionBackground: '#1d3561',
+	selectionBackground: '#264f78',
 	black: '#121a24',
 	red: '#fd6b66',
 	green: '#4cf683',

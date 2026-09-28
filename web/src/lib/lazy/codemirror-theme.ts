@@ -20,10 +20,15 @@ const theme = EditorView.theme(
 		},
 		'.cm-content': { caretColor: c.caret, padding: '8px 0' },
 		'.cm-cursor, .cm-dropCursor': { borderLeftColor: c.caret, borderLeftWidth: '2px' },
-		'&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-			backgroundColor: c.selection
-		},
-		'.cm-activeLine': { backgroundColor: c.activeLine },
+		// As specific as CodeMirror's own focused-selection rule (a near-black
+		// #233 in dark mode), so the visible selection colour always wins.
+		'&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection':
+			{
+				backgroundColor: c.selection
+			},
+		// Translucent: the selection is drawn below the lines and must show
+		// through the current line.
+		'.cm-activeLine': { backgroundColor: c.activeLineOverlay },
 		'.cm-gutters': {
 			backgroundColor: c.background,
 			color: c.gutter,
