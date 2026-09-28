@@ -117,7 +117,6 @@
 			];
 		const env = stack.data?.environmentId;
 		if (!env || !services.data) return null;
-		const stackId = t.stackId;
 		return services.data.services.flatMap((svc) => {
 			// Every service has the same colour; the prefix names it.
 			const color = SERVICE_COLOR;

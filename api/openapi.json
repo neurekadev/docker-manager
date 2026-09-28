@@ -2754,6 +2754,9 @@
           },
           "stepSeconds": {
             "description": "Spacing of the points: 3600 (ranges up to 8 days) or 86400.",
+            "examples": [
+              86400
+            ],
             "format": "int64",
             "type": "integer"
           },
@@ -26433,7 +26436,7 @@
               "application/json": {
                 "example": {
                   "from": "2026-09-25T12:00:00Z",
-                  "stepSeconds": 1,
+                  "stepSeconds": 86400,
                   "storedBytes": [
                     1
                   ],

@@ -5971,6 +5971,7 @@ export interface components {
             /**
              * Format: int64
              * @description Spacing of the points: 3600 (ranges up to 8 days) or 86400.
+             * @example 86400
              */
             stepSeconds: number;
             /** @description Stored at the destinations (after deduplication and compression) at each timestamp: the sum of every location's latest measurement at or before it. null before the first measurement. */
@@ -17211,7 +17212,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "from": "2026-09-25T12:00:00Z",
-                     *       "stepSeconds": 1,
+                     *       "stepSeconds": 86400,
                      *       "storedBytes": [
                      *         1
                      *       ],

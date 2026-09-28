@@ -31,7 +31,7 @@ const (
 type BackupStorageHistory struct {
 	From        time.Time   `json:"from"`
 	To          time.Time   `json:"to"`
-	StepSeconds int         `json:"stepSeconds" doc:"Spacing of the points: 3600 (ranges up to 8 days) or 86400."`
+	StepSeconds int         `json:"stepSeconds" example:"86400" doc:"Spacing of the points: 3600 (ranges up to 8 days) or 86400."`
 	Timestamps  []time.Time `json:"timestamps" doc:"from, every whole UTC hour or day (stepSeconds) in between, and to."`
 	// Values align with timestamps; null until a location was measured.
 	StoredBytes []*int64 `json:"storedBytes" doc:"Stored at the destinations (after deduplication and compression) at each timestamp: the sum of every location's latest measurement at or before it. null before the first measurement."`
