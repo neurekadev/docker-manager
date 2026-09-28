@@ -406,7 +406,7 @@
 								label: g.default ? `${g.name} (default)` : g.name
 							}))}
 							value={moveTo || u.groupId}
-							onchange={(e) => (moveTo = e.currentTarget.value)}
+							onchange={(v) => (moveTo = v)}
 						/>
 						<Button
 							disabled={!moveTo || moveTo === u.groupId}

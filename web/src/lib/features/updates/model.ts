@@ -179,3 +179,37 @@ export function summarizeTargets(summaries: (UpdateSummary | undefined)[]): {
 	}
 	return out;
 }
+
+/** The policy covering an update target, and whether the user may check it now. */
+export interface PolicyRef {
+	id: string;
+	canCheck: boolean;
+}
+
+/** `<environment>/<stack|container>/<stack ID or container name>`. */
+const targetKey = (environmentId: string, type: string, id: string) =>
+	`${environmentId}/${type}/${id}`;
+
+/** The policies by target, for the update badges of lists (containers, services). */
+export function policiesByTarget(
+	policies: readonly Pick<UpdatePolicy, 'id' | 'environmentId' | 'target' | 'actions'>[]
+): Map<string, PolicyRef> {
+	return new Map(
+		policies.map((p) => [
+			targetKey(p.environmentId, p.target.type, p.target.id),
+			{ id: p.id, canCheck: (p.actions ?? []).includes('update.check') }
+		])
+	);
+}
+
+/** The policy covering a container: its stack's (Docker Manager stacks) or its own. */
+export function containerPolicy(
+	index: ReadonlyMap<string, PolicyRef>,
+	c: { environmentId: string; name: string; stack?: { stackId?: string } }
+): PolicyRef | undefined {
+	return c.stack
+		? c.stack.stackId
+			? index.get(targetKey(c.environmentId, 'stack', c.stack.stackId))
+			: undefined
+		: index.get(targetKey(c.environmentId, 'container', c.name));
+}

@@ -117,8 +117,7 @@
 					]}
 					value={age.unit}
 					{disabled}
-					onchange={(e) =>
-						setAge(String(age.value), e.currentTarget.value as 'days' | 'hours')}
+					onchange={(v) => setAge(String(age.value), v as 'days' | 'hours')}
 				/>
 			</Fields>
 

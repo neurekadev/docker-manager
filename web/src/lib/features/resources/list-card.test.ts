@@ -5,6 +5,7 @@ import { render, screen, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { LIST_FILTERS_PREFIX } from './list-filters.svelte';
 import ListCardHarness from './test/ListCardHarness.svelte';
+import { choose } from '../../../test/select';
 
 function memoryStorage(initial: Record<string, string> = {}) {
 	const data = new Map(Object.entries(initial));
@@ -28,7 +29,7 @@ const listed = () =>
 		.map((li) => li.textContent);
 
 describe('ListCard', () => {
-	it('titles the card and builds the search and every filter into its header', () => {
+	it('titles the card and builds the search, the selects and the switches into its header', () => {
 		render(ListCardHarness, { props: { rows, storage: memoryStorage() } });
 		const card = screen.getByRole('region', { name: 'All things' });
 		expect(within(card).getByRole('status')).toHaveTextContent('3 things');
@@ -37,9 +38,15 @@ describe('ListCard', () => {
 			'placeholder',
 			'Search by name'
 		);
-		expect(within(search).getByRole('combobox', { name: 'Status' })).toHaveValue('');
+		expect(within(search).getByRole('combobox', { name: 'Status' })).toHaveTextContent(
+			'All statuses'
+		);
 		expect(within(search).getByRole('combobox', { name: 'Driver' })).toBeInTheDocument();
-		expect(within(search).getByRole('textbox', { name: 'Label' })).toBeInTheDocument();
+		expect(within(search).getByRole('switch', { name: 'Stopped' })).toHaveAttribute(
+			'aria-checked',
+			'false'
+		);
+		expect(document.querySelector('select')).toBeNull();
 		expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
 	});
 
@@ -51,11 +58,11 @@ describe('ListCard', () => {
 	});
 
 	it('filters, counts, and clears the search and every filter at once', async () => {
-		const user = userEvent.setup();
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		const storage = memoryStorage();
 		render(ListCardHarness, { props: { rows, storage } });
 
-		await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'running');
+		await choose(user, screen.getByRole('combobox', { name: 'Status' }), 'Running');
 		expect(listed()).toEqual(['web', 'media']);
 		await user.type(screen.getByRole('searchbox', { name: 'Search things' }), 'WE');
 		expect(listed()).toEqual(['web']);
@@ -68,15 +75,33 @@ describe('ListCard', () => {
 		expect(listed()).toEqual(['web', 'db', 'media']);
 		expect(screen.getByRole('searchbox', { name: 'Search things' })).toHaveValue('');
 		expect(screen.getByRole('searchbox', { name: 'Search things' })).toHaveFocus();
-		expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('');
+		expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('All statuses');
 		expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
 		expect(storage.data.size).toBe(0);
 	});
 
+	it('narrows the list with a switch and keeps it on', async () => {
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		const storage = memoryStorage();
+		render(ListCardHarness, { props: { rows, storage } });
+		await user.click(screen.getByRole('switch', { name: 'Stopped' }));
+		expect(listed()).toEqual(['db']);
+		expect(screen.getByRole('switch', { name: 'Stopped' })).toHaveAttribute(
+			'aria-checked',
+			'true'
+		);
+		expect(storage.data.get(`${LIST_FILTERS_PREFIX}things`)).toBe(
+			JSON.stringify({ q: '', values: { stopped: 'on' } })
+		);
+		await user.click(screen.getByRole('switch', { name: 'Stopped' }));
+		expect(listed()).toHaveLength(3);
+		expect(storage.data.size).toBe(0);
+	});
+
 	it('offers the same clear action when nothing matches', async () => {
-		const user = userEvent.setup();
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		render(ListCardHarness, { props: { rows, storage: memoryStorage() } });
-		await user.type(screen.getByRole('textbox', { name: 'Label' }), 'tier=back');
+		await user.type(screen.getByRole('searchbox', { name: 'Search things' }), 'nothing');
 		expect(
 			screen.getByRole('heading', { name: 'No things match the search and filters.' })
 		).toBeInTheDocument();
@@ -84,20 +109,24 @@ describe('ListCard', () => {
 		expect(clears).toHaveLength(2);
 		await user.click(clears[1]);
 		expect(listed()).toHaveLength(3);
-		expect(screen.getByRole('textbox', { name: 'Label' })).toHaveValue('');
+		expect(screen.getByRole('searchbox', { name: 'Search things' })).toHaveValue('');
 	});
 
 	it('restores the stored search and filters of this list when it comes back', () => {
 		const storage = memoryStorage({
 			[`${LIST_FILTERS_PREFIX}things`]: JSON.stringify({
 				q: '',
-				values: { driver: 'nfs', status: 'bogus' }
+				values: { driver: 'nfs', status: 'bogus', stopped: 'yes' }
 			}),
 			[`${LIST_FILTERS_PREFIX}other`]: JSON.stringify({ q: 'db', values: {} })
 		});
 		render(ListCardHarness, { props: { rows, storage } });
-		expect(screen.getByRole('combobox', { name: 'Driver' })).toHaveValue('nfs');
-		expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('');
+		expect(screen.getByRole('combobox', { name: 'Driver' })).toHaveTextContent('nfs');
+		expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('All statuses');
+		expect(screen.getByRole('switch', { name: 'Stopped' })).toHaveAttribute(
+			'aria-checked',
+			'false'
+		);
 		expect(screen.getByRole('searchbox', { name: 'Search things' })).toHaveValue('');
 		expect(listed()).toEqual(['media']);
 		expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();

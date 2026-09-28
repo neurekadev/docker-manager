@@ -7,7 +7,11 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
 
 - **Components:** build pages only from `$lib/ui` (one barrel) and tokens
   (`$lib/design/tokens.css`); no raw hex, no one-off copies of a component.
-  `IconButton` needs `label`; confirmations use `ConfirmDialog` /
+  `IconButton` needs `label`; dropdowns are `Select` (a themed Bits UI
+  listbox, never a native `<select>`), `Combobox` or `SuggestField` (free
+  text with suggestions, never a `<datalist>`); every `title`
+  attribute shows as a themed tooltip (`TooltipLayer` in the root layout),
+  so never build a tooltip by hand; confirmations use `ConfirmDialog` /
   `DestructiveConfirm` (consequences listed, type-to-confirm for high
   impact); status is `StatusBadge` (dot + text). Service colours:
   `serviceIdentity`/`serviceSeriesColor` (`$lib/design/hue`). Heavy
@@ -57,12 +61,22 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   other refusals with the server's reason), `RemovalDialog` (the server's
   removal preview). Credential changes go through `withStepUp`
   (`$lib/auth/stepup.svelte`). `unwrap` resolves a 204 to `undefined`.
-  Section lists (containers, images, volumes, networks, stacks) are one
-  `ListCard` ("All containers", count, search and filters in the header,
-  "Clear filters", `NoMatches`); their filters are `ListFilter`s in pure,
-  spec-tested modules and their state a `ListFilters` store (per list and
-  browser tab in `sessionStorage`, UI state only). Offer a filter for
-  every attribute the list shows except counts, sizes and dates.
+  Section lists (containers, images, volumes, networks, stacks, jobs,
+  schedules) are one `ListCard` ("All containers", count, search, selects
+  and switches in the header, "Clear filters", `NoMatches`); their filters
+  are `ListFilter`s in pure, spec-tested modules and their state a
+  `ListFilters` store (per list and browser tab in `sessionStorage`, UI
+  state only). Keep filters few: text attributes (names, images, digests,
+  labels as `key=value`, networks, addresses) belong in the search; offer
+  selects only for status-like attributes (status, stack, driver, kind,
+  environment while all are shown) and switches, off by default, for
+  yes/no narrowing ("Unused", "Managed", "Updates"). Column order follows
+  what people scan: identity (name with its image), status, grouping
+  (stack, environment), live figures (CPU, memory, uptime), wiring
+  (networks, ports), then sizes and dates. An image's update state is the
+  `ImageUpdateBadge` icon next to the image (it checks the covering
+  policy again, spinning while the job runs), never its own column;
+  networks show with `NetworkList` (linked, with their addresses).
 - **Search:** `GET /api/v1/search` (`internal/manager/api/search.go`) feeds
   the ⌘K palette; new searchable resource types go there, filtered with the
   resource's own `ViewOf` and identity/status fields only.

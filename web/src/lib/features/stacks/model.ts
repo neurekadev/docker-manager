@@ -3,7 +3,7 @@
 // model.spec.ts.
 import type { MyPermissions, Schema } from '$lib/api/client';
 import { SERVICE_ICON_CATEGORY, type TileColor } from '$lib/design/hue';
-import { containerAddresses, type ContainerAddress } from '$lib/features/resources/model';
+import { networkEntries, type NetworkEntry } from '$lib/features/resources/model';
 import type {
 	ContainerMetrics,
 	Stack,
@@ -150,9 +150,9 @@ export function runningOf(svc: StackServiceStatus): { running: number; total: nu
 	};
 }
 
-/** The addresses of a service's containers (IPv4 first, per network). */
-export function serviceAddresses(svc: StackServiceStatus): ContainerAddress[] {
-	return containerAddresses(svc.containers.map((c) => c.networks));
+/** The networks of a service's containers, each with their addresses (IPv4 first). */
+export function serviceNetworks(svc: StackServiceStatus): NetworkEntry[] {
+	return networkEntries(svc.containers.map((c) => c.networks));
 }
 
 /** The oldest start time of the running containers (stack uptime). */

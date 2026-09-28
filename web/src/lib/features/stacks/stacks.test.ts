@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
 import type { Environment } from '$lib/api/client';
+import { routes } from '$lib/routes';
 import DiffView from '$lib/ui/DiffView.svelte';
 import QueryHarness from '../../../test/QueryHarness.svelte';
 import type { Stack, StackServiceStatus } from './queries';
@@ -371,11 +372,6 @@ describe('ServicesTable', () => {
 			screen.queryByRole('link', { name: 'Open a terminal in web' })
 		).not.toBeInTheDocument();
 		expect(screen.getByText('Web frontend')).toBeInTheDocument();
-		// jsdom matches no media query: below 1280 px the restart policy
-		// column gives way to the others.
-		expect(
-			screen.queryByRole('columnheader', { name: 'Restart policy' })
-		).not.toBeInTheDocument();
 		unmount();
 
 		render(ServicesTable, {
@@ -410,7 +406,7 @@ describe('ServicesTable', () => {
 		expect(onoperate).toHaveBeenCalledWith('worker', 'start');
 	});
 
-	it('shows uptime, CPU and memory right after the status, and the addresses', () => {
+	it('orders the columns like the containers list and links the networks', () => {
 		const day = 86400;
 		const web = services[0];
 		const live = [
@@ -443,13 +439,23 @@ describe('ServicesTable', () => {
 		});
 		const headers = screen.getAllByRole('columnheader').map((h) => h.textContent ?? '');
 		const at = (name: string) => headers.findIndex((h) => h.includes(name));
-		expect([at('Status'), at('Uptime'), at('CPU'), at('Memory')]).toEqual([1, 2, 3, 4]);
-		expect(at('IP addresses')).toBeLessThan(at('Image'));
+		expect(
+			['Status', 'Containers', 'CPU', 'Memory', 'Uptime', 'Image', 'Networks', 'Ports'].map(
+				at
+			)
+		).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+		expect(at('Restart policy')).toBe(-1);
+		expect(at('Image update')).toBe(-1);
 		expect(screen.getByText('2d 1h 0m')).toBeInTheDocument();
 		expect(screen.getByText('12.5%')).toBeInTheDocument();
 		expect(screen.getByText('64 MB')).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'silo_default' })).toHaveAttribute(
+			'href',
+			routes.network('env-1', 'silo_default')
+		);
 		expect(screen.getByText('172.18.0.2')).toBeInTheDocument();
-		expect(screen.getByText('+1')).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'edge' })).toBeInTheDocument();
+		expect(screen.getByText('10.0.0.5')).toBeInTheDocument();
 	});
 
 	it("disables restart and stop of Docker Manager's own stack (not start)", async () => {

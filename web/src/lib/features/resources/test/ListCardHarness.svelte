@@ -1,6 +1,6 @@
 <script lang="ts">
-	// Test harness: a ListCard over plain rows with a static, a row-built
-	// and a text filter, the rows it lets through and the no-match state.
+	// Test harness: a ListCard over plain rows with a static and a row-built
+	// select and a switch, the rows it lets through and the no-match state.
 	import Box from '@lucide/svelte/icons/box';
 	import ListCard from '../ListCard.svelte';
 	import NoMatches from '../NoMatches.svelte';
@@ -8,8 +8,8 @@
 		applyListFilters,
 		distinctOptions,
 		isFiltering,
-		labelFilter,
 		listSummary,
+		switchFilter,
 		type ListFilter
 	} from '../filters';
 	import { ListFilters } from '../list-filters.svelte';
@@ -47,7 +47,7 @@
 			options: distinctOptions(rows.map((r) => r.driver)),
 			match: (r, v) => r.driver === v
 		},
-		labelFilter<Row>()
+		switchFilter<Row>('stopped', 'Stopped', 'Only stopped things', (r) => r.state === 'exited')
 	]);
 	const shown = $derived(applyListFilters(rows, defs, store.state, (r) => [r.name]));
 	const filtered = $derived(isFiltering(defs, store.state));

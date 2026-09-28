@@ -1,25 +1,34 @@
 // Search and filters of the resource lists (containers, images, volumes,
-// networks; stacks build theirs in $lib/features/stacks/filters.ts): one
-// filter model rendered by ListCard, the stored state of a list (parsed
-// defensively) and the filters each list offers. Pure; unit-tested in
-// filters.spec.ts.
+// networks; stacks, jobs and schedules build theirs next to their
+// features): one filter model rendered by ListCard, the stored state of a
+// list (parsed defensively) and the filters each list offers. Text
+// attributes (names, images, digests, labels, addresses) go into the
+// search; a list offers selects for its few status-like attributes and
+// switches for yes/no narrowing (unused, managed), all off by default.
+// Pure; unit-tested in filters.spec.ts.
 import type { Container, Image, Network, Volume } from '$lib/api/queries';
 import { statusInfo } from '$lib/ui/status';
-import { containerStatus, volumeAccess } from './model';
+import { containerStatus } from './model';
 
 export interface FilterOption {
 	value: string;
 	label: string;
 }
 
-/** One filter of a list: a select of options, or a free text (labels). */
+/**
+ * One filter of a list: a select of options, a free text, or a switch
+ * (on narrows the list; its stored value is "on").
+ */
 export interface ListFilter<T> {
 	/** Key in the stored state ("status", "stack"). */
 	id: string;
-	/** Accessible name of the control ("Status"). */
+	/** Accessible name of the control ("Status"); a switch's visible label ("Unused"). */
 	label: string;
-	kind?: 'select' | 'text';
-	/** The option that filters nothing ("All statuses"); the placeholder of a text filter. */
+	kind?: 'select' | 'text' | 'switch';
+	/**
+	 * The option that filters nothing ("All statuses"); the placeholder of
+	 * a text filter; the tooltip of a switch ("Only volumes no container uses").
+	 */
 	all: string;
 	options?: FilterOption[];
 	/**
@@ -39,10 +48,14 @@ export interface ListFilterState {
 
 export const emptyFilterState = (): ListFilterState => ({ q: '', values: {} });
 
+/** The stored value of a switch filter that is on. */
+export const SWITCH_ON = 'on';
+
 /** The value a filter applies ('' when it filters nothing or the value is unknown). */
 export function activeValue<T>(f: ListFilter<T>, value: string | undefined): string {
 	if (!value) return '';
 	if (f.kind === 'text') return value.trim();
+	if (f.kind === 'switch') return value === SWITCH_ON ? SWITCH_ON : '';
 	if (f.dynamic || (f.options ?? []).some((o) => o.value === value)) return value;
 	return '';
 }
@@ -148,7 +161,7 @@ interface Env {
 }
 
 /** Environment (only while every environment is shown). */
-export function environmentFilter<T extends { environmentId: string }>(
+export function environmentFilter<T extends { environmentId?: string }>(
 	envs: readonly Env[]
 ): ListFilter<T> {
 	return {
@@ -180,54 +193,46 @@ export function stackFilter<T extends { stack?: { project: string } }>(
 	};
 }
 
-/** Docker Manager's own objects (#32). `plural`: "containers". */
-export function systemFilter<T extends { protection?: unknown }>(plural: string): ListFilter<T> {
-	return {
-		id: 'system',
-		label: 'Docker Manager',
-		all: `Show Docker Manager's ${plural}`,
-		options: [
-			{ value: 'only', label: `Only Docker Manager's ${plural}` },
-			{ value: 'hide', label: `Hide Docker Manager's ${plural}` }
-		],
-		match: (r, v) => (v === 'only') === !!r.protection
-	};
+/** A yes/no filter shown as a switch (off: every row). */
+export function switchFilter<T>(
+	id: string,
+	label: string,
+	tooltip: string,
+	match: (row: T) => boolean
+): ListFilter<T> {
+	return { id, label, kind: 'switch', all: tooltip, match: (r) => match(r) };
 }
 
-/** Used by at least one container (images, volumes). */
-export function usageFilter<T extends { inUse?: boolean }>(): ListFilter<T> {
-	return {
-		id: 'usage',
-		label: 'Usage',
-		all: 'Used and unused',
-		options: [
-			{ value: 'used', label: 'Used by containers' },
-			{ value: 'unused', label: 'Unused' }
-		],
-		match: (r, v) => (v === 'used') === !!r.inUse
-	};
+/** Rows no container uses (images, volumes). `plural`: "images". */
+export function unusedFilter<T extends { inUse?: boolean; usedBy?: readonly unknown[] }>(
+	plural: string
+): ListFilter<T> {
+	return switchFilter<T>(
+		'unused',
+		'Unused',
+		`Only ${plural} no container uses`,
+		(r) => !r.inUse && !r.usedBy?.length
+	);
 }
 
-/** A "key" or "key=value" label filter. */
-export function labelMatches(labels: Record<string, string> | undefined, filter: string): boolean {
-	const f = filter.trim();
-	if (!f) return true;
-	const eq = f.indexOf('=');
-	const key = (eq < 0 ? f : f.slice(0, eq)).trim();
-	const v = labels?.[key];
-	if (v === undefined) return false;
-	return eq < 0 || v === f.slice(eq + 1).trim();
+/**
+ * Objects Docker Manager manages: those of its stacks and its own (#32).
+ * `plural`: "volumes".
+ */
+export function managedFilter<
+	T extends { stack?: { managed?: boolean; stackId?: string }; protection?: unknown }
+>(plural: string): ListFilter<T> {
+	return switchFilter<T>(
+		'managed',
+		'Managed',
+		`Only ${plural} of Docker Manager stacks and of Docker Manager itself`,
+		(r) => !!(r.stack?.managed || r.stack?.stackId || r.protection)
+	);
 }
 
-/** Labels (full view only). */
-export function labelFilter<T extends { labels?: Record<string, string> }>(): ListFilter<T> {
-	return {
-		id: 'label',
-		label: 'Label',
-		kind: 'text',
-		all: 'Label: key or key=value',
-		match: (r, v) => labelMatches(r.labels, v)
-	};
+/** The "key=value" texts of labels (the search matches keys, values and pairs). */
+export function labelTexts(labels: Record<string, string> | undefined): string[] {
+	return Object.entries(labels ?? {}).map(([k, v]) => `${k}=${v}`);
 }
 
 /** Options with the badge vocabulary's labels ("partial" → "Partially running"). */
@@ -245,8 +250,6 @@ const withEnv = <T extends { environmentId: string }>(
 ): ListFilter<T>[] => (ctx.envs.length ? [...filters, environmentFilter<T>(ctx.envs)] : filters);
 
 // Containers.
-
-const UPDATE_PROBLEMS = new Set(['check_failed', 'run_failed', 'quarantined']);
 
 export function containerFilters(
 	rows: readonly Container[],
@@ -270,84 +273,48 @@ export function containerFilters(
 				match: (c, v) => (v === 'unhealthy' ? containerStatus(c) === v : c.state === v)
 			},
 			stackFilter(rows),
-			{
-				id: 'update',
-				label: 'Image update',
-				all: 'All update states',
-				options: [
-					{ value: 'available', label: 'Update available' },
-					{ value: 'current', label: 'Up to date' },
-					{ value: 'problem', label: 'Check or update failed' },
-					{ value: 'none', label: 'No update policy' }
-				],
-				match: (c, v) => {
-					switch (v) {
-						case 'available':
-							return c.update === 'update_available';
-						case 'current':
-							return c.update === 'up_to_date';
-						case 'problem':
-							return !!c.update && UPDATE_PROBLEMS.has(c.update);
-						default:
-							return !c.update || c.update === 'ineligible';
-					}
-				}
-			},
-			systemFilter('containers'),
-			labelFilter()
+			switchFilter<Container>(
+				'updates',
+				'Updates',
+				'Only containers with an image update available',
+				(c) => c.update === 'update_available'
+			)
 		],
 		ctx
 	);
 }
 
+/** Name, image, image digest, labels ("key=value"), networks, addresses and stack. */
 export const containerSearch = (c: Container) => [
 	c.name,
 	c.image,
+	c.imageId,
+	c.id,
 	c.stack?.project,
-	c.stack?.service
+	c.stack?.service,
+	...labelTexts(c.labels),
+	...(c.networks ?? []).flatMap((n) => [n.name, n.ipAddress, n.ipv6Address])
 ];
 
 // Images.
 
 export function imageFilters(ctx: FilterContext): ListFilter<Image>[] {
-	return withEnv<Image>(
-		[
-			usageFilter(),
-			{
-				id: 'tags',
-				label: 'Tags',
-				all: 'Tagged and untagged',
-				options: [
-					{ value: 'tagged', label: 'Tagged' },
-					{ value: 'untagged', label: 'Untagged (dangling)' }
-				],
-				match: (im, v) => (v === 'tagged') === im.repoTags.length > 0
-			},
-			systemFilter('images')
-		],
-		ctx
-	);
+	return withEnv<Image>([unusedFilter('images')], ctx);
 }
 
-export const imageSearch = (im: Image) => [...im.repoTags, im.id, ...(im.repoDigests ?? [])];
+/** Tags, ID, digests and labels. */
+export const imageSearch = (im: Image) => [
+	...im.repoTags,
+	im.id,
+	...(im.repoDigests ?? []),
+	...labelTexts(im.labels)
+];
 
 // Volumes.
 
 export function volumeFilters(rows: readonly Volume[], ctx: FilterContext): ListFilter<Volume>[] {
 	return withEnv<Volume>(
 		[
-			usageFilter(),
-			stackFilter(rows),
-			{
-				id: 'files',
-				label: 'File access',
-				all: 'Local and read-only',
-				options: [
-					{ value: 'local', label: 'Local (files open)' },
-					{ value: 'readonly', label: 'Read-only' }
-				],
-				match: (vol, v) => (v === 'local') === volumeAccess(vol).local
-			},
 			{
 				id: 'driver',
 				label: 'Driver',
@@ -356,23 +323,37 @@ export function volumeFilters(rows: readonly Volume[], ctx: FilterContext): List
 				options: distinctOptions(rows.map((vol) => vol.driver)),
 				match: (vol, v) => vol.driver === v
 			},
-			systemFilter('volumes')
+			stackFilter(rows),
+			unusedFilter('volumes'),
+			managedFilter('volumes')
 		],
 		ctx
 	);
 }
 
-export const volumeSearch = (v: Volume) => [v.name, v.stack?.project];
+/** Name, stack, driver, the containers using it and labels. */
+export const volumeSearch = (v: Volume) => [
+	v.name,
+	v.stack?.project,
+	v.driver,
+	...(v.usedBy ?? []).map((c) => c.name),
+	...labelTexts(v.labels)
+];
 
 // Networks.
 
+/**
+ * `used`: `<environment>/<network>` of the networks a container is
+ * attached to (lists do not report attachments); undefined while the
+ * containers are not readable (no Unused switch then).
+ */
 export function networkFilters(
 	rows: readonly Network[],
-	ctx: FilterContext
+	ctx: FilterContext & { used?: ReadonlySet<string> }
 ): ListFilter<Network>[] {
+	const used = ctx.used;
 	return withEnv<Network>(
 		[
-			stackFilter(rows),
 			{
 				id: 'driver',
 				label: 'Driver',
@@ -381,54 +362,33 @@ export function networkFilters(
 				options: distinctOptions(rows.map((n) => n.driver)),
 				match: (n, v) => n.driver === v
 			},
-			{
-				id: 'access',
-				label: 'Access',
-				all: 'Any access',
-				options: [
-					{ value: 'internal', label: 'Internal' },
-					{ value: 'attachable', label: 'Attachable' },
-					{ value: 'ipv6', label: 'IPv6' },
-					{ value: 'default', label: 'Default' }
-				],
-				match: (n, v) => {
-					switch (v) {
-						case 'internal':
-							return !!n.internal;
-						case 'attachable':
-							return !!n.attachable;
-						case 'ipv6':
-							return !!n.enableIpv6;
-						default:
-							return !n.internal && !n.attachable && !n.enableIpv6;
-					}
-				}
-			},
-			{
-				id: 'scope',
-				label: 'Scope',
-				all: 'All scopes',
-				dynamic: true,
-				options: distinctOptions(rows.map((n) => n.scope)),
-				match: (n, v) => n.scope === v
-			},
-			{
-				id: 'predefined',
-				label: 'Predefined',
-				all: 'Show predefined networks',
-				options: [
-					{ value: 'only', label: 'Only predefined networks' },
-					{ value: 'hide', label: 'Hide predefined networks' }
-				],
-				match: (n, v) => (v === 'only') === !!n.builtin
-			},
-			systemFilter('networks')
+			stackFilter(rows),
+			...(used
+				? [
+						switchFilter<Network>(
+							'unused',
+							'Unused',
+							'Only networks no container is attached to',
+							(n) => !used.has(`${n.environmentId}/${n.name}`)
+						)
+					]
+				: []),
+			managedFilter('networks')
 		],
 		ctx
 	);
 }
 
-export const networkSearch = (n: Network) => [n.name, ...(n.subnets ?? [])];
+/** Name, ID, subnets, gateways, driver, stack and labels. */
+export const networkSearch = (n: Network) => [
+	n.name,
+	n.id,
+	n.driver,
+	n.stack?.project,
+	...(n.subnets ?? []),
+	...(n.gateways ?? []),
+	...labelTexts(n.labels)
+];
 
 /** The count next to a list's title: "40 containers", "3 of 40 containers". */
 export function listSummary(

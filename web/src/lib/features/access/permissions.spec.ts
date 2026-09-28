@@ -24,7 +24,7 @@ import {
 	invitationStatus,
 	tokenStatus
 } from './model';
-import { nodesFromRules, serviceNodes } from './tree';
+import { nodesFromRules, resourceNode, serviceNodes } from './tree';
 
 const scopes = (instance: boolean, environment: boolean, resourceTypes: string[] = []) => ({
 	instance,
@@ -137,7 +137,7 @@ const C: Scope = {
 	environmentId: 'e1',
 	resourceId: 'web'
 };
-const S: Scope = { kind: 'resource', resourceType: 'stack', environmentId: 'e1', resourceId: 's1' };
+const S: Scope = { kind: 'resource', resourceType: 'stack', resourceId: 's1' };
 
 describe('scopes and capabilities (#17)', () => {
 	it('offers only the capabilities a scope supports, never owner-only ones', () => {
@@ -272,6 +272,15 @@ describe('rules', () => {
 		});
 	});
 
+	it('inherits the environment rule on a stack from the environment it is listed under', () => {
+		const group: Rule[] = [{ capability: 'stack.deploy', effect: 'allow', scope: E }];
+		expect(inheritedDecision(group, 'stack.deploy', S, 'e1')).toEqual({
+			effect: 'allow',
+			at: 'environment'
+		});
+		expect(inheritedDecision(group, 'stack.deploy', S)).toEqual({ effect: 'deny', at: 'none' });
+	});
+
 	it('limits token grants to what the caller holds; the owner holds every grantable key (#31)', () => {
 		expect([
 			...heldCapabilities(
@@ -314,13 +323,77 @@ describe('resource tree', () => {
 		expect(nodes.map((n) => [n.label, n.detail])).toEqual([['gone', 'Not listed now']]);
 	});
 
-	it('names services by stack', () => {
-		expect(serviceNodes('s1', [{ name: 'web' }], 'e1')[0].scope).toEqual({
+	it('shows a rule on a stack that no environment lists, once, without an environment', () => {
+		const rules: Rule[] = [
+			{ capability: 'stack.deploy', effect: 'allow', scope: S },
+			{ capability: 'stack.deploy', effect: 'allow', scope: { ...S, resourceId: 'gone' } },
+			{
+				capability: 'container.restart',
+				effect: 'allow',
+				scope: { ...S, resourceId: 'gone' }
+			}
+		];
+		const nodes = nodesFromRules(rules, 'stack', 'e2', new Set([scopeKey(S)]));
+		expect(nodes.map((n) => [n.key, n.label, n.detail])).toEqual([
+			['res:stack::gone', 'gone', 'Not listed here']
+		]);
+		expect(nodes[0].scope).toEqual({
+			kind: 'resource',
+			resourceType: 'stack',
+			resourceId: 'gone'
+		});
+		expect(nodes[0].environmentId).toBeUndefined();
+	});
+
+	it("shows an unlisted stack or service rule only under its stack's environment", () => {
+		const rules: Rule[] = [
+			{ capability: 'stack.deploy', effect: 'allow', scope: { ...S, resourceId: 'down' } },
+			{
+				capability: 'stack.restart',
+				effect: 'allow',
+				scope: { kind: 'resource', resourceType: 'service', resourceId: 'down/web' }
+			}
+		];
+		const home = (type: string, id: string) =>
+			(type === 'stack' ? id : id.split('/')[0]) === 'down' ? 'e1' : undefined;
+		expect(nodesFromRules(rules, 'stack', 'e2', new Set(), home)).toEqual([]);
+		expect(nodesFromRules(rules, 'service', 'e2', new Set(), home)).toEqual([]);
+		expect(nodesFromRules(rules, 'stack', 'e1', new Set(), home).map((n) => n.label)).toEqual([
+			'down'
+		]);
+		expect(nodesFromRules(rules, 'service', 'e1', new Set(), home).map((n) => n.label)).toEqual(
+			['down/web']
+		);
+	});
+
+	it('names services by stack, without an environment in the scope', () => {
+		const [web] = serviceNodes('s1', [{ name: 'web' }], 'e1');
+		expect(web.scope).toEqual({
 			kind: 'resource',
 			resourceType: 'service',
-			resourceId: 's1/web',
-			environmentId: 'e1'
+			resourceId: 's1/web'
 		});
+		expect(web.environmentId).toBe('e1');
+		expect(web.key).toBe(scopeKey(web.scope));
+	});
+
+	it('puts the environment in the scope only for types named per environment', () => {
+		for (const type of ['container', 'image', 'volume', 'network']) {
+			const n = resourceNode(type, 'x', 'e1', 'x');
+			expect(n.scope).toEqual({
+				kind: 'resource',
+				resourceType: type,
+				resourceId: 'x',
+				environmentId: 'e1'
+			});
+			expect(n.key).toBe(scopeKey(n.scope));
+		}
+		for (const type of ['stack', 'service', 'agent', 'update_policy', 'maintenance_policy']) {
+			const n = resourceNode(type, 'x', 'e1', 'x');
+			expect(n.scope).toEqual({ kind: 'resource', resourceType: type, resourceId: 'x' });
+			expect(n.environmentId).toBe('e1');
+			expect(n.key).toBe(scopeKey(n.scope));
+		}
 	});
 });
 

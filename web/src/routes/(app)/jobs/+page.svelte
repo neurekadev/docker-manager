@@ -1,61 +1,37 @@
 <script lang="ts">
-	// Jobs (#26): everything Docker Manager did or is doing, newest first, with
-	// filters for state, kind, environment and origin (kept in the URL).
-	// The list refreshes live on job events; "Load more" follows the cursor.
+	// Jobs (#26): everything Docker Manager did or is doing, newest first,
+	// in one ListCard: a search over the loaded jobs and filters for state,
+	// kind and (with every environment shown) environment, applied by the
+	// server and kept per list and browser tab like the other lists. The
+	// environment switcher scopes the list; ?environment= (links from an
+	// environment) sets the environment filter once. The list refreshes
+	// live on job events; "Load more" follows the cursor.
+	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { createInfiniteQuery, createQuery } from '@tanstack/svelte-query';
 	import Activity from '@lucide/svelte/icons/activity';
-	import FilterX from '@lucide/svelte/icons/filter-x';
-	import type { Job } from '$lib/api/client';
 	import {
 		environmentsQuery,
 		jobsInfiniteQuery,
 		myPermissionsQuery,
-		stacksSummaryQuery,
-		type JobFilters
+		stacksSummaryQuery
 	} from '$lib/api/queries';
 	import JobsTable from '$lib/features/jobs/JobsTable.svelte';
-	import {
-		JOB_KIND_LABELS,
-		ORIGIN_LABELS,
-		STATE_FILTERS,
-		stackNames
-	} from '$lib/features/jobs/labels';
+	import { jobFilters, jobQuery, jobSearch } from '$lib/features/jobs/filters';
+	import { stackNames } from '$lib/features/jobs/labels';
+	import ListCard from '$lib/features/resources/ListCard.svelte';
+	import NoMatches from '$lib/features/resources/NoMatches.svelte';
+	import { applyListFilters, isFiltering, listSummary } from '$lib/features/resources/filters';
+	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import { accessOf, hasAny, isRestricted } from '$lib/shell/nav';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { usePage } from '$lib/shell/page.svelte';
-	import {
-		Button,
-		Card,
-		DeniedState,
-		EmptyState,
-		ErrorState,
-		PageHeader,
-		Select,
-		Skeleton
-	} from '$lib/ui';
+	import { Button, DeniedState, EmptyState, ErrorState, PageHeader, Skeleton } from '$lib/ui';
 
-	usePage({ title: 'Jobs', crumbs: [{ label: 'Jobs' }] });
+	usePage({ title: 'Jobs', crumbs: [{ label: 'Jobs' }], environmentScoped: true });
 
-	const params = $derived(page.url.searchParams);
-	const stateId = $derived(params.get('state') ?? '');
-	const kind = $derived(params.get('kind') ?? '');
-	const origin = $derived(params.get('origin') ?? '');
-	// ?environment= wins (links from an environment); otherwise the switcher.
-	const envParam = $derived(params.get('environment'));
-	const environmentId = $derived(
-		envParam !== null ? (envParam === 'all' ? '' : envParam) : (environmentSelection.id ?? '')
-	);
-
-	const filters = $derived<JobFilters>({
-		states: STATE_FILTERS.find((s) => s.id === stateId)?.states ?? [],
-		kind,
-		environmentId,
-		origins: origin ? [origin as Job['origin']] : []
-	});
-	const filtered = $derived(!!(stateId || kind || origin || environmentId));
-
+	const filters = new ListFilters('jobs');
 	const envs = createQuery(() => environmentsQuery());
 	const perms = createQuery(() => myPermissionsQuery());
 	const stacks = createQuery(() => ({
@@ -63,39 +39,53 @@
 		enabled: hasAny(accessOf(perms.data), 'stack.')
 	}));
 	const names = $derived(new Map((envs.data ?? []).map((e) => [e.id, e.name])));
-	const jobs = createInfiniteQuery(() => jobsInfiniteQuery(filters));
-	const rows = $derived(jobs.data?.pages.flatMap((p) => p.items) ?? []);
+	const nameOf = $derived(stackNames(stacks.data));
 
-	const stateOptions = STATE_FILTERS.map((s) => ({ value: s.id, label: s.label }));
-	const kindOptions = [
-		{ value: '', label: 'All kinds' },
-		...Object.entries(JOB_KIND_LABELS)
-			.map(([value, label]) => ({ value, label }))
-			.sort((a, b) => a.label.localeCompare(b.label))
-	];
-	const originOptions = [
-		{ value: '', label: 'All origins' },
-		...Object.entries(ORIGIN_LABELS).map(([value, label]) => ({ value, label }))
-	];
-	const envOptions = $derived([
-		{ value: 'all', label: 'All environments' },
-		...(envs.data ?? []).map((e) => ({ value: e.id, label: e.name }))
-	]);
-
-	function setParam(key: string, value: string) {
+	// A link from an environment (?environment=<id>) sets the environment
+	// filter once (or the switcher, when it shows another environment).
+	onMount(() => {
+		const id = page.url.searchParams.get('environment');
+		if (id === null) return;
+		if (id && id !== 'all') {
+			if (environmentSelection.id && environmentSelection.id !== id)
+				environmentSelection.select(id);
+			else filters.set('environment', id);
+		}
 		const url = new URL(page.url);
-		if (value) url.searchParams.set(key, value);
-		else url.searchParams.delete(key);
+		url.searchParams.delete('environment');
 		void goto(url, { replaceState: true, keepFocus: true, noScroll: true });
-	}
+	});
 
-	function clear() {
-		void goto(page.url.pathname + '?environment=all', {
-			replaceState: true,
-			keepFocus: true,
-			noScroll: true
-		});
-	}
+	const defs = $derived(
+		jobFilters({
+			envs: environmentSelection.id
+				? []
+				: (envs.data ?? []).map((e) => ({ id: e.id, name: e.name }))
+		})
+	);
+	const query = $derived(jobQuery(defs, filters.state, environmentSelection.id));
+	const jobs = createInfiniteQuery(() => jobsInfiniteQuery(query));
+	const all = $derived(jobs.data?.pages.flatMap((p) => p.items) ?? []);
+	const rows = $derived(
+		applyListFilters(
+			all,
+			defs,
+			filters.state,
+			jobSearch(nameOf, (id) => names.get(id))
+		)
+	);
+	const filtered = $derived(isFiltering(defs, filters.state));
+	const summary = $derived(
+		jobs.data
+			? listSummary(
+					rows.length,
+					all.length,
+					filtered && rows.length !== all.length,
+					'job',
+					'jobs'
+				) + (jobs.hasNextPage ? ' loaded' : '')
+			: undefined
+	);
 </script>
 
 {#if perms.data && isRestricted(accessOf(perms.data))}
@@ -107,90 +97,62 @@
 			description="Everything Docker Manager did or is doing: deploys, pulls, updates, backups, prunes and file operations."
 		/>
 
-		<div class="filters" role="group" aria-label="Filter jobs">
-			<Select
-				label="State"
-				options={stateOptions}
-				value={stateId}
-				onchange={(ev) => setParam('state', ev.currentTarget.value)}
+		{#if jobs.isError}
+			<ErrorState
+				error={jobs.error}
+				title="The jobs could not be loaded."
+				onretry={() => jobs.refetch()}
 			/>
-			<Select
-				label="Kind"
-				options={kindOptions}
-				value={kind}
-				onchange={(ev) => setParam('kind', ev.currentTarget.value)}
-			/>
-			<Select
-				label="Environment"
-				options={envOptions}
-				value={environmentId || 'all'}
-				onchange={(ev) => setParam('environment', ev.currentTarget.value)}
-			/>
-			<Select
-				label="Origin"
-				options={originOptions}
-				value={origin}
-				onchange={(ev) => setParam('origin', ev.currentTarget.value)}
-			/>
-			{#if filtered}
-				<div class="clear">
-					<Button variant="ghost" icon={FilterX} onclick={clear}>Clear filters</Button>
-				</div>
-			{/if}
-		</div>
-
-		<Card padding="none">
-			{#if jobs.isPending}
-				<div class="pad" aria-busy="true"><Skeleton lines={6} height="20px" /></div>
-			{:else if jobs.isError}
-				<div class="pad">
-					<ErrorState
-						error={jobs.error}
-						title="The jobs could not be loaded."
-						onretry={() => jobs.refetch()}
-					/>
-				</div>
-			{:else}
-				<JobsTable
-					jobs={rows}
-					label="Jobs"
-					environments={names}
-					nameOf={stackNames(stacks.data)}
-				>
-					{#snippet empty()}
-						{#if filtered}
-							<EmptyState
-								icon={FilterX}
-								title="No jobs match these filters."
-								description="Clear the filters to see every job you can read."
-								level={2}
-								compact
+		{:else}
+			<ListCard
+				title="All jobs"
+				id="jobs"
+				{summary}
+				label="Filter jobs"
+				searchLabel="Search jobs"
+				placeholder="Search by kind, target or environment"
+				filters={defs}
+				store={filters}
+			>
+				{#if jobs.isPending}
+					<div class="pad" aria-busy="true"><Skeleton lines={6} height="20px" /></div>
+				{:else}
+					<JobsTable
+						jobs={rows}
+						label="Jobs"
+						environments={environmentSelection.id ? undefined : names}
+						{nameOf}
+					>
+						{#snippet empty()}
+							{#if filtered}
+								<NoMatches
+									what="jobs"
+									icon={Activity}
+									onclear={() => filters.clear()}
+								/>
+							{:else}
+								<EmptyState
+									icon={Activity}
+									color="violet"
+									title="No jobs yet."
+									description="Deploy a stack, pull an image or run a prune: every long operation shows up here with its progress."
+									level={3}
+									compact
+								/>
+							{/if}
+						{/snippet}
+					</JobsTable>
+					{#if jobs.hasNextPage}
+						<div class="more">
+							<Button
+								loading={jobs.isFetchingNextPage}
+								onclick={() => jobs.fetchNextPage()}>Load more jobs</Button
 							>
-								{#snippet actions()}<Button onclick={clear}>Clear filters</Button
-									>{/snippet}
-							</EmptyState>
-						{:else}
-							<EmptyState
-								icon={Activity}
-								color="violet"
-								title="No jobs yet."
-								description="Deploy a stack, pull an image or run a prune: every long operation shows up here with its progress."
-								level={2}
-								compact
-							/>
-						{/if}
-					{/snippet}
-				</JobsTable>
-				{#if jobs.hasNextPage}
-					<div class="more">
-						<Button
-							loading={jobs.isFetchingNextPage}
-							onclick={() => jobs.fetchNextPage()}>Load more jobs</Button
-						>
-					</div>
+						</div>
+					{/if}
 				{/if}
-			{/if}
-		</Card>
+			</ListCard>
+		{/if}
 	</div>
 {/if}
 
@@ -201,19 +163,8 @@
 		gap: var(--space-4);
 	}
 
-	.filters {
-		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 220px)) auto;
-		align-items: end;
-		gap: var(--space-3);
-	}
-
-	.clear {
-		justify-self: start;
-	}
-
 	.pad {
-		padding: var(--space-4) var(--space-5) var(--space-5);
+		padding: var(--space-5);
 	}
 
 	.more {
@@ -221,11 +172,5 @@
 		justify-content: center;
 		padding: var(--space-4);
 		border-top: 1px solid var(--border-subtle);
-	}
-
-	@media (max-width: 1023px) {
-		.filters {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
 	}
 </style>

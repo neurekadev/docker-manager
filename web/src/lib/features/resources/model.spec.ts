@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
 	compactDuration,
-	containerAddresses,
 	containerStatus,
 	envLines,
 	imagePresent,
 	joinCommand,
 	megabytes,
+	networkEntries,
 	normalizeReference,
 	parsePairs,
 	portHref,
@@ -145,25 +145,20 @@ describe('container status', () => {
 });
 
 describe('container addresses and uptime', () => {
-	it('lists IPv4 before IPv6 per network, once, skipping address-less networks', () => {
+	it('merges the networks of replicas, each once with all its addresses', () => {
 		expect(
-			containerAddresses([
+			networkEntries([
 				[
-					{ name: 'shop_default', ipAddress: '172.18.0.3', ipv6Address: 'fd00::3' },
-					{ name: 'bridge' }
+					{ name: 'shop_default', ipv6Address: 'fd00::3', ipAddress: '172.18.0.3' },
+					{ name: 'host' }
 				],
-				[
-					{ name: 'shop_default', ipAddress: '172.18.0.3' },
-					{ name: 'edge', ipAddress: '10.0.0.7' }
-				],
+				[{ name: 'shop_default', ipAddress: '172.18.0.4' }, { name: '' }],
 				undefined
 			])
 		).toEqual([
-			{ network: 'shop_default', address: '172.18.0.3' },
-			{ network: 'shop_default', address: 'fd00::3' },
-			{ network: 'edge', address: '10.0.0.7' }
+			{ name: 'shop_default', addresses: ['172.18.0.3', '172.18.0.4', 'fd00::3'] },
+			{ name: 'host', addresses: [] }
 		]);
-		expect(containerAddresses([])).toEqual([]);
 	});
 
 	it('counts uptime only while a container is up', () => {

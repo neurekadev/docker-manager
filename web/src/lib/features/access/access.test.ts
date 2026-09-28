@@ -93,6 +93,17 @@ const catalog: Catalog = {
 			ownerOnly: false,
 			since: 1,
 			scopes: scopes(true, true, ['stack'])
+		},
+		{
+			key: 'stack.create',
+			label: 'Create stacks',
+			description: 'Create.',
+			resourceType: 'stack',
+			risk: 'normal',
+			advanced: false,
+			ownerOnly: false,
+			since: 1,
+			scopes: scopes(true, true)
 		}
 	]
 };
@@ -158,6 +169,34 @@ describe('ActionMatrix', () => {
 		]);
 	});
 
+	it('clears the selection when another scope is chosen and changes only its actions', async () => {
+		const user = setup();
+		const onchange = vi.fn();
+		const stack = {
+			key: 'res:stack::s1',
+			label: 'Silo',
+			scope: { kind: 'resource' as const, resourceType: 'stack', resourceId: 's1' },
+			type: 'stack',
+			environmentId: 'e1'
+		};
+		const { rerender } = render(ActionMatrix, {
+			props: { catalog, node: all, mode: 'group', rules: [], onchange }
+		});
+		await user.click(screen.getByRole('checkbox', { name: 'Select Create stacks' }));
+		await user.click(screen.getByRole('checkbox', { name: 'Select Deploy' }));
+		await rerender({ catalog, node: stack, mode: 'group', rules: [], onchange });
+		expect(screen.queryByRole('checkbox', { name: 'Select Create stacks' })).toBeNull();
+		expect(screen.getByRole('checkbox', { name: 'Select Deploy' })).not.toBeChecked();
+		expect(screen.queryByRole('group', { name: /selected actions/ })).toBeNull();
+		await user.click(screen.getByRole('checkbox', { name: 'Select Deploy' }));
+		await user.click(screen.getByRole('button', { name: 'Allow' }));
+		const dialog = await screen.findByRole('alertdialog', { name: 'Allow 1 action?' });
+		await user.click(within(dialog).getByRole('button', { name: 'Allow 1 action' }));
+		expect(onchange).toHaveBeenLastCalledWith([
+			{ capability: 'stack.deploy', scope: stack.scope, effect: 'allow' }
+		]);
+	});
+
 	it('explains what a user inherits from the group, and overrides it', async () => {
 		const user = setup();
 		const onchange = vi.fn();
@@ -186,6 +225,39 @@ describe('ActionMatrix', () => {
 		expect(onchange).toHaveBeenLastCalledWith([
 			{ capability: 'container.restart', scope: { kind: 'instance' }, effect: 'deny' }
 		]);
+	});
+
+	it('shows the environment rule a stack inherits though its scope names no environment', () => {
+		render(ActionMatrix, {
+			props: {
+				catalog,
+				node: {
+					key: 'res:stack::s1',
+					label: 'Silo',
+					scope: { kind: 'resource', resourceType: 'stack', resourceId: 's1' },
+					type: 'stack',
+					environmentId: 'e1'
+				},
+				mode: 'user',
+				rules: [],
+				groupRules: [
+					{
+						capability: 'stack.deploy',
+						scope: { kind: 'environment', environmentId: 'e1' },
+						effect: 'allow'
+					}
+				],
+				groupName: 'Operators',
+				environmentName: () => 'homelab',
+				onchange: vi.fn()
+			}
+		});
+		expect(screen.getByRole('heading', { name: 'Silo on homelab' })).toBeInTheDocument();
+		expect(
+			screen.getByRole('radiogroup', { name: 'Deploy for Silo' })
+		).toHaveAccessibleDescription(
+			/Inherits Allow from group Operators, rule for this environment/
+		);
 	});
 
 	it('offers a token only the actions its user holds (#31)', () => {

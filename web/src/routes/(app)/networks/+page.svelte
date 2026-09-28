@@ -1,15 +1,18 @@
 <script lang="ts">
 	// Networks (#6): every network of the selected environment (or all),
-	// searched by name or subnet and filtered by stack, driver, access,
-	// scope, predefined, Docker Manager and environment (ListCard);
-	// its driver, subnets and flags; predefined networks (bridge, host,
-	// none) and Docker Manager's own (#32) are marked, and their removal is
-	// refused by the server with the reason.
+	// searched by name, subnet, gateway, driver or label and filtered by
+	// driver, stack and environment, with "Unused" (no container attached,
+	// from the containers list; network lists do not report attachments)
+	// and "Managed" switches (ListCard); how many containers use it, its
+	// driver and subnets; its flags (internal, attachable, IPv6),
+	// predefined networks (bridge, host, none) and Docker Manager's own
+	// (#32) are tags on the name, and their removal is refused by the
+	// server with the reason.
 	import { createQuery } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Network from '@lucide/svelte/icons/network';
 	import Plus from '@lucide/svelte/icons/plus';
-	import { networksQuery, type Network as Net } from '$lib/api/queries';
+	import { containersQuery, networksQuery, type Network as Net } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
@@ -55,12 +58,34 @@
 		enabled: scope.ready && scope.targets.length > 0
 	}));
 
+	// Attachments come from the containers (when the user may list them).
+	const readContainers = $derived(scope.hasAny('container.details.read'));
+	const containers = createQuery(() => ({
+		...containersQuery(scope.targets),
+		enabled: scope.ready && scope.targets.length > 0 && readContainers
+	}));
+	const attached = $derived.by(() => {
+		const counts = new Map<string, number>();
+		for (const c of containers.data?.items ?? [])
+			for (const n of c.networks ?? []) {
+				const k = `${c.environmentId}/${n.name}`;
+				counts.set(k, (counts.get(k) ?? 0) + 1);
+			}
+		return counts;
+	});
+	const usersOf = (n: Net) => attached.get(`${n.environmentId}/${n.name}`) ?? 0;
+
 	const filters = new ListFilters('networks');
 	let createOpen = $state(false);
 	let remover = $state<ObjectRemoveHost>();
 
 	const all = $derived(list.data?.items ?? []);
-	const defs = $derived(networkFilters(all, { envs: scope.single ? [] : scope.targets }));
+	const defs = $derived(
+		networkFilters(all, {
+			envs: scope.single ? [] : scope.targets,
+			used: containers.data ? new Set(attached.keys()) : undefined
+		})
+	);
 	const rows = $derived(applyListFilters(all, defs, filters.state, networkSearch));
 	const filtered = $derived(isFiltering(defs, filters.state));
 	const creatable = $derived(scope.creatable('network.create'));
@@ -88,21 +113,18 @@
 
 	const columns: Column<Net>[] = $derived([
 		{ id: 'name', header: 'Name', cell: nameCell, sortValue: (n) => n.name, stack: 'title' },
-		{
-			id: 'driver',
-			header: 'Driver',
-			cell: driverCell,
-			sortValue: (n) => n.driver ?? '',
-			width: '120px',
-			stack: 'status'
-		},
-		{
-			id: 'subnet',
-			header: 'Subnet',
-			cell: subnetCell,
-			sortValue: (n) => n.subnets?.[0] ?? ''
-		},
-		{ id: 'flags', header: 'Access', cell: flagsCell, width: '170px' },
+		...(containers.data
+			? [
+					{
+						id: 'use',
+						header: 'Used by',
+						cell: useCell,
+						sortValue: usersOf,
+						width: '150px',
+						stack: 'status'
+					} satisfies Column<Net>
+				]
+			: []),
 		...(scope.single
 			? []
 			: [
@@ -113,6 +135,19 @@
 						sortValue: (n: Net) => scope.name(n.environmentId)
 					} satisfies Column<Net>
 				]),
+		{
+			id: 'driver',
+			header: 'Driver',
+			cell: driverCell,
+			sortValue: (n) => n.driver ?? '',
+			width: '120px'
+		},
+		{
+			id: 'subnet',
+			header: 'Subnet',
+			cell: subnetCell,
+			sortValue: (n) => n.subnets?.[0] ?? ''
+		},
 		{
 			id: 'created',
 			header: 'Created',
@@ -135,11 +170,14 @@
 {#snippet nameCell(n: Net)}
 	<div class="name-cell">
 		<a class="name mono" href={routes.network(n.environmentId, n.name)}>{n.name}</a>
-		{#if n.builtin || n.protection || n.stack}
+		{#if n.builtin || n.protection || n.stack || n.internal || n.attachable || n.enableIpv6}
 			<span class="tags">
 				{#if n.builtin}<Badge>Predefined</Badge>{/if}
 				{#if n.protection}<ProtectionBadge protection={n.protection} />{/if}
 				{#if n.stack}<StackBadge stack={n.stack} />{/if}
+				{#if n.internal}<Badge tone="warn">Internal</Badge>{/if}
+				{#if n.attachable}<Badge>Attachable</Badge>{/if}
+				{#if n.enableIpv6}<Badge>IPv6</Badge>{/if}
 			</span>
 		{/if}
 	</div>
@@ -150,13 +188,10 @@
 			class="muted">—</span
 		>{/if}
 {/snippet}
-{#snippet flagsCell(n: Net)}
-	<span class="flags">
-		{#if n.internal}<Badge tone="warn">Internal</Badge>{/if}
-		{#if n.attachable}<Badge>Attachable</Badge>{/if}
-		{#if n.enableIpv6}<Badge>IPv6</Badge>{/if}
-		{#if !n.internal && !n.attachable && !n.enableIpv6}<span class="muted">Default</span>{/if}
-	</span>
+{#snippet useCell(n: Net)}
+	{@const count = usersOf(n)}
+	{#if count}<Badge tone="ok" dot>{count} container{count === 1 ? '' : 's'}</Badge>
+	{:else}<Badge>Unused</Badge>{/if}
 {/snippet}
 {#snippet envCell(n: Net)}{scope.name(n.environmentId)}{/snippet}
 {#snippet createdCell(n: Net)}
@@ -228,7 +263,7 @@
 					: undefined}
 				label="Filter networks"
 				searchLabel="Search networks"
-				placeholder="Search by name or subnet"
+				placeholder="Search by name, subnet or driver"
 				filters={defs}
 				store={filters}
 			>
@@ -295,8 +330,7 @@
 		color: var(--accent-text);
 	}
 
-	.tags,
-	.flags {
+	.tags {
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-1);

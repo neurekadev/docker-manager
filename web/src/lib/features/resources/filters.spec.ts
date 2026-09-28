@@ -9,11 +9,12 @@ import {
 	imageFilters,
 	imageSearch,
 	isFiltering,
-	labelMatches,
+	labelTexts,
 	listSummary,
 	networkFilters,
 	networkSearch,
 	parseFilterState,
+	SWITCH_ON,
 	selectOptions,
 	serializeFilterState,
 	visibleFilters,
@@ -104,6 +105,22 @@ describe('the filter model', () => {
 		);
 	});
 
+	it('applies a switch only while it is on', () => {
+		const unused: ListFilter<{ name: string; s: string }> = {
+			id: 'unused',
+			label: 'Unused',
+			kind: 'switch',
+			all: 'Only unused things',
+			match: (r) => r.s === 'exited'
+		};
+		expect(activeValue(unused, SWITCH_ON)).toBe(SWITCH_ON);
+		expect(activeValue(unused, 'yes')).toBe('');
+		expect(isFiltering([unused], state())).toBe(false);
+		expect(names(applyListFilters(rows, [unused], state({ unused: 'on' }), () => []))).toEqual([
+			'db'
+		]);
+	});
+
 	it('builds sorted distinct options and the count text', () => {
 		expect(distinctOptions(['b', undefined, 'a', 'b', ''])).toEqual([
 			{ value: 'a', label: 'a' },
@@ -161,7 +178,9 @@ describe('container filters (#6)', () => {
 			image: 'nginx',
 			stack: { project: 'silo', service: 'web', managed: true },
 			labels: { tier: 'front' },
-			update: 'update_available'
+			update: 'update_available',
+			imageId: 'sha256:4f2a',
+			networks: [{ name: 'silo_default', ipAddress: '172.18.0.5' }]
 		}),
 		c({
 			name: 'db',
@@ -184,25 +203,25 @@ describe('container filters (#6)', () => {
 	const run = (values: Record<string, string>, q = '') =>
 		names(applyListFilters(rows, filters, state(values, q), containerSearch));
 
-	it('searches name, image and Compose project', () => {
+	it('searches name, image, digest, labels, networks, addresses and Compose project', () => {
 		expect(run({}, 'POSTGRES')).toEqual(['db']);
 		expect(run({}, 'silo')).toEqual(['web', 'db']);
+		expect(run({}, 'sha256:4f2')).toEqual(['web']);
+		expect(run({}, 'tier')).toEqual(['web']);
+		expect(run({}, 'traefik.enable=true')).toEqual(['pihole']);
+		expect(run({}, 'tier=back')).toEqual([]);
+		expect(run({}, '172.18.0.5')).toEqual(['web']);
+		expect(run({}, 'silo_default')).toEqual(['web']);
 	});
 
-	it('filters by status (unhealthy is its own choice), stack, update, system and label', () => {
+	it('filters by status (unhealthy is its own choice), stack and available updates', () => {
 		expect(run({ status: 'running' })).toEqual(['web', 'pihole', 'docker-agent']);
 		expect(run({ status: 'unhealthy' })).toEqual(['pihole']);
 		expect(run({ stack: 'silo' })).toEqual(['web', 'db']);
 		expect(run({ stack: '-' })).toEqual(['pihole', 'docker-agent']);
-		expect(run({ update: 'available' })).toEqual(['web']);
-		expect(run({ update: 'current' })).toEqual(['db']);
-		expect(run({ update: 'problem' })).toEqual(['pihole']);
-		expect(run({ update: 'none' })).toEqual(['docker-agent']);
-		expect(run({ system: 'only' })).toEqual(['docker-agent']);
-		expect(run({ system: 'hide' })).toEqual(['web', 'db', 'pihole']);
-		expect(run({ label: 'tier' })).toEqual(['web']);
-		expect(run({ label: 'traefik.enable=true' })).toEqual(['pihole']);
-		expect(run({ label: 'tier=back' })).toEqual([]);
+		expect(run({ updates: 'on' })).toEqual(['web']);
+		expect(byId(filters, 'updates').kind).toBe('switch');
+		expect(filters.map((f) => f.id)).toEqual(['status', 'stack', 'updates']);
 	});
 
 	it('offers the environment only while every environment is shown', () => {
@@ -215,12 +234,9 @@ describe('container filters (#6)', () => {
 		expect(byId(filters, 'stack').options?.map((o) => o.value)).toEqual(['-', 'silo']);
 	});
 
-	it('matches labels by key or key=value', () => {
-		expect(labelMatches({ a: '1' }, ' a ')).toBe(true);
-		expect(labelMatches({ a: '1' }, 'a = 1')).toBe(true);
-		expect(labelMatches({ a: '1' }, 'a=2')).toBe(false);
-		expect(labelMatches(undefined, 'a')).toBe(false);
-		expect(labelMatches(undefined, '')).toBe(true);
+	it('turns labels into key=value texts', () => {
+		expect(labelTexts({ a: '1', b: '' })).toEqual(['a=1', 'b=']);
+		expect(labelTexts(undefined)).toEqual([]);
 	});
 });
 
@@ -234,24 +250,23 @@ describe('image filters (#6)', () => {
 	});
 	const rows = [
 		im({ id: 'sha256:aaa', repoTags: ['nginx:1.27'], inUse: true }),
-		im({ id: 'sha256:bbb', inUse: false }),
+		im({ id: 'sha256:bbb', inUse: false, repoDigests: ['nginx@sha256:ddd'] }),
 		im({ id: 'sha256:ccc', repoTags: ['ghcr.io/x/manager:edge'], inUse: true, protection })
 	];
 	const filters = imageFilters({ envs: [] });
 	const run = (values: Record<string, string>, q = '') =>
 		applyListFilters(rows, filters, state(values, q), imageSearch).map((i) => i.id);
 
-	it('searches tags and IDs and filters by usage, tags and system', () => {
-		expect(run({}, 'NGINX')).toEqual(['sha256:aaa']);
-		expect(run({}, 'bbb')).toEqual(['sha256:bbb']);
-		expect(run({ usage: 'unused' })).toEqual(['sha256:bbb']);
-		expect(run({ usage: 'used' })).toEqual(['sha256:aaa', 'sha256:ccc']);
-		expect(run({ tags: 'untagged' })).toEqual(['sha256:bbb']);
-		expect(run({ tags: 'tagged', system: 'hide' })).toEqual(['sha256:aaa']);
+	it('searches tags, IDs and digests and switches to unused images', () => {
+		expect(run({}, 'NGINX')).toEqual(['sha256:aaa', 'sha256:bbb']);
+		expect(run({}, 'sha256:ddd')).toEqual(['sha256:bbb']);
+		expect(run({ unused: 'on' })).toEqual(['sha256:bbb']);
+		expect(filters.map((f) => f.id)).toEqual(['unused']);
+		expect(imageFilters({ envs }).map((f) => f.id)).toEqual(['unused', 'environment']);
 	});
 });
 
-describe('volume filters (#6, #28)', () => {
+describe('volume filters (#6)', () => {
 	const vol = (x: Partial<Volume> & { name: string }): Volume => ({
 		environmentId: 'e1',
 		inUse: false,
@@ -264,21 +279,28 @@ describe('volume filters (#6, #28)', () => {
 		vol({ name: 'silo_data', inUse: true, stack: { project: 'silo', managed: true } }),
 		vol({ name: 'media', driver: 'local', options: { type: 'nfs', o: 'addr=10.0.0.2' } }),
 		vol({ name: 'rclone', driver: 'rclone' }),
-		vol({ name: 'manager_data', inUse: true, protection })
+		vol({ name: 'manager_data', inUse: true, protection }),
+		vol({ name: 'other_data', stack: { project: 'other' } })
 	];
 	const filters = volumeFilters(rows, { envs: [] });
 	const run = (values: Record<string, string>, q = '') =>
 		names(applyListFilters(rows, filters, state(values, q), volumeSearch));
 
-	it('filters by usage, stack, file access, driver and system', () => {
+	it('searches and filters by driver, stack, unused and managed', () => {
 		expect(run({}, 'SILO')).toEqual(['silo_data']);
-		expect(run({ usage: 'unused' })).toEqual(['media', 'rclone']);
+		expect(run({}, 'rclone')).toEqual(['rclone']);
+		expect(run({ unused: 'on' })).toEqual(['media', 'rclone', 'other_data']);
 		expect(run({ stack: 'silo' })).toEqual(['silo_data']);
-		expect(run({ files: 'readonly' })).toEqual(['media', 'rclone']);
-		expect(run({ files: 'local' })).toEqual(['silo_data', 'manager_data']);
 		expect(run({ driver: 'rclone' })).toEqual(['rclone']);
-		expect(run({ system: 'only' })).toEqual(['manager_data']);
+		expect(run({ managed: 'on' })).toEqual(['silo_data', 'manager_data']);
+		expect(run({ managed: 'on', unused: 'on' })).toEqual([]);
 		expect(byId(filters, 'driver').options?.map((o) => o.value)).toEqual(['local', 'rclone']);
+		expect(filters.map((f) => [f.id, f.kind ?? 'select'])).toEqual([
+			['driver', 'select'],
+			['stack', 'select'],
+			['unused', 'switch'],
+			['managed', 'switch']
+		]);
 	});
 });
 
@@ -299,20 +321,24 @@ describe('network filters (#6)', () => {
 		net({ name: 'proxy', attachable: true, enableIpv6: true, scope: 'swarm' }),
 		net({ name: 'docker-manager', protection })
 	];
-	const filters = networkFilters(rows, { envs: [] });
+	const used = new Set(['e1/bridge', 'e1/silo_default', 'e1/docker-manager']);
+	const filters = networkFilters(rows, { envs: [], used });
 	const run = (values: Record<string, string>, q = '') =>
 		names(applyListFilters(rows, filters, state(values, q), networkSearch));
 
-	it('searches name and subnet and filters by stack, driver, access, scope, predefined and system', () => {
+	it('searches name and subnet and filters by driver, stack, unused and managed', () => {
 		expect(run({}, '172.17')).toEqual(['bridge']);
 		expect(run({ stack: 'silo' })).toEqual(['silo_default']);
 		expect(run({ driver: 'host' })).toEqual(['host']);
-		expect(run({ access: 'internal' })).toEqual(['silo_default']);
-		expect(run({ access: 'ipv6' })).toEqual(['proxy']);
-		expect(run({ access: 'default' })).toEqual(['bridge', 'host', 'docker-manager']);
-		expect(run({ scope: 'swarm' })).toEqual(['proxy']);
-		expect(run({ predefined: 'hide' })).toEqual(['silo_default', 'proxy', 'docker-manager']);
-		expect(run({ predefined: 'only', driver: 'bridge' })).toEqual(['bridge']);
-		expect(run({ system: 'only' })).toEqual(['docker-manager']);
+		expect(run({ unused: 'on' })).toEqual(['host', 'proxy']);
+		expect(run({ managed: 'on' })).toEqual(['silo_default', 'docker-manager']);
+	});
+
+	it('offers no Unused switch without the attachments', () => {
+		expect(networkFilters(rows, { envs: [] }).map((f) => f.id)).toEqual([
+			'driver',
+			'stack',
+			'managed'
+		]);
 	});
 });

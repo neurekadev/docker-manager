@@ -2,12 +2,19 @@
 	// Schedules (#13): every scheduled policy the user can read, across
 	// backups, update checks and runs, prunes and repository verification,
 	// with its cron in its own time zone, the next run (DST annotated) and
-	// the last run's outcome. A row opens the next runs and the history.
+	// the last run's outcome. One ListCard: a search and filters for kind,
+	// state and (with every environment shown) environment, kept per list
+	// and browser tab. A row opens the next runs and the history.
 	import { createQuery } from '@tanstack/svelte-query';
 	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 	import type { Schedule } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery, schedulesQuery } from '$lib/api/queries';
+	import ListCard from '$lib/features/resources/ListCard.svelte';
+	import NoMatches from '$lib/features/resources/NoMatches.svelte';
+	import { applyListFilters, isFiltering, listSummary } from '$lib/features/resources/filters';
+	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import ScheduleDetail from '$lib/features/schedules/ScheduleDetail.svelte';
+	import { scheduleFilters, scheduleSearch } from '$lib/features/schedules/filters';
 	import {
 		dstLabel,
 		formatRunTime,
@@ -21,13 +28,11 @@
 	import {
 		Badge,
 		Button,
-		Card,
 		DeniedState,
 		Drawer,
 		EmptyState,
 		ErrorState,
 		PageHeader,
-		Select,
 		Skeleton,
 		StatusBadge,
 		Table,
@@ -41,8 +46,7 @@
 	const perms = createQuery(() => myPermissionsQuery());
 	const restricted = $derived(perms.data ? isRestricted(accessOf(perms.data)) : false);
 
-	let kind = $state('');
-	let enabled = $state('');
+	const filters = new ListFilters('schedules');
 	const schedules = createQuery(() => ({
 		...schedulesQuery({ environmentId: environmentSelection.id ?? undefined }),
 		enabled: !restricted
@@ -51,28 +55,22 @@
 	const names = $derived(new Map((envs.data ?? []).map((e) => [e.id, e.name])));
 
 	const all = $derived(schedules.data ?? []);
+	const defs = $derived(
+		scheduleFilters(all, {
+			envs: environmentSelection.id
+				? []
+				: (envs.data ?? []).map((e) => ({ id: e.id, name: e.name }))
+		})
+	);
 	const rows = $derived(
-		all.filter(
-			(s) =>
-				(!kind || s.kind === kind) &&
-				(!enabled ||
-					(enabled === 'enabled'
-						? s.enabled && !s.invalidReason
-						: !s.enabled || !!s.invalidReason))
+		applyListFilters(
+			all,
+			defs,
+			filters.state,
+			scheduleSearch((id) => names.get(id))
 		)
 	);
-	const kindOptions = $derived([
-		{ value: '', label: 'All kinds' },
-		...[...new Map(all.map((s) => [s.kind, s.kindLabel])).entries()].map(([value, label]) => ({
-			value,
-			label
-		}))
-	]);
-	const enabledOptions = [
-		{ value: '', label: 'Any state' },
-		{ value: 'enabled', label: 'Enabled' },
-		{ value: 'disabled', label: 'Disabled or invalid' }
-	];
+	const filtered = $derived(isFiltering(defs, filters.state));
 
 	let selected = $state<Schedule | null>(null);
 	let drawerOpen = $state(false);
@@ -81,7 +79,7 @@
 		drawerOpen = true;
 	}
 
-	const columns: Column<Schedule>[] = [
+	const columns: Column<Schedule>[] = $derived([
 		{
 			id: 'policy',
 			header: 'Policy',
@@ -97,13 +95,17 @@
 			width: '120px',
 			stack: 'status'
 		},
-		{
-			id: 'environment',
-			header: 'Environment',
-			cell: envCell,
-			sortValue: (s) => names.get(s.environmentId ?? '') ?? '',
-			width: '140px'
-		},
+		...(environmentSelection.id
+			? []
+			: [
+					{
+						id: 'environment',
+						header: 'Environment',
+						cell: envCell,
+						sortValue: (s: Schedule) => names.get(s.environmentId ?? '') ?? '',
+						width: '140px'
+					} satisfies Column<Schedule>
+				]),
 		{ id: 'schedule', header: 'Schedule', cell: cronCell, width: '190px' },
 		{
 			id: 'next',
@@ -122,7 +124,7 @@
 			width: '110px',
 			stack: 'actions'
 		}
-	];
+	]);
 </script>
 
 {#snippet policyCell(s: Schedule)}
@@ -182,47 +184,57 @@
 			description="Every scheduled policy in one place. Times are shown in each policy's own time zone."
 		/>
 
-		<div class="filters" role="group" aria-label="Filter schedules">
-			<Select label="Kind" options={kindOptions} bind:value={kind} />
-			<Select label="State" options={enabledOptions} bind:value={enabled} />
-		</div>
-
-		<Card padding="none">
-			{#if schedules.isPending}
-				<div class="pad" aria-busy="true"><Skeleton lines={4} height="20px" /></div>
-			{:else if schedules.isError}
-				<div class="pad">
-					<ErrorState
-						error={schedules.error}
-						title="The schedules could not be loaded."
-						onretry={() => schedules.refetch()}
-					/>
-				</div>
-			{:else}
-				<Table
-					label="Schedules"
-					{rows}
-					{columns}
-					rowKey={(s) => s.id}
-					sort={{ column: 'next', direction: 'asc' }}
-				>
-					{#snippet empty()}
-						<EmptyState
-							icon={CalendarClock}
-							color="violet"
-							title={all.length
-								? 'No schedules match these filters.'
-								: 'No scheduled policies yet.'}
-							description={all.length
-								? 'Change the filters to see the other schedules.'
-								: 'Backups, update checks and prunes run on schedules. Create a policy and choose when it runs; new policies start disabled.'}
-							level={2}
-							compact
-						/>
-					{/snippet}
-				</Table>
-			{/if}
-		</Card>
+		{#if schedules.isError}
+			<ErrorState
+				error={schedules.error}
+				title="The schedules could not be loaded."
+				onretry={() => schedules.refetch()}
+			/>
+		{:else}
+			<ListCard
+				title="All schedules"
+				id="schedules"
+				summary={schedules.data
+					? listSummary(rows.length, all.length, filtered, 'schedule', 'schedules')
+					: undefined}
+				label="Filter schedules"
+				searchLabel="Search schedules"
+				placeholder="Search by policy, kind or time zone"
+				filters={defs}
+				store={filters}
+			>
+				{#if schedules.isPending}
+					<div class="pad" aria-busy="true"><Skeleton lines={4} height="20px" /></div>
+				{:else}
+					<Table
+						label="Schedules"
+						{rows}
+						{columns}
+						rowKey={(s) => s.id}
+						sort={{ column: 'next', direction: 'asc' }}
+					>
+						{#snippet empty()}
+							{#if filtered}
+								<NoMatches
+									what="schedules"
+									icon={CalendarClock}
+									onclear={() => filters.clear()}
+								/>
+							{:else}
+								<EmptyState
+									icon={CalendarClock}
+									color="violet"
+									title="No scheduled policies yet."
+									description="Backups, update checks and prunes run on schedules. Create a policy and choose when it runs; new policies start disabled."
+									level={3}
+									compact
+								/>
+							{/if}
+						{/snippet}
+					</Table>
+				{/if}
+			</ListCard>
+		{/if}
 	</div>
 
 	<Drawer bind:open={drawerOpen} title={selected ? selected.policyName : 'Schedule'} size="460px">
@@ -235,12 +247,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
-	}
-
-	.filters {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 240px));
-		gap: var(--space-3);
 	}
 
 	.policy {
@@ -262,12 +268,6 @@
 	}
 
 	.pad {
-		padding: var(--space-4) var(--space-5) var(--space-5);
-	}
-
-	@media (max-width: 767px) {
-		.filters {
-			grid-template-columns: 1fr 1fr;
-		}
+		padding: var(--space-5);
 	}
 </style>

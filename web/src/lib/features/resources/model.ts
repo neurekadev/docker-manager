@@ -189,30 +189,32 @@ export interface NetworkAddresses {
 	ipv6Address?: string;
 }
 
-/** One address of a container on one network. */
-export interface ContainerAddress {
-	network: string;
-	address: string;
+/** One network of one or more containers with their addresses on it. */
+export interface NetworkEntry {
+	name: string;
+	/** IPv4 before IPv6, without duplicates; empty for host networking or while stopped. */
+	addresses: string[];
 }
 
 /**
- * The addresses of one or more containers: IPv4 before IPv6 per network,
- * in network order, without duplicates and without address-less networks
- * (a stopped container, host networking).
+ * The networks of one or more containers (a service's replicas), in
+ * network order, each once with every address on it.
  */
-export function containerAddresses(
+export function networkEntries(
 	networks: readonly (readonly NetworkAddresses[] | undefined)[]
-): ContainerAddress[] {
-	const out: ContainerAddress[] = [];
-	const seen = new Set<string>();
+): NetworkEntry[] {
+	const byName = new Map<string, NetworkEntry>();
 	for (const list of networks)
-		for (const n of list ?? [])
-			for (const address of [n.ipAddress, n.ipv6Address]) {
-				if (!address || seen.has(address)) continue;
-				seen.add(address);
-				out.push({ network: n.name, address });
-			}
-	return out;
+		for (const n of list ?? []) {
+			if (!n.name) continue;
+			let e = byName.get(n.name);
+			if (!e) byName.set(n.name, (e = { name: n.name, addresses: [] }));
+			for (const a of [n.ipAddress, n.ipv6Address])
+				if (a && !e.addresses.includes(a)) e.addresses.push(a);
+		}
+	for (const e of byName.values())
+		e.addresses.sort((a, b) => Number(a.includes(':')) - Number(b.includes(':')));
+	return [...byName.values()];
 }
 
 /** Started while in these states: the uptime counts from startedAt. */

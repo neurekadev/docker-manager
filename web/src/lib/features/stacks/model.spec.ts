@@ -16,7 +16,7 @@ import {
 	revisionLabel,
 	revisionSource,
 	runningOf,
-	serviceAddresses,
+	serviceNetworks,
 	serviceCounts,
 	servicePorts,
 	serviceUrl,
@@ -214,8 +214,8 @@ describe('usage', () => {
 	});
 });
 
-describe('service addresses', () => {
-	it('collects the addresses of the containers once, IPv4 first', () => {
+describe('service networks', () => {
+	it('collects the networks of the containers once, with their addresses, IPv4 first', () => {
 		const s = svc('web', [
 			ctr({ name: 'a', networks: [{ name: 'shop_default', ipAddress: '172.18.0.2' }] }),
 			ctr({
@@ -226,10 +226,8 @@ describe('service addresses', () => {
 			}),
 			ctr({ name: 'c', state: 'exited', networks: [{ name: 'shop_default' }] })
 		]);
-		expect(serviceAddresses(s).map((a) => a.address)).toEqual([
-			'172.18.0.2',
-			'172.18.0.3',
-			'fd00::3'
+		expect(serviceNetworks(s)).toEqual([
+			{ name: 'shop_default', addresses: ['172.18.0.2', '172.18.0.3', 'fd00::3'] }
 		]);
 	});
 });

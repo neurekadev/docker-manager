@@ -66,9 +66,14 @@
 		capabilitiesAt(catalog, node).filter((c) => mode !== 'token' || !held || held.has(c.key))
 	);
 	const groups = $derived(groupCapabilities(catalog, available, filter));
-	const envLabel = $derived(
-		node.scope.environmentId ? environmentName?.(node.scope.environmentId) : undefined
-	);
+	const envId = $derived(node.environmentId ?? node.scope.environmentId);
+	const envLabel = $derived(envId ? environmentName?.(envId) : undefined);
+
+	// A selection belongs to one scope: choosing another node clears it.
+	$effect.pre(() => {
+		void node.key;
+		picked = [];
+	});
 
 	function value(c: Capability): TriValue {
 		return effectAt(rules, c.key, node.scope) ?? 'inherit';
@@ -79,7 +84,7 @@
 	}
 
 	function inherited(c: Capability) {
-		return inheritedDecision(groupRules, c.key, node.scope);
+		return inheritedDecision(groupRules, c.key, node.scope, node.environmentId);
 	}
 
 	function inheritedText(c: Capability): string {
@@ -121,8 +126,11 @@
 	);
 
 	function applyBulk() {
+		// Only actions this scope offers (stack.create is never per stack).
+		const valid = new Set(available.map((c) => c.key));
 		let next = rules;
-		for (const k of picked) next = setRule(next, k, node.scope, bulk?.effect ?? null);
+		for (const k of picked)
+			if (valid.has(k)) next = setRule(next, k, node.scope, bulk?.effect ?? null);
 		onchange(next);
 		picked = [];
 	}
