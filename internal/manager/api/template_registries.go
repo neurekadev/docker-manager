@@ -116,6 +116,7 @@ type TemplateCatalogItem struct {
 	Name         string                   `json:"name" example:"Nextcloud"`
 	Description  string                   `json:"description,omitempty"`
 	Tags         []string                 `json:"tags"`
+	Links        []WebLink                `json:"links,omitempty" doc:"Web links (documentation, website, repository); a source's invalid links are dropped when it is read."`
 	IconURL      string                   `json:"iconUrl,omitempty"`
 	Visibility   string                   `json:"visibility,omitempty" enum:"private,public" doc:"Own templates only."`
 	Versions     []TemplateCatalogVersion `json:"versions" doc:"Published versions, newest first."`
@@ -278,8 +279,8 @@ func (h *tmplRegistriesAPI) catalog(ctx context.Context, c authz.Checker) ([]Tem
 				continue
 			}
 			it := TemplateCatalogItem{InstanceID: h.instanceID, RegistryName: name, Own: true, TemplateID: t.ID, Name: t.Name,
-				Description: t.Description, Tags: nonNilTags(t.Tags), Visibility: string(t.Visibility), Versions: []TemplateCatalogVersion{},
-				Actions: []string{}, UpdatedAt: t.UpdatedAt}
+				Description: t.Description, Tags: nonNilTags(t.Tags), Links: webLinks(t.Links), Visibility: string(t.Visibility),
+				Versions: []TemplateCatalogVersion{}, Actions: []string{}, UpdatedAt: t.UpdatedAt}
 			if i := newTemplateIcon(t.ID, t.Icon); i != nil {
 				it.IconURL = i.URL
 			}
@@ -323,7 +324,8 @@ func (h *tmplRegistriesAPI) catalog(ctx context.Context, c authz.Checker) ([]Tem
 
 func catalogItemOf(t domain.RegistryTemplate, registryName string, use bool) TemplateCatalogItem {
 	it := TemplateCatalogItem{InstanceID: t.RegistryID, RegistryName: registryName, TemplateID: t.TemplateID, Name: t.Name,
-		Description: t.Description, Tags: nonNilTags(t.Tags), Versions: []TemplateCatalogVersion{}, Actions: []string{}, UpdatedAt: t.UpdatedAt}
+		Description: t.Description, Tags: nonNilTags(t.Tags), Links: webLinks(t.Links), Versions: []TemplateCatalogVersion{}, Actions: []string{},
+		UpdatedAt: t.UpdatedAt}
 	if t.IconSHA256 != "" {
 		it.IconURL = registryIconURL(t.RegistryID, t.TemplateID, t.IconSHA256)
 	}

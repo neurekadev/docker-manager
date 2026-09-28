@@ -1,17 +1,10 @@
 // Command palette model (#22 ⌘K): recent pages, quick actions, pages and
 // search hits (GET /api/v1/search) become one flat, keyboard-navigable
 // result list.
-import Box from '@lucide/svelte/icons/box';
-import Container from '@lucide/svelte/icons/container';
-import Hammer from '@lucide/svelte/icons/hammer';
-import HardDrive from '@lucide/svelte/icons/hard-drive';
 import History from '@lucide/svelte/icons/history';
-import Layers from '@lucide/svelte/icons/layers';
-import Network from '@lucide/svelte/icons/network';
-import Server from '@lucide/svelte/icons/server';
-import Workflow from '@lucide/svelte/icons/workflow';
 import type { SearchHit, SearchResults } from '$lib/api/client';
 import type { IconComponent } from '$lib/design/icons';
+import { RESOURCE_ICONS } from '$lib/features/common/resourceIcons';
 import { routes } from '$lib/routes';
 import { activeNav, hasAny, type Access, type NavItem } from './nav';
 import type { RecentPage } from './recent.svelte';
@@ -26,13 +19,13 @@ export interface PaletteResult {
 }
 
 const TYPE: Record<SearchHit['type'], { group: string; icon: IconComponent }> = {
-	environment: { group: 'Environments', icon: Server },
-	stack: { group: 'Stacks', icon: Layers },
-	service: { group: 'Services', icon: Workflow },
-	container: { group: 'Containers', icon: Container },
-	image: { group: 'Images', icon: Box },
-	volume: { group: 'Volumes', icon: HardDrive },
-	network: { group: 'Networks', icon: Network }
+	environment: { group: 'Environments', icon: RESOURCE_ICONS.environment.icon },
+	stack: { group: 'Stacks', icon: RESOURCE_ICONS.stack.icon },
+	service: { group: 'Services', icon: RESOURCE_ICONS.service.icon },
+	container: { group: 'Containers', icon: RESOURCE_ICONS.container.icon },
+	image: { group: 'Images', icon: RESOURCE_ICONS.image.icon },
+	volume: { group: 'Volumes', icon: RESOURCE_ICONS.volume.icon },
+	network: { group: 'Networks', icon: RESOURCE_ICONS.network.icon }
 };
 
 /** The page a search hit opens. */
@@ -114,28 +107,28 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
 	{
 		id: 'create-stack',
 		label: 'Create stack',
-		icon: Layers,
+		icon: RESOURCE_ICONS.stack.icon,
 		capabilities: ['stack.create'],
 		href: (env) => routes.newStack(env)
 	},
 	{
 		id: 'create-container',
 		label: 'Create container',
-		icon: Container,
+		icon: RESOURCE_ICONS.container.icon,
 		capabilities: ['container.create'],
 		href: (env) => routes.newContainer(env ?? undefined)
 	},
 	{
 		id: 'build-image',
 		label: 'Build image',
-		icon: Hammer,
+		icon: RESOURCE_ICONS.build.icon,
 		capabilities: ['image.build'],
 		href: (env) => routes.newBuild(env ?? undefined)
 	},
 	{
 		id: 'add-environment',
 		label: 'Add environment',
-		icon: Server,
+		icon: RESOURCE_ICONS.environment.icon,
 		capabilities: ['agent.enroll'],
 		href: () => routes.addEnvironment()
 	}

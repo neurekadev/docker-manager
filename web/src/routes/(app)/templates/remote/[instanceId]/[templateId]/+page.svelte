@@ -1,6 +1,7 @@
 <script lang="ts">
 	// A template of a template source (another Docker Manager), read-only:
-	// the page header with "Create stack" (template.use), what its newest
+	// the page header with its links and "Create stack" (template.use),
+	// what its newest
 	// version runs (services, images, ports and .env names, downloaded from
 	// its source with template.use; values never shown), and its published
 	// versions with their notes and "Duplicate as a new template". Its files
@@ -15,6 +16,7 @@
 	import Tag from '@lucide/svelte/icons/tag';
 	import { ApiRequestError } from '$lib/api/client';
 	import { myPermissionsQuery } from '$lib/api/queries';
+	import LinkList from '$lib/features/common/LinkList.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import { canAnywhere } from '$lib/features/stacks/model';
 	import DefinitionSummary from '$lib/features/templates/DefinitionSummary.svelte';
@@ -106,8 +108,14 @@
 		onretry={() => item.refetch()}
 	/>
 {:else if t}
+	{#snippet links()}<LinkList links={t.links} label="Links of {t.name}" />{/snippet}
 	<Page>
-		<PageHeader title={t.name} description={t.description || undefined} {meta}>
+		<PageHeader
+			title={t.name}
+			description={t.description || undefined}
+			{meta}
+			below={t.links?.length ? links : undefined}
+		>
 			{#snippet media()}<TemplateIcon url={t.iconUrl} size="lg" />{/snippet}
 			{#snippet actions()}
 				{#if canUse}

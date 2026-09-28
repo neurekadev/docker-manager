@@ -20,10 +20,10 @@
 	import Play from '@lucide/svelte/icons/play';
 	import Server from '@lucide/svelte/icons/server';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import Wrench from '@lucide/svelte/icons/wrench';
 	import { api, unwrap, unwrapEmpty, type Job } from '$lib/api/client';
 	import { environmentsQuery, recentJobsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
@@ -230,8 +230,7 @@
 			)}
 			<PageHeader
 				title={p.name}
-				icon={Wrench}
-				color="slate"
+				{...resourceIcon('maintenancePolicy')}
 				description={maintenanceStatusText(p)}
 				meta={[
 					{
@@ -404,7 +403,7 @@
 				{:else}
 					<RunsTable {runs} label="Recent runs of {p.name}">
 						{#snippet empty()}<EmptyState
-								icon={Wrench}
+								icon={resourceIcon('maintenancePolicy').icon}
 								title="No runs yet."
 								description="Runs appear here, started by hand or on the schedule."
 								level={3}

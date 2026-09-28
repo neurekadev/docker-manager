@@ -9,11 +9,11 @@
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import Clock from '@lucide/svelte/icons/clock';
 	import Eye from '@lucide/svelte/icons/eye';
-	import PackageCheck from '@lucide/svelte/icons/package-check';
 	import Plus from '@lucide/svelte/icons/plus';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { accessOf } from '$lib/shell/nav';
 	import { usePage } from '$lib/shell/page.svelte';
@@ -166,6 +166,7 @@
 </script>
 
 {#snippet nameCell(p: EnvironmentUpdatePolicy)}<NameCell
+		icon="updatePolicy"
 		name={p.name}
 		href={routes.updatePolicy(p.id)}
 		sub={p.scope === 'all' ? 'All environments' : envName(p.environmentId)}
@@ -223,8 +224,7 @@
 		{#if visiblePolicies.length === 0}
 			<Card>
 				<EmptyState
-					icon={PackageCheck}
-					color="violet"
+					{...resourceIcon('updatePolicy')}
 					title="No update policies yet."
 					description="A policy looks for newer images of your stacks and the containers Docker Manager created, on one environment or all of them, and can apply them on a schedule."
 					level={2}
@@ -245,8 +245,7 @@
 					label="Updates available"
 					value={String(totals.withUpdates)}
 					secondary={targetsUpdateText(covered)}
-					icon={PackageCheck}
-					color="violet"
+					{...resourceIcon('updatePolicy')}
 					tone={totals.withUpdates ? 'warn' : undefined}
 				/>
 				<KpiCard

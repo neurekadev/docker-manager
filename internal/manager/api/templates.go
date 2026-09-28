@@ -166,6 +166,7 @@ type Template struct {
 	Actions     []string          `json:"actions"`
 	Description string            `json:"description,omitempty"`
 	Tags        []string          `json:"tags,omitempty"`
+	Links       []WebLink         `json:"links,omitempty" doc:"Web links (documentation, website, repository) in the owner's order; stacks created from the template start with them."`
 	Latest      *TemplateVersion  `json:"latest,omitempty" doc:"The newest published version (absent before the first)."`
 	Versions    int               `json:"versions" doc:"Published versions."`
 	Revision    int64             `json:"revision,omitempty"`
@@ -179,7 +180,7 @@ func newTemplate(t domain.Template, v authz.View) Template {
 	if !v.Full() {
 		return out
 	}
-	out.Description, out.Tags, out.Versions = t.Description, t.Tags, t.Versions
+	out.Description, out.Tags, out.Versions, out.Links = t.Description, t.Tags, t.Versions, webLinks(t.Links)
 	if out.Tags == nil {
 		out.Tags = []string{}
 	}
@@ -305,9 +306,10 @@ func (h *templatesAPI) get(ctx context.Context, in *templateIDInput) (*templateO
 type createTemplateInput struct {
 	IdempotencyKeyParam
 	Body struct {
-		Name        string   `json:"name" minLength:"1" maxLength:"100" example:"Nextcloud"`
-		Description string   `json:"description,omitempty" maxLength:"1024"`
-		Tags        []string `json:"tags,omitempty" maxItems:"16" example:"[\"cloud\",\"files\"]" doc:"Lowercase letters, digits and dashes (at most 32 characters each)."`
+		Name        string    `json:"name" minLength:"1" maxLength:"100" example:"Nextcloud"`
+		Description string    `json:"description,omitempty" maxLength:"1024"`
+		Tags        []string  `json:"tags,omitempty" maxItems:"16" example:"[\"cloud\",\"files\"]" doc:"Lowercase letters, digits and dashes (at most 32 characters each)."`
+		Links       []WebLink `json:"links,omitempty" maxItems:"10" doc:"Web links (documentation, website, repository), at most 10."`
 	}
 }
 
@@ -319,7 +321,8 @@ func (h *templatesAPI) create(ctx context.Context, in *createTemplateInput) (*te
 	if !c.Can(string(CapTemplateCreate), authz.Instance()).Allowed {
 		return nil, Forbidden("not permitted: " + string(CapTemplateCreate))
 	}
-	t, err := svc.Create(ctx, domain.TemplateInput{Name: in.Body.Name, Description: in.Body.Description, Tags: in.Body.Tags}, p.UserID)
+	t, err := svc.Create(ctx, domain.TemplateInput{Name: in.Body.Name, Description: in.Body.Description, Tags: in.Body.Tags,
+		Links: domainLinks(in.Body.Links)}, p.UserID)
 	if err != nil {
 		return nil, templateError(err)
 	}
@@ -335,9 +338,10 @@ type updateTemplateInput struct {
 	TemplateID string `path:"templateId" maxLength:"64" doc:"Template ID."`
 	IfMatchParam
 	Body struct {
-		Name        *string   `json:"name,omitempty" minLength:"1" maxLength:"100" example:"Nextcloud"`
-		Description *string   `json:"description,omitempty" maxLength:"1024"`
-		Tags        *[]string `json:"tags,omitempty" maxItems:"16" example:"[\"cloud\",\"files\"]"`
+		Name        *string    `json:"name,omitempty" minLength:"1" maxLength:"100" example:"Nextcloud"`
+		Description *string    `json:"description,omitempty" maxLength:"1024"`
+		Tags        *[]string  `json:"tags,omitempty" maxItems:"16" example:"[\"cloud\",\"files\"]"`
+		Links       *[]WebLink `json:"links,omitempty" maxItems:"10" doc:"Replaces the template's links (an empty list removes them; absent: unchanged)."`
 	}
 }
 
@@ -349,7 +353,8 @@ func (h *templatesAPI) update(ctx context.Context, in *updateTemplateInput) (*te
 	if err := in.CheckIfMatch(RevisionETag(t.Revision)); err != nil {
 		return nil, err
 	}
-	after, err := svc.Update(ctx, t.ID, t.Revision, domain.TemplatePatch{Name: in.Body.Name, Description: in.Body.Description, Tags: in.Body.Tags})
+	after, err := svc.Update(ctx, t.ID, t.Revision, domain.TemplatePatch{Name: in.Body.Name, Description: in.Body.Description, Tags: in.Body.Tags,
+		Links: domainLinksPatch(in.Body.Links)})
 	if errors.Is(err, domain.ErrRevisionMismatch) {
 		return nil, h.stale(ctx, svc, t.ID)
 	}
@@ -581,7 +586,8 @@ func registerTemplates(a huma.API, deps Deps) {
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "update-template", Method: http.MethodPatch, Path: BasePath + "/templates/{templateId}", Summary: "Update a template",
-		Description: "Edits the name, description and tags. Requires If-Match.", Tags: []string{tagTemplates}, Errors: editErrs,
+		Description: "Edits the name, description, tags and links (absolute http(s) addresses without credentials, at most 10, each " +
+			"listed once; a problem is a 422 naming the field, body.links[1].url). Requires If-Match.", Tags: []string{tagTemplates}, Errors: editErrs,
 	}, Capability: CapTemplateManage, Scope: ScopeResource}, h.update)
 
 	Register(a, Operation{Operation: huma.Operation{

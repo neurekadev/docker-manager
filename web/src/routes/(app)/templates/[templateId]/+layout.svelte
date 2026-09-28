@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Template detail (template registry): the page header (the template's
-	// icon, visibility, newest version, number of versions, last change),
+	// icon, visibility, newest version, number of versions, last change, its
+	// links below them),
 	// "Create stack" as the primary action once a version is published and
 	// "Publish version", then the tabs Overview · Files · Versions ·
 	// Settings. Tabs and actions follow the template's DTO actions (hidden,
@@ -14,6 +15,7 @@
 	import Tag from '@lucide/svelte/icons/tag';
 	import Upload from '@lucide/svelte/icons/upload';
 	import { ApiRequestError } from '$lib/api/client';
+	import LinkList from '$lib/features/common/LinkList.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import PublishDialog from '$lib/features/templates/PublishDialog.svelte';
 	import TemplateIcon from '$lib/features/templates/TemplateIcon.svelte';
@@ -112,8 +114,14 @@
 		onretry={() => template.refetch()}
 	/>
 {:else if t}
+	{#snippet links()}<LinkList links={t.links} label="Links of {t.name}" />{/snippet}
 	<Page>
-		<PageHeader title={t.name} description={t.description || undefined} {meta}>
+		<PageHeader
+			title={t.name}
+			description={t.description || undefined}
+			{meta}
+			below={t.links?.length ? links : undefined}
+		>
 			{#snippet media()}<TemplateIcon url={t.icon?.url} size="lg" />{/snippet}
 			{#snippet status()}
 				{#if t.visibility === 'public'}<Badge tone="info">Public</Badge>{:else}<Badge

@@ -6,7 +6,6 @@
 	// connection", ?create=1), edits, rotates, revokes, deletes and tests
 	// them.
 	import { createQuery } from '@tanstack/svelte-query';
-	import Archive from '@lucide/svelte/icons/archive';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import { registriesQuery, type RegistryConnection } from '$lib/api/queries';
 	import { usePage } from '$lib/shell/page.svelte';
@@ -27,6 +26,7 @@
 	} from '$lib/ui';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import NameCell from '$lib/features/common/NameCell.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
 	import CredentialActionHost from '$lib/features/registries/CredentialActionHost.svelte';
 	import RegistryDialog from '$lib/features/registries/RegistryDialog.svelte';
@@ -142,6 +142,7 @@
 </script>
 
 {#snippet nameCell(c: RegistryConnection)}<NameCell
+		icon="registry"
 		name={c.name}
 		sub={c.username
 			? `${c.username}, ${c.credentialType === 'password' ? 'password' : 'token'}`
@@ -221,8 +222,7 @@
 			>
 				{#snippet empty()}
 					<EmptyState
-						icon={Archive}
-						color="slate"
+						{...resourceIcon('registry')}
 						title="No registry connections yet."
 						description="Public images need none. Add one to pull private images, or to pull from Docker Hub with your account."
 						level={3}

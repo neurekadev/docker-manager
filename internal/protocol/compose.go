@@ -317,11 +317,15 @@ type DiscoveredService struct {
 	Running    int    `json:"running"`
 }
 
-// DiscoveredProject is a Compose project found through container labels.
+// DiscoveredProject is a Compose project found through container labels,
+// or (Containerless) through its Compose file in a folder of a stack root
+// or an import mount.
 type DiscoveredProject struct {
 	Name string `json:"name"`
 	// WorkingDir and ConfigFiles come from the com.docker.compose.* labels
-	// (host paths). Labels never reconstruct the source.
+	// (host paths). Labels never reconstruct the source. A containerless
+	// project's WorkingDir is its folder's host path and ConfigFiles are
+	// empty (Compose's default files).
 	WorkingDir  string   `json:"workingDir,omitempty"`
 	ConfigFiles []string `json:"configFiles,omitempty"`
 	EnvFiles    []string `json:"envFiles,omitempty"`
@@ -351,7 +355,22 @@ type DiscoveredProject struct {
 	// copies it while it runs (StackImportReport.Live). Absent from older
 	// agents.
 	Protected bool `json:"protected,omitempty"`
+	// Containerless: the project has no container on the Engine (never
+	// started, or taken down); it was found through its Compose file in a
+	// direct subfolder of a stack root or up to two levels below an import
+	// mount, and its Services come from that file (no containers). A
+	// project with containers of the same name wins. Absent from older
+	// agents.
+	Containerless bool `json:"containerless,omitempty"`
+	// Volumes are the existing named Docker volumes of the project (sorted,
+	// at most MaxDiscoveredVolumes): those labeled with its project name,
+	// those its containers mount and those its Compose file names; Docker
+	// Manager's own volumes are left out. Absent from older agents.
+	Volumes []string `json:"volumes,omitempty"`
 }
+
+// MaxDiscoveredVolumes bounds DiscoveredProject.Volumes.
+const MaxDiscoveredVolumes = 100
 
 // ComposeDiscoverOutput is the output of compose.discover (no input).
 type ComposeDiscoverOutput struct {
@@ -612,11 +631,22 @@ const FeatureStackRemoveVolumes = "stack.remove_volumes"
 // execute stack.import (import a project by copying its directory).
 const FeatureStackImportCopy = "stack.import_copy"
 
+// FeatureStackImportContainerless is the capabilities feature of agents
+// whose stack.import accepts StackImportSource.Containerless (import a
+// project that has no containers by copy).
+const FeatureStackImportContainerless = "stack.import_containerless"
+
 // StackImportSource is where a discovered project lives now (from its
-// containers' labels).
+// containers' labels, or the folder discovery found it in).
 type StackImportSource struct {
 	// WorkingDir is the project directory's host path.
 	WorkingDir string `json:"workingDir"`
+	// Containerless: discovery found the project without containers
+	// (DiscoveredProject.Containerless). The import refuses it once the
+	// project has containers, stops, recreates and starts nothing, and only
+	// switches the project to the copy. Sent only to agents announcing
+	// FeatureStackImportContainerless.
+	Containerless bool `json:"containerless,omitempty"`
 }
 
 // Validate checks the source's shape (the agent maps it to an import

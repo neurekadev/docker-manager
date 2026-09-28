@@ -8,13 +8,14 @@
 	// environments shown) environment, kept per list and browser tab. A
 	// row's Details open the next runs and the history.
 	import { createQuery } from '@tanstack/svelte-query';
-	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 	import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal';
 	import type { Schedule } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery, schedulesQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { can } from '$lib/features/common/access';
 	import { singleEnvironment } from '$lib/features/common/environments.svelte';
+	import IconCell from '$lib/features/common/IconCell.svelte';
+	import { resourceIcon, scheduleResource } from '$lib/features/common/resourceIcons';
 	import Page from '$lib/features/common/Page.svelte';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
@@ -144,12 +145,16 @@
 </script>
 
 {#snippet policyCell(s: Schedule)}
-	<div class="policy">
-		<a href={policyHref(s.kind, s.policyId)} class="strong">{s.policyName}</a>
-		<span class="muted small"
-			>{s.kindLabel}{shared.has(s.policyName) ? ` · ${scheduleScope(s, envName)}` : ''}</span
-		>
-	</div>
+	<IconCell icon={scheduleResource(s.kind)}>
+		<div class="policy">
+			<a href={policyHref(s.kind, s.policyId)} class="strong">{s.policyName}</a>
+			<span class="muted small"
+				>{s.kindLabel}{shared.has(s.policyName)
+					? ` · ${scheduleScope(s, envName)}`
+					: ''}</span
+			>
+		</div>
+	</IconCell>
 {/snippet}
 {#snippet stateCell(s: Schedule)}
 	{@const st = scheduleState(s)}
@@ -242,13 +247,12 @@
 							{#if filtered}
 								<NoMatches
 									what="schedules"
-									icon={CalendarClock}
+									icon={resourceIcon('schedule').icon}
 									onclear={() => filters.clear()}
 								/>
 							{:else}
 								<EmptyState
-									icon={CalendarClock}
-									color="violet"
+									{...resourceIcon('schedule')}
 									title="No scheduled policies yet."
 									description="Backups, update checks and prunes run on schedules. Create a policy and choose when it runs; new policies start disabled."
 									level={3}

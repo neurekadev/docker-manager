@@ -16,6 +16,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/compose"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/lifecycle"
+	"code.neureka.dev/docker-manager/docker-manager/internal/agent/protect"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/session"
 	"code.neureka.dev/docker-manager/docker-manager/internal/agent/storage"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
@@ -266,7 +267,9 @@ func writeFile(dir string, f protocol.SourceFile) error {
 }
 
 // discover serves compose.discover: every Compose project the Engine knows
-// from container labels, with whether it can be adopted in place.
+// from container labels, plus the containerless projects found through
+// their Compose files (discover.go), with whether each can be adopted in
+// place or imported by copy and its volumes.
 func (s *Service) discover(ctx context.Context, input json.RawMessage) (any, error) {
 	if len(bytes.TrimSpace(input)) > 0 && string(bytes.TrimSpace(input)) != "null" && string(bytes.TrimSpace(input)) != "{}" {
 		return nil, &session.HandlerError{Code: protocol.CodeInvalidFrame, Message: "compose.discover takes no input"}
@@ -286,12 +289,26 @@ func (s *Service) discover(ctx context.Context, input json.RawMessage) (any, err
 		res = s.opts.Deps.Storage()
 	}
 	out := discoverProjects(list, res)
+	folders := discoverFolders(ctx, res, out.Projects)
+	if folders.truncated {
+		s.log.Warn("compose.discover: folder search stopped at its bound; some projects without containers are not listed",
+			"max_projects", maxFolderProjects, "max_folders", maxFolderDirs)
+	}
+	out.Projects = append(out.Projects, folders.projects...)
+	slices.SortFunc(out.Projects, func(a, b protocol.DiscoveredProject) int { return strings.Compare(a.Name, b.Name) })
+	vols, err := eng.ListVolumes(ctx)
+	if err != nil {
+		// The projects are still worth listing; their volumes are not.
+		s.log.Warn("compose.discover: list volumes", "error", err)
+	}
+	var own *protect.Set
 	if s.opts.Guard != nil {
-		own := s.opts.Guard.Identify(ctx, eng, list)
+		own = s.opts.Guard.Identify(ctx, eng, list)
 		for i := range out.Projects {
 			out.Projects[i].Protected = own.Project(out.Projects[i].Name) != nil
 		}
 	}
+	projectVolumes(out.Projects, list, vols, folders.named, own)
 	return out, nil
 }
 

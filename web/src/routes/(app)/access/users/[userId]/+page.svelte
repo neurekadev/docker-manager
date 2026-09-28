@@ -12,13 +12,13 @@
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import User from '@lucide/svelte/icons/user';
 	import UserCheck from '@lucide/svelte/icons/user-check';
 	import UserX from '@lucide/svelte/icons/user-x';
 	import { api, unwrap, unwrapEmpty, type Account, type Schema } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
 	import { withStepUp } from '$lib/auth/stepup.svelte';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
@@ -335,8 +335,7 @@
 			{@const menu = menuFor(u)}
 			<PageHeader
 				title={displayName(u)}
-				icon={User}
-				color="blue"
+				{...resourceIcon('user')}
 				description={u.owner
 					? 'The owner of this Docker Manager: every permission, always.'
 					: `Member of ${group?.name ?? 'a group'}.`}

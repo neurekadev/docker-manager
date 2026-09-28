@@ -15,7 +15,8 @@
 <script lang="ts">
 	// Page header (#22, the mockup's stack header): optional icon tile, the
 	// page title (h1, 28/600), a status snippet beside it, a description,
-	// an icon-led meta row with thin dividers, and the page actions.
+	// an icon-led meta row with thin dividers, an optional row below it
+	// (a stack's or template's links) and the page actions.
 	import type { Snippet } from 'svelte';
 	import type { TileColor } from '$lib/design/hue';
 	import CopyButton from './CopyButton.svelte';
@@ -31,6 +32,8 @@
 		actions?: Snippet;
 		/** Replaces the icon tile (e.g. a template's image icon). */
 		media?: Snippet;
+		/** A row under the meta row (e.g. a stack's links). */
+		below?: Snippet;
 		/**
 		 * Keep a long title (an image reference) on one line, cut with an
 		 * ellipsis and the full title as its tooltip, instead of wrapping.
@@ -47,6 +50,7 @@
 		status,
 		actions,
 		media,
+		below,
 		truncate = false
 	}: Props = $props();
 </script>
@@ -71,6 +75,7 @@
 				{/each}
 			</ul>
 		{/if}
+		{#if below}<div class="below">{@render below()}</div>{/if}
 	</div>
 	{#if actions}<div class="actions">{@render actions()}</div>{/if}
 </header>
@@ -153,6 +158,11 @@
 	.meta li:first-child {
 		padding-left: 0;
 		border-left: 0;
+	}
+
+	.below {
+		margin-top: var(--space-2);
+		min-width: 0;
 	}
 
 	.actions {

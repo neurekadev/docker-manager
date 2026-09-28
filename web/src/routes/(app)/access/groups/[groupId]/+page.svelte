@@ -12,11 +12,11 @@
 	import Star from '@lucide/svelte/icons/star';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
-	import UsersRound from '@lucide/svelte/icons/users-round';
 	import { ApiRequestError, api, unwrap, unwrapEmpty, type Account } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
 	import { StepUpCancelledError, withStepUp } from '$lib/auth/stepup.svelte';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
@@ -316,7 +316,12 @@
 </script>
 
 {#snippet memberCell(u: Account)}
-	<NameCell name={displayName(u)} href={routes.accessUser(u.id)} sub={secondaryName(u)} />
+	<NameCell
+		icon="user"
+		name={displayName(u)}
+		href={routes.accessUser(u.id)}
+		sub={secondaryName(u)}
+	/>
 {/snippet}
 {#snippet memberStatusCell(u: Account)}
 	{@const st = accountStatus(u)}
@@ -334,8 +339,7 @@
 			{#if g}
 				<PageHeader
 					title={g.name}
-					icon={UsersRound}
-					color="indigo"
+					{...resourceIcon('group')}
 					description={g.default
 						? 'New users join this group when they redeem an invitation.'
 						: 'Members get these rules; their own overrides win over them.'}

@@ -72,6 +72,15 @@ func (f *fakeTemplates) Update(ctx context.Context, id string, _ int64, p domain
 	if p.Name != nil {
 		t.Name = *p.Name
 	}
+	if p.Links != nil && err == nil {
+		// As the template service checks them (a field error).
+		links, lerr := domain.NormalizeLinks(*p.Links)
+		var in *domain.InputError
+		if errors.As(lerr, &in) {
+			return domain.Template{}, &domain.FieldError{Field: in.Field, Message: in.Message}
+		}
+		t.Links = links
+	}
 	return t, err
 }
 
@@ -420,6 +429,7 @@ func (f *fakeTemplateRegistries) SyncRegistry(ctx context.Context, id string) (d
 
 func (f *fakeTemplateRegistries) RegistryTemplates(context.Context, string) ([]domain.RegistryTemplate, error) {
 	return []domain.RegistryTemplate{{RegistryID: "remote-1", TemplateID: "rt-1", Name: "Remote cloud", Tags: []string{"cloud"}, IconSHA256: "abc",
+		Links:    []domain.Link{{Label: "Guide", URL: "https://friend.example/guide"}},
 		Versions: []domain.RegistryTemplateVersion{{Number: 3, Label: "3.0.0"}}}}, nil
 }
 

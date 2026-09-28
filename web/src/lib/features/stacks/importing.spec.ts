@@ -11,7 +11,8 @@ import {
 	importNeedsConfirm,
 	jobStackId,
 	projectStatus,
-	runningServices
+	runningServices,
+	volumesLine
 } from './importing';
 
 type Project = Schema<'DiscoveredStack'>;
@@ -173,5 +174,52 @@ describe('importFailure', () => {
 		expect(importFailure({ message: 'The manager is unreachable.' }, 'shop')).toBe(
 			'The manager is unreachable.'
 		);
+	});
+});
+
+describe('projects without containers', () => {
+	const idle = (over: Partial<Project> = {}) =>
+		project({
+			containerless: true,
+			services: [{ name: 'app', image: 'wiki:2', containers: 0, running: 0 }],
+			...over
+		});
+
+	it('is taken over or copied without starting anything, and asks nothing', () => {
+		expect(importMode(idle({ adoptable: true }))).toBe('adopt');
+		expect(importHow(idle({ adoptable: true }))).toBe(
+			'Taken over where it is. Nothing starts: deploy it afterwards.'
+		);
+		expect(importMode(idle())).toBe('copy-stopped');
+		expect(importHow(idle())).toBe(
+			'Copied into Docker Manager. Nothing starts: deploy it afterwards.'
+		);
+		expect(importNeedsConfirm(idle())).toBe(false);
+		expect(importConsequences(idle())).toEqual([]);
+	});
+
+	it('explains that the first deploy uses its volumes again, without the drift check', () => {
+		const copy = importDetails(idle());
+		expect(copy).toHaveLength(3);
+		expect(copy[1]).toMatch(/nothing starts.*volumes again/);
+		expect(copy.some((l) => l.startsWith('Before anything changes'))).toBe(false);
+		expect(importDetails(idle({ adoptable: true }))[1]).toBe(copy[1]);
+	});
+
+	it('names an outdated agent', () => {
+		expect(importFailure({ code: 'agent_unsupported', message: 'x' }, 'wiki', true)).toBe(
+			'The agent of this environment cannot import projects without containers by copy yet. Update the agent, then import again.'
+		);
+	});
+});
+
+describe('volumesLine', () => {
+	it('lists a few volumes and counts the rest', () => {
+		expect(volumesLine(undefined)).toBe('');
+		expect(volumesLine([])).toBe('');
+		expect(volumesLine(['wiki_data'])).toBe('Volumes: wiki_data');
+		expect(volumesLine(['a', 'b', 'c'])).toBe('Volumes: a, b, c');
+		expect(volumesLine(['a', 'b', 'c', 'd', 'e'])).toBe('Volumes: a, b, c +2 more');
+		expect(volumesLine(['a', 'b'], 1)).toBe('Volumes: a +1 more');
 	});
 });

@@ -15,6 +15,13 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   volume's staging area and `migration.commit`s it into a new directory,
   never an existing one); deploys and updates only read and report the
   bytes they used (`protocol.StackJobOutput.Sources`).
+- Links of stacks and templates (`domain.Link`, documentation, website,
+  repository) are display metadata like the description: check them only
+  with `domain.NormalizeLinks` (untrusted data such as another instance's
+  registry with `domain.SanitizeLinks`, which drops invalid links), keep
+  them apart from `DisplayMeta` (per-service metadata converts to its
+  storage type), and never log or audit a URL (it may carry a query
+  string): audit the number of links.
 - Stacks created from a template carry `domain.Stack.Template` (registry
   instance ID, template ID, name, version): informational only, never a
   dependency. The user's own `.env` reaches the new stack through the file
@@ -32,7 +39,11 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   keep the image they run (tagged with Compose's name before the
   recreate). Docker Manager's own project is copied while it runs
   (`import.live`): never stopped nor recreated; its next deploy moves it
-  onto the copy.
+  onto the copy. A containerless project (discovered through its Compose
+  file, `discover.go`; `StackImportSource.Containerless`, sent only to
+  agents announcing `protocol.FeatureStackImportContainerless`) is never
+  stopped, recreated or started: its import only copies and switches, and
+  the steps refuse it once the project has containers.
 - Rename (`internal/agent/stacks/rename.go`, `stack.rename`): the project
   name changes only through this job, which moves the volumes whose names
   follow the project (a local volume's `_data` is renamed, never copied;
@@ -48,7 +59,10 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
 - A revision is a version of the definition files, never a deploy: the
   deploy, import and rename finish hooks resolve reported sources with
   `stacks.Service.deployedRevision` (reuses the observed or applied
-  revision of the same hash), and a digest update never records one.
+  revision of the same hash), and a digest update never records one. An
+  import of a containerless project deployed nothing: its files are only
+  observed (`observe`, `external`), no revision is applied and the stack
+  stays `undeployed`, in place or by copy.
 - Revisions are immutable and sealed; record observed changes with
   `stacks.Service.RecordObserved` (#23) / `RecordFileSave` (#15); resolve a
   stack's files with `Root`; paths needing `stack.definition.*`:

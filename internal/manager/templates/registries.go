@@ -175,6 +175,9 @@ func entriesOf(idx RegistryIndex) []domain.RegistryTemplate {
 	for _, e := range idx.Templates {
 		t := domain.RegistryTemplate{RegistryID: idx.InstanceID, TemplateID: e.ID, Name: e.Name, Description: e.Description, Tags: e.Tags,
 			UpdatedAt: e.UpdatedAt}
+		for _, l := range e.Links {
+			t.Links = append(t.Links, domain.Link(l))
+		}
 		if e.Icon != nil {
 			t.IconSHA256, t.IconURL = e.Icon.SHA256, e.Icon.URL
 		}

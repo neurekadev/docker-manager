@@ -63,6 +63,8 @@ type RegistryTemplate struct {
 	Name        string
 	Description string
 	Tags        []string
+	// Links are the registry's valid links of the template.
+	Links []Link
 	// IconSHA256 is empty when the template has no (usable) icon.
 	IconSHA256 string
 	IconURL    string

@@ -34,15 +34,6 @@ export function stackIcon(s: Pick<Stack, 'icon'>): { icon: string; color: TileCo
 }
 
 /**
- * Whether a list shows the stack's icon: only when the user chose one (or
- * the stack came from a template, which brings its own); the same default
- * glyph on every row says nothing.
- */
-export function showStackIcon(s: Pick<Stack, 'icon' | 'template'>): boolean {
-	return stackIcon(s).icon !== STACK_ICON || !!s.template;
-}
-
-/**
  * The status shown in badges: the live Engine state when Docker Manager last
  * deployed the stack (running, partial, stopped, not running), otherwise
  * what Docker Manager last did (failed deploy, down, not deployed).

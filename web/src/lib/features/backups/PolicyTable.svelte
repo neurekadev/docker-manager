@@ -101,7 +101,7 @@
 </script>
 
 {#snippet nameCell(p: BackupPolicy)}
-	<NameCell name={p.name} href={routes.backupPolicy(p.id)} sub={where(p)} />
+	<NameCell icon="backupPolicy" name={p.name} href={routes.backupPolicy(p.id)} sub={where(p)} />
 {/snippet}
 {#snippet lastCell(p: BackupPolicy)}
 	{@const s = p.recentSets?.[0]}

@@ -28,7 +28,6 @@ import {
 	serviceVolumes,
 	shortDigest,
 	shortHash,
-	showStackIcon,
 	spaceCheck,
 	stackIcon,
 	stackStatus,
@@ -69,14 +68,6 @@ describe('stack status and counts', () => {
 		// The default stack icon stays on the blue stack tile, never the rose
 		// cache colour the same icon has on a service.
 		expect(stackIcon({ icon: 'layers' })).toEqual({ icon: 'layers', color: 'blue' });
-	});
-
-	it('shows a stack icon in lists only when one was chosen', () => {
-		expect(showStackIcon({})).toBe(false);
-		expect(showStackIcon({ icon: 'layers' })).toBe(false);
-		expect(showStackIcon({ icon: 'not-an-icon' })).toBe(false);
-		expect(showStackIcon({ icon: 'database' })).toBe(true);
-		expect(showStackIcon({ template: { name: 'Nextcloud' } } as never)).toBe(true);
 	});
 
 	it('prefers what Docker Manager did for failed, down and undeployed stacks, else the Engine state', () => {

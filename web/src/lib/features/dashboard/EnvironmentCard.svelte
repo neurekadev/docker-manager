@@ -8,10 +8,10 @@
 	// own). The layout follows the card's own width (a size container),
 	// not the viewport's.
 	import { createQuery } from '@tanstack/svelte-query';
-	import Server from '@lucide/svelte/icons/server';
 	import type { Schema } from '$lib/api/client';
 	import { environmentMetricsQuery, environmentSystemQuery } from '$lib/api/queries';
 	import { TILE_HEX } from '$lib/design/hue';
+	import { environmentIcon } from '$lib/features/common/resourceIcons';
 	import { seriesValues } from '$lib/features/environments/model';
 	import { routes } from '$lib/routes';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
@@ -86,7 +86,7 @@
 	<article class="env" class:offline={!env.online} aria-labelledby="env-{env.id}">
 		<div class="ident">
 			<header class="head">
-				<IconTile icon={Server} color={env.online ? 'blue' : 'slate'} size="md" />
+				<IconTile {...environmentIcon(env.online)} size="md" />
 				<div class="names">
 					<h3 id="env-{env.id}">
 						<a class="cover" href={routes.environment(env.id)}>{env.name}</a>

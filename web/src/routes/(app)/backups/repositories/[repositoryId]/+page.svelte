@@ -10,7 +10,6 @@
 	import { page } from '$app/state';
 	import Camera from '@lucide/svelte/icons/camera';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import HardDrive from '@lucide/svelte/icons/hard-drive';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import PlugZap from '@lucide/svelte/icons/plug-zap';
@@ -19,6 +18,7 @@
 	import { api, unwrap, unwrapEmpty } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
@@ -288,8 +288,7 @@
 			{@const manage = has(r, 'backup_repository.manage')}
 			<PageHeader
 				title={r.name}
-				icon={HardDrive}
-				color="teal"
+				{...resourceIcon('backupRepository')}
 				description={r.state !== 'ready'
 					? 'Waiting for the owner to confirm the Recovery Key: nothing is stored here yet.'
 					: health.data

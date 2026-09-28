@@ -28,6 +28,7 @@ type stackRow struct {
 	Description        string     `bun:"description,notnull"`
 	Icon               string     `bun:"icon,notnull"`
 	ServiceMeta        string     `bun:"service_meta,notnull"`
+	Links              string     `bun:"links,notnull"`
 	Root               string     `bun:"root,notnull"`
 	RootPath           string     `bun:"root_path,notnull"`
 	Dir                string     `bun:"dir,notnull"`
@@ -159,7 +160,7 @@ func fromStack(s *domain.Stack) stackRow {
 	}
 	r := stackRow{
 		ID: s.ID, EnvironmentID: s.EnvironmentID, Name: s.Name, DisplayName: s.DisplayName, Description: s.Meta.Description,
-		Icon: s.Meta.Icon, ServiceMeta: mustJSON(meta), Root: s.Root, RootPath: s.RootPath, Dir: s.Dir,
+		Icon: s.Meta.Icon, ServiceMeta: mustJSON(meta), Links: linksJSON(s.Links), Root: s.Root, RootPath: s.RootPath, Dir: s.Dir,
 		ConfigFiles: mustJSON(nonNil(s.ConfigFiles)), EnvFiles: mustJSON(nonNil(s.EnvFiles)), Origin: s.Origin,
 		Status: string(s.Status), AppliedAt: utcPtr(s.AppliedAt), ObservedAt: utcPtr(s.ObservedAt),
 		Images: mustJSON(images), Services: mustJSON(services), Binds: mustJSON(binds),
@@ -210,7 +211,7 @@ func (r stackRow) toDomain() domain.Stack {
 	s := domain.Stack{
 		ID: r.ID, EnvironmentID: r.EnvironmentID, Name: r.Name, DisplayName: r.DisplayName,
 		Meta: domain.DisplayMeta{Description: r.Description, Icon: r.Icon}, ServiceMeta: map[string]domain.DisplayMeta{},
-		Root: r.Root, RootPath: r.RootPath, Dir: r.Dir, Origin: r.Origin, Status: domain.StackDeploymentStatus(r.Status),
+		Links: linksOf(r.Links), Root: r.Root, RootPath: r.RootPath, Dir: r.Dir, Origin: r.Origin, Status: domain.StackDeploymentStatus(r.Status),
 		Applied: refOf(r.AppliedRevisionID, r.AppliedSeq, r.AppliedHash), AppliedAt: utcPtr(r.AppliedAt),
 		Observed: refOf(r.ObservedRevisionID, r.ObservedSeq, r.ObservedHash), ObservedAt: utcPtr(r.ObservedAt),
 		Failed:        refOf(r.FailedRevisionID, r.FailedSeq, r.FailedHash),

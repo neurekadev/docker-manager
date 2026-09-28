@@ -11,7 +11,6 @@
 	// (predefined, used and Docker Manager's own ones are left out).
 	import { createQuery } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import Network from '@lucide/svelte/icons/network';
 	import Plus from '@lucide/svelte/icons/plus';
 	import { containersQuery, networksQuery, type Network as Net } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
@@ -37,6 +36,8 @@
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import ObjectRemoveHost from '$lib/features/resources/ObjectRemoveHost.svelte';
 	import ObjectBulk from '$lib/features/resources/ObjectBulk.svelte';
+	import IconCell from '$lib/features/common/IconCell.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
@@ -205,14 +206,16 @@
 </script>
 
 {#snippet nameCell(n: Net)}
-	<div class="name-cell">
-		<a class="name mono" href={routes.network(n.environmentId, n.name)}>{n.name}</a>
-		{#if n.protection}<ProtectionMark protection={n.protection} />{/if}
-		{#if n.builtin}<span class="tag"><Badge>Predefined</Badge></span>{/if}
-		{#if n.internal}<span class="tag" title="No traffic to or from outside"
-				><Badge tone="warn">Internal</Badge></span
-			>{/if}
-	</div>
+	<IconCell icon="network"
+		><div class="name-cell">
+			<a class="name mono" href={routes.network(n.environmentId, n.name)}>{n.name}</a>
+			{#if n.protection}<ProtectionMark protection={n.protection} />{/if}
+			{#if n.builtin}<span class="tag"><Badge>Predefined</Badge></span>{/if}
+			{#if n.internal}<span class="tag" title="No traffic to or from outside"
+					><Badge tone="warn">Internal</Badge></span
+				>{/if}
+		</div></IconCell
+	>
 {/snippet}
 {#snippet stackCell(n: Net)}
 	{#if n.stack}<StackBadge stack={n.stack} />{:else}<span class="muted">—</span>{/if}
@@ -325,13 +328,12 @@
 							{#if filtered}
 								<NoMatches
 									what="networks"
-									icon={Network}
+									icon={resourceIcon('network').icon}
 									onclear={() => filters.clear()}
 								/>
 							{:else}
 								<EmptyState
-									icon={Network}
-									color="indigo"
+									{...resourceIcon('network')}
 									title="No networks to show."
 									description="Create a network to connect standalone containers, or let a stack create its own."
 									level={3}

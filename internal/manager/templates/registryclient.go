@@ -36,6 +36,7 @@ const (
 	maxRegistryIndex   = 4 << 20
 	maxRegistryEntries = 1000
 	maxRegistryVersion = 50
+	maxRegistryLinks   = 100 // links read per template (the valid ones kept, at most domain.MaxLinks)
 	indexTimeout       = 15 * time.Second
 	archiveTimeout     = 2 * time.Minute
 )
@@ -56,9 +57,37 @@ type RegistryEntry struct {
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
 	Tags        []string          `json:"tags"`
+	Links       RegistryLinks     `json:"links"`
 	Icon        *RegistryIcon     `json:"icon"`
 	UpdatedAt   time.Time         `json:"updatedAt"`
 	Versions    []RegistryVersion `json:"versions"`
+}
+
+// RegistryLink is a template's web link (older registries list none).
+type RegistryLink struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
+}
+
+// RegistryLinks are a template's links as another instance lists them.
+// Decoding never fails: a list or entry of the wrong shape is left out
+// (validate then drops invalid links), so it never fails the registry.
+type RegistryLinks []RegistryLink
+
+// UnmarshalJSON keeps the entries that decode as links.
+func (l *RegistryLinks) UnmarshalJSON(b []byte) error {
+	*l = nil
+	var raw []json.RawMessage
+	if json.Unmarshal(b, &raw) != nil {
+		return nil
+	}
+	for _, r := range raw {
+		var one RegistryLink
+		if json.Unmarshal(r, &one) == nil {
+			*l = append(*l, one)
+		}
+	}
+	return nil
 }
 
 // RegistryIcon names a template's icon.
@@ -278,6 +307,7 @@ func (idx *RegistryIndex) validate() error {
 			tags = nil
 		}
 		e.Tags = tags
+		e.Links = validLinks(e.Links)
 		if e.Icon != nil && (!hexSHA(e.Icon.SHA256) || e.Icon.Size <= 0 || e.Icon.Size > domain.MaxTemplateIcon) {
 			e.Icon = nil
 		}
@@ -338,6 +368,24 @@ func (c *RegistryClient) FetchArchive(ctx context.Context, base string, a Regist
 		return nil, regErr(RegistryInvalid, "the downloaded template does not match the registry's digest; refresh the registry and try again")
 	}
 	return b, nil
+}
+
+// validLinks keeps a registry template's valid links: invalid ones (a
+// scheme other than http(s), credentials, too long) and repeated ones are
+// dropped, never the whole template or registry.
+func validLinks(in RegistryLinks) RegistryLinks {
+	if len(in) > maxRegistryLinks {
+		in = in[:maxRegistryLinks]
+	}
+	ls := make([]domain.Link, 0, len(in))
+	for _, l := range in {
+		ls = append(ls, domain.Link(l))
+	}
+	out := RegistryLinks{}
+	for _, l := range domain.SanitizeLinks(ls) {
+		out = append(out, RegistryLink(l))
+	}
+	return out
 }
 
 func bounded(s string, n int) string {

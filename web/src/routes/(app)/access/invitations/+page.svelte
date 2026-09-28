@@ -2,7 +2,6 @@
 	// Invitations (#16): single-use codes the owner hands out; codes are
 	// never listed again. Revoking stops a pending code at once.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
-	import MailPlus from '@lucide/svelte/icons/mail-plus';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
 	import { api, unwrapEmpty } from '$lib/api/client';
 	import { myPermissionsQuery } from '$lib/api/queries';
@@ -23,6 +22,7 @@
 	} from '$lib/ui';
 	import { actionError } from '$lib/features/common/errors';
 	import NameCell from '$lib/features/common/NameCell.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import AccessHeader from '$lib/features/access/AccessHeader.svelte';
@@ -114,6 +114,7 @@
 
 {#snippet createdCell(i: Invitation)}
 	<NameCell
+		icon="invitation"
 		name={i.email ?? 'Anyone with the link'}
 		sub="Created {formatDateTime(i.createdAt)}{who(i.createdBy)
 			? ` by ${who(i.createdBy)}`
@@ -174,7 +175,7 @@
 					>
 						{#snippet empty()}
 							<EmptyState
-								icon={MailPlus}
+								icon={resourceIcon('invitation').icon}
 								title="No invitations yet."
 								description="Invite someone to create their own account. They join {defaultGroup?.name ??
 									'the default group'}."

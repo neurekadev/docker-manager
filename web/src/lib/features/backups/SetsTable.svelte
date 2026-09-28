@@ -138,6 +138,7 @@
 
 {#snippet startedCell(s: Row)}
 	<NameCell
+		icon="backup"
 		name={formatDateTime(s.startedAt)}
 		sub={s.origin === 'scheduled'
 			? 'Scheduled'

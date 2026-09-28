@@ -8,7 +8,6 @@
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import FileCode from '@lucide/svelte/icons/file-code';
 	import Hammer from '@lucide/svelte/icons/hammer';
 	import { api, unwrap } from '$lib/api/client';
 	import { buildDefinitionsQuery, queryKeys, type BuildDefinition } from '$lib/api/queries';
@@ -31,6 +30,7 @@
 		type MenuEntry
 	} from '$lib/ui';
 	import NameCell from '$lib/features/common/NameCell.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
 	import BuildsHeader from '$lib/features/builds/BuildsHeader.svelte';
 	import DefinitionDialog from '$lib/features/builds/DefinitionDialog.svelte';
@@ -199,6 +199,7 @@
 </script>
 
 {#snippet nameCell(d: BuildDefinition)}<NameCell
+		icon="buildDefinition"
 		name={d.name}
 		href={editable(d)
 			? routes.buildDefinitionEdit(d.id)
@@ -326,13 +327,12 @@
 							{#if filtered}
 								<NoMatches
 									what="definitions"
-									icon={FileCode}
+									icon={resourceIcon('buildDefinition').icon}
 									onclear={() => filters.clear()}
 								/>
 							{:else}
 								<EmptyState
-									icon={FileCode}
-									color="violet"
+									{...resourceIcon('buildDefinition')}
 									title="No saved builds yet."
 									description="Save a Git build as a definition to build it again without filling in the form. Use New definition above, or save one when you build an image."
 									level={3}

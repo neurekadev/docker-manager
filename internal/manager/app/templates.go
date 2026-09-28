@@ -30,7 +30,7 @@ func (t templateSource) TemplateArchive(ctx context.Context, instanceID, templat
 		}
 		return stacks.TemplateArchive{
 			Ref:     domain.StackTemplateRef{InstanceID: instanceID, TemplateID: templateID, Name: rt.Name, Version: v.Number, VersionLabel: v.Label},
-			Archive: archive, SHA256: v.ArchiveSHA256,
+			Archive: archive, SHA256: v.ArchiveSHA256, Links: rt.Links,
 		}, nil
 	}
 	tm, err := t.own.Get(ctx, templateID)
@@ -43,6 +43,6 @@ func (t templateSource) TemplateArchive(ctx context.Context, instanceID, templat
 	}
 	return stacks.TemplateArchive{
 		Ref:     domain.StackTemplateRef{InstanceID: instanceID, TemplateID: tm.ID, Name: tm.Name, Version: v.Number, VersionLabel: v.Label},
-		Archive: archive, SHA256: v.ArchiveSHA256,
+		Archive: archive, SHA256: v.ArchiveSHA256, Links: tm.Links,
 	}, nil
 }

@@ -1,25 +1,14 @@
 // Sidebar navigation (#22) and its permission filter (#17). Items the user
 // cannot use are hidden, not disabled. The filter only decides what to
 // show; the server still authorizes every request.
-import Activity from '@lucide/svelte/icons/activity';
-import Box from '@lucide/svelte/icons/box';
-import CalendarClock from '@lucide/svelte/icons/calendar-clock';
-import Container from '@lucide/svelte/icons/container';
 import DatabaseBackup from '@lucide/svelte/icons/database-backup';
-import Hammer from '@lucide/svelte/icons/hammer';
-import HardDrive from '@lucide/svelte/icons/hard-drive';
 import KeyRound from '@lucide/svelte/icons/key-round';
 import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
-import LayoutTemplate from '@lucide/svelte/icons/layout-template';
-import Layers from '@lucide/svelte/icons/layers';
-import Network from '@lucide/svelte/icons/network';
-import PackageCheck from '@lucide/svelte/icons/package-check';
-import Server from '@lucide/svelte/icons/server';
 import Settings from '@lucide/svelte/icons/settings';
 import Users from '@lucide/svelte/icons/users';
-import Wrench from '@lucide/svelte/icons/wrench';
 import type { IconComponent } from '$lib/design/icons';
 import type { MyPermissions } from '$lib/api/client';
+import { RESOURCE_ICONS } from '$lib/features/common/resourceIcons';
 import { routes } from '$lib/routes';
 
 /** What the navigation needs to know about the caller's permissions. */
@@ -82,7 +71,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'environments',
 		label: 'Environments',
 		href: routes.environments(),
-		icon: Server,
+		icon: RESOURCE_ICONS.environment.icon,
 		group: 'overview',
 		visible: (a) => a.environments > 0 || hasAny(a, 'environment.', 'agent.')
 	},
@@ -90,7 +79,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'stacks',
 		label: 'Stacks',
 		href: routes.stacks(),
-		icon: Layers,
+		icon: RESOURCE_ICONS.stack.icon,
 		group: 'resources',
 		visible: (a) => hasAny(a, 'stack.')
 	},
@@ -98,7 +87,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'containers',
 		label: 'Containers',
 		href: routes.containers(),
-		icon: Container,
+		icon: RESOURCE_ICONS.container.icon,
 		group: 'resources',
 		visible: (a) => hasAny(a, 'container.')
 	},
@@ -106,7 +95,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'images',
 		label: 'Images',
 		href: routes.images(),
-		icon: Box,
+		icon: RESOURCE_ICONS.image.icon,
 		group: 'resources',
 		visible: (a) => hasAny(a, 'image.')
 	},
@@ -114,7 +103,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'volumes',
 		label: 'Volumes',
 		href: routes.volumes(),
-		icon: HardDrive,
+		icon: RESOURCE_ICONS.volume.icon,
 		group: 'resources',
 		visible: (a) => hasAny(a, 'volume.')
 	},
@@ -122,7 +111,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'networks',
 		label: 'Networks',
 		href: routes.networks(),
-		icon: Network,
+		icon: RESOURCE_ICONS.network.icon,
 		group: 'resources',
 		visible: (a) => hasAny(a, 'network.')
 	},
@@ -130,7 +119,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'builds',
 		label: 'Builds',
 		href: routes.builds(),
-		icon: Hammer,
+		icon: RESOURCE_ICONS.build.icon,
 		group: 'resources',
 		visible: (a) => hasAny(a, 'image.build', 'build_definition.', 'git_credential.')
 	},
@@ -138,7 +127,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'templates',
 		label: 'Templates',
 		href: routes.templates(),
-		icon: LayoutTemplate,
+		icon: RESOURCE_ICONS.template.icon,
 		group: 'resources',
 		visible: (a) => hasAny(a, 'template.')
 	},
@@ -162,7 +151,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'updates',
 		label: 'Updates',
 		href: routes.updates(),
-		icon: PackageCheck,
+		icon: RESOURCE_ICONS.updatePolicy.icon,
 		group: 'operations',
 		visible: (a) => hasAny(a, 'update.', 'update_policy.')
 	},
@@ -170,7 +159,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'maintenance',
 		label: 'Maintenance',
 		href: routes.maintenance(),
-		icon: Wrench,
+		icon: RESOURCE_ICONS.maintenancePolicy.icon,
 		group: 'operations',
 		visible: (a) => hasAny(a, 'maintenance', 'maintenance_policy.')
 	},
@@ -178,7 +167,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'jobs',
 		label: 'Jobs',
 		href: routes.jobs(),
-		icon: Activity,
+		icon: RESOURCE_ICONS.job.icon,
 		group: 'operations',
 		// Jobs are visible through their targets' capabilities: anyone with a grant.
 		visible: (a) => !isRestricted(a)
@@ -187,7 +176,7 @@ export const NAV_ITEMS: NavItem[] = [
 		id: 'schedules',
 		label: 'Schedules',
 		href: routes.schedules(),
-		icon: CalendarClock,
+		icon: RESOURCE_ICONS.schedule.icon,
 		group: 'operations',
 		// GET /schedules shows the policies the caller may read (#13 kinds).
 		visible: (a) =>

@@ -235,8 +235,12 @@ func (s *Service) Create(ctx context.Context, in domain.TemplateInput, userID st
 	if err != nil {
 		return domain.Template{}, err
 	}
+	links, err := normalizeLinks(in.Links)
+	if err != nil {
+		return domain.Template{}, err
+	}
 	now := s.opts.Clock.Now().UTC()
-	t := domain.Template{ID: ids.New(), Name: in.Name, Description: in.Description, Tags: tags, Visibility: domain.TemplatePrivate,
+	t := domain.Template{ID: ids.New(), Name: in.Name, Description: in.Description, Tags: tags, Links: links, Visibility: domain.TemplatePrivate,
 		CreatedByUserID: userID, Revision: 1, CreatedAt: now, UpdatedAt: now}
 	dir := s.draftDir(t.ID)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -252,6 +256,10 @@ func (s *Service) Create(ctx context.Context, in domain.TemplateInput, userID st
 	}
 	audit.AddTarget(ctx, domain.AuditTarget{Type: catalog.TypeTemplate, ID: t.ID})
 	audit.SetDetail(ctx, "templateName", t.Name)
+	if len(links) > 0 {
+		// Never the URLs (they may carry query strings): their number.
+		audit.SetDetail(ctx, "linkCount", len(links))
+	}
 	return store.GetTemplate(ctx, s.db, t.ID)
 }
 
@@ -276,6 +284,11 @@ func (s *Service) Update(ctx context.Context, id string, revision int64, p domai
 			return domain.Template{}, err
 		}
 	}
+	if p.Links != nil {
+		if after.Links, err = normalizeLinks(*p.Links); err != nil {
+			return domain.Template{}, err
+		}
+	}
 	if err := checkMeta(after.Name, after.Description); err != nil {
 		return domain.Template{}, err
 	}
@@ -287,8 +300,22 @@ func (s *Service) Update(ctx context.Context, id string, revision int64, p domai
 	return store.GetTemplate(ctx, s.db, id)
 }
 
+// auditView is what an edit's audit diff shows: links by their number
+// only (a URL may carry a query string).
 func auditView(t domain.Template) map[string]any {
-	return map[string]any{"name": t.Name, "description": t.Description, "tags": t.Tags, "visibility": string(t.Visibility)}
+	return map[string]any{"name": t.Name, "description": t.Description, "tags": t.Tags, "links": len(t.Links),
+		"visibility": string(t.Visibility)}
+}
+
+// normalizeLinks checks a template's links (domain.NormalizeLinks) and
+// reports a problem as a field error.
+func normalizeLinks(links []domain.Link) ([]domain.Link, error) {
+	out, err := domain.NormalizeLinks(links)
+	var in *domain.InputError
+	if errors.As(err, &in) {
+		return nil, fieldErr(in.Field, in.Message)
+	}
+	return out, err
 }
 
 // SetVisibility makes a template public or private. Making it public needs

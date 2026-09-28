@@ -124,6 +124,14 @@ func (f *fakeStacks) Update(_ context.Context, id string, rev int64, p domain.St
 	if p.DisplayName != nil {
 		st.DisplayName = *p.DisplayName
 	}
+	if p.Links != nil {
+		// As the stack service checks them.
+		links, err := domain.NormalizeLinks(*p.Links)
+		if err != nil {
+			return st, err
+		}
+		st.Links = links
+	}
 	st.Revision++
 	f.stacks[id] = st
 	f.patches++
@@ -195,7 +203,31 @@ func (f *fakeStacks) ImageStatus(st domain.Stack) []domain.StackImageView {
 }
 
 func (f *fakeStacks) Discovered(context.Context, string) ([]domain.DiscoveredStack, error) {
-	return []domain.DiscoveredStack{{Name: "legacy", WorkingDir: "/home/me/legacy", Reason: "outside"}}, f.err
+	return []domain.DiscoveredStack{{Name: "legacy", WorkingDir: "/home/me/legacy", Reason: "outside"},
+		{Name: "wiki", WorkingDir: "/opt/stacks/wiki", Copyable: true, SourceDir: "/opt/stacks/wiki", Containerless: true,
+			Services: []domain.DiscoveredService{{Name: "app", Image: "wiki:2"}}, Volumes: []string{"wiki_data", "wiki_db"}}}, f.err
+}
+
+// TestDiscoveredStacksCarryContainerlessAndVolumes: a project without
+// containers is marked, its services have no containers, and every
+// project lists its volumes (absent when it has none).
+func TestDiscoveredStacksCarryContainerlessAndVolumes(t *testing.T) {
+	h, _ := stacksAPIFor(t, authztest.Only("ivy", "allow stack.import @env:env-1"))
+	r := authztest.Do(t, h, "ivy", authztest.Call{Method: http.MethodGet, Path: "/api/v1/environments/env-1/stacks/discovered"})
+	var out struct {
+		Projects []DiscoveredStack `json:"projects"`
+	}
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &out) != nil || len(out.Projects) != 2 {
+		t.Fatalf("discovered %d %s", r.Status, r.Body)
+	}
+	legacy, wiki := out.Projects[0], out.Projects[1]
+	if legacy.Containerless || legacy.Volumes != nil || strings.Contains(string(r.Body), `"containerless":false`) {
+		t.Errorf("project with containers %+v in %s", legacy, r.Body)
+	}
+	if !wiki.Containerless || !wiki.Copyable || !slices.Equal(wiki.Volumes, []string{"wiki_data", "wiki_db"}) ||
+		len(wiki.Services) != 1 || wiki.Services[0].Containers != 0 || wiki.Services[0].Running != 0 {
+		t.Errorf("containerless project %+v", wiki)
+	}
 }
 
 func (f *fakeStacks) Import(_ context.Context, _ authz.Principal, r domain.StackImport) (domain.Stack, error) {

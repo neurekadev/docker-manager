@@ -170,6 +170,12 @@ func DeclaredName(ctx context.Context, spec ProjectSpec) (string, error) {
 	return p.Name, nil
 }
 
+// NormalizeProjectName is the project name Compose derives from a
+// directory name (lower case, only [a-z0-9_-]); "" when nothing is left.
+func NormalizeProjectName(dirName string) string {
+	return loader.NormalizeProjectName(dirName)
+}
+
 // Load reads and validates a project. Unsupported features are rejected
 // with CodeUnsupportedFeature before anything touches the Engine.
 func (a *Adapter) Load(ctx context.Context, spec ProjectSpec) (*Project, error) {

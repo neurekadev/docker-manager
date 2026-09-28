@@ -64,6 +64,13 @@ import (
 // service writes into the project directory (that data cannot be copied
 // consistently while it runs).
 //
+// A containerless project (StackImportSource.Containerless: discovery
+// found it through its Compose file, without containers) has nothing to
+// check against, stop, recreate or start: prepare only makes sure it still
+// has no containers and its folder still resolves to the same project name
+// (its volumes keep their names), and recreate only switches to the copy.
+// The steps refuse it once containers of the project appear.
+//
 // A build-only service (build section, no image) keeps the image it runs:
 // the tool that built it may have named it otherwise than Compose does
 // (Arcane), so recreate tags that image with Compose's name first.
@@ -384,6 +391,9 @@ func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) er
 				Message: fmt.Sprintf("service %s binds %s by its absolute path: it keeps using the original directory, not the copy", b.Service, b.Source)})
 		}
 	}
+	if in.Import.Containerless {
+		return s.importPrepareContainerless(ctx, sc, in, eng, src, res, warns)
+	}
 	live, err := s.ownProject(ctx, eng, in.Stack.ProjectName)
 	if err != nil {
 		return err
@@ -402,7 +412,8 @@ func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) er
 		return err
 	}
 	if len(containers) == 0 {
-		return importRefusal(classImportSourceChanged, "project %s has no containers on this Engine any more", in.Stack.ProjectName)
+		return importRefusal(classImportSourceChanged, "project %s has no containers on this Engine any more; refresh the list "+
+			"to import it as a project without containers", in.Stack.ProjectName)
 	}
 	if err := checkProjectDir(ctx, eng, res, in.Import.WorkingDir, containers); err != nil {
 		return err
@@ -470,6 +481,47 @@ func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) er
 		o.Warnings = warns
 		r.WasRunning = wasRunning
 		r.Live = live
+	})
+}
+
+// errHasContainers refuses a containerless import once the project has
+// containers (their state and settings were never checked).
+func errHasContainers(project string) error {
+	return importRefusal(classImportSourceChanged, "project %s has containers now; import it again from the list", project)
+}
+
+// importPrepareContainerless prepares the import of a project discovery
+// found without containers: it must still have none and its folder must
+// still resolve to the same project name (so its volumes keep their
+// names). Nothing runs, so there is no drift or image to check and nothing
+// stops, is recreated or starts.
+func (s *Service) importPrepareContainerless(ctx context.Context, sc *jobexec.StepContext, in protocol.StackJobInput, eng engine.Engine,
+	src string, res *storage.Result, warns []protocol.ComposeIssue) error {
+	containers, err := lifecycle.ProjectContainers(ctx, eng, in.Stack.ProjectName)
+	if err != nil {
+		return err
+	}
+	if len(containers) > 0 {
+		return errHasContainers(in.Stack.ProjectName)
+	}
+	name, err := compose.DeclaredName(ctx, specOf(allProfiles(in.Stack), src))
+	if err != nil {
+		return err
+	}
+	if name == "" {
+		name = compose.NormalizeProjectName(path.Base(in.Import.WorkingDir))
+	}
+	if name != in.Stack.ProjectName {
+		return importRefusal(classImportSourceChanged, "the Compose files in %s define project %q now, not %q", in.Import.WorkingDir, name, in.Stack.ProjectName)
+	}
+	if err := checkSpace(ctx, src, res.StacksDir); err != nil {
+		return err
+	}
+	sc.Progress(ctx, 5, fmt.Sprintf("checked %s: no containers, nothing stops", in.Stack.ProjectName))
+	return updateImport(ctx, sc, func(o *protocol.StackJobOutput, r *protocol.StackImportReport) {
+		o.Before = []protocol.ServiceState{}
+		o.Warnings = warns
+		r.WasRunning, r.Live = nil, false
 	})
 }
 
@@ -622,6 +674,9 @@ func (s *Service) importStop(ctx context.Context, sc *jobexec.StepContext) error
 	list, err := lifecycle.ProjectContainers(ctx, eng, in.Stack.ProjectName)
 	if err != nil {
 		return err
+	}
+	if in.Import.Containerless && len(list) > 0 {
+		return errHasContainers(in.Stack.ProjectName)
 	}
 	for _, c := range list {
 		if isRunning(c) {
@@ -824,6 +879,13 @@ func (s *Service) importRecreate(ctx context.Context, sc *jobexec.StepContext) e
 		if err := relocated(orig, all, src, dst); err != nil {
 			return importRefusal(classImportNotRelocatable, "%v", err)
 		}
+		if in.Import.Containerless {
+			if list, err := lifecycle.ProjectContainers(ctx, eng, in.Stack.ProjectName); err != nil {
+				return err
+			} else if len(list) > 0 {
+				return errHasContainers(in.Stack.ProjectName)
+			}
+		}
 		// The switch: from here on the project lives in the copy.
 		if err := updateImport(ctx, sc, func(_ *protocol.StackJobOutput, r *protocol.StackImportReport) { r.Switched = true }); err != nil {
 			return err
@@ -860,7 +922,10 @@ func (s *Service) importRecreate(ctx context.Context, sc *jobexec.StepContext) e
 		}
 	}
 	bs := binds(p, dst)
-	images := appliedImages(ctx, eng, p)
+	var images []protocol.AppliedImage
+	if !in.Import.Containerless { // nothing was deployed: no applied images
+		images = appliedImages(ctx, eng, p)
+	}
 	return update(ctx, sc, func(o *protocol.StackJobOutput) {
 		src := snap
 		if inlineSize(src) > protocol.MaxInlineSources {

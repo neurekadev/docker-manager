@@ -9,7 +9,7 @@
 
 	interface Props {
 		url?: string | null;
-		size?: 'sm' | 'md' | 'lg';
+		size?: 'xs' | 'sm' | 'md' | 'lg';
 	}
 
 	let { url, size = 'md' }: Props = $props();
@@ -40,6 +40,12 @@
 		border-radius: var(--radius-md);
 		background: var(--surface-raised);
 		box-shadow: inset 0 0 0 1px var(--border-subtle);
+	}
+
+	.xs {
+		width: 24px;
+		height: 24px;
+		border-radius: var(--radius-sm);
 	}
 
 	.sm {

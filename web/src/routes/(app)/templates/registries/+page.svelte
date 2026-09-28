@@ -11,6 +11,7 @@
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { myPermissionsQuery } from '$lib/api/queries';
+	import IconCell from '$lib/features/common/IconCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import AddRegistryDialog from '$lib/features/templates/AddRegistryDialog.svelte';
 	import OwnRegistryCard from '$lib/features/templates/OwnRegistryCard.svelte';
@@ -122,10 +123,12 @@
 </script>
 
 {#snippet nameCell(r: TemplateRegistryInfo)}
-	<span class="name">
-		<span class="title">{r.name}</span>
-		<span class="url mono" title={r.url}>{r.url}</span>
-	</span>
+	<IconCell icon="templateRegistry">
+		<span class="name">
+			<span class="title">{r.name}</span>
+			<span class="url mono" title={r.url}>{r.url}</span>
+		</span>
+	</IconCell>
 {/snippet}
 {#snippet statusCell(r: TemplateRegistryInfo)}
 	{#if r.status === 'error'}

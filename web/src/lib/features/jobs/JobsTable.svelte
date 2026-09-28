@@ -8,6 +8,7 @@
 	import type { Snippet } from 'svelte';
 	import type { Job } from '$lib/api/client';
 	import { routes } from '$lib/routes';
+	import IconCell from '$lib/features/common/IconCell.svelte';
 	import { StatusBadge, Table, formatDateTime, formatRelative, type Column } from '$lib/ui';
 	import { ORIGIN_LABELS, jobDuration, jobHeadline, type NameOf } from './labels';
 
@@ -71,10 +72,12 @@
 		nameOf,
 		fallback: j.environmentId ? environments?.get(j.environmentId) : undefined
 	})}
-	<div class="job">
-		<a href={routes.job(j.id)} class="name">{h.title}</a>
-		{#if h.subtitle}<span class="kind">{h.subtitle}</span>{/if}
-	</div>
+	<IconCell icon="job">
+		<div class="job">
+			<a href={routes.job(j.id)} class="name">{h.title}</a>
+			{#if h.subtitle}<span class="kind">{h.subtitle}</span>{/if}
+		</div>
+	</IconCell>
 {/snippet}
 {#snippet stateCell(j: Job)}
 	<StatusBadge status={j.state} kind="job" />

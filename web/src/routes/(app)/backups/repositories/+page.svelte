@@ -3,7 +3,6 @@
 	// Recovery Key is confirmed for each, the last connection test and
 	// verification. Credentials and the key are never shown.
 	import { createQuery } from '@tanstack/svelte-query';
-	import HardDrive from '@lucide/svelte/icons/hard-drive';
 	import Plus from '@lucide/svelte/icons/plus';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
@@ -20,6 +19,7 @@
 	} from '$lib/ui';
 	import { environmentName } from '$lib/features/common/data';
 	import NameCell from '$lib/features/common/NameCell.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import BackupsHeader from '$lib/features/backups/BackupsHeader.svelte';
@@ -63,6 +63,7 @@
 
 {#snippet nameCell(r: BackupRepository)}
 	<NameCell
+		icon="backupRepository"
 		name={r.name}
 		href={routes.backupRepository(r.id)}
 		sub="{r.kind === 's3' ? 'S3 storage' : 'Local directory'}: {repositoryLocation(r, envName)}"
@@ -109,8 +110,7 @@
 				>
 					{#snippet empty()}
 						<EmptyState
-							icon={HardDrive}
-							color="teal"
+							{...resourceIcon('backupRepository')}
 							title="No backup repositories yet."
 							description="Add a local directory or an S3 bucket. The first repository creates your Recovery Key."
 							level={3}

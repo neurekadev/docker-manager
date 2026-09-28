@@ -160,6 +160,13 @@ type fakeEngine struct {
 	engine.Engine
 	mu       sync.Mutex
 	projects map[string][]engine.Container
+	volumes  []engine.Volume
+}
+
+func (f *fakeEngine) ListVolumes(context.Context, ...string) ([]engine.Volume, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.volumes), nil
 }
 
 func (f *fakeEngine) setProject(name string, cs []engine.Container) {
@@ -351,6 +358,8 @@ type harness struct {
 	comp   *fakeComposer
 	engine *fakeEngine
 	bus    *events.Bus
+	// storage is the agent's verified layout (tests add import mounts).
+	storage *storage.Result
 }
 
 var alice = authz.Principal{Kind: authz.KindUser, UserID: "alice"}
@@ -366,6 +375,7 @@ func newHarness(t *testing.T) *harness {
 	h.engine = &fakeEngine{projects: map[string][]engine.Container{}}
 	h.comp = &fakeComposer{eng: h.engine}
 	res := &storage.Result{StacksDir: filepath.ToSlash(h.root), Roots: []storage.Root{{Kind: storage.KindStacks, Path: filepath.ToSlash(h.root), OK: true}}}
+	h.storage = res
 	h.agent = agentstacks.New(agentstacks.Options{Deps: agentDeps{c: h.comp, eng: h.engine, st: res}, Clock: h.clk, Logger: testutil.Logger(t)})
 	h.agents = &fakeAgents{online: true, handlers: h.agent.Requests()}
 	h.disp.Connect(env)

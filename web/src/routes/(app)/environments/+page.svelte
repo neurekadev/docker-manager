@@ -9,7 +9,6 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import Archive from '@lucide/svelte/icons/archive';
 	import Plus from '@lucide/svelte/icons/plus';
-	import Server from '@lucide/svelte/icons/server';
 	import type { Environment, Schema } from '$lib/api/client';
 	import {
 		archivedEnvironmentsQuery,
@@ -17,7 +16,9 @@
 		myPermissionsQuery,
 		overviewQuery
 	} from '$lib/api/queries';
+	import IconCell from '$lib/features/common/IconCell.svelte';
 	import Page from '$lib/features/common/Page.svelte';
+	import { environmentIcon, resourceIcon } from '$lib/features/common/resourceIcons';
 	import EngineVersion from '$lib/features/environments/EngineVersion.svelte';
 	import EnrollmentsCard from '$lib/features/environments/EnrollmentsCard.svelte';
 	import { COMPATIBILITY, environmentStatus } from '$lib/features/environments/model';
@@ -166,10 +167,12 @@
 </script>
 
 {#snippet nameCell(r: Row)}
-	<div class="name">
-		<a href={routes.environment(r.id)} class="strong row-link">{r.name}</a>
-		{#if r.serviceAddress}<span class="muted small mono">{r.serviceAddress}</span>{/if}
-	</div>
+	<IconCell icon={environmentIcon(r.online)}>
+		<div class="name">
+			<a href={routes.environment(r.id)} class="strong row-link">{r.name}</a>
+			{#if r.serviceAddress}<span class="muted small mono">{r.serviceAddress}</span>{/if}
+		</div>
+	</IconCell>
 {/snippet}
 {#snippet statusCell(r: Row)}
 	<StatusBadge status={environmentStatus(r)} />
@@ -221,7 +224,9 @@
 {/snippet}
 
 {#snippet archivedNameCell(r: Environment)}
-	<a href={routes.environment(r.id)} class="strong row-link">{r.name}</a>
+	<IconCell icon={environmentIcon(r.online)}>
+		<a href={routes.environment(r.id)} class="strong row-link">{r.name}</a>
+	</IconCell>
 {/snippet}
 {#snippet archivedStatusCell(r: Environment)}
 	<StatusBadge status={r.status} />
@@ -258,8 +263,7 @@
 				>
 					{#snippet empty()}
 						<EmptyState
-							icon={Server}
-							color="blue"
+							{...resourceIcon('environment')}
 							title="No environments yet."
 							description="Add an environment: run the Docker Agent on a Docker host and connect it with a one-time command."
 							level={3}

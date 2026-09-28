@@ -15,7 +15,6 @@
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
 	import FolderSearch from '@lucide/svelte/icons/folder-search';
-	import Layers from '@lucide/svelte/icons/layers';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import Play from '@lucide/svelte/icons/play';
 	import Plus from '@lucide/svelte/icons/plus';
@@ -38,7 +37,6 @@
 		canAnywhere,
 		canInEnvironment,
 		serviceCounts,
-		showStackIcon,
 		stackStatus,
 		stackTitle
 	} from '$lib/features/stacks/model';
@@ -61,6 +59,7 @@
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
 	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
@@ -304,7 +303,7 @@
 
 {#snippet nameCell(s: Stack)}
 	<a class="name" href={routes.stack(s.id)}>
-		{#if showStackIcon(s)}<StackIcon stack={s} size="sm" />{/if}
+		<StackIcon stack={s} size="xs" />
 		<span class="text">
 			<span class="title">{stackTitle(s)}</span>
 			{#if s.description}<span class="desc">{s.description}</span
@@ -423,13 +422,12 @@
 							{#if filtered}
 								<NoMatches
 									what="stacks"
-									icon={Layers}
+									icon={resourceIcon('stack').icon}
 									onclear={() => filters.clear()}
 								/>
 							{:else}
 								<EmptyState
-									icon={Layers}
-									color="blue"
+									{...resourceIcon('stack')}
 									title={envName
 										? `No stacks on ${envName} yet.`
 										: 'No stacks yet.'}

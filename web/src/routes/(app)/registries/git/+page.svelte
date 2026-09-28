@@ -5,7 +5,6 @@
 	// credential" opens the dialog (?create=1).
 	import { createQuery } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import GitBranch from '@lucide/svelte/icons/git-branch';
 	import { gitCredentialsQuery, type GitCredential } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { usePage } from '$lib/shell/page.svelte';
@@ -25,6 +24,7 @@
 		type MenuEntry
 	} from '$lib/ui';
 	import NameCell from '$lib/features/common/NameCell.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
 	import CredentialActionHost from '$lib/features/registries/CredentialActionHost.svelte';
 	import GitCredentialDialog from '$lib/features/registries/GitCredentialDialog.svelte';
@@ -124,7 +124,12 @@
 	];
 </script>
 
-{#snippet nameCell(c: GitCredential)}<NameCell name={c.name} sub={c.username} subMono />{/snippet}
+{#snippet nameCell(c: GitCredential)}<NameCell
+		icon="gitCredential"
+		name={c.name}
+		sub={c.username}
+		subMono
+	/>{/snippet}
 {#snippet statusCell(c: GitCredential)}
 	<div class="status">
 		{#if c.status === 'revoked'}<Badge tone="danger" dot>Revoked</Badge>
@@ -184,8 +189,7 @@
 			>
 				{#snippet empty()}
 					<EmptyState
-						icon={GitBranch}
-						color="slate"
+						{...resourceIcon('gitCredential')}
 						title="No Git credentials yet."
 						description="Public repositories need none. Add one to build images from a private repository."
 						level={3}

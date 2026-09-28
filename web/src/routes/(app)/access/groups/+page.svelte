@@ -89,7 +89,7 @@
 </script>
 
 {#snippet nameCell(g: Group)}
-	<NameCell name={g.name} href={routes.accessGroup(g.id)}>
+	<NameCell icon="group" name={g.name} href={routes.accessGroup(g.id)}>
 		{#snippet extra()}{#if g.default}<Badge tone="accent">Default for new users</Badge
 				>{/if}{/snippet}
 	</NameCell>

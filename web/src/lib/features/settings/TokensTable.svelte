@@ -126,7 +126,11 @@
 	]);
 </script>
 
-{#snippet nameCell(t: APIToken)}<NameCell name={t.name} sub={grantsText(t)} />{/snippet}
+{#snippet nameCell(t: APIToken)}<NameCell
+		icon="apiToken"
+		name={t.name}
+		sub={grantsText(t)}
+	/>{/snippet}
 {#snippet statusCell(t: APIToken)}
 	{@const s = tokenStatus(t.status)}
 	<span title={t.revokedReason ? REVOKED_REASON[t.revokedReason] : undefined}

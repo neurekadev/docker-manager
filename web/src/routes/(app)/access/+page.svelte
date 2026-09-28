@@ -71,7 +71,12 @@
 </script>
 
 {#snippet nameCell(u: Account)}
-	<NameCell name={displayName(u)} href={routes.accessUser(u.id)} sub={secondaryName(u)}>
+	<NameCell
+		icon="user"
+		name={displayName(u)}
+		href={routes.accessUser(u.id)}
+		sub={secondaryName(u)}
+	>
 		{#snippet extra()}{#if u.owner}<Badge tone="accent">Owner</Badge>{/if}{/snippet}
 	</NameCell>
 {/snippet}

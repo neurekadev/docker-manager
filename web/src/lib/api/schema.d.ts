@@ -3413,7 +3413,7 @@ export interface paths {
         head?: never;
         /**
          * Edit a stack's display metadata
-         * @description Display name, description, Lucide icon override and per-service metadata, stored in Docker Manager and never written to Compose files. Requires If-Match.
+         * @description Display name, description, Lucide icon override, links and per-service metadata, stored in Docker Manager and never written to Compose files. Links are absolute http(s) addresses without credentials (at most 10, each listed once); a problem is a 422 naming the field (body.links[1].url). Requires If-Match.
          */
         patch: operations["update-stack"];
         trace?: never;
@@ -4327,7 +4327,7 @@ export interface paths {
         head?: never;
         /**
          * Update a template
-         * @description Edits the name, description and tags. Requires If-Match.
+         * @description Edits the name, description, tags and links (absolute http(s) addresses without credentials, at most 10, each listed once; a problem is a 422 naming the field, body.links[1].url). Requires If-Match.
          */
         patch: operations["update-template"];
         trace?: never;
@@ -6729,6 +6729,8 @@ export interface components {
             environmentId?: string;
             /** @description Lucide icon name. */
             icon?: string;
+            /** @description Web links (documentation, website, repository), at most 10. */
+            links?: components["schemas"]["WebLink"][];
             /**
              * @description Required: Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume.
              * @example web
@@ -6755,6 +6757,8 @@ export interface components {
         };
         CreateTemplateInputBody: {
             description?: string;
+            /** @description Web links (documentation, website, repository), at most 10. */
+            links?: components["schemas"]["WebLink"][];
             /** @example Nextcloud */
             name: string;
             /**
@@ -6939,6 +6943,8 @@ export interface components {
         DiscoveredStack: {
             /** @description Can be imported in place from its real files. */
             adoptable: boolean;
+            /** @description The project has no containers (never started, or taken down): found through its Compose file in a folder of a stack root or an import mount, its services come from that file. Its import starts nothing and leaves the stack undeployed until its first deploy. */
+            containerless?: boolean;
             /** @description Not adoptable in place, but the agent reads its directory through an import mount (below /import): it can be imported by copy (POST .../stacks/import-copies). */
             copyable: boolean;
             /** @description Where it lies under a verified stack root (adoptable in place). */
@@ -6961,7 +6967,14 @@ export interface components {
             /** @description The Docker Manager stack already managing it. */
             stackId?: string;
             /**
-             * @description Project directory from the containers' labels (host path).
+             * @description The project's existing named Docker volumes (sorted, at most 100; Docker Manager's own left out). The import keeps the project name, so its first deploy reuses them.
+             * @example [
+             *       "nextcloud_db"
+             *     ]
+             */
+            volumes?: string[];
+            /**
+             * @description Project directory from the containers' labels, or the folder a containerless project was found in (host path).
              * @example nextcloud
              */
             workingDir?: string;
@@ -10312,6 +10325,8 @@ export interface components {
             /** @description Images applied by the last successful deploy. */
             images?: components["schemas"]["StackImage"][];
             lastJob?: components["schemas"]["StackJobRef"];
+            /** @description Web links (documentation, website, repository) in the user's order. */
+            links?: components["schemas"]["WebLink"][];
             location?: components["schemas"]["StackLocation"];
             /**
              * @description Compose project name.
@@ -10897,6 +10912,8 @@ export interface components {
             id: string;
             /** @description The newest published version (absent before the first). */
             latest?: components["schemas"]["TemplateVersion"];
+            /** @description Web links (documentation, website, repository) in the owner's order; stacks created from the template start with them. */
+            links?: components["schemas"]["WebLink"][];
             /** @example Nextcloud */
             name: string;
             /** Format: int64 */
@@ -10924,6 +10941,8 @@ export interface components {
             iconUrl?: string;
             /** @description The registry. */
             instanceId: string;
+            /** @description Web links (documentation, website, repository); a source's invalid links are dropped when it is read. */
+            links?: components["schemas"]["WebLink"][];
             /** @example Nextcloud */
             name: string;
             /** @description This instance's template (open it under /templates/{templateId}). */
@@ -11011,6 +11030,8 @@ export interface components {
             description?: string;
             icon?: components["schemas"]["TemplateRegistryIcon"];
             id: string;
+            /** @description Web links (documentation, website, repository); readers drop invalid ones. */
+            links?: components["schemas"]["WebLink"][];
             /** @example Nextcloud */
             name: string;
             tags: string[];
@@ -11532,6 +11553,8 @@ export interface components {
              * @example globe
              */
             icon?: string;
+            /** @description Replaces the stack's links (an empty list removes them; absent: unchanged). */
+            links?: components["schemas"]["WebLink"][];
             /** @description Display metadata per service name (empty values clear it). */
             services?: {
                 [key: string]: components["schemas"]["StackServiceMetaBody"];
@@ -11548,6 +11571,8 @@ export interface components {
         };
         UpdateTemplateInputBody: {
             description?: string;
+            /** @description Replaces the template's links (an empty list removes them; absent: unchanged). */
+            links?: components["schemas"]["WebLink"][];
             /** @example Nextcloud */
             name?: string;
             /**
@@ -11660,6 +11685,18 @@ export interface components {
             items: components["schemas"]["VolumeSize"][];
             /** @description false: the environment's agent predates volume sizes (upgrade it); items is empty. */
             supported: boolean;
+        };
+        WebLink: {
+            /**
+             * @description Optional; without one the URL's host is shown.
+             * @example Documentation
+             */
+            label?: string;
+            /**
+             * @description An absolute http:// or https:// address without a user name or password, listed once.
+             * @example https://docs.example.com
+             */
+            url: string;
         };
     };
     responses: never;
@@ -25809,6 +25846,7 @@ export interface operations {
                      *       "projects": [
                      *         {
                      *           "adoptable": false,
+                     *           "containerless": false,
                      *           "copyable": false,
                      *           "location": {
                      *             "dir": "example",
@@ -25828,6 +25866,9 @@ export interface operations {
                      *           ],
                      *           "sourceDir": "/var/lib/docker/volumes/arcane_data/_data/projects/nextcloud",
                      *           "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "volumes": [
+                     *             "nextcloud_db"
+                     *           ],
                      *           "workingDir": "nextcloud"
                      *         }
                      *       ]
@@ -26190,6 +26231,12 @@ export interface operations {
                      *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "kind": "example"
                      *       },
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "location": {
                      *         "dir": "example",
                      *         "hostPath": "config/app.conf",
@@ -37440,6 +37487,12 @@ export interface operations {
                      *             "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *             "kind": "example"
                      *           },
+                     *           "links": [
+                     *             {
+                     *               "label": "Documentation",
+                     *               "url": "https://docs.example.com"
+                     *             }
+                     *           ],
                      *           "location": {
                      *             "dir": "example",
                      *             "hostPath": "config/app.conf",
@@ -37547,6 +37600,12 @@ export interface operations {
                 /**
                  * @example {
                  *       "displayName": "Website",
+                 *       "links": [
+                 *         {
+                 *           "label": "Documentation",
+                 *           "url": "https://docs.example.com"
+                 *         }
+                 *       ],
                  *       "name": "web"
                  *     }
                  */
@@ -37628,6 +37687,12 @@ export interface operations {
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "kind": "example"
                      *         },
+                     *         "links": [
+                     *           {
+                     *             "label": "Documentation",
+                     *             "url": "https://docs.example.com"
+                     *           }
+                     *         ],
                      *         "location": {
                      *           "dir": "example",
                      *           "hostPath": "config/app.conf",
@@ -37915,6 +37980,12 @@ export interface operations {
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "kind": "example"
                      *         },
+                     *         "links": [
+                     *           {
+                     *             "label": "Documentation",
+                     *             "url": "https://docs.example.com"
+                     *           }
+                     *         ],
                      *         "location": {
                      *           "dir": "example",
                      *           "hostPath": "config/app.conf",
@@ -38356,6 +38427,12 @@ export interface operations {
                      *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "kind": "example"
                      *       },
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "location": {
                      *         "dir": "example",
                      *         "hostPath": "config/app.conf",
@@ -38618,7 +38695,13 @@ export interface operations {
                 /**
                  * @example {
                  *       "displayName": "Website",
-                 *       "icon": "globe"
+                 *       "icon": "globe",
+                 *       "links": [
+                 *         {
+                 *           "label": "Documentation",
+                 *           "url": "https://docs.example.com"
+                 *         }
+                 *       ]
                  *     }
                  */
                 "application/json": components["schemas"]["UpdateStackInputBody"];
@@ -38697,6 +38780,12 @@ export interface operations {
                      *         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *         "kind": "example"
                      *       },
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "location": {
                      *         "dir": "example",
                      *         "hostPath": "config/app.conf",
@@ -42798,6 +42887,12 @@ export interface operations {
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                      *           "kind": "example"
                      *         },
+                     *         "links": [
+                     *           {
+                     *             "label": "Documentation",
+                     *             "url": "https://docs.example.com"
+                     *           }
+                     *         ],
                      *         "location": {
                      *           "dir": "example",
                      *           "hostPath": "config/app.conf",
@@ -43623,6 +43718,12 @@ export interface operations {
                      *           "description": "example",
                      *           "iconUrl": "example",
                      *           "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "links": [
+                     *             {
+                     *               "label": "Documentation",
+                     *               "url": "https://docs.example.com"
+                     *             }
+                     *           ],
                      *           "name": "Nextcloud",
                      *           "own": false,
                      *           "registryName": "Homelab",
@@ -43707,6 +43808,12 @@ export interface operations {
                      *       "description": "example",
                      *       "iconUrl": "example",
                      *       "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "name": "Nextcloud",
                      *       "own": false,
                      *       "registryName": "Homelab",
@@ -44342,6 +44449,12 @@ export interface operations {
                      *             "url": "/api/v1/template-registry/templates/0190a6e0-.../icon?v=3f2a..."
                      *           },
                      *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "links": [
+                     *             {
+                     *               "label": "Documentation",
+                     *               "url": "https://docs.example.com"
+                     *             }
+                     *           ],
                      *           "name": "Nextcloud",
                      *           "tags": [
                      *             "example"
@@ -44598,6 +44711,12 @@ export interface operations {
                      *             "number": 1,
                      *             "publishedAt": "2026-09-25T12:00:00Z"
                      *           },
+                     *           "links": [
+                     *             {
+                     *               "label": "Documentation",
+                     *               "url": "https://docs.example.com"
+                     *             }
+                     *           ],
                      *           "name": "Nextcloud",
                      *           "revision": 1,
                      *           "tags": [
@@ -44659,6 +44778,12 @@ export interface operations {
             content: {
                 /**
                  * @example {
+                 *       "links": [
+                 *         {
+                 *           "label": "Documentation",
+                 *           "url": "https://docs.example.com"
+                 *         }
+                 *       ],
                  *       "name": "Nextcloud",
                  *       "tags": [
                  *         "cloud",
@@ -44708,6 +44833,12 @@ export interface operations {
                      *         "number": 1,
                      *         "publishedAt": "2026-09-25T12:00:00Z"
                      *       },
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "name": "Nextcloud",
                      *       "revision": 1,
                      *       "tags": [
@@ -44830,6 +44961,12 @@ export interface operations {
                      *         "number": 1,
                      *         "publishedAt": "2026-09-25T12:00:00Z"
                      *       },
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "name": "Nextcloud",
                      *       "revision": 1,
                      *       "tags": [
@@ -44988,6 +45125,12 @@ export interface operations {
                      *         "number": 1,
                      *         "publishedAt": "2026-09-25T12:00:00Z"
                      *       },
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "name": "Nextcloud",
                      *       "revision": 1,
                      *       "tags": [
@@ -45144,6 +45287,12 @@ export interface operations {
                      *         "number": 1,
                      *         "publishedAt": "2026-09-25T12:00:00Z"
                      *       },
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "name": "Nextcloud",
                      *       "revision": 1,
                      *       "tags": [
@@ -45309,6 +45458,12 @@ export interface operations {
             content: {
                 /**
                  * @example {
+                 *       "links": [
+                 *         {
+                 *           "label": "Documentation",
+                 *           "url": "https://docs.example.com"
+                 *         }
+                 *       ],
                  *       "name": "Nextcloud",
                  *       "tags": [
                  *         "cloud",
@@ -45358,6 +45513,12 @@ export interface operations {
                      *         "number": 1,
                      *         "publishedAt": "2026-09-25T12:00:00Z"
                      *       },
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "name": "Nextcloud",
                      *       "revision": 1,
                      *       "tags": [
@@ -45505,6 +45666,12 @@ export interface operations {
                      *         "number": 1,
                      *         "publishedAt": "2026-09-25T12:00:00Z"
                      *       },
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "name": "Nextcloud",
                      *       "revision": 1,
                      *       "tags": [
@@ -47874,6 +48041,12 @@ export interface operations {
                      *         "number": 1,
                      *         "publishedAt": "2026-09-25T12:00:00Z"
                      *       },
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "name": "Nextcloud",
                      *       "revision": 1,
                      *       "tags": [
@@ -48003,6 +48176,12 @@ export interface operations {
                      *         "number": 1,
                      *         "publishedAt": "2026-09-25T12:00:00Z"
                      *       },
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "name": "Nextcloud",
                      *       "revision": 1,
                      *       "tags": [
@@ -48583,6 +48762,12 @@ export interface operations {
                      *         "number": 1,
                      *         "publishedAt": "2026-09-25T12:00:00Z"
                      *       },
+                     *       "links": [
+                     *         {
+                     *           "label": "Documentation",
+                     *           "url": "https://docs.example.com"
+                     *         }
+                     *       ],
                      *       "name": "Nextcloud",
                      *       "revision": 1,
                      *       "tags": [

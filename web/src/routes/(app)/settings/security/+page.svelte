@@ -245,6 +245,7 @@
 </script>
 
 {#snippet pkNameCell(p: Passkey)}<NameCell
+		icon="passkey"
 		name={p.name}
 		sub="Added {formatDateTime(p.createdAt)}"
 	/>{/snippet}

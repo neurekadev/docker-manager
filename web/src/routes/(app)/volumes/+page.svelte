@@ -13,7 +13,6 @@
 	// reuses the answer for a minute), so the list never waits for them.
 	import { createQueries, createQuery } from '@tanstack/svelte-query';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import HardDrive from '@lucide/svelte/icons/hard-drive';
 	import Plus from '@lucide/svelte/icons/plus';
 	import { volumeUsageQuery, volumesQuery, type Volume } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
@@ -40,6 +39,8 @@
 	import EnvironmentGaps from '$lib/features/resources/EnvironmentGaps.svelte';
 	import ObjectRemoveHost from '$lib/features/resources/ObjectRemoveHost.svelte';
 	import ObjectBulk from '$lib/features/resources/ObjectBulk.svelte';
+	import IconCell from '$lib/features/common/IconCell.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
@@ -266,14 +267,17 @@
 
 {#snippet nameCell(v: Volume)}
 	{@const access = volumeAccess(v)}
-	<div class="name-cell">
-		<a class="name mono" href={routes.volume(v.environmentId, v.name)}>{v.name}</a>
-		{#if v.protection}<ProtectionMark protection={v.protection} />{/if}
-		{#if !access.local}<span class="tag" title={access.reason}
-				><Badge tone="warn">Read-only</Badge><span class="sr-only">: {access.reason}</span
-				></span
-			>{/if}
-	</div>
+	<IconCell icon="volume"
+		><div class="name-cell">
+			<a class="name mono" href={routes.volume(v.environmentId, v.name)}>{v.name}</a>
+			{#if v.protection}<ProtectionMark protection={v.protection} />{/if}
+			{#if !access.local}<span class="tag" title={access.reason}
+					><Badge tone="warn">Read-only</Badge><span class="sr-only"
+						>: {access.reason}</span
+					></span
+				>{/if}
+		</div></IconCell
+	>
 {/snippet}
 {#snippet useCell(v: Volume)}
 	{#if v.usedBy?.length}
@@ -395,13 +399,12 @@
 							{#if filtered}
 								<NoMatches
 									what="volumes"
-									icon={HardDrive}
+									icon={resourceIcon('volume').icon}
 									onclear={() => filters.clear()}
 								/>
 							{:else}
 								<EmptyState
-									icon={HardDrive}
-									color="teal"
+									{...resourceIcon('volume')}
 									title="No volumes on {scope.single
 										? scope.targets[0]?.name
 										: 'your environments'} yet."

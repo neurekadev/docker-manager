@@ -15,7 +15,6 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { createInfiniteQuery, createQuery } from '@tanstack/svelte-query';
-	import Activity from '@lucide/svelte/icons/activity';
 	import {
 		environmentsQuery,
 		jobsInfiniteQuery,
@@ -23,6 +22,7 @@
 		schedulesQuery,
 		stacksSummaryQuery
 	} from '$lib/api/queries';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import JobsTable from '$lib/features/jobs/JobsTable.svelte';
 	import {
 		jobFilters,
@@ -160,7 +160,7 @@
 						{#snippet empty()}
 							{#if filtered && searching && jobs.hasNextPage}
 								<EmptyState
-									icon={Activity}
+									icon={resourceIcon('job').icon}
 									color="slate"
 									title="No loaded jobs match the search."
 									description="{jobsSearchedText(
@@ -185,13 +185,12 @@
 							{:else if filtered}
 								<NoMatches
 									what="jobs"
-									icon={Activity}
+									icon={resourceIcon('job').icon}
 									onclear={() => filters.clear()}
 								/>
 							{:else}
 								<EmptyState
-									icon={Activity}
-									color="violet"
+									{...resourceIcon('job')}
 									title="No jobs yet."
 									description="Deploy a stack, pull an image or run a prune: every long operation shows up here with its progress."
 									level={3}

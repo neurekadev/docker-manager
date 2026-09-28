@@ -1,11 +1,21 @@
 <script lang="ts">
-	// Edit details (#22, #7): the stack's display name, description and
-	// icon plus each service's description and icon. Docker Manager metadata only
-	// (PATCH /stacks/{id} with If-Match); Compose files are never touched.
+	// Edit details (#22, #7): the stack's display name, description, icon
+	// and links (documentation, website, repository; checked inline with
+	// the server's rules) plus each service's description and icon. Docker
+	// Manager metadata only (PATCH /stacks/{id} with If-Match); Compose files
+	// are never touched.
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { untrack } from 'svelte';
 	import { SERVICE_ICON_CATEGORY } from '$lib/design/hue';
 	import { Button, Dialog, Select, TextArea, TextField, errorView, toast } from '$lib/ui';
+	import LinksEditor from '$lib/features/common/LinksEditor.svelte';
+	import {
+		cleanLinks,
+		linkRows,
+		linksValid,
+		serverLinkProblems,
+		type LinkRowProblem
+	} from '$lib/features/common/links';
 	import { patchStack } from './actions';
 	import { stackTitle } from './model';
 	import { stackKeys, type Stack } from './queries';
@@ -24,6 +34,9 @@
 	let displayName = $state(initial.displayName ?? '');
 	let description = $state(initial.description ?? '');
 	let icon = $state(initial.icon ?? '');
+	let links = $state(linkRows(initial.links));
+	let showLinkProblems = $state(false);
+	let linkServerProblems = $state<{ rows: LinkRowProblem[]; list: string | null } | null>(null);
 	let services = $state(
 		(initial.services ?? []).map((s) => ({
 			name: s.name,
@@ -47,8 +60,13 @@
 	});
 
 	async function save() {
+		if (!linksValid(links)) {
+			showLinkProblems = true;
+			return;
+		}
 		saving = true;
 		error = null;
+		linkServerProblems = null;
 		try {
 			const meta: Record<string, { description: string; icon: string }> = {};
 			for (const s of services)
@@ -57,6 +75,7 @@
 				displayName: displayName.trim(),
 				description: description.trim(),
 				icon,
+				links: cleanLinks(links),
 				services: meta
 			});
 			queryClient.setQueryData(stackKeys.detail(stack.id), next);
@@ -65,6 +84,9 @@
 			open = false;
 		} catch (e) {
 			const v = errorView(e);
+			const onLinks = serverLinkProblems(links, v.fields);
+			if (onLinks.list || onLinks.rows.some((r) => r.label || r.url))
+				linkServerProblems = onLinks;
 			error =
 				v.status === 412
 					? 'Someone else changed these details meanwhile. Close this dialog and open it again to edit the current ones.'
@@ -97,6 +119,12 @@
 		/>
 		<TextArea label="Description" bind:value={description} description="Optional." />
 		<Select label="Icon" bind:value={icon} options={iconOptions} />
+		<LinksEditor
+			bind:rows={links}
+			showAll={showLinkProblems}
+			serverProblems={linkServerProblems}
+			disabled={saving}
+		/>
 		{#if services.length}
 			<fieldset class="services">
 				<legend>Services</legend>

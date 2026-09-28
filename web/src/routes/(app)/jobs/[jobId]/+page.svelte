@@ -46,6 +46,7 @@
 	} from '$lib/features/jobs/labels';
 	import { liveKeys } from '$lib/live/keys';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
@@ -207,7 +208,7 @@
 	</Page>
 {:else}
 	<Page>
-		<PageHeader {title} description={summary} icon={Activity} color="violet" {meta}>
+		<PageHeader {title} description={summary} {...resourceIcon('job')} {meta}>
 			{#snippet status()}<StatusBadge status={j.state} kind="job" />{/snippet}
 			{#snippet actions()}
 				{#if again === 'retry'}

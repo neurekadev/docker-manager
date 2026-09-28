@@ -8,7 +8,6 @@
 	// remove (in-use check) from here, removal of selected images in bulk
 	// (ObjectBulk); builds (#33) have their own page in the navigation.
 	import { createQuery } from '@tanstack/svelte-query';
-	import Box from '@lucide/svelte/icons/box';
 	import Download from '@lucide/svelte/icons/download';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import { imagesQuery, type Image } from '$lib/api/queries';
@@ -36,6 +35,8 @@
 	import ImageActionHost from '$lib/features/resources/ImageActionHost.svelte';
 	import ObjectBulk from '$lib/features/resources/ObjectBulk.svelte';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
+	import IconCell from '$lib/features/common/IconCell.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import ListCard from '$lib/features/resources/ListCard.svelte';
 	import NoMatches from '$lib/features/resources/NoMatches.svelte';
 	import Page from '$lib/features/resources/Page.svelte';
@@ -159,19 +160,21 @@
 </script>
 
 {#snippet refCell(im: Image)}
-	<div class="name-cell">
-		<span class="title-line">
-			<a class="name mono" href={routes.image(im.environmentId, im.id)}
-				>{im.repoTags[0] ?? shortDigest(im.id)}</a
-			>
-			{#if im.protection}<ProtectionMark protection={im.protection} />{/if}
-		</span>
-		{#if im.repoTags.length > 1}
-			<span class="sub">+{im.repoTags.length - 1} more tags</span>
-		{:else if im.repoTags.length === 0}
-			<span class="sub">Untagged</span>
-		{/if}
-	</div>
+	<IconCell icon="image"
+		><div class="name-cell">
+			<span class="title-line">
+				<a class="name mono" href={routes.image(im.environmentId, im.id)}
+					>{im.repoTags[0] ?? shortDigest(im.id)}</a
+				>
+				{#if im.protection}<ProtectionMark protection={im.protection} />{/if}
+			</span>
+			{#if im.repoTags.length > 1}
+				<span class="sub">+{im.repoTags.length - 1} more tags</span>
+			{:else if im.repoTags.length === 0}
+				<span class="sub">Untagged</span>
+			{/if}
+		</div></IconCell
+	>
 {/snippet}
 {#snippet useCell(im: Image)}
 	{#if im.usedBy?.length}
@@ -283,13 +286,12 @@
 							{#if filtered}
 								<NoMatches
 									what="images"
-									icon={Box}
+									icon={resourceIcon('image').icon}
 									onclear={() => filters.clear()}
 								/>
 							{:else}
 								<EmptyState
-									icon={Box}
-									color="blue"
+									{...resourceIcon('image')}
 									title="No images on {scope.single
 										? scope.targets[0]?.name
 										: 'your environments'} yet."

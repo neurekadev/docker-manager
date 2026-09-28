@@ -30,6 +30,7 @@
 		schedulesQuery
 	} from '$lib/api/queries';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { accessOf } from '$lib/shell/nav';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
@@ -368,8 +369,7 @@
 			{@const missing = all.filter((t) => inactiveReason(t) === 'missing').length}
 			<PageHeader
 				title={p.name}
-				icon={PackageCheck}
-				color="violet"
+				{...resourceIcon('updatePolicy')}
 				description={targets.data
 					? policyStatusText(totals, active.length, updates)
 					: 'Looks for newer images of the stacks and containers it covers.'}
@@ -472,8 +472,7 @@
 						sort={{ column: 'target', direction: 'asc' }}
 					>
 						{#snippet empty()}<EmptyState
-								icon={PackageCheck}
-								color="violet"
+								{...resourceIcon('updatePolicy')}
 								title="Nothing to update in this scope."
 								description="Stacks deployed by Docker Manager and standalone containers it created appear here."
 								level={3}

@@ -18,10 +18,12 @@ type StackCreate struct {
 	StackDefinition
 	DisplayName string
 	Meta        DisplayMeta
+	Links       []Link
 }
 
 // StackFromTemplate creates a stack from a published template version.
-// InstanceID names the registry (the instance that owns the template).
+// InstanceID names the registry (the instance that owns the template). The
+// stack starts with the template's links.
 type StackFromTemplate struct {
 	EnvironmentID string
 	Name          string
@@ -47,6 +49,8 @@ type StackPatch struct {
 	DisplayName *string
 	Description *string
 	Icon        *string
+	// Links replaces the stack's links (nil: unchanged).
+	Links *[]Link
 	// Services replaces the metadata of the named services (a zero value
 	// clears it).
 	Services map[string]DisplayMeta
@@ -115,7 +119,8 @@ type DiscoveredService struct {
 }
 
 // DiscoveredStack is a Compose project found on an Engine from container
-// labels (read-only until imported).
+// labels, or through its Compose file when it has no containers
+// (read-only until imported).
 type DiscoveredStack struct {
 	Name        string
 	WorkingDir  string
@@ -137,6 +142,13 @@ type DiscoveredStack struct {
 	// Protected: Docker Manager's own project (#32); an import by copy
 	// copies it while it runs, restarting nothing.
 	Protected bool
+	// Containerless: it has no containers (found through its Compose file
+	// in a stack root or an import mount); an import starts nothing and
+	// leaves the stack undeployed.
+	Containerless bool
+	// Volumes are its existing named Docker volumes (sorted, bounded); its
+	// first deploy reuses them since the import keeps the project name.
+	Volumes []string
 }
 
 // PortMapping is a published container port.

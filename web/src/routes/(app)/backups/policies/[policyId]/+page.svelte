@@ -9,7 +9,6 @@
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 	import Clock from '@lucide/svelte/icons/clock';
 	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
@@ -22,6 +21,7 @@
 	import { api, unwrap, unwrapEmpty, type Job } from '$lib/api/client';
 	import { environmentsQuery, myPermissionsQuery, schedulePreviewQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Button,
@@ -253,8 +253,7 @@
 			{@const containers = p.shutdown ? 'Stopped, then started again' : 'Keep running'}
 			<PageHeader
 				title={p.name}
-				icon={CalendarClock}
-				color="teal"
+				{...resourceIcon('backupPolicy')}
 				description={policySentence(p, {
 					repository: repo?.name,
 					environmentName: envName,
@@ -462,8 +461,7 @@
 					/>
 				{:else}
 					<EmptyState
-						icon={CalendarClock}
-						color="teal"
+						{...resourceIcon('backupPolicy')}
 						title="Not run yet."
 						description="Back up now to create the first backups, or turn the schedule on."
 						level={3}

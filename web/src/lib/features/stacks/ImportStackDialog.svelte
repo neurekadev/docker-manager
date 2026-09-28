@@ -1,7 +1,9 @@
 <script lang="ts">
 	// Import project (#7) as a dialog over the stack list: the Compose
 	// projects an environment's Engine runs, read from container labels,
-	// each with one Import action. Docker Manager picks the safe way: a
+	// plus the project folders without containers the agent finds in its
+	// stack folders and import mounts, each with one Import action and its
+	// volumes. Docker Manager picks the safe way: a
 	// project whose files already lie in a stack root is adopted in place
 	// (nothing restarts); a project the agent reads through an import mount
 	// (below /import) is copied with its whole directory into the stacks
@@ -9,7 +11,9 @@
 	// recreates it from the copy and starts what ran before (confirmed
 	// first, with its consequences); Docker Manager's own project
 	// (protected) is copied while it runs and moves onto the copy at its
-	// next deploy. Each row says in one line what happens, the rest (and
+	// next deploy. A project without containers is taken over or copied
+	// without starting anything (no confirmation) and waits for its first
+	// deploy. Each row says in one line what happens, the rest (and
 	// the host folder) waits behind Details; the job's progress shows in
 	// the row. Nothing existing is ever overwritten. Projects Docker
 	// Manager manages already are hidden unless the switch shows them.
@@ -47,7 +51,8 @@
 		importMode,
 		importNeedsConfirm,
 		jobStackId,
-		projectStatus
+		projectStatus,
+		volumesLine
 	} from './importing';
 	import { canInEnvironment, importCandidates } from './model';
 	import { discoveredQuery, stackKeys, type DiscoveredStack } from './queries';
@@ -132,7 +137,7 @@
 				jobs = { ...jobs, [k]: job.id };
 			}
 		} catch (e) {
-			errors = { ...errors, [k]: importFailure(errorView(e), p.name) };
+			errors = { ...errors, [k]: importFailure(errorView(e), p.name, !!p.containerless) };
 		} finally {
 			busy = { ...busy, [k]: false };
 		}
@@ -147,7 +152,7 @@
 <Dialog
 	bind:open
 	title="Import project"
-	description="Compose projects on the environment, running or stopped, that Docker Manager does not manage yet."
+	description="Compose projects on the environment, running, stopped or without containers, that Docker Manager does not manage yet."
 	size="lg"
 >
 	<div class="body">
@@ -208,8 +213,8 @@
 			<EmptyState
 				icon={FolderSearch}
 				color="blue"
-				title="No Compose projects run on {env?.name}."
-				description="Start a project with Compose on the host, then refresh."
+				title="No Compose projects found on {env?.name}."
+				description="Start a project with Compose on the host, or put its folder in the stacks folder, then refresh."
 				level={3}
 				compact
 			/>
@@ -220,14 +225,20 @@
 					{@const c = containerCounts(p)}
 					{@const mode = importMode(p)}
 					{@const details = importDetails(p)}
+					{@const volumes = volumesLine(p.volumes)}
 					<li class="item">
 						<div class="row">
 							<div class="title">
 								<span class="name">{p.name}</span>
-								<StatusBadge
-									status={projectStatus(c)}
-									label="{c.up} of {c.total} running"
-								/>
+								{#if p.containerless}
+									<Badge title="Never started, or taken down">No containers</Badge
+									>
+								{:else}
+									<StatusBadge
+										status={projectStatus(c)}
+										label="{c.up} of {c.total} running"
+									/>
+								{/if}
 								{#if p.stackId}<Badge tone="accent">Managed</Badge>{/if}
 							</div>
 							<div class="actions">
@@ -248,6 +259,9 @@
 						<p class="services" title={p.services.map((s) => s.name).join(', ')}>
 							{p.services.map((s) => s.name).join(', ')}
 						</p>
+						{#if volumes}
+							<p class="services" title={(p.volumes ?? []).join(', ')}>{volumes}</p>
+						{/if}
 						{#if jobs[k]}
 							<JobProgress
 								jobId={jobs[k]}

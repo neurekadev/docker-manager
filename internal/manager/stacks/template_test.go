@@ -52,7 +52,8 @@ func (f fakeTemplates) TemplateArchive(_ context.Context, instanceID, templateID
 		return stacks.TemplateArchive{}, domain.ErrTemplateNotFound
 	}
 	return stacks.TemplateArchive{Ref: domain.StackTemplateRef{InstanceID: instanceID, TemplateID: templateID, Name: "Cloud",
-		Version: 2, VersionLabel: "1.1.0"}, Archive: f.archive, SHA256: f.sha}, nil
+		Version: 2, VersionLabel: "1.1.0"}, Archive: f.archive, SHA256: f.sha,
+		Links: []domain.Link{{Label: "Docs", URL: "https://cloud.example/docs"}, {Label: "Bad", URL: "javascript:alert(1)"}}}, nil
 }
 
 // templateArchive builds a canonical template archive.
@@ -160,6 +161,10 @@ func TestCreateFromTemplateCopiesEveryFile(t *testing.T) {
 	}
 	if got := h.get(st.ID); got.Template == nil || got.Template.Name != "Cloud" {
 		t.Fatalf("stored stack %+v", got)
+	}
+	// The stack starts with the template's (valid) links, its own from now on.
+	if got := h.get(st.ID).Links; len(got) != 1 || got[0] != (domain.Link{Label: "Docs", URL: "https://cloud.example/docs"}) {
+		t.Fatalf("links copied from the template %+v", got)
 	}
 
 	// The same name again: taken.

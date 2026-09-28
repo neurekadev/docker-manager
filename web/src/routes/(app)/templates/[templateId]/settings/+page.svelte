@@ -1,6 +1,6 @@
 <script lang="ts">
-	// Template detail, Settings tab (template registry): details and tags
-	// beside the icon (template.manage), visibility (template.publish) beside
+	// Template detail, Settings tab (template registry): details, tags and
+	// links beside the icon (template.manage), visibility (template.publish) beside
 	// deletion (template.remove). Each card shows only with its capability;
 	// pairs sit side by side (Columns), a card without its partner takes the
 	// full width.
@@ -9,6 +9,16 @@
 	import { page } from '$app/state';
 	import { untrack, type Snippet } from 'svelte';
 	import Columns from '$lib/features/common/Columns.svelte';
+	import LinksEditor from '$lib/features/common/LinksEditor.svelte';
+	import {
+		cleanLinks,
+		linkRows,
+		linksValid,
+		sameLinks,
+		serverLinkProblems,
+		type LinkRow,
+		type LinkRowProblem
+	} from '$lib/features/common/links';
 	import { deleteTemplate, patchTemplate } from '$lib/features/templates/actions';
 	import IconUpload from '$lib/features/templates/IconUpload.svelte';
 	import { parseTags, tagProblem } from '$lib/features/templates/model';
@@ -47,6 +57,9 @@
 	let name = $state('');
 	let description = $state('');
 	let tagText = $state('');
+	let links = $state<LinkRow[]>([]);
+	let showLinkProblems = $state(false);
+	let linkServerProblems = $state<{ rows: LinkRowProblem[]; list: string | null } | null>(null);
 	$effect(() => {
 		const cur = t;
 		if (!cur || cur.revision === loadedRevision) return;
@@ -58,6 +71,9 @@
 		name = cur.name;
 		description = cur.description ?? '';
 		tagText = (cur.tags ?? []).join(', ');
+		links = linkRows(cur.links);
+		showLinkProblems = false;
+		linkServerProblems = null;
 	}
 
 	const tags = $derived(parseTags(tagText));
@@ -66,26 +82,36 @@
 		!!t &&
 			(name.trim() !== t.name ||
 				description.trim() !== (t.description ?? '') ||
-				tags.join(',') !== (t.tags ?? []).join(','))
+				tags.join(',') !== (t.tags ?? []).join(',') ||
+				!sameLinks(cleanLinks(links), t.links))
 	);
 	let saving = $state(false);
 	let saveError = $state<string | null>(null);
 
 	async function save() {
 		if (!t || tagError) return;
+		if (!linksValid(links)) {
+			showLinkProblems = true;
+			return;
+		}
 		saving = true;
 		saveError = null;
+		linkServerProblems = null;
 		try {
 			const next = await patchTemplate(t, {
 				name: name.trim(),
 				description: description.trim(),
-				tags
+				tags,
+				links: cleanLinks(links)
 			});
 			queryClient.setQueryData(templateKeys.detail(t.id), next);
 			void queryClient.invalidateQueries({ queryKey: templateKeys.all });
 			toast.success(`Saved details of ${next.name}`);
 		} catch (e) {
 			const v = errorView(e);
+			const onLinks = serverLinkProblems(links, v.fields);
+			if (onLinks.list || onLinks.rows.some((r) => r.label || r.url))
+				linkServerProblems = onLinks;
 			saveError =
 				v.status === 412
 					? 'Someone else changed this template meanwhile. Your edits were kept; reload the page to see theirs.'
@@ -133,6 +159,12 @@
 				bind:value={tagText}
 				description="Separate tags with commas. People browse and filter templates by them."
 				error={tagError}
+			/>
+			<LinksEditor
+				bind:rows={links}
+				showAll={showLinkProblems}
+				serverProblems={linkServerProblems}
+				disabled={saving}
 			/>
 			{#if saveError}
 				<Notice tone="danger" live="alert" title="The details were not saved">

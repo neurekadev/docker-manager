@@ -95,8 +95,11 @@ type Template struct {
 	Name        string
 	Description string
 	Tags        []string
-	Visibility  TemplateVisibility
-	Icon        *TemplateIcon
+	// Links are the template's web links (documentation, website,
+	// repository), copied into stacks created from it.
+	Links      []Link
+	Visibility TemplateVisibility
+	Icon       *TemplateIcon
 	// Latest is the newest published version (nil before the first).
 	Latest *TemplateVersion
 	// Versions counts the published versions.
@@ -147,6 +150,7 @@ type TemplateInput struct {
 	Name        string
 	Description string
 	Tags        []string
+	Links       []Link
 }
 
 // TemplatePatch edits a template's metadata; nil fields are unchanged.
@@ -154,6 +158,7 @@ type TemplatePatch struct {
 	Name        *string
 	Description *string
 	Tags        *[]string
+	Links       *[]Link
 }
 
 // TemplateFilter narrows template lists.

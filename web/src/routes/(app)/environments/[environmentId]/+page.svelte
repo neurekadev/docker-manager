@@ -50,6 +50,7 @@
 	import JobsTable from '$lib/features/jobs/JobsTable.svelte';
 	import { stackNames } from '$lib/features/jobs/labels';
 	import { routes } from '$lib/routes';
+	import { environmentIcon } from '$lib/features/common/resourceIcons';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { accessOf, hasAny } from '$lib/shell/nav';
 	import { usePage } from '$lib/shell/page.svelte';
@@ -219,13 +220,7 @@
 	</Page>
 {:else}
 	<Page>
-		<PageHeader
-			title={e.name}
-			description={summary}
-			icon={Server}
-			color={e.online ? 'blue' : 'slate'}
-			{meta}
-		>
+		<PageHeader title={e.name} description={summary} {...environmentIcon(e.online)} {meta}>
 			{#snippet status()}<StatusBadge status={environmentStatus(e)} />{/snippet}
 			{#snippet actions()}
 				{#if archived}

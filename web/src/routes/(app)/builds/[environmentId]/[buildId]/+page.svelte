@@ -10,7 +10,6 @@
 	import Clock from '@lucide/svelte/icons/clock';
 	import FileCode from '@lucide/svelte/icons/file-code';
 	import GitCommitHorizontal from '@lucide/svelte/icons/git-commit-horizontal';
-	import Hammer from '@lucide/svelte/icons/hammer';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Server from '@lucide/svelte/icons/server';
 	import Square from '@lucide/svelte/icons/square';
@@ -19,6 +18,7 @@
 	import { goto } from '$app/navigation';
 	import { imageBuildQuery, queryKeys } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Button,
@@ -241,7 +241,7 @@
 		</div>
 	{:else if notFound}
 		<EmptyState
-			icon={Hammer}
+			icon={resourceIcon('build').icon}
 			color="slate"
 			title="No such build on {envName}."
 			description="It may belong to another environment."
@@ -261,8 +261,7 @@
 		<PageHeader
 			{title}
 			description="Built from {repoLabel(b.gitUrl)}"
-			icon={Hammer}
-			color="violet"
+			{...resourceIcon('build')}
 			{meta}
 		>
 			{#snippet status()}<StatusBadge status={b.status} kind="job" />{/snippet}

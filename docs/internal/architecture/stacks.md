@@ -256,6 +256,25 @@ The stack header shows the logical location "environment · stack". `GET
 callers with `stack.definition.read`, the same rule as bind sources; lists
 never carry it.
 
+### Details and links
+
+Display name, description, icon, per-service metadata and **links** are
+Docker Manager metadata, never written to Compose files. Links
+(`domain.Link`: optional label, URL; `stacks.links`, a JSON list in the
+user's order, migration `20260928180542_stack_template_links`) point to
+the stack's documentation, website or repository. They come with a
+creation (`links` of `POST /stacks`), are copied from the template by
+`CreateFromTemplate`, and are replaced by `PATCH /stacks/{stackId}`
+(`stack.manage`, If-Match, a new metadata revision and a `stack.updated`
+event like any details edit). `domain.NormalizeLinks` checks them (at most
+10, absolute `http`/`https` URLs of at most 2048 characters without user
+information, each URL once, labels of at most 60 characters) and names the
+field of the first problem (`422` on `body.links[1].url`). Only the full
+view carries them. URLs may carry query strings: they are never logged or
+audited (the audit diff has the number of links). The web shows them under
+the header's meta row (`LinkList`) and edits them in "Edit details"
+(`LinksEditor`, the same rules inline).
+
 ## Discovery and import
 
 `GET /environments/{id}/stacks/discovered` (`stack.import`) lists the
@@ -268,12 +287,39 @@ adoptable, but the agent reads its directory through an import mount, below)
 and the Docker Manager stack already managing it. Labels never reconstruct a
 source.
 
+It also lists **containerless** projects (`containerless`: never started,
+or after `docker compose down`), found through their Compose files
+(`internal/agent/stacks/discover.go`): every direct, non-hidden subfolder
+of a verified stack root holding one of Compose's default files (adoptable
+in place, `location` set), and every import mount plus up to two folder
+levels below it (never descending into a project, hidden folders and
+symlinks skipped; importable by copy with the same checks as a project with
+containers, `sourceDir` the folder's host path). The walk is bounded (2000
+folders, 200 projects; the agent logs a warning when it stops). The project
+name is the one Compose resolves (top-level `name:`, else the host folder's
+name normalized, `compose.DeclaredName`/`NormalizeProjectName`), the
+services come from the file with every profile (no containers). A folder
+whose files do not load is listed with the reason and cannot be imported;
+two folders resolving to the same name are listed once and neither is
+importable; a folder whose name or directory a project with containers has
+is skipped (that project has everything). Every project also reports its
+existing named **volumes** (`volumes`, sorted, at most 100): those labeled
+`com.docker.compose.project=<name>`, those its containers mount and, for a
+containerless project, those its Compose file resolves to (named, `name:`
+and external); anonymous volumes and Docker Manager's own are left out. The
+manager marks a containerless folder that is already a stack's project
+directory (same root and dir, another project name) as managed by that
+stack, and `POST /stacks` and template creations ignore containerless
+projects of the name (the directory check refuses an existing folder).
+
 `POST /environments/{id}/stacks/imports`:
 
 - without `source`: adopt in place; the real files become the first
   revision (`external`); the stack starts `deployed` with no applied
   revision (Docker Manager has not deployed it yet, so it shows undeployed
-  changes);
+  changes); a containerless project starts `undeployed` with Engine state
+  `missing` instead and nothing is started (its first deploy reuses the
+  project's volumes: the stack keeps the project name);
 - with `source` (projects outside the roots): the given definition is
   written into a **new** directory `<projectName>` of the stacks volume.
 
@@ -391,11 +437,27 @@ it the applied revision (Docker Manager created the
 containers from exactly those bytes), with the applied images. Remove the
 original directory by hand once the stack runs from its copy.
 
+A **containerless** project is imported by copy with
+`import.containerless` in the input, sent only to agents announcing
+`stack.import_containerless` (`protocol.FeatureStackImportContainerless`;
+other agents: `501 agent_unsupported`). The stack is created `undeployed`.
+`prepare` refuses it once the project has containers
+(`import_source_changed`: "import it again from the list") or its folder
+resolves to another project name now, and skips the drift, directory and
+image checks (there is nothing to compare); `stop_containers`,
+`recreate` (before the switch) refuse it when containers appeared;
+nothing is stopped, recreated or started, and `recreate` only switches.
+The finish hook records the copy's files as the observed revision
+(`external`, not applied), reports no images and leaves the stack
+`undeployed` for its first deploy, which reuses the project's volumes.
+
 The web UI's stack list has one **Import project** dialog
 (`ImportStackDialog`, `routes.importStack()`): the discovered projects of an
 environment, each with one Import button that adopts in place or imports by
 copy (with the job's progress in the row) and otherwise explains how to add
-an import mount. A **Hide managed stacks** switch (on by default,
+an import mount. A containerless project shows **No containers** instead of
+its running count and imports without a stop confirmation; every row lists
+the project's volumes (`volumesLine`: the first three, "+N more"). A **Hide managed stacks** switch (on by default,
 `importCandidates`) leaves out projects Docker Manager already manages,
 except those imported from the open dialog. Imports with an explicit source
 remain an API feature.

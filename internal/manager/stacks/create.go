@@ -187,6 +187,10 @@ func (s *Service) Create(ctx context.Context, p authz.Principal, r domain.StackC
 	if err := checkMeta(r.DisplayName, r.Meta); err != nil {
 		return domain.Stack{}, validationOf(v), err
 	}
+	links, err := domain.NormalizeLinks(r.Links)
+	if err != nil {
+		return domain.Stack{}, validationOf(v), err
+	}
 	if _, err := s.activeEnvironment(ctx, r.EnvironmentID); err != nil {
 		return domain.Stack{}, validationOf(v), err
 	}
@@ -196,12 +200,13 @@ func (s *Service) Create(ctx context.Context, p authz.Principal, r domain.StackC
 		return domain.Stack{}, validationOf(v), err
 	}
 	// A Compose project of that name already on the Engine would be taken
-	// over by the first deploy: import it instead.
+	// over by the first deploy: import it instead. (A containerless one is
+	// only a folder: the write below refuses its directory if it is ours.)
 	projects, err := s.discovered(ctx, r.EnvironmentID)
 	if err != nil {
 		return domain.Stack{}, validationOf(v), err
 	}
-	if _, ok := projects[r.Name]; ok {
+	if dp, ok := projects[r.Name]; ok && !dp.Containerless {
 		return domain.Stack{}, validationOf(v), &domain.StackError{Code: domain.StackErrProjectExists,
 			Message: fmt.Sprintf("the Docker Engine already runs a Compose project named %q; import it instead", r.Name)}
 	}
@@ -222,7 +227,7 @@ func (s *Service) Create(ctx context.Context, p authz.Principal, r domain.StackC
 	}
 	now := s.now()
 	st := domain.Stack{ID: ids.New(), EnvironmentID: r.EnvironmentID, Name: r.Name, DisplayName: r.DisplayName, Meta: r.Meta,
-		Root: domain.StackRootStacks, Dir: r.Name, Origin: domain.StackOriginCreated, Status: domain.StackUndeployed,
+		Links: links, Root: domain.StackRootStacks, Dir: r.Name, Origin: domain.StackOriginCreated, Status: domain.StackUndeployed,
 		Services: servicesFrom(v.Services), Binds: bindsFrom(v.Binds), EngineState: domain.EngineStateMissing,
 		Revision: 1, CreatedAt: now, UpdatedAt: now}
 	importLabelMeta(&st, v.Services)
@@ -253,20 +258,48 @@ func (s *Service) Discovered(ctx context.Context, environmentID string) ([]domai
 	if err := s.call(ctx, environmentID, protocol.ReqComposeDiscover, struct{}{}, &out); err != nil {
 		return nil, err
 	}
+	managed, err := store.ListStacks(ctx, s.db, domain.StackFilter{EnvironmentID: environmentID})
+	if err != nil {
+		return nil, err
+	}
 	list := make([]domain.DiscoveredStack, 0, len(out.Projects))
 	for _, p := range out.Projects {
 		d := domain.DiscoveredStack{Name: p.Name, WorkingDir: p.WorkingDir, ConfigFiles: p.ConfigFiles, Root: p.Root, Dir: p.Dir,
-			Adoptable: p.Adoptable, Copyable: p.Copyable && !p.Adoptable, SourceDir: p.SourceDir, Reason: p.Reason, Protected: p.Protected}
+			Adoptable: p.Adoptable, Copyable: p.Copyable && !p.Adoptable, SourceDir: p.SourceDir, Reason: p.Reason, Protected: p.Protected,
+			Containerless: p.Containerless, Volumes: p.Volumes}
 		for _, sv := range p.Services {
 			d.Services = append(d.Services, domain.DiscoveredService{Name: sv.Name, Image: sv.Image, Containers: sv.Containers, Running: sv.Running})
 		}
-		if st, err := store.FindStackByName(ctx, s.db, environmentID, p.Name); err == nil {
+		// Managed: a stack of that project name, or (a folder whose project
+		// name differs from the stack's) a stack in that very folder.
+		if st, ok := managedAs(managed, p); ok {
 			d.StackID = st.ID
 			d.Adoptable, d.Copyable, d.Reason = false, false, "already managed by Docker Manager"
 		}
 		list = append(list, d)
 	}
 	return list, nil
+}
+
+// managedAs finds the stack managing a discovered project among an
+// environment's stacks: the one with its project name, else, for a
+// containerless project in a stack root, the one whose project directory
+// is that folder (its Compose file names another project than the stack).
+func managedAs(stacks []domain.Stack, p protocol.DiscoveredProject) (domain.Stack, bool) {
+	for _, st := range stacks {
+		if st.Name == p.Name {
+			return st, true
+		}
+	}
+	if !p.Containerless || p.Root == "" {
+		return domain.Stack{}, false
+	}
+	for _, st := range stacks {
+		if st.Root == p.Root && st.RootPath == p.RootPath && st.Dir == p.Dir {
+			return st, true
+		}
+	}
+	return domain.Stack{}, false
 }
 
 // Import adopts a discovered project. In place, the real files in its
@@ -302,8 +335,14 @@ func (s *Service) Import(ctx context.Context, principal authz.Principal, r domai
 	st := domain.Stack{ID: ids.New(), EnvironmentID: r.EnvironmentID, Name: r.ProjectName, DisplayName: r.DisplayName, Meta: r.Meta,
 		Origin: domain.StackOriginImported, Status: domain.StackDeployed, Revision: 1, CreatedAt: now, UpdatedAt: now}
 	var states []domain.StackServiceState
-	for _, sv := range p.Services {
-		states = append(states, domain.StackServiceState{Service: sv.Name, Containers: sv.Containers, Running: sv.Running})
+	if p.Containerless {
+		// Nothing was ever deployed from these files: like a created stack,
+		// it waits for its first deploy (which reuses the project's volumes).
+		st.Status = domain.StackUndeployed
+	} else {
+		for _, sv := range p.Services {
+			states = append(states, domain.StackServiceState{Service: sv.Name, Containers: sv.Containers, Running: sv.Running})
+		}
 	}
 	s.setEngine(&st, states)
 	var snap protocol.SourceSnapshot
@@ -312,6 +351,18 @@ func (s *Service) Import(ctx context.Context, principal authz.Principal, r domai
 	if len(r.Files) == 0 {
 		if !p.Adoptable {
 			return domain.Stack{}, &domain.StackError{Code: domain.StackErrNotAdoptable, Message: p.Reason}
+		}
+		if p.Containerless {
+			// Its Compose file may name another project than the stack of
+			// that folder: the folder is taken all the same.
+			managed, err := store.ListStacks(ctx, s.db, domain.StackFilter{EnvironmentID: r.EnvironmentID})
+			if err != nil {
+				return domain.Stack{}, err
+			}
+			if other, ok := managedAs(managed, p); ok {
+				return domain.Stack{}, &domain.StackError{Code: domain.StackErrNotAdoptable,
+					Message: fmt.Sprintf("its folder is the project folder of the stack %s already", other.Name)}
+			}
 		}
 		st.Root, st.RootPath, st.Dir = p.Root, p.RootPath, p.Dir
 		st.ConfigFiles, st.EnvFiles = relativeTo(p.WorkingDir, p.ConfigFiles), relativeTo(p.WorkingDir, p.EnvFiles)
@@ -403,6 +454,11 @@ func (s *Service) Update(ctx context.Context, id string, expectRevision int64, p
 		}
 		if err := checkMeta(st.DisplayName, st.Meta); err != nil {
 			return err
+		}
+		if p.Links != nil {
+			if st.Links, err = domain.NormalizeLinks(*p.Links); err != nil {
+				return err
+			}
 		}
 		if st.ServiceMeta == nil {
 			st.ServiceMeta = map[string]domain.DisplayMeta{}

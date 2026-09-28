@@ -4941,6 +4941,14 @@
             "maxLength": 64,
             "type": "string"
           },
+          "links": {
+            "description": "Web links (documentation, website, repository), at most 10.",
+            "items": {
+              "$ref": "#/components/schemas/WebLink"
+            },
+            "maxItems": 10,
+            "type": "array"
+          },
           "name": {
             "description": "Required: Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume.",
             "examples": [
@@ -5007,6 +5015,14 @@
           "description": {
             "maxLength": 1024,
             "type": "string"
+          },
+          "links": {
+            "description": "Web links (documentation, website, repository), at most 10.",
+            "items": {
+              "$ref": "#/components/schemas/WebLink"
+            },
+            "maxItems": 10,
+            "type": "array"
           },
           "name": {
             "examples": [
@@ -5425,6 +5441,10 @@
             "description": "Can be imported in place from its real files.",
             "type": "boolean"
           },
+          "containerless": {
+            "description": "The project has no containers (never started, or taken down): found through its Compose file in a folder of a stack root or an import mount, its services come from that file. Its import starts nothing and leaves the stack undeployed until its first deploy.",
+            "type": "boolean"
+          },
           "copyable": {
             "description": "Not adoptable in place, but the agent reads its directory through an import mount (below /import): it can be imported by copy (POST .../stacks/import-copies).",
             "type": "boolean"
@@ -5465,8 +5485,20 @@
             "description": "The Docker Manager stack already managing it.",
             "type": "string"
           },
+          "volumes": {
+            "description": "The project's existing named Docker volumes (sorted, at most 100; Docker Manager's own left out). The import keeps the project name, so its first deploy reuses them.",
+            "examples": [
+              [
+                "nextcloud_db"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "workingDir": {
-            "description": "Project directory from the containers' labels (host path).",
+            "description": "Project directory from the containers' labels, or the folder a containerless project was found in (host path).",
             "examples": [
               "nextcloud"
             ],
@@ -14440,6 +14472,13 @@
           "lastJob": {
             "$ref": "#/components/schemas/StackJobRef"
           },
+          "links": {
+            "description": "Web links (documentation, website, repository) in the user's order.",
+            "items": {
+              "$ref": "#/components/schemas/WebLink"
+            },
+            "type": "array"
+          },
           "location": {
             "$ref": "#/components/schemas/StackLocation"
           },
@@ -16064,6 +16103,13 @@
             "$ref": "#/components/schemas/TemplateVersion",
             "description": "The newest published version (absent before the first)."
           },
+          "links": {
+            "description": "Web links (documentation, website, repository) in the owner's order; stacks created from the template start with them.",
+            "items": {
+              "$ref": "#/components/schemas/WebLink"
+            },
+            "type": "array"
+          },
           "name": {
             "examples": [
               "Nextcloud"
@@ -16134,6 +16180,13 @@
           "instanceId": {
             "description": "The registry.",
             "type": "string"
+          },
+          "links": {
+            "description": "Web links (documentation, website, repository); a source's invalid links are dropped when it is read.",
+            "items": {
+              "$ref": "#/components/schemas/WebLink"
+            },
+            "type": "array"
           },
           "name": {
             "examples": [
@@ -16413,6 +16466,13 @@
           },
           "id": {
             "type": "string"
+          },
+          "links": {
+            "description": "Web links (documentation, website, repository); readers drop invalid ones.",
+            "items": {
+              "$ref": "#/components/schemas/WebLink"
+            },
+            "type": "array"
           },
           "name": {
             "examples": [
@@ -17821,6 +17881,14 @@
             "maxLength": 64,
             "type": "string"
           },
+          "links": {
+            "description": "Replaces the stack's links (an empty list removes them; absent: unchanged).",
+            "items": {
+              "$ref": "#/components/schemas/WebLink"
+            },
+            "maxItems": 10,
+            "type": "array"
+          },
           "services": {
             "additionalProperties": {
               "$ref": "#/components/schemas/StackServiceMetaBody"
@@ -17861,6 +17929,14 @@
           "description": {
             "maxLength": 1024,
             "type": "string"
+          },
+          "links": {
+            "description": "Replaces the template's links (an empty list removes them; absent: unchanged).",
+            "items": {
+              "$ref": "#/components/schemas/WebLink"
+            },
+            "maxItems": 10,
+            "type": "array"
           },
           "name": {
             "examples": [
@@ -18151,6 +18227,31 @@
           "environmentId",
           "supported",
           "items"
+        ],
+        "type": "object"
+      },
+      "WebLink": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "description": "Optional; without one the URL's host is shown.",
+            "examples": [
+              "Documentation"
+            ],
+            "maxLength": 60,
+            "type": "string"
+          },
+          "url": {
+            "description": "An absolute http:// or https:// address without a user name or password, listed once.",
+            "examples": [
+              "https://docs.example.com"
+            ],
+            "maxLength": 2048,
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
         ],
         "type": "object"
       }
@@ -40176,6 +40277,7 @@
                   "projects": [
                     {
                       "adoptable": false,
+                      "containerless": false,
                       "copyable": false,
                       "location": {
                         "dir": "example",
@@ -40195,6 +40297,9 @@
                       ],
                       "sourceDir": "/var/lib/docker/volumes/arcane_data/_data/projects/nextcloud",
                       "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "volumes": [
+                        "nextcloud_db"
+                      ],
                       "workingDir": "nextcloud"
                     }
                   ]
@@ -40729,6 +40834,12 @@
                     "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "kind": "example"
                   },
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "location": {
                     "dir": "example",
                     "hostPath": "config/app.conf",
@@ -58199,6 +58310,12 @@
                         "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                         "kind": "example"
                       },
+                      "links": [
+                        {
+                          "label": "Documentation",
+                          "url": "https://docs.example.com"
+                        }
+                      ],
                       "location": {
                         "dir": "example",
                         "hostPath": "config/app.conf",
@@ -58337,6 +58454,12 @@
             "application/json": {
               "example": {
                 "displayName": "Website",
+                "links": [
+                  {
+                    "label": "Documentation",
+                    "url": "https://docs.example.com"
+                  }
+                ],
                 "name": "web"
               },
               "schema": {
@@ -58415,6 +58538,12 @@
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "kind": "example"
                     },
+                    "links": [
+                      {
+                        "label": "Documentation",
+                        "url": "https://docs.example.com"
+                      }
+                    ],
                     "location": {
                       "dir": "example",
                       "hostPath": "config/app.conf",
@@ -58782,6 +58911,12 @@
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "kind": "example"
                     },
+                    "links": [
+                      {
+                        "label": "Documentation",
+                        "url": "https://docs.example.com"
+                      }
+                    ],
                     "location": {
                       "dir": "example",
                       "hostPath": "config/app.conf",
@@ -59608,6 +59743,12 @@
                     "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "kind": "example"
                   },
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "location": {
                     "dir": "example",
                     "hostPath": "config/app.conf",
@@ -59758,7 +59899,7 @@
         "x-docker-manager-scope": "resource"
       },
       "patch": {
-        "description": "Display name, description, Lucide icon override and per-service metadata, stored in Docker Manager and never written to Compose files. Requires If-Match.",
+        "description": "Display name, description, Lucide icon override, links and per-service metadata, stored in Docker Manager and never written to Compose files. Links are absolute http(s) addresses without credentials (at most 10, each listed once); a problem is a 422 naming the field (body.links[1].url). Requires If-Match.",
         "operationId": "update-stack",
         "parameters": [
           {
@@ -59788,7 +59929,13 @@
             "application/json": {
               "example": {
                 "displayName": "Website",
-                "icon": "globe"
+                "icon": "globe",
+                "links": [
+                  {
+                    "label": "Documentation",
+                    "url": "https://docs.example.com"
+                  }
+                ]
               },
               "schema": {
                 "$ref": "#/components/schemas/UpdateStackInputBody"
@@ -59865,6 +60012,12 @@
                     "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                     "kind": "example"
                   },
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "location": {
                     "dir": "example",
                     "hostPath": "config/app.conf",
@@ -66388,6 +66541,12 @@
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
                       "kind": "example"
                     },
+                    "links": [
+                      {
+                        "label": "Documentation",
+                        "url": "https://docs.example.com"
+                      }
+                    ],
                     "location": {
                       "dir": "example",
                       "hostPath": "config/app.conf",
@@ -67656,6 +67815,12 @@
                       "description": "example",
                       "iconUrl": "example",
                       "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "links": [
+                        {
+                          "label": "Documentation",
+                          "url": "https://docs.example.com"
+                        }
+                      ],
                       "name": "Nextcloud",
                       "own": false,
                       "registryName": "Homelab",
@@ -67786,6 +67951,12 @@
                   "description": "example",
                   "iconUrl": "example",
                   "instanceId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "name": "Nextcloud",
                   "own": false,
                   "registryName": "Homelab",
@@ -68798,6 +68969,12 @@
                         "url": "/api/v1/template-registry/templates/0190a6e0-.../icon?v=3f2a..."
                       },
                       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "links": [
+                        {
+                          "label": "Documentation",
+                          "url": "https://docs.example.com"
+                        }
+                      ],
                       "name": "Nextcloud",
                       "tags": [
                         "example"
@@ -69238,6 +69415,12 @@
                         "number": 1,
                         "publishedAt": "2026-09-25T12:00:00Z"
                       },
+                      "links": [
+                        {
+                          "label": "Documentation",
+                          "url": "https://docs.example.com"
+                        }
+                      ],
                       "name": "Nextcloud",
                       "revision": 1,
                       "tags": [
@@ -69341,6 +69524,12 @@
           "content": {
             "application/json": {
               "example": {
+                "links": [
+                  {
+                    "label": "Documentation",
+                    "url": "https://docs.example.com"
+                  }
+                ],
                 "name": "Nextcloud",
                 "tags": [
                   "cloud",
@@ -69388,6 +69577,12 @@
                     "number": 1,
                     "publishedAt": "2026-09-25T12:00:00Z"
                   },
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "name": "Nextcloud",
                   "revision": 1,
                   "tags": [
@@ -69563,6 +69758,12 @@
                     "number": 1,
                     "publishedAt": "2026-09-25T12:00:00Z"
                   },
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "name": "Nextcloud",
                   "revision": 1,
                   "tags": [
@@ -69797,6 +69998,12 @@
                     "number": 1,
                     "publishedAt": "2026-09-25T12:00:00Z"
                   },
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "name": "Nextcloud",
                   "revision": 1,
                   "tags": [
@@ -70207,6 +70414,12 @@
                     "number": 1,
                     "publishedAt": "2026-09-25T12:00:00Z"
                   },
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "name": "Nextcloud",
                   "revision": 1,
                   "tags": [
@@ -70309,7 +70522,7 @@
         "x-docker-manager-scope": "resource"
       },
       "patch": {
-        "description": "Edits the name, description and tags. Requires If-Match.",
+        "description": "Edits the name, description, tags and links (absolute http(s) addresses without credentials, at most 10, each listed once; a problem is a 422 naming the field, body.links[1].url). Requires If-Match.",
         "operationId": "update-template",
         "parameters": [
           {
@@ -70338,6 +70551,12 @@
           "content": {
             "application/json": {
               "example": {
+                "links": [
+                  {
+                    "label": "Documentation",
+                    "url": "https://docs.example.com"
+                  }
+                ],
                 "name": "Nextcloud",
                 "tags": [
                   "cloud",
@@ -70385,6 +70604,12 @@
                     "number": 1,
                     "publishedAt": "2026-09-25T12:00:00Z"
                   },
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "name": "Nextcloud",
                   "revision": 1,
                   "tags": [
@@ -70612,6 +70837,12 @@
                     "number": 1,
                     "publishedAt": "2026-09-25T12:00:00Z"
                   },
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "name": "Nextcloud",
                   "revision": 1,
                   "tags": [
@@ -74421,6 +74652,12 @@
                     "number": 1,
                     "publishedAt": "2026-09-25T12:00:00Z"
                   },
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "name": "Nextcloud",
                   "revision": 1,
                   "tags": [
@@ -74717,6 +74954,12 @@
                     "number": 1,
                     "publishedAt": "2026-09-25T12:00:00Z"
                   },
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "name": "Nextcloud",
                   "revision": 1,
                   "tags": [
@@ -75687,6 +75930,12 @@
                     "number": 1,
                     "publishedAt": "2026-09-25T12:00:00Z"
                   },
+                  "links": [
+                    {
+                      "label": "Documentation",
+                      "url": "https://docs.example.com"
+                    }
+                  ],
                   "name": "Nextcloud",
                   "revision": 1,
                   "tags": [

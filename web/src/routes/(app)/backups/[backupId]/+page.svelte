@@ -6,12 +6,12 @@
 	// location and the snapshot ID wait under Advanced.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
-	import Archive from '@lucide/svelte/icons/archive';
 	import History from '@lucide/svelte/icons/history';
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import { api, unwrap, type Job } from '$lib/api/client';
 	import { environmentsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
@@ -115,8 +115,7 @@
 					: envName(b.environmentId)}
 			<PageHeader
 				title={itemName(b)}
-				icon={Archive}
-				color="teal"
+				{...resourceIcon('backup')}
 				description="{b.kind ? KIND_LABEL[b.kind] : 'Backup'} from {formatDateTime(
 					b.snapshotTime
 				)}"

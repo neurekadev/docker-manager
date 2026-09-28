@@ -8,7 +8,6 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import ContainerIcon from '@lucide/svelte/icons/container';
 	import Clock from '@lucide/svelte/icons/clock';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Layers from '@lucide/svelte/icons/layers';
@@ -21,6 +20,7 @@
 	import { ApiRequestError } from '$lib/api/client';
 	import { containerQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Button,
@@ -168,11 +168,11 @@
 			<Skeleton lines={4} height="20px" />
 		</div>
 	{:else if offline}
-		<PageHeader title={name} icon={ContainerIcon} color="blue" />
+		<PageHeader title={name} {...resourceIcon('container')} />
 		<OfflineEnvironment name={envName} since={scope.environment(env)?.connectionChangedAt} />
 	{:else if notFound}
 		<EmptyState
-			icon={ContainerIcon}
+			icon={resourceIcon('container').icon}
 			color="slate"
 			title="No container named {name} on {envName}."
 			description="It may have been removed, or you don't have access to it."
@@ -193,7 +193,7 @@
 			title={c.name}
 			truncate
 			description={c.image}
-			icon={ContainerIcon}
+			icon={resourceIcon('container').icon}
 			color={c.protection ? 'violet' : 'blue'}
 			{meta}
 		>

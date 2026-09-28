@@ -64,6 +64,7 @@ type TemplateRegistryEntry struct {
 	Name        string                    `json:"name" example:"Nextcloud"`
 	Description string                    `json:"description,omitempty"`
 	Tags        []string                  `json:"tags"`
+	Links       []WebLink                 `json:"links,omitempty" doc:"Web links (documentation, website, repository); readers drop invalid ones."`
 	Icon        *TemplateRegistryIcon     `json:"icon,omitempty"`
 	UpdatedAt   time.Time                 `json:"updatedAt"`
 	Versions    []TemplateRegistryVersion `json:"versions" doc:"Newest first (at most 50)."`
@@ -157,7 +158,7 @@ func (h *registryAPI) index(ctx context.Context, in *templateRegistryInput) (*te
 			return nil, Internal(err)
 		}
 		e := TemplateRegistryEntry{ID: t.ID, Name: t.Name, Description: t.Description, Tags: slices.Clone(t.Tags), UpdatedAt: t.UpdatedAt,
-			Versions: []TemplateRegistryVersion{}}
+			Links: webLinks(t.Links), Versions: []TemplateRegistryVersion{}}
 		if e.Tags == nil {
 			e.Tags = []string{}
 		}

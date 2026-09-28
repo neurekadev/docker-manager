@@ -1,21 +1,23 @@
 // Import project view model (#7): how Docker Manager imports a discovered
 // Compose project (adopted in place, copied while it runs, copied after
-// stopping it, or not at all), in one line and in detail, what a copy
-// that stops running services does, and the import's errors in words.
-// Pure; tested in importing.spec.ts.
+// stopping it, or not at all; a project without containers is taken over
+// without starting anything), in one line and in detail, what a copy that
+// stops running services does, its volumes in one line, and the import's
+// errors in words. Pure; tested in importing.spec.ts.
 import type { Job, Schema } from '$lib/api/client';
 
 type Project = Pick<
 	Schema<'DiscoveredStack'>,
-	'adoptable' | 'copyable' | 'protected' | 'reason' | 'services' | 'stackId'
+	'adoptable' | 'copyable' | 'protected' | 'reason' | 'services' | 'stackId' | 'containerless'
 >;
 
 /**
  * managed: Docker Manager manages it already; adopt: its files lie in a
  * stack root and it is taken over where it is; copy-live: Docker
  * Manager's own project, copied while it runs; copy-stop: copied after
- * stopping its running services; copy-stopped: copied, nothing runs;
- * blocked: cannot be imported as it is.
+ * stopping its running services; copy-stopped: copied, nothing runs
+ * (also a project without containers, `containerless`); blocked: cannot
+ * be imported as it is.
  */
 export type ImportMode =
 	'managed' | 'adopt' | 'copy-live' | 'copy-stop' | 'copy-stopped' | 'blocked';
@@ -51,7 +53,12 @@ const services = (n: number) => `${n} running ${n === 1 ? 'service' : 'services'
 
 /** How the project is imported, in one line. */
 export function importHow(p: Project): string {
-	switch (importMode(p)) {
+	const mode = importMode(p);
+	if (p.containerless && mode === 'adopt')
+		return 'Taken over where it is. Nothing starts: deploy it afterwards.';
+	if (p.containerless && mode === 'copy-stopped')
+		return 'Copied into Docker Manager. Nothing starts: deploy it afterwards.';
+	switch (mode) {
 		case 'managed':
 			return 'Docker Manager manages it already.';
 		case 'adopt':
@@ -72,9 +79,24 @@ export function importHow(p: Project): string {
 const CHECK =
 	"Before anything changes it checks that the running containers match the project's files, and changes nothing if they do not. If you edited the files in another tool without redeploying, redeploy there first.";
 
+const NO_CONTAINERS =
+	"It has no containers, so nothing starts. Deploy the stack when you're ready: it keeps the project's name, so it uses the project's volumes again.";
+
 /** The import in detail, one sentence per line (behind "Details"). */
 export function importDetails(p: Project): string[] {
-	switch (importMode(p)) {
+	const mode = importMode(p);
+	if (p.containerless && mode === 'adopt')
+		return [
+			'Its files already lie in a folder Docker Manager manages, so the project is taken over where it is.',
+			NO_CONTAINERS
+		];
+	if (p.containerless && mode === 'copy-stopped')
+		return [
+			'Copies its whole folder, data folders included (owners and permissions kept), into Docker Manager and checks the copy.',
+			NO_CONTAINERS,
+			'Leaves the original folder untouched.'
+		];
+	switch (mode) {
 		case 'managed':
 			return [];
 		case 'adopt':
@@ -136,8 +158,23 @@ export function asSentence(s: string): string {
 	return t ? `${t[0].toUpperCase()}${t.slice(1)}${/[.!?]$/.test(t) ? '' : '.'}` : t;
 }
 
+/**
+ * A project's volumes in one short line: "Volumes: a, b, c +2 more" (the
+ * first `max`); empty when it has none.
+ */
+export function volumesLine(volumes: string[] | undefined, max = 3): string {
+	const list = volumes ?? [];
+	if (list.length === 0) return '';
+	const shown = list.slice(0, max).join(', ');
+	return list.length > max ? `Volumes: ${shown} +${list.length - max} more` : `Volumes: ${shown}`;
+}
+
 /** A failed import in words: what happened and what to do. */
-export function importFailure(v: { code?: string; message: string }, name: string): string {
+export function importFailure(
+	v: { code?: string; message: string },
+	name: string,
+	containerless = false
+): string {
 	switch (v.code) {
 		case 'stack_name_taken':
 			return `Docker Manager already manages a stack named ${name} here. Nothing was changed.`;
@@ -147,7 +184,9 @@ export function importFailure(v: { code?: string; message: string }, name: strin
 		case 'stack_not_copyable':
 			return `${name} can't be imported: ${v.message}`;
 		case 'agent_unsupported':
-			return 'The agent of this environment cannot import projects by copy yet. Update the agent, then import again.';
+			return containerless
+				? 'The agent of this environment cannot import projects without containers by copy yet. Update the agent, then import again.'
+				: 'The agent of this environment cannot import projects by copy yet. Update the agent, then import again.';
 	}
 	return v.message;
 }

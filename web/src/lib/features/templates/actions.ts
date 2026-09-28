@@ -3,6 +3,7 @@
 // templates carry the explicit acknowledgement that every file, .env
 // included, becomes public.
 import { api, unwrap, type ApiClient } from '$lib/api/client';
+import type { WebLink } from '$lib/features/common/links';
 import type { Template, TemplateVersion } from './queries';
 
 const ifMatch = (t: Template) => ({ 'If-Match': `"${t.revision ?? 0}"` });
@@ -17,7 +18,7 @@ export function createTemplate(
 
 export function patchTemplate(
 	t: Template,
-	body: { name?: string; description?: string; tags?: string[] },
+	body: { name?: string; description?: string; tags?: string[]; links?: WebLink[] },
 	client: ApiClient = api
 ): Promise<Template> {
 	return unwrap(

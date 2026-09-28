@@ -101,7 +101,14 @@ type fakeEngine struct {
 	mu         sync.Mutex
 	containers []engine.Container
 	images     map[string]engine.ImageDetails
+	volumes    []engine.Volume
 	calls      []string
+}
+
+func (f *fakeEngine) ListVolumes(context.Context, ...string) ([]engine.Volume, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.volumes), nil
 }
 
 func (f *fakeEngine) ListContainers(_ context.Context, flt engine.ContainerFilter) ([]engine.Container, error) {

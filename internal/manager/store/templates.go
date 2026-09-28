@@ -25,6 +25,7 @@ type templateRow struct {
 	NameKey         string    `bun:"name_key,notnull"`
 	Description     string    `bun:"description,notnull"`
 	Tags            string    `bun:"tags,notnull"`
+	Links           string    `bun:"links,notnull"`
 	Visibility      string    `bun:"visibility,notnull"`
 	VersionSeq      int       `bun:"version_seq,notnull"`
 	CreatedByUserID string    `bun:"created_by_user_id,notnull"`
@@ -77,12 +78,12 @@ func fromTemplate(t *domain.Template) (templateRow, error) {
 		return templateRow{}, err
 	}
 	return templateRow{ID: t.ID, Name: t.Name, NameKey: NameKey(t.Name), Description: t.Description, Tags: string(b),
-		Visibility: string(t.Visibility), CreatedByUserID: t.CreatedByUserID, Revision: t.Revision,
+		Links: linksJSON(t.Links), Visibility: string(t.Visibility), CreatedByUserID: t.CreatedByUserID, Revision: t.Revision,
 		CreatedAt: t.CreatedAt.UTC(), UpdatedAt: t.UpdatedAt.UTC()}, nil
 }
 
 func (r templateRow) toDomain() domain.Template {
-	t := domain.Template{ID: r.ID, Name: r.Name, Description: r.Description, Visibility: domain.TemplateVisibility(r.Visibility),
+	t := domain.Template{ID: r.ID, Name: r.Name, Description: r.Description, Links: linksOf(r.Links), Visibility: domain.TemplateVisibility(r.Visibility),
 		CreatedByUserID: r.CreatedByUserID, Revision: r.Revision, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC()}
 	if err := json.Unmarshal([]byte(r.Tags), &t.Tags); err != nil || t.Tags == nil {
 		t.Tags = []string{}
@@ -125,7 +126,7 @@ func UpdateTemplate(ctx context.Context, db bun.IDB, t *domain.Template, expectR
 	if err != nil {
 		return fmt.Errorf("store: encode template: %w", err)
 	}
-	res, err := db.NewUpdate().Model(&row).Column("name", "name_key", "description", "tags", "visibility", "revision", "updated_at").
+	res, err := db.NewUpdate().Model(&row).Column("name", "name_key", "description", "tags", "links", "visibility", "revision", "updated_at").
 		WherePK().Where("revision = ?", expectRevision).Exec(ctx)
 	if err != nil {
 		if uniqueViolation(err, "templates.name_key") {

@@ -3,7 +3,6 @@
 	// subset of my permissions and an expiry. Values are shown once, when
 	// created.
 	import { createQuery } from '@tanstack/svelte-query';
-	import KeyRound from '@lucide/svelte/icons/key-round';
 	import Plus from '@lucide/svelte/icons/plus';
 	import { myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
@@ -12,6 +11,7 @@
 	import { Button, Card, EmptyState } from '$lib/ui';
 	import { can } from '$lib/features/common/access';
 	import Page from '$lib/features/common/Page.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import { myTokensQuery } from '$lib/features/access/queries';
 	import SettingsHeader from '$lib/features/settings/SettingsHeader.svelte';
@@ -50,8 +50,7 @@
 					<TokensTable tokens={rows} label="Your API tokens" />
 				{:else}
 					<EmptyState
-						icon={KeyRound}
-						color="violet"
+						{...resourceIcon('apiToken')}
 						title="No API tokens yet."
 						description={can(access, 'api_tokens.create')
 							? 'Create one for a script or an integration, with just the actions it needs.'

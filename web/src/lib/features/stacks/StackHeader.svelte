@@ -1,8 +1,9 @@
 <script lang="ts">
 	// Stack header (#22 mockup): icon tile, name, status, description, meta
 	// row (services, containers, created, template, logical location: the
-	// host path is its tooltip and copy button; each item stays on one line)
-	// and the actions: the Deploy split button (the one primary:
+	// host path is its tooltip and copy button; each item stays on one line),
+	// the stack's links below it (full view, when it has any) and the
+	// actions: the Deploy split button (the one primary:
 	// Deploy, Build and deploy, Pull images only, Deploy and remove orphaned
 	// containers), Restart, Stop (Start when stopped), Update with its
 	// "update available" dot (a confirmation naming the newer images, then
@@ -78,6 +79,7 @@
 	import StackIcon from './StackIcon.svelte';
 	import SaveAsTemplateDialog from '$lib/features/templates/SaveAsTemplateDialog.svelte';
 	import ProtectionBadge from '$lib/features/resources/ProtectionBadge.svelte';
+	import LinkList from '$lib/features/common/LinkList.svelte';
 
 	interface Props {
 		stack: Stack;
@@ -390,12 +392,15 @@
 	const canUpdate = $derived(full && can('stack.deploy') && !restoring);
 </script>
 
+{#snippet links()}<LinkList links={stack.links} label="Links of {title}" />{/snippet}
+
 <PageHeader
 	{title}
 	description={stack.description || undefined}
 	icon={serviceIcon(icon.icon)}
 	color={icon.color}
 	{meta}
+	below={full && stack.links?.length ? links : undefined}
 >
 	{#snippet media()}<StackIcon {stack} size="lg" />{/snippet}
 	{#snippet status()}

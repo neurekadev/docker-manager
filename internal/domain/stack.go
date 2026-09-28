@@ -152,6 +152,9 @@ type Stack struct {
 	Meta        DisplayMeta
 	// ServiceMeta is per-service display metadata.
 	ServiceMeta map[string]DisplayMeta
+	// Links are the stack's web links (documentation, website, repository),
+	// in the user's order; display metadata like Meta.
+	Links []Link
 	// Root, RootPath and Dir locate the project directory: Dir relative to
 	// the stacks volume (Root "stacks") or to the registered root RootPath
 	// (Root "bind").

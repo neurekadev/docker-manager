@@ -42,6 +42,7 @@ type registryEntryRow struct {
 	Name        string    `bun:"name,notnull"`
 	Description string    `bun:"description,notnull"`
 	Tags        string    `bun:"tags,notnull"`
+	Links       string    `bun:"links,notnull"`
 	Versions    string    `bun:"versions,notnull"`
 	IconSHA256  string    `bun:"icon_sha256,notnull"`
 	IconURL     string    `bun:"icon_url,notnull"`
@@ -85,7 +86,7 @@ func (r templateRegistryRow) toDomain() domain.TemplateRegistry {
 
 func (r registryEntryRow) toDomain() domain.RegistryTemplate {
 	t := domain.RegistryTemplate{RegistryID: r.RegistryID, TemplateID: r.TemplateID, Name: r.Name, Description: r.Description,
-		IconSHA256: r.IconSHA256, IconURL: r.IconURL, UpdatedAt: r.UpdatedAt.UTC(), Tags: []string{}}
+		IconSHA256: r.IconSHA256, IconURL: r.IconURL, UpdatedAt: r.UpdatedAt.UTC(), Tags: []string{}, Links: linksOf(r.Links)}
 	_ = json.Unmarshal([]byte(r.Tags), &t.Tags)
 	var vs []registryVersionJSON
 	_ = json.Unmarshal([]byte(r.Versions), &vs)
@@ -205,10 +206,10 @@ func ReplaceRegistryTemplates(ctx context.Context, db bun.IDB, registryID string
 			return err
 		}
 		row := registryEntryRow{RegistryID: registryID, TemplateID: t.TemplateID, Name: t.Name, Description: t.Description, Tags: string(tags),
-			Versions: string(versions), IconSHA256: t.IconSHA256, IconURL: t.IconURL, UpdatedAt: t.UpdatedAt.UTC()}
+			Links: linksJSON(t.Links), Versions: string(versions), IconSHA256: t.IconSHA256, IconURL: t.IconURL, UpdatedAt: t.UpdatedAt.UTC()}
 		if _, err := db.NewInsert().Model(&row).On("CONFLICT (registry_id, template_id) DO UPDATE").
 			Set("name = EXCLUDED.name").Set("description = EXCLUDED.description").Set("tags = EXCLUDED.tags").
-			Set("versions = EXCLUDED.versions").Set("icon_sha256 = EXCLUDED.icon_sha256").Set("icon_url = EXCLUDED.icon_url").
+			Set("links = EXCLUDED.links").Set("versions = EXCLUDED.versions").Set("icon_sha256 = EXCLUDED.icon_sha256").Set("icon_url = EXCLUDED.icon_url").
 			Set("updated_at = EXCLUDED.updated_at").Exec(ctx); err != nil {
 			return fmt.Errorf("store: save registry template: %w", err)
 		}

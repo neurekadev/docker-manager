@@ -8,7 +8,6 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import Box from '@lucide/svelte/icons/box';
 	import Clock from '@lucide/svelte/icons/clock';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import HardDrive from '@lucide/svelte/icons/hard-drive';
@@ -19,6 +18,7 @@
 	import { ApiRequestError } from '$lib/api/client';
 	import { imageQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
@@ -156,11 +156,11 @@
 			<Skeleton height="56px" radius="lg" /><Skeleton lines={4} height="20px" />
 		</div>
 	{:else if offline}
-		<PageHeader {title} icon={Box} color="blue" />
+		<PageHeader {title} {...resourceIcon('image')} />
 		<OfflineEnvironment name={envName} since={scope.environment(env)?.connectionChangedAt} />
 	{:else if notFound}
 		<EmptyState
-			icon={Box}
+			icon={resourceIcon('image').icon}
 			color="slate"
 			title="This image is not on {envName}."
 			description="It may have been removed, or you don't have access to it."
@@ -183,8 +183,7 @@
 			description={im.repoTags.length > 1
 				? `Also tagged ${im.repoTags.slice(1, 3).join(', ')}${im.repoTags.length > 3 ? ` and ${im.repoTags.length - 3} more` : ''}.`
 				: undefined}
-			icon={Box}
-			color="blue"
+			{...resourceIcon('image')}
 			{meta}
 		>
 			{#snippet status()}

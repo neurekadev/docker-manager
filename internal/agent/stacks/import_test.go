@@ -127,6 +127,67 @@ func TestImportOwnProjectWhileItRuns(t *testing.T) {
 	}
 }
 
+// TestImportContainerlessProject: a project without containers is copied
+// and switched to; nothing is stopped, recreated or started and its
+// volume is left as it is. Once the project has containers, the import is
+// refused and nothing is copied.
+func TestImportContainerlessProject(t *testing.T) {
+	const host = "/srv/wiki"
+	stacks, imports := t.TempDir(), t.TempDir()
+	writeTree(t, filepath.Join(imports, "wiki"), map[string]string{
+		"compose.yaml": "services:\n  app:\n    image: wiki:2\n    volumes: [data:/data]\nvolumes:\n  data:\n",
+		".env":         "", "uploads/a.txt": "kept\n"})
+	res := &storage.Result{Containerized: true, StacksDir: filepath.ToSlash(stacks),
+		Roots:   []storage.Root{{Kind: storage.KindStacks, Path: filepath.ToSlash(stacks), OK: true}},
+		Imports: []storage.ImportMount{{HostPath: "/srv", Path: filepath.ToSlash(imports)}}}
+	eng := enginefake.New("engine-1")
+	eng.AddVolume("wiki_data", map[string]string{lifecycle.ComposeProjectLabel: "wiki", protocol.ComposeVolumeLabel: "data"})
+	seeded := len(eng.Calls())
+	c := &fakeComposer{}
+	svc := New(Options{Deps: fakeDeps{c: c, eng: eng, st: res}, Clock: testutil.FakeClock(), Logger: testutil.Logger(t)})
+	in := protocol.StackJobInput{Stack: ref("wiki"), Import: &protocol.StackImportSource{WorkingDir: host, Containerless: true}}
+
+	res1, out := run(t, svc, jobspec.StackImport, in)
+	if res1.Outcome != jobexec.OutcomeSucceeded {
+		t.Fatalf("import: %+v", res1)
+	}
+	if out.Import == nil || !out.Import.Copied || !out.Import.Switched || len(out.Import.WasRunning) != 0 || out.Import.Live {
+		t.Errorf("report %+v", out.Import)
+	}
+	if out.Sources == nil || len(out.Services) != 1 || len(out.Images) != 0 || len(out.After) != 0 {
+		t.Errorf("output: sources %v services %+v images %+v after %+v", out.Sources != nil, out.Services, out.Images, out.After)
+	}
+	if len(c.calls) != 0 {
+		t.Errorf("Compose was called: %v", c.calls)
+	}
+	for _, call := range eng.Calls()[seeded:] {
+		if strings.HasPrefix(call, "container.start") || strings.HasPrefix(call, "container.stop") ||
+			strings.HasPrefix(call, "container.create") || strings.HasPrefix(call, "volume.") {
+			t.Errorf("unexpected Engine call %s", call)
+		}
+	}
+	if b, err := os.ReadFile(filepath.Join(stacks, "wiki", "uploads", "a.txt")); err != nil || string(b) != "kept\n" {
+		t.Errorf("copy: %q %v", b, err)
+	}
+	if _, err := eng.InspectVolume(testutil.Context(t), "wiki_data"); err != nil {
+		t.Errorf("the project's volume is gone: %v", err)
+	}
+
+	// Containers appeared since discovery: refused, nothing copied.
+	stacks2 := t.TempDir()
+	res.StacksDir = filepath.ToSlash(stacks2)
+	res.Roots = []storage.Root{{Kind: storage.KindStacks, Path: filepath.ToSlash(stacks2), OK: true}}
+	eng.AddContainer(engine.ContainerSpec{Name: "wiki-app-1", Image: "wiki:2",
+		Labels: map[string]string{lifecycle.ComposeProjectLabel: "wiki", lifecycle.ComposeServiceLabel: "app", labelWorkingDir: host}}, false)
+	res2, _ := run(t, svc, jobspec.StackImport, in)
+	if res2.Outcome != jobexec.OutcomeFailed || res2.ErrorClass != classImportSourceChanged || !strings.Contains(res2.Message, "has containers now") {
+		t.Errorf("containers appeared: %+v", res2)
+	}
+	if _, err := os.Stat(filepath.Join(stacks2, "wiki")); !os.IsNotExist(err) {
+		t.Errorf("copied although refused: %v", err)
+	}
+}
+
 func TestProjectDirTranslatesManagerPaths(t *testing.T) {
 	const projects = "/docker/engine/volumes/arcane_data/_data/projects"
 	tmp := t.TempDir()

@@ -22,6 +22,29 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   `h3.subsection-title`. Service colours:
   `serviceIdentity`/`serviceSeriesColor` (`$lib/design/hue`). Heavy
   libraries only through `$lib/lazy` or `CodeEditor`/`Sparkline`/`TerminalView`.
+- **Resource icons:** one icon and tile colour per resource type in
+  `RESOURCE_ICONS` (`$lib/features/common/resourceIcons.ts`); the object's
+  page header tile, its empty states, its ⌘K hits and the sidebar entry
+  of a section named after it read it (`{...resourceIcon('volume')}`), so never import a type's Lucide
+  icon or pick its colour by hand; a new resource type gets an entry
+  first. Every resource list starts each row's name with that icon:
+  `NameCell icon="<kind>"`, or `IconCell` around a custom name cell (an
+  `IconTile size="xs"`: 24 px tile, 14 px glyph, in a fixed slot, centred
+  on the name block). The colour is the type's, as on its page header,
+  never per row: the only variations are the ones its page header makes
+  (an offline environment is slate, `environmentIcon`; Docker Manager's own
+  containers violet). Stacks show their own icon (`StackIcon size="xs"`:
+  the chosen icon, the template's, else the stack tile); schedules the
+  icon of the policy they run (`scheduleResource`). The icon is
+  decorative (`aria-hidden`): the name stays the link and the row's
+  accessible label, and the tile never replaces a status or mark.
+- **Links** of stacks and templates: show them with `LinkList`
+  (`$lib/features/common`: external links in a new tab with `rel="noopener
+  noreferrer"`, the label or else the host, in `PageHeader`'s `below`
+  row) and edit them with `LinksEditor` (rows from `linkRows`, saved as
+  `cleanLinks`; `links.ts` checks the server's rules inline and
+  `serverLinkProblems` places the server's field errors on the rows).
+  Never build a link list or a link check by hand.
 - **Pages:** signed-in pages in `web/src/routes/(app)/<section>/` (replace
   the `SectionPlaceholder`), public ones in `(auth)`. URLs only from
   `$lib/routes.ts`. Call `usePage({ title, crumbs, environmentScoped })`;

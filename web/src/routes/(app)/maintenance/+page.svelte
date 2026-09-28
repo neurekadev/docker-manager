@@ -10,9 +10,9 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import Wrench from '@lucide/svelte/icons/wrench';
 	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { environmentSelection } from '$lib/shell/environment.svelte';
 	import { accessOf } from '$lib/shell/nav';
 	import { usePage } from '$lib/shell/page.svelte';
@@ -102,7 +102,12 @@
 </script>
 
 {#snippet nameCell(p: MaintenancePolicy)}
-	<NameCell name={p.name} href={routes.maintenancePolicy(p.id)} sub={p.description} />
+	<NameCell
+		icon="maintenancePolicy"
+		name={p.name}
+		href={routes.maintenancePolicy(p.id)}
+		sub={p.description}
+	/>
 {/snippet}
 {#snippet rulesCell(p: MaintenancePolicy)}
 	{#if p.view === 'full'}
@@ -157,8 +162,7 @@
 		{#if list.length === 0}
 			<Card>
 				<EmptyState
-					icon={Wrench}
-					color="slate"
+					{...resourceIcon('maintenancePolicy')}
 					title="No maintenance policies yet."
 					description="A policy removes stopped containers, unused images and other leftovers on a schedule. You see a preview first, and nothing runs until you turn it on."
 					level={2}
@@ -190,8 +194,7 @@
 					secondary={totals.latest
 						? formatDateTime(totals.latest.finishedAt)
 						: 'Preview and run a policy'}
-					icon={Wrench}
-					color="slate"
+					{...resourceIcon('maintenancePolicy')}
 					tone={totals.latest
 						? totals.latest.state === 'succeeded'
 							? 'ok'

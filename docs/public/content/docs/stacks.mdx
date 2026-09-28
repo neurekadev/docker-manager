@@ -119,11 +119,31 @@ To go back to an older version, open its menu and choose **Restore to
 disk**. Your current files are kept as a revision first, and nothing is
 deployed until you press **Deploy**.
 
-## Edit details and icons
+## Edit details, icons and links
 
 **More stack actions → Edit details** changes the display name, the
 description and the icon of the stack and of each service. These are kept
 in Docker Manager. Your Compose files do not change.
+
+You can also add **Links** to pages that belong to the stack, such as its
+documentation, website or code repository. They show under the stack's
+name, and each one opens in a new tab.
+
+1. Open **More stack actions → Edit details**.
+2. Under **Links**, press **Add link**.
+3. Enter the **URL**, for example `https://docs.example.com`, and an
+   optional **Label** such as `Documentation`.
+4. Press **Save details**.
+
+Good to know:
+
+- Addresses must start with `http://` or `https://` and must not contain a
+  user name or password.
+- A stack can have up to 10 links. Each address can be listed once, and a
+  label can be up to 60 characters long.
+- Without a label, the link shows the address's host, such as
+  `docs.example.com`.
+- To remove a link, press ✕ next to it and save.
 
 ## Docker Manager's own stack
 

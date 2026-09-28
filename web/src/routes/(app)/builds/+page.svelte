@@ -6,7 +6,6 @@
 	// environments, the environment. Running builds refresh until they end;
 	// environments whose builds can't be read are named in a notice.
 	import { createQuery } from '@tanstack/svelte-query';
-	import Hammer from '@lucide/svelte/icons/hammer';
 	import Play from '@lucide/svelte/icons/play';
 	import { imageBuildsQuery, type ImageBuild } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
@@ -26,6 +25,7 @@
 		type Column
 	} from '$lib/ui';
 	import NameCell from '$lib/features/common/NameCell.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import BuildsHeader from '$lib/features/builds/BuildsHeader.svelte';
 	import { buildFilters, buildSearch } from '$lib/features/builds/filters';
 	import { repoLabel } from '$lib/features/builds/source';
@@ -125,6 +125,7 @@
 </script>
 
 {#snippet imageCell(b: ImageBuild)}<NameCell
+		icon="build"
 		name={b.tags[0] ?? 'Build'}
 		href={routes.build(b.environmentId, b.id)}
 		mono
@@ -209,13 +210,12 @@
 							{#if filtered}
 								<NoMatches
 									what="builds"
-									icon={Hammer}
+									icon={resourceIcon('build').icon}
 									onclear={() => filters.clear()}
 								/>
 							{:else}
 								<EmptyState
-									icon={Hammer}
-									color="violet"
+									{...resourceIcon('build')}
 									title="No builds yet."
 									description="Build an image from a Git repository on one of your environments. Compose services with a build section build when their stack deploys."
 									level={3}

@@ -8,7 +8,6 @@
 	// the same backups by run.
 	import { createQueries, createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
-	import Camera from '@lucide/svelte/icons/camera';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import { environmentsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
@@ -31,6 +30,7 @@
 	import { environmentName } from '$lib/features/common/data';
 	import { actionError } from '$lib/features/common/errors';
 	import NameCell from '$lib/features/common/NameCell.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import Page from '$lib/features/common/Page.svelte';
 	import {
 		SNAPSHOT_CLASS,
@@ -179,6 +179,7 @@
 	>{/snippet}
 {#snippet whatCell(r: SnapshotRow)}
 	<NameCell
+		icon="snapshot"
 		name={snapshotName(r.snapshot)}
 		href={r.snapshot.backupId ? routes.backup(r.snapshot.backupId) : undefined}
 		sub={r.snapshot.shortId}
@@ -270,8 +271,7 @@
 			>
 				{#snippet empty()}
 					<EmptyState
-						icon={Camera}
-						color="slate"
+						{...resourceIcon('snapshot')}
 						title={filter.trim()
 							? 'No snapshot matches the filter.'
 							: readable.length

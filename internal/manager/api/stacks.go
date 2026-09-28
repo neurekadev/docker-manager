@@ -191,6 +191,7 @@ type Stack struct {
 	DisplayName string            `json:"displayName,omitempty"`
 	Description string            `json:"description,omitempty"`
 	Icon        string            `json:"icon,omitempty" doc:"Lucide icon name override."`
+	Links       []WebLink         `json:"links,omitempty" doc:"Web links (documentation, website, repository) in the user's order."`
 	Origin      string            `json:"origin,omitempty" enum:"created,imported"`
 	Template    *StackTemplateRef `json:"template,omitempty" doc:"The template version the stack was created from (its files are the stack's own)."`
 	Location    *StackLocation    `json:"location,omitempty"`
@@ -272,6 +273,7 @@ func newStack(st domain.Stack, v authz.View, online bool) Stack {
 	}
 	out.Revision = st.Revision
 	out.DisplayName, out.Description, out.Icon, out.Origin = st.DisplayName, st.Meta.Description, st.Meta.Icon, st.Origin
+	out.Links = webLinks(st.Links)
 	out.Location = &StackLocation{Root: st.Root, Dir: st.Dir}
 	out.Template = newStackTemplateRef(st.Template)
 	out.ConfigFiles = st.ConfigFiles
@@ -649,11 +651,12 @@ func (h *stacksAPI) get(ctx context.Context, in *stackIDInput) (*stackOutput, er
 
 type createStackInput struct {
 	Body struct {
-		EnvironmentID string `json:"environmentId,omitempty" maxLength:"64" doc:"Required: the environment to create the stack in."`
-		Name          string `json:"name,omitempty" example:"web" maxLength:"63" doc:"Required: Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume."`
-		DisplayName   string `json:"displayName,omitempty" example:"Website" maxLength:"128"`
-		Description   string `json:"description,omitempty" maxLength:"1024"`
-		Icon          string `json:"icon,omitempty" maxLength:"64" doc:"Lucide icon name."`
+		EnvironmentID string    `json:"environmentId,omitempty" maxLength:"64" doc:"Required: the environment to create the stack in."`
+		Name          string    `json:"name,omitempty" example:"web" maxLength:"63" doc:"Required: Compose project name (lower-case letters, digits, '-' and '_'); also the project directory in the stacks volume."`
+		DisplayName   string    `json:"displayName,omitempty" example:"Website" maxLength:"128"`
+		Description   string    `json:"description,omitempty" maxLength:"1024"`
+		Icon          string    `json:"icon,omitempty" maxLength:"64" doc:"Lucide icon name."`
+		Links         []WebLink `json:"links,omitempty" maxItems:"10" doc:"Web links (documentation, website, repository), at most 10."`
 		StackDefinitionBody
 	}
 }
@@ -675,12 +678,17 @@ func (h *stacksAPI) create(ctx context.Context, in *createStackInput) (*createSt
 	st, val, err := h.svc.Create(ctx, p, domain.StackCreate{
 		StackDefinition: domain.StackDefinition{EnvironmentID: in.Body.EnvironmentID, Name: in.Body.Name, Files: in.Body.files()},
 		DisplayName:     in.Body.DisplayName, Meta: domain.DisplayMeta{Description: in.Body.Description, Icon: in.Body.Icon},
+		Links: domainLinks(in.Body.Links),
 	})
 	if err != nil {
 		return nil, stackErr(err)
 	}
 	audit.AddTarget(ctx, domain.AuditTarget{Type: catalog.TypeStack, ID: st.ID, EnvironmentID: st.EnvironmentID})
 	audit.SetDetail(ctx, "project", st.Name)
+	if len(st.Links) > 0 {
+		// Never the URLs (they may carry query strings): their number.
+		audit.SetDetail(ctx, "linkCount", len(st.Links))
+	}
 	c, _, _ := h.checker(ctx)
 	out := &createStackOutput{Location: BasePath + "/stacks/" + st.ID, ETagHeader: ETagHeader{ETag: RevisionETag(st.Revision)}}
 	out.Body.Stack = newStack(st, authz.ViewOf(c, stackResource(st)), true)
@@ -739,6 +747,7 @@ type updateStackInput struct {
 		DisplayName *string                         `json:"displayName,omitempty" example:"Website" maxLength:"128"`
 		Description *string                         `json:"description,omitempty" maxLength:"1024"`
 		Icon        *string                         `json:"icon,omitempty" example:"globe" maxLength:"64" doc:"Lucide icon name; empty clears the override."`
+		Links       *[]WebLink                      `json:"links,omitempty" maxItems:"10" doc:"Replaces the stack's links (an empty list removes them; absent: unchanged)."`
 		Services    map[string]StackServiceMetaBody `json:"services,omitempty" doc:"Display metadata per service name (empty values clear it)."`
 	}
 }
@@ -751,7 +760,8 @@ func (h *stacksAPI) update(ctx context.Context, in *updateStackInput) (*stackOut
 	if err := in.CheckIfMatch(RevisionETag(st.Revision)); err != nil {
 		return nil, err
 	}
-	patch := domain.StackPatch{DisplayName: in.Body.DisplayName, Description: in.Body.Description, Icon: in.Body.Icon}
+	patch := domain.StackPatch{DisplayName: in.Body.DisplayName, Description: in.Body.Description, Icon: in.Body.Icon,
+		Links: domainLinksPatch(in.Body.Links)}
 	if len(in.Body.Services) > 0 {
 		patch.Services = map[string]domain.DisplayMeta{}
 		for k, m := range in.Body.Services {
@@ -770,8 +780,10 @@ func (h *stacksAPI) update(ctx context.Context, in *updateStackInput) (*stackOut
 	if err != nil {
 		return nil, stackErr(err)
 	}
-	audit.SetDiff(ctx, map[string]any{"displayName": before.DisplayName, "description": before.Meta.Description, "icon": before.Meta.Icon},
-		map[string]any{"displayName": st.DisplayName, "description": st.Meta.Description, "icon": st.Meta.Icon})
+	// Links by their number only: a URL may carry a query string.
+	audit.SetDiff(ctx, map[string]any{"displayName": before.DisplayName, "description": before.Meta.Description, "icon": before.Meta.Icon,
+		"links": len(before.Links)},
+		map[string]any{"displayName": st.DisplayName, "description": st.Meta.Description, "icon": st.Meta.Icon, "links": len(st.Links)})
 	return h.stackOut(ctx, st, v), nil
 }
 
@@ -1294,7 +1306,7 @@ type DiscoveredStackService struct {
 // DiscoveredStack is a Compose project found on the Engine (read-only).
 type DiscoveredStack struct {
 	Name       string                   `json:"name" example:"nextcloud" doc:"Compose project name."`
-	WorkingDir string                   `json:"workingDir,omitempty" example:"nextcloud" doc:"Project directory from the containers' labels (host path)."`
+	WorkingDir string                   `json:"workingDir,omitempty" example:"nextcloud" doc:"Project directory from the containers' labels, or the folder a containerless project was found in (host path)."`
 	Location   *StackLocation           `json:"location,omitempty" doc:"Where it lies under a verified stack root (adoptable in place)."`
 	Services   []DiscoveredStackService `json:"services"`
 	Adoptable  bool                     `json:"adoptable" doc:"Can be imported in place from its real files."`
@@ -1303,6 +1315,9 @@ type DiscoveredStack struct {
 	Reason     string                   `json:"reason,omitempty" doc:"Why it cannot be adopted in place (import it by copy or with an explicit Compose source)."`
 	StackID    string                   `json:"stackId,omitempty" doc:"The Docker Manager stack already managing it."`
 	Protected  bool                     `json:"protected,omitempty" doc:"Docker Manager's own Compose project (#32): an import by copy copies it while it runs and restarts nothing; its next deploy moves it onto the copy."`
+	// Containerless and Volumes are absent from older agents.
+	Containerless bool     `json:"containerless,omitempty" doc:"The project has no containers (never started, or taken down): found through its Compose file in a folder of a stack root or an import mount, its services come from that file. Its import starts nothing and leaves the stack undeployed until its first deploy."`
+	Volumes       []string `json:"volumes,omitempty" example:"[\"nextcloud_db\"]" doc:"The project's existing named Docker volumes (sorted, at most 100; Docker Manager's own left out). The import keeps the project name, so its first deploy reuses them."`
 }
 
 type discoveredInput struct {
@@ -1327,7 +1342,8 @@ func (h *stacksAPI) discovered(ctx context.Context, in *discoveredInput) (*disco
 	out.Body.Projects = []DiscoveredStack{}
 	for _, d := range list {
 		ds := DiscoveredStack{Name: d.Name, WorkingDir: d.WorkingDir, Services: []DiscoveredStackService{}, Adoptable: d.Adoptable,
-			Copyable: d.Copyable, SourceDir: d.SourceDir, Reason: d.Reason, StackID: d.StackID, Protected: d.Protected}
+			Copyable: d.Copyable, SourceDir: d.SourceDir, Reason: d.Reason, StackID: d.StackID, Protected: d.Protected,
+			Containerless: d.Containerless, Volumes: d.Volumes}
 		if d.Root != "" {
 			ds.Location = &StackLocation{Root: d.Root, Dir: d.Dir}
 		}
@@ -1582,8 +1598,9 @@ func registerStacks(a huma.API, deps Deps) {
 
 	Register(a, Operation{Operation: huma.Operation{
 		OperationID: "update-stack", Method: http.MethodPatch, Path: one, Summary: "Edit a stack's display metadata",
-		Description: "Display name, description, Lucide icon override and per-service metadata, stored in Docker Manager and never written " +
-			"to Compose files. Requires If-Match.",
+		Description: "Display name, description, Lucide icon override, links and per-service metadata, stored in Docker Manager and " +
+			"never written to Compose files. Links are absolute http(s) addresses without credentials (at most 10, each listed once); " +
+			"a problem is a 422 naming the field (body.links[1].url). Requires If-Match.",
 		Tags: []string{tagStacks}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound,
 			http.StatusPreconditionFailed, http.StatusUnprocessableEntity, http.StatusPreconditionRequired},
 	}, Capability: CapStackManage, Scope: ScopeResource}, h.update)

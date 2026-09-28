@@ -16,7 +16,6 @@
 	// image, networks) and the row actions stay pinned at the right edge;
 	// phones show the name, image and status only.
 	import { createQueries, createQuery } from '@tanstack/svelte-query';
-	import ContainerIcon from '@lucide/svelte/icons/container';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Layers from '@lucide/svelte/icons/layers';
@@ -40,6 +39,8 @@
 		type Column,
 		type MenuEntry
 	} from '$lib/ui';
+	import IconCell from '$lib/features/common/IconCell.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import ContainerActionHost from '$lib/features/resources/ContainerActionHost.svelte';
 	import ContainerBulk from '$lib/features/resources/ContainerBulk.svelte';
 	import PruneButton from '$lib/features/maintenance/PruneButton.svelte';
@@ -244,23 +245,25 @@
 
 {#snippet nameCell(c: Container)}
 	{@const policy = containerPolicy(policyIndex, c)}
-	<div class="name-cell">
-		<span class="title-line">
-			<a class="name" href={routes.container(c.environmentId, c.name)}>{c.name}</a>
-			{#if c.protection}<ProtectionMark protection={c.protection} />{/if}
-		</span>
-		{#if c.image}
-			<span class="image">
-				<span class="sub mono" title={c.image}>{c.image}</span>
-				<ImageUpdateBadge
-					status={c.update}
-					image={c.image}
-					policyId={policy?.id}
-					canCheck={policy?.canCheck}
-				/>
+	<IconCell icon="container" color={c.protection ? 'violet' : undefined}
+		><div class="name-cell">
+			<span class="title-line">
+				<a class="name" href={routes.container(c.environmentId, c.name)}>{c.name}</a>
+				{#if c.protection}<ProtectionMark protection={c.protection} />{/if}
 			</span>
-		{/if}
-	</div>
+			{#if c.image}
+				<span class="image">
+					<span class="sub mono" title={c.image}>{c.image}</span>
+					<ImageUpdateBadge
+						status={c.update}
+						image={c.image}
+						policyId={policy?.id}
+						canCheck={policy?.canCheck}
+					/>
+				</span>
+			{/if}
+		</div></IconCell
+	>
 {/snippet}
 {#snippet statusCell(c: Container)}
 	<StatusBadge status={containerStatus(c)} />
@@ -385,13 +388,12 @@
 							{#if filtered}
 								<NoMatches
 									what="containers"
-									icon={ContainerIcon}
+									icon={resourceIcon('container').icon}
 									onclear={() => filters.clear()}
 								/>
 							{:else}
 								<EmptyState
-									icon={ContainerIcon}
-									color="blue"
+									{...resourceIcon('container')}
 									title="No containers on {scope.single
 										? scope.targets[0]?.name
 										: 'your environments'} yet."

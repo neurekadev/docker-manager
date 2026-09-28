@@ -36,6 +36,11 @@ store: `internal/manager/store/templates.go`.
   the explicit acknowledgement (`acknowledgePublic`,
   `domain.ErrTemplatePublicAckRequired`): every file, `.env` included,
   becomes readable by anyone with the registry URL.
+- Links: `domain.NormalizeLinks` for a template's own (a problem is a
+  `FieldError` naming `links[i].url`/`.label`), `domain.SanitizeLinks` for
+  a registry's (invalid links are dropped, never the template or the
+  registry). Never log or audit a URL; audit the number of links. A stack
+  created from a template starts with a copy of its links.
 - Icons: `DetectIcon` decides the type from the bytes (PNG, JPEG, GIF, WebP,
   SVG), at most 256 KiB and 1024x1024 pixels; SVG without scripts,
   embedded documents or DOCTYPE/ENTITY. Serve icons only through

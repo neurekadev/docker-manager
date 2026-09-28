@@ -11,12 +11,12 @@
 	import Clock from '@lucide/svelte/icons/clock';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Layers from '@lucide/svelte/icons/layers';
-	import NetworkIcon from '@lucide/svelte/icons/network';
 	import Server from '@lucide/svelte/icons/server';
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import { ApiRequestError } from '$lib/api/client';
 	import { containersQuery, networkQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
@@ -167,11 +167,11 @@
 			<Skeleton height="56px" radius="lg" /><Skeleton lines={4} height="20px" />
 		</div>
 	{:else if offline}
-		<PageHeader title={name} icon={NetworkIcon} color="indigo" />
+		<PageHeader title={name} {...resourceIcon('network')} />
 		<OfflineEnvironment name={envName} since={scope.environment(env)?.connectionChangedAt} />
 	{:else if notFound}
 		<EmptyState
-			icon={NetworkIcon}
+			icon={resourceIcon('network').icon}
 			color="slate"
 			title="No network named {name} on {envName}."
 			description="It may have been removed, or you don't have access to it."
@@ -188,7 +188,7 @@
 			onretry={() => q.refetch()}
 		/>
 	{:else if n}
-		<PageHeader title={n.name} truncate icon={NetworkIcon} color="indigo" {meta}>
+		<PageHeader title={n.name} truncate {...resourceIcon('network')} {meta}>
 			{#snippet status()}
 				{#if n.builtin}<Badge>Predefined</Badge>{/if}
 				{#if n.protection}<ProtectionBadge

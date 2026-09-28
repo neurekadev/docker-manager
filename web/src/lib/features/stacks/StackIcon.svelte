@@ -12,7 +12,7 @@
 
 	interface Props {
 		stack: Pick<Stack, 'icon' | 'template'>;
-		size?: 'sm' | 'md' | 'lg';
+		size?: 'xs' | 'sm' | 'md' | 'lg';
 	}
 
 	let { stack, size = 'md' }: Props = $props();

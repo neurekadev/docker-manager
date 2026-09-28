@@ -2,6 +2,7 @@ package stacks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -28,7 +29,10 @@ import (
 // stack record exists from the request on (it is the job's target); the
 // finish hook records the copy as the applied revision, or forgets the
 // stack when the import failed before the project switched to the copy
-// (nothing changed then). The original directory is only read.
+// (nothing changed then). The original directory is only read. A project
+// without containers (discovered through its Compose file) is copied and
+// switched to without stopping, recreating or starting anything; it needs
+// an agent announcing FeatureStackImportContainerless and ends undeployed.
 func (s *Service) ImportCopy(ctx context.Context, principal authz.Principal, r domain.StackImport, jr domain.StackJobRequest) (domain.Stack, domain.Job, error) {
 	if !protocol.ValidProjectName(r.ProjectName) {
 		return domain.Stack{}, domain.Job{}, &domain.InputError{Field: "projectName", Message: "must be a Compose project name"}
@@ -71,6 +75,9 @@ func (s *Service) ImportCopy(ctx context.Context, principal authz.Principal, r d
 			Message: "the project already lies in the stacks volume or a registered stack root: adopt it in place instead"}
 	case !p.Copyable:
 		return domain.Stack{}, domain.Job{}, &domain.StackError{Code: domain.StackErrNotCopyable, Message: p.Reason}
+	case p.Containerless && !fh.EnvironmentHasFeature(r.EnvironmentID, protocol.FeatureStackImportContainerless):
+		return domain.Stack{}, domain.Job{}, &domain.StackError{Code: domain.StackErrEnvironmentUnsupported,
+			Message: "the environment's agent cannot import projects without containers by copy yet; update the agent"}
 	}
 	now := s.now()
 	st := domain.Stack{ID: ids.New(), EnvironmentID: r.EnvironmentID, Name: r.ProjectName, DisplayName: r.DisplayName, Meta: r.Meta,
@@ -78,10 +85,14 @@ func (s *Service) ImportCopy(ctx context.Context, principal authz.Principal, r d
 		ConfigFiles: relativeTo(p.WorkingDir, p.ConfigFiles), EnvFiles: relativeTo(p.WorkingDir, p.EnvFiles),
 		Revision: 1, CreatedAt: now, UpdatedAt: now}
 	var states []domain.StackServiceState
-	for _, sv := range p.Services {
-		states = append(states, domain.StackServiceState{Service: sv.Name, Containers: sv.Containers, Running: sv.Running})
-		if sv.Running > 0 {
-			st.Status = domain.StackDeployed
+	if p.Containerless {
+		st.Status = domain.StackUndeployed // nothing runs, nothing will be deployed
+	} else {
+		for _, sv := range p.Services {
+			states = append(states, domain.StackServiceState{Service: sv.Name, Containers: sv.Containers, Running: sv.Running})
+			if sv.Running > 0 {
+				st.Status = domain.StackDeployed
+			}
 		}
 	}
 	s.setEngine(&st, states)
@@ -93,7 +104,7 @@ func (s *Service) ImportCopy(ctx context.Context, principal authz.Principal, r d
 		src = p.WorkingDir
 	}
 	in := protocol.StackJobInput{StackID: st.ID, Stack: Ref(st), TimeoutSeconds: jr.TimeoutSeconds,
-		Import: &protocol.StackImportSource{WorkingDir: src}}
+		Import: &protocol.StackImportSource{WorkingDir: src, Containerless: p.Containerless}}
 	j, _, err := s.opts.Jobs.Enqueue(ctx, jobs.Request{Kind: jobspec.StackImport, Principal: principal, EnvironmentID: st.EnvironmentID,
 		Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: st.ID}}, Input: in, IdempotencyKey: jr.IdempotencyKey})
 	if err != nil {
@@ -125,7 +136,9 @@ func (s *Service) ImportCopy(ctx context.Context, principal authz.Principal, r d
 // onImportFinished follows a stack.import: the copy becomes the applied
 // revision (a successful import deployed exactly those bytes); a failure
 // after the switch leaves the stack failed on its copy; a failure before
-// it forgets the stack (nothing changed on the host).
+// it forgets the stack (nothing changed on the host). A containerless
+// import deployed nothing: the copy is the observed revision only and the
+// stack stays undeployed.
 func (s *Service) onImportFinished(ctx context.Context, db bun.IDB, j domain.Job) error {
 	st, err := store.GetStack(ctx, db, stackTarget(j))
 	if errors.Is(err, domain.ErrStackNotFound) {
@@ -140,8 +153,23 @@ func (s *Service) onImportFinished(ctx context.Context, db bun.IDB, j domain.Job
 		return s.forget(ctx, db, st, j, "stack import did not switch to the copy; the stack is forgotten")
 	}
 	now := s.now()
+	containerless := importedContainerless(j)
 	var rev *domain.RevisionRef
-	if ok && out.Sources != nil {
+	switch {
+	case ok && out.Sources != nil && containerless:
+		// Nothing was deployed: the copy's files are the stack's first
+		// (observed) revision, and none is applied.
+		r, err := s.observe(ctx, db, &st, *out.Sources, domain.RevisionExternal, initiator(j))
+		if err != nil {
+			return err
+		}
+		if r != nil {
+			rev = r.Ref()
+		} else if st.Observed != nil {
+			same := *st.Observed
+			rev = &same
+		}
+	case ok && out.Sources != nil:
 		if rev, err = s.deployedRevision(ctx, db, &st, *out.Sources, j); err != nil {
 			return err
 		}
@@ -156,8 +184,13 @@ func (s *Service) onImportFinished(ctx context.Context, db bun.IDB, j domain.Job
 			s.setEngine(&st, statesFrom(out.After))
 		}
 	}
-	switch j.State {
-	case domain.JobSucceeded:
+	switch {
+	case j.State == domain.JobSucceeded && containerless:
+		// Imported without containers: it waits for its first deploy, which
+		// reuses the project's volumes (same project name).
+		st.Status = domain.StackUndeployed
+		st.Failed, st.Images = nil, nil
+	case j.State == domain.JobSucceeded:
 		st.Status = domain.StackStopped
 		if ok && out.Import != nil && len(out.Import.WasRunning) > 0 {
 			st.Status = domain.StackDeployed
@@ -184,6 +217,16 @@ func (s *Service) onImportFinished(ctx context.Context, db bun.IDB, j domain.Job
 	s.log.Info("stack import by copy finished", "stack_id", st.ID, "project", st.Name, "state", j.State)
 	s.publish(EventUpdated, st, map[string]string{"jobId": j.ID, "kind": string(j.Kind), "state": string(j.State)})
 	return nil
+}
+
+// importedContainerless reports whether a stack.import copied a project
+// that had no containers (its input's import.containerless).
+func importedContainerless(j domain.Job) bool {
+	var in protocol.StackJobInput
+	if err := json.Unmarshal(j.Input, &in); err != nil || in.Import == nil {
+		return false
+	}
+	return in.Import.Containerless
 }
 
 // forget deletes a stack record, its revisions and the permission rules

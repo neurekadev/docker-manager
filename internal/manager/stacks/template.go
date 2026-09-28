@@ -40,6 +40,8 @@ type TemplateArchive struct {
 	// Archive is the version's tar.gz; SHA256 its expected digest.
 	Archive []byte
 	SHA256  string
+	// Links are the template's links: the new stack starts with them.
+	Links []domain.Link
 }
 
 // TemplateSource resolves template versions (the template service and,
@@ -68,7 +70,8 @@ const maxTemplateTar = 1<<30 + 64<<20
 // CreateFromTemplate creates a stack named r.Name in r.EnvironmentID from
 // a template version. Like Create, it refuses taken names and existing
 // Compose projects or directories and validates the definition on the
-// agent first; the files are the template's, owned by root.
+// agent first; the files are the template's, owned by root. The stack
+// starts with a copy of the template's links (its own from then on).
 func (s *Service) CreateFromTemplate(ctx context.Context, p authz.Principal, r domain.StackFromTemplate) (domain.Stack, domain.StackValidation, error) {
 	var none domain.StackValidation
 	if !protocol.ValidProjectName(r.Name) {
@@ -112,7 +115,7 @@ func (s *Service) CreateFromTemplate(ctx context.Context, p authz.Principal, r d
 	if err != nil {
 		return domain.Stack{}, none, err
 	}
-	if _, ok := projects[r.Name]; ok {
+	if dp, ok := projects[r.Name]; ok && !dp.Containerless {
 		return domain.Stack{}, none, &domain.StackError{Code: domain.StackErrProjectExists,
 			Message: "a Compose project named " + r.Name + " already runs on this environment; import it or choose another name"}
 	}
@@ -152,7 +155,7 @@ func (s *Service) CreateFromTemplate(ctx context.Context, p authz.Principal, r d
 	st := domain.Stack{ID: ids.New(), EnvironmentID: r.EnvironmentID, Name: r.Name, DisplayName: r.DisplayName, Meta: r.Meta,
 		Root: domain.StackRootStacks, Dir: r.Name, Origin: domain.StackOriginCreated, Status: domain.StackUndeployed,
 		Services: servicesFrom(v.Services), Binds: bindsFrom(v.Binds), EngineState: domain.EngineStateMissing,
-		Template: &src.Ref, Revision: 1, CreatedAt: now, UpdatedAt: now}
+		Links: domain.SanitizeLinks(src.Links), Template: &src.Ref, Revision: 1, CreatedAt: now, UpdatedAt: now}
 	importLabelMeta(&st, v.Services)
 	var read protocol.ComposeReadOutput
 	if err := s.call(ctx, r.EnvironmentID, protocol.ReqComposeRead, protocol.ComposeReadInput{Stack: Ref(st)}, &read); err != nil || read.Missing {

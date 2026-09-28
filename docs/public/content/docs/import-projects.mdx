@@ -10,10 +10,8 @@ Docker Manager can take them over, with their names, volumes and data.
 
 1. Open **Stacks** and press **Import project**.
 2. Pick the server. The list shows the Compose projects on it that Docker
-   Manager does not manage yet, running or stopped. A project needs at
-   least one container: a project you took down with `docker compose down`
-   doesn't appear. Start it once, or paste its Compose file into
-   **Stacks → Create stack** instead.
+   Manager does not manage yet: running, stopped, or without any
+   containers (see below). Each row also lists the project's volumes.
 3. Press **Import** next to a project.
 
 What happens next depends on where the project's files are:
@@ -36,6 +34,26 @@ removed and the project starts again from its original folder.
 
 Projects Docker Manager already manages are hidden. Turn off **Hide managed
 stacks** to see them.
+
+## Projects without containers
+
+A project you never started, or took down with `docker compose down`, has no
+containers. Docker Manager still finds it by its Compose file and shows it
+with **No containers**, as long as its folder is in one of these places:
+
+- a folder Docker Manager manages: its `docker-manager_stacks` volume, or
+  a folder from
+  [Manage projects where they are](/docs/import-projects#manage-projects-where-they-are).
+  Each project sits in its own folder directly inside it.
+- a folder mounted into the agent below `/import` (see
+  [Let the agent read the project](/docs/import-projects#let-the-agent-read-the-project)).
+  The project can be the mounted folder itself, or up to two folder levels
+  below it.
+
+Import it like any other project. Nothing is stopped or started: the stack
+is added as **Not deployed**. Deploy it when you are ready. It keeps the
+project's name, so its first deploy uses the project's existing volumes and
+the data in them again.
 
 ## Let the agent read the project
 
@@ -93,6 +111,8 @@ Projects in that folder are then taken over in place when you import them.
 - In the project's files, write full paths instead of `~` (for example
   `/root/.config/app` instead of `~/.config/app`). `~` means a different
   folder for each tool.
+- A project with containers wins over a folder with the same project name.
+  Folders whose name starts with a dot are skipped.
 - Your original folder is never changed. Once the stack runs well, delete
   the original yourself, and stop the old tool from managing the project so
   it does not redeploy or remove it.

@@ -135,8 +135,11 @@ Screens of one area keep their query factories, pure presentation helpers
 (`model.ts`, unit-tested in `model.spec.ts`) and area components in
 `src/lib/features/<area>/`; generic pieces stay in `$lib/ui`. Shared page
 pieces are in `src/lib/features/common` (`Page`, `QueryView` for the
-loading/denied/not-found/error states, `Facts`, `NameCell`, `Fields`,
-`FormFooter`, `ScheduleSummary`, `useUnsaved`/`useCriticalWork`). Query keys
+loading/denied/not-found/error states, `Facts`, `NameCell` and `IconCell`
+(a list row's name with its type icon from `resourceIcons.ts`), `Fields`,
+`FormFooter`, `ScheduleSummary`, `LinkList`/`LinksEditor` (a stack's or
+template's links, rules in `links.ts`), `useUnsaved`/`useCriticalWork`).
+Query keys
 still follow `liveKeys` (a feature marker after `'list'` keeps cached
 shapes apart).
 

@@ -5,7 +5,6 @@
 	// backups it took (each opens its page) and Restore. Backups without a
 	// run stand alone.
 	import { createQuery } from '@tanstack/svelte-query';
-	import Archive from '@lucide/svelte/icons/archive';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import History from '@lucide/svelte/icons/history';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -30,6 +29,7 @@
 	import { environmentName } from '$lib/features/common/data';
 	import { singleEnvironment } from '$lib/features/common/environments.svelte';
 	import NameCell from '$lib/features/common/NameCell.svelte';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import Page from '$lib/features/common/Page.svelte';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import BackupsHeader from '$lib/features/backups/BackupsHeader.svelte';
@@ -135,6 +135,7 @@
 
 {#snippet runCell(r: BackupRun)}
 	<NameCell
+		icon="backup"
 		name={runName(r)}
 		href={r.setId && r.policyId && policyName(r.policyId)
 			? routes.backupPolicy(r.policyId)
@@ -237,7 +238,7 @@
 			>
 				{#snippet empty()}
 					<EmptyState
-						icon={Archive}
+						icon={resourceIcon('backup').icon}
 						color="slate"
 						title={filter.trim() ? 'No backup matches the search.' : 'No backups here.'}
 						description={filter.trim()

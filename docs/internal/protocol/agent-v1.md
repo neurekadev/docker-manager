@@ -410,7 +410,16 @@ project's current directory) and report `copyable` in `compose.discover`;
 the manager refuses an import by copy for other agents. Newer agents also
 report `protected` (Docker Manager's own project): their `stack.import`
 copies it while it runs, neither stopping nor recreating it (result output
-`import.live`); older agents refuse it with `protected`. And `stack.rename`
+`import.live`); older agents refuse it with `protected`. And
+`stack.import_containerless` (`protocol.FeatureStackImportContainerless`):
+only those agents get `stack.import` inputs whose `import` has
+`containerless: true` (a project `compose.discover` reported
+`containerless`: copied and switched, nothing stopped, recreated or
+started, refused once the project has containers); the manager refuses such
+an import for other agents. `compose.discover`'s `containerless` projects
+(found through their Compose files in stack roots and import mounts) and
+every project's `volumes` are output fields newer agents add (no feature).
+And `stack.rename`
 (`protocol.FeatureStackRename`, #7): only those agents serve
 `compose.rename_preview` and execute `stack.rename` (a `stack.*` input with
 `rename`: the new project name and directory; result output `rename`, with

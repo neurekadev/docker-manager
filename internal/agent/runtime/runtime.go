@@ -657,6 +657,8 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	// It imports projects by copying them from its import mounts (#7).
 	if slices.Contains(p.Commands, "stack.import") {
 		p.Features = append(p.Features, protocol.FeatureStackImportCopy)
+		// ... also projects that have no containers.
+		p.Features = append(p.Features, protocol.FeatureStackImportContainerless)
 	}
 	// It pulls a stack's images without deploying them.
 	if slices.Contains(p.Commands, "stack.pull") {

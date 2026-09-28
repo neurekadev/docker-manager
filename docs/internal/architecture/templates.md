@@ -21,8 +21,10 @@ public (listed in the instance's public registry for other managers).
 Migration `20260927223725_create_templates`:
 
 - `templates`: name (unique, case-insensitive), description, tags (JSON,
-  lowercase `[a-z0-9-]`, at most 16), visibility (`private`/`public`),
-  `version_seq` (the last version number handed out), creator, revision.
+  lowercase `[a-z0-9-]`, at most 16), links (JSON list of label and URL,
+  migration `20260928180542_stack_template_links`), visibility
+  (`private`/`public`), `version_seq` (the last version number handed
+  out), creator, revision.
 - `template_icons`: at most one per template; media type, sha256, size and
   the bytes (at most 256 KiB).
 - `template_versions`: number (never reused), label (unique per template),
@@ -86,7 +88,8 @@ deploy, so secrets never travel in the creation request.
 Every instance serves its public templates: `GET /api/v1/template-registry`
 (format `docker-manager.template-registry/v1`: instance ID and name, the
 registry URL, and per public template with at least one version its tags,
-icon and newest 50 versions with archive digests and sizes), plus the
+links (left out when there are none), icon and newest 50 versions with
+archive digests and sizes), plus the
 icons and the version archives under `/api/v1/template-registry/templates/`.
 No sign-in; per-address token buckets (60/s burst for the index and icons,
 20 then one per 3 s for archives); `If-None-Match` answers 304. The
@@ -106,6 +109,12 @@ is keyed by the remote instance ID: the same instance under a new address
 replaces the URL, this instance's own ID is refused, and a registry that is
 removed and added again finds the stacks created from its templates (their
 `stack.template.instanceId`), so their icons come back.
+
+The index is validated entry by entry, never trusted: a template's links
+(`RegistryLinks`, whose decoding leaves out a list or entry of the wrong
+shape) pass `domain.SanitizeLinks` (the same rules as local links);
+invalid or repeated ones are dropped, never the template or the registry,
+and at most 10 are kept (`template_registry_entries.links`).
 
 `GET /api/v1/template-catalog` lists this instance's templates and every
 registry's cached templates; `/templates/remote/{instanceId}/{templateId}`
@@ -152,6 +161,21 @@ entries of a stack's project directory from its agent (`files.download`,
 tar.gz; escaping symlinks, hard links and special files are left out) into
 a new template or an existing draft. All three fill a fresh directory and
 swap it in, so the draft never ends half-written.
+
+## Links
+
+A template's links (documentation, website, repository; `domain.Link`)
+are edited with its details (`POST /templates`, `PATCH
+/templates/{templateId}` with `links`; `template.manage`) and checked by
+`domain.NormalizeLinks` (at most 10, absolute `http`/`https` URLs of at
+most 2048 characters without user information, each URL once, labels of at
+most 60 characters; `422` names the field, `body.links[0].url`). The full
+view, the catalog (own and registry templates) and the public registry
+carry them. A stack created from a template starts with a copy
+(`stacks.TemplateArchive.Links`), its own from then on. URLs may carry
+query strings: never logged or audited (audit details carry `linkCount`
+and the number of links in the diff). The web shows them under the page
+header (`LinkList`) and edits them in Settings → Details (`LinksEditor`).
 
 ## Icons and live updates
 

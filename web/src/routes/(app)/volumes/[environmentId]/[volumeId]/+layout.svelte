@@ -20,6 +20,7 @@
 	import { ApiRequestError } from '$lib/api/client';
 	import { myPermissionsQuery, volumeQuery, volumeUsageQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
+	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Badge,
@@ -155,11 +156,11 @@
 			<Skeleton height="56px" radius="lg" /><Skeleton lines={4} height="20px" />
 		</div>
 	{:else if offline}
-		<PageHeader title={name} icon={HardDrive} color="teal" />
+		<PageHeader title={name} {...resourceIcon('volume')} />
 		<OfflineEnvironment name={envName} since={scope.environment(env)?.connectionChangedAt} />
 	{:else if notFound}
 		<EmptyState
-			icon={HardDrive}
+			icon={resourceIcon('volume').icon}
 			color="slate"
 			title="No volume named {name} on {envName}."
 			description="It may have been removed, or you don't have access to it."
@@ -176,7 +177,7 @@
 			onretry={() => q.refetch()}
 		/>
 	{:else if v}
-		<PageHeader title={v.name} truncate icon={HardDrive} color="teal" {meta}>
+		<PageHeader title={v.name} truncate {...resourceIcon('volume')} {meta}>
 			{#snippet status()}
 				{#if v.inUse}<Badge tone="ok" dot>In use</Badge>{:else}<Badge>Unused</Badge>{/if}
 				{#if !access.local}<Badge tone="warn">Read-only</Badge>{/if}
