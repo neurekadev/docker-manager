@@ -424,9 +424,10 @@
 								title="Containers restart without asking"
 								live="none"
 							>
-								Scheduled updates recreate containers as soon as a new digest is
-								found. A failed update is not rolled back: its digest is quarantined
-								and you pin a working image yourself.
+								At each time of the update schedule, Docker Manager applies what the
+								last check found and recreates those containers. A failed update is
+								not rolled back: its digest is quarantined and you pin a working
+								image yourself.
 							</Notice>
 						{/if}
 						{#if runZone && runEnabled}
@@ -444,7 +445,7 @@
 					>
 						<Switch
 							label="Only update inside a window"
-							description="Scheduled updates wait for the window; manual updates run any time."
+							description="Scheduled updates outside the window are skipped; manual updates run any time."
 							bind:checked={windowOn}
 							onchange={() => (touched = true)}
 						/>
