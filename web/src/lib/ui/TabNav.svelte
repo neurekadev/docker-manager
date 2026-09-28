@@ -94,10 +94,18 @@
 		border-bottom: 1px solid var(--border-subtle);
 	}
 
+	/* Sideways only: a vertical swipe on the tabs scrolls the page instead of
+	   bouncing the row (overflow-x: auto alone makes overflow-y auto too).
+	   The 1 px bottom padding holds the current tab's underline, which
+	   covers the row's border (the negative margin keeps the layout). */
 	nav {
 		min-width: 0;
 		overflow-x: auto;
+		overflow-y: hidden;
+		overscroll-behavior-x: contain;
 		scrollbar-width: none;
+		padding-bottom: 1px;
+		margin-bottom: -1px;
 		--fade: 40px;
 	}
 

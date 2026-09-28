@@ -44,11 +44,16 @@
 </Tabs.Root>
 
 <style>
+	/* Sideways only: a vertical swipe on the tabs scrolls the page instead of
+	   bouncing the row. The baseline is an inset line and the underline sits
+	   on it (bottom: 0), so nothing overflows the list vertically. */
 	:global(.dy-tab-list) {
 		display: flex;
 		gap: var(--space-1);
-		border-bottom: 1px solid var(--border-subtle);
+		box-shadow: inset 0 -1px 0 var(--border-subtle);
 		overflow-x: auto;
+		overflow-y: hidden;
+		overscroll-behavior-x: contain;
 		scrollbar-width: none;
 	}
 
@@ -82,7 +87,7 @@
 		position: absolute;
 		left: 0;
 		right: 0;
-		bottom: -1px;
+		bottom: 0;
 		height: 2px;
 		background: var(--accent);
 	}
