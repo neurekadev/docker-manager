@@ -72,11 +72,4 @@
 		min-height: 0;
 		overflow: hidden;
 	}
-
-	/* xterm takes keystrokes through a hidden textarea that inherits the
-	   page's 13 px, and iOS zooms into it on focus. It is invisible, so only
-	   its size changes: 16 px on touch screens. */
-	.term :global(.xterm-helper-textarea) {
-		font-size: var(--text-input-mono);
-	}
 </style>
