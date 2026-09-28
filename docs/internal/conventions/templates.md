@@ -14,6 +14,9 @@ store: `internal/manager/store/templates.go`.
   `os` calls outside `internal/manager/templates`). Every change that adds
   bytes checks `CheckQuota` first and holds `Writing(id)` while it runs, so
   a publication never captures a half-written file.
+- Drafts are in manager-state backups (`backup.go`: `templates.tar.gz`
+  written by `WriteDrafts`, put back by `RestoreDrafts` when a restore is
+  applied); published versions are in the database.
 - Template file jobs are the `template.files.*` kinds: manager executor,
   one exclusive `template` lock (instance-level, like repository locks), no
   path locks, capability `template.files.<verb>` from the `template` target.

@@ -127,9 +127,10 @@ Nothing automatic or destructive runs until you turn it on:
   it, backups cannot be restored. A stack backup holds the stack's folder
   and its named volumes. Host folders it mounts from elsewhere, such as
   `/mnt:/mnt`, are left out unless you add them to the backup policy (and
-  the host's agent allows them). Include **manager state** in at least one
-  backup policy that stores its backups away from the manager's own disk
-  (S3, or a folder on another host).
+  the host's agent allows them). **Manager state** is Docker Manager's own
+  data: settings, users, stacks and your templates, drafts included.
+  Include it in at least one backup policy that stores its backups away
+  from the manager's own disk (S3, or a folder on another host).
 
 ## Restore from a backup
 

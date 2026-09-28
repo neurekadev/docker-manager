@@ -49,6 +49,8 @@ const (
 	restoreMarkerFile  = "restore.json"
 	restoredDBFile     = "docker-manager.db"
 	restoredKeyFile    = "secret.key"
+	// restoredDraftsFile holds the snapshot's template drafts.
+	restoredDraftsFile = "templates.tar.gz"
 	// importMaxSets bounds the sets a preview lists (newest first).
 	importMaxSets = 20
 	// importMaxManifests bounds the manifests handed to the restored

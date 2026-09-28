@@ -19,6 +19,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/secrets"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/store"
+	"code.neureka.dev/docker-manager/docker-manager/internal/manager/templates"
 	"code.neureka.dev/docker-manager/docker-manager/internal/restic"
 )
 
@@ -45,7 +46,8 @@ type RestoreMarker struct {
 	Manifests []backup.Manifest `json:"manifests"`
 	StagedAt  time.Time         `json:"stagedAt"`
 	AppliedAt *time.Time        `json:"appliedAt,omitempty"`
-	// PreRestoreDir keeps the replaced database and key file.
+	// PreRestoreDir keeps the replaced database, key file and template
+	// drafts.
 	PreRestoreDir string `json:"preRestoreDir,omitempty"`
 }
 
@@ -174,6 +176,21 @@ func (s *Service) stepImportScan(ctx context.Context, sc *jobexec.StepContext) e
 	st, err := os.Stat(dbPath)
 	if err != nil {
 		return err
+	}
+	if info.TemplatesIncluded {
+		sc.Progress(ctx, 60, "restoring the template drafts")
+		df, err := os.OpenFile(filepath.Join(dir, restoredDraftsFile), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // staging path below the data directory
+		if err != nil {
+			return err
+		}
+		derr := repo.Dump(ctx, in.ManagerSnapshotID, file(templates.DraftsArchiveName), df)
+		cerr := df.Close()
+		if derr != nil {
+			return importFailure(derr, in.Destination.Repository(backup.ScopeManager))
+		}
+		if cerr != nil {
+			return cerr
+		}
 	}
 	sc.Progress(ctx, 70, "checking the restored database")
 	adopt, notAdopted, err := s.checkRestoredDatabase(ctx, dbPath, info, key, sec, which)
@@ -399,6 +416,22 @@ func ApplyPendingRestore(dataDir, dbPath, keyFile string, now time.Time) (*Resto
 		}
 		if err := os.Rename(staged, dbPath); err != nil {
 			return nil, fmt.Errorf("move the restored database into place: %w", err)
+		}
+	}
+	// Template drafts (templates.tar.gz of the snapshot): the current ones
+	// move to the pre-restore directory.
+	if drafts := filepath.Join(pending, restoredDraftsFile); exists(drafts) {
+		f, err := os.Open(drafts) //nolint:gosec // staged restore below the data directory
+		if err != nil {
+			return nil, err
+		}
+		rerr := templates.RestoreDrafts(f, templates.DraftsDir(dataDir), filepath.Join(mk.PreRestoreDir, "templates"))
+		_ = f.Close()
+		if rerr != nil {
+			return nil, fmt.Errorf("restore the template drafts: %w", rerr)
+		}
+		if err := os.Remove(drafts); err != nil {
+			return nil, err
 		}
 	}
 	stagedKey := filepath.Join(pending, restoredKeyFile)
