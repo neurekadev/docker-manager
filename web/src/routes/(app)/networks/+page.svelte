@@ -64,16 +64,17 @@
 		...containersQuery(scope.targets),
 		enabled: scope.ready && scope.targets.length > 0 && readContainers
 	}));
+	// Attached containers by `<environment>/<network>`.
 	const attached = $derived.by(() => {
-		const counts = new Map<string, number>();
+		const counts: Record<string, number> = {};
 		for (const c of containers.data?.items ?? [])
 			for (const n of c.networks ?? []) {
 				const k = `${c.environmentId}/${n.name}`;
-				counts.set(k, (counts.get(k) ?? 0) + 1);
+				counts[k] = (counts[k] ?? 0) + 1;
 			}
 		return counts;
 	});
-	const usersOf = (n: Net) => attached.get(`${n.environmentId}/${n.name}`) ?? 0;
+	const usersOf = (n: Net) => attached[`${n.environmentId}/${n.name}`] ?? 0;
 
 	const filters = new ListFilters('networks');
 	let createOpen = $state(false);
@@ -83,7 +84,7 @@
 	const defs = $derived(
 		networkFilters(all, {
 			envs: scope.single ? [] : scope.targets,
-			used: containers.data ? new Set(attached.keys()) : undefined
+			used: containers.data ? new Set(Object.keys(attached)) : undefined
 		})
 	);
 	const rows = $derived(applyListFilters(all, defs, filters.state, networkSearch));

@@ -68,8 +68,10 @@
 			{name}
 			onValueChange={(v) => onchange?.(v)}
 		>
+			<!-- role combobox: the select-only combobox pattern (announced with its value). -->
 			<Select.Trigger
 				id={c.id}
+				role="combobox"
 				class="dy-input dy-select-trigger"
 				aria-describedby={c.describedBy}
 				aria-invalid={c.invalid || undefined}
