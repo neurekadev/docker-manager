@@ -21,7 +21,7 @@ override in v1; Docker on the host is the escape hatch).
 | --- | --- | --- |
 | The connected agent's container | its own container ID (`selfid`, verified against the container list) | `agent` (self) |
 | A co-located manager | the manager's container ID from `manager.identity` (sent by the manager after every reconnect; the manager finds its own ID with `selfid`) | `manager` (self) |
-| Other Docker Manager containers | label `dev.neureka.docker-manager.role=agent|manager` (the documented compose files) — also when no ID matched (another installation, or detection failed) | `agent` / `manager` |
+| Other Docker Manager containers | label `dev.neureka.docker-manager.role=agent|manager` (the documented compose files and the `docker run` install command) — also when no ID matched (another installation, or detection failed) | `agent` / `manager` |
 | Docker Manager's Compose project | the Compose project of the containers above; every other container in it (e.g. the reverse proxy) | `docker_manager_project` |
 | Their images | image IDs of the containers above | `docker_manager_image` |
 | Manager data volume | the manager container's volume at `/var/lib/docker-manager` | `manager_data` |
