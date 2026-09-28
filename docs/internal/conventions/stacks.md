@@ -36,7 +36,10 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   below `/import`, `storage.Result.ImportSource`), stopped, copied with
   `migration.CopyTree`/`VerifyTree`/`CopyXattrs` into `<stacks>/<project>`
   (same project name, so volumes keep their names), recreated from the copy
-  and resumed; before the journaled switch every failure rolls back.
+  and resumed; before the journaled switch every failure rolls back. The
+  copy is made durable with `migration.SyncTree`/`SyncDir` (fsync of the
+  copy only, cancellable); never call a host-wide `sync(2)` from a job step:
+  it waits for every filesystem of the host and ignores cancellation.
   `prepare` refuses when a container differs from what the files create
   (`drift.go`: settings a previous tool injected, or files edited after the
   last deploy, named by `editedAfter`); environment values stay in memory

@@ -29,5 +29,8 @@ func freeBytes(string) int64 { return -1 }
 // CopyXattrs copies nothing outside Linux (no extended attributes there).
 func CopyXattrs(context.Context, string, string) (XattrStats, error) { return XattrStats{}, nil }
 
-// Sync is a no-op outside Linux.
-func Sync() {}
+// SyncTree flushes nothing outside Linux (the agent runs on Linux only).
+func SyncTree(context.Context, string) error { return nil }
+
+// SyncDir flushes nothing outside Linux.
+func SyncDir(string) error { return nil }

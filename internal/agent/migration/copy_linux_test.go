@@ -3,8 +3,11 @@
 package migration_test
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -60,5 +63,38 @@ func TestCopyTreeKeepsTheTreeAndVerifies(t *testing.T) {
 	must(os.Chmod(filepath.Join(dst, "copy", "compose.yaml"), 0o600))
 	if err := migration.VerifyTree(ctx, sfs, dfs); err == nil {
 		t.Error("a changed mode was not detected")
+	}
+}
+
+// TestSyncTreeFlushesOnlyTheTree: SyncTree flushes the files and
+// directories of one tree (never a host-wide sync(2), which waits for every
+// filesystem and cannot be cancelled), never opens a FIFO (that open would
+// block) and stops when its context ends.
+func TestSyncTreeFlushesOnlyTheTree(t *testing.T) {
+	ctx := testutil.Context(t)
+	dir := t.TempDir()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(os.MkdirAll(filepath.Join(dir, "pgdata", "base"), 0o700))
+	must(os.WriteFile(filepath.Join(dir, "compose.yaml"), []byte("services: {}\n"), 0o644))
+	must(os.WriteFile(filepath.Join(dir, "pgdata", "base", "1"), []byte("rows"), 0o600))
+	must(os.Symlink("/nonexistent", filepath.Join(dir, "dangling")))
+	must(os.Link(filepath.Join(dir, "compose.yaml"), filepath.Join(dir, "compose.link")))
+	must(syscall.Mkfifo(filepath.Join(dir, "pgdata", "fifo"), 0o600))
+
+	must(migration.SyncTree(ctx, filepath.ToSlash(dir)))
+	must(migration.SyncDir(filepath.ToSlash(dir)))
+
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if err := migration.SyncTree(cancelled, filepath.ToSlash(dir)); !errors.Is(err, context.Canceled) {
+		t.Errorf("cancelled SyncTree: %v", err)
+	}
+	if err := migration.SyncTree(ctx, filepath.ToSlash(filepath.Join(dir, "missing"))); err == nil {
+		t.Error("a missing tree was flushed")
 	}
 }

@@ -3,6 +3,9 @@
 package migration
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
@@ -45,6 +48,79 @@ func freeBytes(dir string) int64 {
 	return int64(st.Bavail) * int64(st.Bsize) //nolint:gosec // block counts fit
 }
 
-// Sync flushes every filesystem's dirty data to disk (a copy is durable
-// before anything starts using it).
-func Sync() { syscall.Sync() }
+// SyncTree makes the tree at dir durable before anything uses it: it
+// flushes (fsync) every regular file and directory below dir, each
+// directory after its entries, and dir last. Only this tree is flushed: a
+// host-wide sync(2) waits for the dirty data of every filesystem of the
+// host (minutes on a busy one) and cannot be cancelled. Symlinks, FIFOs and
+// other special files are never opened; their entries are flushed with
+// their directory. It stops when ctx ends. A filesystem that cannot flush
+// a directory (EINVAL, ENOTSUP) is not an error.
+func SyncTree(ctx context.Context, dir string) error {
+	r, err := os.OpenRoot(filepath.FromSlash(dir))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = r.Close() }()
+	return syncEntry(ctx, r, ".")
+}
+
+// SyncDir flushes the entries of dir (e.g. after a rename into it).
+func SyncDir(dir string) error {
+	f, err := os.Open(filepath.FromSlash(dir))
+	if err != nil {
+		return err
+	}
+	return syncDirFile(f)
+}
+
+func syncEntry(ctx context.Context, r *os.Root, name string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	fi, err := r.Lstat(name)
+	if err != nil {
+		return err
+	}
+	switch {
+	case fi.IsDir():
+		f, err := r.Open(name)
+		if err != nil {
+			return err
+		}
+		names, err := f.Readdirnames(-1)
+		if err != nil {
+			_ = f.Close()
+			return err
+		}
+		for _, n := range names {
+			if err := syncEntry(ctx, r, filepath.Join(name, n)); err != nil {
+				_ = f.Close()
+				return err
+			}
+		}
+		return syncDirFile(f)
+	case fi.Mode().IsRegular():
+		// O_NONBLOCK: an entry swapped for a FIFO meanwhile never blocks
+		// the open (it fails the same-file check instead).
+		f, err := r.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+		if err != nil {
+			return err
+		}
+		if ofi, err := f.Stat(); err != nil || !os.SameFile(fi, ofi) {
+			_ = f.Close()
+			return fmt.Errorf("%s changed while it was flushed", name)
+		}
+		return errors.Join(f.Sync(), f.Close())
+	}
+	return nil
+}
+
+// syncDirFile flushes and closes an open directory.
+func syncDirFile(f *os.File) error {
+	err := f.Sync()
+	if errors.Is(err, syscall.EINVAL) || errors.Is(err, syscall.ENOTSUP) {
+		err = nil // the filesystem does not flush directories
+	}
+	return errors.Join(err, f.Close())
+}

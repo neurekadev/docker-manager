@@ -416,8 +416,12 @@ stack_not_copyable` with the agent's reason) and agents without
    skipped and listed), compares both trees entry by entry
    (`migration.VerifyTree`: type, size, mode, owner, mtime, link targets),
    copies extended attributes (`migration.CopyXattrs`: POSIX ACLs, file
-   capabilities, user/trusted attributes; not SELinux labels), flushes to
-   disk and renames the staging directory to `<name>`. The
+   capabilities, user/trusted attributes; not SELinux labels), flushes the
+   copy to disk (`migration.SyncTree`: fsync of its files and directories
+   only, cancellable; never a host-wide `sync(2)`, which waits for every
+   filesystem of the host and cannot be cancelled), renames the staging
+   directory to `<name>` and flushes the stacks volume's directory
+   (`migration.SyncDir`). The
    `remove_import_copy` compensation (journaled after the staging directory
    exists, with its device and inode) removes the copy on any failure until
    the switch, never a directory it did not create.

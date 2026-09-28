@@ -44,9 +44,10 @@ import (
 //     the stacks volume with the migration archive format (numeric owners,
 //     permission and special bits, times, symlinks, hard links, FIFOs),
 //     then extended attributes (ACLs, file capabilities); the copy is
-//     compared entry by entry with the source, flushed to disk and renamed
-//     to <project>. The remove_import_copy compensation removes it on any
-//     failure until the project switches to it.
+//     compared entry by entry with the source, flushed to disk (fsync of
+//     the copy's files and directories only, never a host-wide sync) and
+//     renamed to <project>. The remove_import_copy compensation removes it
+//     on any failure until the project switches to it.
 //  4. recreate: the project is loaded from the copy and its bind sources
 //     checked against the original; then the project switches (journaled,
 //     the copy's compensation released) and Compose recreates every
@@ -784,11 +785,15 @@ func (s *Service) importCopy(ctx context.Context, sc *jobexec.StepContext) error
 	if err != nil {
 		return importRefusal(classImportCopyFailed, "copying extended attributes failed: %v", err)
 	}
-	migration.Sync()
+	if err := migration.SyncTree(ctx, filepath.ToSlash(stagingDir)); err != nil {
+		return importRefusal(classImportCopyFailed, "flush the copy to disk: %v", err)
+	}
 	if err := root.Rename(staging, in.Stack.Dir); err != nil {
 		return importRefusal(classImportCopyFailed, "move the copy into place: %v", err)
 	}
-	migration.Sync()
+	if err := migration.SyncDir(res.StacksDir); err != nil {
+		return importRefusal(classImportCopyFailed, "flush the stacks volume's directory to disk: %v", err)
+	}
 	sc.Progress(ctx, 75, fmt.Sprintf("copied %d entries (%s)", stats.Entries, humanBytes(stats.Bytes)))
 	return updateImport(ctx, sc, func(o *protocol.StackJobOutput, r *protocol.StackImportReport) {
 		r.Copied, r.Entries, r.Bytes = true, stats.Entries, stats.Bytes
