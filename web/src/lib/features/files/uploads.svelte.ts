@@ -7,6 +7,7 @@
 // its policy. While anything uploads, criticalWork keeps the PWA from
 // reloading (#23).
 import { criticalWork } from '$lib/live';
+import { formatBytes } from '$lib/ui/format';
 
 export type UploadState = 'queued' | 'uploading' | 'done' | 'failed' | 'cancelled' | 'skipped';
 
@@ -56,6 +57,16 @@ export interface UploadQueueOptions {
 	onsettled?: (item: UploadItem) => void;
 	/** Called once the queue became idle with the batch's items. */
 	ondrained?: (items: UploadItem[]) => void;
+	/**
+	 * The root's upload limit (the listing's limits.uploadMaxBytes); larger
+	 * files fail at once instead of being sent. Undefined: not known yet.
+	 */
+	maxBytes?: () => number | undefined;
+}
+
+/** The message of a file over the upload limit. */
+export function tooLargeMessage(maxBytes: number): string {
+	return `The file is larger than the upload limit of ${formatBytes(maxBytes)}. An administrator can raise it.`;
 }
 
 function uploadError(status: number, body: string): string {
@@ -99,6 +110,7 @@ export class UploadQueue {
 		if (reqs.length === 0) return;
 		if (!this.active) this.items = this.items.filter((i) => i.state === 'failed');
 		const added: UploadItem[] = [];
+		const max = this.#opts.maxBytes?.();
 		for (const req of reqs) {
 			const item: UploadItem = {
 				id: this.#next++,
@@ -108,8 +120,12 @@ export class UploadQueue {
 				loaded: 0,
 				state: req.skip ? 'skipped' : 'queued'
 			};
+			if (!req.skip && max !== undefined && req.file.size > max) {
+				item.state = 'failed';
+				item.error = tooLargeMessage(max);
+			}
 			added.push(item);
-			if (!req.skip) this.#pending.push({ item, req });
+			if (item.state === 'queued') this.#pending.push({ item, req });
 		}
 		this.items = [...this.items, ...added];
 		if (this.#pending.length && !this.#release)

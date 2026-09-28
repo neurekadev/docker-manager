@@ -32,9 +32,11 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz/authztest"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/files"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/jobs"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
 	"code.neureka.dev/docker-manager/docker-manager/internal/streammux/muxtest"
 	"code.neureka.dev/docker-manager/docker-manager/internal/testutil"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/fscorpus"
 )
 
 const (
@@ -49,6 +51,22 @@ type agentLoop struct {
 	reqs    map[string]session.RequestHandler
 	pipe    *muxtest.Pipe
 	offline bool
+	// features the agent announces (protocol.FeatureFileLimits).
+	features map[string]bool
+	// streams counts the streams opened per kind.
+	mu      sync.Mutex
+	streams map[string]int
+}
+
+func (l *agentLoop) EnvironmentHasFeature(env, feature string) bool {
+	return env == envID && l.features[feature]
+}
+
+// opened is the number of streams of kind opened so far.
+func (l *agentLoop) opened(kind string) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.streams[kind]
 }
 
 func (l *agentLoop) RequestEnvironment(ctx context.Context, env, name string, input any, _ time.Duration) (json.RawMessage, error) {
@@ -74,6 +92,12 @@ func (l *agentLoop) OpenStream(ctx context.Context, env, kind string, input any,
 	if l.offline || env != envID {
 		return nil, jobs.ErrAgentOffline
 	}
+	l.mu.Lock()
+	if l.streams == nil {
+		l.streams = map[string]int{}
+	}
+	l.streams[kind]++
+	l.mu.Unlock()
 	return l.pipe.Open(ctx, kind, input, o)
 }
 
@@ -277,6 +301,13 @@ type env struct {
 
 func newEnv(t *testing.T, maxUpload int64) *env {
 	t.Helper()
+	return newEnvWith(t, domain.FileLimits{Upload: maxUpload}, false)
+}
+
+// newEnvWith configures the manager's file limits; featured agents
+// announce protocol.FeatureFileLimits.
+func newEnvWith(t *testing.T, limits domain.FileLimits, featured bool) *env {
+	t.Helper()
 	base, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -305,16 +336,17 @@ func newEnv(t *testing.T, maxUpload int64) *env {
 	for k, h := range asvc.Streams() {
 		hs[k] = muxtest.Handler(h)
 	}
-	e.loop = &agentLoop{reqs: asvc.Requests(), pipe: muxtest.New(t, hs)}
+	e.loop = &agentLoop{reqs: asvc.Requests(), pipe: muxtest.New(t, hs), features: map[string]bool{protocol.FeatureFileLimits: featured}}
 	e.pol = authztest.New().Owner("owner")
 	e.jobs = &syncJobs{execs: map[domain.JobKind]jobexec.Executor{}, auth: e.pol, jobs: map[string]domain.Job{}}
 	for _, x := range asvc.Executors() {
 		e.jobs.execs[x.Kind] = x
 	}
-	svc := files.New(files.Options{Agents: e.loop, Jobs: e.jobs, Stacks: stackRoots{dir: sl(e.stack)}, Observer: e.obs, Logger: logger})
+	svc := files.New(files.Options{Agents: e.loop, Jobs: e.jobs, Stacks: stackRoots{dir: sl(e.stack)}, Observer: e.obs, Logger: logger,
+		Limits: limits})
 	t.Cleanup(svc.Close)
 	mux := http.NewServeMux()
-	api.New(mux, api.Deps{Authorizer: e.pol, Files: svc, FilesMaxUpload: maxUpload, Audit: e.audit, Clock: testutil.FakeClock()})
+	api.New(mux, api.Deps{Authorizer: e.pol, Files: svc, FileLimits: limits, Audit: e.audit, Clock: testutil.FakeClock()})
 	e.srv = httptest.NewServer(authztest.Authenticate(mux))
 	t.Cleanup(e.srv.Close)
 	e.volURL = "/api/v1/environments/" + envID + "/volumes/data/files"
@@ -748,5 +780,159 @@ func TestFileContentNeverLogged(t *testing.T) {
 	}
 	if !strings.Contains(audit, "u.env") || !strings.Contains(audit, "volume.files.write") || !strings.Contains(audit, "volume.files.download") {
 		t.Fatalf("audit records lack the operations and paths: %s", audit)
+	}
+}
+
+// listLimits returns the limits of the volume root's listing.
+func (e *env) listLimits() api.FileLimits {
+	e.t.Helper()
+	var list api.FileListing
+	r := e.do("owner", http.MethodGet, e.volURL, nil)
+	must(e.t, r, 200)
+	r.json(e.t, &list)
+	return list.Limits
+}
+
+// TestFileLimitsInListings: the listing reports the limits in effect for
+// the root; agents without protocol.FeatureFileLimits keep their built-in
+// limits (uploads may only be lowered, the edit limit holds for all).
+func TestFileLimitsInListings(t *testing.T) {
+	d := files.DefaultLimits()
+	if d != (domain.FileLimits{Edit: protocol.MaxInlineContent, Upload: 2 << 30, Download: 10 << 30, ExtractBytes: 10 << 30,
+		ExtractRatio: 100, ArchiveEntries: 100_000}) {
+		t.Fatalf("defaults %+v", d)
+	}
+	cfg := domain.FileLimits{Edit: 1 << 20, Upload: 4 << 30, Download: 1 << 30, ExtractBytes: 2 << 30, ExtractRatio: 500, ArchiveEntries: 5000}
+	want := api.FileLimits{EditMaxBytes: 1 << 20, UploadMaxBytes: 4 << 30, DownloadMaxBytes: 1 << 30, ExtractMaxBytes: 2 << 30,
+		ExtractMaxRatio: 500, ArchiveMaxEntries: 5000}
+	if got := newEnvWith(t, cfg, true).listLimits(); got != want {
+		t.Fatalf("featured agent: %+v, want %+v", got, want)
+	}
+	want = api.FileLimits{EditMaxBytes: 1 << 20, UploadMaxBytes: 2 << 30, DownloadMaxBytes: 10 << 30, ExtractMaxBytes: 10 << 30,
+		ExtractMaxRatio: 100, ArchiveMaxEntries: 100_000}
+	if got := newEnvWith(t, cfg, false).listLimits(); got != want {
+		t.Fatalf("older agent: %+v, want %+v", got, want)
+	}
+	if got := newEnv(t, 1<<20).listLimits(); got.UploadMaxBytes != 1<<20 || got.EditMaxBytes != protocol.MaxInlineContent {
+		t.Fatalf("lowered upload: %+v", got)
+	}
+}
+
+// TestRaisedEditLimit: files between the agents' inline limit and a raised
+// edit limit are read and saved through the streams, with the same
+// preconditions; beyond it they are truncated (read) or refused (save).
+func TestRaisedEditLimit(t *testing.T) {
+	for _, featured := range []bool{false, true} {
+		t.Run(fmt.Sprintf("featured=%v", featured), func(t *testing.T) {
+			// The upload limit is lower than the edit limit: saves are not
+			// uploads.
+			e := newEnvWith(t, domain.FileLimits{Edit: 2 << 20, Upload: 1 << 20}, featured)
+			big := strings.Repeat("line of text\n", (1536<<10)/13)
+			e.write(e.vol, "big.log", big)
+
+			var c api.FileContent
+			r := e.do("owner", http.MethodGet, e.volURL+"/content?path=big.log", nil)
+			must(t, r, 200)
+			r.json(t, &c)
+			etag := r.header.Get("ETag")
+			if c.Content != big || c.Truncated || c.Binary || etag == "" || etag != c.Entry.ETag {
+				t.Fatalf("read %d bytes truncated=%v binary=%v etag %q", len(c.Content), c.Truncated, c.Binary, etag)
+			}
+			if e.loop.opened(protocol.StreamFilesDownload) == 0 {
+				t.Fatal("the bytes after the inline limit were not downloaded")
+			}
+
+			edited := "# edited\n" + big
+			r = e.do("owner", http.MethodPut, e.volURL+"/content?path=big.log", map[string]string{"content": edited}, "If-Match", etag)
+			must(t, r, 200)
+			if e.read(e.vol, "big.log") != edited || r.header.Get("ETag") == "" || r.header.Get("ETag") == etag {
+				t.Fatalf("save: etag %q", r.header.Get("ETag"))
+			}
+			// A stale revision is still refused with the current ETag.
+			r = e.do("owner", http.MethodPut, e.volURL+"/content?path=big.log", map[string]string{"content": big}, "If-Match", etag)
+			must(t, r, 412)
+			if r.header.Get("ETag") == "" {
+				t.Fatal("412 without the current ETag")
+			}
+			if e.read(e.vol, "big.log") != edited {
+				t.Fatal("a stale save overwrote the file")
+			}
+			// New files with large content, create-only.
+			must(t, e.do("owner", http.MethodPost, e.volURL+"/entries", map[string]any{"path": "new.log", "type": "file", "content": big}), 201)
+			must(t, e.do("owner", http.MethodPost, e.volURL+"/entries", map[string]any{"path": "new.log", "type": "file", "content": big}), 409)
+			if e.read(e.vol, "new.log") != big {
+				t.Fatal("created content differs")
+			}
+			// Over the edit limit: refused, nothing written.
+			r = e.do("owner", http.MethodPut, e.volURL+"/content?path=big.log", map[string]string{"content": strings.Repeat("x", 2<<20+1)},
+				"If-Match", etag)
+			if r.status != 413 || errCode(t, r) != api.CodePayloadTooLarge {
+				t.Fatalf("over the edit limit: %d %s", r.status, r.body)
+			}
+			// A file over the edit limit reads its first 2 MiB, truncated.
+			e.write(e.vol, "huge.log", strings.Repeat("y", 3<<20))
+			c = api.FileContent{}
+			r = e.do("owner", http.MethodGet, e.volURL+"/content?path=huge.log", nil)
+			must(t, r, 200)
+			r.json(t, &c)
+			if len(c.Content) != 2<<20 || !c.Truncated {
+				t.Fatalf("huge: %d bytes truncated=%v", len(c.Content), c.Truncated)
+			}
+		})
+	}
+}
+
+// TestManagerLimitsReachTheAgent: agents announcing
+// protocol.FeatureFileLimits get the configured limits with archive and
+// extract jobs, extract previews and downloads; other agents get none and
+// keep their defaults.
+func TestManagerLimitsReachTheAgent(t *testing.T) {
+	cfg := domain.FileLimits{Upload: 1 << 20, Download: 1 << 20, ArchiveEntries: 10}
+	for _, featured := range []bool{true, false} {
+		t.Run(fmt.Sprintf("featured=%v", featured), func(t *testing.T) {
+			e := newEnvWith(t, cfg, featured)
+			e.write(e.vol, "many.zip", string(fscorpus.ZipManyEntries(50)))
+			r := e.do("owner", http.MethodPost, e.volURL+"/extractions", map[string]any{"path": "many.zip", "destination": "out"})
+			must(t, r, 202)
+			var j api.Job
+			r.json(t, &j)
+			var in protocol.FilesJobInput
+			last := e.jobs.reqs[len(e.jobs.reqs)-1]
+			b, _ := json.Marshal(last.Input)
+			if err := json.Unmarshal(b, &in); err != nil {
+				t.Fatal(err)
+			}
+			r = e.do("owner", http.MethodPost, e.volURL+"/conflict-previews", map[string]any{"operation": "extract", "paths": []string{"many.zip"},
+				"destination": "out2"})
+			if featured {
+				if in.Limits == nil || in.Limits.MaxArchiveEntries != 10 || in.Limits.MaxDownload != 1<<20 {
+					t.Fatalf("job input limits %+v", in.Limits)
+				}
+				if j.State != "failed" {
+					t.Fatalf("extract over the configured entry limit: %+v", j)
+				}
+				if r.status != 413 {
+					t.Fatalf("preview over the configured entry limit: %d %s", r.status, r.body)
+				}
+			} else {
+				if in.Limits != nil {
+					t.Fatalf("limits sent to an agent without the feature: %+v", in.Limits)
+				}
+				if j.State != "succeeded" {
+					t.Fatalf("extract within the agent's default: %+v", j)
+				}
+				must(t, r, 200)
+			}
+			// Downloads over the configured size (featured) or within the
+			// agent's default (older agents).
+			e.write(e.vol, "two.bin", strings.Repeat("z", 2<<20))
+			r = e.do("owner", http.MethodGet, e.volURL+"/downloads?path=two.bin", nil)
+			if featured && r.status != 413 {
+				t.Fatalf("download over the configured limit: %d", r.status)
+			}
+			if !featured && (r.status != 200 || len(r.body) != 2<<20) {
+				t.Fatalf("download: %d, %d bytes", r.status, len(r.body))
+			}
+		})
 	}
 }

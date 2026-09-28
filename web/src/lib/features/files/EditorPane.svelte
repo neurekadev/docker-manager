@@ -54,6 +54,8 @@
 		onisdir: (path: string) => void;
 		/** Names in a directory (Save as… refuses taken names early). */
 		takenNames?: (dir: string) => string[];
+		/** The root's edit limit (bytes, from the listing). */
+		editLimit?: number;
 	}
 
 	let {
@@ -63,7 +65,8 @@
 		stack = null,
 		ondownload,
 		onisdir,
-		takenNames
+		takenNames,
+		editLimit
 	}: Props = $props();
 	const qc = useQueryClient();
 
@@ -441,6 +444,7 @@
 					bind:editor={editors[t.path]}
 					{ondownload}
 					{onisdir}
+					{editLimit}
 				/>
 			</div>
 		{/each}

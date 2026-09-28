@@ -11,7 +11,7 @@
 	import type { CodeEditorHandle } from '$lib/lazy';
 	import { Button, CodeEditor, EmptyState, ErrorState, Notice, formatBytes } from '$lib/ui';
 	import { contentQuery, type FilesApi } from './api';
-	import type { EditorSession, EditorTab } from './editor.svelte';
+	import { truncatedTitle, type EditorSession, type EditorTab } from './editor.svelte';
 	import { imageType } from './language';
 	import MarkdownView from './MarkdownView.svelte';
 	import { basename } from './paths';
@@ -28,6 +28,8 @@
 		onisdir: (path: string) => void;
 		/** Wrap long lines. */
 		wrap?: boolean;
+		/** The root's edit limit (bytes): larger files open read-only. */
+		editLimit?: number;
 	}
 
 	let {
@@ -39,7 +41,8 @@
 		editor = $bindable(),
 		ondownload,
 		onisdir,
-		wrap = false
+		wrap = false,
+		editLimit
 	}: Props = $props();
 
 	const path = untrack(() => tab.path);
@@ -139,10 +142,7 @@
 	{:else}
 		{#if tab.truncated}
 			<div class="note">
-				<Notice
-					tone="info"
-					title="Showing the first 512 KiB of {formatBytes(tab.entry?.size ?? 0)}"
-				>
+				<Notice tone="info" title={truncatedTitle(editLimit, tab.entry?.size ?? 0)}>
 					This file is too large to edit here. Download it to see all of it.
 					{#snippet actions()}
 						<Button size="sm" icon={Download} onclick={() => ondownload(path)}

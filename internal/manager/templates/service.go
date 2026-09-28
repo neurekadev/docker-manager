@@ -57,6 +57,10 @@ type Options struct {
 	// MaxSize and MaxEntries bound a template's content (defaults above).
 	MaxSize    int64
 	MaxEntries int
+	// MaxEdit is the file manager's edit limit (DOCKER_MANAGER_FILES_MAX_EDIT_KB):
+	// the most one read of a draft file returns and one save accepts
+	// (default protocol.MaxInlineContent).
+	MaxEdit int64
 	// Bus receives file invalidations of drafts (live file views).
 	Bus *events.Bus
 	// Executors registers the template.files.* job executors (the job
@@ -118,7 +122,7 @@ func New(ctx context.Context, o Options) (*Service, error) {
 		client: NewRegistryClient(o.HTTPClient)}
 	s.files = fsroot.New(fsroot.Options{
 		Resolve: s.resolve, Clock: o.Clock, Logger: o.Logger,
-		Limits: fsroot.Limits{MaxUpload: o.MaxSize, MaxDownload: 4 * o.MaxSize, MaxArchiveEntries: o.MaxEntries,
+		Limits: fsroot.Limits{MaxInline: o.MaxEdit, MaxUpload: o.MaxSize, MaxDownload: 4 * o.MaxSize, MaxArchiveEntries: o.MaxEntries,
 			MaxExtractBytes: o.MaxSize, MaxWalk: 4 * o.MaxEntries},
 		Kinds:      templateKinds,
 		Invalidate: s.invalidate,

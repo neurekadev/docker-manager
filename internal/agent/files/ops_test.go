@@ -20,6 +20,7 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 	"code.neureka.dev/docker-manager/docker-manager/internal/streammux"
+	"code.neureka.dev/docker-manager/docker-manager/internal/testutil/fscorpus"
 )
 
 // TestHardlinkToOutsideIsRefused runs on every platform (hard links need
@@ -570,5 +571,46 @@ func TestContentNeverLogged(t *testing.T) {
 	f.runJob(jobspec.FilesArchive, protocol.FilesJobInput{Scope: f.vol, Paths: []string{"."}, Destination: "all.zip", Format: protocol.FormatZip})
 	if strings.Contains(f.logs.String(), canary) {
 		t.Fatalf("file content reached the log:\n%s", f.logs.String())
+	}
+}
+
+// TestManagerLimitsInJobInputs: the limits the manager sends in a job's
+// input (FeatureFileLimits) replace the agent's defaults for that job, in
+// both directions.
+func TestManagerLimitsInJobInputs(t *testing.T) {
+	f := newFixture(t, func(o *Options) { o.Limits.MaxArchiveEntries = 10 })
+	f.write("many.zip", string(fscorpus.ZipManyEntries(50)))
+	res := f.runJob(jobspec.FilesExtract, protocol.FilesJobInput{Scope: f.vol, Paths: []string{"many.zip"}, Destination: "a"})
+	if res.Outcome != "failed" || !strings.Contains(res.Message, protocol.CodeTooLarge) {
+		t.Fatalf("extract over the agent's entry limit: %+v", res)
+	}
+	res = f.runJob(jobspec.FilesExtract, protocol.FilesJobInput{Scope: f.vol, Paths: []string{"many.zip"}, Destination: "b",
+		Limits: &protocol.FileLimits{MaxArchiveEntries: 100}})
+	if res.Outcome != "succeeded" {
+		t.Fatalf("extract within the manager's raised entry limit: %+v", res)
+	}
+	out, err := f.svc.Preview(f.ctx, protocol.FilesPreviewInput{Scope: f.vol, Operation: protocol.FileOpExtract, Paths: []string{"many.zip"},
+		Destination: "c", Limits: &protocol.FileLimits{MaxArchiveEntries: 100}})
+	if err != nil || out.Impact.Entries != 50 {
+		t.Fatalf("preview within the raised limit: %+v %v", out.Impact, err)
+	}
+
+	g := newFixture(t)
+	g.write("text.txt", strings.Repeat("a", 64<<10))
+	res = g.runJob(jobspec.FilesArchive, protocol.FilesJobInput{Scope: g.vol, Paths: []string{"text.txt"}, Destination: "text.zip", Format: protocol.FormatZip})
+	if res.Outcome != "succeeded" {
+		t.Fatalf("archive: %+v", res)
+	}
+	// 64 KiB of text compress well below the agent's 1 MiB ratio floor; a
+	// lower extraction budget from the manager stops the job.
+	res = g.runJob(jobspec.FilesExtract, protocol.FilesJobInput{Scope: g.vol, Paths: []string{"text.zip"}, Destination: "small",
+		Limits: &protocol.FileLimits{MaxExtractBytes: 1024}})
+	if res.Outcome != "failed" || !strings.Contains(res.Message, protocol.CodeTooLarge) {
+		t.Fatalf("extract over the manager's byte limit: %+v", res)
+	}
+	res = g.runJob(jobspec.FilesArchive, protocol.FilesJobInput{Scope: g.vol, Paths: []string{"text.txt"}, Destination: "tiny.zip", Format: protocol.FormatZip,
+		Limits: &protocol.FileLimits{MaxDownload: 100}})
+	if res.Outcome != "failed" || !strings.Contains(res.Message, protocol.CodeTooLarge) || g.exists("tiny.zip") {
+		t.Fatalf("archive over the manager's size limit: %+v", res)
 	}
 }

@@ -50,7 +50,7 @@ func newSettingsFixture(t *testing.T, pol *authztest.Policy) settingsFixture {
 	bus := events.New(clk)
 	mux := http.NewServeMux()
 	New(mux, Deps{Authorizer: pol, Clock: clk, Settings: settings.New(db, clk), InstanceID: "inst-1", Audit: log, Events: bus,
-		SSEHeartbeat: 20 * time.Second, FilesMaxUpload: 1 << 20, Idempotency: &memIdempotency{}, Builds: emptyBuilds{},
+		SSEHeartbeat: 20 * time.Second, FileLimits: domain.FileLimits{Upload: 1 << 20, Edit: 2 << 20}, Idempotency: &memIdempotency{}, Builds: emptyBuilds{},
 		Deployment: DeploymentInfo{PublicURL: "https://docker.example.com", TrustedProxies: 2, MetricsEnabled: true}})
 	return settingsFixture{h: authztest.Authenticate(withTestContext(t, mux, "")), bus: bus, log: log}
 }
@@ -99,8 +99,10 @@ func TestSettingsReadAndEdit(t *testing.T) {
 	if r.Status != http.StatusOK || r.Header.Get("ETag") != `"1"` || json.Unmarshal(r.Body, &s) != nil {
 		t.Fatalf("%d %v %s", r.Status, r.Header, r.Body)
 	}
+	// Unset file limits show the defaults.
 	want := DeploymentSettings{PublicURL: "https://docker.example.com", TrustedProxyCount: 2, StreamHeartbeatSeconds: 20,
-		FilesMaxUploadBytes: 1 << 20, MetricsEndpoint: true}
+		FilesMaxUploadBytes: 1 << 20, FilesMaxEditBytes: 2 << 20, FilesMaxDownloadBytes: 10 << 30, FilesMaxExtractBytes: 10 << 30,
+		FilesMaxExtractRatio: 100, FilesMaxArchiveEntries: 100_000, MetricsEndpoint: true}
 	if s.Name != "Docker Manager" || s.InstanceID != "inst-1" || s.Revision != 1 || s.Deployment != want {
 		t.Fatalf("%+v", s)
 	}

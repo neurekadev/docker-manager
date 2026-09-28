@@ -26,6 +26,18 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
   `internal/manager/api/files.go` (checks `<root>.files.*` and
   `stack.definition.*`); shared types `internal/protocol/files.go`; contract
   `docs/internal/api/files.md`. Never log file contents or put them in audit details.
+- **Limits:** the file manager's size and entry limits are the manager's
+  `DOCKER_MANAGER_FILES_*` configuration (`config.Config.Files`,
+  `domain.FileLimits`). `files.Service.Limits(root)` is the limit in
+  effect for a root (configured, an older agent's defaults, a template's);
+  enforce edit and upload limits in the API from it, send agent-side
+  limits as `protocol.FileLimits` only to agents with
+  `protocol.FeatureFileLimits`, and let `fsroot` apply them per operation
+  (`limitsFor`, capped by `protocol.MaxFileLimit*`). The listing reports
+  them (`FileListing.limits`); the web client never hard-codes a limit.
+  Agents' `files.read`/`files.write` stay at `protocol.MaxInlineContent`
+  (one frame): the manager reads and saves larger editable files through
+  the streams. Contract: `docs/internal/api/files.md#limits`.
 - **Template drafts** are a third root served by the manager itself: the
   template service's `fsroot` instance (`files.Service.SetTemplates`),
   `template.files.*` manager jobs, `files.invalidated` events with

@@ -34,7 +34,12 @@ the container doesn't start and keeps retrying. Its log says why:
 | `DOCKER_MANAGER_LOG_LEVEL` | `info` | How much the log says: `debug`, `info`, `warn` or `error`. |
 | `DOCKER_MANAGER_SESSION_IDLE_TIMEOUT` | `1h` | Sign out after this long without activity, for example `30m` or `4h`. |
 | `DOCKER_MANAGER_SESSION_LIFETIME` | `24h` | Sign out this long after signing in, whatever you do. |
-| `DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` | `2048` | The largest file you can upload, in MB (at most 2048). |
+| `DOCKER_MANAGER_FILES_MAX_EDIT_KB` | `512` | The largest file you can edit in the file manager, in KB (64 to 16384). Larger files open read-only. |
+| `DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` | `2048` | The largest file you can upload, in MB. Your reverse proxy must allow uploads this large too. |
+| `DOCKER_MANAGER_FILES_MAX_DOWNLOAD_MB` | `10240` | The largest download, and the largest archive you can create, in MB. |
+| `DOCKER_MANAGER_FILES_MAX_EXTRACT_MB` | `10240` | The most one archive may unpack to when you extract it, in MB. |
+| `DOCKER_MANAGER_FILES_MAX_EXTRACT_RATIO` | `100` | An archive may unpack to at most this many times its own size. This stops "zip bombs" from filling your disk. |
+| `DOCKER_MANAGER_FILES_MAX_ARCHIVE_ENTRIES` | `100000` | The most files and folders in one archive you extract or create. |
 | `DOCKER_MANAGER_TEMPLATE_MAX_SIZE_MB` | `32` | The largest template, in MB. |
 | `DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED` | `true` | Set to `false` to stop sharing your public templates. |
 | `DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT` | `0` (no limit) | Limit the speed of moving stacks between servers, for example `50MB`. |

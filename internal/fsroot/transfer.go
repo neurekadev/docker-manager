@@ -13,6 +13,7 @@ import (
 // Download writes one regular file (format raw, optionally a byte range)
 // or a zip/tar.gz archive of the paths to w (the files.download stream).
 func (s *Service) Download(ctx context.Context, in protocol.FilesDownloadInput, w io.Writer) error {
+	lim := s.limitsFor(in.Limits)
 	if len(in.Paths) == 0 || len(in.Paths) > protocol.MaxOperationPaths {
 		return fail(protocol.CodeInvalidFrame, "1 to %d paths", protocol.MaxOperationPaths)
 	}
@@ -39,7 +40,7 @@ func (s *Service) Download(ctx context.Context, in protocol.FilesDownloadInput, 
 			return err
 		}
 		defer func() { _ = f.Close() }()
-		if fi.Size() > s.limits.MaxDownload {
+		if fi.Size() > lim.MaxDownload {
 			return fail(protocol.CodeTooLarge, "the file exceeds the download limit")
 		}
 		if in.Offset > fi.Size() {
@@ -59,7 +60,7 @@ func (s *Service) Download(ctx context.Context, in protocol.FilesDownloadInput, 
 	case protocol.FormatZip, protocol.FormatTarGz:
 		// Coalesce the archive writer's small writes into large frames.
 		bw := bufio.NewWriterSize(w, protocol.MaxChunk/2)
-		if _, err := s.writeArchive(ctx, r, paths, in.Format, bw, ""); err != nil {
+		if _, err := s.writeArchive(ctx, r, lim, paths, in.Format, bw, ""); err != nil {
 			return err
 		}
 		if err := bw.Flush(); err != nil {
@@ -85,8 +86,8 @@ func (s *Service) Upload(ctx context.Context, in protocol.FilesUploadInput, body
 	if !protocol.ValidConflict(in.Conflict) || boolCount(len(in.IfMatch) > 0, in.CreateOnly, in.Conflict != "" && in.Conflict != protocol.ConflictFail) != 1 {
 		return none, fail(protocol.CodeInvalidFrame, "exactly one of ifMatch, createOnly and a conflict policy is required")
 	}
-	if in.Size < 0 || in.Size > s.limits.MaxUpload {
-		return none, fail(protocol.CodeTooLarge, "uploads are limited to %d bytes", s.limits.MaxUpload)
+	if maxUpload := s.limitsFor(in.Limits).MaxUpload; in.Size < 0 || in.Size > maxUpload {
+		return none, fail(protocol.CodeTooLarge, "uploads are limited to %d bytes", maxUpload)
 	}
 	var want []byte
 	if in.SHA256 != "" {

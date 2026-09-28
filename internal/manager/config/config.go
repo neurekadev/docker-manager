@@ -15,9 +15,11 @@ import (
 	"strings"
 	"time"
 
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
 	"code.neureka.dev/docker-manager/docker-manager/internal/logging"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/server/sse"
+	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 	"code.neureka.dev/docker-manager/docker-manager/internal/transfer"
 )
 
@@ -51,7 +53,14 @@ const (
 	EnvMetricsMaxSizeMB        = "DOCKER_MANAGER_METRICS_MAX_SIZE_MB"
 	EnvMetricsMaxSeries        = "DOCKER_MANAGER_METRICS_MAX_SERIES"
 
-	EnvFilesMaxUploadMB = "DOCKER_MANAGER_FILES_MAX_UPLOAD_MB"
+	// File manager limits (#15): the manager enforces them and sends them
+	// to agents that announce protocol.FeatureFileLimits.
+	EnvFilesMaxEditKB         = "DOCKER_MANAGER_FILES_MAX_EDIT_KB"
+	EnvFilesMaxUploadMB       = "DOCKER_MANAGER_FILES_MAX_UPLOAD_MB"
+	EnvFilesMaxDownloadMB     = "DOCKER_MANAGER_FILES_MAX_DOWNLOAD_MB"
+	EnvFilesMaxExtractMB      = "DOCKER_MANAGER_FILES_MAX_EXTRACT_MB"
+	EnvFilesMaxExtractRatio   = "DOCKER_MANAGER_FILES_MAX_EXTRACT_RATIO"
+	EnvFilesMaxArchiveEntries = "DOCKER_MANAGER_FILES_MAX_ARCHIVE_ENTRIES"
 	// EnvTemplateMaxSizeMB bounds a stack template's files (template
 	// registry).
 	EnvTemplateMaxSizeMB = "DOCKER_MANAGER_TEMPLATE_MAX_SIZE_MB"
@@ -101,8 +110,22 @@ const (
 	DefaultMetricsMaxSizeMB        = 2048
 	DefaultMetricsMaxSeries        = 5000
 
-	// DefaultFilesMaxUploadMB is also the agents' own upper bound (#15).
-	DefaultFilesMaxUploadMB = 2048
+	// File manager limits (#15). The defaults are the agents' built-in
+	// ones (internal/fsroot); older agents keep those whatever is set.
+	DefaultFilesMaxEditKB         = 512
+	DefaultFilesMaxUploadMB       = 2048
+	DefaultFilesMaxDownloadMB     = 10240
+	DefaultFilesMaxExtractMB      = 10240
+	DefaultFilesMaxExtractRatio   = 100
+	DefaultFilesMaxArchiveEntries = 100_000
+	// Bounds of the file manager limits: the edit limit keeps the editor
+	// and the request bodies of saves reasonable, the others are the caps
+	// agents apply (protocol.MaxFileLimit*).
+	MinFilesMaxEditKB         = 64
+	MaxFilesMaxEditKB         = 16 << 10
+	MaxFilesMaxSizeMB         = protocol.MaxFileLimitBytes >> 20
+	MinFilesMaxExtractRatio   = 10
+	MinFilesMaxArchiveEntries = 100
 	// DefaultTemplateMaxSizeMB bounds a template's draft and versions.
 	DefaultTemplateMaxSizeMB = 32
 )
@@ -178,9 +201,9 @@ type Config struct {
 	Sessions        SessionsConfig
 	Audit           AuditConfig
 	Metrics         MetricsConfig
-	// FilesMaxUpload bounds one file-manager upload in bytes (#15); the
-	// reverse proxy's body limit must allow it (#27).
-	FilesMaxUpload int64
+	// Files are the file manager's limits (#15). The reverse proxy's body
+	// limit must allow Files.Upload (#27).
+	Files domain.FileLimits
 	// TemplateMaxSize bounds a stack template's files in bytes (draft and
 	// each published version).
 	TemplateMaxSize int64
@@ -246,7 +269,12 @@ func (c Config) Settings() []Setting {
 		{EnvMetricsRetentionQuarter, d(c.Metrics.RetentionQuarter)},
 		{EnvMetricsMaxSizeMB, mb(c.Metrics.MaxBytes)},
 		{EnvMetricsMaxSeries, i(c.Metrics.MaxSeries)},
-		{EnvFilesMaxUploadMB, mb(c.FilesMaxUpload)},
+		{EnvFilesMaxEditKB, strconv.FormatInt(c.Files.Edit>>10, 10)},
+		{EnvFilesMaxUploadMB, mb(c.Files.Upload)},
+		{EnvFilesMaxDownloadMB, mb(c.Files.Download)},
+		{EnvFilesMaxExtractMB, mb(c.Files.ExtractBytes)},
+		{EnvFilesMaxExtractRatio, strconv.FormatInt(c.Files.ExtractRatio, 10)},
+		{EnvFilesMaxArchiveEntries, i(c.Files.ArchiveEntries)},
 		{EnvTemplateMaxSizeMB, mb(c.TemplateMaxSize)},
 		{EnvTemplateRegistryEnabled, strconv.FormatBool(c.TemplateRegistryEnabled)},
 		{EnvTemplateRegistrySyncInterval, c.TemplateRegistrySync.String()},
@@ -256,6 +284,34 @@ func (c Config) Settings() []Setting {
 		{EnvMetricsEnabled, strconv.FormatBool(c.MetricsEnabled)},
 		{"local_development", strconv.FormatBool(c.LocalDevelopment)},
 	}
+}
+
+// DefaultFiles are the file manager limits without configuration.
+func DefaultFiles() domain.FileLimits {
+	return domain.FileLimits{Edit: DefaultFilesMaxEditKB << 10, Upload: DefaultFilesMaxUploadMB << 20,
+		Download: DefaultFilesMaxDownloadMB << 20, ExtractBytes: DefaultFilesMaxExtractMB << 20,
+		ExtractRatio: DefaultFilesMaxExtractRatio, ArchiveEntries: DefaultFilesMaxArchiveEntries}
+}
+
+// loadFiles reads the file manager limits (#15).
+func loadFiles(src envconfig.Source) (domain.FileLimits, error) {
+	var errs []error
+	get := func(name string, def, lo, hi int) int {
+		v, err := src.Int(name, def, lo, hi)
+		if err != nil {
+			errs = append(errs, err)
+		}
+		return v
+	}
+	f := domain.FileLimits{
+		Edit:           int64(get(EnvFilesMaxEditKB, DefaultFilesMaxEditKB, MinFilesMaxEditKB, MaxFilesMaxEditKB)) << 10,
+		Upload:         int64(get(EnvFilesMaxUploadMB, DefaultFilesMaxUploadMB, 1, MaxFilesMaxSizeMB)) << 20,
+		Download:       int64(get(EnvFilesMaxDownloadMB, DefaultFilesMaxDownloadMB, 1, MaxFilesMaxSizeMB)) << 20,
+		ExtractBytes:   int64(get(EnvFilesMaxExtractMB, DefaultFilesMaxExtractMB, 1, MaxFilesMaxSizeMB)) << 20,
+		ExtractRatio:   int64(get(EnvFilesMaxExtractRatio, DefaultFilesMaxExtractRatio, MinFilesMaxExtractRatio, protocol.MaxFileLimitRatio)),
+		ArchiveEntries: get(EnvFilesMaxArchiveEntries, DefaultFilesMaxArchiveEntries, MinFilesMaxArchiveEntries, protocol.MaxFileLimitEntries),
+	}
+	return f, errors.Join(errs...)
 }
 
 // DefaultResticBinary is where the image installs restic (#10).
@@ -370,11 +426,10 @@ func Load(src envconfig.Source) (Config, error) {
 		errs = append(errs, err)
 	}
 
-	uploadMB, err := src.Int(EnvFilesMaxUploadMB, DefaultFilesMaxUploadMB, 1, DefaultFilesMaxUploadMB)
+	cfg.Files, err = loadFiles(src)
 	if err != nil {
 		errs = append(errs, err)
 	}
-	cfg.FilesMaxUpload = int64(uploadMB) << 20
 
 	templateMB, err := src.Int(EnvTemplateMaxSizeMB, DefaultTemplateMaxSizeMB, 1, 1024)
 	if err != nil {

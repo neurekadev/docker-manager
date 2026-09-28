@@ -87,7 +87,7 @@ type archiveEntry struct {
 const typeHardlink = "hardlink"
 
 // scanArchive calls fn for every member of the archive at rel, in order.
-func (s *Service) scanArchive(ctx context.Context, r *scopeRoot, rel string, fn func(archiveEntry) error) error {
+func (s *Service) scanArchive(ctx context.Context, r *scopeRoot, lim Limits, rel string, fn func(archiveEntry) error) error {
 	f, fi, err := openRegular(r.root, rel)
 	if err != nil {
 		return err
@@ -102,8 +102,8 @@ func (s *Service) scanArchive(ctx context.Context, r *scopeRoot, rel string, fn 
 		if err := ctx.Err(); err != nil {
 			return classify(err, rel)
 		}
-		if count++; count > s.limits.MaxArchiveEntries {
-			return fail(protocol.CodeTooLarge, "the archive has more than %d entries", s.limits.MaxArchiveEntries)
+		if count++; count > lim.MaxArchiveEntries {
+			return fail(protocol.CodeTooLarge, "the archive has more than %d entries", lim.MaxArchiveEntries)
 		}
 		e.name, _ = entryName(e.raw)
 		return fn(e)
@@ -114,8 +114,8 @@ func (s *Service) scanArchive(ctx context.Context, r *scopeRoot, rel string, fn 
 		if err != nil {
 			return fail(protocol.CodeUnsupportedFile, "the zip archive is damaged")
 		}
-		if len(zr.File) > s.limits.MaxArchiveEntries {
-			return fail(protocol.CodeTooLarge, "the archive has more than %d entries", s.limits.MaxArchiveEntries)
+		if len(zr.File) > lim.MaxArchiveEntries {
+			return fail(protocol.CodeTooLarge, "the archive has more than %d entries", lim.MaxArchiveEntries)
 		}
 		for _, zf := range zr.File {
 			e := archiveEntry{raw: zf.Name, size: int64(zf.UncompressedSize64), mode: zf.Mode()} //nolint:gosec // G115: declared size, display only
@@ -218,13 +218,13 @@ type extractReport func(name, status, message string)
 // validated; refused entries are reported and skipped. Limits (entries,
 // bytes written, expansion ratio) stop the whole extraction with
 // too_large. The conflict policy applies per entry.
-func (s *Service) extract(ctx context.Context, r *scopeRoot, archiveRel, destRel, policy string, report extractReport) ([]string, error) {
+func (s *Service) extract(ctx context.Context, r *scopeRoot, lim Limits, archiveRel, destRel, policy string, report extractReport) ([]string, error) {
 	st, err := r.root.Lstat(archiveRel)
 	if err != nil {
 		return nil, classify(err, archiveRel)
 	}
-	limit := max(s.limits.ExtractRatioFloor, st.Size()*s.limits.MaxExtractRatio)
-	limit = min(limit, s.limits.MaxExtractBytes)
+	limit := max(lim.ExtractRatioFloor, st.Size()*lim.MaxExtractRatio)
+	limit = min(limit, lim.MaxExtractBytes)
 	b := &budget{left: limit, max: limit}
 	if err := r.root.MkdirAll(destRel, 0o755); err != nil {
 		return nil, classify(err, destRel)
@@ -242,7 +242,7 @@ func (s *Service) extract(ctx context.Context, r *scopeRoot, archiveRel, destRel
 		return false
 	}
 	var changed []string
-	err = s.scanArchive(ctx, r, archiveRel, func(e archiveEntry) error {
+	err = s.scanArchive(ctx, r, lim, archiveRel, func(e archiveEntry) error {
 		if e.name == "" {
 			report(bound(e.raw), "skipped", "refused: unsafe entry name")
 			return nil
@@ -331,7 +331,7 @@ func (s *Service) extract(ctx context.Context, r *scopeRoot, archiveRel, destRel
 			src = rd
 		}
 		tt := &target{dir: t.dir, name: name, rel: join(path.Dir(dest), name)}
-		tmp, _, _, err := s.writeTemp(ctx, tt, io.TeeReader(src, b), s.limits.MaxExtractBytes, nil)
+		tmp, _, _, err := s.writeTemp(ctx, tt, io.TeeReader(src, b), lim.MaxExtractBytes, nil)
 		if err != nil {
 			if codeOf(err) == protocol.CodeTooLarge {
 				return err // the budget: stop everything
@@ -525,8 +525,8 @@ func (c *countingWriter) Write(p []byte) (int, error) {
 // files are skipped and listed in a final DOCKER-MANAGER-SKIPPED.txt member.
 // skip, when set, excludes one root-relative path (the archive being
 // written into the root).
-func (s *Service) writeArchive(ctx context.Context, r *scopeRoot, paths []string, format string, w io.Writer, skip string) (int, error) {
-	cw := &countingWriter{w: w, limit: s.limits.MaxDownload}
+func (s *Service) writeArchive(ctx context.Context, r *scopeRoot, lim Limits, paths []string, format string, w io.Writer, skip string) (int, error) {
+	cw := &countingWriter{w: w, limit: lim.MaxDownload}
 	aw, err := newArchiveWriter(format, cw)
 	if err != nil {
 		return 0, err
@@ -552,8 +552,8 @@ func (s *Service) writeArchive(ctx context.Context, r *scopeRoot, paths []string
 			if name == "" || name == "." {
 				return nil // the root itself
 			}
-			if entries++; entries > s.limits.MaxArchiveEntries {
-				return fail(protocol.CodeTooLarge, "more than %d entries", s.limits.MaxArchiveEntries)
+			if entries++; entries > lim.MaxArchiveEntries {
+				return fail(protocol.CodeTooLarge, "more than %d entries", lim.MaxArchiveEntries)
 			}
 			switch typeOf(fi.Mode()) {
 			case protocol.FileTypeDir:

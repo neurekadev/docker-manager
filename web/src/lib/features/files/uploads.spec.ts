@@ -3,7 +3,7 @@
 // language and critical work while uploading.
 import { describe, expect, it } from 'vitest';
 import { criticalWork } from '$lib/live';
-import { UploadQueue, type XhrLike } from './uploads.svelte';
+import { tooLargeMessage, UploadQueue, type XhrLike } from './uploads.svelte';
 
 class FakeXhr implements XhrLike {
 	static all: FakeXhr[] = [];
@@ -115,5 +115,42 @@ describe('UploadQueue', () => {
 		expect(q.items[1].error).toMatch(/upload limit/);
 		q.dismiss();
 		expect(q.items).toHaveLength(0);
+	});
+
+	it('refuses files over the served upload limit without sending them', () => {
+		FakeXhr.all = [];
+		const drained: unknown[][] = [];
+		let max: number | undefined = undefined;
+		const q = new UploadQueue({
+			url: (d, n) => `/up?path=${d}&name=${n}`,
+			xhr: () => new FakeXhr(),
+			maxBytes: () => max,
+			ondrained: (items) => drained.push(items)
+		});
+		// Unknown limit (listing not loaded): the server decides.
+		q.enqueue([{ file: file('12345'), dir: '.', name: 'early' }]);
+		expect(FakeXhr.all).toHaveLength(1);
+		FakeXhr.all[0].respond(201, { entry: { name: 'early' } });
+		max = 3;
+		q.enqueue([
+			{ file: file('1234'), dir: '.', name: 'big' },
+			{ file: file('123'), dir: '.', name: 'fits' }
+		]);
+		expect(FakeXhr.all).toHaveLength(2);
+		expect(FakeXhr.all[1].url).toBe('/up?path=.&name=fits');
+		const big = q.items.find((i) => i.name === 'big');
+		expect(big).toMatchObject({ state: 'failed', error: tooLargeMessage(3) });
+		FakeXhr.all[1].respond(201, { entry: { name: 'fits' } });
+		expect(drained.at(-1)).toHaveLength(2);
+		// Only oversized files: they fail at once and the batch is over.
+		q.enqueue([{ file: file('12345'), dir: '.', name: 'huge' }]);
+		expect(FakeXhr.all).toHaveLength(2);
+		expect(q.active).toBe(false);
+	});
+
+	it('names the limit in plain words', () => {
+		expect(tooLargeMessage(2 * 1024 ** 3)).toBe(
+			'The file is larger than the upload limit of 2 GB. An administrator can raise it.'
+		);
 	});
 });

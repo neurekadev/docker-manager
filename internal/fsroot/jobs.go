@@ -377,7 +377,7 @@ func (s *Service) jobArchive(ctx context.Context, sc *jobexec.StepContext) error
 		return errMessage(classify(err, dest))
 	}
 	tmpRel := join(path.Dir(dest), tmp)
-	entries, werr := s.writeArchive(ctx, r, paths, in.Format, f, tmpRel)
+	entries, werr := s.writeArchive(ctx, r, s.limitsFor(in.Limits), paths, in.Format, f, tmpRel)
 	werr = errors.Join(werr, f.Chmod(0o644), f.Sync(), f.Close())
 	if werr != nil {
 		_ = t.dir.Remove(tmp)
@@ -410,7 +410,7 @@ func (s *Service) jobExtract(ctx context.Context, sc *jobexec.StepContext) error
 	}
 	defer r.Close()
 	it := &items{sc: sc, ctx: ctx}
-	changed, err := s.extract(ctx, r, paths[0], dest, in.Conflict, func(name, status, message string) {
+	changed, err := s.extract(ctx, r, s.limitsFor(in.Limits), paths[0], dest, in.Conflict, func(name, status, message string) {
 		switch status {
 		case "failed":
 			it.add(name, domain.ItemFailed, message)

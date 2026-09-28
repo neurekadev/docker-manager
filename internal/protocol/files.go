@@ -18,7 +18,8 @@ import (
 const (
 	// MaxInlineContent bounds the content of files.read and files.write
 	// (bytes; base64 keeps the frame below MaxFrameSize). Larger files use
-	// the files.download and files.upload streams.
+	// the files.download and files.upload streams (so does the manager's
+	// editor for files above it, when its edit limit is raised).
 	MaxInlineContent = 512 << 10
 	// MaxETagSize: regular files up to this size carry a content ETag.
 	MaxETagSize = 256 << 20
@@ -33,6 +34,41 @@ const (
 	// MaxOperationPaths bounds the paths of one operation.
 	MaxOperationPaths = 1000
 )
+
+// Caps of the limits a manager may send in FileLimits: an agent lowers
+// larger values to these.
+const (
+	// MaxFileLimitBytes caps uploads, downloads, created archives and the
+	// bytes one extraction writes (1 TiB).
+	MaxFileLimitBytes = 1 << 40
+	// MaxFileLimitEntries caps the entries of an archive read or written
+	// (the entries one recursive operation walks are bounded as well).
+	MaxFileLimitEntries = 1_000_000
+	// MaxFileLimitRatio caps the expansion ratio of an extraction.
+	MaxFileLimitRatio = 10_000
+)
+
+// FeatureFileLimits is the capabilities feature of agents that apply the
+// limits of FileLimits (files.upload and files.download inputs, extract
+// previews, files.archive and files.extract jobs). The manager sends
+// limits only to them; other agents keep their built-in defaults.
+const FeatureFileLimits = "files.limits"
+
+// FileLimits are the file manager limits the manager configured
+// (DOCKER_MANAGER_FILES_*) for one operation. A zero field keeps the
+// agent's default; larger values than the caps above are lowered to them.
+type FileLimits struct {
+	// MaxUpload bounds one uploaded file (bytes).
+	MaxUpload int64 `json:"maxUpload,omitempty"`
+	// MaxDownload bounds one download or created archive (bytes).
+	MaxDownload int64 `json:"maxDownload,omitempty"`
+	// MaxExtractBytes bounds the bytes one extraction writes;
+	// MaxExtractRatio the bytes written per archive byte.
+	MaxExtractBytes int64 `json:"maxExtractBytes,omitempty"`
+	MaxExtractRatio int64 `json:"maxExtractRatio,omitempty"`
+	// MaxArchiveEntries bounds the entries of an archive read or written.
+	MaxArchiveEntries int `json:"maxArchiveEntries,omitempty"`
+}
 
 // File scope kinds. Template scopes are served by the manager itself (a
 // template's draft in its data directory); agents refuse them.
@@ -300,6 +336,9 @@ type FilesPreviewInput struct {
 	// copied or moved source.
 	Names     []string `json:"names,omitempty"`
 	Recursive bool     `json:"recursive,omitempty"`
+	// Limits (FeatureFileLimits) bound the archive an extract preview
+	// reads.
+	Limits *FileLimits `json:"limits,omitempty"`
 }
 
 // FileConflict is one destination that already exists.
@@ -345,6 +384,8 @@ type FilesUploadInput struct {
 	IfMatch    []string `json:"ifMatch,omitempty"`
 	CreateOnly bool     `json:"createOnly,omitempty"`
 	Conflict   string   `json:"conflict,omitempty"`
+	// Limits (FeatureFileLimits) bound the upload's size.
+	Limits *FileLimits `json:"limits,omitempty"`
 }
 
 // FilesUploadResult is the result of the agent's final stream_close.
@@ -372,6 +413,8 @@ type FilesDownloadInput struct {
 	Format string `json:"format"`
 	Offset int64  `json:"offset,omitempty"`
 	Length int64  `json:"length,omitempty"`
+	// Limits (FeatureFileLimits) bound the download's size and entries.
+	Limits *FileLimits `json:"limits,omitempty"`
 }
 
 // SkippedListName is the archive entry listing what a download or archive
@@ -409,6 +452,9 @@ type FilesJobInput struct {
 	Recursive bool       `json:"recursive,omitempty"`
 	Chmod     *ChmodSpec `json:"chmod,omitempty"`
 	Chown     *ChownSpec `json:"chown,omitempty"`
+	// Limits (FeatureFileLimits) bound archives (files.archive) and
+	// extractions (files.extract).
+	Limits *FileLimits `json:"limits,omitempty"`
 }
 
 // CleanRelativePath normalizes a user-supplied root-relative path ("" and

@@ -503,13 +503,13 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 	}
 	// The scoped file manager (#15): stack scopes resolve through the stack
 	// service (#7), which records a revision when a definition file changes.
-	m.files = files.New(files.Options{Agents: m.agents.Hub(), Jobs: m.jobs, Logger: log.With("component", "files")})
+	m.files = files.New(files.Options{Agents: m.agents.Hub(), Jobs: m.jobs, Logger: log.With("component", "files"), Limits: cfg.Files})
 	m.files.SetStacks(m.stacks, m.stacks)
 	// Stack templates (template registry): drafts in the data directory,
 	// served to the file manager; template.files.* jobs run here.
 	m.templates, err = templates.New(ctx, templates.Options{
 		DB: db, Keyring: m.keyring, Clock: opts.Clock, Logger: log.With("component", "templates"), DataDir: cfg.DataDir,
-		MaxSize: cfg.TemplateMaxSize, Bus: m.events, Executors: m.jobs.RegisterManagerExecutor, ForgetResource: m.perms.ForgetResource,
+		MaxSize: cfg.TemplateMaxSize, MaxEdit: cfg.Files.Edit, Bus: m.events, Executors: m.jobs.RegisterManagerExecutor, ForgetResource: m.perms.ForgetResource,
 		InstanceID: m.instance.ID, HTTPClient: opts.TemplateHTTPClient, SyncInterval: cfg.TemplateRegistrySync,
 	})
 	if err != nil {
@@ -714,7 +714,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Docker:                   m.resources,
 			InstanceID:               m.instance.ID,
 			Files:                    m.files,
-			FilesMaxUpload:           cfg.FilesMaxUpload,
+			FileLimits:               cfg.Files,
 			GitCredentials:           m.git,
 			Builds:                   m.builds,
 			Stacks:                   m.stacks,

@@ -51,11 +51,23 @@ what is wrong and leaves your text as it is.
 - If the file changed on the server while you edited it, Docker Manager
   keeps your edits and lets you **Compare**, **Reload from disk**, **Save
   as** another file or **Overwrite**.
-- Files larger than 512 KB open as a read-only preview. Images are
+- Files larger than 512 KB open as a read-only preview (your
+  administrator can change this size, see [Limits](#limits)). Images are
   previewed; other binary files can be downloaded.
 
 ## Limits
 
-- One upload can be up to 2 GB per file.
-- Your reverse proxy must allow uploads that large too.
+- Files up to 512 KB open in the editor.
+- One upload can be up to 2 GB per file. Your reverse proxy must allow
+  uploads that large too.
+- A download, or an archive you create, can be up to 10 GB.
+- Extracting an archive writes at most 10 GB, and at most 100 times the
+  archive's size. An archive can hold at most 100,000 files and folders.
 - Docker Manager's own volumes can't be opened in the file manager.
+
+You can raise or lower these limits with settings on the manager, such as
+`DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` (see
+[Configuration](/docs/configuration#manager-settings)). They apply to all
+your servers. Until you [upgrade](/docs/upgrade) a server's agent, that
+server keeps the default limits for downloads and archives, and its
+uploads stay at 2 GB at most.

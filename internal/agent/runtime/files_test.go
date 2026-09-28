@@ -42,6 +42,9 @@ func TestFilesServiceWiring(t *testing.T) {
 			t.Errorf("command %s not advertised: %v", k, p.Commands)
 		}
 	}
+	if !slices.Contains(p.Features, protocol.FeatureFileLimits) {
+		t.Errorf("features %v lack %s", p.Features, protocol.FeatureFileLimits)
+	}
 	// Before the storage check ran the service refuses everything.
 	_, err = a.opts.Requests[protocol.ReqFilesList](context.Background(),
 		json.RawMessage(`{"scope":{"kind":"volume","id":"data"},"path":"."}`))

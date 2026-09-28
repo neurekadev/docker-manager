@@ -173,6 +173,8 @@
 	const rows = $derived<FileEntry[]>(listing.data?.pages.flatMap((p) => p.items) ?? []);
 	const total = $derived(listing.data?.pages[0]?.total ?? 0);
 	const truncated = $derived(listing.data?.pages[0]?.truncated ?? false);
+	/** The root's file manager limits (the manager's configuration). */
+	const limits = $derived(listing.data?.pages[0]?.limits);
 	const keys = $derived(rows.map((r) => r.path));
 	const targets = $derived(sel.targets(selection, keys));
 	const targetEntries = $derived(rows.filter((r) => targets.includes(r.path)));
@@ -328,6 +330,7 @@
 	// Uploads ----------------------------------------------------------------------
 	const uploads = new UploadQueue({
 		url: (d, n, c) => files.uploadUrl(d, n, c),
+		maxBytes: () => limits?.uploadMaxBytes,
 		ondrained: (items) => {
 			refresh();
 			const done = items.filter((i) => i.state === 'done').length;
@@ -1257,6 +1260,7 @@
 					ondownload={downloadPath}
 					{onisdir}
 					takenNames={(d) => (d === dir ? takenHere : [])}
+					editLimit={limits?.editMaxBytes}
 				/>
 			</div>
 		{/snippet}

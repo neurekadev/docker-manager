@@ -14,6 +14,7 @@
 package files
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -106,6 +107,42 @@ type Options struct {
 	// RequestTimeout bounds agent requests (default 60 s: previews and
 	// listings of huge directories take time).
 	RequestTimeout time.Duration
+	// Limits are the configured file manager limits
+	// (DOCKER_MANAGER_FILES_*); zero fields are the agents' built-in
+	// defaults (DefaultLimits).
+	Limits domain.FileLimits
+}
+
+// DefaultLimits are the file manager limits without configuration: the
+// agents' built-in ones.
+func DefaultLimits() domain.FileLimits {
+	d := fsroot.DefaultLimits()
+	return domain.FileLimits{Edit: d.MaxInline, Upload: d.MaxUpload, Download: d.MaxDownload, ExtractBytes: d.MaxExtractBytes,
+		ExtractRatio: d.MaxExtractRatio, ArchiveEntries: d.MaxArchiveEntries}
+}
+
+// withDefaults fills the zero fields of l with DefaultLimits.
+func withDefaults(l domain.FileLimits) domain.FileLimits {
+	d := DefaultLimits()
+	if l.Edit <= 0 {
+		l.Edit = d.Edit
+	}
+	if l.Upload <= 0 {
+		l.Upload = d.Upload
+	}
+	if l.Download <= 0 {
+		l.Download = d.Download
+	}
+	if l.ExtractBytes <= 0 {
+		l.ExtractBytes = d.ExtractBytes
+	}
+	if l.ExtractRatio <= 0 {
+		l.ExtractRatio = d.ExtractRatio
+	}
+	if l.ArchiveEntries <= 0 {
+		l.ArchiveEntries = d.ArchiveEntries
+	}
+	return l
 }
 
 // Service implements api.FilesService.
@@ -133,6 +170,7 @@ func New(o Options) *Service {
 	if o.RequestTimeout <= 0 {
 		o.RequestTimeout = 60 * time.Second
 	}
+	o.Limits = withDefaults(o.Limits)
 	return &Service{opts: o, log: o.Logger.With("component", "files"), stacks: o.Stacks, observer: o.Observer, stop: make(chan struct{})}
 }
 
@@ -232,6 +270,52 @@ func (s *Service) StackRoot(ctx context.Context, stackID string) (api.FileRoot, 
 	return api.FileRoot{Scope: protocol.FileScope{Kind: protocol.ScopeStack, ID: stackID, Dir: r.Dir}, EnvironmentID: r.EnvironmentID}, nil
 }
 
+// Limits returns the file manager limits in effect for a root: the
+// configured ones for agents that apply them (protocol.FeatureFileLimits);
+// for older agents the agents' built-in defaults, except that uploads may
+// only be lowered (the manager checks them) and the edit limit holds for
+// every agent (the manager reads and saves larger files through the
+// streams); for template drafts the template size limits.
+func (s *Service) Limits(r api.FileRoot) domain.FileLimits {
+	cfg := s.opts.Limits
+	if r.Scope.Kind == protocol.ScopeTemplate {
+		t := s.tmpl()
+		if t == nil {
+			return cfg
+		}
+		fl := t.Files().Limits()
+		return domain.FileLimits{Edit: fl.MaxInline, Upload: min(cfg.Upload, fl.MaxUpload), Download: fl.MaxDownload,
+			ExtractBytes: fl.MaxExtractBytes, ExtractRatio: fl.MaxExtractRatio, ArchiveEntries: fl.MaxArchiveEntries}
+	}
+	if s.appliesLimits(r) {
+		return cfg
+	}
+	d := DefaultLimits()
+	d.Edit, d.Upload = cfg.Edit, min(cfg.Upload, d.Upload)
+	return d
+}
+
+// appliesLimits reports whether the root's agent applies the limits the
+// manager sends (protocol.FeatureFileLimits).
+func (s *Service) appliesLimits(r api.FileRoot) bool {
+	fh, ok := s.opts.Agents.(interface {
+		EnvironmentHasFeature(environmentID, feature string) bool
+	})
+	return ok && r.Scope.Kind != protocol.ScopeTemplate && fh.EnvironmentHasFeature(r.EnvironmentID, protocol.FeatureFileLimits)
+}
+
+// agentLimits are the limits sent with an operation on the root: the
+// configured ones for agents that apply them, nil otherwise (they keep
+// their defaults).
+func (s *Service) agentLimits(r api.FileRoot) *protocol.FileLimits {
+	if !s.appliesLimits(r) {
+		return nil
+	}
+	l := s.opts.Limits
+	return &protocol.FileLimits{MaxUpload: l.Upload, MaxDownload: l.Download, MaxExtractBytes: l.ExtractBytes,
+		MaxExtractRatio: l.ExtractRatio, MaxArchiveEntries: l.ArchiveEntries}
+}
+
 // agentErr maps hub and stream errors.
 func agentErr(err error) error {
 	var re *agents.RequestError
@@ -298,7 +382,10 @@ func (s *Service) Stat(ctx context.Context, r api.FileRoot, p string, etag bool)
 	return request[protocol.FileEntry](ctx, s, r, protocol.ReqFilesStat, protocol.FilesStatInput{Scope: r.Scope, Path: p, ETag: etag})
 }
 
-// Read reads a bounded slice of a regular file.
+// Read reads a bounded slice of a regular file: at most in.Length bytes
+// (the edit limit; 0: the agent's inline limit). Agents return at most
+// protocol.MaxInlineContent per files.read (one frame); the rest of a
+// longer slice comes through a raw files.download stream.
 func (s *Service) Read(ctx context.Context, r api.FileRoot, in protocol.FilesReadInput) (protocol.FilesReadOutput, error) {
 	in.Scope = r.Scope
 	if t, err := s.local(r); t != nil || err != nil {
@@ -308,7 +395,61 @@ func (s *Service) Read(ctx context.Context, r api.FileRoot, in protocol.FilesRea
 		out, err := t.Files().Read(ctx, in)
 		return out, localErr(err)
 	}
-	return request[protocol.FilesReadOutput](ctx, s, r, protocol.ReqFilesRead, in)
+	want := in.Length
+	if want > protocol.MaxInlineContent {
+		in.Length = protocol.MaxInlineContent
+	}
+	out, err := request[protocol.FilesReadOutput](ctx, s, r, protocol.ReqFilesRead, in)
+	if err != nil || want <= protocol.MaxInlineContent || !out.Truncated || out.Binary {
+		return out, err
+	}
+	return s.readRest(ctx, r, in, want, out)
+}
+
+// readRest completes a read beyond the inline limit: the bytes after first
+// up to want (or the end of the file) through a raw download. The file must
+// not change meanwhile (same size and modification time before and after);
+// otherwise the read fails with conflict and the caller opens it again.
+func (s *Service) readRest(ctx context.Context, r api.FileRoot, in protocol.FilesReadInput, want int64, first protocol.FilesReadOutput) (protocol.FilesReadOutput, error) {
+	off := in.Offset + int64(len(first.Data))
+	n := min(want-int64(len(first.Data)), first.Entry.Size-off)
+	if n <= 0 || s.opts.Agents == nil {
+		return first, nil
+	}
+	dl := protocol.FilesDownloadInput{Scope: r.Scope, Paths: []string{in.Path}, Format: protocol.FormatRaw, Offset: off, Length: n}
+	if s.appliesLimits(r) {
+		// Reading for the editor is not a download: the download limit
+		// does not apply.
+		dl.Limits = &protocol.FileLimits{MaxDownload: protocol.MaxFileLimitBytes}
+	}
+	st, err := s.opts.Agents.OpenStream(ctx, r.EnvironmentID, protocol.StreamFilesDownload, dl, streammux.OpenOptions{})
+	if err != nil {
+		return first, agentErr(err)
+	}
+	rest, err := io.ReadAll(io.LimitReader(st, n))
+	if err != nil {
+		st.Abort(protocol.CloseReasonCancelled, protocol.CodeCancelled, "")
+		var fe *domain.FileError
+		if err = agentErr(err); errors.As(err, &fe) && fe.Code == protocol.CodeTooLarge {
+			// An older agent refuses files over its download limit: the
+			// first bytes stay a truncated read.
+			return first, nil
+		}
+		return first, err
+	}
+	_ = st.CloseWrite()
+	cur, err := request[protocol.FileEntry](ctx, s, r, protocol.ReqFilesStat, protocol.FilesStatInput{Scope: r.Scope, Path: in.Path})
+	if err != nil {
+		return first, err
+	}
+	if int64(len(rest)) != n || cur.Size != first.Entry.Size || !cur.ModTime.Equal(first.Entry.ModTime) {
+		return first, &domain.FileError{Code: protocol.CodeConflict, Message: in.Path + " changed while it was read; open it again"}
+	}
+	out := first
+	out.Data = append(slices.Clip(first.Data), rest...)
+	out.Truncated = off+n < first.Entry.Size
+	out.Binary = fsroot.IsBinary(out.Data, out.Truncated)
+	return out, nil
 }
 
 // Write replaces or creates a file (inline content).
@@ -328,11 +469,41 @@ func (s *Service) Write(ctx context.Context, r api.FileRoot, in protocol.FilesWr
 	if err := s.validateSource(ctx, r, in.Path, in.Data); err != nil {
 		return protocol.FileEntry{}, err
 	}
-	e, err := request[protocol.FileEntry](ctx, s, r, protocol.ReqFilesWrite, in)
+	var e protocol.FileEntry
+	var err error
+	if len(in.Data) > protocol.MaxInlineContent {
+		conflict := ""
+		if in.Overwrite {
+			conflict = protocol.ConflictOverwrite
+		}
+		e, err = s.writeStream(ctx, r, in.Path, in.Data, in.IfMatch, in.CreateOnly, conflict)
+	} else {
+		e, err = request[protocol.FileEntry](ctx, s, r, protocol.ReqFilesWrite, in)
+	}
 	if err == nil {
 		s.sourcesChanged(ctx, r, e.Path)
 	}
 	return e, err
+}
+
+// writeStream saves content above the agents' inline limit (a raised edit
+// limit) through a files.upload stream with the same precondition: the
+// agent writes a temporary file, re-checks and renames it like files.write.
+func (s *Service) writeStream(ctx context.Context, r api.FileRoot, rel string, data []byte, ifMatch []string, createOnly bool, conflict string) (protocol.FileEntry, error) {
+	dir, name := path.Split(rel)
+	dir = strings.TrimSuffix(dir, "/")
+	if dir == "" {
+		dir = "."
+	}
+	in := protocol.FilesUploadInput{Scope: r.Scope, Dir: dir, Name: name, Size: int64(len(data)), IfMatch: ifMatch, CreateOnly: createOnly,
+		Conflict: conflict}
+	if s.appliesLimits(r) {
+		// The edit limit (checked by the caller) applies, not the upload
+		// limit; agents without the feature allow far more anyway.
+		in.Limits = &protocol.FileLimits{MaxUpload: in.Size}
+	}
+	res, err := s.upload(ctx, r, in, bytes.NewReader(data))
+	return res.Entry, err
 }
 
 // Mkdir creates a directory or a new file.
@@ -353,6 +524,13 @@ func (s *Service) Mkdir(ctx context.Context, r api.FileRoot, in protocol.FilesMk
 		if err := s.validateSource(ctx, r, in.Path, in.Data); err != nil {
 			return protocol.FileEntry{}, err
 		}
+		if len(in.Data) > protocol.MaxInlineContent {
+			e, err := s.writeStream(ctx, r, in.Path, in.Data, nil, true, "")
+			if err == nil {
+				s.sourcesChanged(ctx, r, e.Path)
+			}
+			return e, err
+		}
 	}
 	e, err := request[protocol.FileEntry](ctx, s, r, protocol.ReqFilesMkdir, in)
 	if err == nil {
@@ -371,6 +549,9 @@ func (s *Service) Preview(ctx context.Context, r api.FileRoot, in protocol.Files
 		out, err := t.Files().Preview(ctx, in)
 		return out, localErr(err)
 	}
+	if in.Operation == protocol.FileOpExtract {
+		in.Limits = s.agentLimits(r)
+	}
 	return request[protocol.FilesPreviewOutput](ctx, s, r, protocol.ReqFilesConflictPreview, in)
 }
 
@@ -388,6 +569,7 @@ func (s *Service) Download(ctx context.Context, r api.FileRoot, in protocol.File
 	if s.opts.Agents == nil {
 		return nil, domain.ErrFileAgentOffline
 	}
+	in.Limits = s.agentLimits(r)
 	st, err := s.opts.Agents.OpenStream(ctx, r.EnvironmentID, protocol.StreamFilesDownload, in, streammux.OpenOptions{})
 	return st, agentErr(err)
 }
@@ -436,6 +618,17 @@ func (s *Service) Upload(ctx context.Context, r api.FileRoot, in protocol.FilesU
 		out, err := t.Files().Upload(ctx, in, io.LimitReader(body, in.Size))
 		return out, localErr(err)
 	}
+	in.Limits = s.agentLimits(r)
+	out, err := s.upload(ctx, r, in, body)
+	if err == nil && !out.Skipped {
+		s.sourcesChanged(ctx, r, out.Entry.Path)
+	}
+	return out, err
+}
+
+// upload streams body (exactly in.Size bytes) to the root's agent.
+func (s *Service) upload(ctx context.Context, r api.FileRoot, in protocol.FilesUploadInput, body io.Reader) (protocol.FilesUploadResult, error) {
+	var out protocol.FilesUploadResult
 	if s.opts.Agents == nil {
 		return out, domain.ErrFileAgentOffline
 	}
@@ -466,9 +659,6 @@ func (s *Service) Upload(ctx context.Context, r api.FileRoot, in protocol.FilesU
 	}
 	if err := json.Unmarshal(res, &out); err != nil {
 		return out, fmt.Errorf("files: decode upload result: %w", err)
-	}
-	if !out.Skipped {
-		s.sourcesChanged(ctx, r, out.Entry.Path)
 	}
 	return out, nil
 }
@@ -518,6 +708,9 @@ func (s *Service) StartJob(ctx context.Context, r api.FileRoot, kind domain.JobK
 		j, _, err := s.opts.Jobs.Enqueue(ctx, jobs.Request{Kind: tk, Principal: p,
 			Targets: []domain.JobTarget{{Type: domain.TargetTemplate, ID: r.Scope.ID}}, Input: in, IdempotencyKey: key})
 		return j, err
+	}
+	if kind == jobspec.FilesArchive || kind == jobspec.FilesExtract {
+		in.Limits = s.agentLimits(r)
 	}
 	rootType := domain.TargetVolume
 	if r.Scope.Kind == protocol.ScopeStack {

@@ -48,7 +48,11 @@ Limits: `DOCKER_MANAGER_TEMPLATE_MAX_SIZE_MB` (default 32) bytes and 5000
 entries per template. Writes and uploads check the cached draft size
 first (`CheckQuota`); copy and extract jobs start only below the limit and
 extraction is bounded by the same byte limit; publication enforces both
-limits again.
+limits again. The file manager's edit limit
+(`DOCKER_MANAGER_FILES_MAX_EDIT_KB`, `templates.Options.MaxEdit`) bounds
+reads and saves of draft files and a lower `DOCKER_MANAGER_FILES_MAX_UPLOAD_MB`
+bounds uploads; the other `DOCKER_MANAGER_FILES_*` limits do not apply to
+drafts.
 
 Drafts are plain files (like a stack's directory on its host); `.env`
 values in a draft are readable to whoever can read the manager's data

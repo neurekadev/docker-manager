@@ -671,6 +671,10 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	if slices.Contains(p.Commands, "stack.rename") {
 		p.Features = append(p.Features, protocol.FeatureStackRename)
 	}
+	// Its file service applies the manager's file manager limits (#15).
+	if slices.Contains(p.Commands, "files.extract") {
+		p.Features = append(p.Features, protocol.FeatureFileLimits)
+	}
 	// Its backup.run reports live activity when asked (#10).
 	if slices.Contains(p.Commands, "backup.run") {
 		p.Features = append(p.Features, protocol.FeatureBackupActivity)

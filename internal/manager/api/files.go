@@ -20,6 +20,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
+	"code.neureka.dev/docker-manager/docker-manager/internal/fsroot"
 	"code.neureka.dev/docker-manager/docker-manager/internal/jobspec"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/audit"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
@@ -51,12 +52,35 @@ const (
 
 // File manager limits.
 const (
-	// DefaultMaxUpload bounds one uploaded file (DOCKER_MANAGER_FILES_MAX_UPLOAD).
-	DefaultMaxUpload = 2 << 30
 	// MaxFilesPerJob bounds the paths of one copy/move/delete/archive/
 	// metadata request.
 	MaxFilesPerJob = 256
 )
+
+// fileLimitsOrDefault fills the zero fields of configured file manager
+// limits with the defaults (the agents' built-in limits).
+func fileLimitsOrDefault(l domain.FileLimits) domain.FileLimits {
+	d := fsroot.DefaultLimits()
+	if l.Edit <= 0 {
+		l.Edit = d.MaxInline
+	}
+	if l.Upload <= 0 {
+		l.Upload = d.MaxUpload
+	}
+	if l.Download <= 0 {
+		l.Download = d.MaxDownload
+	}
+	if l.ExtractBytes <= 0 {
+		l.ExtractBytes = d.MaxExtractBytes
+	}
+	if l.ExtractRatio <= 0 {
+		l.ExtractRatio = d.MaxExtractRatio
+	}
+	if l.ArchiveEntries <= 0 {
+		l.ArchiveEntries = d.MaxArchiveEntries
+	}
+	return l
+}
 
 // FileRoot is a resolved file scope: the protocol scope and the
 // environment whose agent serves it (none for template drafts, which the
@@ -91,6 +115,9 @@ type FilesService interface {
 	// StreamError maps an error read from a download stream.
 	StreamError(err error) error
 	Upload(ctx context.Context, r FileRoot, in protocol.FilesUploadInput, body io.Reader) (protocol.FilesUploadResult, error)
+	// Limits returns the file manager limits in effect for the root (the
+	// configured ones, an older agent's defaults, a template's limits).
+	Limits(r FileRoot) domain.FileLimits
 	StartJob(ctx context.Context, r FileRoot, kind domain.JobKind, p authz.Principal, in protocol.FilesJobInput, idempotencyKey string) (domain.Job, error)
 }
 
@@ -141,6 +168,24 @@ type FileListing struct {
 	NextCursor string      `json:"nextCursor,omitempty"`
 	Total      int64       `json:"total" doc:"Entries matching the filters."`
 	Truncated  bool        `json:"truncated" doc:"The directory holds more than 100 000 entries; the listing covers the first ones read."`
+	Limits     FileLimits  `json:"limits" doc:"The file manager limits of this root, for client-side checks and messages."`
+}
+
+// FileLimits are the file manager limits in effect for one root: the
+// manager's configuration (DOCKER_MANAGER_FILES_*), an older agent's
+// built-in limits, or a template draft's limits.
+type FileLimits struct {
+	EditMaxBytes      int64 `json:"editMaxBytes" example:"524288" doc:"Files up to this size open in the editor; larger ones show their first bytes read-only. Also the most one content read returns and one save accepts (DOCKER_MANAGER_FILES_MAX_EDIT_KB)."`
+	UploadMaxBytes    int64 `json:"uploadMaxBytes" example:"2147483648" doc:"Largest upload per file (DOCKER_MANAGER_FILES_MAX_UPLOAD_MB)."`
+	DownloadMaxBytes  int64 `json:"downloadMaxBytes" example:"10737418240" doc:"Largest download, and largest archive created in the root (DOCKER_MANAGER_FILES_MAX_DOWNLOAD_MB)."`
+	ExtractMaxBytes   int64 `json:"extractMaxBytes" example:"10737418240" doc:"Most bytes one extraction writes (DOCKER_MANAGER_FILES_MAX_EXTRACT_MB)."`
+	ExtractMaxRatio   int64 `json:"extractMaxRatio" example:"100" doc:"An extraction writes at most this many times the archive's size, at least 1 MiB (DOCKER_MANAGER_FILES_MAX_EXTRACT_RATIO)."`
+	ArchiveMaxEntries int   `json:"archiveMaxEntries" example:"100000" doc:"Most entries of an archive extracted or created (DOCKER_MANAGER_FILES_MAX_ARCHIVE_ENTRIES)."`
+}
+
+func newFileLimits(l domain.FileLimits) FileLimits {
+	return FileLimits{EditMaxBytes: l.Edit, UploadMaxBytes: l.Upload, DownloadMaxBytes: l.Download, ExtractMaxBytes: l.ExtractBytes,
+		ExtractMaxRatio: l.ExtractRatio, ArchiveMaxEntries: l.ArchiveEntries}
 }
 
 // FileContent is a bounded slice of a regular file.
@@ -150,7 +195,7 @@ type FileContent struct {
 	Content       string `json:"content,omitempty" doc:"UTF-8 text (absent for binary files)."`
 	ContentBase64 string `json:"contentBase64,omitempty" doc:"Binary content, base64 (only for binary files)."`
 	Binary        bool   `json:"binary" doc:"The file is not UTF-8 text (NUL bytes or invalid UTF-8): offer a download instead of the editor."`
-	Truncated     bool   `json:"truncated" doc:"The file continues after the returned bytes (at most 512 KiB per request): not editable in place."`
+	Truncated     bool   `json:"truncated" doc:"The file continues after the returned bytes (at most the root's editMaxBytes per request, 512 KiB by default): not editable in place."`
 	Offset        int64  `json:"offset"`
 }
 
@@ -247,8 +292,8 @@ type FilesReplaceInput struct {
 	IfMatchParam
 	IfNoneMatch string `header:"If-None-Match" maxLength:"8" doc:"* creates the file only if it does not exist (412 otherwise)."`
 	Body        struct {
-		Content       *string `json:"content,omitempty" example:"server_tokens off;" doc:"New content as UTF-8 text (at most 512 KiB)."`
-		ContentBase64 *string `json:"contentBase64,omitempty" doc:"New content as base64 (binary; at most 512 KiB decoded)."`
+		Content       *string `json:"content,omitempty" example:"server_tokens off;" doc:"New content as UTF-8 text (at most the root's editMaxBytes, 512 KiB by default)."`
+		ContentBase64 *string `json:"contentBase64,omitempty" doc:"New content as base64 (binary; at most editMaxBytes decoded)."`
 	}
 }
 
@@ -282,7 +327,7 @@ type FilesUploadQuery struct {
 	Conflict      string `query:"conflict" enum:"overwrite,skip,keep_both" doc:"What to do when the name exists, instead of If-Match/If-None-Match."`
 	IfMatch       string `header:"If-Match" maxLength:"1024" doc:"Replace exactly this revision (ETag)."`
 	IfNoneMatch   string `header:"If-None-Match" maxLength:"8" doc:"* creates only (412 when the name exists)."`
-	ContentLength int64  `header:"Content-Length" doc:"Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413)."`
+	ContentLength int64  `header:"Content-Length" doc:"Required (411 otherwise); at most the root's uploadMaxBytes (DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413)."`
 	ContentSHA256 string `header:"X-Docker-Manager-Content-SHA256" maxLength:"64" doc:"Optional hex SHA-256 of the body, verified before the file is committed (422 content_digest_mismatch)."`
 }
 
@@ -544,9 +589,8 @@ type (
 
 // filesAPI serves the file routes.
 type filesAPI struct {
-	svc       FilesService
-	authz     authz.Authorizer
-	maxUpload int64
+	svc   FilesService
+	authz authz.Authorizer
 }
 
 // fileCtx is an authorized request on one root.
@@ -766,14 +810,19 @@ func isInternal(err error) bool {
 	return errors.As(err, &e) && e.Code == CodeInternal
 }
 
-// decodeContent returns the body content of a write (text or base64).
-func decodeContent(text, b64 *string, field string) ([]byte, error) {
+// decodeContent returns the body content of a write (text or base64), at
+// most limit bytes (the root's edit limit).
+func decodeContent(text, b64 *string, field string, limit int64) ([]byte, error) {
+	tooLarge := func() error {
+		return NewError(http.StatusRequestEntityTooLarge, CodePayloadTooLarge,
+			fmt.Sprintf("content exceeds %d bytes, the edit limit; upload the file instead", limit))
+	}
 	switch {
 	case text != nil && b64 != nil:
 		return nil, Invalid("send content or contentBase64, not both", Field(field, "one of content, contentBase64"))
 	case text != nil:
-		if len(*text) > protocol.MaxInlineContent {
-			return nil, NewError(http.StatusRequestEntityTooLarge, CodePayloadTooLarge, "content exceeds 512 KiB; upload the file instead")
+		if int64(len(*text)) > limit {
+			return nil, tooLarge()
 		}
 		return []byte(*text), nil
 	case b64 != nil:
@@ -781,8 +830,8 @@ func decodeContent(text, b64 *string, field string) ([]byte, error) {
 		if err != nil {
 			return nil, Invalid("invalid base64", Field(field+"Base64", "not valid base64"))
 		}
-		if len(b) > protocol.MaxInlineContent {
-			return nil, NewError(http.StatusRequestEntityTooLarge, CodePayloadTooLarge, "content exceeds 512 KiB; upload the file instead")
+		if int64(len(b)) > limit {
+			return nil, tooLarge()
 		}
 		return b, nil
 	}
@@ -830,7 +879,8 @@ func (h *filesAPI) list(ctx context.Context, ref fileScopeRef, in *FilesListQuer
 	if err != nil {
 		return nil, fileErr(err, "query.path", false)
 	}
-	body := FileListing{Dir: newFileEntry(out.Dir), Items: make([]FileEntry, 0, len(out.Entries)), Total: int64(out.Total), Truncated: out.Truncated}
+	body := FileListing{Dir: newFileEntry(out.Dir), Items: make([]FileEntry, 0, len(out.Entries)), Total: int64(out.Total), Truncated: out.Truncated,
+		Limits: newFileLimits(h.svc.Limits(f.root))}
 	for _, e := range out.Entries {
 		body.Items = append(body.Items, newFileEntry(e))
 	}
@@ -857,7 +907,7 @@ func (h *filesAPI) getContent(ctx context.Context, ref fileScopeRef, in *FilesCo
 	if err := f.requireDefinition(IsDefinitionFile(rel), false); err != nil {
 		return nil, err
 	}
-	out, err := h.svc.Read(ctx, f.root, protocol.FilesReadInput{Path: rel, Offset: in.Offset})
+	out, err := h.svc.Read(ctx, f.root, protocol.FilesReadInput{Path: rel, Offset: in.Offset, Length: h.svc.Limits(f.root).Edit})
 	if err != nil {
 		return nil, fileErr(err, "query.path", false)
 	}
@@ -886,7 +936,7 @@ func (h *filesAPI) replaceContent(ctx context.Context, ref fileScopeRef, in *Fil
 	if err := f.requireDefinition(false, IsDefinitionFile(rel)); err != nil {
 		return nil, err
 	}
-	data, err := decodeContent(in.Body.Content, in.Body.ContentBase64, "body.content")
+	data, err := decodeContent(in.Body.Content, in.Body.ContentBase64, "body.content", h.svc.Limits(f.root).Edit)
 	if err != nil {
 		return nil, err
 	}
@@ -947,7 +997,7 @@ func (h *filesAPI) createEntry(ctx context.Context, ref fileScopeRef, in *FilesC
 	if in.Body.Type != protocol.FileTypeFile && in.Body.Type != protocol.FileTypeDir {
 		return nil, Invalid("invalid type", Field("body.type", "file or dir"))
 	}
-	data, err := decodeContent(in.Body.Content, in.Body.ContentBase64, "body.content")
+	data, err := decodeContent(in.Body.Content, in.Body.ContentBase64, "body.content", h.svc.Limits(f.root).Edit)
 	if err != nil {
 		return nil, err
 	}
@@ -1233,8 +1283,8 @@ func (h *filesAPI) upload(ctx context.Context, ref fileScopeRef, in *FilesUpload
 	if ctxHeader(ctx, "Content-Length") == "" || in.ContentLength < 0 {
 		return nil, NewError(http.StatusLengthRequired, CodeLengthRequired, "uploads need a Content-Length")
 	}
-	if in.ContentLength > h.maxUpload {
-		return nil, NewError(http.StatusRequestEntityTooLarge, CodePayloadTooLarge, fmt.Sprintf("uploads are limited to %d bytes", h.maxUpload))
+	if maxUpload := h.svc.Limits(f.root).Upload; in.ContentLength > maxUpload {
+		return nil, NewError(http.StatusRequestEntityTooLarge, CodePayloadTooLarge, fmt.Sprintf("uploads are limited to %d bytes", maxUpload))
 	}
 	req := protocol.FilesUploadInput{Dir: dir, Name: in.Name, Size: in.ContentLength}
 	switch {
@@ -1475,10 +1525,10 @@ func (h *filesAPI) download(ctx context.Context, ref fileScopeRef, in *FilesDown
 
 // registerFiles registers the file routes for both roots.
 func registerFiles(a huma.API, deps Deps) {
-	h := &filesAPI{svc: deps.Files, authz: authz.OrDenyAll(deps.Authorizer), maxUpload: deps.FilesMaxUpload}
-	if h.maxUpload <= 0 {
-		h.maxUpload = DefaultMaxUpload
-	}
+	h := &filesAPI{svc: deps.Files, authz: authz.OrDenyAll(deps.Authorizer)}
+	// Saves carry up to the edit limit of content, JSON-escaped or
+	// base64-encoded.
+	contentBody := max(4<<20, 4*fileLimitsOrDefault(deps.FileLimits).Edit)
 	scopes := []struct {
 		kind, prefix, idName string
 	}{
@@ -1490,9 +1540,8 @@ func registerFiles(a huma.API, deps Deps) {
 		http.StatusServiceUnavailable, http.StatusGatewayTimeout, http.StatusNotImplemented}
 	op := func(sc struct{ kind, prefix, idName string }, id, method, suffix, summary, desc, verb string, errs []int) Operation {
 		o := Operation{Operation: huma.Operation{OperationID: id, Method: method, Path: sc.prefix + suffix, Summary: summary,
-			Description: desc, Tags: []string{tagFiles}, Errors: errs,
-			// 512 KiB of content may be JSON-escaped or base64-encoded.
-			MaxBodyBytes: 4 << 20}, Capability: Capability(sc.kind + ".files." + verb), Scope: ScopeResource}
+			Description: desc, Tags: []string{tagFiles}, Errors: errs, MaxBodyBytes: 4 << 20},
+			Capability: Capability(sc.kind + ".files." + verb), Scope: ScopeResource}
 		return o
 	}
 	for _, sc := range scopes {
@@ -1510,25 +1559,29 @@ func registerFiles(a huma.API, deps Deps) {
 		}
 		registerFileOp(a, h, op(sc, "list-"+kind+"-files", http.MethodGet, "", "List a directory of "+what,
 			"One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where "+
-				"it resolves, never followed out of the root. Path encoding and limits: docs/internal/api/files.md."+defNote, "read", std),
+				"it resolves, never followed out of the root. limits are the file manager limits of this root (edit, upload, download, "+
+				"extraction). Path encoding and limits: docs/internal/api/files.md."+defNote, "read", std),
 			h.list, func(in *listStackFilesInput) (fileScopeRef, *FilesListQuery) { return in.scopeRef(), in.common() },
 			func(in *listVolumeFilesInput) (fileScopeRef, *FilesListQuery) { return in.scopeRef(), in.common() },
 			func(in *listTemplateFilesInput) (fileScopeRef, *FilesListQuery) { return in.scopeRef(), in.common() })
 
 		registerFileOp(a, h, op(sc, "get-"+kind+"-file-content", http.MethodGet, "/content", "Read a file of "+what,
-			"At most 512 KiB of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; "+
-				"send it as If-Match when saving."+defNote, "read", std),
+			"At most the root's edit limit (limits.editMaxBytes of the listing, DOCKER_MANAGER_FILES_MAX_EDIT_KB, 512 KiB by default) of a "+
+				"regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match "+
+				"when saving."+defNote, "read", std),
 			h.getContent, func(in *getStackContentInput) (fileScopeRef, *FilesContentQuery) { return in.scopeRef(), in.common() },
 			func(in *getVolumeContentInput) (fileScopeRef, *FilesContentQuery) { return in.scopeRef(), in.common() },
 			func(in *getTemplateContentInput) (fileScopeRef, *FilesContentQuery) {
 				return in.scopeRef(), in.common()
 			})
 
-		registerFileOp(a, h, op(sc, "replace-"+kind+"-file-content", http.MethodPut, "/content", "Save a file of "+what,
+		save := op(sc, "replace-"+kind+"-file-content", http.MethodPut, "/content", "Save a file of "+what,
 			"Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current "+
 				"ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with "+
-				"If-None-Match: *. Without either: 428."+defNote,
-			"write", append(std, http.StatusPreconditionFailed, http.StatusPreconditionRequired, http.StatusRequestEntityTooLarge)),
+				"If-None-Match: *. Without either: 428. Content over the root's edit limit: 413."+defNote,
+			"write", append(std, http.StatusPreconditionFailed, http.StatusPreconditionRequired, http.StatusRequestEntityTooLarge))
+		save.MaxBodyBytes = contentBody
+		registerFileOp(a, h, save,
 			h.replaceContent, func(in *replaceStackContentInput) (fileScopeRef, *FilesReplaceInput) {
 				return in.scopeRef(), in.common()
 			},
@@ -1560,9 +1613,11 @@ func registerFiles(a huma.API, deps Deps) {
 			func(in *downloadTemplateInput) (fileScopeRef, *FilesDownloadQuery) { return in.scopeRef(), in.common() })
 
 		ce := op(sc, "create-"+kind+"-file-entry", http.MethodPost, "/entries", "Create a file or directory in "+what,
-			"Creates an empty directory or a new file (optional initial content up to 512 KiB). 409 file_exists when the name exists."+defNote,
+			"Creates an empty directory or a new file (optional initial content up to the root's edit limit). 409 file_exists when the "+
+				"name exists."+defNote,
 			"write", append(std, http.StatusRequestEntityTooLarge))
 		ce.DefaultStatus = http.StatusCreated
+		ce.MaxBodyBytes = contentBody
 		registerFileOp(a, h, ce, h.createEntry,
 			func(in *createStackEntryInput) (fileScopeRef, *FilesCreateEntryInput) {
 				return in.scopeRef(), in.common()
@@ -1578,8 +1633,8 @@ func registerFiles(a huma.API, deps Deps) {
 			"Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, "+
 				"verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when "+
 				"the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. "+
-				"At most DOCKER_MANAGER_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for "+
-				"many files."+defNote,
+				"At most the root's upload limit (limits.uploadMaxBytes of the listing, DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413). "+
+				"One request per file; upload an archive and extract it for many files."+defNote,
 			"write", append(std, http.StatusLengthRequired, http.StatusPreconditionFailed, http.StatusPreconditionRequired,
 				http.StatusRequestEntityTooLarge, http.StatusUnsupportedMediaType))
 		up.DefaultStatus = http.StatusCreated
@@ -1639,8 +1694,9 @@ func registerFiles(a huma.API, deps Deps) {
 		ext := op(sc, "create-"+kind+"-file-extraction", http.MethodPost, "/extractions", "Extract an archive in "+what,
 			"Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, "+
 				"drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; "+
-				"setuid bits are dropped; bytes actually written are limited (10 GiB and 100x the archive size) as well as the entry "+
-				"count (100 000). Nested archives are not extracted."+defNote, "extract", jobErrs)
+				"setuid bits are dropped; bytes actually written are limited (the root's limits.extractMaxBytes and extractMaxRatio times the "+
+				"archive size, 10 GiB and 100x by default) as well as the entry count (archiveMaxEntries, 100 000 by default). Nested "+
+				"archives are not extracted."+defNote, "extract", jobErrs)
 		ext.Idempotency = IdempotencyJob
 		registerFileOp(a, h, ext, h.extraction,
 			func(in *extractionStackInput) (fileScopeRef, *FilesExtractionInput) {

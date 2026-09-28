@@ -455,7 +455,10 @@ appear in responses. Details and the other file routes:
   `Range`. Symlinks are stored only when they resolve inside the root;
   escaping symlinks, hard-linked and special files are skipped and listed in
   a final `DOCKER-MANAGER-SKIPPED.txt` entry.
-- Limits (agent): 10 GiB per download or archive, 100 000 entries.
+- Limits (agent): `DOCKER_MANAGER_FILES_MAX_DOWNLOAD_MB` per download or
+  archive (default 10 GiB) and `DOCKER_MANAGER_FILES_MAX_ARCHIVE_ENTRIES`
+  entries (default 100 000), sent to agents with the `files.limits`
+  feature; older agents keep the defaults.
 - The manager waits for the first bytes before answering, so refusals
   (`404`, `409 file_unsupported`, `413`, …) are ordinary JSON errors. A
   failure after the first byte aborts the connection (the client sees a
@@ -468,8 +471,9 @@ appear in responses. Details and the other file routes:
 
 - Body: raw bytes, `Content-Type: application/octet-stream` (`415`
   otherwise), `Content-Length` required (`411 length_required`), at most
-  `DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` (default and maximum 2048 MiB, `413`; the
-  proxy body limit must allow it, #27).
+  the root's `limits.uploadMaxBytes` (`DOCKER_MANAGER_FILES_MAX_UPLOAD_MB`,
+  default 2048 MiB; agents without the `files.limits` feature accept at
+  most 2 GiB), else `413`; the proxy body limit must allow it, #27.
 - Preconditions, exactly one: `If-None-Match: *` creates only (`412` if the
   name exists); `If-Match: <ETag>` replaces exactly that revision (`412` with
   the current `ETag` otherwise); `conflict=overwrite|skip|keep_both` (skip

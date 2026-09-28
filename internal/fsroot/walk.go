@@ -209,7 +209,7 @@ func (s *Service) Preview(ctx context.Context, in protocol.FilesPreviewInput) (p
 		if len(paths) != 1 || dest == "" {
 			return out, fail(protocol.CodeInvalidFrame, "extract needs one archive and a destination")
 		}
-		err := s.scanArchive(ctx, r, paths[0], func(e archiveEntry) error {
+		err := s.scanArchive(ctx, r, s.limitsFor(in.Limits), paths[0], func(e archiveEntry) error {
 			if out.Impact.Entries >= protocol.MaxPreviewEntries {
 				out.Impact.Truncated = true
 				return errWalkLimit

@@ -60,6 +60,7 @@ func newTemplateEnv(t *testing.T) (*env, *fakeTemplates) {
 	}
 	ft := &fakeTemplates{dir: dir, max: 1 << 10}
 	ft.fs = fsroot.New(fsroot.Options{Kinds: templateKinds, Clock: testutil.FakeClock(),
+		Limits: fsroot.Limits{MaxInline: 4 << 10, MaxUpload: 1 << 20, MaxDownload: 4 << 20, MaxArchiveEntries: 50, MaxExtractBytes: 1 << 20},
 		Resolve: func(_ context.Context, s protocol.FileScope) (string, error) {
 			if s.Kind != protocol.ScopeTemplate {
 				return "", fsroot.Fail(protocol.CodeInvalidFrame, "not a template")
@@ -98,6 +99,11 @@ func TestTemplateDraftsAreServedByTheManager(t *testing.T) {
 	r.json(t, &listing)
 	if len(listing.Items) != 1 || listing.Items[0].Name != "compose.yaml" {
 		t.Fatalf("listing %+v", listing.Items)
+	}
+	// A draft's limits are the template service's, not the agents'.
+	if want := (api.FileLimits{EditMaxBytes: 4 << 10, UploadMaxBytes: 1 << 20, DownloadMaxBytes: 4 << 20, ExtractMaxBytes: 1 << 20,
+		ExtractMaxRatio: 100, ArchiveMaxEntries: 50}); listing.Limits != want {
+		t.Fatalf("limits %+v, want %+v", listing.Limits, want)
 	}
 	if r := e.do("owner", http.MethodGet, "/api/v1/templates/other/files?path=.", nil); r.status != http.StatusNotFound {
 		t.Fatalf("unknown template: %d %s", r.status, r.body)

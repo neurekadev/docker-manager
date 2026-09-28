@@ -5,7 +5,13 @@ import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '$lib/api/client';
 import { criticalWork } from '$lib/live';
 import type { FileContent, FileEntry } from './api';
-import { EditorSession, isDirty, SaveBlockedError, type EditorFiles } from './editor.svelte';
+import {
+	EditorSession,
+	isDirty,
+	SaveBlockedError,
+	truncatedTitle,
+	type EditorFiles
+} from './editor.svelte';
 
 function entry(path: string, modifiedAt = '2026-09-25T10:00:00Z'): FileEntry {
 	return { name: path, path, type: 'file', size: 1, mode: '0644', uid: 0, gid: 0, modifiedAt };
@@ -173,5 +179,15 @@ describe('EditorSession', () => {
 		expect(s.current?.status).toBe('error');
 		s.close('gone.txt');
 		expect(s.active).toBe('logo.png');
+	});
+});
+
+describe('truncatedTitle', () => {
+	it('names the served edit limit, not a fixed size', () => {
+		expect(truncatedTitle(512 * 1024, 3 * 1024 ** 2)).toBe('Showing the first 512 KB of 3 MB');
+		expect(truncatedTitle(4 * 1024 ** 2, 30 * 1024 ** 2)).toBe(
+			'Showing the first 4 MB of 30 MB'
+		);
+		expect(truncatedTitle(undefined, 3 * 1024 ** 2)).toBe('Showing the start of 3 MB');
 	});
 });

@@ -19,6 +19,7 @@ import (
 
 	"code.neureka.dev/docker-manager/docker-manager/internal/buildinfo"
 	"code.neureka.dev/docker-manager/docker-manager/internal/clock"
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/authz"
 	"code.neureka.dev/docker-manager/docker-manager/internal/manager/events"
 )
@@ -103,10 +104,12 @@ type Deps struct {
 	// marked thisInstance).
 	InstanceID string
 	// Files is the scoped file manager (#15); nil answers the file routes
-	// with 503. FilesMaxUpload bounds one upload (default DefaultMaxUpload,
-	// DOCKER_MANAGER_FILES_MAX_UPLOAD).
-	Files          FilesService
-	FilesMaxUpload int64
+	// with 503. FileLimits are the configured file manager limits
+	// (DOCKER_MANAGER_FILES_*; zero fields: the defaults): the settings
+	// summary shows them and the edit limit sizes the request bodies of
+	// saves. Files.Limits decides per root.
+	Files      FilesService
+	FileLimits domain.FileLimits
 	// GitCredentials serves Git credentials (#33); nil answers with 503.
 	GitCredentials GitCredentialService
 	// Builds serves image builds and build definitions (#33); nil

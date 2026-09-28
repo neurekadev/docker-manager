@@ -161,7 +161,10 @@ export class FilesApi {
 		);
 	}
 
-	/** Reads up to 512 KiB; `etag` is the content revision to save against. */
+	/**
+	 * Reads up to the root's edit limit (the listing's limits.editMaxBytes);
+	 * `etag` is the content revision to save against.
+	 */
 	read(path: string, signal?: AbortSignal): Promise<{ data: FileContent; etag: string | null }> {
 		const query = { path };
 		return withEtag(

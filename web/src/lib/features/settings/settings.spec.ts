@@ -210,6 +210,11 @@ describe('instance settings (#4)', () => {
 				trustedProxyCount: 0,
 				streamHeartbeatSeconds: 15,
 				filesMaxUploadBytes: 512 * 1024 ** 2,
+				filesMaxEditBytes: 2 * 1024 ** 2,
+				filesMaxDownloadBytes: 10 * 1024 ** 3,
+				filesMaxExtractBytes: 20 * 1024 ** 3,
+				filesMaxExtractRatio: 100,
+				filesMaxArchiveEntries: 100000,
 				metricsEndpoint: true
 			}
 		});
@@ -219,6 +224,9 @@ describe('instance settings (#4)', () => {
 			'Trusted proxies': 'None: forwarded headers are ignored',
 			'Stream heartbeat': 'Every 15 s',
 			'Largest upload': '512 MB',
+			'Largest file to edit': '2 MB',
+			'Largest download or archive': '10 GB',
+			'Largest extraction': '20 GB, at most 100× the archive, 100,000 entries',
 			'Metrics endpoint': 'On'
 		});
 	});

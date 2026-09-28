@@ -38,7 +38,12 @@ Sources: `internal/manager/config`, `internal/agent/config`,
 | `DOCKER_MANAGER_METRICS_RETENTION_15M` | `2160h` | Keep 15 min rollups this long (`168h`..`43800h`, at least the 1 min retention). |
 | `DOCKER_MANAGER_METRICS_MAX_SIZE_MB` | `2048` | Size cap of the metrics database in MiB (64..1048576). Above it every level's retention is shortened (oldest data first); at 5% of the retention new series are refused until space is free. The full scale budget (25 environments, 1 000 containers) needs about 1.2 GiB. |
 | `DOCKER_MANAGER_METRICS_MAX_SERIES` | `5000` | Maximum number of metric series (one per environment host, filesystem and container; 100..1000000). Samples of new containers beyond it are dropped (hosts are always kept). |
-| `DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` | `2048` | Largest file-manager upload in MiB (1 to 2048; agents never accept more than 2 GiB). The reverse proxy's request body limit must allow it (#27); larger data goes in as an archive to extract (#15). |
+| `DOCKER_MANAGER_FILES_MAX_EDIT_KB` | `512` | Largest file the file manager's editor opens for editing, in KiB (64..16384): the most one content read returns and one save accepts; larger files open read-only (their first bytes). Holds for every agent: above 512 KiB the manager reads and saves through the file streams. Saves send the content as JSON (the manager accepts bodies up to 4x the limit, at least 4 MiB), so the reverse proxy's body limit must allow somewhat more than this (#15). |
+| `DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` | `2048` | Largest file-manager upload in MiB (1..1048576). The reverse proxy's request body limit must allow it (#27); larger data goes in as an archive to extract (#15). Agents older than `files.limits` accept at most 2 GiB. |
+| `DOCKER_MANAGER_FILES_MAX_DOWNLOAD_MB` | `10240` | Largest file-manager download (one file or an archive of several) and largest archive created with **Create archive**, in MiB (1..1048576). |
+| `DOCKER_MANAGER_FILES_MAX_EXTRACT_MB` | `10240` | Most bytes one extraction writes, in MiB (1..1048576). |
+| `DOCKER_MANAGER_FILES_MAX_EXTRACT_RATIO` | `100` | An extraction writes at most this many times the archive's size (at least 1 MiB; 10..10000): the decompression-bomb guard. |
+| `DOCKER_MANAGER_FILES_MAX_ARCHIVE_ENTRIES` | `100000` | Most entries of an archive extracted, previewed or created (100..1000000). |
 | `DOCKER_MANAGER_TEMPLATE_MAX_SIZE_MB` | `32` | Largest stack template in MiB (1 to 1024): the files of a template's draft and of each published version (at most 5000 files and directories). Drafts live in `<data dir>/templates/`. |
 | `DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED` | `true` | Serve this instance's public template registry (`/api/v1/template-registry` and the `/registry` page) without sign-in: public templates only. `false` answers 404 there. |
 | `DOCKER_MANAGER_TEMPLATE_REGISTRY_SYNC_INTERVAL` | `30m` | How often the template registries of other instances added here are read again (at least `5m`; `0` turns periodic syncs off, **Sync now** still works). Failing registries back off up to 6 h. |
@@ -46,6 +51,20 @@ Sources: `internal/manager/config`, `internal/agent/config`,
 | `DOCKER_MANAGER_BACKUP_LOCAL_ROOTS` | empty | Comma-separated absolute directories (mounted into the manager) that local backup repositories on the manager may live in (#10). A local manager repository must be below one of them and outside the data directory. Empty: only S3 repositories can hold the manager state. |
 | `DOCKER_MANAGER_RESTIC_BINARY` | `/usr/local/bin/restic` | The pinned, checksum-verified restic of the image (#10). Restic's cache and temporary files live in `<data dir>/restic-cache` and `<data dir>/tmp`. |
 | `DOCKER_MANAGER_METRICS_ENABLED` | `false` | Serve Docker Manager's own metrics (job queue, agent sessions, event streams, database sizes, audit chain length) in the Prometheus text format at `GET /api/v1/system/metrics` (#34). Off: the route answers 404. Scrape it with an API token holding only `system.metrics.read`. Unrelated to the host and container metrics of #5, which are always collected. See `docs/internal/operations/diagnostics.md`. |
+
+### File manager limits
+
+The `DOCKER_MANAGER_FILES_*` limits are set once, on the manager, for every
+environment (#15). The manager enforces the edit and upload limits itself
+and sends the others with each download, upload, extract preview and
+archive or extract job to agents that announce the `files.limits` feature
+(`protocol.FeatureFileLimits`); agents cap what they receive at 1 TiB,
+1 000 000 entries and a ratio of 10 000. Older agents keep their built-in
+limits (the defaults above; uploads at most 2 GiB). Every directory
+listing reports the limits in effect for its root (`limits`), and the web
+client uses them for its checks and messages; template drafts keep the
+template size limits (`DOCKER_MANAGER_TEMPLATE_MAX_SIZE_MB`), with the
+edit limit and at most the upload limit. Contract: `docs/internal/api/files.md`.
 
 ### Secret-protection key
 

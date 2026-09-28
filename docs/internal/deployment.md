@@ -47,7 +47,7 @@ them in plain words (Quickstart, "Put HTTPS in front of it").
 | Idle/read timeout above the heartbeat | quiet streams must not be cut | see below |
 | Pass the `Host` header (with port) | Origin/WebSocket checks against `DOCKER_MANAGER_PUBLIC_URL` | nginx: `Host $http_host`; Traefik: `passHostHeader: true` |
 | Set `X-Forwarded-For/Proto/Host`, overwrite client values | client IP, https detection | nginx: `$remote_addr` (replaced, not appended), `$scheme`, `$http_host` |
-| Body size ≥ the manager's maximum upload/archive size (#15) | uploads, archives, restores | Caddy: `request_body max_size`; nginx: `client_max_body_size`, `proxy_request_buffering off` |
+| Body size ≥ the manager's maximum upload/archive size (`DOCKER_MANAGER_FILES_MAX_UPLOAD_MB`, #15) | uploads, archives, restores, editor saves | Caddy: `request_body max_size`; nginx: `client_max_body_size`, `proxy_request_buffering off` |
 | Proxy address trusted by the manager | forwarded headers are honored only from `DOCKER_MANAGER_TRUSTED_PROXIES` | below |
 
 ### Trusted proxies

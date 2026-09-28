@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"code.neureka.dev/docker-manager/docker-manager/internal/domain"
 	"code.neureka.dev/docker-manager/docker-manager/internal/envconfig"
 )
 
@@ -175,21 +176,54 @@ func TestAuditConfig(t *testing.T) {
 	}
 }
 
-func TestFilesMaxUpload(t *testing.T) {
+func TestFilesLimits(t *testing.T) {
 	cfg, err := load(t, map[string]string{EnvPublicURL: "https://d.example.com"})
-	if err != nil || cfg.FilesMaxUpload != 2<<30 {
-		t.Fatalf("default %d %v", cfg.FilesMaxUpload, err)
+	want := domain.FileLimits{Edit: 512 << 10, Upload: 2 << 30, Download: 10 << 30, ExtractBytes: 10 << 30, ExtractRatio: 100, ArchiveEntries: 100_000}
+	if err != nil || cfg.Files != want || DefaultFiles() != want {
+		t.Fatalf("defaults %+v %v", cfg.Files, err)
 	}
-	cfg, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvFilesMaxUploadMB: "100"})
-	if err != nil || cfg.FilesMaxUpload != 100<<20 {
-		t.Fatalf("custom %d %v", cfg.FilesMaxUpload, err)
+	cfg, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvFilesMaxEditKB: "2048", EnvFilesMaxUploadMB: "8192",
+		EnvFilesMaxDownloadMB: "20480", EnvFilesMaxExtractMB: "51200", EnvFilesMaxExtractRatio: "500", EnvFilesMaxArchiveEntries: "250000"})
+	want = domain.FileLimits{Edit: 2 << 20, Upload: 8 << 30, Download: 20 << 30, ExtractBytes: 50 << 30, ExtractRatio: 500, ArchiveEntries: 250_000}
+	if err != nil || cfg.Files != want {
+		t.Fatalf("custom %+v %v", cfg.Files, err)
 	}
-	// The agents refuse more than 2 GiB, so the manager may only lower it.
-	for _, v := range []string{"0", "4096", "big"} {
-		if _, err := load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvFilesMaxUploadMB: v}); err == nil ||
-			!strings.Contains(err.Error(), EnvFilesMaxUploadMB) {
-			t.Fatalf("%s accepted: %v", v, err)
+	// Lowering works too; the bounds are inclusive.
+	cfg, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvFilesMaxEditKB: "64", EnvFilesMaxUploadMB: "1",
+		EnvFilesMaxDownloadMB: "1048576", EnvFilesMaxExtractRatio: "10", EnvFilesMaxArchiveEntries: "100"})
+	if err != nil || cfg.Files.Edit != 64<<10 || cfg.Files.Upload != 1<<20 || cfg.Files.Download != 1<<40 ||
+		cfg.Files.ExtractRatio != 10 || cfg.Files.ArchiveEntries != 100 {
+		t.Fatalf("bounds %+v %v", cfg.Files, err)
+	}
+	// Out of range or not a number: a startup error naming the variable.
+	for name, values := range map[string][]string{
+		EnvFilesMaxEditKB:         {"63", "16385", "1MB"},
+		EnvFilesMaxUploadMB:       {"0", "1048577", "big"},
+		EnvFilesMaxDownloadMB:     {"0", "2097152"},
+		EnvFilesMaxExtractMB:      {"-1", "1048577"},
+		EnvFilesMaxExtractRatio:   {"9", "10001"},
+		EnvFilesMaxArchiveEntries: {"99", "1000001", "1e5"},
+	} {
+		for _, v := range values {
+			if _, err := load(t, map[string]string{EnvPublicURL: "https://d.example.com", name: v}); err == nil ||
+				!strings.Contains(err.Error(), name) {
+				t.Errorf("%s=%s accepted: %v", name, v, err)
+			}
 		}
+	}
+	// Every problem is reported at once.
+	_, err = load(t, map[string]string{EnvPublicURL: "https://d.example.com", EnvFilesMaxEditKB: "1", EnvFilesMaxArchiveEntries: "1"})
+	if err == nil || !strings.Contains(err.Error(), EnvFilesMaxEditKB) || !strings.Contains(err.Error(), EnvFilesMaxArchiveEntries) {
+		t.Fatalf("both errors expected: %v", err)
+	}
+	// The support bundle lists the effective values in the variables' units.
+	settings := map[string]string{}
+	for _, st := range cfg.Settings() {
+		settings[st.Name] = st.Value
+	}
+	if settings[EnvFilesMaxEditKB] != "64" || settings[EnvFilesMaxUploadMB] != "1" || settings[EnvFilesMaxDownloadMB] != "1048576" ||
+		settings[EnvFilesMaxExtractMB] != "10240" || settings[EnvFilesMaxExtractRatio] != "10" || settings[EnvFilesMaxArchiveEntries] != "100" {
+		t.Fatalf("settings %v", settings)
 	}
 }
 

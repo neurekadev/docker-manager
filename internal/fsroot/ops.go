@@ -192,7 +192,7 @@ func join(dir, name string) string {
 	return dir + "/" + name
 }
 
-// Read returns up to MaxInlineContent bytes of a regular file.
+// Read returns up to Limits.MaxInline bytes of a regular file.
 func (s *Service) Read(ctx context.Context, in protocol.FilesReadInput) (protocol.FilesReadOutput, error) {
 	rel, err := cleanPath(in.Path)
 	if err != nil {
@@ -217,8 +217,8 @@ func (s *Service) Read(ctx context.Context, in protocol.FilesReadInput) (protoco
 		return protocol.FilesReadOutput{}, classify(err, rel)
 	}
 	n := in.Length
-	if n == 0 || n > protocol.MaxInlineContent {
-		n = protocol.MaxInlineContent
+	if n == 0 || n > s.limits.MaxInline {
+		n = s.limits.MaxInline
 	}
 	if _, err := f.Seek(in.Offset, io.SeekStart); err != nil {
 		return protocol.FilesReadOutput{}, classify(err, rel)
@@ -230,13 +230,13 @@ func (s *Service) Read(ctx context.Context, in protocol.FilesReadInput) (protoco
 	}
 	buf = buf[:got]
 	truncated := in.Offset+int64(got) < fi.Size()
-	return protocol.FilesReadOutput{Entry: e, Data: buf, Binary: isBinary(buf, truncated), Truncated: truncated}, nil
+	return protocol.FilesReadOutput{Entry: e, Data: buf, Binary: IsBinary(buf, truncated), Truncated: truncated}, nil
 }
 
-// isBinary reports whether b is not UTF-8 text: a NUL byte or invalid
+// IsBinary reports whether b is not UTF-8 text: a NUL byte or invalid
 // UTF-8 (an incomplete sequence cut off at the end of a truncated read is
 // tolerated).
-func isBinary(b []byte, truncated bool) bool {
+func IsBinary(b []byte, truncated bool) bool {
 	if bytes.IndexByte(b, 0) >= 0 {
 		return true
 	}
@@ -428,8 +428,8 @@ func (s *Service) Write(ctx context.Context, in protocol.FilesWriteInput) (proto
 	if n := boolCount(len(in.IfMatch) > 0, in.CreateOnly, in.Overwrite); n != 1 {
 		return protocol.FileEntry{}, fail(protocol.CodeInvalidFrame, "exactly one of ifMatch, createOnly and overwrite is required")
 	}
-	if len(in.Data) > protocol.MaxInlineContent {
-		return protocol.FileEntry{}, fail(protocol.CodeTooLarge, "inline content exceeds %d bytes; upload instead", protocol.MaxInlineContent)
+	if int64(len(in.Data)) > s.limits.MaxInline {
+		return protocol.FileEntry{}, fail(protocol.CodeTooLarge, "inline content exceeds %d bytes; upload instead", s.limits.MaxInline)
 	}
 	r, err := s.open(ctx, in.Scope)
 	if err != nil {
@@ -447,7 +447,7 @@ func (s *Service) Write(ctx context.Context, in protocol.FilesWriteInput) (proto
 	if err != nil {
 		return protocol.FileEntry{}, err
 	}
-	tmp, _, sum, err := s.writeTemp(ctx, t, bytes.NewReader(in.Data), protocol.MaxInlineContent, cur)
+	tmp, _, sum, err := s.writeTemp(ctx, t, bytes.NewReader(in.Data), s.limits.MaxInline, cur)
 	if err != nil {
 		return protocol.FileEntry{}, err
 	}

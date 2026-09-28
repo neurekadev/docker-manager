@@ -19,6 +19,11 @@ const settings: InstanceSettings = {
 		trustedProxyCount: 1,
 		streamHeartbeatSeconds: 15,
 		filesMaxUploadBytes: 2 * 1024 ** 3,
+		filesMaxEditBytes: 512 * 1024,
+		filesMaxDownloadBytes: 10 * 1024 ** 3,
+		filesMaxExtractBytes: 10 * 1024 ** 3,
+		filesMaxExtractRatio: 100,
+		filesMaxArchiveEntries: 100000,
 		metricsEndpoint: false
 	}
 };

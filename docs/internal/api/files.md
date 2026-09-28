@@ -27,8 +27,8 @@ Agent side: [agent-v1.md](../protocol/agent-v1.md#scoped-files-15).
 | method and suffix | operation | capability | answer |
 | --- | --- | --- | --- |
 | `GET /files?path=&sort=&q=&hidden=&cursor=&limit=` | list | `files.read` | `FileListing` |
-| `GET /files/content?path=&offset=` | read (≤ 512 KiB) | `files.read` | `FileContent` + `ETag` |
-| `PUT /files/content?path=` (`If-Match` / `If-None-Match: *`) | save (≤ 512 KiB) | `files.write` | `FileEntry` + `ETag` |
+| `GET /files/content?path=&offset=` | read (≤ edit limit) | `files.read` | `FileContent` + `ETag` |
+| `PUT /files/content?path=` (`If-Match` / `If-None-Match: *`) | save (≤ edit limit) | `files.write` | `FileEntry` + `ETag` |
 | `GET /files/downloads?path=…[&path=…][&format=]` | download | `files.download` | bytes (see streams.md) |
 | `POST /files/entries` `{path, type: file\|dir, content?}` | create | `files.write` | `201 FileEntry` |
 | `POST /files/uploads?path=&name=[&conflict=]` | upload one file | `files.write` | `201 FileUploadResult` |
@@ -74,18 +74,59 @@ explicit overwrite re-sends with the new ETag). `If-None-Match: *` creates a
 file only if the name is free. Without a precondition: `428`.
 
 `FileContent` returns UTF-8 text as `content`, anything else (NUL bytes,
-invalid UTF-8) as `contentBase64` with `binary: true`. At most 512 KiB are
-returned per request (`truncated: true` and `offset` for more); files that
-do not fit are downloaded and uploaded instead of edited.
+invalid UTF-8) as `contentBase64` with `binary: true`. At most the root's
+edit limit (see [Limits](#limits), 512 KiB by default) is returned per
+request (`truncated: true` and `offset` for more); files that do not fit
+are downloaded and uploaded instead of edited.
 
 ## Listings
 
-`FileListing {dir, items, nextCursor, total, truncated}`: `sort` is `name`
+`FileListing {dir, items, nextCursor, total, truncated, limits}`: `sort` is `name`
 (default), `size`, `modified` or `type` (directories first), `-` for
 descending, ties by name; `q` filters names (case-insensitive substring);
 `hidden=true` includes dot files. Pages hold at most 200 entries (`limit`);
 cursors are bound to the query. Directories with more than 100 000 entries
-list the first ones read (`truncated: true`).
+list the first ones read (`truncated: true`). `limits` are the root's
+limits (below).
+
+## Limits
+
+The manager's `DOCKER_MANAGER_FILES_*` variables
+(`docs/internal/configuration.md`) set the file manager's limits for every
+environment; every listing reports those in effect for its root as
+`limits`, and the web client takes its checks and messages from there
+(never from constants):
+
+| field | variable | default | enforced by |
+| --- | --- | --- | --- |
+| `editMaxBytes` | `DOCKER_MANAGER_FILES_MAX_EDIT_KB` (64..16384) | 512 KiB | manager: content read length, save and create content (`413 payload_too_large`) |
+| `uploadMaxBytes` | `DOCKER_MANAGER_FILES_MAX_UPLOAD_MB` (1..1048576) | 2 GiB | manager (`Content-Length`) and agent |
+| `downloadMaxBytes` | `DOCKER_MANAGER_FILES_MAX_DOWNLOAD_MB` (1..1048576) | 10 GiB | agent: one download (raw or archive) and one archive created by `files.archive` |
+| `extractMaxBytes` | `DOCKER_MANAGER_FILES_MAX_EXTRACT_MB` (1..1048576) | 10 GiB | agent: bytes one extraction writes |
+| `extractMaxRatio` | `DOCKER_MANAGER_FILES_MAX_EXTRACT_RATIO` (10..10000) | 100 | agent: bytes written per archive byte (at least 1 MiB) |
+| `archiveMaxEntries` | `DOCKER_MANAGER_FILES_MAX_ARCHIVE_ENTRIES` (100..1000000) | 100 000 | agent: entries of an archive extracted, previewed or created |
+
+- The agent limits travel as `limits` in the `files.download` and
+  `files.upload` inputs, extract previews and `files.archive` /
+  `files.extract` job inputs, only to agents announcing `files.limits`
+  (`protocol.FeatureFileLimits`, [agent-v1.md](../protocol/agent-v1.md#scoped-files-15)).
+  Older agents keep their built-in limits (the defaults); for their roots
+  `limits` reports those, with `uploadMaxBytes` at most 2 GiB.
+- The edit limit holds for every agent: agents answer `files.read` and
+  `files.write` with at most 512 KiB (one frame), so the manager reads the
+  rest of a longer file through a raw `files.download` (and fails with
+  `409 file_conflict` when the file's size or modification time changed
+  meanwhile) and saves larger content through `files.upload` with the same
+  precondition (`If-Match`, create-only). Save and create requests accept
+  JSON bodies of 4x the edit limit (at least 4 MiB).
+- Template drafts keep the template limits
+  (`DOCKER_MANAGER_TEMPLATE_MAX_SIZE_MB`: uploads, extractions and
+  downloads, 5000 entries) with the manager's edit limit; uploads are
+  also bounded by a lower upload limit.
+- Fixed (not configurable): 256 MiB for content ETags, 100 000 entries per
+  listing scan and preview count, 200 entries per page, 1000 conflicts,
+  256 paths per job request, 1 000 000 entries per recursive operation, and
+  10 GiB per single copied file (`files.copy`).
 
 ## Conflicts and previews
 
@@ -130,7 +171,7 @@ previewed and confirmed in the UI before the request.
 | 409 | `volume_files_unsupported` | non-local volume driver, remote-backed local volume, Docker Manager's own volumes, the stacks volume, or storage layout not verified |
 | 411 | `length_required` | upload without `Content-Length` |
 | 412 | `precondition_failed` | stale `If-Match` (with the current `ETag`) or `If-None-Match: *` on an existing name |
-| 413 | `payload_too_large` | content over 512 KiB, upload over the limit, download or archive over 10 GiB |
+| 413 | `payload_too_large` | content over the edit limit, upload over the upload limit, download or archive over the download limit, an extract preview over the entry limit |
 | 416 | `range_not_satisfiable` | range outside the file |
 | 422 | `validation_failed` | invalid or escaping path, name, mode, conflict policy |
 | 422 | `content_digest_mismatch` | upload digest mismatch |
@@ -205,9 +246,10 @@ state), so a file grant can never reach Docker Manager's database or credentials
   refused, as are symlinks leaving the root, anything below a refused link,
   hard links to files outside the archive (allowed ones are extracted as
   copies), devices and FIFOs; permission bits only (no setuid); at most
-  100 000 entries; bytes actually written are limited to 10 GiB and to 100x
-  the archive's size (at least 1 MiB), whatever the headers claim; nested
-  archives are not extracted.
+  `archiveMaxEntries` entries (default 100 000); bytes actually written are
+  limited to `extractMaxBytes` (default 10 GiB) and to `extractMaxRatio`
+  times the archive's size (default 100x, at least 1 MiB), whatever the
+  headers claim; nested archives are not extracted.
 - File contents are never logged and never recorded in audit events (paths,
   sizes, counts and outcomes are). Docker Manager's own changes are published as
   file invalidations (paths only) for open views; external changes come from
@@ -243,7 +285,8 @@ manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
   selection bar and each row's menu (touch). Paste and drag within the
   list copy/move inside the root only; uploads (files and folders, OS drag
   and drop, progress, cancel) send `If-None-Match: *` unless the user chose
-  a conflict policy; downloads of several entries or a folder are ZIP
+  a conflict policy, and files over `limits.uploadMaxBytes` fail in the
+  queue without being sent; downloads of several entries or a folder are ZIP
   archives. Conflicts (`conflict-previews`) are asked per item, "Apply to
   all" off; one request per decision group, conflict-free items with
   `fail`. Extraction and archive names ask once (one request). Delete,
@@ -260,7 +303,8 @@ manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
   (`POST /stacks/{stackId}/validations`, with `stack.definition.write`),
   its toast offers Deploy, and its status
   line offers Deploy while the stack has undeployed changes (with
-  `stack.deploy`). Large files open read-only (first 512 KiB), binary files as a
+  `stack.deploy`). Files over the edit limit open read-only (their first
+  `limits.editMaxBytes`, named in the notice), binary files as a
   download (images previewed up to 5 MiB). An external change keeps the
   unsaved buffer: "<file> changed on disk. Your edits are kept." with
   Compare (line diff), Reload from disk, Save as… and Overwrite (confirmed,

@@ -46,6 +46,12 @@ export function deploymentFacts(
 		},
 		{ label: 'Stream heartbeat', value: `Every ${d.streamHeartbeatSeconds} s` },
 		{ label: 'Largest upload', value: formatBytes(d.filesMaxUploadBytes) },
+		{ label: 'Largest file to edit', value: formatBytes(d.filesMaxEditBytes) },
+		{ label: 'Largest download or archive', value: formatBytes(d.filesMaxDownloadBytes) },
+		{
+			label: 'Largest extraction',
+			value: `${formatBytes(d.filesMaxExtractBytes)}, at most ${d.filesMaxExtractRatio}× the archive, ${d.filesMaxArchiveEntries.toLocaleString('en')} entries`
+		},
 		{ label: 'Metrics endpoint', value: d.metricsEndpoint ? 'On' : 'Off' }
 	];
 }

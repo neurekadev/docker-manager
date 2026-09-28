@@ -5429,6 +5429,46 @@
       "DeploymentSettings": {
         "additionalProperties": false,
         "properties": {
+          "filesMaxArchiveEntries": {
+            "description": "DOCKER_MANAGER_FILES_MAX_ARCHIVE_ENTRIES: the most entries of an archive extracted or created.",
+            "examples": [
+              100000
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "filesMaxDownloadBytes": {
+            "description": "DOCKER_MANAGER_FILES_MAX_DOWNLOAD_MB: the largest file-manager download or created archive.",
+            "examples": [
+              10737418240
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "filesMaxEditBytes": {
+            "description": "DOCKER_MANAGER_FILES_MAX_EDIT_KB: larger files open read-only in the file manager's editor.",
+            "examples": [
+              524288
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "filesMaxExtractBytes": {
+            "description": "DOCKER_MANAGER_FILES_MAX_EXTRACT_MB: the most one extraction writes.",
+            "examples": [
+              10737418240
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "filesMaxExtractRatio": {
+            "description": "DOCKER_MANAGER_FILES_MAX_EXTRACT_RATIO: an extraction writes at most this many times the archive's size.",
+            "examples": [
+              100
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
           "filesMaxUploadBytes": {
             "description": "DOCKER_MANAGER_FILES_MAX_UPLOAD_MB: the largest file-manager upload; the reverse proxy's body limit must allow it.",
             "examples": [
@@ -5481,6 +5521,11 @@
           "trustedProxyCount",
           "streamHeartbeatSeconds",
           "filesMaxUploadBytes",
+          "filesMaxEditBytes",
+          "filesMaxDownloadBytes",
+          "filesMaxExtractBytes",
+          "filesMaxExtractRatio",
+          "filesMaxArchiveEntries",
           "metricsEndpoint"
         ],
         "type": "object"
@@ -7016,7 +7061,7 @@
             "type": "integer"
           },
           "truncated": {
-            "description": "The file continues after the returned bytes (at most 512 KiB per request): not editable in place.",
+            "description": "The file continues after the returned bytes (at most the root's editMaxBytes per request, 512 KiB by default): not editable in place.",
             "type": "boolean"
           }
         },
@@ -7161,6 +7206,68 @@
         ],
         "type": "object"
       },
+      "FileLimits": {
+        "additionalProperties": false,
+        "properties": {
+          "archiveMaxEntries": {
+            "description": "Most entries of an archive extracted or created (DOCKER_MANAGER_FILES_MAX_ARCHIVE_ENTRIES).",
+            "examples": [
+              100000
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "downloadMaxBytes": {
+            "description": "Largest download, and largest archive created in the root (DOCKER_MANAGER_FILES_MAX_DOWNLOAD_MB).",
+            "examples": [
+              10737418240
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "editMaxBytes": {
+            "description": "Files up to this size open in the editor; larger ones show their first bytes read-only. Also the most one content read returns and one save accepts (DOCKER_MANAGER_FILES_MAX_EDIT_KB).",
+            "examples": [
+              524288
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "extractMaxBytes": {
+            "description": "Most bytes one extraction writes (DOCKER_MANAGER_FILES_MAX_EXTRACT_MB).",
+            "examples": [
+              10737418240
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "extractMaxRatio": {
+            "description": "An extraction writes at most this many times the archive's size, at least 1 MiB (DOCKER_MANAGER_FILES_MAX_EXTRACT_RATIO).",
+            "examples": [
+              100
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "uploadMaxBytes": {
+            "description": "Largest upload per file (DOCKER_MANAGER_FILES_MAX_UPLOAD_MB).",
+            "examples": [
+              2147483648
+            ],
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "editMaxBytes",
+          "uploadMaxBytes",
+          "downloadMaxBytes",
+          "extractMaxBytes",
+          "extractMaxRatio",
+          "archiveMaxEntries"
+        ],
+        "type": "object"
+      },
       "FileListing": {
         "additionalProperties": false,
         "properties": {
@@ -7173,6 +7280,10 @@
               "$ref": "#/components/schemas/FileEntry"
             },
             "type": "array"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/FileLimits",
+            "description": "The file manager limits of this root, for client-side checks and messages."
           },
           "nextCursor": {
             "type": "string"
@@ -7191,7 +7302,8 @@
           "dir",
           "items",
           "total",
-          "truncated"
+          "truncated",
+          "limits"
         ],
         "type": "object"
       },
@@ -12761,14 +12873,14 @@
         "additionalProperties": false,
         "properties": {
           "content": {
-            "description": "New content as UTF-8 text (at most 512 KiB).",
+            "description": "New content as UTF-8 text (at most the root's editMaxBytes, 512 KiB by default).",
             "examples": [
               "server_tokens off;"
             ],
             "type": "string"
           },
           "contentBase64": {
-            "description": "New content as base64 (binary; at most 512 KiB decoded).",
+            "description": "New content as base64 (binary; at most editMaxBytes decoded).",
             "type": "string"
           }
         },
@@ -12778,14 +12890,14 @@
         "additionalProperties": false,
         "properties": {
           "content": {
-            "description": "New content as UTF-8 text (at most 512 KiB).",
+            "description": "New content as UTF-8 text (at most the root's editMaxBytes, 512 KiB by default).",
             "examples": [
               "server_tokens off;"
             ],
             "type": "string"
           },
           "contentBase64": {
-            "description": "New content as base64 (binary; at most 512 KiB decoded).",
+            "description": "New content as base64 (binary; at most editMaxBytes decoded).",
             "type": "string"
           }
         },
@@ -12795,14 +12907,14 @@
         "additionalProperties": false,
         "properties": {
           "content": {
-            "description": "New content as UTF-8 text (at most 512 KiB).",
+            "description": "New content as UTF-8 text (at most the root's editMaxBytes, 512 KiB by default).",
             "examples": [
               "server_tokens off;"
             ],
             "type": "string"
           },
           "contentBase64": {
-            "description": "New content as base64 (binary; at most 512 KiB decoded).",
+            "description": "New content as base64 (binary; at most editMaxBytes decoded).",
             "type": "string"
           }
         },
@@ -42498,7 +42610,7 @@
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files": {
       "get": {
-        "description": "One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/internal/api/files.md. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
+        "description": "One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. limits are the file manager limits of this root (edit, upload, download, extraction). Path encoding and limits: docs/internal/api/files.md. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "list-volume-files",
         "parameters": [
           {
@@ -42636,6 +42748,14 @@
                       "uid": 1
                     }
                   ],
+                  "limits": {
+                    "archiveMaxEntries": 100000,
+                    "downloadMaxBytes": 10737418240,
+                    "editMaxBytes": 524288,
+                    "extractMaxBytes": 10737418240,
+                    "extractMaxRatio": 100,
+                    "uploadMaxBytes": 2147483648
+                  },
                   "nextCursor": "example",
                   "total": 1,
                   "truncated": false
@@ -43330,7 +43450,7 @@
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/content": {
       "get": {
-        "description": "At most 512 KiB of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
+        "description": "At most the root's edit limit (limits.editMaxBytes of the listing, DOCKER_MANAGER_FILES_MAX_EDIT_KB, 512 KiB by default) of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "get-volume-file-content",
         "parameters": [
           {
@@ -43571,7 +43691,7 @@
         "x-docker-manager-scope": "resource"
       },
       "put": {
-        "description": "Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
+        "description": "Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Content over the root's edit limit: 413. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "replace-volume-file-content",
         "parameters": [
           {
@@ -44735,7 +44855,7 @@
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/entries": {
       "post": {
-        "description": "Creates an empty directory or a new file (optional initial content up to 512 KiB). 409 file_exists when the name exists. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
+        "description": "Creates an empty directory or a new file (optional initial content up to the root's edit limit). 409 file_exists when the name exists. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "create-volume-file-entry",
         "parameters": [
           {
@@ -44977,7 +45097,7 @@
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/extractions": {
       "post": {
-        "description": "Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (10 GiB and 100x the archive size) as well as the entry count (100 000). Nested archives are not extracted. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
+        "description": "Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (the root's limits.extractMaxBytes and extractMaxRatio times the archive size, 10 GiB and 100x by default) as well as the entry count (archiveMaxEntries, 100 000 by default). Nested archives are not extracted. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "create-volume-file-extraction",
         "parameters": [
           {
@@ -45840,7 +45960,7 @@
     },
     "/api/v1/environments/{environmentId}/volumes/{volumeId}/files/uploads": {
       "post": {
-        "description": "Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKER_MANAGER_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
+        "description": "Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most the root's upload limit (limits.uploadMaxBytes of the listing, DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413). One request per file; upload an archive and extract it for many files. Only local-driver volumes are served (non-local drivers and Docker Manager's own volumes answer 409 volume_files_unsupported).",
         "operationId": "upload-volume-files",
         "parameters": [
           {
@@ -45923,11 +46043,11 @@
             }
           },
           {
-            "description": "Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+            "description": "Required (411 otherwise); at most the root's uploadMaxBytes (DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413).",
             "in": "header",
             "name": "Content-Length",
             "schema": {
-              "description": "Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+              "description": "Required (411 otherwise); at most the root's uploadMaxBytes (DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413).",
               "format": "int64",
               "type": "integer"
             }
@@ -57119,7 +57239,7 @@
     },
     "/api/v1/settings": {
       "get": {
-        "description": "The display name of this Docker Manager and a read-only summary of its deployment configuration (public URL, trusted proxies, stream heartbeat, upload limit, metrics endpoint). The sign-in policy is GET /api/v1/settings/security (owner only), schedule defaults GET /api/v1/schedule-defaults and maintenance defaults GET /api/v1/maintenance-defaults.",
+        "description": "The display name of this Docker Manager and a read-only summary of its deployment configuration (public URL, trusted proxies, stream heartbeat, file manager limits, metrics endpoint). The sign-in policy is GET /api/v1/settings/security (owner only), schedule defaults GET /api/v1/schedule-defaults and maintenance defaults GET /api/v1/maintenance-defaults.",
         "operationId": "get-settings",
         "responses": {
           "200": {
@@ -57127,6 +57247,11 @@
               "application/json": {
                 "example": {
                   "deployment": {
+                    "filesMaxArchiveEntries": 100000,
+                    "filesMaxDownloadBytes": 10737418240,
+                    "filesMaxEditBytes": 524288,
+                    "filesMaxExtractBytes": 10737418240,
+                    "filesMaxExtractRatio": 100,
                     "filesMaxUploadBytes": 2147483648,
                     "localDevelopment": false,
                     "metricsEndpoint": false,
@@ -57249,6 +57374,11 @@
               "application/json": {
                 "example": {
                   "deployment": {
+                    "filesMaxArchiveEntries": 100000,
+                    "filesMaxDownloadBytes": 10737418240,
+                    "filesMaxEditBytes": 524288,
+                    "filesMaxExtractBytes": 10737418240,
+                    "filesMaxExtractRatio": 100,
                     "filesMaxUploadBytes": 2147483648,
                     "localDevelopment": false,
                     "metricsEndpoint": false,
@@ -61001,7 +61131,7 @@
     },
     "/api/v1/stacks/{stackId}/files": {
       "get": {
-        "description": "One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/internal/api/files.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "description": "One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. limits are the file manager limits of this root (edit, upload, download, extraction). Path encoding and limits: docs/internal/api/files.md. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
         "operationId": "list-stack-files",
         "parameters": [
           {
@@ -61128,6 +61258,14 @@
                       "uid": 1
                     }
                   ],
+                  "limits": {
+                    "archiveMaxEntries": 100000,
+                    "downloadMaxBytes": 10737418240,
+                    "editMaxBytes": 524288,
+                    "extractMaxBytes": 10737418240,
+                    "extractMaxRatio": 100,
+                    "uploadMaxBytes": 2147483648
+                  },
                   "nextCursor": "example",
                   "total": 1,
                   "truncated": false
@@ -61800,7 +61938,7 @@
     },
     "/api/v1/stacks/{stackId}/files/content": {
       "get": {
-        "description": "At most 512 KiB of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "description": "At most the root's edit limit (limits.editMaxBytes of the listing, DOCKER_MANAGER_FILES_MAX_EDIT_KB, 512 KiB by default) of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
         "operationId": "get-stack-file-content",
         "parameters": [
           {
@@ -62030,7 +62168,7 @@
         "x-docker-manager-scope": "resource"
       },
       "put": {
-        "description": "Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "description": "Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Content over the root's edit limit: 413. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
         "operationId": "replace-stack-file-content",
         "parameters": [
           {
@@ -63150,7 +63288,7 @@
     },
     "/api/v1/stacks/{stackId}/files/entries": {
       "post": {
-        "description": "Creates an empty directory or a new file (optional initial content up to 512 KiB). 409 file_exists when the name exists. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "description": "Creates an empty directory or a new file (optional initial content up to the root's edit limit). 409 file_exists when the name exists. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
         "operationId": "create-stack-file-entry",
         "parameters": [
           {
@@ -63381,7 +63519,7 @@
     },
     "/api/v1/stacks/{stackId}/files/extractions": {
       "post": {
-        "description": "Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (10 GiB and 100x the archive size) as well as the entry count (100 000). Nested archives are not extracted. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "description": "Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (the root's limits.extractMaxBytes and extractMaxRatio times the archive size, 10 GiB and 100x by default) as well as the entry count (archiveMaxEntries, 100 000 by default). Nested archives are not extracted. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
         "operationId": "create-stack-file-extraction",
         "parameters": [
           {
@@ -64211,7 +64349,7 @@
     },
     "/api/v1/stacks/{stackId}/files/uploads": {
       "post": {
-        "description": "Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKER_MANAGER_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
+        "description": "Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most the root's upload limit (limits.uploadMaxBytes of the listing, DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413). One request per file; upload an archive and extract it for many files. Compose sources (compose.yaml, override files, .env at the root) additionally need stack.definition.read / stack.definition.write.",
         "operationId": "upload-stack-files",
         "parameters": [
           {
@@ -64283,11 +64421,11 @@
             }
           },
           {
-            "description": "Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+            "description": "Required (411 otherwise); at most the root's uploadMaxBytes (DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413).",
             "in": "header",
             "name": "Content-Length",
             "schema": {
-              "description": "Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+              "description": "Required (411 otherwise); at most the root's uploadMaxBytes (DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413).",
               "format": "int64",
               "type": "integer"
             }
@@ -71221,7 +71359,7 @@
     },
     "/api/v1/templates/{templateId}/files": {
       "get": {
-        "description": "One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. Path encoding and limits: docs/internal/api/files.md. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).",
+        "description": "One page of a directory listing (entries sorted by sort, ties by name; cursor pagination). Symlinks are shown with their target and where it resolves, never followed out of the root. limits are the file manager limits of this root (edit, upload, download, extraction). Path encoding and limits: docs/internal/api/files.md. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).",
         "operationId": "list-template-files",
         "parameters": [
           {
@@ -71348,6 +71486,14 @@
                       "uid": 1
                     }
                   ],
+                  "limits": {
+                    "archiveMaxEntries": 100000,
+                    "downloadMaxBytes": 10737418240,
+                    "editMaxBytes": 524288,
+                    "extractMaxBytes": 10737418240,
+                    "extractMaxRatio": 100,
+                    "uploadMaxBytes": 2147483648
+                  },
                   "nextCursor": "example",
                   "total": 1,
                   "truncated": false
@@ -72020,7 +72166,7 @@
     },
     "/api/v1/templates/{templateId}/files/content": {
       "get": {
-        "description": "At most 512 KiB of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).",
+        "description": "At most the root's edit limit (limits.editMaxBytes of the listing, DOCKER_MANAGER_FILES_MAX_EDIT_KB, 512 KiB by default) of a regular file from offset, as text or base64 (binary). The ETag header is the file's content revision; send it as If-Match when saving. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).",
         "operationId": "get-template-file-content",
         "parameters": [
           {
@@ -72250,7 +72396,7 @@
         "x-docker-manager-scope": "resource"
       },
       "put": {
-        "description": "Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).",
+        "description": "Replaces a file's content atomically (temporary file, then rename) when If-Match names its current ETag (412 with the current ETag otherwise: an external change or another editor saved first; never overwrite silently), or creates it with If-None-Match: *. Without either: 428. Content over the root's edit limit: 413. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).",
         "operationId": "replace-template-file-content",
         "parameters": [
           {
@@ -73370,7 +73516,7 @@
     },
     "/api/v1/templates/{templateId}/files/entries": {
       "post": {
-        "description": "Creates an empty directory or a new file (optional initial content up to 512 KiB). 409 file_exists when the name exists. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).",
+        "description": "Creates an empty directory or a new file (optional initial content up to the root's edit limit). 409 file_exists when the name exists. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).",
         "operationId": "create-template-file-entry",
         "parameters": [
           {
@@ -73601,7 +73747,7 @@
     },
     "/api/v1/templates/{templateId}/files/extractions": {
       "post": {
-        "description": "Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (10 GiB and 100x the archive size) as well as the entry count (100 000). Nested archives are not extracted. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).",
+        "description": "Starts a files.extract job (202 + job) unpacking a zip or tar.gz archive: entries escaping the destination (../, absolute, drive letters), symlinks leaving the root, hard links to files outside the archive and device files are refused per entry; setuid bits are dropped; bytes actually written are limited (the root's limits.extractMaxBytes and extractMaxRatio times the archive size, 10 GiB and 100x by default) as well as the entry count (archiveMaxEntries, 100 000 by default). Nested archives are not extracted. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).",
         "operationId": "create-template-file-extraction",
         "parameters": [
           {
@@ -74431,7 +74577,7 @@
     },
     "/api/v1/templates/{templateId}/files/uploads": {
       "post": {
-        "description": "Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most DOCKER_MANAGER_FILES_MAX_UPLOAD bytes (default 2 GiB, 413). One request per file; upload an archive and extract it for many files. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).",
+        "description": "Streams the raw request body (application/octet-stream, Content-Length required) into path/name: into a temporary file, verified (size, optional X-Docker-Manager-Content-SHA256), then moved into place. Preconditions: If-None-Match: * (create, 412 when the name exists), If-Match (replace that revision, 412 otherwise) or conflict=overwrite|skip|keep_both; none of them: 428. At most the root's upload limit (limits.uploadMaxBytes of the listing, DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413). One request per file; upload an archive and extract it for many files. The draft lives on the manager; changes that would exceed the template size limit answer 413 template_too_large. Jobs here run on the manager (template.files.* kinds).",
         "operationId": "upload-template-files",
         "parameters": [
           {
@@ -74503,11 +74649,11 @@
             }
           },
           {
-            "description": "Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+            "description": "Required (411 otherwise); at most the root's uploadMaxBytes (DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413).",
             "in": "header",
             "name": "Content-Length",
             "schema": {
-              "description": "Required (411 otherwise); at most DOCKER_MANAGER_FILES_MAX_UPLOAD (default 2 GiB, 413).",
+              "description": "Required (411 otherwise); at most the root's uploadMaxBytes (DOCKER_MANAGER_FILES_MAX_UPLOAD_MB, default 2 GiB; 413).",
               "format": "int64",
               "type": "integer"
             }

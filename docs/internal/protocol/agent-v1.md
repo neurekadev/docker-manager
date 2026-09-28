@@ -439,6 +439,12 @@ legacy `dev.neureka.docker-manager.` prefix, and accept the `ownership`
 labels of `container.create` and `update.run` under either key (writing
 them under the current one); the manager sends ownership under the legacy
 keys (`protocol.LegacyLabels`) to other agents, which accept only those.
+And `files.limits` (`protocol.FeatureFileLimits`, #15): only those agents
+get `limits` (`FileLimits`: the manager's `DOCKER_MANAGER_FILES_*`
+upload, download, extraction and entry limits) in `files.upload` and
+`files.download` inputs, extract previews and `files.archive` /
+`files.extract` job inputs, and apply them instead of their built-in
+defaults; other agents keep the defaults.
 Optional fields an agent adds to
 its own request outputs need no feature: agents are not newer than the
 manager, the manager decodes a response's `output` without refusing
@@ -746,6 +752,16 @@ shared `internal/fsroot` operations), the manager side
   file (optional `offset`/`length`); `zip` / `tar.gz` stream an archive of
   the paths (escaping symlinks, hard-linked and special files are listed in
   a final `DOCKER-MANAGER-SKIPPED.txt` member).
+- **Limits:** without `limits` the agent applies its built-in ones (upload
+  2 GiB, download or created archive 10 GiB, extraction 10 GiB and 100x
+  the archive with at least 1 MiB, 100 000 archive entries). With
+  `limits` (`FileLimits {maxUpload, maxDownload, maxExtractBytes,
+  maxExtractRatio, maxArchiveEntries}`, only from managers that saw
+  `files.limits`) each set field replaces its default, capped at 1 TiB
+  (`protocol.MaxFileLimitBytes`), a ratio of 10 000 and 1 000 000 entries.
+  Larger editable files (a raised manager edit limit) are read with a raw
+  `files.download` after `files.read`, and saved with `files.upload` and
+  the same precondition; `files.read` and `files.write` stay at 512 KiB.
 - **`files.upload`** (`FilesUploadInput`, exactly `size` bytes, optional
   `sha256`, one of `ifMatch` / `createOnly` / `conflict`): the agent checks
   the precondition before storing anything (an early `stream_close` with
@@ -757,9 +773,8 @@ shared `internal/fsroot` operations), the manager side
   per-path outcomes (at most 200, then a summary). Extraction validates
   every entry (no `../`, absolute or drive names, symlinks only when they
   resolve inside, hard links only to earlier members, no devices, no
-  setuid bits, nothing below a refused link) and limits entries (100 000),
-  bytes actually written (10 GiB) and the expansion ratio (100x the
-  archive, at least 1 MiB).
+  setuid bits, nothing below a refused link) and limits entries, bytes
+  actually written and the expansion ratio (see **Limits**).
 - Docker Manager's own changes are published as `fs_invalidation` of the
   changed paths (the watcher of #23 reports external ones).
 

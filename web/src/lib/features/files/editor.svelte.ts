@@ -13,6 +13,7 @@
 import { ApiRequestError } from '$lib/api/client';
 import type { EditorLanguage } from '$lib/lazy';
 import { criticalWork } from '$lib/live';
+import { formatBytes } from '$lib/ui/format';
 import type { FileContent, FileEntry } from './api';
 import { detectLanguage } from './language';
 import { basename } from './paths';
@@ -63,6 +64,17 @@ export class SaveBlockedError extends Error {
 		super(`${basename(path)} changed on disk. Resolve the conflict before saving.`);
 		this.name = 'SaveBlockedError';
 	}
+}
+
+/**
+ * Title of the read-only view of a file over the edit limit. The limit is
+ * the root's (the listing's limits.editMaxBytes, set by the manager's
+ * configuration); unknown until the listing loaded.
+ */
+export function truncatedTitle(editMaxBytes: number | undefined, size: number): string {
+	return editMaxBytes
+		? `Showing the first ${formatBytes(editMaxBytes)} of ${formatBytes(size)}`
+		: `Showing the start of ${formatBytes(size)}`;
 }
 
 export function isDirty(t: EditorTab): boolean {

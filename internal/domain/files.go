@@ -22,3 +22,23 @@ type FileError struct {
 }
 
 func (e *FileError) Error() string { return e.Code + ": " + e.Message }
+
+// FileLimits are the file manager's limits (#15): the manager's
+// configuration (DOCKER_MANAGER_FILES_*), and the limits in effect for
+// one file root (an older agent keeps its built-in defaults; template
+// drafts have the template size limits). Sizes are bytes.
+type FileLimits struct {
+	// Edit is the largest file the editor opens for editing: the most
+	// one read returns and one save accepts.
+	Edit int64
+	// Upload bounds one uploaded file.
+	Upload int64
+	// Download bounds one download or archive created in the root.
+	Download int64
+	// ExtractBytes bounds the bytes one extraction writes; ExtractRatio
+	// the bytes written per archive byte (decompression bombs).
+	ExtractBytes int64
+	ExtractRatio int64
+	// ArchiveEntries bounds the entries of an archive read or written.
+	ArchiveEntries int
+}

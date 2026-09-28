@@ -67,8 +67,14 @@ import (
 	"code.neureka.dev/docker-manager/docker-manager/internal/protocol"
 )
 
-// Limits bound the service's work.
+// Limits bound the service's work. Operations whose input carries
+// protocol.FileLimits (the manager's configured limits) use those
+// instead, capped by the protocol.MaxFileLimit* constants.
 type Limits struct {
+	// MaxInline bounds the content of one Read, Write or Mkdir (default
+	// protocol.MaxInlineContent: agents answer inline requests in one
+	// frame; the manager's template drafts use its edit limit).
+	MaxInline int64
 	// MaxUpload bounds one uploaded file (default 2 GiB).
 	MaxUpload int64
 	// MaxDownload bounds one download or created archive (default 10 GiB).
@@ -88,7 +94,14 @@ type Limits struct {
 	MaxWalk int
 }
 
+// DefaultLimits are the limits of a service configured without any: the
+// agents' built-in defaults.
+func DefaultLimits() Limits { return Limits{}.withDefaults() }
+
 func (l Limits) withDefaults() Limits {
+	if l.MaxInline <= 0 {
+		l.MaxInline = protocol.MaxInlineContent
+	}
 	if l.MaxUpload <= 0 {
 		l.MaxUpload = 2 << 30
 	}
@@ -177,6 +190,32 @@ func New(o Options) *Service {
 
 // Limits returns the effective limits.
 func (s *Service) Limits() Limits { return s.limits }
+
+// limitsFor returns the limits of one operation: the service's, with the
+// fields the manager set in p (FeatureFileLimits) instead, each capped by
+// the protocol.MaxFileLimit* constants.
+func (s *Service) limitsFor(p *protocol.FileLimits) Limits {
+	l := s.limits
+	if p == nil {
+		return l
+	}
+	if p.MaxUpload > 0 {
+		l.MaxUpload = min(p.MaxUpload, protocol.MaxFileLimitBytes)
+	}
+	if p.MaxDownload > 0 {
+		l.MaxDownload = min(p.MaxDownload, protocol.MaxFileLimitBytes)
+	}
+	if p.MaxExtractBytes > 0 {
+		l.MaxExtractBytes = min(p.MaxExtractBytes, protocol.MaxFileLimitBytes)
+	}
+	if p.MaxExtractRatio > 0 {
+		l.MaxExtractRatio = min(p.MaxExtractRatio, protocol.MaxFileLimitRatio)
+	}
+	if p.MaxArchiveEntries > 0 {
+		l.MaxArchiveEntries = min(p.MaxArchiveEntries, protocol.MaxFileLimitEntries)
+	}
+	return l
+}
 
 // lock serializes mutations of one file of a root.
 func (s *Service) lock(key string) func() {
