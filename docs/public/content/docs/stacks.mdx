@@ -79,17 +79,24 @@ To check for updates and apply them on a schedule, use an update policy
 
 ## Start, stop and remove
 
+Next to **Deploy** is one button to start and stop the stack. It shows
+**Stop** while the stack runs, or **Start** when it's stopped. Its menu has
+**Start**, **Restart** and **Stop**.
+
 - **Start** and **Restart** run right away.
 - **Stop** asks first. It stops the containers and keeps them.
-- **More stack actions → Take down** removes the containers and the stack's
-  networks. Volumes and files are kept, and **Deploy** brings it back.
+- When only some services run, the button shows **Stop**. Choose **Start**
+  in its menu to start the rest.
 - **More stack actions → Delete** removes the stack from Docker Manager and
   the server. You must type the stack's name. Its volumes are kept unless
   you tick **Also remove the stack's volumes**. The stack's folder is
   always kept.
 
-In a service's row on the **Overview**, you can restart, start or stop just
+In a service's row on the **Overview**, you can start, restart or stop just
 that service, open its logs, or open a terminal in it.
+
+To give the stack a new name, press the pencil button next to its name (see
+[Rename a stack](/docs/move-and-rename#rename-a-stack)).
 
 ## Edit the files
 
@@ -151,4 +158,4 @@ Good to know:
 
 If you import Docker Manager's own project as a stack, **Deploy** and
 **Pull & Deploy** work, so you can upgrade Docker Manager from the app. Restart,
-Stop, Take down, Migrate, Rename and Delete are turned off for it.
+Stop, Migrate, Rename and Delete are turned off for it.

@@ -14,7 +14,11 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   so never build a tooltip by hand; confirmations use `ConfirmDialog` /
   `DestructiveConfirm` (consequences listed in plain words, type-to-confirm
   for high impact), only for damaging actions (stop, take down, delete,
-  remove; start, restart and deploy run at once); status is `StatusBadge` (dot + text); tags and filter pills
+  remove; start, restart and deploy run at once); Start, Restart and Stop
+  of one stack or container are one `LifecycleButton`
+  (`$lib/features/common`: Stop while anything runs, Start otherwise),
+  never separate buttons, and row menus list them in the order Start,
+  Restart, Stop; status is `StatusBadge` (dot + text); tags and filter pills
   are `Chip`; schedules show in words (`describeCron`, `ScheduleSummary`)
   with the cron expression as tooltip; long names, images and paths in
   tables use `Column.maxWidth` + `truncate`, wide lists pin their actions
@@ -60,6 +64,11 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   models and components live in `$lib/features/<area>/` (pure `*.ts` with
   `*.spec.ts`); only generic pieces go to `$lib/ui` (stacks:
   `$lib/features/stacks/` with `stackKeys`, `model.ts`, `actions.ts`).
+  The caller's own account and API tokens are the **Profile**
+  (`/profile`, `$lib/features/profile`, from the user menu); **Settings**
+  holds instance administration only, so never add a personal page or tab
+  there. A page that moves keeps its old address as a `+page.ts`
+  redirect that keeps the query string (`/settings/security` → `/profile`).
   The environment route parameter is `[environmentId]`
   (`routes/(app)/environments/[environmentId]`);
   Docker object pages below it must use the same name.
@@ -176,7 +185,9 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   the palette shows "Recent" (visited paths per tab in `sessionStorage`,
   titles in memory only: `$lib/shell/recent.svelte.ts`), "Actions" the
   caller may start (`PALETTE_ACTIONS` in `palette.ts`, hidden without the
-  capability) and the pages.
+  capability) and the pages (`palettePages`: the visible sidebar pages
+  plus `ACCOUNT_ITEMS`, the Profile; `NavItem.keywords` let a query such
+  as "password" find the page that holds it).
 - **Policy pages** (updates, maintenance, backups): `PageHeader` with the
   policy name, one status sentence as description and the actions
   (primary "Run now" or "Preview updates", then "Check now"/"Preview",

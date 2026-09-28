@@ -5,9 +5,8 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 import TabNav from './TabNav.svelte';
 
 const items = [
-	{ href: '/settings', label: 'Overview' },
-	{ href: '/settings/security', label: 'Profile and security' },
-	{ href: '/settings/tokens', label: 'API tokens' }
+	{ href: '/profile', label: 'Account' },
+	{ href: '/profile/tokens', label: 'API tokens' }
 ];
 
 function size(el: HTMLElement, scrollWidth: number, clientWidth: number, scrollLeft = 0) {
@@ -22,17 +21,19 @@ function size(el: HTMLElement, scrollWidth: number, clientWidth: number, scrollL
 
 describe('TabNav', () => {
 	it('marks the current tab', () => {
-		render(TabNav, { props: { items, current: '/settings/tokens/new', label: 'Settings' } });
+		render(TabNav, {
+			props: { items, current: '/profile/tokens/new', label: 'Profile sections' }
+		});
 		expect(screen.getByRole('link', { name: 'API tokens' })).toHaveAttribute(
 			'aria-current',
 			'page'
 		);
-		expect(screen.getByRole('link', { name: 'Overview' })).not.toHaveAttribute('aria-current');
+		expect(screen.getByRole('link', { name: 'Account' })).not.toHaveAttribute('aria-current');
 	});
 
 	it('fades the edges where tabs are cut off', async () => {
-		render(TabNav, { props: { items, current: '/settings', label: 'Settings' } });
-		const nav = screen.getByRole('navigation', { name: 'Settings' });
+		render(TabNav, { props: { items, current: '/profile', label: 'Profile sections' } });
+		const nav = screen.getByRole('navigation', { name: 'Profile sections' });
 		size(nav, 600, 300);
 		await fireEvent.scroll(nav);
 		expect(nav).toHaveClass('fade-end');

@@ -4,6 +4,7 @@
 import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 import Settings from '@lucide/svelte/icons/settings';
+import UserRound from '@lucide/svelte/icons/user-round';
 import Users from '@lucide/svelte/icons/users';
 import type { IconComponent } from '$lib/design/icons';
 import type { MyPermissions } from '$lib/api/client';
@@ -37,7 +38,8 @@ export function isRestricted(a: Access): boolean {
 	return !a.owner && a.allowed.size === 0 && a.environments === 0;
 }
 
-export type NavGroup = 'overview' | 'resources' | 'operations' | 'admin';
+/** 'account': pages outside the sidebar (ACCOUNT_ITEMS, the user menu's). */
+export type NavGroup = 'overview' | 'resources' | 'operations' | 'admin' | 'account';
 
 export interface NavItem {
 	id: string;
@@ -46,6 +48,8 @@ export interface NavItem {
 	icon: IconComponent;
 	/** The sidebar group (NAV_GROUPS: a small label in the full sidebar, a divider in the rail). */
 	group: NavGroup;
+	/** More words the ⌘K palette finds the page by (besides its label). */
+	keywords?: string;
 	visible: (a: Access) => boolean;
 }
 
@@ -201,9 +205,32 @@ export const NAV_ITEMS: NavItem[] = [
 		href: routes.settings(),
 		icon: Settings,
 		group: 'admin',
+		keywords: 'all api tokens sign-in policy schedule defaults audit log diagnostics',
 		visible: () => true
 	}
 ];
+
+/**
+ * Pages outside the sidebar that the ⌘K palette still offers: the
+ * caller's own Profile (opened from the user menu).
+ */
+export const ACCOUNT_ITEMS: NavItem[] = [
+	{
+		id: 'profile',
+		label: 'Profile',
+		href: routes.profile(),
+		icon: UserRound,
+		group: 'account',
+		keywords:
+			'account password authenticator app two-factor 2fa passkeys recovery codes my api tokens',
+		visible: () => true
+	}
+];
+
+/** The pages the ⌘K palette offers: the visible sidebar pages, then the account pages. */
+export function palettePages(a: Access): NavItem[] {
+	return [...visibleNav(a), ...visibleNav(a, ACCOUNT_ITEMS)];
+}
 
 export function visibleNav(a: Access, items: NavItem[] = NAV_ITEMS): NavItem[] {
 	return items.filter((i) => i.visible(a));

@@ -52,7 +52,10 @@
 	import ProtectionMark from '$lib/features/resources/ProtectionMark.svelte';
 	import StackBadge from '$lib/features/resources/StackBadge.svelte';
 	import { ChangeTracker } from '$lib/features/resources/changes.svelte';
-	import { containerActions } from '$lib/features/resources/container-actions';
+	import {
+		containerActions,
+		type ContainerVerb
+	} from '$lib/features/resources/container-actions';
 	import ImageUpdateBadge from '$lib/features/updates/ImageUpdateBadge.svelte';
 	import { containerPolicy, policiesByTarget } from '$lib/features/updates/model';
 	import { updatePoliciesQuery } from '$lib/features/updates/queries';
@@ -130,16 +133,23 @@
 
 	const envName = (id: string) => scope.name(id);
 
+	const MENU_ORDER: ContainerVerb[] = ['start', 'restart', 'stop', 'pause', 'unpause'];
+
 	function menu(c: Container): MenuEntry[] {
 		const entries: MenuEntry[] = [
 			{ label: 'Open', href: routes.container(c.environmentId, c.name) }
 		];
 		const acts = containerActions(c);
-		const lifecycle = acts.filter((a) => a.verb !== 'remove');
+		// Start, Restart, Stop (the order of the header's lifecycle menu),
+		// then Pause or Unpause.
+		const lifecycle = acts
+			.filter((a) => a.verb !== 'remove')
+			.sort((a, b) => MENU_ORDER.indexOf(a.verb) - MENU_ORDER.indexOf(b.verb));
 		if (lifecycle.length) entries.push({ separator: true });
 		for (const a of lifecycle)
 			entries.push({
 				label: a.verb === 'stop' ? 'Stop…' : a.label,
+				tone: a.verb === 'stop' ? 'danger' : undefined,
 				onSelect: () => host?.request(c, a.verb)
 			});
 		// Destructive last, after a separator (one rule on every page).

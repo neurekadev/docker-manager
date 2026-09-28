@@ -151,7 +151,7 @@
 			const v = errorView(e);
 			message =
 				v.code === 'step_up_required'
-					? 'Create recovery codes later under Profile and security.'
+					? 'Create recovery codes later under Profile, in the account menu.'
 					: v.message;
 		} finally {
 			busy = null;

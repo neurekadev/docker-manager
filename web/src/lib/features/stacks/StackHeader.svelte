@@ -2,17 +2,22 @@
 	// Stack header (#22 mockup): icon tile, name, status, description, meta
 	// row (services, containers, created, template, logical location: the
 	// host path is its tooltip and copy button; each item stays on one line),
-	// the stack's links below it (full view, when it has any) and the
-	// actions: the Deploy split button (the one primary: Deploy, Build &
-	// Deploy for stacks that build an image, Pull & Deploy — which says when
-	// newer images are available — and Cleanup Orphans & Deploy), Restart,
-	// Stop (Start when stopped) and overflow (Take down, Migrate with more
-	// than one environment, Rename, Edit details, Save as template, Delete).
-	// Each action is shown only with its capability (the server still
-	// decides). Start and Restart run at once; Stop, Take down, Delete and
-	// Cleanup Orphans & Deploy confirm with their exact consequences first.
-	// Docker Manager's own stack (#32) deploys; Restart, Stop, Take down, Migrate,
-	// Rename and Delete stay visible but disabled, with the reason.
+	// the stack's links below it (full view, when it has any), the rename
+	// pencil right of the name (the name turns into a field in place:
+	// RenameStackInline, which renames at once) and the actions: the Deploy
+	// split button (the one primary: Deploy, Build & Deploy for stacks that
+	// build an image, Pull & Deploy — which says when newer images are
+	// available — and Cleanup Orphans & Deploy), the lifecycle split button
+	// (LifecycleButton: Stop while anything runs, Start when stopped; its
+	// menu has Start, Restart and Stop) and overflow (Migrate with more than
+	// one environment, Edit details, Save as template, Delete). Each action
+	// is shown only with its capability (the server still decides). Start
+	// and Restart run at once; Stop, Delete and Cleanup Orphans & Deploy
+	// confirm with their exact consequences first. Docker Manager's own stack
+	// (#32) deploys; Restart, Stop, Migrate, Rename and Delete stay visible
+	// but disabled, with the reason. While a rename of the stack runs (the
+	// tray's stack.rename job, or one in the stack's jobs after a reload)
+	// every action is off, with the reason.
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
@@ -25,21 +30,17 @@
 	import Hammer from '@lucide/svelte/icons/hammer';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import Pencil from '@lucide/svelte/icons/pencil';
-	import Play from '@lucide/svelte/icons/play';
-	import PowerOff from '@lucide/svelte/icons/power-off';
 	import Rocket from '@lucide/svelte/icons/rocket';
 	import Eraser from '@lucide/svelte/icons/eraser';
-	import RotateCw from '@lucide/svelte/icons/rotate-cw';
-	import Square from '@lucide/svelte/icons/square';
-	import TextCursorInput from '@lucide/svelte/icons/text-cursor-input';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import type { Environment } from '$lib/api/client';
 	import { JobWatcher } from '$lib/api/jobs.svelte';
 	import { resourceIcon } from '$lib/features/common/resourceIcons';
+	import LifecycleButton from '$lib/features/common/LifecycleButton.svelte';
+	import type { LifecycleActions } from '$lib/features/common/lifecycle';
 	import { routes } from '$lib/routes';
 	import {
 		Badge,
-		Button,
 		Checkbox,
 		ConfirmDialog,
 		DestructiveConfirm,
@@ -60,7 +61,7 @@
 	import { singleEnvironment } from '$lib/features/common/environments.svelte';
 	import RemoveOrphansDialog from './RemoveOrphansDialog.svelte';
 	import EditDetailsDialog from './EditDetailsDialog.svelte';
-	import RenameStackDialog from './RenameStackDialog.svelte';
+	import RenameStackInline from './RenameStackInline.svelte';
 	import {
 		deployFailure,
 		serviceCounts,
@@ -70,6 +71,7 @@
 		type DeployChoice
 	} from './model';
 	import { stackImageStatusQuery, stackJobsQuery, stackKeys, type Stack } from './queries';
+	import { activeRename } from './rename';
 	import { activeRestore } from '$lib/features/backups/restore';
 	import type { JobTray } from './tray.svelte';
 	import StackIcon from './StackIcon.svelte';
@@ -106,11 +108,15 @@
 	// delete Docker Manager.
 	const protectedStack = $derived(!!stack.protection);
 	const selfReason =
-		'Docker Manager cannot stop, take down, migrate, rename or delete its own stack. Deploy and Update work.';
+		'Docker Manager cannot stop, restart, migrate, rename or delete its own stack. Deploy works.';
 	// A restore of the stack's data starts what was running itself; the
 	// server refuses starts meanwhile (restore_in_progress), so hide them.
 	const jobs = createQuery(() => stackJobsQuery(stack.id));
 	const restoring = $derived(!!activeRestore(jobs.data));
+	// A rename of the stack runs (started here, or found in its jobs after a
+	// reload): every action is off until it ends.
+	const renaming = $derived(!!activeRename(jobs.data) || tray.running('stack.rename'));
+	const renamingReason = $derived(`Renaming ${title}…`);
 	const counts = $derived(serviceCounts(stack));
 	const envName = $derived(environment?.name ?? 'Unknown environment');
 	// With one environment there is nowhere to migrate to and no need to name it.
@@ -159,15 +165,10 @@
 		return out;
 	});
 
-	// Dialog state: only Stop and Take down confirm (they end what runs);
-	// Start and Restart run at once, like a container's.
-	let pending = $state<'stop' | 'down'>('stop');
+	// Only Stop confirms (it ends what runs); Start and Restart run at once,
+	// like a container's.
 	let confirming = $state(false);
-	function ask(action: 'stop' | 'down') {
-		pending = action;
-		confirming = true;
-	}
-	let operating = $state<StackOperation | null>(null);
+	let operating = $state<'start' | 'restart' | null>(null);
 	async function runNow(action: 'start' | 'restart') {
 		if (operating) return;
 		operating = action;
@@ -186,49 +187,48 @@
 		if (!deleting) removeVolumes = false;
 	});
 	let editing = $state(false);
-	let renaming = $state(false);
+	// The name is being edited in place (RenameStackInline).
+	let editingName = $state(false);
 	let savingTemplate = $state(false);
 	let starting = $state<'deploy' | 'build' | 'pull' | null>(null);
 
 	const OPS: Record<
-		StackOperation,
-		{ verb: string; done: string; failure: string; title: string; label: string }
+		Exclude<StackOperation, 'down'>,
+		{ done: string; failure: string; title: string }
 	> = {
-		start: {
-			verb: 'Start',
-			done: 'Started',
-			failure: 'started',
-			title: 'Start',
-			label: 'Start'
-		},
-		stop: { verb: 'Stop', done: 'Stopped', failure: 'stopped', title: 'Stop', label: 'Stop' },
-		restart: {
-			verb: 'Restart',
-			done: 'Restarted',
-			failure: 'restarted',
-			title: 'Restart',
-			label: 'Restart'
-		},
-		down: {
-			verb: 'Take down',
-			done: 'Took down',
-			failure: 'taken down',
-			title: 'Take down',
-			label: 'Take down'
-		}
+		start: { done: 'Started', failure: 'started', title: 'Start' },
+		stop: { done: 'Stopped', failure: 'stopped', title: 'Stop' },
+		restart: { done: 'Restarted', failure: 'restarted', title: 'Restart' }
 	};
 
 	const containerWord = (n: number) => `${n} ${n === 1 ? 'container' : 'containers'}`;
-	const consequences = $derived.by((): Record<'stop' | 'down', string[]> => ({
-		stop: [
-			`Stops ${containerWord(counts.containersRunning)}, the services that need others first.`,
-			'Containers, volumes and files are kept; Start brings them back.'
-		],
-		down: [
-			`Removes ${containerWord(counts.containers)} and the stack's networks.`,
-			'Volumes and the project directory are kept; Deploy creates the containers again.'
-		]
-	}));
+	const stopConsequences = $derived([
+		`Stops ${containerWord(counts.containersRunning)}, the services that need others first.`,
+		'Containers, volumes and files are kept; Start brings them back.'
+	]);
+
+	// Start, Restart and Stop as one split button: Stop while anything runs
+	// (a partially running stack too: Start in its menu starts the rest),
+	// Start when stopped. A restore hides Start and Restart.
+	const lifecycle = $derived.by((): LifecycleActions => {
+		const out: LifecycleActions = {};
+		const locked = protectedStack ? selfReason : undefined;
+		if (can('stack.start') && !restoring)
+			out.start = { run: () => void runNow('start'), disabled: current === 'running' };
+		if (can('stack.restart') && !restoring)
+			out.restart = {
+				run: () => void runNow('restart'),
+				disabled: current === 'stopped' || protectedStack,
+				reason: locked
+			};
+		if (can('stack.stop'))
+			out.stop = {
+				run: () => (confirming = true),
+				disabled: current === 'stopped' || protectedStack,
+				reason: locked
+			};
+		return out;
+	});
 
 	async function deploy(choice: DeployChoice) {
 		if (starting) return;
@@ -242,7 +242,7 @@
 		}
 	}
 
-	async function operate(action: StackOperation) {
+	async function operate(action: Exclude<StackOperation, 'down'>) {
 		const op = OPS[action];
 		const job = await operateStack(stack.id, action);
 		tray.add(job, {
@@ -318,42 +318,26 @@
 
 	const overflow = $derived.by((): MenuEntry[] => {
 		const items: MenuEntry[] = [];
-		if (can('stack.start') && !stoppedLike && current !== 'running' && !restoring)
-			items.push({
-				label: 'Start',
-				icon: Play,
-				onSelect: () => void runNow('start'),
-				disabled: offline
-			});
-		if (can('stack.down'))
-			items.push({
-				label: 'Take down',
-				icon: PowerOff,
-				onSelect: () => ask('down'),
-				disabled: offline || protectedStack
-			});
 		if (can('stack.migrate') && !single.current)
 			items.push({
 				label: 'Migrate',
 				icon: ArrowRightLeft,
-				href: protectedStack ? undefined : routes.stack(stack.id, 'migrate'),
-				disabled: protectedStack
-			});
-		if (can('stack.rename') && stack.revision !== undefined)
-			items.push({
-				label: 'Rename',
-				icon: TextCursorInput,
-				onSelect: () => (renaming = true),
-				disabled: offline || protectedStack
+				href: protectedStack || renaming ? undefined : routes.stack(stack.id, 'migrate'),
+				disabled: protectedStack || renaming
 			});
 		if (can('stack.manage') && stack.revision !== undefined)
-			items.push({ label: 'Edit details', icon: Pencil, onSelect: () => (editing = true) });
+			items.push({
+				label: 'Edit details',
+				icon: Pencil,
+				onSelect: () => (editing = true),
+				disabled: renaming
+			});
 		if (can('stack.files.download') && can('stack.definition.read'))
 			items.push({
 				label: 'Save as template',
 				icon: LayoutTemplate,
 				onSelect: () => (savingTemplate = true),
-				disabled: offline
+				disabled: offline || renaming
 			});
 		if (can('stack.remove')) {
 			if (items.length) items.push({ separator: true });
@@ -362,14 +346,46 @@
 				icon: Trash2,
 				tone: 'danger',
 				onSelect: () => (deleting = true),
-				disabled: offline || protectedStack
+				disabled: offline || protectedStack || renaming
 			});
 		}
+		// While a rename runs every entry is off; the reason heads the menu.
+		if (renaming && items.length) items.unshift({ heading: renamingReason });
 		return items;
+	});
+
+	// The pencil right of the name: a rename needs the stack's revision
+	// (If-Match); it is off while offline, for Docker Manager's own stack
+	// and while a rename runs, with the reason as its tooltip.
+	const canRenameStack = $derived(can('stack.rename') && stack.revision !== undefined);
+	const renameOff = $derived.by((): string | undefined => {
+		if (protectedStack) return selfReason;
+		if (offline) return `Read-only while ${envName} is offline`;
+		if (renaming) return renamingReason;
+		return undefined;
+	});
+	$effect(() => {
+		if (renameOff || !showActions) editingName = false;
 	});
 </script>
 
 {#snippet links()}<LinkList links={stack.links} label="Links of {title}" />{/snippet}
+
+{#snippet renamePencil()}
+	<IconButton
+		size="sm"
+		icon={Pencil}
+		label="Rename {title}"
+		tooltip={!renameOff}
+		title={renameOff}
+		disabled={!!renameOff}
+		onclick={() => (editingName = true)}
+	/>
+{/snippet}
+
+{#snippet nameEditor()}
+	<RenameStackInline {stack} {tray} onclose={() => (editingName = false)} />
+{/snippet}
 
 <PageHeader
 	{title}
@@ -377,6 +393,8 @@
 	{...resourceIcon('stack')}
 	{meta}
 	below={full && stack.links?.length ? links : undefined}
+	titleAction={canRenameStack && showActions ? renamePencil : undefined}
+	titleEditor={editingName ? nameEditor : undefined}
 >
 	{#snippet media()}<StackIcon {stack} size="lg" />{/snippet}
 	{#snippet status()}
@@ -384,6 +402,7 @@
 		{#if offline}<Badge tone="offline" dot>Read-only while {envName} is offline</Badge>{/if}
 		{#if stack.protection}<ProtectionBadge protection={stack.protection} />{/if}
 		{#if restoring}<Badge tone="warn" dot>Restoring from a backup</Badge>{/if}
+		{#if renaming}<Badge tone="warn" dot>{renamingReason}</Badge>{/if}
 	{/snippet}
 	{#snippet actions()}
 		{#if showActions}
@@ -395,34 +414,21 @@
 						? 'More deploy options (newer images are available)'
 						: 'More deploy options'}
 					loading={starting !== null}
-					disabled={offline}
+					disabled={offline || renaming}
+					title={renaming ? renamingReason : undefined}
 					onclick={() => deploy({})}
 					items={deployItems}
 				/>
 			{/if}
-			{#if can('stack.restart') && !stoppedLike && !restoring}
-				<Button
-					icon={RotateCw}
-					loading={operating === 'restart'}
-					disabled={offline || protectedStack || operating !== null}
-					title={protectedStack ? selfReason : undefined}
-					onclick={() => runNow('restart')}>Restart</Button
-				>
-			{/if}
-			{#if current === 'stopped' && can('stack.start') && !restoring}
-				<Button
-					icon={Play}
-					loading={operating === 'start'}
-					disabled={offline || operating !== null}
-					onclick={() => runNow('start')}>Start</Button
-				>
-			{:else if can('stack.stop') && !stoppedLike}
-				<Button
-					icon={Square}
-					disabled={offline || protectedStack}
-					title={protectedStack ? selfReason : undefined}
-					onclick={() => ask('stop')}>Stop</Button
-				>
+			<!-- A stopped stack starts; a down, missing or undeployed one deploys. -->
+			{#if !stoppedLike || current === 'stopped'}
+				<LifecycleButton
+					running={current !== 'stopped'}
+					actions={lifecycle}
+					busy={operating}
+					disabled={offline || renaming}
+					reason={renaming ? renamingReason : undefined}
+				/>
 			{/if}
 			{#if protectedStack}<span class="sr-only">{selfReason}</span>{/if}
 			{#if overflow.length}
@@ -441,11 +447,11 @@
 
 <ConfirmDialog
 	bind:open={confirming}
-	title="{OPS[pending].verb} {title}?"
-	consequences={consequences[pending]}
-	confirmLabel={OPS[pending].label}
+	title="Stop {title}?"
+	consequences={stopConsequences}
+	confirmLabel="Stop"
 	tone="danger"
-	onconfirm={() => operate(pending)}
+	onconfirm={() => operate('stop')}
 />
 
 <DestructiveConfirm
@@ -481,10 +487,6 @@
 
 {#if editing}
 	<EditDetailsDialog {stack} onclose={() => (editing = false)} />
-{/if}
-
-{#if can('stack.rename')}
-	<RenameStackDialog bind:open={renaming} {stack} {tray} />
 {/if}
 
 {#if can('stack.files.download') && can('stack.definition.read')}

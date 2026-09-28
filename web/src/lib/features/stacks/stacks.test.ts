@@ -26,11 +26,16 @@ interface Seen {
 	body: unknown;
 }
 let seen: Seen[] = [];
+// The stack's jobs (GET /jobs?target=stack:…) and the rename preview's extras.
+let jobList: { id: string; kind: string; state: string }[] = [];
+let previewExtra: Record<string, unknown> = {};
 
-// The manager as seen by the components: image status with an update, and
-// 202 jobs for every mutation.
+// The manager as seen by the components: image status with an update, the
+// stack's jobs, rename previews, and 202 jobs for every other mutation.
 beforeEach(() => {
 	seen = [];
+	jobList = [];
+	previewExtra = {};
 	vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
 		const req = input instanceof Request ? input : new Request(String(input), init);
 		const url = new URL(req.url);
@@ -69,6 +74,33 @@ beforeEach(() => {
 						update: 'update_available'
 					}
 				]
+			});
+		if (req.method === 'GET' && url.pathname === '/api/v1/jobs')
+			return json(200, {
+				items: jobList.map((j) => ({ ...j, items: [], targets: [] }))
+			});
+		if (url.pathname.endsWith('/rename-previews')) {
+			const to = (text ? JSON.parse(text) : {}).name ?? '';
+			return json(200, {
+				from: 'silo',
+				to,
+				fromDir: 'silo',
+				toDir: to,
+				running: ['web'],
+				volumes: [],
+				containers: [],
+				blockers: [],
+				warnings: [],
+				...previewExtra
+			});
+		}
+		if (url.pathname.endsWith('/renames'))
+			return json(202, {
+				id: 'job-r',
+				state: 'queued',
+				kind: 'stack.rename',
+				items: [],
+				targets: []
 			});
 		if (req.method !== 'GET')
 			return json(202, {
@@ -175,8 +207,16 @@ describe('StackHeader', () => {
 
 		expect(screen.getByRole('button', { name: 'Deploy' })).toBeEnabled();
 		expect(screen.getByRole('button', { name: /^More deploy options/ })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Restart' })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+		// Start, Restart and Stop are one split button: Stop while it runs.
+		expect(screen.getByRole('button', { name: 'Stop' })).toHaveClass('danger-soft');
+		expect(screen.queryByRole('button', { name: 'Restart' })).not.toBeInTheDocument();
+		await user.click(screen.getByRole('button', { name: 'More start and stop options' }));
+		const lifecycle = await screen.findByRole('menu');
+		const entries = within(lifecycle).getAllByRole('menuitem');
+		expect(entries.map((i) => i.textContent?.trim())).toEqual(['Start', 'Restart', 'Stop']);
+		// Everything runs: nothing to start.
+		expect(entries[0]).toHaveAttribute('aria-disabled', 'true');
+		await user.keyboard('{Escape}');
 		// Pull is a deploy option, not a button of its own, and so is the
 		// former Update: the deploy menu says when newer images exist.
 		expect(screen.queryByRole('button', { name: 'Pull' })).not.toBeInTheDocument();
@@ -188,12 +228,79 @@ describe('StackHeader', () => {
 		).toBeInTheDocument();
 
 		await user.click(screen.getByRole('button', { name: 'More stack actions' }));
-		const menu = await screen.findByRole('menu');
+		const menu = await screen.findByRole('menu', { name: 'More stack actions' });
 		expect(
 			within(menu)
 				.getAllByRole('menuitem')
 				.map((i) => i.textContent?.trim())
-		).toEqual(['Take down', 'Migrate', 'Edit details', 'Delete']);
+		).toEqual(['Migrate', 'Edit details', 'Delete']);
+	});
+
+	it('offers neither Take down nor Rename in the overflow menu', async () => {
+		const user = setup();
+		header(stack({ actions: [...ALL, 'stack.rename'] }));
+		await user.click(screen.getByRole('button', { name: 'More stack actions' }));
+		const menu = await screen.findByRole('menu', { name: 'More stack actions' });
+		const labels = within(menu)
+			.getAllByRole('menuitem')
+			.map((i) => i.textContent?.trim());
+		expect(labels).not.toContain('Take down');
+		expect(labels).not.toContain('Rename');
+		// Rename is the pencil right of the name.
+		expect(screen.getByRole('button', { name: 'Rename Silo' })).toBeEnabled();
+	});
+
+	it('stops a partially running stack by default and starts the rest from its menu', async () => {
+		const user = setup();
+		const tray = header(
+			stack({
+				engine: {
+					state: 'partial',
+					services: [
+						{ service: 'redis', containers: 1, running: 0 },
+						{ service: 'web', containers: 2, running: 2 }
+					]
+				}
+			})
+		);
+		expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled();
+		await user.click(screen.getByRole('button', { name: 'More start and stop options' }));
+		const start = await screen.findByRole('menuitem', { name: 'Start' });
+		expect(start).not.toHaveAttribute('aria-disabled', 'true');
+		await user.click(start);
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Start Silo'));
+		expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
+			path: '/api/v1/stacks/st-1/operations',
+			body: { action: 'start' }
+		});
+	});
+
+	it("keeps Stop and Restart of Docker Manager's own stack visible but off, with the reason", async () => {
+		const user = setup();
+		header(
+			stack({
+				protection: {
+					role: 'docker_manager_project',
+					reason: "Docker Manager's own Compose project",
+					self: true,
+					restartAllowed: false
+				}
+			})
+		);
+		const reason =
+			'Docker Manager cannot stop, restart, migrate, rename or delete its own stack. Deploy works.';
+		const stop = screen.getByRole('button', { name: 'Stop' });
+		expect(stop).toBeDisabled();
+		expect(stop).toHaveAttribute('title', reason);
+		expect(screen.getByText(reason)).toHaveClass('sr-only');
+		expect(screen.getByRole('button', { name: 'Deploy' })).toBeEnabled();
+		await user.click(screen.getByRole('button', { name: 'More start and stop options' }));
+		expect(await screen.findByRole('menuitem', { name: 'Restart' })).toHaveAttribute(
+			'aria-disabled',
+			'true'
+		);
+		expect(screen.getByRole('menuitem', { name: 'Stop' })).toHaveAccessibleDescription(reason);
 	});
 
 	it('hides what the caller may not do (the server still decides)', () => {
@@ -207,7 +314,14 @@ describe('StackHeader', () => {
 			})
 		);
 		expect(screen.getByRole('button', { name: 'Deploy' })).toBeInTheDocument();
-		for (const name of ['Restart', 'Stop', 'Start', 'More stack actions'])
+		for (const name of [
+			'Restart',
+			'Stop',
+			'Start',
+			'More start and stop options',
+			'More stack actions',
+			'Rename Silo'
+		])
 			expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: /Update/ })).not.toBeInTheDocument();
 		// No host path for a minimal view.
@@ -222,7 +336,10 @@ describe('StackHeader', () => {
 				environmentOnline: false
 			})
 		);
-		expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
+		const start = screen.getByRole('button', { name: 'Start' });
+		expect(start).toBeDisabled();
+		expect(start).toHaveClass('ok-soft');
+		expect(screen.getByRole('button', { name: 'More start and stop options' })).toBeDisabled();
 		expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Deploy' })).toBeDisabled();
 		expect(screen.getByText('Read-only while homelab is offline')).toBeInTheDocument();
@@ -305,10 +422,11 @@ describe('StackHeader', () => {
 		expect(tray.jobs[0].successFor).toBeTypeOf('function');
 	});
 
-	it('restarts at once, without a confirmation', async () => {
+	it('restarts at once from the lifecycle menu, without a confirmation', async () => {
 		const user = setup();
 		const tray = header(stack());
-		await user.click(screen.getByRole('button', { name: 'Restart' }));
+		await user.click(screen.getByRole('button', { name: 'More start and stop options' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Restart' }));
 		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Restart Silo'));
 		expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
@@ -349,7 +467,7 @@ describe('StackHeader', () => {
 			}
 		});
 		expect(screen.getByRole('heading', { level: 1, name: 'Silo' })).toBeInTheDocument();
-		for (const name of ['Deploy', 'Restart', 'Stop', 'More stack actions'])
+		for (const name of ['Deploy', 'Stop', 'More stack actions', 'Rename Silo'])
 			expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
 	});
 
@@ -374,6 +492,170 @@ describe('StackHeader', () => {
 			path: '/api/v1/stacks/st-1/deployments',
 			body: { removeOrphans: true }
 		});
+	});
+});
+
+describe('StackHeader inline rename', () => {
+	const renamable = (over: Partial<Stack> = {}) =>
+		stack({ actions: [...ALL, 'stack.rename'], ...over });
+
+	it('turns the name into a field with the project name; Escape leaves it unchanged', async () => {
+		const user = setup();
+		header(renamable());
+		await user.click(screen.getByRole('button', { name: 'Rename Silo' }));
+		// The heading shows the display name; the field edits the project name.
+		const field = screen.getByRole('textbox', { name: 'Stack name' });
+		expect(field).toHaveValue('silo');
+		expect(field).toHaveFocus();
+		expect(screen.getByText(/the display name Silo stays/)).toBeInTheDocument();
+		await user.clear(field);
+		await user.type(field, 'store{Escape}');
+		expect(screen.queryByRole('textbox', { name: 'Stack name' })).not.toBeInTheDocument();
+		expect(screen.getByRole('heading', { level: 1, name: 'Silo' })).toBeVisible();
+		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
+		// The cancel button does the same.
+		await user.click(screen.getByRole('button', { name: 'Rename Silo' }));
+		await user.click(screen.getByRole('button', { name: 'Cancel rename' }));
+		expect(screen.queryByRole('textbox', { name: 'Stack name' })).not.toBeInTheDocument();
+	});
+
+	it('checks the name inline before anything is sent', async () => {
+		const user = setup();
+		header(renamable());
+		await user.click(screen.getByRole('button', { name: 'Rename Silo' }));
+		const field = screen.getByRole('textbox', { name: 'Stack name' });
+		// Unchanged.
+		await user.type(field, '{Enter}');
+		expect(await screen.findByText('The stack already has this name.')).toBeInTheDocument();
+		await user.clear(field);
+		await user.type(field, 'My Store{Enter}');
+		expect(await screen.findByText(/Use lower-case letters/)).toBeInTheDocument();
+		expect(field).toHaveAttribute('aria-invalid', 'true');
+		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
+	});
+
+	it('renames at once on Enter, without a confirmation, and tracks the rename job', async () => {
+		const user = setup();
+		const tray = header(renamable());
+		await user.click(screen.getByRole('button', { name: 'Rename Silo' }));
+		const field = screen.getByRole('textbox', { name: 'Stack name' });
+		await user.clear(field);
+		await user.type(field, 'store{Enter}');
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Rename silo to store'));
+		expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+		const post = seen.find((s) => s.path === '/api/v1/stacks/st-1/renames');
+		expect(post?.body).toEqual({ name: 'store' });
+		expect(tray.jobs[0]).toMatchObject({
+			id: 'job-r',
+			kind: 'stack.rename',
+			success: 'Renamed silo to store',
+			failure: 'silo was not renamed'
+		});
+		expect(screen.queryByRole('textbox', { name: 'Stack name' })).not.toBeInTheDocument();
+	});
+
+	it('submits with the check button too', async () => {
+		const user = setup();
+		const tray = header(renamable());
+		await user.click(screen.getByRole('button', { name: 'Rename Silo' }));
+		const field = screen.getByRole('textbox', { name: 'Stack name' });
+		await user.clear(field);
+		await user.type(field, 'store');
+		await user.click(screen.getByRole('button', { name: 'Rename stack' }));
+		await waitFor(() => expect(tray.jobs[0]?.kind).toBe('stack.rename'));
+	});
+
+	it('says why the server would refuse, and does not rename', async () => {
+		const user = setup();
+		previewExtra = { declaredName: 'shop' };
+		header(renamable());
+		await user.click(screen.getByRole('button', { name: 'Rename Silo' }));
+		const field = screen.getByRole('textbox', { name: 'Stack name' });
+		await user.clear(field);
+		await user.type(field, 'store{Enter}');
+		expect(await screen.findByText(/Its Compose file sets name: shop/)).toBeInTheDocument();
+		previewExtra = {
+			blockers: [{ code: 'name_taken', message: 'Another stack is named store.' }]
+		};
+		await user.type(field, '{Enter}');
+		expect(await screen.findByText('Another stack is named store.')).toBeInTheDocument();
+		expect(seen.some((s) => s.path.endsWith('/renames'))).toBe(false);
+	});
+
+	it('shows the pencil only with the capability and turns it off with the reason', () => {
+		header(stack());
+		expect(screen.queryByRole('button', { name: 'Rename Silo' })).not.toBeInTheDocument();
+	});
+
+	it('turns the pencil off while the environment is offline', () => {
+		header(renamable({ readOnly: true, environmentOnline: false }));
+		const pencil = screen.getByRole('button', { name: 'Rename Silo' });
+		expect(pencil).toBeDisabled();
+		expect(pencil).toHaveAttribute('title', 'Read-only while homelab is offline');
+	});
+
+	it("turns the pencil off for Docker Manager's own stack", () => {
+		header(
+			renamable({
+				protection: {
+					role: 'docker_manager_project',
+					reason: "Docker Manager's own Compose project",
+					self: true,
+					restartAllowed: false
+				}
+			})
+		);
+		const pencil = screen.getByRole('button', { name: 'Rename Silo' });
+		expect(pencil).toBeDisabled();
+		expect(pencil).toHaveAttribute('title', expect.stringMatching(/cannot .*rename/));
+	});
+
+	it('turns every action off while a rename runs, and on again when it ends', async () => {
+		const user = setup();
+		const tray = new JobTray();
+		tray.add(
+			{ id: 'job-r' },
+			{
+				kind: 'stack.rename',
+				title: 'Rename silo to store',
+				success: 'Renamed silo to store',
+				failure: 'silo was not renamed'
+			}
+		);
+		header(renamable(), tray);
+		const reason = 'Renaming Silo…';
+		const deploy = screen.getByRole('button', { name: 'Deploy' });
+		const stop = screen.getByRole('button', { name: 'Stop' });
+		for (const b of [deploy, stop]) {
+			expect(b).toBeDisabled();
+			expect(b).toHaveAttribute('title', reason);
+		}
+		expect(screen.getByRole('button', { name: /^More deploy options/ })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'More start and stop options' })).toBeDisabled();
+		const pencil = screen.getByRole('button', { name: 'Rename Silo' });
+		expect(pencil).toBeDisabled();
+		expect(pencil).toHaveAttribute('title', reason);
+		await user.click(screen.getByRole('button', { name: 'More stack actions' }));
+		const menu = await screen.findByRole('menu', { name: 'More stack actions' });
+		expect(within(menu).getByText(reason)).toBeInTheDocument();
+		for (const item of within(menu).getAllByRole('menuitem'))
+			expect(item).toHaveAttribute('aria-disabled', 'true');
+		await user.keyboard('{Escape}');
+
+		tray.markFinished('job-r');
+		await waitFor(() => expect(screen.getByRole('button', { name: 'Deploy' })).toBeEnabled());
+		expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled();
+		expect(screen.getByRole('button', { name: 'Rename Silo' })).toBeEnabled();
+	});
+
+	it('knows about a running rename after a reload, from the stack’s jobs', async () => {
+		jobList = [{ id: 'job-r', kind: 'stack.rename', state: 'running' }];
+		header(renamable());
+		await waitFor(() => expect(screen.getByRole('button', { name: 'Deploy' })).toBeDisabled());
+		expect(screen.getByRole('button', { name: 'Stop' })).toHaveAttribute(
+			'title',
+			'Renaming Silo…'
+		);
 	});
 });
 

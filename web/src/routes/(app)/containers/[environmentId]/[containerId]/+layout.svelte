@@ -1,6 +1,8 @@
 <script lang="ts">
 	// Container detail (#6): header with status (and the image's update
-	// state, #20), image and lifecycle actions, what Docker Manager refuses
+	// state, #20), image and lifecycle actions (LifecycleButton: Stop while
+	// it runs, is paused or restarts, Start otherwise; its menu has Start,
+	// Restart and Stop as the state allows), what Docker Manager refuses
 	// on this container and why (#32 protection, managed stacks), the
 	// running job, and the tabs: Overview here, Logs and Terminal (#8) as
 	// child routes. Removal is the last entry of the "More actions" menu.
@@ -13,14 +15,14 @@
 	import Layers from '@lucide/svelte/icons/layers';
 	import Pause from '@lucide/svelte/icons/pause';
 	import Play from '@lucide/svelte/icons/play';
-	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Server from '@lucide/svelte/icons/server';
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
-	import Square from '@lucide/svelte/icons/square';
 	import { ApiRequestError } from '$lib/api/client';
 	import { containerQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
 	import { resourceIcon } from '$lib/features/common/resourceIcons';
+	import LifecycleButton from '$lib/features/common/LifecycleButton.svelte';
+	import type { LifecycleActions, LifecycleVerb } from '$lib/features/common/lifecycle';
 	import { usePage } from '$lib/shell/page.svelte';
 	import {
 		Button,
@@ -85,6 +87,23 @@
 	const job = $derived(activeJobs.byKey[resourceKey('container', env, name)]);
 	const actions = $derived(c ? containerActions(c) : []);
 	const has = (verb: ContainerVerb) => actions.some((a) => a.verb === verb);
+
+	// Start, Restart and Stop as one split button: each held one is listed,
+	// off when the state does not allow it (containerActions). Docker
+	// Manager's own containers keep them: the server refuses with its reason
+	// (the notice below says up front what is refused).
+	const running = $derived(
+		c?.state === 'running' || c?.state === 'paused' || c?.state === 'restarting'
+	);
+	const lifecycle = $derived.by((): LifecycleActions => {
+		const out: LifecycleActions = {};
+		const target = c;
+		if (!target) return out;
+		for (const verb of ['start', 'restart', 'stop'] as LifecycleVerb[])
+			if (can(target.actions, `container.${verb}`))
+				out[verb] = { run: () => void host?.request(target, verb), disabled: !has(verb) };
+		return out;
+	});
 
 	const tabs = $derived<TabLink[]>([
 		{ href: routes.container(env, name), label: 'Overview' },
@@ -206,24 +225,8 @@
 					/>{/if}
 			{/snippet}
 			{#snippet actions()}
-				{#if has('start')}
-					<Button variant="primary" icon={Play} onclick={() => host?.request(c, 'start')}
-						>Start</Button
-					>
-				{/if}
-				{#if has('restart')}
-					<Button
-						variant="secondary"
-						icon={RotateCw}
-						onclick={() => host?.request(c, 'restart')}>Restart</Button
-					>
-				{/if}
-				{#if has('stop')}
-					<Button
-						variant="danger-soft"
-						icon={Square}
-						onclick={() => host?.request(c, 'stop')}>Stop</Button
-					>
+				{#if c.state !== 'removing'}
+					<LifecycleButton {running} actions={lifecycle} />
 				{/if}
 				{#if overflow.length}
 					<Menu items={overflow} label="More actions for {c.name}" align="end">

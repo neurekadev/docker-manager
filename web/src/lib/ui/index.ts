@@ -11,6 +11,7 @@ export { default as Button } from './Button.svelte';
 export type { ButtonVariant, ButtonSize } from './Button.svelte';
 export { default as IconButton } from './IconButton.svelte';
 export { default as SplitButton } from './SplitButton.svelte';
+export type { SplitButtonVariant } from './SplitButton.svelte';
 export { default as CopyButton } from './CopyButton.svelte';
 export { default as Menu } from './Menu.svelte';
 export { default as ContextMenu } from './ContextMenu.svelte';

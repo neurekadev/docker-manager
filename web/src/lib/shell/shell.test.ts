@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import type { Environment } from '$lib/api/client';
+import type { Account, Environment } from '$lib/api/client';
 import { LiveStatus } from '$lib/live/status.svelte';
 import PaletteHarness from '../../test/PaletteHarness.svelte';
 import EnvironmentSwitcher from './EnvironmentSwitcher.svelte';
 import LiveIndicator from './LiveIndicator.svelte';
 import NoticesBell from './NoticesBell.svelte';
+import UserMenu from './UserMenu.svelte';
 import { accessOf, visibleNav } from './nav';
 import { Notices } from './notices.svelte';
 
@@ -261,5 +262,33 @@ describe('CommandPalette', () => {
 		// Phones get a visible way out.
 		await user.click(screen.getByRole('button', { name: 'Cancel' }));
 		await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+	});
+});
+
+describe('UserMenu', () => {
+	it('opens the personal Profile and its API tokens, and signs out', async () => {
+		const user = setup();
+		const onsignout = vi.fn();
+		const account = { id: 'u1', username: 'ada', displayName: 'Ada', owner: true } as Account;
+		render(UserMenu, { props: { user: account, onsignout } });
+		await user.click(screen.getByRole('button', { name: 'Account menu for Ada' }));
+		const items = await screen.findAllByRole('menuitem');
+		expect(items.map((i) => i.textContent?.trim())).toEqual([
+			'Profile',
+			'API tokens',
+			'Sign out'
+		]);
+		expect(screen.getByRole('menuitem', { name: 'Profile' })).toHaveAttribute(
+			'href',
+			'/profile'
+		);
+		expect(screen.getByRole('menuitem', { name: 'API tokens' })).toHaveAttribute(
+			'href',
+			'/profile/tokens'
+		);
+		// The old combined entry is gone; Settings stays in the sidebar.
+		expect(screen.queryByRole('menuitem', { name: /security|settings/i })).toBeNull();
+		await user.click(screen.getByRole('menuitem', { name: 'Sign out' }));
+		expect(onsignout).toHaveBeenCalledOnce();
 	});
 });

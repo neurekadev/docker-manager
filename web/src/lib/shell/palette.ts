@@ -50,10 +50,16 @@ export function hrefForHit(hit: SearchHit): string {
 	}
 }
 
+/** Pages whose label (or keywords: "password" finds Profile) contain the query. */
 export function pageResults(items: NavItem[], q: string): PaletteResult[] {
 	const needle = q.trim().toLowerCase();
 	return items
-		.filter((i) => !needle || i.label.toLowerCase().includes(needle))
+		.filter(
+			(i) =>
+				!needle ||
+				i.label.toLowerCase().includes(needle) ||
+				!!i.keywords?.toLowerCase().includes(needle)
+		)
 		.map((i) => ({
 			id: `page:${i.id}`,
 			group: 'Pages',

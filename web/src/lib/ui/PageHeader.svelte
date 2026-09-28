@@ -16,7 +16,10 @@
 	// Page header (#22, the mockup's stack header): optional icon tile, the
 	// page title (h1, 28/600), a status snippet beside it, a description,
 	// an icon-led meta row with thin dividers, an optional row below it
-	// (a stack's or template's links) and the page actions.
+	// (a stack's or template's links) and the page actions. `titleAction`
+	// sits right after the title (a stack's rename pencil); `titleEditor`
+	// takes the title's place while the title is edited in place (the h1
+	// stays for assistive technology, visually hidden).
 	import type { Snippet } from 'svelte';
 	import type { TileColor } from '$lib/design/hue';
 	import CopyButton from './CopyButton.svelte';
@@ -34,6 +37,10 @@
 		media?: Snippet;
 		/** A row under the meta row (e.g. a stack's links). */
 		below?: Snippet;
+		/** A small control right after the title (e.g. the stack's rename pencil). */
+		titleAction?: Snippet;
+		/** Shown instead of the title while it is edited in place (inline rename). */
+		titleEditor?: Snippet;
 		/**
 		 * Keep a long title (an image reference) on one line, cut with an
 		 * ellipsis and the full title as its tooltip, instead of wrapping.
@@ -51,6 +58,8 @@
 		actions,
 		media,
 		below,
+		titleAction,
+		titleEditor,
 		truncate = false
 	}: Props = $props();
 </script>
@@ -59,7 +68,13 @@
 	{#if media}{@render media()}{:else if icon}<IconTile {icon} {color} size="lg" />{/if}
 	<div class="main">
 		<div class="title-row" class:truncate>
-			<h1 class:truncate title={truncate ? title : undefined}>{title}</h1>
+			{#if titleEditor}
+				<h1 class="sr-only">{title}</h1>
+				{@render titleEditor()}
+			{:else}
+				<h1 class:truncate title={truncate ? title : undefined}>{title}</h1>
+				{#if titleAction}{@render titleAction()}{/if}
+			{/if}
 			{#if status}{@render status()}{/if}
 		</div>
 		{#if description}<p class="desc">{description}</p>{/if}

@@ -242,7 +242,7 @@ policy. The agent converges every other service itself and hands its own
 container to a short-lived helper container (`docker-agent self-update`,
 started from the agent's image with the agent's mounts) right after the job;
 the environment reconnects within a minute. In the UI the stack's Restart,
-Stop, Take down, Migrate and Delete stay visible but disabled.
+Stop, Migrate, Rename and Delete stay visible but disabled.
 
 To import the deployment **in place** (so a redeploy uses the same
 `compose.yaml`, `.env` and relative files), keep its directory inside a
@@ -294,7 +294,7 @@ finish).
   /api/v1/invitations`); the one-time link is shown once and expires
   (default 72 h). New users join the default group, initially
   **Restricted** with no access, until the owner grants permissions (#17).
-- **Sign-in policy** (owner, *Settings → Security*): strict passwords
+- **Sign-in policy** (owner, *Settings → Sign-in policy*): strict passwords
   (default on: at least 15 characters, common and breached passwords
   refused, no composition rules or forced rotation) and the required
   factors: `none`, `totp`, `passkey`, `either` or `both`. Changing the

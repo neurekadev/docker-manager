@@ -7,14 +7,11 @@ import { ifMatch } from '$lib/features/common/data';
 export type SecuritySettings = Schema<'SecuritySettings'>;
 export type InstanceSettings = Schema<'InstanceSettings'>;
 export type AuditEvent = Schema<'AuditEvent'>;
-export type Passkey = Schema<'Passkey'>;
 
 export const settingsKeys = {
 	// Live topic 'settings', resource 'instance' (PATCH /settings announces it).
 	instance: liveKeys.item('settings', 'instance'),
 	security: liveKeys.item('settings', 'security'),
-	passkeys: liveKeys.item('permissions', 'me', 'passkeys'),
-	recoveryCodes: liveKeys.item('permissions', 'me', 'recovery-codes'),
 	audit: (filter: AuditFilter) => liveKeys.list('settings', 'audit', filter)
 };
 
@@ -48,21 +45,6 @@ export function securitySettingsQuery(client: ApiClient = api) {
 		queryFn: ({ signal }): Promise<SecuritySettings> =>
 			unwrap(client.GET('/api/v1/settings/security', { signal })),
 		retry: false
-	});
-}
-
-export function passkeysQuery(client: ApiClient = api) {
-	return queryOptions({
-		queryKey: settingsKeys.passkeys,
-		queryFn: async ({ signal }): Promise<Passkey[]> =>
-			(await unwrap(client.GET('/api/v1/me/passkeys', { signal }))).items
-	});
-}
-
-export function recoveryCodesQuery(client: ApiClient = api) {
-	return queryOptions({
-		queryKey: settingsKeys.recoveryCodes,
-		queryFn: ({ signal }) => unwrap(client.GET('/api/v1/me/recovery-codes', { signal }))
 	});
 }
 

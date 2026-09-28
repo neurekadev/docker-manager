@@ -5,7 +5,11 @@
 import { readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isRedirect } from '@sveltejs/kit';
 import { describe, expect, it } from 'vitest';
+import { load as oldSecurity } from '../routes/(app)/settings/security/+page';
+import { load as oldTokens } from '../routes/(app)/settings/tokens/+page';
+import { load as oldTokenNew } from '../routes/(app)/settings/tokens/new/+page';
 import { routes } from './routes';
 
 const routesDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'routes');
@@ -154,10 +158,10 @@ const calls: Record<keyof typeof routes, string[]> = {
 	accessGroups: [routes.accessGroups()],
 	accessGroup: [routes.accessGroup('g-1')],
 	accessInvitations: [routes.accessInvitations()],
-	settings: [routes.settings()],
-	security: [routes.security()],
+	profile: [routes.profile()],
 	apiTokens: [routes.apiTokens()],
 	apiTokenNew: [routes.apiTokenNew()],
+	settings: [routes.settings()],
 	allApiTokens: [routes.allApiTokens()],
 	signInPolicy: [routes.signInPolicy()],
 	scheduleDefaults: [routes.scheduleDefaults()],
@@ -206,4 +210,44 @@ describe('routes', () => {
 		);
 		expect(routes.jobs(undefined, { policyId: 'up-1' })).toBe('/jobs?policyId=up-1');
 	});
+
+	it('sends the old Settings addresses of my own account to Profile, keeping the query', () => {
+		expect(redirectOf(oldSecurity, '/settings/security')).toEqual({
+			status: 307,
+			location: '/profile'
+		});
+		expect(redirectOf(oldSecurity, '/settings/security?from=mail')).toEqual({
+			status: 307,
+			location: '/profile?from=mail'
+		});
+		expect(redirectOf(oldTokens, '/settings/tokens')).toEqual({
+			status: 307,
+			location: '/profile/tokens'
+		});
+		expect(redirectOf(oldTokenNew, '/settings/tokens/new?a=1&b=2')).toEqual({
+			status: 307,
+			location: '/profile/tokens/new?a=1&b=2'
+		});
+		// The old addresses keep a route of their own, so deep links reach the redirect.
+		for (const old of ['/settings/security', '/settings/tokens', '/settings/tokens/new'])
+			expect(resolves(old), old).toBe(true);
+	});
+
+	it('keeps all API tokens in Settings and my own in Profile', () => {
+		expect(routes.allApiTokens()).toBe('/settings/tokens/all');
+		expect(routes.apiTokens()).toBe('/profile/tokens');
+		expect(routes.apiTokenNew()).toBe('/profile/tokens/new');
+		expect(routes.profile()).toBe('/profile');
+	});
 });
+
+/** The redirect a route's load function throws for the URL. */
+function redirectOf(load: (event: { url: URL }) => unknown, url: string) {
+	try {
+		load({ url: new URL(url, 'https://docker.example.com') });
+	} catch (e) {
+		if (isRedirect(e)) return { status: e.status, location: e.location };
+		throw e;
+	}
+	return undefined;
+}

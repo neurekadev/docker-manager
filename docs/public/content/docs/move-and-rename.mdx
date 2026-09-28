@@ -44,13 +44,17 @@ The original volume is not changed.
 ## Rename a stack
 
 A stack's name is its Compose project name. It is part of the names of its
-containers, volumes and folder. To change it, open the stack and choose
-**More stack actions → Rename**.
+containers, volumes and folder.
 
-1. Type the **New project name** and press **Preview changes**.
-2. Check what will happen: the folder, the volumes and the services that
-   stop and start again.
-3. Type the current name to confirm, and press **Rename stack**.
+1. Open the stack and press the pencil button next to its name.
+2. The name turns into a **Stack name** field. Type the new name.
+3. Press <kbd>Enter</kbd> or the check mark. To keep the old name, press
+   <kbd>Esc</kbd> or the ✕ instead.
+
+<Callout type="warn">
+  The rename starts right away, without asking again. The stack stops and
+  starts again under the new name, so its services are briefly down.
+</Callout>
 
 Docker Manager then:
 
@@ -60,17 +64,21 @@ Docker Manager then:
    new volume names,
 4. starts the stack again under the new name.
 
+While the rename runs, the stack's buttons are turned off, and a badge next
+to its name says it is being renamed.
+
 Good to know:
 
+- The field edits the project name, even when the stack shows a different
+  display name. To change the name shown in lists, use **Edit details**.
+- If a name can't be used (for example, another stack has it), the reason
+  shows under the field and nothing changes.
 - If the stack's `compose.yaml` sets `name:` at the top, change `name:` in
-  the file first. Then open **Rename**, type a name and press **Preview
-  changes**: Docker Manager uses the name from the file instead. Until you
-  rename the stack, **Deploy** is refused, so
-  the stack never starts again with empty volumes.
+  the file first, then rename the stack to exactly that name. Until you
+  rename the stack, **Deploy** is refused, so the stack never starts again
+  with empty volumes.
 - If you may not stop and remove a container outside the stack that uses
   its volumes, the rename is refused.
 - If something fails early, everything goes back to how it was. If it fails
   late, the stack already has its new name: press **Deploy** to finish.
 - The stack's history, revisions, policies and permissions stay with it.
-- Only the project name changes. To change the name shown in lists, use
-  **Edit details**.

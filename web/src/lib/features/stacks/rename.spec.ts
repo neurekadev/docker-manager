@@ -1,34 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import type { Job } from '$lib/api/client';
 import {
-	canRename,
-	containerLabel,
+	activeRename,
 	lockedName,
-	renameConsequences,
 	renameNameError,
-	stackJobGuidance,
-	volumeLabel,
-	volumeNote,
-	type RenamePreview
+	renameRefusal,
+	stackJobGuidance
 } from './rename';
 
-function preview(over: Partial<RenamePreview> = {}): RenamePreview {
-	return {
-		from: 'shop',
-		to: 'store',
-		fromDir: 'shop',
-		toDir: 'store',
-		running: ['web', 'db'],
-		volumes: [
-			{ key: 'data', name: 'shop_data', newName: 'store_data', action: 'move' },
-			{ key: 'media', name: 'shop_media', newName: 'store_media', action: 'recreate' },
-			{ key: 'cache', name: 'shop_cache', newName: 'store_cache', action: 'absent' }
-		],
-		containers: [{ id: 'c1', name: 'backup', running: true, volumes: ['shop_data'] }],
-		blockers: [],
-		warnings: [],
-		...over
-	};
-}
+const job = (kind: string, state: string) => ({ id: `${kind}-${state}`, kind, state }) as Job;
 
 describe('stack rename model', () => {
 	it('checks the new project name', () => {
@@ -47,58 +27,37 @@ describe('stack rename model', () => {
 		expect(lockedName('shop', { declaredName: 'store' })).toBe('store');
 	});
 
-	it('says what happens to each volume and container', () => {
-		const p = preview();
-		expect(p.volumes.map(volumeNote)).toEqual([
-			'Its data moves to the new name.',
-			'Same host path or remote storage under the new name; the data stays where it is.',
-			'Does not exist yet; created on the first start.'
-		]);
-		expect(volumeLabel(p.volumes[0])).toBe('shop_data → store_data');
-		expect(
-			volumeLabel({ name: 'abc123', service: 'db', target: '/var/lib/db', action: 'move' })
-		).toBe('db:/var/lib/db');
-		expect(containerLabel(p.containers[0])).toBe('backup');
-		expect(containerLabel({ hidden: true, running: false, volumes: [] })).toBe(
-			'A container you cannot see'
+	it('says why the server would refuse the rename', () => {
+		expect(renameRefusal('store', 'shop', { blockers: [] })).toBeUndefined();
+		// The Compose file's name: fixes the project name.
+		expect(renameRefusal('other', 'shop', { declaredName: 'store', blockers: [] })).toBe(
+			'Its Compose file sets name: store. The stack can only take that name; to choose another, change name: in the file.'
 		);
+		expect(
+			renameRefusal('store', 'shop', { declaredName: 'store', blockers: [] })
+		).toBeUndefined();
+		expect(
+			renameRefusal('store', 'shop', {
+				blockers: [
+					{ code: 'target_volume_exists', message: 'The volume store_data exists.' },
+					{ code: 'name_taken', message: 'Another stack is named store.' }
+				]
+			})
+		).toBe('The volume store_data exists. Another stack is named store.');
 	});
 
-	it('lists the consequences', () => {
-		expect(renameConsequences(preview())).toEqual([
-			'Stops 2 running services (web, db) and starts them again as store.',
-			'Moves 2 volumes to the new name.',
-			'Renames the project folder shop to store.',
-			'Stops and recreates 1 container outside the stack that uses these volumes.',
-			'The stack keeps its history, policies and permissions.'
-		]);
-		expect(
-			renameConsequences(preview({ running: [], volumes: [], containers: [], toDir: 'shop' }))
-		).toEqual([
-			'No service runs now; the containers are recreated as store and stay stopped.',
-			'Keeps the project folder shop.',
-			'The stack keeps its history, policies and permissions.'
-		]);
-	});
-
-	it('confirms only the previewed name without blockers', () => {
-		expect(canRename('store', 'shop', undefined)).toBe(false);
-		expect(canRename('store', 'shop', preview())).toBe(true);
-		expect(canRename('storage', 'shop', preview())).toBe(false);
-		expect(
-			canRename(
-				'store',
-				'shop',
-				preview({
-					blockers: [{ code: 'target_volume_exists', message: 'store_data exists' }]
-				})
-			)
-		).toBe(false);
+	it('finds a rename that has not ended', () => {
+		expect(activeRename(undefined)).toBeUndefined();
+		expect(activeRename([job('stack.deploy', 'running')])).toBeUndefined();
+		expect(activeRename([job('stack.rename', 'succeeded')])).toBeUndefined();
+		expect(activeRename([job('stack.rename', 'failed')])).toBeUndefined();
+		for (const state of ['queued', 'blocked', 'dispatched', 'running', 'cancelling'])
+			expect(activeRename([job('stack.rename', state)])?.state).toBe(state);
 	});
 
 	it('explains a deploy refused because the files set another project name', () => {
 		expect(stackJobGuidance({ class: 'stack_project_renamed', recovery: 'x' })).toMatch(
-			/Rename the stack to that name/
+			/Rename the stack to that name with the pencil next to its name/
 		);
 		expect(stackJobGuidance({ class: 'engine_error', message: 'm', recovery: 'r' })).toBe('r');
 		expect(stackJobGuidance({ class: 'engine_error', message: 'm' })).toBe('m');

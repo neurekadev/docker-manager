@@ -1,10 +1,22 @@
+<script lang="ts" module>
+	import type { ButtonVariant } from './Button.svelte';
+
+	/** The looks of a split button: the Deploy primary, secondary, or a lifecycle tone. */
+	export type SplitButtonVariant = Extract<
+		ButtonVariant,
+		'primary' | 'secondary' | 'ok-soft' | 'danger-soft'
+	>;
+</script>
+
 <script lang="ts">
 	// Split button (#22: the stack header's Deploy, the file editor's
-	// Format): the main part runs the default action; the attached chevron
-	// opens a menu of variants (Deploy, Deploy with pull, Build and deploy).
+	// Format, the lifecycle button's Start/Stop): the main part runs the
+	// default action; the attached chevron opens a menu of variants (Deploy,
+	// Deploy with pull, Build and deploy). The soft tones (ok-soft,
+	// danger-soft) say what the main part does to what runs (Start, Stop).
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import type { IconComponent } from '$lib/design/icons';
-	import Button, { type ButtonSize, type ButtonVariant } from './Button.svelte';
+	import Button, { type ButtonSize } from './Button.svelte';
 	import Menu from './Menu.svelte';
 	import type { MenuEntry } from './menu';
 
@@ -15,10 +27,15 @@
 		/** Accessible name of the chevron, e.g. "More deploy options". */
 		menuLabel: string;
 		onclick?: () => void;
-		variant?: Extract<ButtonVariant, 'primary' | 'secondary'>;
+		variant?: SplitButtonVariant;
 		size?: ButtonSize;
 		loading?: boolean;
+		/** Turns off the main part (and the chevron unless `menuDisabled` says otherwise). */
 		disabled?: boolean;
+		/** Turns off the chevron; defaults to `disabled`. */
+		menuDisabled?: boolean;
+		/** The main part's tooltip, e.g. why it is off. */
+		title?: string;
 	}
 
 	let {
@@ -30,12 +47,18 @@
 		variant = 'primary',
 		size = 'md',
 		loading = false,
-		disabled = false
+		disabled = false,
+		menuDisabled,
+		title
 	}: Props = $props();
+
+	const chevronOff = $derived((menuDisabled ?? disabled) || loading);
 </script>
 
 <div class="split {variant} {size}" role="group" aria-label={label}>
-	<Button {variant} {size} {icon} {loading} {disabled} {onclick} class="main">{label}</Button>
+	<Button {variant} {size} {icon} {loading} {disabled} {onclick} {title} class="main"
+		>{label}</Button
+	>
 	<Menu {items} label={menuLabel}>
 		{#snippet trigger(props)}
 			<button
@@ -43,7 +66,7 @@
 				type="button"
 				class="chevron"
 				aria-label={menuLabel}
-				disabled={disabled || loading}
+				disabled={chevronOff}
 			>
 				<ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" />
 			</button>
@@ -92,6 +115,30 @@
 	.secondary .chevron:hover:not(:disabled),
 	.secondary .chevron[data-state='open'] {
 		background: var(--surface-hover);
+	}
+
+	/* The soft tones: the chevron shares the tone; the main part's own border
+	   is the divider. */
+	.ok-soft .chevron {
+		background: var(--ok-soft);
+		border-color: var(--ok-border);
+		border-left-color: transparent;
+		color: var(--ok);
+	}
+	.ok-soft .chevron:hover:not(:disabled),
+	.ok-soft .chevron[data-state='open'] {
+		background: color-mix(in srgb, var(--ok-soft) 80%, var(--ok));
+	}
+
+	.danger-soft .chevron {
+		background: var(--danger-soft);
+		border-color: var(--danger-border);
+		border-left-color: transparent;
+		color: var(--danger);
+	}
+	.danger-soft .chevron:hover:not(:disabled),
+	.danger-soft .chevron[data-state='open'] {
+		background: color-mix(in srgb, var(--danger-soft) 80%, var(--danger));
 	}
 
 	.sm .chevron {

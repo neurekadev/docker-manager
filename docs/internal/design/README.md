@@ -27,7 +27,8 @@ only).
   their consequences listed.
 - **Quiet chrome, one memorable thing.** Cool blue-black surfaces separated
   by 1 px borders and surface steps (no shadows on cards), blue for primary
-  actions, green/red/amber only for status. Colours belong to types, never
+  actions, green/red/amber only for status (and the lifecycle button's soft
+  Start and Stop, which change what runs). Colours belong to types, never
   to single items (see [Service colour](#service-colour)).
 - **Tokens, not values.** Components read CSS custom properties from
   `tokens.css`; a new value used twice becomes a token first. A light theme
@@ -214,12 +215,24 @@ Import from `$lib/ui` (one barrel). Snippet props (`trigger`, `children`,
 
 | component | key props | notes |
 | --- | --- | --- |
-| `Button` | `variant: primary \| secondary \| ghost \| danger \| danger-soft`, `size: sm \| md`, `icon`, `iconEnd`, `loading`, `href`, `block`, `ref` | Labels name the result ("Deploy", "Save changes"). `loading` keeps the label, sets `aria-busy`, disables. `href` renders a link. |
+| `Button` | `variant: primary \| secondary \| ghost \| danger \| danger-soft \| ok-soft`, `size: sm \| md`, `icon`, `iconEnd`, `loading`, `href`, `block`, `ref` | Labels name the result ("Deploy", "Save changes"). `loading` keeps the label, sets `aria-busy`, disables. `href` renders a link. `danger-soft` (red on `--danger-soft`) and `ok-soft` (green on `--ok-soft`) are for Stop and Start only. |
 | `IconButton` | **`label` (required)**, `icon`, `variant: ghost \| secondary \| danger-soft`, `size`, `pressed`, `badge`, `tooltip`, `tooltipSide`, `href`, `external` | `label` is the accessible name and the tooltip; spread menu/popover trigger props onto it. No tooltip while its popup is open. With `href` it renders a link with the button's look (row actions such as "Open silo-web"; `external` opens a new tab with `noopener`). |
-| `SplitButton` | `label`, `icon`, `onclick`, `items: MenuEntry[]`, **`menuLabel`**, `variant: primary \| secondary`, `size: sm \| md`, `loading`, `disabled` | The stack header's Deploy; the file editor's Format (`sm`, `secondary`, "More format options"). |
+| `SplitButton` | `label`, `icon`, `onclick`, `items: MenuEntry[]`, **`menuLabel`**, `variant: primary \| secondary \| ok-soft \| danger-soft`, `size: sm \| md`, `loading`, `disabled`, `menuDisabled` (defaults to `disabled`), `title` (the main part's tooltip, e.g. why it is off) | The stack header's Deploy; the file editor's Format (`sm`, `secondary`, "More format options"); the lifecycle button (`ok-soft` Start, `danger-soft` Stop: the chevron shares the tone). |
 | `Menu` | `items: MenuEntry[]`, `trigger` snippet `(props)`, `label`, `align`, `side`, `open` | Bits UI DropdownMenu: keyboard, typeahead, focus return. |
 | `ContextMenu` | `items`, `label`, `children` snippet `(props)` | Right-click / long-press; always duplicate its items in a visible Menu. |
 | `CopyButton` | `value`, `what` ("request ID"), `text` | Announces "Copied …". |
+
+**Start, Restart and Stop** of a stack or container are one split button,
+`LifecycleButton` (`$lib/features/common`; `running`, `actions:
+{ start?, restart?, stop? }` each `{ run, disabled?, reason? }`, `busy`,
+`disabled`, `reason`). The main part is **Stop** (`danger-soft`, Square)
+while anything runs, a partially running stack included, and **Start**
+(`ok-soft`, Play) while nothing does; the menu ("More start and stop
+options") lists Start, Restart (RotateCw) and Stop in that order, only the
+held ones, those that do not apply in the state turned off (a reason
+becomes the item's description and the main part's tooltip). With one held
+action it is a plain `Button`. Soft tones keep a page's one primary (Deploy)
+the only blue button. Row menus list the same actions in the same order.
 
 `MenuEntry` = `{ label, icon?, onSelect?, href?, tone?: 'danger', disabled?, description?, shortcut? }`
 \| `{ separator: true }` \| `{ heading }`. `description` is a muted line under the
@@ -238,7 +251,7 @@ disabled item uses it to say why it is off (only its label and icon dim).
 | `IconTile` | `icon`, `color: TileColor`, `size: xs \| sm \| md \| lg` | Decorative (the adjacent text names the thing). `xs` (24 px, 14 px glyph) is the row icon of lists ([Row icons](#row-icons)). |
 | `Meter` | `value`, `max`, `label`, `valueText`, `warnAt`, `dangerAt` | `role="meter"`. The empty track is `--border-strong`, visible on cards. |
 | `Uptime` | `since` (ISO start; absent: "—"), `prefix` | Live duration ticking once a second (`formatUptime`: "5m 03s", "3h 12m 08s", "4d 3h 12m"), tabular numerals, `<time>` with the absolute start as title. Other live values read the shared `clock.now` (one interval, only while a component reads it). |
-| `PageHeader` | `title` (h1), `description`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` / `below` snippets, `truncate` | Icon-led meta items with thin dividers (not middle dots). `below` is a row under the meta row: a stack's or template's links (`LinkList`, `$lib/features/common`), passed only when there are any. `truncate` keeps a long title (an image reference, a volume name) on one line with an ellipsis and the full title as tooltip, the status beside it. `MetaItem.title` is the full value on hover, `MetaItem.copy` adds a copy button (the stack's host path). The icon tile marks one object (a stack, container, environment, policy, job): section pages (Containers, Jobs, …) and create forms have none. |
+| `PageHeader` | `title` (h1), `description`, `icon`, `color`, `meta: MetaItem[]`, `status` / `actions` / `below` / `titleAction` / `titleEditor` snippets, `truncate` | Icon-led meta items with thin dividers (not middle dots). `below` is a row under the meta row: a stack's or template's links (`LinkList`, `$lib/features/common`), passed only when there are any. `titleAction` sits right after the title (a stack's rename pencil, an `IconButton size="sm"`); `titleEditor` replaces the visible title while it is edited in place (the h1 stays, `sr-only`; the stack's inline rename). `truncate` keeps a long title (an image reference, a volume name) on one line with an ellipsis and the full title as tooltip, the status beside it. `MetaItem.title` is the full value on hover, `MetaItem.copy` adds a copy button (the stack's host path). The icon tile marks one object (a stack, container, environment, policy, job): section pages (Containers, Jobs, …) and create forms have none. |
 | `Table` | `rows`, `columns: Column<T>[]`, `rowKey`, **`label`**, `sort` (bindable), `manualSort` + `onsort`, `selectable` + `selected` (bindable) + `rowLabel`, `changed`, `maxHeight`, `virtualizeAfter` (500), `rowHeight`, `layout`, `empty` | Sortable headers with `aria-sort`, sticky header inside `maxHeight`, stacked cards < 768 px (`Column.stack`: title, status, meta, actions, head, hidden), windowed rendering past 500 rows (`virtualWindow`, `aria-rowcount`/`aria-rowindex`). Without rows and without `empty` it shows one row "Nothing here yet." The scroll box is `position: relative` (hidden `.sr-only` texts in cells cannot widen the page) and clips the last row's hover to a card's rounded corners. |
 | `Tabs` | `items: TabItem[]`, `value` (bindable), **`label`**, `panel` snippet `(id)` | In-page tabs (Bits UI). |
 | `TabNav` | `items: TabLink[]`, `current` (path), **`label`**, `after` snippet | Route tabs (stack detail); the URL is the state. Below 768 px the tabs scroll sideways with the current one kept in view, an edge fades out where more tabs are cut off, and `after` gets its own line. |

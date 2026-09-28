@@ -12,7 +12,7 @@
 	// and the row actions, pinned to the right edge while the table scrolls
 	// sideways: open (only with a web port and an address), terminal (track
 	// B3's route with the service preselected) and a menu with the service's
-	// own start/stop/restart, its logs (the Logs tab filtered to the
+	// own start, restart and stop, its logs (the Logs tab filtered to the
 	// service) and its containers. Restart and stop of Docker Manager's own project
 	// (#32) are shown disabled, not hidden. Names, images, volumes and
 	// networks are capped so every row keeps one height.
@@ -119,19 +119,20 @@
 	function rowMenu(s: StackServiceStatus): MenuEntry[] {
 		const items: MenuEntry[] = [];
 		const running = runningOf(s).running > 0;
+		// Start, Restart, Stop: the order of the header's lifecycle menu.
 		if (!readOnly && onoperate) {
+			if (!running && can('stack.start'))
+				items.push({
+					label: `Start ${s.name}`,
+					icon: Play,
+					onSelect: () => onoperate(s.name, 'start')
+				});
 			if (running && can('stack.restart'))
 				items.push({
 					label: `Restart ${s.name}`,
 					icon: RotateCw,
 					disabled: !!stack.protection,
 					onSelect: () => onoperate(s.name, 'restart')
-				});
-			if (!running && can('stack.start'))
-				items.push({
-					label: `Start ${s.name}`,
-					icon: Play,
-					onSelect: () => onoperate(s.name, 'start')
 				});
 			if (running && can('stack.stop'))
 				items.push({

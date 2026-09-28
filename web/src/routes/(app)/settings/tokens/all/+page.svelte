@@ -1,5 +1,6 @@
 <script lang="ts">
-	// Every user's API tokens (#31, owner only): see and revoke them.
+	// Every user's API tokens (#31, owner only; a Settings tab): see and
+	// revoke them. The caller's own tokens are a Profile tab.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { myPermissionsQuery } from '$lib/api/queries';
 	import { routes } from '$lib/routes';
@@ -9,16 +10,12 @@
 	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import QueryView from '$lib/features/common/QueryView.svelte';
 	import { allTokensQuery } from '$lib/features/access/queries';
+	import TokensTable from '$lib/features/access/TokensTable.svelte';
 	import SettingsHeader from '$lib/features/settings/SettingsHeader.svelte';
-	import TokensTable from '$lib/features/settings/TokensTable.svelte';
 
 	usePage({
 		title: 'All API tokens',
-		crumbs: [
-			{ label: 'Settings', href: routes.settings() },
-			{ label: 'API tokens', href: routes.apiTokens() },
-			{ label: 'All users' }
-		]
+		crumbs: [{ label: 'Settings', href: routes.settings() }, { label: 'API tokens' }]
 	});
 
 	const perms = createQuery(() => myPermissionsQuery());

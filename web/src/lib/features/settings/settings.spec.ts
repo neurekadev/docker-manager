@@ -18,6 +18,7 @@ import {
 	settingsChanges
 } from './model';
 import { auditExportHref, cleanFilter, type AuditEvent, type SecuritySettings } from './queries';
+import { settingsTabs } from './tabs';
 
 describe('audit viewer (#30)', () => {
 	it('shows rule diffs as added and removed rules', () => {
@@ -229,5 +230,36 @@ describe('instance settings (#4)', () => {
 			'Largest extraction': '20 GB, at most 100× the archive, 100,000 entries',
 			'Metrics endpoint': 'On'
 		});
+	});
+});
+
+describe('Settings tabs', () => {
+	const access = (owner: boolean, ...caps: string[]) => ({
+		owner,
+		allowed: new Set(caps),
+		environments: 0
+	});
+
+	it('shows the owner every instance setting, and nothing personal', () => {
+		const tabs = settingsTabs(access(true));
+		expect(tabs.map((t) => [t.label, t.href])).toEqual([
+			['Overview', '/settings'],
+			['API tokens', '/settings/tokens/all'],
+			['Sign-in policy', '/settings/sign-in'],
+			['Schedule defaults', '/settings/schedules'],
+			['Audit log', '/settings/audit'],
+			['Diagnostics', '/settings/diagnostics']
+		]);
+		// The caller's own account and tokens are the Profile, not Settings.
+		expect(tabs.map((t) => t.label)).not.toContain('Profile');
+		expect(tabs.map((t) => t.label)).not.toContain('Profile and security');
+		expect(tabs.some((t) => t.href.startsWith('/profile'))).toBe(false);
+	});
+
+	it('hides the settings a member may not use', () => {
+		expect(settingsTabs(access(false)).map((t) => t.label)).toEqual(['Overview']);
+		expect(
+			settingsTabs(access(false, 'settings.read', 'audit.read')).map((t) => t.label)
+		).toEqual(['Overview', 'Schedule defaults', 'Audit log']);
 	});
 });

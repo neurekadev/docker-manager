@@ -1,8 +1,10 @@
 <script lang="ts">
-	// User menu (#22): the signed-in account, security, API tokens, sign out.
+	// User menu (#22): the signed-in account, the personal Profile (account
+	// and sign-in factors) and its API tokens tab, sign out. Instance
+	// administration is Settings in the sidebar, not here.
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import LogOut from '@lucide/svelte/icons/log-out';
-	import ShieldCheck from '@lucide/svelte/icons/shield-check';
+	import UserRound from '@lucide/svelte/icons/user-round';
 	import type { Account } from '$lib/api/client';
 	import { routes } from '$lib/routes';
 	import Menu from '$lib/ui/Menu.svelte';
@@ -14,7 +16,7 @@
 
 	const items = $derived<MenuEntry[]>([
 		{ heading: user.owner ? `${name} (owner)` : name },
-		{ label: 'Profile and security', icon: ShieldCheck, href: routes.security() },
+		{ label: 'Profile', icon: UserRound, href: routes.profile() },
 		{ label: 'API tokens', icon: KeyRound, href: routes.apiTokens() },
 		{ separator: true },
 		{ label: 'Sign out', icon: LogOut, onSelect: onsignout }

@@ -219,6 +219,23 @@ the owner, `groupMembers`; the groups list counts the same way because
 the API's `memberCount` includes the owner) and adds members from other
 groups with one `PATCH /users/{id}` (`groupId`) per account.
 
+The caller's own things and instance administration are separate areas.
+**Profile** (`routes/(app)/profile`, opened from the user menu and ⌘K,
+not in the sidebar) is personal: the account, password, authenticator
+app, passkeys and recovery codes (`/profile`) and the caller's API tokens
+(`/profile/tokens`, create at `/profile/tokens/new`); its module is
+`$lib/features/profile` (`ProfileHeader`, `profileTabs` in `tabs.ts`,
+`TotpSetup`, the passkey and recovery-code queries). **Settings**
+(`routes/(app)/settings`, the sidebar's Administration group) is
+instance administration only: Overview, every user's API tokens
+(`/settings/tokens/all`, owner), sign-in policy, schedule defaults, audit
+log and diagnostics, each tab hidden without its capability
+(`settingsTabs` in `$lib/features/settings/tabs.ts`, `SettingsHeader`).
+Both token lists use `$lib/features/access/TokensTable.svelte`. The old
+addresses `/settings/security` and `/settings/tokens[/new]` are
+`+page.ts` redirects to their Profile pages that keep the query string
+(as `/backups/policies` redirects to the Backups overview).
+
 The audit log (`routes/(app)/settings/audit`) is a `ListCard` over the
 server-filtered, paged `GET /audit`: Who (actor kinds, and each user for
 the owner), Outcome, Category and When in the header, exact action keys,
@@ -244,12 +261,58 @@ button's label says so too) and "Cleanup Orphans & Deploy", whose
 confirmation (`RemoveOrphansDialog`, opened through the stack page
 context's `removeOrphans` request) the overview's drift notice ("Remove old
 containers…") opens too. There is no separate Update button; schedules and
-automatic updates stay in the update policy. Start and Restart run at once, Stop, Take down and
-Delete confirm (the same rule in the services table and the stack list's
-row menu). The header hides its actions while the migration wizard is
-open, and Migrate while the caller sees one environment. Rename
-(`RenameStackDialog`, `stack.rename`) previews the new project name before
-the type-to-confirm.
+automatic updates stay in the update policy.
+
+Start, Restart and Stop are one split button, `LifecycleButton`
+(`$lib/features/common`, pure rules in `lifecycle.ts`), next to Deploy in
+the stack header and on a container's page. The main part is **Stop**
+(`danger-soft`, Square icon) while anything runs and **Start** (`ok-soft`,
+Play icon) while nothing does; soft tones, so Deploy stays the one
+primary. A partially running stack (and a `failed` or `deployed` one whose
+Engine state is unknown) counts as running: Stop is the default and Start
+in the menu starts the rest. The menu lists Start, Restart and Stop in
+that order, each only with its capability (`stack.start`/`restart`/`stop`,
+`container.*`; hidden, not disabled), the ones that do not apply in the
+state turned off (Start while everything runs, Restart and Stop while
+nothing does; a container's from `containerActions`). With one held
+action it is a plain button; with none for the state it is not shown (a
+down, missing or undeployed stack deploys instead; a restore of the stack
+hides Start and Restart). Offline, a rename in
+progress or a running Start/Restart (`busy`: the main part shows that
+action with a spinner) turn the whole button off. Docker Manager's own
+stack keeps Restart and Stop visible but off, with the reason as the
+main part's tooltip, the menu items' description and an `sr-only` text;
+Docker Manager's own containers keep them on (the server refuses with its
+reason; the page's notice says so up front). Start and Restart run at
+once; Stop confirms with its consequences. Row menus (services table,
+stack and container lists) keep their own entries in the same order
+(Start, Restart, Stop…, Stop in the danger tone; the stack list's Start
+also starts the rest of a partially running stack). The container list's
+bulk bar stays separate buttons (a selection mixes states).
+
+There is no Take down in the UI (the `stack.down` operation and capability
+stay in the API). The header hides its actions while the migration wizard
+is open, and Migrate while the caller sees one environment.
+
+Rename (`stack.rename`) is the pencil right of the stack's name
+(`PageHeader`'s `titleAction`, shown with the capability and a loaded
+revision; off while offline, for Docker Manager's own stack and while a
+rename runs, the reason as its tooltip). It turns the name into a field
+in place (`RenameStackInline` through `PageHeader`'s `titleEditor`; the h1
+stays for screen readers) labelled "Stack name" that edits the Compose
+project name, also when the heading shows a display name. Enter or the
+check button renames at once, without a confirmation; Escape or the cancel
+button keeps the name. The name is checked first (`renameNameError`), then
+the server's rename preview is asked silently for a refusal
+(`renameRefusal`: the Compose file's `name:` fixes the project name, or a
+blocker such as a taken name), shown under the field; its warnings are not
+shown. The `stack.rename` job goes to the page's tray with `kind:
+'stack.rename'`. While a rename of the stack runs (`tray.running
+('stack.rename')`, or `activeRename` over the stack's jobs, so it holds
+after a reload) every action of the header is off with "Renaming <stack>…"
+as the reason: Deploy (main part and menu), the lifecycle button, the
+pencil and the overflow entries (the reason heads that menu), and a status
+badge says so.
 
 The Revisions tab groups consecutive revisions with the same fingerprint
 (`groupRevisions`), never opens a comparison of two equal ones

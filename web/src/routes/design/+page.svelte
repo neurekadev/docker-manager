@@ -17,10 +17,10 @@
 	import Layers from '@lucide/svelte/icons/layers';
 	import MemoryStick from '@lucide/svelte/icons/memory-stick';
 	import Package from '@lucide/svelte/icons/package';
+	import Pencil from '@lucide/svelte/icons/pencil';
+	import Play from '@lucide/svelte/icons/play';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
-	import PowerOff from '@lucide/svelte/icons/power-off';
 	import Rocket from '@lucide/svelte/icons/rocket';
-	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import Square from '@lucide/svelte/icons/square';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -39,6 +39,7 @@
 	import { SERVICE_COLOR, TILE_COLORS, TILE_HEX } from '$lib/design/hue';
 	import { resourceIcon } from '$lib/features/common/resourceIcons';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
+	import LifecycleButton from '$lib/features/common/LifecycleButton.svelte';
 	import { mountLineChart, mountTerminal, mountYamlEditor, type Mounted } from '$lib/lazy';
 	import {
 		Badge,
@@ -404,6 +405,12 @@
 				}
 			]}
 		>
+			{#snippet titleAction()}<IconButton
+					size="sm"
+					icon={Pencil}
+					label="Rename Silo"
+					onclick={() => toast.info('The name turns into a field in place')}
+				/>{/snippet}
 			{#snippet status()}<StatusBadge status="running" />{/snippet}
 			{#snippet actions()}
 				<SplitButton
@@ -429,14 +436,17 @@
 						}
 					]}
 				/>
-				<Button icon={RotateCw} onclick={() => toast.success('Restarted Silo')}
-					>Restart</Button
-				>
-				<Button icon={Square} onclick={() => (confirmOpen = true)}>Stop</Button>
+				<LifecycleButton
+					running
+					actions={{
+						start: { run: () => toast.success('Started Silo'), disabled: true },
+						restart: { run: () => toast.success('Restarted Silo') },
+						stop: { run: () => (confirmOpen = true) }
+					}}
+				/>
 				<Menu
 					label="More stack actions"
 					items={[
-						{ label: 'Take down', icon: PowerOff },
 						{ label: 'Migrate', icon: ArrowRightLeft },
 						{ label: 'Edit details', icon: FileText },
 						{ separator: true },
@@ -591,6 +601,7 @@
 			<Button variant="ghost">Cancel</Button>
 			<Button variant="danger">Remove</Button>
 			<Button variant="danger-soft" icon={Square}>Stop</Button>
+			<Button variant="ok-soft" icon={Play}>Start</Button>
 			<Button loading>Deploying</Button>
 			<Button size="sm">Small</Button>
 			<SplitButton
@@ -606,6 +617,15 @@
 						onSelect: () => toast.success('Beautified compose.yaml')
 					}
 				]}
+			/>
+			<LifecycleButton
+				running={false}
+				menuLabel="More start and stop options (stopped)"
+				actions={{
+					start: { run: () => toast.success('Started silo-worker') },
+					restart: { run: () => {}, disabled: true },
+					stop: { run: () => {}, disabled: true }
+				}}
 			/>
 			<IconButton label="Open a terminal" icon={SquareTerminal} variant="secondary" />
 			<Tooltip text="Tooltips name controls; they never replace the name.">

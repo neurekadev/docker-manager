@@ -1,5 +1,6 @@
 <script lang="ts" module>
-	export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-soft';
+	export type ButtonVariant =
+		'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-soft' | 'ok-soft';
 	export type ButtonSize = 'sm' | 'md';
 </script>
 
@@ -162,6 +163,16 @@
 	}
 	.danger-soft:hover:not(:disabled) {
 		background: color-mix(in srgb, var(--danger-soft) 80%, var(--danger));
+	}
+
+	/* Start (the lifecycle button's main part while nothing runs). */
+	.ok-soft {
+		background: var(--ok-soft);
+		border-color: var(--ok-border);
+		color: var(--ok);
+	}
+	.ok-soft:hover:not(:disabled) {
+		background: color-mix(in srgb, var(--ok-soft) 80%, var(--ok));
 	}
 
 	.btn:disabled {

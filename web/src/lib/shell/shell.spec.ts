@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { MyPermissions, SearchHit } from '$lib/api/client';
 import { EnvironmentSelection, type StorageLike } from './environment.svelte';
-import { accessOf, activeNav, isRestricted, NAV_GROUPS, NAV_ITEMS, visibleNav } from './nav';
+import {
+	ACCOUNT_ITEMS,
+	accessOf,
+	activeNav,
+	isRestricted,
+	NAV_GROUPS,
+	NAV_ITEMS,
+	palettePages,
+	visibleNav
+} from './nav';
 import {
 	environmentNotices,
 	isGeneratedPolicyName,
@@ -117,8 +126,20 @@ describe('navigation filter (#17)', () => {
 		expect(activeNav('/containers/e1/web/logs')?.id).toBe('containers');
 		expect(activeNav('/volumes/e1/data/files')?.id).toBe('volumes');
 		expect(activeNav('/builds/e1/b1')?.id).toBe('builds');
-		expect(activeNav('/settings/tokens')?.id).toBe('settings');
+		expect(activeNav('/settings/tokens/all')?.id).toBe('settings');
 		expect(activeNav('/nowhere')).toBeUndefined();
+	});
+
+	it('keeps the personal Profile out of the sidebar and out of Settings', () => {
+		const owner = accessOf(perms({ owner: true }));
+		expect(visibleNav(owner).map((i) => i.id)).not.toContain('profile');
+		expect(NAV_GROUPS.map((g) => g.id)).not.toContain('account');
+		expect(ACCOUNT_ITEMS.map((i) => [i.id, i.label, i.href])).toEqual([
+			['profile', 'Profile', '/profile']
+		]);
+		// No sidebar section lights up on the Profile pages.
+		expect(activeNav('/profile')).toBeUndefined();
+		expect(activeNav('/profile/tokens/new')).toBeUndefined();
 	});
 });
 
@@ -454,6 +475,28 @@ describe('command palette model', () => {
 		expect(
 			hrefForHit(hit({ type: 'network', id: 'n1', name: 'backend', environmentId: 'e1' }))
 		).toBe('/networks/e1/backend');
+	});
+
+	it('offers Profile and Settings as pages to everyone, found by what they hold', () => {
+		const restricted = palettePages(accessOf(perms({})));
+		expect(restricted.map((p) => p.id)).toEqual(['dashboard', 'settings', 'profile']);
+		expect(pageResults(restricted, 'profile').map((p) => [p.label, p.href])).toEqual([
+			['Profile', '/profile']
+		]);
+		expect(pageResults(restricted, 'Passkeys').map((p) => p.label)).toEqual(['Profile']);
+		expect(pageResults(restricted, 'password').map((p) => p.label)).toEqual(['Profile']);
+		expect(pageResults(restricted, 'audit').map((p) => p.label)).toEqual(['Settings']);
+		// My tokens are in Profile, every user's tokens in Settings.
+		expect(pageResults(restricted, 'api tokens').map((p) => p.label)).toEqual([
+			'Settings',
+			'Profile'
+		]);
+		// Recent names a Profile tab by its section.
+		const recent = recentResults(
+			[{ path: '/profile/tokens' }, { path: '/profile' }],
+			restricted
+		);
+		expect(recent.map((r) => [r.label, r.href])).toEqual([['Profile', '/profile']]);
 	});
 
 	it('groups pages and hits in order', () => {

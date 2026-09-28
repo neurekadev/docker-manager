@@ -465,8 +465,8 @@ listed file tree (`FilePickerDialog`, one directory per request, at most
 ticked one and splits a ticked folder when something inside is unticked).
 Every restore is previewed and confirmed with a danger button that says
 what is replaced (a full restore also needs the name typed); the stack
-header hides Deploy, Start, Restart and Update while a restore of the
-stack has not ended.
+header hides Deploy and the lifecycle button's Start and Restart while a
+restore of the stack has not ended.
 
 ## Fresh-manager import (#24)
 

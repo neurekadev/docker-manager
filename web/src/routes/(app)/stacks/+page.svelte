@@ -271,6 +271,15 @@
 				disabled: offline,
 				onSelect: () => void deploy(s)
 			});
+		// Start, Restart, Stop: the order of the header's lifecycle menu.
+		// Start also starts the rest of a partially running stack.
+		if (can('stack.start') && (st === 'stopped' || (!stopped && st !== 'running')))
+			items.push({
+				label: 'Start',
+				icon: Play,
+				disabled: offline,
+				onSelect: () => void operateNow(s, 'start')
+			});
 		if (can('stack.restart') && !stopped)
 			items.push({
 				label: 'Restart',
@@ -278,17 +287,11 @@
 				disabled: offline || !!s.protection,
 				onSelect: () => void operateNow(s, 'restart')
 			});
-		if (st === 'stopped' && can('stack.start'))
-			items.push({
-				label: 'Start',
-				icon: Play,
-				disabled: offline,
-				onSelect: () => void operateNow(s, 'start')
-			});
-		else if (can('stack.stop') && !stopped)
+		if (can('stack.stop') && !stopped)
 			items.push({
 				label: 'Stop…',
 				icon: Square,
+				tone: 'danger',
 				disabled: offline || !!s.protection,
 				onSelect: () => {
 					stopping = s;

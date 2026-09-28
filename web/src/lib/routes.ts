@@ -22,7 +22,9 @@
 //   list or detail page, opened by a query parameter (?create=1, ?edit=1,
 //   ?defaults=1) so links can open them.
 //   /access[/users/{id}|/groups[/{id}]|/invitations]
-//   /settings[/security|/tokens[/all]|/sign-in|/schedules|/audit|/diagnostics]
+//   /profile[/tokens[/new]]             the caller's own account and API tokens
+//   /settings[/tokens/all|/sign-in|/schedules|/audit|/diagnostics]   instance administration
+//   (/settings/security and /settings/tokens[/new] redirect to /profile[/tokens[/new]])
 //   /volumes/{env}/{volume}/files, /containers/{env}/{id}/logs|terminal,
 //   /popout/logs?stack=|environment=&container= (files, logs, terminals)
 //   /setup, /sign-in, /enroll, /invitation, /password-reset (public)
@@ -169,10 +171,13 @@ export const routes = {
 	accessGroups: () => '/access/groups',
 	accessGroup: (id: string) => `/access/groups/${e(id)}`,
 	accessInvitations: () => '/access/invitations',
+	/** The caller's own account: password, authenticator app, passkeys, recovery codes. */
+	profile: () => '/profile',
+	/** The caller's own API tokens (every user's tokens: allApiTokens). */
+	apiTokens: () => '/profile/tokens',
+	apiTokenNew: () => '/profile/tokens/new',
 	settings: () => '/settings',
-	security: () => '/settings/security',
-	apiTokens: () => '/settings/tokens',
-	apiTokenNew: () => '/settings/tokens/new',
+	/** Every user's API tokens (owner only), a Settings tab. */
 	allApiTokens: () => '/settings/tokens/all',
 	signInPolicy: () => '/settings/sign-in',
 	scheduleDefaults: () => '/settings/schedules',

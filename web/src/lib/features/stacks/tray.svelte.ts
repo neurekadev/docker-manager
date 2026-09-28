@@ -15,6 +15,8 @@ export interface SuccessToast {
 
 export interface TrackedJob {
 	id: string;
+	/** The job's kind when a view depends on it (stack.rename turns the header's actions off). */
+	kind?: string;
 	/** What runs, e.g. "Deploy Silo". */
 	title: string;
 	/** Toast when it succeeds, e.g. "Deployed Silo". */
@@ -53,6 +55,11 @@ export class JobTray {
 	/** A job of this tray is still running (e.g. to disable a second deploy). */
 	get busy(): boolean {
 		return this.jobs.some((j) => !this.finished.includes(j.id));
+	}
+
+	/** A job of this kind (e.g. stack.rename) this tray tracks is still running. */
+	running(kind: string): boolean {
+		return this.jobs.some((j) => j.kind === kind && !this.finished.includes(j.id));
 	}
 }
 

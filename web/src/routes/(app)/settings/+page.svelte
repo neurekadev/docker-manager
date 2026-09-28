@@ -1,9 +1,10 @@
 <script lang="ts">
 	// Settings overview: about this Docker Manager (its name, version and
 	// deployment configuration) and the settings that have no tab of their
-	// own (maintenance defaults). The tabs above lead to the rest (profile
-	// and security, API tokens, sign-in policy, schedule defaults, audit
-	// log, diagnostics), so they are not repeated here as cards.
+	// own (maintenance defaults). The tabs above lead to the rest (every
+	// user's API tokens, sign-in policy, schedule defaults, audit log,
+	// diagnostics), so they are not repeated here as cards. The caller's own
+	// account and API tokens are the Profile (user menu), not Settings.
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import Info from '@lucide/svelte/icons/info';
 	import Wrench from '@lucide/svelte/icons/wrench';
@@ -50,7 +51,7 @@
 <Page>
 	<SettingsHeader
 		title="Settings"
-		description="How this Docker Manager is set up. The tabs lead to your account, API tokens and the other settings."
+		description="How this Docker Manager is set up. The tabs lead to the other settings."
 	/>
 
 	{#if can(access, 'settings.read') && instance.data}

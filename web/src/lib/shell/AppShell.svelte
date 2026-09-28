@@ -41,7 +41,7 @@
 	import Sidebar from './Sidebar.svelte';
 	import UserMenu from './UserMenu.svelte';
 	import { environmentSelection } from './environment.svelte';
-	import { accessOf, activeNav, hasAny, isRestricted, visibleNav } from './nav';
+	import { accessOf, activeNav, hasAny, isRestricted, palettePages, visibleNav } from './nav';
 	import {
 		environmentNotices,
 		isGeneratedPolicyName,
@@ -75,6 +75,7 @@
 	const envs = createQuery(() => environmentsQuery());
 	const access = $derived(accessOf(perms.data));
 	const nav = $derived(visibleNav(access));
+	const pages = $derived(palettePages(access));
 	const active = $derived(activeNav(page.url.pathname));
 	const environments = $derived(envs.data ?? []);
 
@@ -297,7 +298,7 @@
 
 <CommandPalette
 	bind:open={paletteOpen}
-	pages={nav}
+	{pages}
 	environmentId={environmentSelection.id}
 	environmentName={selected?.name}
 	onnavigate={(href) => goto(href)}
