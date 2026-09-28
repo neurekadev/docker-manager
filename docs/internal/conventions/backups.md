@@ -66,4 +66,8 @@ manifest, `Plan` retention, `OpenLocation`). Manager: `internal/manager/backups`
   those of `COMPRESSION_OPTIONS` (`CompressionField`, shown with
   `compressionText`: Automatic, Maximum, Off). Sizes say what they measure: a
   run's size is the data it backed up, storage is what the repositories
-  hold after deduplication and compression.
+  hold after deduplication and compression. An opened retention preview
+  follows unsaved rule changes (debounced, newest answer only); a scope
+  preview asks every agent, so a changed selection keeps it visible,
+  marked out of date, until **Preview again**. Policy edits send
+  `policyEdits(draft)`: the update has no `scope`.

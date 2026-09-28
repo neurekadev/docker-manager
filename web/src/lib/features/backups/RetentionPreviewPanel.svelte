@@ -1,7 +1,10 @@
 <script lang="ts">
 	// Which snapshots a retention would forget (#10), per location, with the
 	// rules that keep each one. `retention` previews unsaved rules; without
-	// it the policy's saved rules are used. Nothing is forgotten here.
+	// it the policy's saved rules are used. Once shown, the preview follows
+	// changes of the unsaved rules (after a short pause), so it never shows
+	// a decision the rules no longer make. Nothing is forgotten here.
+	import { untrack } from 'svelte';
 	import { api, unwrap } from '$lib/api/client';
 	import { Badge, Button, Notice, formatDateTime } from '$lib/ui';
 	import { actionError } from '$lib/features/common/errors';
@@ -21,22 +24,40 @@
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 
+	// Only the newest request's answer is shown.
+	let seq = 0;
 	async function load() {
+		const mine = ++seq;
 		loading = true;
 		error = null;
 		try {
-			preview = await unwrap(
+			const out = await unwrap(
 				api.POST('/api/v1/backup-policies/{policyId}/retention-previews', {
 					params: { path: { policyId } },
 					body: retention ? { retention } : {}
 				})
 			);
+			if (mine === seq) preview = out;
 		} catch (e) {
-			error = actionError(e);
+			if (mine === seq) error = actionError(e);
 		} finally {
-			loading = false;
+			if (mine === seq) loading = false;
 		}
 	}
+
+	// Opened by the button (or auto): later rule changes refresh it.
+	let opened = false;
+	function open() {
+		opened = true;
+		void load();
+	}
+	const rules = $derived(JSON.stringify(retention ?? null));
+	$effect(() => {
+		void rules;
+		if (auto || disabled || !untrack(() => opened)) return;
+		const t = setTimeout(() => void load(), 400);
+		return () => clearTimeout(t);
+	});
 
 	$effect(() => {
 		if (auto) void load();
@@ -45,7 +66,7 @@
 
 <div class="panel">
 	{#if !auto}
-		<div><Button onclick={load} {loading} {disabled}>Preview retention</Button></div>
+		<div><Button onclick={open} {loading} {disabled}>Preview retention</Button></div>
 	{/if}
 	{#if error}<Notice tone="danger" title="The preview could not be computed" live="alert"
 			>{error}</Notice
@@ -70,8 +91,10 @@
 								>{/if}
 							<span>{d.item}</span>
 							<span class="num muted">{formatDateTime(d.time)}</span>
-							{#if d.reasons?.length}<span class="muted small"
+							{#if d.keep && d.reasons?.length}<span class="muted small"
 									>kept by {d.reasons.join(', ')}</span
+								>{:else if d.reasons?.includes('deleted')}<span class="muted small"
+									>its stack or volume was deleted</span
 								>{/if}
 						</li>
 					{/each}

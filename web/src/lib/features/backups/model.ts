@@ -220,6 +220,16 @@ export function hasRetentionRules(r: BackupRetention | undefined): boolean {
 	);
 }
 
+/**
+ * The edits of a saved policy: the form's input without its scope, which
+ * is fixed once the policy exists (the update refuses unknown fields).
+ */
+export function policyEdits(input: PolicyInput): Omit<PolicyInput, 'scope'> {
+	const { scope, ...edits } = input;
+	void scope;
+	return edits;
+}
+
 /** Whether retention would remove anything: rules are set or deleted items' backups expire. */
 export function retentionActive(r: BackupRetention | undefined): boolean {
 	return hasRetentionRules(r) || !!r?.expireDeletedDays;

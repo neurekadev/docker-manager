@@ -47,6 +47,7 @@
 	import VolumeCoverage from './VolumeCoverage.svelte';
 	import {
 		DEFAULT_RETENTION,
+		policyEdits,
 		repositoryLocation,
 		type BackupPolicy,
 		type BackupRetention,
@@ -102,6 +103,8 @@
 	let saveError = $state<string | null>(null);
 	let saving = $state(false);
 	let scope = $state<ScopePreview | null>(null);
+	// The shown preview no longer matches the selection (kept until previewed again).
+	let scopeStale = $state(false);
 	let scopeLoading = $state(false);
 	let scopeError = $state<string | null>(null);
 	let saved = $state(false);
@@ -222,6 +225,7 @@
 						})
 					: api.POST('/api/v1/backup-policy-scope-previews', { body: draft() })
 			);
+			scopeStale = false;
 		} catch (e) {
 			scopeError = actionError(e, {
 				backup_scope_overlap:
@@ -250,7 +254,7 @@
 							path: { policyId: policy.id },
 							header: { 'If-Match': ifMatch(policy.revision) }
 						},
-						body: draft()
+						body: policyEdits(draft())
 					})
 				)
 			: await unwrap(api.POST('/api/v1/backup-policies', { body: draft() }));
@@ -311,7 +315,8 @@
 				`${overlapping.name} already covers ${overlapping.scope === 'all' ? 'all environments' : envName(overlapping.environmentId ?? '')}: policies can't overlap. Edit that policy, or choose another environment.`
 			);
 		}
-		if (step.id === 'scope' && shutdown && !scope?.shutdown) await previewScope();
+		if (step.id === 'scope' && shutdown && (!scope?.shutdown || scopeStale))
+			await previewScope();
 	}
 
 	async function finish() {
@@ -362,14 +367,22 @@
 		}
 	}
 
-	// Scope previews go stale when the selection changes.
+	// A scope preview goes out of date when the selection changes: it stays
+	// visible, marked, until it is previewed again (asking every agent again
+	// on each click would be slow and, with shutdown, recompute stop plans).
 	$effect(() => {
 		void excludeStacks;
 		void excludeVolumes;
 		void anonymousVolumes;
 		void buildxVolumes;
 		void includeManager;
-		untrack(() => (scope = null));
+		void shutdown;
+		void scopeMode;
+		void environmentId;
+		void JSON.stringify(envRepos);
+		untrack(() => {
+			if (scope) scopeStale = true;
+		});
 	});
 </script>
 
@@ -529,10 +542,7 @@
 				label="Stop containers during backups"
 				description="Off by default. On: the containers using the data stop in reverse dependency order and the ones that were running start again afterwards, also after a failure. Docker Manager's own containers never stop."
 				bind:checked={shutdown}
-				onchange={() => {
-					touched = true;
-					scope = null;
-				}}
+				onchange={() => (touched = true)}
 			/>
 			{#if shutdown}
 				<Notice
@@ -564,9 +574,11 @@
 		{/if}
 		<div class="preview-bar">
 			<Button onclick={previewScope} loading={scopeLoading}
-				>{shutdown
-					? 'Preview what gets backed up and stopped'
-					: 'Preview what gets backed up'}</Button
+				>{scope && scopeStale
+					? 'Preview again'
+					: shutdown
+						? 'Preview what gets backed up and stopped'
+						: 'Preview what gets backed up'}</Button
 			>
 			<span class="muted small"
 				>Each environment's agent resolves the sources; nothing is stored.</span
@@ -576,7 +588,16 @@
 				>{scopeError}</Notice
 			>{/if}
 		{#if scope}
-			<ScopePreviewView preview={scope} showShutdown={shutdown} />
+			{#if scopeStale}
+				<Notice tone="info" title="Out of date" live="polite">
+					This preview doesn't include your latest changes. Press <strong
+						>Preview again</strong
+					> to update it.
+				</Notice>
+			{/if}
+			<div class:stale={scopeStale}>
+				<ScopePreviewView preview={scope} showShutdown={shutdown && !scopeStale} />
+			</div>
 		{/if}
 	</Fields>
 {/snippet}
@@ -682,6 +703,10 @@
 	.env-group {
 		display: grid;
 		gap: var(--space-1);
+	}
+
+	.stale {
+		opacity: 0.55;
 	}
 
 	.preview-bar {

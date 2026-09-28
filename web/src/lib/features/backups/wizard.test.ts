@@ -137,6 +137,9 @@ describe('PolicyWizard (#10)', () => {
 		expect(writes.map((w) => `${w.method} ${w.path}`)).toEqual([
 			'PATCH /api/v1/backup-policies/bp1'
 		]);
+		// A policy's scope is fixed: the update refuses it as an unexpected property.
+		expect(writes[0].body).not.toHaveProperty('scope');
+		expect(writes[0].body).toMatchObject({ name: 'Nightly', retention: { daily: 7 } });
 	});
 
 	it('creating writes nothing until Create policy, then creates it with every setting', async () => {
