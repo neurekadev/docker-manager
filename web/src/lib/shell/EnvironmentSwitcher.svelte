@@ -317,7 +317,6 @@
 		border: 0;
 		background: none;
 		color: var(--text-strong);
-		font-size: var(--text-input);
 		outline: none;
 	}
 

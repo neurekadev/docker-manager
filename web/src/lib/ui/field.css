@@ -9,7 +9,7 @@
 	border-radius: var(--radius-sm);
 	background: var(--surface-raised);
 	color: var(--text-strong);
-	font-size: var(--text-input);
+	font-size: var(--text-control);
 	line-height: var(--leading-control);
 	transition:
 		border-color var(--duration-fast) var(--ease-out),
@@ -41,7 +41,7 @@
 
 .dy-input.mono {
 	font-family: var(--font-mono);
-	font-size: var(--text-input-mono);
+	font-size: 13px;
 }
 
 textarea.dy-input {

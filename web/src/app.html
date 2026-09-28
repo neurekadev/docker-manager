@@ -2,6 +2,9 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
+		<!-- On iOS, src/lib/shell/viewport.ts adds maximum-scale=1 so focusing
+		     a field with text under 16 px does not zoom the page. Keep this
+		     equal to VIEWPORT there. -->
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="referrer" content="no-referrer" />
 		<!-- PWA (#11). theme-color is --surface-shell (#22); keep it equal to
