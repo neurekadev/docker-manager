@@ -518,7 +518,11 @@
 		align-items: flex-end;
 		gap: 2px;
 		min-width: 0;
+		/* Sideways only: a vertical swipe scrolls the page instead of
+		   bouncing the row (overflow-x: auto alone makes overflow-y auto too). */
 		overflow-x: auto;
+		overflow-y: hidden;
+		overscroll-behavior-x: contain;
 		scrollbar-width: none;
 	}
 
