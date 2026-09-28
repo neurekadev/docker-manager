@@ -177,10 +177,14 @@ describe('StackHeader', () => {
 		expect(screen.getByRole('button', { name: /^More deploy options/ })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Restart' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
-		// Pull is a deploy option, not a button of its own.
+		// Pull is a deploy option, not a button of its own, and so is the
+		// former Update: the deploy menu says when newer images exist.
 		expect(screen.queryByRole('button', { name: 'Pull' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /^Update/ })).not.toBeInTheDocument();
 		expect(
-			await screen.findByRole('button', { name: /Update.*update available/ })
+			await screen.findByRole('button', {
+				name: 'More deploy options (newer images are available)'
+			})
 		).toBeInTheDocument();
 
 		await user.click(screen.getByRole('button', { name: 'More stack actions' }));
