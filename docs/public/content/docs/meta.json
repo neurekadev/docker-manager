@@ -1,3 +1,35 @@
 {
-  "pages": ["index", "quickstart", "usage", "templates", "configuration", "troubleshooting"]
+  "pages": [
+    "---Get started---",
+    "index",
+    "quickstart",
+    "add-hosts",
+    "tour",
+    "---Your apps---",
+    "stacks",
+    "import-projects",
+    "templates",
+    "move-and-rename",
+    "containers",
+    "images-volumes-networks",
+    "files",
+    "logs-and-terminals",
+    "registries-and-builds",
+    "---Automation---",
+    "updates",
+    "cleanup",
+    "backups",
+    "restore",
+    "schedules",
+    "---Administration---",
+    "environments",
+    "users-and-permissions",
+    "sign-in-and-security",
+    "api-tokens",
+    "audit-and-diagnostics",
+    "---Help---",
+    "configuration",
+    "upgrade",
+    "troubleshooting"
+  ]
 }

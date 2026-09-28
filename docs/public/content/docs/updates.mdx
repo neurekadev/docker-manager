@@ -1,0 +1,89 @@
+---
+title: Image updates
+description: Find newer images for your apps and update them, by hand or on a schedule.
+---
+
+Image tags such as `nginx:1.27` or `postgres:16` can point to a newer image
+after a while. Docker Manager checks whether the image behind a tag
+changed, and updates the containers that use it.
+
+A check only looks at the registry. It never downloads or changes anything.
+
+## Update a stack now
+
+When newer images are known, a stack's **Update** button shows a dot. Press
+**Update** to download the stack's images and deploy it again (see
+[Stacks](/docs/stacks#update)).
+
+## Update policies
+
+An **update policy** checks for newer images, and can apply them, on a
+schedule.
+
+1. Open **Updates** and press **Create update policy**.
+2. Enter a **Name** and choose the **Environments**: **All environments**
+   (servers you add later are covered too) or **One environment**. Each
+   server can have only one update policy.
+3. Choose what it covers: every stack and the containers Docker Manager
+   created. Untick the ones to leave out.
+4. Choose the schedules:
+   - **Check automatically**: when to look for newer images.
+   - **Update automatically**: when to apply what the last check found.
+
+Both schedules start off. A new policy does nothing on its own until you
+turn one on. With **Update automatically** on, containers restart without
+asking.
+
+Under **Update window and health wait** you can:
+
+- **Only update inside a window**: scheduled updates wait for these days
+  and hours, for example 02:00 to 05:00. Updates you start by hand run any
+  time.
+- **Health wait**: how long to wait for an updated container to become
+  healthy before the update counts as failed (2 minutes if you leave it
+  empty).
+
+## Check and apply by hand
+
+On a policy's page:
+
+- **Check now** looks for newer images right away.
+- **Preview updates** lists the services that would be recreated, the new
+  image versions and when they were published (if the registry says so).
+  Press **Apply updates** to run them.
+
+The **Updates** page lists what needs attention: stacks and containers
+with updates or failed checks. **Preview update** in a row shows and
+applies that one update.
+
+Only services whose image really changed are recreated. Services that
+depend on them may restart with them; the preview tells you.
+
+## The update icon
+
+In the container list and a stack's service list, an icon next to each
+image shows its state: **Update available**, **Up to date**, a failed
+check or update, or **Not checked for updates yet**. Click it to check
+again. This checks every image of the policy that covers it.
+
+## What is never updated automatically
+
+- Images pinned to a digest (`image@sha256:…`) and images without a tag.
+- Services that build their own image.
+- Containers with the label `docker-manager.update.exclude=true`.
+- Containers Docker Manager did not create and that are not part of a stack.
+- Docker Manager's own containers, unless you imported Docker Manager's
+  own project as a stack.
+
+Tags such as `latest` or `main` can be updated, but the preview warns that
+they **can change meaning** at any time.
+
+## When an update fails
+
+There is no automatic rollback. The new image is put aside
+(**quarantined**), so it is not tried again, and the job tells you what
+went wrong. To go back, pin the previous version in your `compose.yaml`
+and deploy.
+
+A stack with **Undeployed changes** is not updated: deploy or undo the
+changes first.

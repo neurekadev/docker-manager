@@ -18,7 +18,8 @@ const (
 // name.
 //
 // The remote variants mount the Docker socket and Docker's volume
-// directory at its identical path (#28), as deploy/remote-agent does; the
+// directory at its identical path (#28), as the agent's compose.yaml in the
+// user documentation (Quickstart, "Add more servers") does; the
 // socket path literal is the documented policy-check exception for this
 // file (docs/internal/architecture/engine-integration.md).
 func InstallCommands(managerURL, image, token, name string) []domain.InstallCommand {
@@ -38,19 +39,19 @@ func InstallCommands(managerURL, image, token, name string) []domain.InstallComm
 	run.WriteString("printf '%s\\n' " + shellQuote(token) + " | docker exec -i docker-agent docker-agent enroll")
 
 	var env strings.Builder
-	env.WriteString("# deploy/remote-agent/.env\n")
+	env.WriteString("# .env next to the agent's compose.yaml\n")
 	env.WriteString("DOCKER_AGENT_MANAGER_URL=" + managerURL + "\n")
 	env.WriteString("DOCKER_AGENT_ENROLLMENT_TOKEN=" + token + "\n")
 	if name != "" {
 		env.WriteString("DOCKER_AGENT_ENVIRONMENT_NAME=" + envFileValue(name) + "\n")
 	}
-	env.WriteString("# then, next to deploy/remote-agent/compose.yaml:\n")
+	env.WriteString("# then, in the same directory:\n")
 	env.WriteString("docker compose up -d")
 
 	return []domain.InstallCommand{
 		{
 			Variant: InstallColocated, Title: "Agent next to the manager",
-			Description: "Run in the directory of the manager's compose.yaml (deploy/caddy, deploy/traefik or deploy/nginx). " +
+			Description: "Run in the directory of the manager's compose.yaml. " +
 				"The co-located agent already runs on the internal URL; it enrolls within seconds and the command prints the result.",
 			Command: colocated,
 		},
@@ -63,7 +64,7 @@ func InstallCommands(managerURL, image, token, name string) []domain.InstallComm
 		},
 		{
 			Variant: InstallRemoteCompose, Title: "Agent on another Docker host (Compose)",
-			Description: "The same agent with deploy/remote-agent: put these lines in its .env file. " +
+			Description: "The same agent with Compose: put these lines in the .env file next to its compose.yaml. " +
 				"Remove DOCKER_AGENT_ENROLLMENT_TOKEN after the agent enrolled; the used token cannot enroll again.",
 			Command: env.String(),
 		},

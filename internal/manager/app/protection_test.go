@@ -28,7 +28,7 @@ type protectedItem struct {
 }
 
 // TestSelfProtectionOnTwoHosts (#32 Done-when 1 and 2): NAS runs the
-// manager and an agent (the deploy example), Cloud only an agent. The
+// manager and an agent (the documented compose.yaml), Cloud only an agent. The
 // manager tells each agent its identity after connecting; both hosts show
 // Docker Manager's resources as protected; through the API, stopping or removing
 // the agent, deleting the manager data or stacks volume and removing

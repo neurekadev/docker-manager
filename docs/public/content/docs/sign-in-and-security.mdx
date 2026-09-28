@@ -1,0 +1,69 @@
+---
+title: Sign-in and security
+description: Passwords, authenticator apps, passkeys, recovery codes and the sign-in policy.
+---
+
+## Your account
+
+**Settings → Profile and security** (also in the menu under your name)
+lets you:
+
+- **Change password**. Your other sessions are signed out.
+- **Set up authenticator app**: scan the QR code with an app such as a
+  password manager or an authenticator app, and enter a 6-digit code.
+- **Add passkey**: sign in with your fingerprint, face or a security key
+  instead of a code.
+- **Generate new codes**: 10 recovery codes, each works once. Keep them
+  somewhere safe. Use one when you can't use your authenticator app.
+
+Passwords need at least 15 characters. Long passphrases are welcome.
+Common and leaked passwords are refused.
+
+## Signing in
+
+After your password, Docker Manager asks for your authenticator code or
+passkey, if you set one up. Lost them? Choose **Use a recovery code**, or
+ask the owner to reset your sign-in factors.
+
+Forgot your password? Ask the owner for a reset link.
+
+You are signed out after 1 hour without activity, and after 24 hours at
+the latest.
+
+For sensitive actions, such as creating an API token, Docker Manager asks
+you to **Confirm it's you** again. That lasts 10 minutes.
+
+<Callout title="Passkeys belong to one address">
+  If Docker Manager moves to another address, existing passkeys stop
+  working. Sign in with your password and authenticator code, and add the
+  passkey again.
+</Callout>
+
+## The sign-in policy
+
+The owner sets the rules for everyone under **Settings → Sign-in policy**:
+
+- **Strict passwords** and the **Minimum length**.
+- What every account signs in with, for example **Password and
+  authenticator app**, or **Passkey**.
+- **Time to add required factors**: when you require a new factor, people
+  get this long to add it (72 hours by default). After that, only the owner
+  can reset their account.
+- How long invitation and password reset links work.
+- Whether **API tokens** are allowed, and their longest lifetime (90 days
+  by default).
+
+Changing the required factors signs everyone out.
+
+## Locked out of the owner account
+
+On the manager's server, in the folder with your `compose.yaml`, run:
+
+```bash
+docker compose exec docker-manager docker-manager owner-recovery
+```
+
+It prints a code and a link that work once, for one hour, and signs the
+owner out everywhere. Open the link and set a new password. Your
+authenticator app, passkeys and recovery codes are removed; set them up
+again after you sign in.

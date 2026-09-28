@@ -1,0 +1,88 @@
+---
+title: Users and permissions
+description: Invite people and decide what each of them may see and do.
+---
+
+The person who set up Docker Manager is its **owner**. The owner can do
+everything and is the only one who manages people and permissions, under
+**Access** in the menu. Nobody can sign up on their own.
+
+## Invite someone
+
+1. Open **Access** and press **Invite user**.
+2. Optionally enter an **Email** (only that address can then use the link;
+   Docker Manager sends no email) and when the link **Expires** (72 hours by
+   default).
+3. Press **Create invite link**, copy the link and send it yourself.
+
+The link works once and is shown only once. The person opens it, chooses a
+username and password, and presses **Create account**.
+
+New people see nothing until you give them access. The **Invitations** tab
+lists your links; **Revoke** stops a link that was not used yet.
+
+## Groups
+
+Every person belongs to exactly one **group**, and the group's rules decide
+what its members may do. New accounts join the group marked **Default for
+new users**. At first, that is **Restricted**, which gives no access.
+
+- **Create group** makes a new group, without access.
+- **Add members** on a group's page moves people into it.
+- A group's menu can **Rename group**, **Make default for new users** or
+  **Delete group** (only an empty group that is not the default).
+
+## Give permissions
+
+On a group's page, pick where the rules apply in the tree on the left:
+
+- **All resources**: everything, including servers you add later,
+- one environment, with everything on it,
+- or a single stack, container, volume, policy and so on.
+
+Then choose **Allow** or **Deny** for each action. Without a rule, an
+action is denied. A **Deny** wins over a broader **Allow**. Risky actions
+are marked **High risk**.
+
+To start quickly, pick a preset under **Start from**:
+
+- **Viewer**: sees everything, changes nothing. Logs, files and secrets
+  stay hidden.
+- **Operator**: also reads logs, and can start, stop, restart and deploy.
+  It can't delete anything.
+- **Admin**: can do everything at that place, risky actions included.
+
+Then adjust single actions if you need to. Nothing changes until you press
+**Save permissions** and confirm the list of changes. The members' open
+pages then reload with their new permissions.
+
+## One person's page
+
+Open a person under **Access** to:
+
+- **Move user** to another group,
+- set **Overrides**: rules for just this person. They win over the group's
+  rules,
+- see their **Effective access**, and **View as this user**.
+
+The **Account actions** menu can:
+
+- **Disable account** (and **Enable account**). This signs them out and
+  revokes their API tokens for good.
+- **Sign out everywhere**.
+- **Reset sign-in factors**: removes their authenticator app, passkeys and
+  recovery codes, so they can set them up again.
+- **Create password reset link**: a link that works once, for 24 hours by
+  default. Send it to them yourself.
+- **Delete account**. They can only come back with a new invitation.
+
+## What only the owner can do
+
+Some things can't be given to anyone else: managing people, groups and the
+sign-in policy, registry connections and Git credentials, template sources,
+backups of the manager state, importing backups and downloading the support
+bundle.
+
+The owner account can't be disabled or deleted, and rules never apply to
+it. If you lose access to it, see
+[Sign-in and security](/docs/sign-in-and-security#locked-out-of-the-owner-account).

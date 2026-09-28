@@ -39,7 +39,7 @@ CI (Forgejo Actions on code.neureka.dev) runs on pushes to `main` and on
 manual dispatch only; there is no pull-request trigger. Besides the three
 classes above it builds the linux/amd64 manager and agent images with
 BuildKit and, on `main`, publishes them as `:edge` with BuildKit provenance
-and SBOM attestations ([deploy/README.md](../../deploy/README.md)); the
+and SBOM attestations (`deploy/docker/*.Dockerfile`); the
 `Build` job uploads the release
 binaries as the artifact `release-binaries-linux`. linux/arm64 images are
 blocked until a native arm64 runner exists; the arm64 binaries are built
@@ -75,12 +75,12 @@ clean checkout, or the real app after `npm --prefix web run build` (the build
 writes `web/build/app`, which `web/embed.go` picks up automatically).
 
 The agent refuses to run as non-root and targets Linux; run it in its
-container (see `deploy/`) rather than on a Windows host.
+container (see the user documentation's Quickstart) rather than on a Windows host.
 
 Without an agent the manager has no environments: setup, sign-in, users,
 groups, settings, API tokens and the empty states work, but every Docker
 screen needs an agent connected to a real Docker Engine. For the full stack
-run the images with one of the `deploy/` examples on a Linux host with
+run the images with the Quickstart's compose file on a Linux host with
 Docker ([deployment.md](deployment.md)); the Docker-free development stack
 with fake Engines (`test/devstack`) was removed on 2026-09-25. Design
 review rules: [design/README.md](design/README.md#tests-and-screenshot-review).
@@ -129,8 +129,7 @@ The standard suite is format/lint plus isolated unit tests (owner decision,
   sleeping; `testutil.Logger(t)` and `testutil.CaptureLogger()` for logs.
 - Shared test infrastructure: `internal/testutil/canary` (secret canaries),
   `internal/testutil/fscorpus` (hostile path and archive corpus, generated
-  in memory), `test/deploy` (static checks of the `deploy/` example files:
-  topology, pinning, volumes, proxy settings, known variables).
+  in memory).
 - Web: Vitest, `*.spec.ts` for Node logic and `*.test.ts` for jsdom
   component tests ([web.md](web.md#tests)).
 - There are no build-tagged (`integration`, `e2e`, `faultinject`), fuzz,

@@ -2,11 +2,11 @@ package enginefake
 
 import "code.neureka.dev/docker-manager/docker-manager/internal/agent/engine"
 
-// Deployment is Docker Manager deployed on a fake Engine like the deploy
-// examples (deploy/caddy): Compose project "docker-manager" with the manager,
+// Deployment is Docker Manager deployed on a fake Engine like the documented
+// compose.yaml plus a reverse proxy: Compose project "docker-manager" with the manager,
 // the co-located agent and a reverse proxy, their volumes (docker-manager_data,
 // docker-manager_agent, docker-manager_stacks) and network; or, for a remote host, only
-// the agent (deploy/remote-agent, also project "docker-manager").
+// the agent (the documented remote-host compose.yaml, also project "docker-manager").
 type Deployment struct {
 	AgentID, ManagerID, ProxyID          string
 	AgentImage, ManagerImage, ProxyImage string
@@ -15,7 +15,7 @@ type Deployment struct {
 }
 
 // Deploy adds Docker Manager to the Engine: with manager (the co-located
-// deployment of deploy/caddy) or agent only (deploy/remote-agent).
+// deployment) or agent only (a remote host).
 func (e *Engine) Deploy(withManager bool) Deployment {
 	const project = "docker-manager"
 	d := Deployment{Stacks: project + "_stacks", AgentState: project + "_agent", Network: project}

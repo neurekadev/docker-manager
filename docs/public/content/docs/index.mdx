@@ -1,41 +1,82 @@
 ---
 title: Overview
-description: What Docker Manager is and what you need to run it.
+description: What Docker Manager does and how it works.
 ---
 
-Docker Manager is a web app for running Docker on one or more of your own
-machines. From one place in your browser you can deploy and update Compose
-stacks, watch containers, read logs, open terminals, edit files, clean up
-unused images and back up your data.
+Docker Manager is a web app for the Docker servers you run yourself. You
+open it in your browser to run your apps, keep them up to date and back
+them up, whether you have one server or many.
 
-## How it fits together
+## What you can do
 
-- **Manager**: the web app and its API. It runs once, behind your HTTPS
-  address (for example `https://docker.example.com`).
-- **Agent**: a small container on every Docker host you want to manage. It
-  connects out to the manager and does the work on that host. It opens no
-  ports.
-- **Environment**: one agent and the Docker Engine it controls. Each host
-  you add becomes an environment.
+<Cards>
+  <Card title="Stacks" href="/docs/stacks">
+    Run your Compose apps. Edit their files, deploy, update and see what changed.
+  </Card>
+  <Card title="Import your projects" href="/docs/import-projects">
+    Take over the Compose projects you already run, without starting over.
+  </Card>
+  <Card title="Templates" href="/docs/templates">
+    Save an app once and create new stacks from it with a few clicks.
+  </Card>
+  <Card title="Containers" href="/docs/containers">
+    Start, stop and inspect containers, or create one without a Compose file.
+  </Card>
+  <Card title="Files, logs and terminals" href="/docs/files">
+    Edit files, read logs and open a shell in a container, all in the browser.
+  </Card>
+  <Card title="Image updates" href="/docs/updates">
+    Find newer images and update your apps, by hand or on a schedule.
+  </Card>
+  <Card title="Cleanup" href="/docs/cleanup">
+    Remove unused images, containers and build cache to free disk space.
+  </Card>
+  <Card title="Backups" href="/docs/backups">
+    Back up your apps, their data and Docker Manager itself.
+  </Card>
+  <Card title="Users and permissions" href="/docs/users-and-permissions">
+    Invite people and decide what each of them may see and do.
+  </Card>
+  <Card title="Many servers" href="/docs/environments">
+    Watch the health of all your servers and move stacks between them.
+  </Card>
+</Cards>
 
-Long tasks such as deploying, updating or backing up run as **jobs**: you
-see their progress, and they keep going if you close the browser.
+## How it works
+
+Docker Manager has two parts:
+
+- The **manager** is the web app. You run it once.
+- The **agent** is a small container on every server you want to manage. It
+  connects to the manager and does the work on its server. It opens no
+  ports, so the server needs no firewall changes.
+
+Each server with its agent is called an **environment**. You can manage
+many environments from one manager.
+
+Longer tasks, such as deploying a stack or taking a backup, run as
+**jobs**. You can follow their progress, and they keep running when you
+close the browser.
 
 ## What you need
 
-- A Linux machine (amd64) with Docker Engine 25.0 or newer and the Compose
-  plugin.
-- A DNS name that points to that machine, and ports 80 and 443 free.
-- Access to the Docker Manager images at `code.neureka.dev` (the registry
-  is private for now: a Forgejo account with an access token).
+- A Linux server with a 64-bit Intel or AMD processor (amd64).
+- Docker Engine 25.0 or newer with the Compose plugin.
+- A domain name, such as `docker.example.com`, and a reverse proxy that
+  serves it over HTTPS. Docker Manager does not work over plain HTTP.
+- Access to the Docker Manager images. The image registry is private for
+  now; you need an account on `code.neureka.dev`.
 
-Not supported: Docker Desktop, rootless Docker and the Docker versions
-built into NAS systems.
+Docker Desktop, rootless Docker, the Docker built into NAS systems and
+Docker Swarm are not supported.
 
-Both containers run as root. Access to the Docker socket is the same as
-root on the host, so protect your Docker Manager login like the root
-password of every host you add.
+<Callout type="warn" title="Protect your sign-in">
+  The agent has full control of Docker, and so of the whole server. Anyone
+  who can sign in to Docker Manager with enough permissions can do the same.
+  Use a strong password and turn on two-factor sign-in (see
+  [Sign-in and security](/docs/sign-in-and-security)).
+</Callout>
 
 ## Next
 
-Follow the [Quickstart](./quickstart) to install it.
+Follow the [Quickstart](/docs/quickstart) to install Docker Manager.

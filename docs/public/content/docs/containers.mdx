@@ -1,0 +1,75 @@
+---
+title: Containers
+description: See, control and create containers.
+---
+
+**Containers** lists every container on your servers, with its status,
+stack, CPU, memory, uptime, networks and ports. Search by name, image,
+address or label, and filter by status, stack or available updates.
+
+## Start, stop and remove
+
+Use a container's row menu, or the buttons on its page:
+
+- **Start**, **Restart**, **Pause** and **Unpause** run right away.
+- **Stop** asks first.
+- **Remove** asks you to type the container's name. A running container is
+  stopped first.
+
+Containers that belong to a stack are best controlled through the stack
+(see [Stacks](/docs/stacks)).
+
+## Act on several at once
+
+Tick the rows you want. A bar above the list offers **Start**, **Stop**,
+**Restart** or **Remove**. Before anything runs, you see which containers
+it runs on and which are left out, with the reason. Removing several
+containers asks you to type a confirmation.
+
+Left out are, for example, Docker Manager's own containers (except for
+**Start**) and, for **Remove**, containers of stacks Docker Manager
+manages.
+
+## A container's page
+
+- **Overview**: CPU, memory, restarts and health, a chart of the last hour
+  up to the last 24 hours, and its image, ports, networks, mounts, labels
+  and limits. For environment variables, only the names are shown, never
+  the values.
+- **Logs** and **Terminal**: see [Logs and terminals](/docs/logs-and-terminals).
+
+**More actions → Change restart policy and limits** changes the restart
+policy and the CPU, memory and process limits of a container. Other
+settings need a new container. For containers of a stack, change the
+stack's files instead.
+
+## Create a container
+
+For a single container without a Compose file, press **Create container**
+on the **Containers** page.
+
+- **Image and name**: the image, for example `nginx:1.27`, and a name.
+- **Environment variables**: one `KEY=value` per line. The values are
+  stored encrypted and never shown again.
+- **Ports**: the container port, and a host port (empty picks a free one).
+- **Volumes and host paths**: a volume, a folder of the server, or a
+  memory-only (tmpfs) mount.
+- **Networks**: without one, the container joins Docker's default network.
+- **Restart and limits**: the restart policy (default **Unless stopped**)
+  and CPU and memory limits.
+- **Advanced**: command, entrypoint, working directory, user, health check
+  and labels.
+
+Press **Create container**. **Start it after creating** is on by default.
+Creating never downloads the image: if it is missing, press **Pull image**
+first. A volume that does not exist yet is created.
+
+For safety, the Docker socket and Docker Manager's own volumes can't be
+mounted into a container.
+
+## Docker Manager's own containers
+
+Docker Manager never stops, pauses or removes its own agent or manager, and
+never removes its own images, volumes or networks. Nobody can change this,
+not even the owner. Restarting the manager asks for an extra confirmation.
+Use Docker on the server itself if you really must.

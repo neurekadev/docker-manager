@@ -165,8 +165,8 @@ checked.
 
 - Only the agent mounts the socket; the manager has no Docker access at
   all and the agent listens on nothing (`TestAgentNeverListens`; the
-  deploy examples' mounts are checked statically by `test/deploy`, the
-  running images by `smoke:fresh-start` **(removed)**). Standalone
+  deploy examples' mounts were checked statically by `test/deploy`, the
+  running images by `smoke:fresh-start` **(both removed)**). Standalone
   containers created through Docker Manager may
   not bind the socket, a directory containing it or the Docker data root
   (`TestDockerSocketBindsRefused`, agent-side data-root check); Compose

@@ -32,8 +32,7 @@ Results quoted below from the former GitHub CI are historical evidence and
 have not been re-verified. What still runs: unit tests next to the code
 (for example the adapters' request mapping, compose-go loading and
 validation, storage decisions from the Engine's identity, the job engine
-with fake agents), `test/deploy` (static checks of the `deploy/` example
-files) and the build of both executables for linux/amd64 and linux/arm64.
+with fake agents) and the build of both executables for linux/amd64 and linux/arm64.
 
 ## Summary
 
@@ -42,7 +41,7 @@ files) and the build of both executables for linux/amd64 and linux/arm64.
 | Host OS / CPU | Linux on amd64; linux/arm64 executables are built, but no arm64 images are published yet | Windows Engines, other architectures |
 | Docker Engine | standalone Engine ≥ 25.0 (API ≥ 1.44); 25.0.5, 28.5.2 and 29.8.1 passed the former Engine matrix (not re-verified) | < 25.0 (refused), rootless Engines, Docker Desktop, NAS vendor Engines, Swarm, Kubernetes |
 | Containers | both Docker Manager containers run as **root (UID 0)** | running them as a non-root user |
-| Deployment | one public HTTPS origin behind an operator's TLS reverse proxy (Caddy, Traefik, nginx examples); agents dial out | extra domain names or ports for agents; agents that listen |
+| Deployment | one public HTTPS origin behind an operator's TLS reverse proxy; agents dial out | extra domain names or ports for agents; agents that listen |
 | Agents | one agent per Engine; co-located on the internal URL or remote over HTTPS | standby agents / failover (post-v1) |
 | Browsers | current Chromium-based browsers, Firefox and Safari (build target below) | older browsers; Firefox cannot install the PWA |
 | Manager / agent versions | agent of the same or the previous minor release as the manager | newer agents, older than N-1, other major versions |
@@ -109,11 +108,9 @@ internal network only and honours forwarded headers only from
 `DOCKER_MANAGER_TRUSTED_PROXIES`. Remote agents dial the same origin over HTTPS
 (certificate validated, redirects refused); an agent on the manager's
 Docker network may use the internal URL with the explicit
-`DOCKER_AGENT_MANAGER_ALLOW_HTTP` opt-in. Example proxy configurations: Caddy
-2.11, Traefik 3.7 and nginx 1.30 in `deploy/`. `test/deploy` checks the
-example files statically (topology, pinning, volumes, proxy settings,
-known variables); the proxies are not exercised end to end by automated
-tests any more. Requirements and timeouts: [deployment.md](deployment.md).
+`DOCKER_AGENT_MANAGER_ALLOW_HTTP` opt-in. The operator brings the proxy;
+the repository ships no proxy examples and no proxy is exercised by
+automated tests. Requirements and timeouts: [deployment.md](deployment.md).
 A highly available manager is out of v1.
 
 ## Browsers

@@ -1,0 +1,84 @@
+---
+title: Environments
+description: See your servers, their health and their agents.
+---
+
+An **environment** is one Docker server with its agent. The
+**Environments** page lists them all, with their status, Docker version,
+agent version, containers, CPU and memory.
+
+An environment is **Online** while its agent is connected. When it goes
+**Offline**, you can still see its last known state, but actions on it wait
+until it reconnects.
+
+## An environment's page
+
+Open an environment to see:
+
+- **Overview**: CPU, memory, the disk that holds Docker's data, uptime, the
+  number of containers, images, volumes and networks, and the server's
+  filesystems. The charts show CPU, memory, network, load and disk use for
+  the last hour up to the last 90 days.
+- **System**: details about the server and its Docker Engine.
+- **Agents**: the agent of this environment, its version and when it was
+  last seen.
+- **Jobs**: the latest jobs on this server.
+
+The **Stacks** button opens the stacks of this environment.
+
+<Callout title="Network chart">
+  By default the network chart shows only the agent's own traffic. To see
+  the whole server's traffic, add `pid: host` to the agent in its
+  `compose.yaml`. This lets the agent see every process on the server.
+</Callout>
+
+## Rename an environment
+
+Press **Edit**, change the **Name** and save.
+
+## Archive an environment
+
+To stop managing a server, open **More actions → Archive environment**.
+Docker Manager first shows what depends on the server. When you archive it:
+
+- its agent is disconnected for good,
+- its stacks, policies, history and backups are kept, so you can bring it
+  back later,
+- permissions given for this environment are removed,
+- nothing on the server itself changes. Stop or remove the agent container
+  there if you no longer need it.
+
+To keep a stack running under Docker Manager, move it to another server
+first (see [Move and rename stacks](/docs/move-and-rename)).
+
+Archived environments are listed on the **Archived** tab of the
+**Environments** page.
+
+## Re-attach an environment
+
+Use **Re-attach** to connect a server again that you archived, whose agent
+you removed, or after you recovered Docker Manager from a backup. You find
+it on the **Archived** tab or on the environment's **Agents** tab. It
+creates an install command, just like adding a new server (see
+[Add more servers](/docs/add-hosts)).
+
+## Remove an agent
+
+On the **Agents** tab, open the agent's menu and choose **Remove agent**.
+Type the environment's name to confirm. The agent can no longer connect,
+and the environment shows as offline until you re-attach it. Nothing on
+the server changes.
+
+**Rotate credential** in the same menu gives the agent a new secret. Use it
+if you think the old one leaked.
+
+## Agent versions
+
+Upgrade the manager first, then the agents. An agent that is one version
+behind still works and shows **Upgrade recommended**. An older one is
+refused until you upgrade it (see [Upgrade](/docs/upgrade)).
+
+## Move stacks to another environment
+
+**More actions → Migrate stacks** opens the stacks of this server, so you
+can move them one by one. See [Move and rename stacks](/docs/move-and-rename).

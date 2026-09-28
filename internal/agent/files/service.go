@@ -31,7 +31,7 @@ type Engine interface {
 	ListContainers(ctx context.Context, f engine.ContainerFilter) ([]engine.Container, error)
 }
 
-// RoleLabel marks Docker Manager's own containers (deploy/*/compose.yaml); the
+// RoleLabel marks Docker Manager's own containers (their compose.yaml); the
 // volumes they mount are never served by the file manager.
 const RoleLabel = "dev.neureka.docker-manager.role"
 

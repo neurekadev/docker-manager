@@ -21,7 +21,7 @@ import (
 const (
 	// LabelPrefix is reserved: users cannot set labels under it (#6, #32).
 	LabelPrefix = "dev.neureka.docker-manager."
-	// LabelRole marks Docker Manager's own containers in the deploy examples:
+	// LabelRole marks Docker Manager's own containers in the documented compose.yaml:
 	// "manager" or "agent" (#32).
 	LabelRole = LabelPrefix + "role"
 	// LabelManaged marks a container Docker Manager created: "standalone" (#6).
