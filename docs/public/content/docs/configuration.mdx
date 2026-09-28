@@ -46,7 +46,7 @@ the container doesn't start and keeps retrying. Its log says why:
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `DOCKER_AGENT_MANAGER_URL` | (required) | Your Docker Manager address. On the manager's own server, keep `http://docker-manager:8080`. |
-| `DOCKER_AGENT_ENVIRONMENT_NAME` | the server's name | The name the server gets when it first connects. |
+| `DOCKER_AGENT_ENVIRONMENT_NAME` | the server's name | The name the server gets when it first connects, if the install command gave it none. |
 | `DOCKER_AGENT_STACK_ROOTS` | (none) | Folders with stacks that Docker Manager manages where they are (see [Import existing projects](/docs/import-projects#manage-projects-where-they-are)). |
 | `DOCKER_AGENT_BACKUP_LOCAL_ROOTS` | (none) | Folders the agent may write backups to. |
 | `DOCKER_AGENT_MANAGER_CA_FILE` | (none) | A certificate file to trust, if your HTTPS certificate comes from your own certificate authority (see below). |

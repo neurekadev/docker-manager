@@ -49,7 +49,7 @@ Docker Manager has two parts:
 - The **manager** is the web app. You run it once.
 - The **agent** is a small container on every server you want to manage. It
   connects to the manager and does the work on its server. It opens no
-  ports, so the server needs no firewall changes.
+  ports, so servers with only an agent need no firewall changes.
 
 Each server with its agent is called an **environment**. You can manage
 many environments from one manager.

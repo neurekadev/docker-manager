@@ -29,13 +29,17 @@ deletes the old copy on its own.
 
 ## Move a volume
 
-Open a volume and its **Migrate** tab. Pick the **Destination environment**
-and a **Name on the destination**, then press **Migrate volume**. The
-original volume is not changed.
+Open a volume and its **Migrate** tab.
 
-If containers use the volume, you can tick **Copy while the containers keep
-running**. The copy may then be slightly out of step, like a copy of a
-running database.
+1. **Destination**: pick the **Destination environment** and a **Name on
+   the destination**.
+2. **Check**: Docker Manager checks the copy can go ahead. If running
+   containers use the volume, you can tick **Copy while the containers keep
+   running**. The copy may then be slightly out of step, like a copy of a
+   running database.
+3. Press **Migrate volume**.
+
+The original volume is not changed.
 
 ## Rename a stack
 
