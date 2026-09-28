@@ -544,7 +544,7 @@ export interface paths {
         put?: never;
         /**
          * Run a backup policy now
-         * @description Starts one backup set: a backup.run job per environment and, with the manager state, a manager.backup job (owner only). Needs backup.run on the policy, its repositories, stacks and volumes. retrySetId re-runs only the members of that set that did not complete (409 nothing_to_retry). Idempotency-Key covers every job of the run.
+         * @description Starts one backup set: a backup.run job per environment and, with the manager state, a manager.backup job (owner only). Needs backup.run on the policy, its repositories, stacks and volumes. retrySetId re-runs only the members of that set that did not complete (409 nothing_to_retry). A new run is refused with 409 backup_run_active while a run of the policy (manual or scheduled) is still queued or running; a retry is not. Idempotency-Key covers every job of the run.
          */
         post: operations["create-backup-policy-run"];
         delete?: never;

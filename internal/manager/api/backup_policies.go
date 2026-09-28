@@ -927,7 +927,9 @@ func registerBackupPolicies(a huma.API, h *backupsAPI) {
 			Summary: "Run a backup policy now", DefaultStatus: http.StatusCreated,
 			Description: "Starts one backup set: a backup.run job per environment and, with the manager state, a manager.backup job " +
 				"(owner only). Needs backup.run on the policy, its repositories, stacks and volumes. retrySetId re-runs only the " +
-				"members of that set that did not complete (409 nothing_to_retry). Idempotency-Key covers every job of the run.",
+				"members of that set that did not complete (409 nothing_to_retry). A new run is refused with 409 backup_run_active " +
+				"while a run of the policy (manual or scheduled) is still queued or running; a retry is not. Idempotency-Key " +
+				"covers every job of the run.",
 			Tags: []string{tagBackups}, Errors: []int{http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity},
 		},
 		Capability: CapBackupRun, Scope: ScopeResource, Idempotency: IdempotencyJob,

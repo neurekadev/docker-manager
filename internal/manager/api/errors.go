@@ -177,6 +177,7 @@ const (
 	CodeMaintenancePolicyNameTaken = "maintenance_policy_name_taken"
 	CodeMaintenancePolicyEmpty     = "maintenance_policy_empty"
 	CodeMaintenanceRunActive       = "maintenance_run_active"
+	CodeBackupRunActive            = "backup_run_active"
 	CodePruneConfirmationRequired  = "prune_confirmation_required"
 )
 

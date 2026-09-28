@@ -72,6 +72,7 @@
 		type BackupPolicy
 	} from '$lib/features/backups/model';
 	import {
+		backupActivityQuery,
 		backupPolicyQuery,
 		backupsQuery,
 		repositoriesQuery
@@ -107,6 +108,13 @@
 
 	let running = $state(false);
 	let jobs = $state<Job[]>([]);
+	// A run of this policy that is queued or running, however it started
+	// (schedule, another tab, the API): the button spins and waits for it
+	// (the manager refuses a second run with backup_run_active).
+	const activity = createQuery(() =>
+		backupActivityQuery(() => policy.data?.recentSets?.[0]?.state === 'pending')
+	);
+	const active = $derived((activity.data ?? []).some((a) => a.policyId === id));
 	let retentionOpen = $state(false);
 	let deleteOpen = $state(false);
 
@@ -130,7 +138,9 @@
 			toast.error(`${p.name} was not backed up`, {
 				body: actionError(e, {
 					recovery_key_not_confirmed:
-						'Confirm the Recovery Key of the repositories this policy uses first.'
+						'Confirm the Recovery Key of the repositories this policy uses first.',
+					backup_run_active:
+						'A backup of this policy is already running. Wait for it to finish.'
 				})
 			});
 		} finally {
@@ -248,7 +258,7 @@
 				description={policySentence(p, {
 					repository: repo?.name,
 					environmentName: envName,
-					running: running || jobs.length > 0
+					running: running || active || jobs.length > 0
 				})}
 			>
 				{#snippet actions()}
@@ -256,8 +266,8 @@
 						<Button
 							variant="primary"
 							icon={Play}
-							loading={running}
-							onclick={() => run(p)}>Back up now</Button
+							loading={running || active}
+							onclick={() => run(p)}>{active ? 'Backing up…' : 'Back up now'}</Button
 						>
 					{/if}
 					{#if has(p, 'backup_policy.manage')}

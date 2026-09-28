@@ -96,6 +96,17 @@ func (s *Service) RunPolicy(ctx context.Context, policyID string, o RunOptions) 
 			now, existing = prev.StartedAt, true
 		}
 	}
+	if !existing && o.RetrySetID == "" {
+		// One run at a time, like scheduled runs (which skip): a second
+		// run would queue behind the first and back up the same data again.
+		active, err := store.ActivePolicyJob(ctx, s.db, p.ID, []domain.JobKind{jobspec.BackupRun, jobspec.ManagerBackup}, nil)
+		if err != nil {
+			return RunResult{}, err
+		}
+		if active != "" {
+			return RunResult{}, &domain.BackupRunActiveError{JobID: active}
+		}
+	}
 	var only map[string]bool
 	if o.RetrySetID != "" {
 		prev, err := store.GetBackupSet(ctx, s.db, o.RetrySetID)

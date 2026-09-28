@@ -1073,6 +1073,8 @@ func TestBackupPartialSetRetryAndIdempotency(t *testing.T) {
 	if again.Set.ID != first.Set.ID || len(again.Jobs) != 1 || again.Jobs[0].ID != first.Jobs[0].ID {
 		t.Fatalf("repeated request: %+v vs %+v", again, first)
 	}
+	// Another run while this one is queued is refused, not queued behind it.
+	owner.fail(http.StatusConflict, "backup_run_active", http.MethodPost, "/api/v1/backup-policies/"+pol.ID+"/runs", nil)
 	if got := b.runJob(first.Jobs[0].ID); got.State != domain.JobPartial {
 		t.Fatalf("job state %s", got.State)
 	}

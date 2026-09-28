@@ -368,3 +368,13 @@ var (
 	// ErrKeyRotationInProgress: a rotation still moves locations.
 	ErrKeyRotationInProgress = errors.New("a Recovery Key rotation is still in progress")
 )
+
+// BackupRunActiveError refuses a manual run while a run of the same policy
+// (manual or scheduled) is still queued or running: a second run would only
+// queue behind it and back up the same data again right after. Retrying a
+// set's failed members is still allowed.
+type BackupRunActiveError struct{ JobID string }
+
+func (e *BackupRunActiveError) Error() string {
+	return "a backup of this policy is still queued or running (job " + e.JobID + ")"
+}

@@ -49,7 +49,12 @@ only production process execution in Docker Manager.
   last. Each member (stack, volume, manager state) is its own snapshot with
   its own time; multi-host sets are not atomic. A set with failed or
   missing members is `partial`, never `complete`; `retrySetId` re-runs only
-  the members that did not complete.
+  the members that did not complete. One run per policy at a time: a
+  scheduled run is skipped while a `backup.run` or `manager.backup` job of
+  the policy is not finished (scheduler overlap), and a new manual run is
+  refused with 409 `backup_run_active` (a retry and an idempotent replay
+  are not). The UI spins the policy's **Back up now** button while
+  `/backup-activity` lists a job of the policy.
 - The **snapshot index** (`backup_snapshots`, the API's "backups") is
   filled by the jobs' finish hooks and caught up by verification jobs,
   which list what a location holds; a restored manager also reconciles it

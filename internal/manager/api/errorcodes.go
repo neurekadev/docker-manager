@@ -121,6 +121,7 @@ func ErrorCodes() []ErrorCode {
 		{CodeRecoveryKeyNotConfirmed, http.StatusConflict, false, "The Recovery Key has not been confirmed (re-entered) for the repository yet; confirm it before policies can use or enable it.", 10},
 		{CodeKeyRotationInProgress, http.StatusConflict, false, "A Recovery Key rotation is still moving repository locations to the new key; wait until no location is pending.", 10},
 		{CodeNothingToRetry, http.StatusConflict, false, "Every member of the backup set completed; there is nothing to retry.", 10},
+		{CodeBackupRunActive, http.StatusConflict, false, "A backup of the policy is still queued or running; follow that job instead of starting another run.", 10},
 		{CodeBackupRepositoryError, http.StatusConflict, false, "The backup repository could not be read (missing, Recovery Key rejected, storage refused access, locked or damaged); the message names the class and what to do.", 10},
 		{CodeBackupNotAFile, http.StatusConflict, false, "Only regular files can be downloaded from a backup (not directories, links or special files).", 10},
 		{CodeManagerRestoreRequired, http.StatusConflict, false, "Manager-state backups are not restored like stack or volume data: import them into a fresh manager (first-run setup, backup import), which replaces the whole manager state.", 10},

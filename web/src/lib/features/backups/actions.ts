@@ -41,7 +41,9 @@ export async function runPolicy(
 		toast.error(`${p.name} was not backed up`, {
 			body: actionError(e, {
 				recovery_key_not_confirmed:
-					'Confirm the Recovery Key of the repositories this policy uses first.'
+					'Confirm the Recovery Key of the repositories this policy uses first.',
+				backup_run_active:
+					'A backup of this policy is already running. Wait for it to finish.'
 			})
 		});
 		return false;

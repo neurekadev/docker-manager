@@ -117,6 +117,7 @@ func backupError(err error) error {
 	var ref *backup.Refusal
 	var classed jobexec.ClassedError
 	var refusal *backups.RestoreRefusal
+	var active *domain.BackupRunActiveError
 	switch {
 	case err == nil:
 		return nil
@@ -148,6 +149,8 @@ func backupError(err error) error {
 		return Conflict(CodeKeyRotationInProgress, "a Recovery Key rotation is still moving repositories to the new key; let it finish first")
 	case errors.Is(err, backups.ErrNothingToRetry):
 		return Conflict(CodeNothingToRetry, "every member of the backup set completed; nothing to retry")
+	case errors.As(err, &active):
+		return Conflict(CodeBackupRunActive, active.Error()+"; follow it with GET /api/v1/jobs/"+active.JobID)
 	case errors.Is(err, backups.ErrNotAFile):
 		return Conflict(CodeBackupNotAFile, "only regular files can be downloaded from a backup")
 	case errors.Is(err, backups.ErrFileTooLarge):

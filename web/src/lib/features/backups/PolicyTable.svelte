@@ -131,9 +131,8 @@
 				size="sm"
 				variant="secondary"
 				icon={Play}
-				loading={starting === p.id}
-				disabled={running.has(p.id)}
-				onclick={() => run(p)}>Back up now</Button
+				loading={starting === p.id || running.has(p.id)}
+				onclick={() => run(p)}>{running.has(p.id) ? 'Backing up…' : 'Back up now'}</Button
 			>
 		{/if}
 		<Menu items={menu(p)} label="Actions for {p.name}" align="end">
